@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+.ruff_cache/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+!.env.example
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test and coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Lock files (uncomment if not pinning dependencies)
+# package-lock.json
+# bun.lockb
+# uv.lock
