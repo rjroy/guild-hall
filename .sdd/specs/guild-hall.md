@@ -1,8 +1,8 @@
 ---
-version: 1.1.0
+version: 1.2.0
 status: Approved
 created: 2026-01-06
-last_updated: 2026-01-06
+last_updated: 2026-01-27
 authored_by:
   - Ronald Roy <gsdwig@gmail.com>
 research_source: /docs/research/guild-hall.md
@@ -102,6 +102,7 @@ This parent spec defines system-wide requirements. The following child specs wil
 | `guild-hall/recruiter.md` | Monitoring loop, spawn logic, cleanup |
 | `guild-hall/worker.md` | Task execution, worktree management, reporting |
 | `guild-hall/observability.md` | Dashboard/CLI for inspecting system state |
+| `guild-hall/tool-authorization.md` | Bash command permission layer, human review flow |
 
 ## Acceptance Tests
 
@@ -122,7 +123,7 @@ This parent spec defines system-wide requirements. The following child specs wil
 - [x] ~~What is the heartbeat/timeout interval for detecting dead workers?~~ → 3-minute heartbeat, dead after 6 minutes (REQ-F-11)
 - [x] ~~How should XL tasks be handled differently?~~ → Decomposition via SDD workflow (REQ-F-12)
 - [ ] What metadata should accompany task rejection (for operator learning)?
-- [ ] Should workers be able to request human review rather than outright reject?
+- [x] ~~Should workers be able to request human review rather than outright reject?~~ → Yes, via tool-authorization.md; ambiguous bash commands escalate to human review
 
 ## Out of Scope
 
