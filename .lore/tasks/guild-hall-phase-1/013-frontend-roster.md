@@ -6,6 +6,9 @@ tags: [task]
 source: .lore/plans/guild-hall-phase-1.md
 sequence: 13
 modules: [guild-hall]
+related:
+  - .lore/specs/guild-hall-phase-1.md
+  - .lore/plans/guild-hall-phase-1.md
 ---
 
 # Task: Build Roster frontend components

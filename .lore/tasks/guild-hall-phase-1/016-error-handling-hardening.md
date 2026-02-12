@@ -6,6 +6,9 @@ tags: [task]
 source: .lore/plans/guild-hall-phase-1.md
 sequence: 16
 modules: [guild-hall]
+related:
+  - .lore/specs/guild-hall-phase-1.md
+  - .lore/plans/guild-hall-phase-1.md
 ---
 
 # Task: Error handling and edge case hardening
