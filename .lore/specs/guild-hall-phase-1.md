@@ -55,7 +55,7 @@ This resolves the four open architectural questions from the brainstorm: Next.js
 ### The Workshop
 
 - REQ-GH1-14: The Workshop displays the full conversation history for the active session: user messages, assistant messages, tool calls, and tool results.
-- REQ-GH1-15: Agent activity streams in real time. Tool calls, tool results, and assistant text appear as they happen, not after completion.
+- REQ-GH1-15: Agent activity streams in real time. The Workshop shows a processing indicator when the agent is working, and tool calls, tool results, and assistant text appear as they happen, not after completion.
 - REQ-GH1-16: The Workshop provides a message input for sending prompts to the agent.
 - REQ-GH1-17: The Workshop provides a stop control that interrupts the agent mid-execution.
 - REQ-GH1-18: The Workshop shows which guild members are configured for this session.
@@ -85,7 +85,7 @@ This resolves the four open architectural questions from the brainstorm: Next.js
 ### API Surface
 
 - REQ-GH1-27: The backend exposes REST endpoints for: listing the roster, listing sessions, creating a session, reading session details, sending a message to a session, stopping a running session, completing a session, and invoking a tool directly.
-- REQ-GH1-28: The backend exposes an SSE endpoint for subscribing to session events. Event types include: assistant text (streamed chunks), tool use (name and input), tool result, session status change, and error.
+- REQ-GH1-28: The backend exposes an SSE endpoint for subscribing to session events. Event types include: processing (agent is working but has not produced output yet), assistant text (streamed chunks), tool use (name and input), tool result, session status change, and error.
 - REQ-GH1-29: Direct tool invocation accepts a guild member identifier, tool name, and tool input, and returns the tool result synchronously.
 
 ## Exit Points
