@@ -32,7 +32,7 @@ Grounded in two research docs: the Claude Agent SDK capabilities and the agent-n
 
 ### Deployment: Self-hosted server
 
-- Backend holds Agent SDK sessions (long-running processes)
+- Backend manages Agent SDK sessions (each user message triggers a `query()` call; the agent runs, completes, and stops)
 - Serves the frontend
 - Manages plugin discovery
 - Accessible from multiple devices on LAN/VPS
