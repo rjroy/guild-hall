@@ -36,16 +36,22 @@ export function useWorkshopSession(
   sessionId: string,
   fetchFn: FetchFn = fetch,
   clock?: ClockFn,
-): WorkshopState & WorkshopActions {
+): WorkshopState & WorkshopActions & { sseUrl: string | null } {
   const [state, setState] = useState<WorkshopState>(initialState);
 
-  // Ref to track whether we should connect SSE after sending a message.
-  // The SSE connection is managed by useSSE in the parent component,
-  // so we just expose the status for it to react to.
+  // SSE URL is managed explicitly rather than derived from status.
+  // This prevents a race condition where the EventSource connects
+  // before the server has registered the query (the POST hasn't
+  // returned yet). We only set sseUrl after the server confirms
+  // the query is accepted (POST 202) or when loading a session
+  // that's already running.
+  const [sseUrl, setSseUrl] = useState<string | null>(null);
+
   const sseCallbackRef = useRef<((event: SSEEvent) => void) | null>(null);
 
   const fetchSession = useCallback(async () => {
     setState(initialState);
+    setSseUrl(null);
     try {
       const response = await fetchFn(`/api/sessions/${sessionId}`);
       if (!response.ok) {
@@ -60,6 +66,11 @@ export function useWorkshopSession(
         messages: StoredMessage[];
       };
       setState((s) => setSessionLoaded(s, data.metadata, data.messages));
+      // If the session is already running (page load during active query),
+      // connect SSE immediately since the server query is already registered.
+      if (data.metadata.status === "running") {
+        setSseUrl(`/api/sessions/${sessionId}/events`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       setState((s) => setSessionError(s, message));
@@ -82,7 +93,11 @@ export function useWorkshopSession(
           const errorMsg =
             body?.error ?? `Failed to send message (${response.status})`;
           setState((s) => setSessionError(s, errorMsg, true));
+          return;
         }
+        // Server accepted the query (202). The query is now registered
+        // in the agent manager, so the SSE events endpoint will find it.
+        setSseUrl(`/api/sessions/${sessionId}/events`);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
         setState((s) => setSessionError(s, message, true));
@@ -112,12 +127,16 @@ export function useWorkshopSession(
 
   const handleSSEEvent = useCallback((event: SSEEvent) => {
     setState((s) => applySSEEvent(s, event, clock));
-    // Forward to any registered callback (for extensibility)
+    // Disconnect SSE when the query completes
+    if (event.type === "done") {
+      setSseUrl(null);
+    }
     sseCallbackRef.current?.(event);
   }, [clock]);
 
   return {
     ...state,
+    sseUrl,
     fetchSession,
     sendMessage,
     stopQuery,

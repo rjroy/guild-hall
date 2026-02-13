@@ -4,7 +4,6 @@ import { useCallback, useEffect } from "react";
 
 import { useSSE } from "@/hooks/useSSE";
 import { useWorkshopSession } from "@/hooks/useWorkshopSession";
-import { getSSEUrl } from "@/lib/workshop-utils";
 import { RosterPanel } from "@/components/roster/RosterPanel";
 import { ConversationHistory } from "./ConversationHistory";
 import { MessageInput } from "./MessageInput";
@@ -23,14 +22,15 @@ export function WorkshopView({ sessionId }: WorkshopViewProps) {
     streamingText,
     pendingToolCalls,
     status,
+    sseUrl,
     fetchSession,
     sendMessage,
     stopQuery,
     handleSSEEvent,
   } = useWorkshopSession(sessionId);
 
-  // Connect SSE when status is "running"
-  const sseUrl = getSSEUrl(status, sessionId);
+  // Connect SSE only after server confirms query is running (POST 202),
+  // or when loading a session that's already running.
   useSSE(sseUrl, handleSSEEvent);
 
   useEffect(() => {

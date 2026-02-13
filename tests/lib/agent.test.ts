@@ -471,21 +471,26 @@ describe("createEventBus", () => {
 });
 
 describe("startAgentQuery", () => {
+  // Guild Hall session ID used for event bus routing (distinct from SDK session ID)
+  const guildSessionId = "guild-session-1";
+
   it("iterates messages and emits translated SSE events", async () => {
     const bus = createEventBus();
-    const sessionId = "sdk-session-abc";
+    const sdkSessionId = "sdk-session-abc";
 
     const queryFn = createMockQueryFn([
-      makeInitMessage(sessionId),
-      makeStreamTextDelta("Hello ", sessionId),
-      makeStreamTextDelta("world!", sessionId),
-      makeSuccessResult(sessionId),
+      makeInitMessage(sdkSessionId),
+      makeStreamTextDelta("Hello ", sdkSessionId),
+      makeStreamTextDelta("world!", sdkSessionId),
+      makeSuccessResult(sdkSessionId),
     ]);
 
-    const events = collectEvents(bus, sessionId);
+    // Subscribe with our session ID (not the SDK session ID)
+    const events = collectEvents(bus, guildSessionId);
     let capturedId = "";
 
     const handle = startAgentQuery(
+      guildSessionId,
       {
         prompt: "Hi",
         mcpServers: {},
@@ -501,8 +506,8 @@ describe("startAgentQuery", () => {
     // Wait for iteration to complete
     await handle._iterationPromise;
 
-    expect(capturedId).toBe(sessionId);
-    expect(handle.sessionId).toBe(sessionId);
+    expect(capturedId).toBe(sdkSessionId);
+    expect(handle.sessionId).toBe(sdkSessionId);
 
     // Verify event sequence: processing, text, text, done
     const eventTypes = events.map((e) => e.type);
@@ -514,17 +519,18 @@ describe("startAgentQuery", () => {
     ]);
   });
 
-  it("captures session ID from the first message", async () => {
+  it("captures SDK session ID from the first message", async () => {
     const bus = createEventBus();
-    const sessionId = "captured-session-id";
+    const sdkSessionId = "captured-session-id";
 
     const queryFn = createMockQueryFn([
-      makeInitMessage(sessionId),
-      makeSuccessResult(sessionId),
+      makeInitMessage(sdkSessionId),
+      makeSuccessResult(sdkSessionId),
     ]);
 
     let capturedId = "";
     const handle = startAgentQuery(
+      guildSessionId,
       {
         prompt: "Hi",
         mcpServers: {},
@@ -539,23 +545,24 @@ describe("startAgentQuery", () => {
 
     await handle._iterationPromise;
 
-    expect(capturedId).toBe(sessionId);
-    expect(handle.sessionId).toBe(sessionId);
+    expect(capturedId).toBe(sdkSessionId);
+    expect(handle.sessionId).toBe(sdkSessionId);
   });
 
   it("emits done event even when no result message is yielded", async () => {
     const bus = createEventBus();
-    const sessionId = "sdk-session-xyz";
+    const sdkSessionId = "sdk-session-xyz";
 
     // Query yields init but no result
     const queryFn = createMockQueryFn([
-      makeInitMessage(sessionId),
-      makeAssistantTextMessage("partial response", sessionId),
+      makeInitMessage(sdkSessionId),
+      makeAssistantTextMessage("partial response", sdkSessionId),
     ]);
 
-    const events = collectEvents(bus, sessionId);
+    const events = collectEvents(bus, guildSessionId);
 
     const handle = startAgentQuery(
+      guildSessionId,
       {
         prompt: "Hi",
         mcpServers: {},
@@ -570,8 +577,8 @@ describe("startAgentQuery", () => {
 
     await handle._iterationPromise;
 
-    // Should have processing (from init is wrong, the init emits processing,
-    // then assistant_text, then a done appended by iterateQuery)
+    // Should have processing (from init), then assistant_text,
+    // then a done appended by iterateQuery
     const lastEvent = events[events.length - 1];
     expect(lastEvent.type).toBe("done");
   });
@@ -579,14 +586,13 @@ describe("startAgentQuery", () => {
   it("emits error and done on generator failure", async () => {
     const bus = createEventBus();
 
-    // We need to subscribe before we know the session ID.
-    // Since the failing query doesn't yield any messages, the session ID
-    // stays empty (""). Subscribe to empty string.
-    const events = collectEvents(bus, "");
+    // Subscribe with our session ID
+    const events = collectEvents(bus, guildSessionId);
 
     const queryFn = createFailingQueryFn(new Error("Connection lost"));
 
     const handle = startAgentQuery(
+      guildSessionId,
       {
         prompt: "Hi",
         mcpServers: {},
@@ -623,6 +629,7 @@ describe("startAgentQuery", () => {
     };
 
     startAgentQuery(
+      guildSessionId,
       {
         prompt: "Continue",
         mcpServers: {},
@@ -637,8 +644,8 @@ describe("startAgentQuery", () => {
     );
 
     expect(receivedOptions).toBeDefined();
-    expect(receivedOptions!.resume).toBe("previous-session-id");  
-    expect(receivedOptions!.includePartialMessages).toBe(true);  
+    expect(receivedOptions!.resume).toBe("previous-session-id");
+    expect(receivedOptions!.includePartialMessages).toBe(true);
   });
 
   it("does not pass resume when resumeSessionId is undefined", () => {
@@ -651,6 +658,7 @@ describe("startAgentQuery", () => {
     };
 
     startAgentQuery(
+      guildSessionId,
       {
         prompt: "Fresh start",
         mcpServers: {},
@@ -664,21 +672,22 @@ describe("startAgentQuery", () => {
     );
 
     expect(receivedOptions).toBeDefined();
-    expect(receivedOptions!.resume).toBeUndefined();  
+    expect(receivedOptions!.resume).toBeUndefined();
   });
 
   it("does not emit duplicate done when result message already has done", async () => {
     const bus = createEventBus();
-    const sessionId = "sdk-session-dup";
+    const sdkSessionId = "sdk-session-dup";
 
     const queryFn = createMockQueryFn([
-      makeInitMessage(sessionId),
-      makeSuccessResult(sessionId),
+      makeInitMessage(sdkSessionId),
+      makeSuccessResult(sdkSessionId),
     ]);
 
-    const events = collectEvents(bus, sessionId);
+    const events = collectEvents(bus, guildSessionId);
 
     const handle = startAgentQuery(
+      guildSessionId,
       {
         prompt: "Hi",
         mcpServers: {},

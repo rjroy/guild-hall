@@ -591,6 +591,7 @@ export type QueryFn = (params: { prompt: string; options?: Options }) => Query;
  * iteration finishes.
  */
 export function startAgentQuery(
+  sessionId: string,
   options: AgentQueryOptions,
   eventBus: EventBus,
   onSessionId: (id: string) => void,
@@ -613,7 +614,6 @@ export function startAgentQuery(
 
   const q = queryFn({ prompt: options.prompt, options: sdkOptions });
 
-  // Placeholder session ID until we capture the real one from the first message
   const handle: QueryHandle = {
     query: q,
     sessionId: "",
@@ -624,7 +624,9 @@ export function startAgentQuery(
   // Start consuming the generator in the background. The iteration promise
   // is fire-and-forget from the caller's perspective; the handle allows
   // tracking and interruption.
-  const iterationPromise = iterateQuery(q, eventBus, handle, onSessionId);
+  const iterationPromise = iterateQuery(
+    sessionId, q, eventBus, handle, onSessionId,
+  );
 
   // Store the iteration promise on the handle so callers can await completion
   // if needed (e.g., for cleanup after the query finishes).
@@ -635,9 +637,13 @@ export function startAgentQuery(
 
 /**
  * Iterate the SDK query generator, translating messages and emitting events.
- * Captures session_id from the first message.
+ * Captures the SDK session_id from the first message for resume support.
+ *
+ * Events are emitted to the event bus using the Guild Hall session ID
+ * (not the SDK session ID), since that's what subscribers use.
  */
 async function iterateQuery(
+  sessionId: string,
   q: Query,
   eventBus: EventBus,
   handle: QueryHandle,
@@ -648,7 +654,7 @@ async function iterateQuery(
 
   try {
     for await (const msg of q) {
-      // Capture session_id from the first message
+      // Capture SDK session_id from the first message (for resume support)
       if (!sessionIdCaptured && "session_id" in msg) {
         const sdkSessionId = (msg as { session_id: string }).session_id;
         handle.sessionId = sdkSessionId;
@@ -658,7 +664,7 @@ async function iterateQuery(
 
       const events = translateSdkMessage(msg);
       for (const event of events) {
-        eventBus.emit(handle.sessionId, event);
+        eventBus.emit(sessionId, event);
         handle._accumulatedEvents.push(event);
         if (event.type === "done") {
           emittedDone = true;
@@ -673,14 +679,14 @@ async function iterateQuery(
       message,
       recoverable: false,
     };
-    eventBus.emit(handle.sessionId, errorEvent);
+    eventBus.emit(sessionId, errorEvent);
     handle._accumulatedEvents.push(errorEvent);
   }
 
   // Ensure we always emit a done event when iteration completes
   if (!emittedDone) {
     const doneEvent: SSEEvent = { type: "done" };
-    eventBus.emit(handle.sessionId, doneEvent);
+    eventBus.emit(sessionId, doneEvent);
     handle._accumulatedEvents.push(doneEvent);
   }
 }

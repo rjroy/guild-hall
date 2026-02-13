@@ -291,9 +291,9 @@ describe("AgentManager.stopQuery", () => {
     const { queryFn } = createHangingQueryFn();
     const { manager, deps } = setup({ queryFn });
 
-    // Subscribe to the SDK session ID (where iterateQuery emits)
+    // Subscribe with the Guild Hall session ID (where iterateQuery emits)
     const events: SSEEvent[] = [];
-    deps.eventBus.subscribe("sdk-session-1", (event) => {
+    deps.eventBus.subscribe(SESSION_ID, (event) => {
       events.push(event);
     });
 

@@ -11,11 +11,11 @@ modules: [workshop, board]
 
 Three bugs found during manual testing after the Phase I implementation was committed (525030d).
 
-## 1. Agent response does not appear until page refresh
+## 1. ~~Agent response does not appear until page refresh~~ (RESOLVED)
 
-The agent processes the query (backend works), but the Workshop doesn't display the response in real time. Refreshing the page loads the full conversation including the response. The SSE streaming path is the likely culprit: `useSSE` hook, `useWorkshopSession` state transitions, or the wiring between them. The state machine passes all unit tests in isolation, so this is an integration issue between EventSource and React state.
+Two bugs caused this. First, a race condition: `addUserMessage` set `status: "running"` optimistically, which triggered the EventSource before the POST returned. The events endpoint checked `isQueryRunning()`, found no query registered yet, and closed the stream. Second, an event bus key mismatch: `iterateQuery` emitted events keyed by the SDK session ID (a UUID), but the events endpoint subscribed with the Guild Hall session ID. Events went to the wrong channel.
 
-**Where to look**: `hooks/useSSE.ts`, `hooks/useWorkshopSession.ts`, `components/workshop/WorkshopView.tsx`
+**Fix**: Decoupled SSE connection from status by managing an explicit `sseUrl` in the hook (set after POST 202, not derived from status). Added `sessionId` parameter to `startAgentQuery`/`iterateQuery` so event bus routing uses the Guild Hall session ID.
 
 ## 2. Double data in the response
 

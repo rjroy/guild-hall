@@ -113,6 +113,7 @@ export class AgentManager {
 
     // Start the query (returns immediately, iteration runs in background)
     const handle = startAgentQuery(
+      sessionId,
       options,
       this.deps.eventBus,
       (capturedSdkSessionId) => {

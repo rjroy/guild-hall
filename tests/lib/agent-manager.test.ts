@@ -266,7 +266,7 @@ describe("AgentManager", () => {
       const sessionId = "2026-02-12-test-session";
 
       const events: SSEEvent[] = [];
-      deps.eventBus.subscribe("sdk-session-1", (e) => events.push(e));
+      deps.eventBus.subscribe(sessionId, (e) => events.push(e));
 
       await manager.runQuery(sessionId, "Hello agent");
 
