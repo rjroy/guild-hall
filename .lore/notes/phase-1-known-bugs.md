@@ -23,8 +23,8 @@ The SDK emits text twice when `includePartialMessages: true`: first as streaming
 
 **Fix**: `translateAssistantMessage` now only extracts `tool_use` blocks from complete assistant messages. Text blocks are skipped because the streaming events already delivered them. Tool use blocks only appear in complete messages (not in stream events), so there's no duplication risk for those.
 
-## 3. No navigation from Workshop back to Dashboard
+## 3. ~~No navigation from Workshop back to Dashboard~~ (RESOLVED)
 
-After creating a session, the user lands in the Workshop (`/sessions/[id]`) with no UI element to return to the Dashboard (`/`). The only way back is manually navigating to the root URL. This is a missing UI element (back button, breadcrumb, or shared header nav), not a broken feature. The spec defines entry points but doesn't describe inter-view navigation.
+After creating a session, the user lands in the Workshop (`/sessions/[id]`) with no UI element to return to the Dashboard (`/`). The only way back is manually navigating to the root URL.
 
-**Where to fix**: Add a header or breadcrumb to `app/sessions/[id]/page.tsx` or `components/workshop/WorkshopView.tsx`, or add a shared navigation component to `app/layout.tsx`.
+**Fix**: Added a breadcrumb ("Guild Hall / Session Name") to the workshop header. "Guild Hall" is a Next.js `Link` back to `/`. Also added a "Back to Dashboard" link in the error/404 state so users aren't stranded there either.

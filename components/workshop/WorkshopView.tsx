@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
+import Link from "next/link";
 
 import { useSSE } from "@/hooks/useSSE";
 import { useWorkshopSession } from "@/hooks/useWorkshopSession";
@@ -77,14 +78,19 @@ export function WorkshopView({ sessionId }: WorkshopViewProps) {
               {isNotFound ? "Session Not Found" : "Failed to Load Session"}
             </p>
             <p className={styles.errorMessage}>{error}</p>
-            {!isNotFound && (
-              <button
-                className={styles.retryButton}
-                onClick={() => void fetchSession()}
-              >
-                Retry
-              </button>
-            )}
+            <div className={styles.errorActions}>
+              {!isNotFound && (
+                <button
+                  className={styles.retryButton}
+                  onClick={() => void fetchSession()}
+                >
+                  Retry
+                </button>
+              )}
+              <Link href="/" className={styles.backLink}>
+                Back to Dashboard
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -101,7 +107,13 @@ export function WorkshopView({ sessionId }: WorkshopViewProps) {
 
       <div className={styles.main}>
         <header className={styles.header}>
-          <h1 className={styles.sessionName}>{session.metadata.name}</h1>
+          <div className={styles.headerLeft}>
+            <Link href="/" className={styles.breadcrumbLink}>
+              Guild Hall
+            </Link>
+            <span className={styles.breadcrumbSep}>/</span>
+            <h1 className={styles.sessionName}>{session.metadata.name}</h1>
+          </div>
           <div className={styles.headerMeta}>
             {session.metadata.guildMembers.map((member) => (
               <span key={member} className={styles.memberChip}>
