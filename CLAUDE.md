@@ -3,6 +3,10 @@
 ## Package Management
 - Use `bun` for all package management, runtime, and testing
 
+## Pre-commit
+- `.git-hooks/pre-commit.sh` runs checks before each commit (tests, eventually lint and typecheck)
+- Called by a global pre-commit hook symlinked into `.git/hooks/pre-commit`
+
 ## Testing
 - Use `bun test` for all tests
 - **Do not use `mock.module()`** - it causes infinite loops in bun
