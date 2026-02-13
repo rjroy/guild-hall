@@ -1,0 +1,10 @@
+{
+  "name": "example",
+  "displayName": "Example Guild Member",
+  "description": "A sample guild member for development and testing",
+  "version": "0.1.0",
+  "mcp": {
+    "command": "echo",
+    "args": ["hello"]
+  }
+}

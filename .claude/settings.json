@@ -13,6 +13,7 @@
     "lore-development@vibe-garden": true,
     "compass-rose@vibe-garden": true
   },
+  "plansDirectory": ".lore/plans",
   "extraKnownModules": {
     "wyrd-gateway": {
       "source": {

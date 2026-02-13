@@ -1,0 +1,116 @@
+.container {
+  margin: 6px 0;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  overflow: hidden;
+  font-size: 0.85rem;
+}
+
+.pending {
+  border-color: var(--accent);
+  animation: pulseBorder 2s infinite;
+}
+
+@keyframes pulseBorder {
+  0%, 100% { border-color: var(--accent); }
+  50% { border-color: var(--card-border); }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel-header-bg);
+  border-bottom: 1px solid var(--card-border);
+}
+
+.toolIcon {
+  font-size: 0.9rem;
+  color: var(--foreground-muted);
+}
+
+.toolName {
+  font-weight: 600;
+  color: var(--foreground);
+  font-family: monospace;
+}
+
+.runningBadge {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.completedBadge {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--status-connected);
+}
+
+.section {
+  border-top: 1px solid var(--card-border);
+}
+
+.section:first-of-type {
+  border-top: none;
+}
+
+.sectionToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  color: var(--foreground-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.sectionToggle:hover {
+  color: var(--foreground);
+}
+
+.chevron {
+  font-size: 0.65rem;
+  transition: transform 0.15s;
+}
+
+.chevronOpen {
+  composes: chevron;
+  transform: rotate(90deg);
+}
+
+.codeBlock {
+  margin: 0;
+  padding: 8px 12px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--panel-bg);
+  color: var(--foreground);
+  border-top: 1px solid var(--card-border);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.resultBlock {
+  background: var(--result-bg);
+  border-color: var(--result-border);
+}
