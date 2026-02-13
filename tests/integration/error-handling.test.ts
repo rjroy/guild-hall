@@ -650,6 +650,7 @@ describe("Integration: session store filesystem errors", () => {
       appendFile: () => Promise.resolve(),
       mkdir: () =>
         Promise.reject(new Error("EACCES: permission denied, mkdir")),
+      rmdir: () => Promise.resolve(),
       stat: () =>
         Promise.resolve({ isDirectory: () => false }),
       access: () => Promise.reject(new Error("ENOENT")),
@@ -676,6 +677,7 @@ describe("Integration: session store filesystem errors", () => {
       appendFile: () =>
         Promise.reject(new Error("ENOSPC: no space left on device")),
       mkdir: () => Promise.resolve(),
+      rmdir: () => Promise.resolve(),
       stat: () =>
         Promise.resolve({ isDirectory: () => true }),
       access: () => Promise.resolve(),
@@ -724,6 +726,7 @@ describe("Integration: session store filesystem errors", () => {
       writeFile: () => Promise.resolve(),
       appendFile: () => Promise.resolve(),
       mkdir: () => Promise.resolve(),
+      rmdir: () => Promise.resolve(),
       stat: () =>
         Promise.resolve({ isDirectory: () => false }),
       access: () => Promise.reject(new Error("ENOENT")),
