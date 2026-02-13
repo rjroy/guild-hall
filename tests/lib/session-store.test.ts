@@ -558,6 +558,7 @@ describe("SessionStore.deleteSession", () => {
   it("throws for nonexistent session", async () => {
     const { store } = makeStore();
 
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun's .rejects.toThrow() is async at runtime
     await expect(store.deleteSession("no-such-session")).rejects.toThrow(
       "Session not found: no-such-session",
     );

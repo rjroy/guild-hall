@@ -129,6 +129,7 @@ describe("DELETE /api/sessions/[id] (deleteSession)", () => {
   it("throws for nonexistent session (404 equivalent)", async () => {
     const store = makeStore();
 
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun's .rejects.toThrow() is async at runtime
     await expect(store.deleteSession("no-such-session")).rejects.toThrow();
   });
 

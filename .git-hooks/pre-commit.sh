@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Pre-commit hook: Run unit tests.
+# Pre-commit hook: Run lint and unit tests.
 # Output is suppressed on success; shown in full on failure.
 #
 # Install: git config core.hooksPath .git-hooks
@@ -35,14 +35,13 @@ run_quiet() {
     fi
 }
 
-if ! run_quiet "test" bun test; then
+if ! run_quiet "lint" bun run lint; then
     FAILED=1
 fi
 
-# TODO: enable once existing errors are fixed
-# if ! run_quiet "lint" bun run lint; then
-#     FAILED=1
-# fi
+if ! run_quiet "test" bun test; then
+    FAILED=1
+fi
 
 # TODO: enable once tsc typecheck script is added
 # if ! run_quiet "typecheck" bun run typecheck; then

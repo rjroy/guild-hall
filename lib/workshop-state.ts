@@ -183,7 +183,9 @@ export function applySSEEvent(
     }
 
     default: {
-      const _exhaustive: never = event;
+      // Compile-time exhaustiveness check: if a new event type is added
+      // without a handler, TypeScript will error on this assignment.
+      event satisfies never;
       return state;
     }
   }

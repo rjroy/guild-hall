@@ -13,21 +13,19 @@ import { MCPManager } from "@/lib/mcp-manager";
 import type {
   MCPServerFactory,
   MCPServerHandle,
-  MCPToolInfo,
 } from "@/lib/mcp-manager";
 import { SessionStore } from "@/lib/session-store";
 import type { SessionFileSystem, Clock } from "@/lib/session-store";
 import { AgentManager } from "@/lib/agent-manager";
 import type { AgentManagerDeps } from "@/lib/agent-manager";
-import { createEventBus, startAgentQuery } from "@/lib/agent";
-import type { QueryFn, EventBus } from "@/lib/agent";
+import { createEventBus } from "@/lib/agent";
+import type { QueryFn } from "@/lib/agent";
 import { formatSSE } from "@/lib/sse";
 import {
   applySSEEvent,
   initialState,
   setSessionLoaded,
 } from "@/lib/workshop-state";
-import type { WorkshopState } from "@/lib/workshop-state";
 import type {
   GuildMember,
   SessionMetadata,
@@ -309,7 +307,7 @@ describe("Integration: MCP server crash mid-session", () => {
     expect(caught!.message).toContain("Server process exited unexpectedly");
   });
 
-  it("error from invokeTool translates to a valid SSE error event", async () => {
+  it("error from invokeTool translates to a valid SSE error event", () => {
     const errorMessage = "Server process exited unexpectedly";
 
     // Simulate what the agent layer does: catch the error and format as SSE
