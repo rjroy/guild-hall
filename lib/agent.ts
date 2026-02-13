@@ -132,19 +132,19 @@
  *   ────────────────────────────────────────────────────────────────
  *   SDKSystemMessage (subtype init)  -> processing (agent started)
  *   SDKPartialAssistantMessage       -> assistant_text (parse delta.text from event)
- *   SDKAssistantMessage (tool_use blocks) -> tool_use (for each tool_use content block)
+ *   SDKAssistantMessage (tool_use)   -> tool_use (for each tool_use content block)
+ *   SDKAssistantMessage (text)       -> (ignored, text already delivered via stream events)
  *   SDKToolProgressMessage           -> (currently no direct map; could extend tool_use)
  *   SDKToolUseSummaryMessage         -> tool_result (summary of tool execution)
- *   SDKAssistantMessage (after tool) -> tool_result (extract from message content)
  *   SDKStatusMessage                 -> status_change
  *   SDKResultMessage (success)       -> done
  *   SDKResultMessage (error_*)       -> error + done
  *   SDKAuthStatusMessage (error)     -> error (authentication failure)
  *
- *   Note: Tool results come through as content blocks in SDKAssistantMessage, not as
- *   separate SDK messages. The agent processes tool results internally and emits
- *   assistant messages containing tool_result content blocks. We need to inspect
- *   BetaMessage.content to extract individual tool_use and tool_result events.
+ *   Note: With includePartialMessages: true, text arrives via stream events
+ *   (SDKPartialAssistantMessage). The complete SDKAssistantMessage also
+ *   contains the full text, but we skip it to avoid duplication. Tool use
+ *   blocks only appear in complete messages, so we extract those there.
  *
  * ═══════════════════════════════════════════════════════════════════════
  * Q4: SESSION ID CAPTURE
@@ -544,8 +544,13 @@ function translateStreamEvent(msg: SDKPartialAssistantMessage): SSEEvent[] {
 }
 
 /**
- * Extract content blocks from a complete assistant message. Produces separate
- * SSE events for text blocks and tool_use blocks.
+ * Extract tool_use blocks from a complete assistant message.
+ *
+ * Text blocks are NOT emitted here. When includePartialMessages is true
+ * (which Guild Hall always sets), text arrives via SDKPartialAssistantMessage
+ * stream events and is handled by translateStreamEvent. Emitting text from
+ * the complete message too would double the content in both the live stream
+ * and persisted messages.
  */
 function translateAssistantMessage(msg: SDKAssistantMessage): SSEEvent[] {
   const events: SSEEvent[] = [];
@@ -556,9 +561,7 @@ function translateAssistantMessage(msg: SDKAssistantMessage): SSEEvent[] {
   }
 
   for (const block of message.content) {
-    if (block.type === "text" && block.text) {
-      events.push({ type: "assistant_text", text: block.text });
-    } else if (block.type === "tool_use" && block.id && block.name) {
+    if (block.type === "tool_use" && block.id && block.name) {
       events.push({
         type: "tool_use",
         toolName: block.name,
@@ -566,7 +569,7 @@ function translateAssistantMessage(msg: SDKAssistantMessage): SSEEvent[] {
         toolUseId: block.id,
       });
     }
-    // Ignore thinking blocks and other content block types
+    // Text blocks handled by stream events; thinking blocks ignored
   }
 
   return events;

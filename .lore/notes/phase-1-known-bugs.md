@@ -17,11 +17,11 @@ Two bugs caused this. First, a race condition: `addUserMessage` set `status: "ru
 
 **Fix**: Decoupled SSE connection from status by managing an explicit `sseUrl` in the hook (set after POST 202, not derived from status). Added `sessionId` parameter to `startAgentQuery`/`iterateQuery` so event bus routing uses the Guild Hall session ID.
 
-## 2. Double data in the response
+## 2. ~~Double data in the response~~ (RESOLVED)
 
-After refreshing (to see the response per bug 1), the response contains duplicate data. Likely cause: messages are being appended twice, either during SSE event processing, during the done/flush step, or when loading the conversation from the API on refresh. Could also be a backend issue where `messages.jsonl` gets duplicate entries written.
+The SDK emits text twice when `includePartialMessages: true`: first as streaming `SDKPartialAssistantMessage` chunks (which `translateStreamEvent` converted to `assistant_text` SSE events), then as a complete `SDKAssistantMessage` whose text content blocks `translateAssistantMessage` also converted to `assistant_text`. Both paths fed into the same accumulation on the frontend (`streamingText += event.text`) and backend (`textParts.push(event.text)`), doubling the content in both the live stream and persisted `messages.jsonl`.
 
-**Where to look**: `lib/workshop-state.ts` (applySSEEvent, flush logic), `lib/agent.ts` (message persistence to JSONL), `app/api/sessions/[id]/route.ts` (GET response construction)
+**Fix**: `translateAssistantMessage` now only extracts `tool_use` blocks from complete assistant messages. Text blocks are skipped because the streaming events already delivered them. Tool use blocks only appear in complete messages (not in stream events), so there's no duplication risk for those.
 
 ## 3. No navigation from Workshop back to Dashboard
 

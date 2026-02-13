@@ -295,13 +295,11 @@ describe("translateSdkMessage", () => {
     expect(events).toEqual([]);
   });
 
-  it("translates assistant text message to assistant_text event", () => {
+  it("does not emit text from complete assistant message (text comes from stream events)", () => {
     const events = translateSdkMessage(
       makeAssistantTextMessage("Complete response"),
     );
-    expect(events).toEqual([
-      { type: "assistant_text", text: "Complete response" },
-    ]);
+    expect(events).toEqual([]);
   });
 
   it("translates assistant tool_use message to tool_use events", () => {
@@ -327,7 +325,7 @@ describe("translateSdkMessage", () => {
     ]);
   });
 
-  it("translates mixed assistant message to multiple events", () => {
+  it("translates mixed assistant message to only tool_use (text from stream events)", () => {
     const events = translateSdkMessage(
       makeAssistantMixedMessage("Let me read that file", {
         id: "tool-1",
@@ -335,17 +333,14 @@ describe("translateSdkMessage", () => {
         input: { path: "/tmp/test" },
       }),
     );
-    expect(events).toHaveLength(2);
-    expect(events[0]).toEqual({
-      type: "assistant_text",
-      text: "Let me read that file",
-    });
-    expect(events[1]).toEqual({
-      type: "tool_use",
-      toolName: "read_file",
-      toolInput: { path: "/tmp/test" },
-      toolUseId: "tool-1",
-    });
+    expect(events).toEqual([
+      {
+        type: "tool_use",
+        toolName: "read_file",
+        toolInput: { path: "/tmp/test" },
+        toolUseId: "tool-1",
+      },
+    ]);
   });
 
   it("translates success result to done event", () => {
