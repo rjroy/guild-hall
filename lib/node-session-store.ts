@@ -12,6 +12,8 @@ const nodeFs: SessionFileSystem = {
     fs.appendFile(filePath, content, "utf-8"),
   mkdir: (dirPath: string, options?: { recursive?: boolean }) =>
     fs.mkdir(dirPath, options).then(() => undefined),
+  rmdir: (dirPath: string) =>
+    fs.rm(dirPath, { recursive: true, force: true }).then(() => undefined),
   stat: (filePath: string) => fs.stat(filePath),
   access: (filePath: string) => fs.access(filePath),
 };

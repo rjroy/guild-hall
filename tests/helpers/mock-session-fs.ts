@@ -78,6 +78,26 @@ export function createMockSessionFs(
       return Promise.resolve();
     },
 
+    rmdir(dirPath: string): Promise<void> {
+      const prefix = dirPath.endsWith("/") ? dirPath : `${dirPath}/`;
+
+      // Remove all files under this directory
+      for (const f of Object.keys(files)) {
+        if (f.startsWith(prefix)) {
+          delete files[f];
+        }
+      }
+
+      // Remove all subdirectories
+      for (const d of dirs) {
+        if (d === dirPath || d.startsWith(prefix)) {
+          dirs.delete(d);
+        }
+      }
+
+      return Promise.resolve();
+    },
+
     stat(filePath: string): Promise<{ isDirectory(): boolean }> {
       if (dirs.has(filePath)) {
         return Promise.resolve({ isDirectory: () => true });

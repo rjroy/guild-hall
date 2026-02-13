@@ -115,6 +115,37 @@ describe("POST /api/sessions (createSession)", () => {
   });
 });
 
+describe("DELETE /api/sessions/[id] (deleteSession)", () => {
+  it("deletes a session successfully (204 equivalent)", async () => {
+    const store = makeStore();
+
+    const created = await store.createSession("To Delete", ["m1"]);
+    await store.deleteSession(created.id);
+
+    const result = await store.getSession(created.id);
+    expect(result).toBeNull();
+  });
+
+  it("throws for nonexistent session (404 equivalent)", async () => {
+    const store = makeStore();
+
+    await expect(store.deleteSession("no-such-session")).rejects.toThrow();
+  });
+
+  it("deleted session no longer appears in listSessions", async () => {
+    const store = makeStore();
+
+    const session1 = await store.createSession("Keep Me", []);
+    const session2 = await store.createSession("Delete Me", []);
+
+    await store.deleteSession(session2.id);
+
+    const sessions = await store.listSessions();
+    expect(sessions.length).toBe(1);
+    expect(sessions[0].id).toBe(session1.id);
+  });
+});
+
 describe("GET /api/sessions/[id] (getSession)", () => {
   it("returns session data with metadata and messages", async () => {
     const meta = JSON.stringify({

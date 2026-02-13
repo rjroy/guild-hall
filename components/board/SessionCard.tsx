@@ -9,6 +9,7 @@ import styles from "./SessionCard.module.css";
 
 type SessionCardProps = {
   session: SessionMetadata;
+  onDelete?: (id: string) => void;
 };
 
 const statusDotClass: Record<SessionStatus, string> = {
@@ -27,7 +28,7 @@ const statusLabel: Record<SessionStatus, string> = {
   error: "error",
 };
 
-export function SessionCard({ session }: SessionCardProps) {
+export function SessionCard({ session, onDelete }: SessionCardProps) {
   const messageLabel = formatMessageLabel(session.messageCount);
 
   return (
@@ -42,6 +43,20 @@ export function SessionCard({ session }: SessionCardProps) {
         />
         <span className={styles.sessionName}>{session.name}</span>
         <span className={styles.statusBadge}>{statusLabel[session.status]}</span>
+        {onDelete && (
+          <button
+            className={styles.deleteButton}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete(session.id);
+            }}
+            aria-label={`Delete session ${session.name}`}
+            title="Delete session"
+          >
+            &#10005;
+          </button>
+        )}
       </div>
 
       {session.guildMembers.length > 0 && (

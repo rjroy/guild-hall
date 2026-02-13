@@ -15,6 +15,7 @@ export interface SessionFileSystem {
   writeFile(path: string, content: string): Promise<void>;
   appendFile(path: string, content: string): Promise<void>;
   mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+  rmdir(path: string): Promise<void>;
   stat(path: string): Promise<{ isDirectory(): boolean }>;
   access(path: string): Promise<void>;
 }
@@ -291,6 +292,20 @@ export class SessionStore {
     await this.fs.writeFile(metaPath, JSON.stringify(updated, null, 2));
 
     return updated;
+  }
+
+  /**
+   * Delete a session by removing its entire directory.
+   * Throws if the session doesn't exist.
+   */
+  async deleteSession(id: string): Promise<void> {
+    const sessionDir = `${this.sessionsDir}/${id}`;
+
+    if (!(await pathExists(sessionDir, this.fs))) {
+      throw new Error(`Session not found: ${id}`);
+    }
+
+    await this.fs.rmdir(sessionDir);
   }
 
   /**

@@ -521,6 +521,68 @@ describe("SessionStore.appendMessage", () => {
   });
 });
 
+// -- deleteSession --
+
+describe("SessionStore.deleteSession", () => {
+  it("removes the session directory and all its contents", async () => {
+    const { store, fs } = makeStore();
+
+    await store.createSession("Doomed Session", ["m1"]);
+
+    const sessionDir = "/sessions/2026-02-12-doomed-session";
+    expect(fs.dirs.has(sessionDir)).toBe(true);
+    expect(`${sessionDir}/meta.json` in fs.files).toBe(true);
+
+    await store.deleteSession("2026-02-12-doomed-session");
+
+    expect(fs.dirs.has(sessionDir)).toBe(false);
+    expect(fs.dirs.has(`${sessionDir}/artifacts`)).toBe(false);
+    expect(`${sessionDir}/meta.json` in fs.files).toBe(false);
+    expect(`${sessionDir}/context.md` in fs.files).toBe(false);
+    expect(`${sessionDir}/messages.jsonl` in fs.files).toBe(false);
+  });
+
+  it("deleted session is gone from listSessions", async () => {
+    const { store } = makeStore();
+
+    await store.createSession("Will Delete", []);
+    await store.createSession("Will Keep", []);
+
+    await store.deleteSession("2026-02-12-will-delete");
+
+    const sessions = await store.listSessions();
+    expect(sessions.length).toBe(1);
+    expect(sessions[0].name).toBe("Will Keep");
+  });
+
+  it("throws for nonexistent session", async () => {
+    const { store } = makeStore();
+
+    await expect(store.deleteSession("no-such-session")).rejects.toThrow(
+      "Session not found: no-such-session",
+    );
+  });
+
+  it("does not affect other sessions", async () => {
+    const { store, fs } = makeStore();
+
+    await store.createSession("Session A", ["m1"]);
+    await store.createSession("Session B", ["m2"]);
+
+    await store.deleteSession("2026-02-12-session-a");
+
+    // Session B still intact
+    const sessionBDir = "/sessions/2026-02-12-session-b";
+    expect(fs.dirs.has(sessionBDir)).toBe(true);
+    expect(`${sessionBDir}/meta.json` in fs.files).toBe(true);
+
+    const result = await store.getSession("2026-02-12-session-b");
+    expect(result).not.toBeNull();
+    // Non-null safe: assertion above confirms presence
+    expect(result!.metadata.name).toBe("Session B");
+  });
+});
+
 // -- CreateSessionBodySchema --
 
 describe("CreateSessionBodySchema", () => {

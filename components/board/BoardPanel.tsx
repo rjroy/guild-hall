@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { SessionListResponse, SessionMetadata } from "@/lib/types";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SessionCard } from "./SessionCard";
 import { CreateSessionDialog } from "./CreateSessionDialog";
 import styles from "./BoardPanel.module.css";
@@ -17,6 +18,7 @@ export function BoardPanel() {
   const router = useRouter();
   const [state, setState] = useState<FetchState>({ status: "loading" });
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<SessionMetadata | null>(null);
 
   const fetchSessions = useCallback(async () => {
     setState({ status: "loading" });
@@ -44,6 +46,28 @@ export function BoardPanel() {
   const handleSessionCreated = (session: SessionMetadata) => {
     setDialogOpen(false);
     router.push(`/sessions/${session.id}`);
+  };
+
+  const handleDeleteRequest = (id: string) => {
+    if (state.status !== "loaded") return;
+    const session = state.sessions.find((s) => s.id === id);
+    if (session) setDeleteTarget(session);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    try {
+      const response = await fetch(`/api/sessions/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        console.error(`Failed to delete session (${response.status})`);
+      }
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+    }
+    setDeleteTarget(null);
+    void fetchSessions();
   };
 
   return (
@@ -109,7 +133,11 @@ export function BoardPanel() {
         {state.status === "loaded" && state.sessions.length > 0 && (
           <div className={styles.sessionGrid}>
             {state.sessions.map((session) => (
-              <SessionCard key={session.id} session={session} />
+              <SessionCard
+                key={session.id}
+                session={session}
+                onDelete={handleDeleteRequest}
+              />
             ))}
           </div>
         )}
@@ -119,6 +147,20 @@ export function BoardPanel() {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onCreated={handleSessionCreated}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete session?"
+        message={
+          deleteTarget
+            ? `"${deleteTarget.name}" and all its messages will be permanently deleted.`
+            : ""
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => void handleDeleteConfirm()}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );
