@@ -1,0 +1,111 @@
+.card {
+  display: block;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-decoration: none;
+  color: inherit;
+}
+
+.card:hover {
+  border-color: var(--accent);
+  background: var(--card-hover-bg);
+}
+
+.topRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.statusDot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.statusIdle {
+  background: var(--accent);
+}
+
+.statusRunning {
+  background: var(--status-connected);
+  box-shadow: 0 0 4px var(--status-connected);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.statusCompleted {
+  background: var(--status-connected);
+}
+
+.statusExpired {
+  background: var(--status-expired);
+}
+
+.statusError {
+  background: var(--status-error);
+  box-shadow: 0 0 4px var(--status-error);
+}
+
+.sessionName {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statusBadge {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-header-bg);
+  color: var(--foreground-muted);
+}
+
+.memberRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.memberChip {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--panel-header-bg);
+  color: var(--foreground-muted);
+  border: 1px solid var(--panel-border);
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.75rem;
+  color: var(--foreground-muted);
+}
+
+.metaSeparator {
+  color: var(--panel-border);
+}

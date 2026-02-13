@@ -1,0 +1,174 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--panel-header-bg);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--foreground);
+}
+
+.sessionCount {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--foreground-muted);
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refreshButton {
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--foreground-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.refreshButton:hover {
+  background: var(--card-hover-bg);
+  color: var(--foreground);
+}
+
+.newSessionButton {
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.newSessionButton:hover {
+  background: var(--accent-hover);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.sessionGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.loadingContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.loadingText {
+  font-size: 0.85rem;
+  color: var(--foreground-muted);
+}
+
+.loadingDot {
+  display: inline-block;
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.errorContainer {
+  margin: 16px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--error-border);
+  background: var(--error-bg);
+}
+
+.errorTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--error-text);
+  margin-bottom: 4px;
+}
+
+.errorMessage {
+  font-size: 0.8rem;
+  color: var(--error-text);
+}
+
+.retryButton {
+  margin-top: 8px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--error-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--error-text);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.retryButton:hover {
+  background: var(--error-bg);
+}
+
+.emptyContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 16px;
+  text-align: center;
+}
+
+.emptyTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--foreground-muted);
+  margin-bottom: 6px;
+}
+
+.emptyMessage {
+  font-size: 0.85rem;
+  color: var(--foreground-muted);
+  opacity: 0.7;
+}

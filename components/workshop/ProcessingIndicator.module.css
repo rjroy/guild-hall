@@ -1,0 +1,43 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--panel-header-bg);
+  border-top: 1px solid var(--panel-border);
+}
+
+.text {
+  font-size: 0.85rem;
+  color: var(--foreground-muted);
+  font-weight: 500;
+}
+
+.dots {
+  display: inline-block;
+  animation: ellipsis 1.4s infinite;
+}
+
+@keyframes ellipsis {
+  0% { content: ""; opacity: 0.3; }
+  33% { opacity: 0.6; }
+  66% { opacity: 0.9; }
+  100% { opacity: 0.3; }
+}
+
+.stopButton {
+  padding: 4px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--error-border);
+  border-radius: 4px;
+  background: var(--error-bg);
+  color: var(--error-text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.stopButton:hover {
+  background: var(--error-border);
+  border-color: var(--error-text);
+}
