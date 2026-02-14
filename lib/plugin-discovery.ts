@@ -12,9 +12,14 @@ export interface FileSystem {
 // -- Discovery --
 
 /**
- * Scans a directory for subdirectories containing guild-member.json manifests.
- * Returns a Map keyed by directory name (not manifest name) so that even
- * invalid manifests that lack a name field are still keyed.
+ * Scans a directory for guild-member.json manifests up to 2 levels deep.
+ * Supports both flat plugins and plugin collections:
+ *
+ * - Flat: guild-members/standalone/guild-member.json
+ * - Nested: guild-members/collection/plugin/guild-member.json
+ *
+ * Returns a Map keyed by relative path from directoryPath (e.g., "standalone"
+ * or "collection/plugin") so that even invalid manifests are keyed.
  *
  * - Valid manifests produce a GuildMember with status "disconnected"
  * - Invalid manifests produce a GuildMember with status "error" and an error message
@@ -49,40 +54,91 @@ export async function discoverGuildMembers(
       continue;
     }
 
-    const manifestPath = `${entryPath}/guild-member.json`;
-
-    let raw: string;
-    try {
-      raw = await fs.readFile(manifestPath);
-    } catch {
-      // No guild-member.json in this subdirectory, skip it
+    // Try to load manifest directly from this directory (flat plugin)
+    const member = await loadManifest(entryPath, entry, fs);
+    if (member) {
+      members.set(entry, member);
       continue;
     }
 
-    // Try to parse JSON
-    let parsed: unknown;
+    // No manifest found - try scanning subdirectories (plugin collection)
+    let nestedEntries: string[];
     try {
-      parsed = JSON.parse(raw);
+      nestedEntries = await fs.readdir(entryPath);
     } catch {
-      members.set(entry, makeErrorMember(entry, "Invalid JSON in guild-member.json"));
+      // Can't read subdirectory, skip it
       continue;
     }
 
-    // Validate against schema
-    const result = GuildMemberManifestSchema.safeParse(parsed);
+    for (const nestedEntry of nestedEntries) {
+      const nestedPath = `${entryPath}/${nestedEntry}`;
 
-    if (result.success) {
-      members.set(entry, {
-        ...result.data,
-        status: "disconnected",
-        tools: [],
-      });
-    } else {
-      members.set(entry, makeErrorMember(entry, result.error.message));
+      let isNestedDir: boolean;
+      try {
+        const stat = await fs.stat(nestedPath);
+        isNestedDir = stat.isDirectory();
+      } catch {
+        continue;
+      }
+
+      if (!isNestedDir) {
+        continue;
+      }
+
+      const nestedMember = await loadManifest(
+        nestedPath,
+        `${entry}/${nestedEntry}`,
+        fs,
+      );
+      if (nestedMember) {
+        members.set(`${entry}/${nestedEntry}`, nestedMember);
+      }
     }
   }
 
   return members;
+}
+
+/**
+ * Attempts to load and validate a guild-member.json manifest from a directory.
+ * Returns a GuildMember on success, null if no manifest exists.
+ * Returns an error GuildMember if the manifest exists but is invalid.
+ */
+async function loadManifest(
+  pluginPath: string,
+  key: string,
+  fs: FileSystem,
+): Promise<GuildMember | null> {
+  const manifestPath = `${pluginPath}/guild-member.json`;
+
+  let raw: string;
+  try {
+    raw = await fs.readFile(manifestPath);
+  } catch {
+    // No guild-member.json in this directory
+    return null;
+  }
+
+  // Try to parse JSON
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return makeErrorMember(key, "Invalid JSON in guild-member.json");
+  }
+
+  // Validate against schema
+  const result = GuildMemberManifestSchema.safeParse(parsed);
+
+  if (result.success) {
+    return {
+      ...result.data,
+      status: "disconnected",
+      tools: [],
+    };
+  } else {
+    return makeErrorMember(key, result.error.message);
+  }
 }
 
 function makeErrorMember(dirName: string, errorMessage: string): GuildMember {

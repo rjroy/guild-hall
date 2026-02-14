@@ -44,3 +44,7 @@ next-env.d.ts
 # sessions (file-based storage, not committed)
 sessions/*
 !sessions/.gitkeep
+
+# guild-members (only example plugin is tracked)
+guild-members/*
+!guild-members/example/
