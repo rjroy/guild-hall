@@ -31,6 +31,9 @@
   color: var(--foreground);
   border: 1px solid var(--card-border);
   border-bottom-left-radius: 4px;
+  /* NOTE: -webkit must come before standard property or Next.js build drops the standard one */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .content {
@@ -64,3 +67,4 @@
   color: var(--accent-text);
   opacity: 0.7;
 }
+

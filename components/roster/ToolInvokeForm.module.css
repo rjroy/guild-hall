@@ -33,16 +33,18 @@
   padding: 6px 8px;
   font-size: 0.85rem;
   font-family: inherit;
-  border: 1px solid var(--input-border);
-  border-radius: 4px;
-  background: var(--input-bg);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
   color: var(--foreground);
   outline: none;
   transition: border-color 0.15s;
 }
 
 .input:focus {
-  border-color: var(--input-focus-border);
+  border-color: var(--color-brass);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.2);
 }
 
 .select {

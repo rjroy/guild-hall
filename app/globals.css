@@ -1,75 +1,147 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --foreground-muted: #6b7280;
-
-  /* Panel surfaces */
-  --panel-bg: #f8f9fa;
-  --panel-border: #e2e4e8;
-  --panel-header-bg: #f0f1f3;
-
-  /* Cards */
-  --card-bg: #ffffff;
-  --card-border: #e2e4e8;
-  --card-hover-bg: #f5f6f8;
-
-  /* Status indicators */
-  --status-connected: #22c55e;
-  --status-disconnected: #9ca3af;
-  --status-error: #ef4444;
-  --status-expired: #f59e0b;
-
-  /* Interactive elements */
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --accent-text: #ffffff;
-
-  /* Form elements */
-  --input-bg: #ffffff;
-  --input-border: #d1d5db;
-  --input-focus-border: #3b82f6;
-
-  /* Result display */
-  --result-bg: #f0fdf4;
-  --result-border: #bbf7d0;
-  --error-bg: #fef2f2;
-  --error-border: #fecaca;
-  --error-text: #dc2626;
+@font-face {
+  font-family: 'Ysabeau Office';
+  src: url('/fonts/ysabeau-office/YsabeauOffice-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --foreground-muted: #9ca3af;
+@font-face {
+  font-family: 'Ysabeau Office';
+  src: url('/fonts/ysabeau-office/YsabeauOffice-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
 
-    --panel-bg: #111113;
-    --panel-border: #2a2a2e;
-    --panel-header-bg: #18181b;
+@font-face {
+  font-family: 'Source Code Pro';
+  src: url('/fonts/source-code-pro/SourceCodePro-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
-    --card-bg: #18181b;
-    --card-border: #2a2a2e;
-    --card-hover-bg: #1f1f23;
+@font-face {
+  font-family: 'Source Code Pro';
+  src: url('/fonts/source-code-pro/SourceCodePro-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
 
-    --status-connected: #4ade80;
-    --status-disconnected: #6b7280;
-    --status-error: #f87171;
-    --status-expired: #fbbf24;
+/* === Shared Variables (Typography, Status Colors) === */
+:root {
+  /* Typography */
+  --font-primary: 'Ysabeau Office', ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: 'Source Code Pro', ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
-    --accent: #60a5fa;
-    --accent-hover: #3b82f6;
-    --accent-text: #0a0a0a;
+  /* Status Colors (shared across both modes) */
+  --status-idle: #6B7280;
+  --status-running: #10B981;
+  --status-connected: #10B981;
+  --status-completed: #3B82F6;
+  --status-expired: #F59E0B;
+  --status-error: #EF4444;
 
-    --input-bg: #1f1f23;
-    --input-border: #3a3a3e;
-    --input-focus-border: #60a5fa;
+  /* Accent Colors (shared across both modes) */
+  --color-brass: #B8860B;
+  --color-bronze: #CD7F32;
+  --color-amber-light: #F4D58D;
+  --color-amber-medium: #E8C170;
+  --color-amber: #E8C170;
+  --color-gold: #D4A574;
+  --color-amber-dark: #C79A5C;
+  --color-brown-light: #5C4033;
+  --color-brown-dark: #3E2723;
+}
 
-    --result-bg: #0a1f0a;
-    --result-border: #166534;
-    --error-bg: #1f0a0a;
-    --error-border: #7f1d1d;
-    --error-text: #f87171;
-  }
+/* === Dark Mode (default) === */
+:root, [data-theme="dark"] {
+  /* Panel Surfaces */
+  --panel-bg: rgba(26, 26, 26, 0.85);
+  --panel-header-bg: rgba(30, 30, 30, 0.9);
+  --panel-bg-secondary: rgba(36, 36, 36, 0.8);
+  --panel-border: var(--color-bronze);
+  --panel-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --panel-backdrop-blur: 12px;
+
+  /* Cards */
+  --card-bg: rgba(36, 36, 36, 0.7);
+  --card-border: rgba(184, 134, 11, 0.3);
+  --card-hover-bg: rgba(42, 42, 42, 0.8);
+  --card-hover-border: var(--color-brass);
+
+  /* Text */
+  --text-primary: #F4D58D;
+  --text-secondary: #E8C170;
+  --text-muted: #A0A0A0;
+
+  /* Backgrounds */
+  --background: #1A1A1A;
+  --foreground: var(--text-primary);
+  --foreground-muted: var(--text-muted);
+
+  /* Interactive Elements */
+  --accent: var(--color-brass);
+  --accent-hover: var(--color-bronze);
+  --accent-text: #1A1A1A;
+
+  /* Form Elements */
+  --input-bg: rgba(36, 36, 36, 0.8);
+  --input-border: rgba(184, 134, 11, 0.5);
+  --input-focus-border: var(--color-brass);
+
+  /* Result Display */
+  --result-bg: rgba(16, 185, 129, 0.1);
+  --result-border: var(--status-running);
+  --error-bg: rgba(239, 68, 68, 0.1);
+  --error-border: var(--status-error);
+  --error-text: #F87171;
+}
+
+/* === Light Mode === */
+[data-theme="light"] {
+  /* Panel Surfaces */
+  --panel-bg: rgba(245, 241, 232, 0.85);
+  --panel-header-bg: rgba(240, 236, 228, 0.9);
+  --panel-bg-secondary: rgba(237, 232, 220, 0.8);
+  --panel-border: var(--color-bronze);
+  --panel-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --panel-backdrop-blur: 12px;
+
+  /* Cards */
+  --card-bg: rgba(237, 232, 220, 0.7);
+  --card-border: rgba(184, 134, 11, 0.3);
+  --card-hover-bg: rgba(230, 224, 210, 0.9);
+  --card-hover-border: var(--color-brass);
+
+  /* Text */
+  --text-primary: #3E2723;
+  --text-secondary: #5C4033;
+  --text-muted: #6B7280;
+
+  /* Backgrounds */
+  --background: #F5F1E8;
+  --foreground: var(--text-primary);
+  --foreground-muted: var(--text-muted);
+
+  /* Interactive Elements */
+  --accent: var(--color-brass);
+  --accent-hover: var(--color-bronze);
+  --accent-text: #F5F1E8;
+
+  /* Form Elements */
+  --input-bg: rgba(255, 255, 255, 0.6);
+  --input-border: rgba(184, 134, 11, 0.4);
+  --input-focus-border: var(--color-brass);
+
+  /* Result Display */
+  --result-bg: rgba(16, 185, 129, 0.1);
+  --result-border: var(--status-running);
+  --error-bg: rgba(239, 68, 68, 0.1);
+  --error-border: var(--status-error);
+  --error-text: #DC2626;
 }
 
 html,
@@ -79,9 +151,12 @@ body {
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: url('/guild-hall-entry.webp') fixed center/cover no-repeat, var(--background);
+  background-color: #1A1A1A;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -90,6 +165,12 @@ body {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Disable transitions on theme change to prevent flash */
+[data-theme-transitioning] * {
+  transition: none !important;
 }
 
 a {
@@ -97,8 +178,25 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+h1 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
+
+h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+code, pre {
+  font-family: var(--font-mono);
+}
+
