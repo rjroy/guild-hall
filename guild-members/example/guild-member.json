@@ -5,6 +5,6 @@
   "version": "0.1.0",
   "mcp": {
     "command": "bun",
-    "args": ["run", "guild-members/example/server.ts"]
+    "args": ["run", "server.ts"]
   }
 }

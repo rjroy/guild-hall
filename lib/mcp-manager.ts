@@ -15,7 +15,19 @@ export interface MCPServerHandle {
   ): Promise<unknown>;
 }
 
-/** Factory for creating server handles. Injected for testability. */
+/**
+ * Factory for creating server handles. Injected for testability.
+ *
+ * Working Directory Contract:
+ * Implementations MUST set the current working directory to the plugin's
+ * directory before spawning the process. This allows plugins to use relative
+ * paths in their command/args and server code without knowing their install path.
+ *
+ * Example: For a plugin at `guild-members/example/`, the implementation should:
+ * - Set cwd to `guild-members/example/`
+ * - Then spawn the process with the given command/args
+ * - Plugin can use `bun run server.ts` instead of `bun run guild-members/example/server.ts`
+ */
 export interface MCPServerFactory {
   spawn(config: {
     command: string;
@@ -215,6 +227,9 @@ export class MCPManager {
     member: GuildMember,
   ): Promise<void> {
     try {
+      // Note: serverFactory.spawn() is responsible for setting the working
+      // directory to the plugin's directory before spawning. See the
+      // MCPServerFactory interface documentation for the contract.
       const handle = await this.serverFactory.spawn({
         command: member.mcp.command,
         args: member.mcp.args,

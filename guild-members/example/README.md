@@ -18,10 +18,27 @@ Provides two simple tools:
 ## How It Works
 
 1. **Discovery**: Guild Hall scans `guild-members/` and finds this plugin via `guild-member.json`
-2. **Spawn**: When needed, Guild Hall runs `bun run guild-members/example/server.ts`
+2. **Spawn**: When needed, Guild Hall sets the working directory to the plugin directory and runs `bun run server.ts`
 3. **Connection**: The server connects via stdio transport and speaks the MCP protocol
 4. **Tools**: Guild Hall calls `tools/list` and gets the echo/reverse tool definitions
 5. **Invocation**: When a tool is called, the server processes it and returns results
+
+### Working Directory Contract
+
+**Important**: Guild Hall sets the current working directory to the plugin directory before spawning the MCP server. This means:
+- Paths in the manifest are relative to the plugin directory, not Guild Hall's root
+- Your server can use relative paths like `./data/config.json`
+- You don't need to know where the plugin is installed
+
+Example:
+```json
+{
+  "mcp": {
+    "command": "bun",
+    "args": ["run", "server.ts"]  // Not "guild-members/example/server.ts"
+  }
+}
+```
 
 ## Plugin Manifest Structure
 
