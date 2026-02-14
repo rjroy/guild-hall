@@ -4,7 +4,10 @@
   height: 100%;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 8px;
+  border-radius: 10px;
+  backdrop-filter: blur(var(--panel-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--panel-backdrop-blur));
+  box-shadow: var(--panel-shadow);
   overflow: hidden;
 }
 
@@ -87,9 +90,23 @@
 }
 
 .sessionGrid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 1199px) {
+  .sessionGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+}
+
+@media (max-width: 767px) {
+  .sessionGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
 }
 
 .loadingContainer {

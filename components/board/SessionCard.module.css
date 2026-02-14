@@ -1,17 +1,20 @@
 .card {
-  display: block;
+  min-height: 140px;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 6px;
-  padding: 14px 16px;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  padding: 16px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   text-decoration: none;
   color: inherit;
+  cursor: pointer;
+  display: block;
 }
 
 .card:hover {
-  border-color: var(--accent);
+  border-color: var(--card-hover-border);
+  box-shadow: 0 0 12px rgba(184, 134, 11, 0.35);
   background: var(--card-hover-bg);
 }
 
@@ -60,12 +63,15 @@
 .sessionName {
   flex: 1;
   min-width: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--foreground);
-  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  /* Allow 2 lines max */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .statusBadge {
@@ -79,6 +85,7 @@
   border: 1px solid var(--panel-border);
   background: var(--panel-header-bg);
   color: var(--foreground-muted);
+  transition: background 0.25s ease, color 0.25s ease;
 }
 
 .deleteButton {
@@ -124,11 +131,12 @@
 .metaRow {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 0.75rem;
-  color: var(--foreground-muted);
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .metaSeparator {
   color: var(--panel-border);
 }
+

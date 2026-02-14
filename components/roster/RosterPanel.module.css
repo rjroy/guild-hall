@@ -4,7 +4,10 @@
   height: 100%;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 8px;
+  border-radius: 10px;
+  backdrop-filter: blur(var(--panel-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--panel-backdrop-blur));
+  box-shadow: var(--panel-shadow);
   overflow: hidden;
 }
 
@@ -111,4 +114,15 @@
   padding: 40px 16px;
   color: var(--foreground-muted);
   font-size: 0.85rem;
+}
+
+@media (max-width: 767px) {
+  .panel {
+    width: 56px;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+  }
 }

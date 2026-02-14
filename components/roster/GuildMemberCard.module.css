@@ -103,3 +103,18 @@
   composes: expandIcon;
   transform: rotate(90deg);
 }
+
+.avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  position: relative;
+}
+
+@media (max-width: 767px) {
+  .avatar {
+    width: 48px;
+    height: 48px;
+  }
+}
+
