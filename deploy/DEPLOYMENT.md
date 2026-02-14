@@ -1,75 +1,38 @@
 # Deployment
 
-## Running as a systemd service
+## Running as a user service
 
-Guild Hall includes a systemd service file for running as an always-on service.
+Guild Hall runs as a systemd user service (no root required).
 
 ### Setup
 
-1. **Create the environment file:**
-   ```bash
-   mkdir -p ~/.config/guild-hall
-   cat > ~/.config/guild-hall/env <<EOF
-   ANTHROPIC_API_KEY=your-api-key-here
-   NODE_ENV=production
-   EOF
-   chmod 600 ~/.config/guild-hall/env
-   ```
+```bash
+./deploy/install.sh
+```
 
-2. **Build the production bundle:**
-   ```bash
-   bun run build
-   ```
-
-3. **Install the service file:**
-   ```bash
-   sudo cp deploy/guild-hall.service /etc/systemd/system/
-   sudo systemctl daemon-reload
-   ```
-
-4. **Enable and start the service:**
-   ```bash
-   sudo systemctl enable guild-hall
-   sudo systemctl start guild-hall
-   ```
-
-5. **Check status:**
-   ```bash
-   sudo systemctl status guild-hall
-   journalctl -u guild-hall -f  # follow logs
-   ```
+This builds the production bundle, installs the service, and starts it on port 5050. Authentication uses pre-configured OAuth (no API key needed).
 
 ### Managing the service
 
-- **Stop:** `sudo systemctl stop guild-hall`
-- **Restart:** `sudo systemctl restart guild-hall`
-- **Disable:** `sudo systemctl disable guild-hall`
-- **View logs:** `journalctl -u guild-hall -n 100`
+- **Status:** `systemctl --user status guild-hall`
+- **Stop:** `systemctl --user stop guild-hall`
+- **Restart:** `systemctl --user restart guild-hall`
+- **Disable:** `systemctl --user disable guild-hall`
+- **Logs:** `journalctl --user -u guild-hall -f`
 
 ### Updating
 
 After pulling new changes:
 
 ```bash
-bun install
-bun run build
-sudo systemctl restart guild-hall
+./deploy/install.sh
 ```
+
+The script rebuilds and restarts the service.
 
 ### Notes
 
-- The service runs on port 5050 (configured in package.json)
+- The service runs on port 5050
 - Session data is stored in the working directory
 - The service restarts automatically on failure
-- Logs go to systemd journal (view with `journalctl`)
-
-### Security
-
-The service file includes basic security hardening:
-- Runs as your user (not root)
-- NoNewPrivileges prevents privilege escalation
-- PrivateTmp isolates /tmp
-- ProtectSystem/ProtectHome limit filesystem access
-- ReadWritePaths grants write access only to the project directory
-
-If you need to adjust file permissions or access, modify the `ReadWritePaths` directive.
+- Logs go to the user journal (view with `journalctl --user`)
