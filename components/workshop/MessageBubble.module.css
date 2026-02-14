@@ -31,6 +31,8 @@
   color: var(--foreground);
   border: 1px solid var(--card-border);
   border-bottom-left-radius: 4px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .content {
