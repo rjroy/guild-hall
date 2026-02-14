@@ -10,6 +10,8 @@ import {
   isResultMessage,
   isSuccessResult,
   isErrorResult,
+  isStatusMessage,
+  isToolProgressMessage,
   isToolUseSummaryMessage,
 } from "@/lib/agent";
 import type {
@@ -183,6 +185,26 @@ function makeToolUseSummary(
   } as unknown as SDKMessage;
 }
 
+function makeStatusMessage(sessionId = "sdk-session-1"): SDKMessage {
+  return {
+    type: "system",
+    subtype: "status",
+    status: "compacting",
+    uuid: "00000000-0000-0000-0000-000000000011",
+    session_id: sessionId,
+  } as unknown as SDKMessage;
+}
+
+function makeToolProgressMessage(sessionId = "sdk-session-1"): SDKMessage {
+  return {
+    type: "tool_progress",
+    tool_use_id: "tool-1",
+    elapsed_ms: 500,
+    uuid: "00000000-0000-0000-0000-000000000012",
+    session_id: sessionId,
+  } as unknown as SDKMessage;
+}
+
 function makeUserMessage(sessionId = "sdk-session-1"): SDKMessage {
   return {
     type: "user",
@@ -271,6 +293,17 @@ describe("type guards", () => {
   it("isErrorResult identifies error results", () => {
     expect(isErrorResult(makeErrorResult())).toBe(true);
     expect(isErrorResult(makeSuccessResult())).toBe(false);
+  });
+
+  it("isStatusMessage identifies status messages", () => {
+    expect(isStatusMessage(makeStatusMessage())).toBe(true);
+    expect(isStatusMessage(makeInitMessage())).toBe(false);
+    expect(isStatusMessage(makeUserMessage())).toBe(false);
+  });
+
+  it("isToolProgressMessage identifies tool progress messages", () => {
+    expect(isToolProgressMessage(makeToolProgressMessage())).toBe(true);
+    expect(isToolProgressMessage(makeUserMessage())).toBe(false);
   });
 
   it("isToolUseSummaryMessage identifies tool use summaries", () => {

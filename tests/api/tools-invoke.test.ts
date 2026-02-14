@@ -7,7 +7,7 @@ import type {
   MCPToolInfo,
 } from "@/lib/mcp-manager";
 import type { GuildMember } from "@/lib/types";
-import { handleInvokeTool } from "@/app/api/tools/invoke/route";
+import { handleInvokeTool, createPOST } from "@/app/api/tools/invoke/route";
 import type { InvokeToolDeps } from "@/app/api/tools/invoke/route";
 
 // -- Response type for typed JSON parsing --
@@ -385,5 +385,42 @@ describe("POST /api/tools/invoke", () => {
       expect(response.status).toBe(200);
       expect(body).toEqual({ result: null });
     });
+  });
+});
+
+describe("createPOST", () => {
+  it("calls resolveDeps and delegates to handleInvokeTool", async () => {
+    const deps = createDeps({ invokeResult: { created: true } });
+    await deps.mcpManager.startServersForSession("test", ["alpha"]);
+
+    const post = createPOST(async () => deps);
+    const request = makeRequest({
+      guildMember: "alpha",
+      toolName: "read_file",
+      toolInput: { path: "/tmp" },
+    });
+
+    const response = await post(request);
+    const body = await parseJson(response);
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ result: { created: true } });
+  });
+
+  it("returns errors from the delegated handler", async () => {
+    const deps = createDeps({ invokeError: new Error("boom") });
+
+    const post = createPOST(async () => deps);
+    const request = makeRequest({
+      guildMember: "alpha",
+      toolName: "read_file",
+      toolInput: {},
+    });
+
+    const response = await post(request);
+    const body = await parseJson(response);
+
+    expect(response.status).toBe(500);
+    expect(body.error).toContain("boom");
   });
 });
