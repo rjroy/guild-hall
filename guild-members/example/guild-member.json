@@ -1,10 +1,10 @@
 {
   "name": "example",
   "displayName": "Example Guild Member",
-  "description": "A sample guild member for development and testing",
+  "description": "A sample guild member for development and testing. Provides echo and reverse tools.",
   "version": "0.1.0",
   "mcp": {
-    "command": "echo",
-    "args": ["hello"]
+    "command": "bun",
+    "args": ["run", "guild-members/example/server.ts"]
   }
 }
