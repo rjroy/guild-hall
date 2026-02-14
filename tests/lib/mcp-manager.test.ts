@@ -230,7 +230,7 @@ describe("MCPManager", () => {
           "alpha",
           makeGuildMember({
             name: "alpha",
-            mcp: { command: "node", args: ["alpha.js"], env: { PORT: "3000" } },
+            mcp: { command: "node", args: ["alpha.js"], env: { PORT: "5050" } },
           }),
         ],
         [
@@ -247,7 +247,7 @@ describe("MCPManager", () => {
       const configs = manager.getServerConfigs(["alpha", "beta"]);
 
       expect(configs).toEqual({
-        alpha: { command: "node", args: ["alpha.js"], env: { PORT: "3000" } },
+        alpha: { command: "node", args: ["alpha.js"], env: { PORT: "5050" } },
         beta: { command: "python", args: ["beta.py", "--verbose"] },
       });
     });
