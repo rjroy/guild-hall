@@ -2,6 +2,7 @@
   display: grid;
   grid-template-columns: 280px 1fr;
   height: 100vh;
+  height: 100dvh; /* Safari mobile: dynamic viewport height accounts for address bar */
   overflow: hidden;
 }
 
@@ -162,6 +163,7 @@
   align-items: center;
   justify-content: center;
   height: 100vh;
+  height: 100dvh; /* Safari mobile: dynamic viewport height accounts for address bar */
 }
 
 .loadingText {
@@ -237,38 +239,30 @@
 }
 
 /* Responsive: stack vertically on narrow screens */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .layout {
     grid-template-columns: 1fr;
-    height: auto;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    height: 100dvh; /* Safari mobile */
   }
 
   .sidebar {
     border-right: none;
     border-bottom: 1px solid var(--panel-border);
-    max-height: 40vh;
+    max-height: 35vh;
+    max-height: 35dvh; /* Safari mobile */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* Safari smooth scrolling */
   }
 
   .main {
-    height: 60vh;
+    min-height: 0; /* Allow grid item to shrink below content size */
+    overflow: hidden;
   }
 
   .centered {
-    height: 50vh;
-  }
-}
-
-@media (max-width: 767px) {
-  .container {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    max-height: 30vh;
-    overflow-y: auto;
-  }
-
-  .conversationArea {
-    flex: 1;
+    height: 100vh;
+    height: 100dvh; /* Safari mobile */
   }
 }

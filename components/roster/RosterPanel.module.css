@@ -115,14 +115,3 @@
   color: var(--foreground-muted);
   font-size: 0.85rem;
 }
-
-@media (max-width: 767px) {
-  .panel {
-    width: 56px;
-  }
-
-  .avatar {
-    width: 40px;
-    height: 40px;
-  }
-}
