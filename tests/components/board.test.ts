@@ -56,6 +56,12 @@ describe("formatRelativeTime", () => {
     expect(formatRelativeTime(threeDaysAgo, fixedClock)).toBe("3 days ago");
   });
 
+  it("uses Date.now() when no clock is provided", () => {
+    // Exercises the defaultClock path (the only uncovered function in this module)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000).toISOString();
+    expect(formatRelativeTime(fiveMinutesAgo)).toBe("5 min ago");
+  });
+
   it("handles the boundary between minutes and hours", () => {
     const fiftyNineMin = new Date(NOW - 59 * 60_000).toISOString();
     expect(formatRelativeTime(fiftyNineMin, fixedClock)).toBe("59 min ago");

@@ -65,11 +65,19 @@ export async function handleInvokeTool(
   }
 }
 
-export async function POST(request: Request) {
+export function createPOST(
+  resolveDeps: () => Promise<InvokeToolDeps>,
+): (request: Request) => Promise<NextResponse> {
+  return async (request: Request) => {
+    const deps = await resolveDeps();
+    return handleInvokeTool(request, deps);
+  };
+}
+
+export const POST = createPOST(async () => {
   const [mcpManager, roster] = await Promise.all([
     getMCPManager(),
     getRosterMap(),
   ]);
-
-  return handleInvokeTool(request, { mcpManager, roster });
-}
+  return { mcpManager, roster };
+});

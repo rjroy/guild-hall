@@ -3,6 +3,10 @@
 ## Package Management
 - Use `bun` for all package management, runtime, and testing
 
+## Pre-commit
+- `.git-hooks/pre-commit.sh` runs checks before each commit (tests, eventually lint and typecheck)
+- Called by a global pre-commit hook symlinked into `.git/hooks/pre-commit`
+
 ## Testing
 - Use `bun test` for all tests
 - **Do not use `mock.module()`** - it causes infinite loops in bun
@@ -33,3 +37,7 @@
 - Stop via `query.interrupt()` (graceful) or `query.close()` (forceful). Also supports `AbortController`.
 - Stdio MCP config: `{ command, args?, env? }` with optional `type: 'stdio'`
 - See `lib/agent.ts` header comment for full API documentation
+
+## Critical Lessons
+- Bun's function coverage counts every anonymous lambda at the source location level. Module-level production wiring (e.g., `const fs = { readdir: (...) => ... }`) inflates the function denominator even when real logic is fully tested through mocks. Extract wiring into named, exported factory functions to make the coverage metric reflect actual test quality.
+- The DI factory pattern used throughout this codebase: export a `createX(deps)` factory, keep a default instance for production via destructured re-export. Applied to SessionStore, AgentManager, MCPManager, ServerContext, NodeSessionStore, NodePluginFs, and the POST route handler. New modules that wire dependencies should follow this pattern.

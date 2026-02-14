@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.39",

@@ -29,7 +29,9 @@ export function useSSE(
   // Keep a stable reference to the latest callback so we don't
   // re-create the EventSource when the callback identity changes.
   const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  });
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {
@@ -40,16 +42,9 @@ export function useSSE(
   }, []);
 
   useEffect(() => {
-    if (!url) {
-      disconnect();
-      return;
-    }
-
-    // Close any existing connection before opening a new one
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
+    // When url is null, the cleanup from the previous effect (if any)
+    // already closed the EventSource and reset state.
+    if (!url) return;
 
     const es = new EventSource(url);
     eventSourceRef.current = es;
@@ -86,7 +81,7 @@ export function useSSE(
       eventSourceRef.current = null;
       setConnected(false);
     };
-  }, [url, disconnect]);
+  }, [url]);
 
   return { connected, disconnect };
 }

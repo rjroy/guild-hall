@@ -20,6 +20,24 @@ function validManifestJson(): string {
 
 // -- Tests --
 
+describe("createMockFs", () => {
+  it("stat returns isDirectory: false for a file path", async () => {
+    const fs = createMockFs(
+      { "/files/readme.txt": "hello" },
+      new Set(["/files"]),
+    );
+
+    const result = await fs.stat("/files/readme.txt");
+    expect(result.isDirectory()).toBe(false);
+  });
+
+  it("stat rejects with ENOENT for a nonexistent path", async () => {
+    const fs = createMockFs({}, new Set());
+
+    expect(fs.stat("/no/such/path")).rejects.toThrow("ENOENT");
+  });
+});
+
 describe("discoverGuildMembers", () => {
   const basePath = "/guild-members";
 
