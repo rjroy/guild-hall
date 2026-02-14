@@ -37,3 +37,7 @@
 - Stop via `query.interrupt()` (graceful) or `query.close()` (forceful). Also supports `AbortController`.
 - Stdio MCP config: `{ command, args?, env? }` with optional `type: 'stdio'`
 - See `lib/agent.ts` header comment for full API documentation
+
+## Critical Lessons
+- Bun's function coverage counts every anonymous lambda at the source location level. Module-level production wiring (e.g., `const fs = { readdir: (...) => ... }`) inflates the function denominator even when real logic is fully tested through mocks. Extract wiring into named, exported factory functions to make the coverage metric reflect actual test quality.
+- The DI factory pattern used throughout this codebase: export a `createX(deps)` factory, keep a default instance for production via destructured re-export. Applied to SessionStore, AgentManager, MCPManager, ServerContext, NodeSessionStore, NodePluginFs, and the POST route handler. New modules that wire dependencies should follow this pattern.
