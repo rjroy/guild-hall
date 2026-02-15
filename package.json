@@ -9,7 +9,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "test:coverage": "bun test --coverage"
+    "test:coverage": "bun test --coverage",
+    "install:guild-members": "bun run scripts/guild-members.ts install",
+    "build:guild-members": "bun run scripts/guild-members.ts build"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.39",
