@@ -3,6 +3,10 @@ import { describe, expect, it } from "bun:test";
 import type { SessionStatus, StoredMessage } from "@/lib/types";
 import type { ToolCallEntry } from "@/lib/workshop-state";
 import {
+  runningCount,
+  toolCallSummary,
+} from "@/components/workshop/ToolCallGroup";
+import {
   getMessageAlignment,
   getSSEUrl,
   isConversationEmpty,
@@ -212,4 +216,74 @@ describe("WorkshopView error state determination", () => {
     const error: string | null = null;
     expect(error !== null).toBe(false);
   });
+});
+
+describe("tool call message filtering", () => {
+  it("filters out messages with toolName set", () => {
+    const messages: StoredMessage[] = [
+      makeStoredMessage({ role: "user", content: "do something" }),
+      makeStoredMessage({
+        role: "assistant",
+        content: "",
+        toolName: "read_file",
+      }),
+      makeStoredMessage({
+        role: "assistant",
+        content: "",
+        toolName: "write_file",
+      }),
+      makeStoredMessage({ role: "assistant", content: "Done!" }),
+    ];
+    const visible = messages.filter((msg) => !msg.toolName);
+    expect(visible).toHaveLength(2);
+    expect(visible[0].content).toBe("do something");
+    expect(visible[1].content).toBe("Done!");
+  });
+
+  it("keeps all messages when none have toolName", () => {
+    const messages: StoredMessage[] = [
+      makeStoredMessage({ role: "user", content: "hello" }),
+      makeStoredMessage({ role: "assistant", content: "hi" }),
+    ];
+    const visible = messages.filter((msg) => !msg.toolName);
+    expect(visible).toHaveLength(2);
+  });
+});
+
+describe("ToolCallGroup", () => {
+  describe("toolCallSummary", () => {
+    it("returns singular for one tool call", () => {
+      expect(toolCallSummary(1)).toBe("1 tool call");
+    });
+
+    it("returns plural for multiple tool calls", () => {
+      expect(toolCallSummary(3)).toBe("3 tool calls");
+    });
+
+    it("returns plural for zero tool calls", () => {
+      expect(toolCallSummary(0)).toBe("0 tool calls");
+    });
+  });
+
+  describe("runningCount", () => {
+    it("returns 0 when all tool calls have results", () => {
+      const calls = new Map<string, ToolCallEntry>();
+      calls.set("t-1", makeToolCallEntry({ result: "done" }));
+      calls.set("t-2", makeToolCallEntry({ result: null }));
+      expect(runningCount(calls)).toBe(0);
+    });
+
+    it("counts tool calls without results as running", () => {
+      const calls = new Map<string, ToolCallEntry>();
+      calls.set("t-1", makeToolCallEntry());
+      calls.set("t-2", makeToolCallEntry({ result: "done" }));
+      calls.set("t-3", makeToolCallEntry());
+      expect(runningCount(calls)).toBe(2);
+    });
+
+    it("returns 0 for empty map", () => {
+      expect(runningCount(new Map())).toBe(0);
+    });
+  });
+
 });
