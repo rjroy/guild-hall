@@ -19,6 +19,8 @@ import type { EventBus, QueryFn } from "./agent";
 import { AgentManager } from "./agent-manager";
 import { MCPManager } from "./mcp-manager";
 import type { MCPServerFactory } from "./mcp-manager";
+import { createHttpMCPFactory } from "./http-mcp-factory";
+import { PortRegistry } from "./port-registry";
 import { sessionStore, sessionsDir } from "./node-session-store";
 import { discoverGuildMembers } from "./plugin-discovery";
 import type { FileSystem } from "./plugin-discovery";
@@ -156,6 +158,7 @@ const defaultContext = createServerContext({
   queryFn: query as QueryFn,
   sessionStore,
   sessionsDir,
+  serverFactory: createHttpMCPFactory({ portRegistry: new PortRegistry() }),
 });
 
 // Wire up the initPromise getter for graceful shutdown
@@ -167,10 +170,12 @@ export const { getEventBus, getAgentManager, getMCPManager, getRosterMap } =
   defaultContext;
 
 // Eagerly initialize roster on backend startup per REQ-MCP-HTTP-10
-// This starts all MCP servers immediately when Next.js loads this module
-void getMCPManager().catch((err) => {
-  console.error("[MCP] Failed to initialize roster on startup:", err);
-});
+// Skip in test environment to avoid interference with test isolation
+if (process.env.NODE_ENV !== "test" && typeof (globalThis as any).Bun?.jest === "undefined") {
+  void getMCPManager().catch((err) => {
+    console.error("[MCP] Failed to initialize roster on startup:", err);
+  });
+}
 
 async function gracefulShutdown(signal: string) {
   if (shutdownInProgress) return;
