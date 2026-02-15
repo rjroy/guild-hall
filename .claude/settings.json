@@ -14,20 +14,6 @@
     "compass-rose@vibe-garden": true
   },
   "plansDirectory": ".lore/plans",
-  "extraKnownModules": {
-    "wyrd-gateway": {
-      "source": {
-        "source": "github",
-        "url": "rjroy/wyrd-gateway"
-      }
-    },
-    "vibe-garden": {
-      "source": {
-        "source": "github",
-        "url": "rjroy/vibe-garden"
-      }
-    }
-  },
   "hooks": {
     "SessionStart": [
       {
