@@ -24,6 +24,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
+  min-height: 36px;
   background: var(--panel-header-bg);
   border-bottom: 1px solid var(--card-border);
 }

@@ -6,7 +6,7 @@ import type { StoredMessage } from "@/lib/types";
 import type { ToolCallEntry } from "@/lib/workshop-state";
 import { isConversationEmpty } from "@/lib/workshop-utils";
 import { MessageBubble } from "./MessageBubble";
-import { ToolCallDisplay } from "./ToolCallDisplay";
+import { ToolCallGroup } from "./ToolCallGroup";
 import styles from "./ConversationHistory.module.css";
 
 type ConversationHistoryProps = {
@@ -25,7 +25,7 @@ export function ConversationHistory({
   // Auto-scroll to bottom on new content
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, streamingText]);
+  }, [messages.length, streamingText, pendingToolCalls.size]);
 
   const isEmpty = isConversationEmpty(messages, streamingText, pendingToolCalls);
 
@@ -49,15 +49,9 @@ export function ConversationHistory({
         />
       ))}
 
-      {Array.from(pendingToolCalls.entries()).map(([id, entry]) => (
-        <ToolCallDisplay
-          key={id}
-          toolName={entry.toolName}
-          toolInput={entry.toolInput}
-          result={entry.result}
-          pending={entry.result === undefined}
-        />
-      ))}
+      {pendingToolCalls.size > 0 && (
+        <ToolCallGroup toolCalls={pendingToolCalls} />
+      )}
 
       {streamingText.length > 0 && (
         <MessageBubble
