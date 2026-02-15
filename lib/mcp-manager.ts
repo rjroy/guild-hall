@@ -85,9 +85,15 @@ export class MCPManager {
       ([, member]) => member.transport === "http",
     );
 
-    await Promise.allSettled(
+    console.log(`[MCP] Initializing roster: ${httpMembers.length} HTTP server(s) to spawn`);
+
+    const results = await Promise.allSettled(
       httpMembers.map(([name, member]) => this.spawnServer(name, member)),
     );
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.filter((r) => r.status === "rejected").length;
+    console.log(`[MCP] Roster initialization complete: ${succeeded} connected, ${failed} failed`);
   }
 
   /**
@@ -223,18 +229,22 @@ export class MCPManager {
 
   /** Stop all running servers and clear all state. */
   async shutdown(): Promise<void> {
+    console.log(`[MCP] Shutting down ${this.servers.size} server(s)...`);
+
     const shutdownPromises = Array.from(this.servers.entries()).map(
       async ([name, handle]) => {
         try {
+          console.log(`[MCP:${name}] Stopping server...`);
           await handle.stop();
           const member = this.roster.get(name);
           if (member) {
             member.status = "disconnected";
             delete member.error;
           }
+          console.log(`[MCP:${name}] Stopped successfully`);
           this.emit({ type: "stopped", memberName: name });
         } catch (err) {
-          console.error(`Failed to stop MCP server ${name}:`, err);
+          console.error(`[MCP:${name}] Failed to stop:`, err);
           const member = this.roster.get(name);
           if (member) {
             member.status = "error";
@@ -251,6 +261,7 @@ export class MCPManager {
     this.processes.clear();
     this.references.clear();
     this.subscribers.clear();
+    console.log(`[MCP] Shutdown complete`);
   }
 
   // -- Private helpers --
@@ -264,6 +275,8 @@ export class MCPManager {
       if (!member.pluginDir) {
         throw new Error(`Plugin directory not set for member "${name}"`);
       }
+
+      console.log(`[MCP:${name}] Starting server...`);
 
       // Note: serverFactory.spawn() is responsible for setting the working
       // directory to the plugin's directory before spawning. See the
@@ -289,6 +302,8 @@ export class MCPManager {
           ? `Process killed with signal ${signal}`
           : `Process exited with code ${code ?? "unknown"}`;
 
+        console.error(`[MCP:${name}] Server crashed: ${errorMsg}`);
+
         member.status = "error";
         member.error = errorMsg;
 
@@ -306,10 +321,14 @@ export class MCPManager {
       member.port = port;
       delete member.error;
 
+      console.log(`[MCP:${name}] Initialized successfully (${tools.length} tools, port ${port})`);
+
       this.emit({ type: "started", memberName: name });
       this.emit({ type: "tools_updated", memberName: name, tools });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+
+      console.error(`[MCP:${name}] Failed to start: ${message}`);
 
       // Update the roster entry with error status
       member.status = "error";

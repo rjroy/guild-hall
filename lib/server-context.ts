@@ -166,6 +166,12 @@ if (defaultContext.getInitPromise) {
 export const { getEventBus, getAgentManager, getMCPManager, getRosterMap } =
   defaultContext;
 
+// Eagerly initialize roster on backend startup per REQ-MCP-HTTP-10
+// This starts all MCP servers immediately when Next.js loads this module
+void getMCPManager().catch((err) => {
+  console.error("[MCP] Failed to initialize roster on startup:", err);
+});
+
 async function gracefulShutdown(signal: string) {
   if (shutdownInProgress) return;
   shutdownInProgress = true;

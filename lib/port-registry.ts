@@ -37,6 +37,7 @@ export class PortRegistry implements IPortRegistry {
     for (let port = PORT_RANGE_START; port <= PORT_RANGE_END; port++) {
       if (!this.usedPorts.has(port) && !this.deadPorts.has(port)) {
         this.usedPorts.add(port);
+        console.log(`[MCP] Allocated port ${port} (${this.usedPorts.size} in use, ${this.deadPorts.size} dead)`);
         return port;
       }
     }
@@ -57,6 +58,7 @@ export class PortRegistry implements IPortRegistry {
   release(port: number): void {
     if (port < PORT_RANGE_START || port > PORT_RANGE_END) return;
     this.usedPorts.delete(port);
+    console.log(`[MCP] Released port ${port} (${this.usedPorts.size} in use)`);
   }
 
   /**
@@ -70,6 +72,7 @@ export class PortRegistry implements IPortRegistry {
     if (port < PORT_RANGE_START || port > PORT_RANGE_END) return;
     this.usedPorts.delete(port);
     this.deadPorts.add(port);
+    console.log(`[MCP] Marked port ${port} as dead (collision/bind failure)`);
   }
 }
 

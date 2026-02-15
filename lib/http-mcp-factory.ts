@@ -60,6 +60,7 @@ export function createHttpMCPFactory(
 
       for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt++) {
         const port = deps.portRegistry.allocate();
+        console.log(`[MCP] Spawning server (attempt ${attempt + 1}/${MAX_RETRY_ATTEMPTS}, port ${port}): ${config.command} ${config.args.join(" ")}`);
 
         // Substitute ${PORT} in args
         const substitutedArgs = config.args.map((arg) =>
@@ -97,6 +98,7 @@ export function createHttpMCPFactory(
         // Check if already exited with EADDRINUSE
         if (proc.exitCode === MCP_EXIT_CODE.PORT_COLLISION) {
           deps.portRegistry.markDead(port);
+          console.log(`[MCP] Port ${port} collision (quick exit), retrying...`);
           lastError = new Error(
             `Port ${port} collision detected (EADDRINUSE), retrying`,
           );
@@ -121,6 +123,7 @@ export function createHttpMCPFactory(
           // If process exited with code 2, mark port dead and retry
           if (exitCode === MCP_EXIT_CODE.PORT_COLLISION) {
             deps.portRegistry.markDead(port);
+            console.log(`[MCP] Port ${port} collision (during initialize), retrying...`);
             lastError = new Error(
               `Port ${port} collision detected during initialize, retrying`,
             );
@@ -129,6 +132,7 @@ export function createHttpMCPFactory(
 
           // Other errors: release port and fail
           deps.portRegistry.release(port);
+          console.error(`[MCP] Spawn failed on port ${port}: ${err instanceof Error ? err.message : String(err)}`);
 
           const errorMessage =
             err instanceof Error ? err.message : String(err);
@@ -155,6 +159,7 @@ export function createHttpMCPFactory(
         };
 
         // Success - return process, handle, and port
+        console.log(`[MCP] Server spawned successfully on port ${port}`);
         return { process: proc, handle, port };
       }
 
