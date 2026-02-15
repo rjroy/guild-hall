@@ -263,25 +263,298 @@ The MCP Streamable HTTP protocol is simpler than expected:
 
 This is much simpler than the stdio approach (no process lifecycle complexity, no stdin/stdout parsing, no stderr capture) and aligns perfectly with the brainstorm decision to use HTTP transport.
 
+## MCP JSON-RPC Message Formats
+
+### Initialization Handshake (3 steps)
+
+**Step 1: Client sends initialize request**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {
+      "roots": { "listChanged": true },
+      "sampling": {}
+    },
+    "clientInfo": {
+      "name": "ExampleClient",
+      "version": "1.0.0"
+    }
+  }
+}
+```
+
+**Step 2: Server responds with its capabilities**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {
+      "logging": {},
+      "prompts": { "listChanged": true },
+      "resources": { "subscribe": true, "listChanged": true },
+      "tools": { "listChanged": true }
+    },
+    "serverInfo": {
+      "name": "ExampleServer",
+      "version": "1.0.0"
+    },
+    "instructions": "Optional instructions for the client"
+  }
+}
+```
+
+**Step 3: Client sends initialized notification**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized"
+}
+```
+
+**Important constraints:**
+- Initialize request MUST NOT be part of a JSON-RPC batch
+- Client SHOULD NOT send requests (except pings) before server responds to initialize
+- Server SHOULD NOT send requests (except pings/logging) before receiving initialized notification
+
+### Tools/List (Discover Available Tools)
+
+**Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list",
+  "params": {
+    "cursor": "optional-cursor-value"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "get_weather",
+        "title": "Weather Information Provider",
+        "description": "Get current weather information for a location",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "City name or zip code"
+            }
+          },
+          "required": ["location"]
+        }
+      }
+    ],
+    "nextCursor": "next-page-cursor"
+  }
+}
+```
+
+**Pagination:** Use `cursor` parameter to page through large tool lists. Server returns `nextCursor` if more tools available.
+
+### Tools/Call (Invoke a Tool)
+
+**Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "get_weather",
+    "arguments": {
+      "location": "New York"
+    }
+  }
+}
+```
+
+**Response (Success):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Current weather in New York:\nTemperature: 72°F\nConditions: Partly cloudy"
+      }
+    ],
+    "isError": false
+  }
+}
+```
+
+**Response (Tool Execution Error):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Failed to fetch weather data: API rate limit exceeded"
+      }
+    ],
+    "isError": true
+  }
+}
+```
+
+**Response (Protocol Error):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "error": {
+    "code": -32602,
+    "message": "Unknown tool: invalid_tool_name"
+  }
+}
+```
+
+### Tool Result Content Types
+
+Tools can return multiple content types:
+
+**Text:**
+```json
+{
+  "type": "text",
+  "text": "Tool result text"
+}
+```
+
+**Image:**
+```json
+{
+  "type": "image",
+  "data": "base64-encoded-data",
+  "mimeType": "image/png"
+}
+```
+
+**Audio:**
+```json
+{
+  "type": "audio",
+  "data": "base64-encoded-audio-data",
+  "mimeType": "audio/wav"
+}
+```
+
+**Resource Link:**
+```json
+{
+  "type": "resource_link",
+  "uri": "file:///project/src/main.rs",
+  "name": "main.rs",
+  "description": "Primary application entry point",
+  "mimeType": "text/x-rust"
+}
+```
+
+**Embedded Resource:**
+```json
+{
+  "type": "resource",
+  "resource": {
+    "uri": "file:///project/src/main.rs",
+    "mimeType": "text/x-rust",
+    "text": "fn main() {\n    println!(\"Hello world!\");\n}"
+  }
+}
+```
+
+### Notifications
+
+**Tools List Changed:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/tools/list_changed"
+}
+```
+
+Sent by server when available tools change (if `listChanged` capability declared).
+
+### Capabilities Declaration
+
+**Server must declare tools capability:**
+```json
+{
+  "capabilities": {
+    "tools": {
+      "listChanged": true
+    }
+  }
+}
+```
+
+### Error Handling
+
+Two error mechanisms:
+
+1. **Protocol Errors** (JSON-RPC standard errors):
+   - Unknown tools (`-32602`)
+   - Invalid arguments
+   - Server errors
+
+2. **Tool Execution Errors** (in result with `isError: true`):
+   - API failures
+   - Invalid input data
+   - Business logic errors
+
+### Security Requirements
+
+**Servers MUST:**
+- Validate all tool inputs
+- Implement proper access controls
+- Rate limit tool invocations
+- Sanitize tool outputs
+
+**Clients SHOULD:**
+- Prompt for user confirmation on sensitive operations
+- Show tool inputs before calling server (prevent data exfiltration)
+- Validate tool results before passing to LLM
+- Implement timeouts for tool calls
+- Log tool usage for audit
+
 ### Open Questions
 
-1. **Which JSON-RPC methods are required?** Need to research MCP core protocol spec to understand:
-   - `tools/list` → list available tools
-   - `tools/call` → invoke a tool
-   - Any other required methods?
+1. ~~Which JSON-RPC methods are required?~~ → **Answered**: `initialize`, `notifications/initialized`, `tools/list`, `tools/call`
 
-2. **What's the exact JSON-RPC message format?** Need examples of:
-   - `ListToolsRequest` / `ListToolsResponse`
-   - `CallToolRequest` / `CallToolResponse`
-   - Error responses
+2. ~~What's the exact JSON-RPC message format?~~ → **Answered**: See message formats above
 
-3. **Do we need resources?** MCP supports both tools and resources. Guild Hall focuses on tools initially.
+3. **Do we need resources?** MCP supports both tools and resources. Guild Hall focuses on tools initially. Resources deferred to future.
 
-4. **Session vs stateless?** For simple tools (email search, reverse string), stateless is fine. For stateful operations (database transactions), sessions may be needed.
+4. **Session vs stateless?** For simple tools (email search, reverse string), stateless is fine. HTTP transport supports optional sessions via `Mcp-Session-Id` header. Start stateless, add sessions if needed.
 
 ### Next Steps
 
-1. Research MCP JSON-RPC protocol spec (methods, message format)
+1. ~~Research MCP JSON-RPC protocol spec (methods, message format)~~ → **Complete**
 2. Create HTTP transport spec for Guild Hall
 3. Update example plugin to be HTTP server
 4. Implement HTTP MCP factory
+
+## Additional Sources
+
+- [MCP Tools Specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)
+- [MCP Lifecycle Specification](https://modelcontextprotocol.io/specification/2025-03-26/basic/lifecycle)
+- [Portkey MCP Message Types Guide](https://portkey.ai/blog/mcp-message-types-complete-json-rpc-reference-guide/)
