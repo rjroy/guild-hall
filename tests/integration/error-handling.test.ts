@@ -6,6 +6,8 @@
  */
 
 import { describe, expect, it } from "bun:test";
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 
 import { discoverGuildMembers } from "@/lib/plugin-discovery";
 import type { FileSystem } from "@/lib/plugin-discovery";
@@ -44,6 +46,11 @@ import { createMockSessionFs } from "@/tests/helpers/mock-session-fs";
 const NOW = "2026-02-12T12:00:00.000Z";
 const fixedClock: Clock = () => new Date(NOW);
 
+function createMockProcess(): ChildProcess {
+  const emitter = new EventEmitter();
+  return emitter as ChildProcess;
+}
+
 function makeGuildMember(
   name: string,
   overrides: Partial<GuildMember> = {},
@@ -53,9 +60,11 @@ function makeGuildMember(
     displayName: name,
     description: `The ${name} member`,
     version: "1.0.0",
+    transport: "http",
     mcp: { command: "node", args: [`${name}.js`] },
     status: "disconnected",
     tools: [],
+    pluginDir: `/test/${name}`,
     ...overrides,
   };
 }
@@ -155,11 +164,15 @@ function createErrorQueryFn(
 
 function createMockMcpFactory(): MCPServerFactory {
   return {
-    spawn(): Promise<MCPServerHandle> {
+    spawn() {
       return Promise.resolve({
-        stop: () => Promise.resolve(),
-        listTools: () => Promise.resolve([]),
-        invokeTool: () => Promise.resolve(null),
+        process: createMockProcess(),
+        handle: {
+          stop: () => Promise.resolve(),
+          listTools: () => Promise.resolve([]),
+          invokeTool: () => Promise.resolve(null),
+        },
+        port: 50000,
       });
     },
   };
@@ -195,6 +208,7 @@ describe("Integration: invalid manifest display", () => {
               displayName: "Good Member",
               description: "A valid member",
               version: "1.0.0",
+              transport: "http",
               mcp: { command: "node", args: ["good.js"] },
             }),
           );
@@ -288,7 +302,11 @@ describe("Integration: MCP server crash mid-session", () => {
     ]);
 
     const factory: MCPServerFactory = {
-      spawn: () => Promise.resolve(crashingHandle),
+      spawn: () => Promise.resolve({
+        process: createMockProcess(),
+        handle: crashingHandle,
+        port: 50000,
+      }),
     };
 
     const manager = new MCPManager(roster, factory);
@@ -341,7 +359,11 @@ describe("Integration: MCP server crash mid-session", () => {
     ]);
 
     const factory: MCPServerFactory = {
-      spawn: () => Promise.resolve(crashingHandle),
+      spawn: () => Promise.resolve({
+        process: createMockProcess(),
+        handle: crashingHandle,
+        port: 50000,
+      }),
     };
 
     const manager = new MCPManager(roster, factory);

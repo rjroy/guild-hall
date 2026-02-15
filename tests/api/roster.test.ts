@@ -22,6 +22,7 @@ describe("getRoster", () => {
       displayName: "Example",
       description: "Test member",
       version: "1.0.0",
+      transport: "http",
       mcp: { command: "echo", args: ["hello"] },
     });
 
@@ -45,6 +46,7 @@ describe("getRoster", () => {
       displayName: "Cached",
       description: "Test",
       version: "1.0.0",
+      transport: "http",
       mcp: { command: "echo", args: [] },
     });
 
@@ -89,6 +91,7 @@ describe("getRoster", () => {
       displayName: "Fresh",
       description: "Test",
       version: "1.0.0",
+      transport: "http",
       mcp: { command: "echo", args: [] },
     });
 

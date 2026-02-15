@@ -1,4 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 
 import { MCPManager } from "@/lib/mcp-manager";
 import type {
@@ -17,11 +19,18 @@ function makeGuildMember(overrides: Partial<GuildMember> = {}): GuildMember {
     displayName: "Test Member",
     description: "A test guild member",
     version: "1.0.0",
+    transport: "http",
     mcp: { command: "node", args: ["server.js"] },
     status: "disconnected",
     tools: [],
+    pluginDir: "/test/plugin/dir",
     ...overrides,
   };
+}
+
+function createMockProcess(): ChildProcess {
+  const emitter = new EventEmitter();
+  return emitter as ChildProcess;
 }
 
 const defaultTools: MCPToolInfo[] = [
@@ -68,18 +77,21 @@ type SpawnConfig = {
   command: string;
   args: string[];
   env?: Record<string, string>;
+  pluginDir: string;
 };
 
 function createMockFactory(options: {
   handles?: Map<string, MCPServerHandle & { stopped: boolean }>;
   spawnError?: Error;
+  processes?: Map<string, ChildProcess>;
 } = {}): MCPServerFactory & { spawnCount: number; spawnCalls: SpawnConfig[] } {
   const handles = options.handles ?? new Map<string, MCPServerHandle & { stopped: boolean }>();
+  const processes = options.processes ?? new Map<string, ChildProcess>();
 
   const factory = {
     spawnCount: 0,
     spawnCalls: [] as SpawnConfig[],
-    spawn(config: SpawnConfig): Promise<MCPServerHandle> {
+    spawn(config: SpawnConfig): Promise<{ process: ChildProcess; handle: MCPServerHandle; port: number }> {
       factory.spawnCount++;
       factory.spawnCalls.push(config);
 
@@ -89,12 +101,14 @@ function createMockFactory(options: {
       const entries = Array.from(handles.entries());
       for (const [key, handle] of entries) {
         if (config.command === key || config.args.includes(key)) {
-          return Promise.resolve(handle);
+          const proc = processes.get(key) ?? createMockProcess();
+          return Promise.resolve({ process: proc, handle, port: 50000 });
         }
       }
 
       // Return a default mock handle
-      return Promise.resolve(createMockHandle());
+      const proc = createMockProcess();
+      return Promise.resolve({ process: proc, handle: createMockHandle(), port: 50000 });
     },
   };
 
@@ -116,6 +130,180 @@ function collectEvents(manager: MCPManager): MCPEvent[] {
 // -- Tests --
 
 describe("MCPManager", () => {
+  describe("initializeRoster", () => {
+    it("starts all HTTP transport plugins", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http", pluginDir: "/test/alpha" })],
+        ["beta", makeGuildMember({ name: "beta", transport: "http", pluginDir: "/test/beta" })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      await manager.initializeRoster();
+
+      expect(factory.spawnCount).toBe(2);
+      expect(manager.isRunning("alpha")).toBe(true);
+      expect(manager.isRunning("beta")).toBe(true);
+      expect(roster.get("alpha")!.status).toBe("connected");
+      expect(roster.get("beta")!.status).toBe("connected");
+    });
+
+    it("populates member.port with allocated port", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      await manager.initializeRoster();
+
+      expect(roster.get("alpha")!.port).toBe(50000);
+    });
+
+    it("populates member.tools from listTools", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      await manager.initializeRoster();
+
+      expect(roster.get("alpha")!.tools).toEqual(defaultTools);
+    });
+
+    it("emits started and tools_updated events for each server", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      const events = collectEvents(manager);
+
+      await manager.initializeRoster();
+
+      const types = events.map((e) => e.type);
+      expect(types).toContain("started");
+      expect(types).toContain("tools_updated");
+    });
+
+    it("sets status to error when spawn fails and doesn't block other servers", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http", mcp: { command: "fail", args: [] } })],
+        ["beta", makeGuildMember({ name: "beta", transport: "http", mcp: { command: "succeed", args: [] } })],
+      ]);
+      const failFactory = createMockFactory({
+        spawnError: new Error("Connection refused"),
+      });
+
+      // Create a factory that fails for "fail" command but succeeds for others
+      const factory: MCPServerFactory & { spawnCount: number; spawnCalls: SpawnConfig[] } = {
+        spawnCount: 0,
+        spawnCalls: [],
+        async spawn(config: SpawnConfig) {
+          factory.spawnCount++;
+          factory.spawnCalls.push(config);
+
+          if (config.command === "fail") {
+            throw new Error("Connection refused");
+          }
+
+          return {
+            process: createMockProcess(),
+            handle: createMockHandle(),
+            port: 50000,
+          };
+        },
+      };
+
+      const manager = new MCPManager(roster, factory);
+      const events = collectEvents(manager);
+
+      await manager.initializeRoster();
+
+      expect(roster.get("alpha")!.status).toBe("error");
+      expect(roster.get("alpha")!.error).toBe("Connection refused");
+      expect(roster.get("beta")!.status).toBe("connected");
+
+      const errorEvents = events.filter((e) => e.type === "error");
+      expect(errorEvents).toHaveLength(1);
+    });
+
+    it("skips non-HTTP plugins", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+        ["beta", makeGuildMember({ name: "beta", transport: "stdio" as "http" })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      await manager.initializeRoster();
+
+      // Only HTTP plugin started
+      expect(factory.spawnCount).toBe(1);
+      expect(manager.isRunning("alpha")).toBe(true);
+      expect(manager.isRunning("beta")).toBe(false);
+    });
+
+    it("passes pluginDir to factory", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http", pluginDir: "/custom/path" })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      await manager.initializeRoster();
+
+      expect(factory.spawnCalls[0].pluginDir).toBe("/custom/path");
+    });
+
+    it("attaches exit listener that triggers on process crash", async () => {
+      const mockProc = createMockProcess();
+      const mockHandle = createMockHandle();
+      const handles = new Map([["alpha", mockHandle]]);
+      const processes = new Map([["alpha", mockProc]]);
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http", mcp: { command: "alpha", args: [] } })],
+      ]);
+      const factory = createMockFactory({ handles, processes });
+      const manager = new MCPManager(roster, factory);
+      const events = collectEvents(manager);
+
+      await manager.initializeRoster();
+
+      expect(roster.get("alpha")!.status).toBe("connected");
+
+      // Simulate process crash
+      mockProc.emit("exit", 1, null);
+
+      // Wait for event loop to process the exit event
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(roster.get("alpha")!.status).toBe("error");
+      expect(roster.get("alpha")!.error).toContain("Process exited with code 1");
+
+      const errorEvents = events.filter((e) => e.type === "error");
+      expect(errorEvents.length).toBeGreaterThan(0);
+    });
+
+    it("handles listTools failure by setting status to error", async () => {
+      const failHandle = createMockHandle();
+      failHandle.listTools = () => Promise.reject(new Error("Tools list failed"));
+
+      const handles = new Map([["alpha", failHandle]]);
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http", mcp: { command: "alpha", args: [] } })],
+      ]);
+      const factory = createMockFactory({ handles });
+      const manager = new MCPManager(roster, factory);
+
+      await manager.initializeRoster();
+
+      expect(roster.get("alpha")!.status).toBe("error");
+      expect(roster.get("alpha")!.error).toContain("Tools list failed");
+    });
+  });
+
   describe("startServersForSession", () => {
     it("starts servers for all requested members and sets status to connected", async () => {
       const roster = createRoster([
@@ -224,37 +412,85 @@ describe("MCPManager", () => {
   });
 
   describe("getServerConfigs", () => {
-    it("returns Record keyed by member name with correct config shape", () => {
+    it("returns HTTP config with correct URL format for connected members", async () => {
       const roster = createRoster([
-        [
-          "alpha",
-          makeGuildMember({
-            name: "alpha",
-            mcp: { command: "node", args: ["alpha.js"], env: { PORT: "5050" } },
-          }),
-        ],
-        [
-          "beta",
-          makeGuildMember({
-            name: "beta",
-            mcp: { command: "python", args: ["beta.py", "--verbose"] },
-          }),
-        ],
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+        ["beta", makeGuildMember({ name: "beta", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      // Start servers to get them connected with ports
+      await manager.initializeRoster();
+
+      const configs = manager.getServerConfigs(["alpha", "beta"]);
+
+      expect(configs).toEqual({
+        alpha: { type: "http", url: "http://localhost:50000/mcp" },
+        beta: { type: "http", url: "http://localhost:50000/mcp" },
+      });
+    });
+
+    it("port number matches allocated port", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+
+      // Custom factory that returns a specific port
+      const factory: MCPServerFactory & { spawnCount: number } = {
+        spawnCount: 0,
+        async spawn(config) {
+          factory.spawnCount++;
+          return {
+            process: createMockProcess(),
+            handle: createMockHandle(),
+            port: 50123,
+          };
+        },
+      };
+
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs = manager.getServerConfigs(["alpha"]);
+
+      expect(configs["alpha"].url).toBe("http://localhost:50123/mcp");
+      expect(roster.get("alpha")!.port).toBe(50123);
+    });
+
+    it("excludes disconnected members", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http", status: "connected", port: 50000 })],
+        ["beta", makeGuildMember({ name: "beta", transport: "http", status: "disconnected" })],
       ]);
       const factory = createMockFactory();
       const manager = new MCPManager(roster, factory);
 
       const configs = manager.getServerConfigs(["alpha", "beta"]);
 
-      expect(configs).toEqual({
-        alpha: { command: "node", args: ["alpha.js"], env: { PORT: "5050" } },
-        beta: { command: "python", args: ["beta.py", "--verbose"] },
-      });
+      expect(Object.keys(configs)).toHaveLength(1);
+      expect(configs["alpha"]).toEqual({ type: "http", url: "http://localhost:50000/mcp" });
+      expect(configs["beta"]).toBeUndefined();
+    });
+
+    it("only includes status=connected members", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http", status: "connected", port: 50000 })],
+        ["beta", makeGuildMember({ name: "beta", transport: "http", status: "error", port: 50001 })],
+        ["gamma", makeGuildMember({ name: "gamma", transport: "http", status: "disconnected" })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      const configs = manager.getServerConfigs(["alpha", "beta", "gamma"]);
+
+      expect(Object.keys(configs)).toHaveLength(1);
+      expect(configs["alpha"]).toEqual({ type: "http", url: "http://localhost:50000/mcp" });
     });
 
     it("skips members not in the roster", () => {
       const roster = createRoster([
-        ["alpha", makeGuildMember({ name: "alpha" })],
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http", status: "connected", port: 50000 })],
       ]);
       const factory = createMockFactory();
       const manager = new MCPManager(roster, factory);
@@ -262,7 +498,7 @@ describe("MCPManager", () => {
       const configs = manager.getServerConfigs(["alpha", "nonexistent"]);
 
       expect(Object.keys(configs)).toHaveLength(1);
-      expect(configs["alpha"].command).toBe("node");
+      expect(configs["alpha"]).toEqual({ type: "http", url: "http://localhost:50000/mcp" });
     });
   });
 
@@ -399,11 +635,18 @@ describe("MCPManager", () => {
 
   describe("shutdown", () => {
     it("stops all running servers and clears state", async () => {
+      const alphaHandle = createMockHandle();
+      const betaHandle = createMockHandle();
       const roster = createRoster([
         ["alpha", makeGuildMember({ name: "alpha", mcp: { command: "node", args: ["alpha.js"] } })],
         ["beta", makeGuildMember({ name: "beta", mcp: { command: "python", args: ["beta.py"] } })],
       ]);
-      const factory = createMockFactory();
+      const factory = createMockFactory({
+        handles: new Map([
+          ["alpha.js", alphaHandle],
+          ["beta.py", betaHandle],
+        ]),
+      });
       const manager = new MCPManager(roster, factory);
 
       await manager.startServersForSession("session-1", ["alpha", "beta"]);
@@ -416,9 +659,72 @@ describe("MCPManager", () => {
       expect(manager.isRunning("alpha")).toBe(false);
       expect(manager.isRunning("beta")).toBe(false);
 
-      // Roster members set to disconnected
-      expect(roster.get("alpha")!.status).toBe("disconnected");
-      expect(roster.get("beta")!.status).toBe("disconnected");
+      // Handles were stopped
+      expect(alphaHandle.stopped).toBe(true);
+      expect(betaHandle.stopped).toBe(true);
+    });
+
+    it("emits stopped event for each server", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", mcp: { command: "node", args: ["alpha.js"] } })],
+        ["beta", makeGuildMember({ name: "beta", mcp: { command: "python", args: ["beta.py"] } })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      const events = collectEvents(manager);
+
+      await manager.startServersForSession("session-1", ["alpha", "beta"]);
+
+      // Clear startup events
+      events.length = 0;
+
+      await manager.shutdown();
+
+      const stoppedEvents = events.filter((e) => e.type === "stopped");
+      expect(stoppedEvents).toHaveLength(2);
+      expect(stoppedEvents.map((e) => e.type === "stopped" && e.memberName).sort()).toEqual(["alpha", "beta"]);
+    });
+
+    it("handles stop() failures gracefully without throwing", async () => {
+      const failHandle = createMockHandle({
+        stopError: new Error("Process already exited"),
+      });
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", mcp: { command: "node", args: ["alpha.js"] } })],
+      ]);
+      const factory = createMockFactory({
+        handles: new Map([["alpha.js", failHandle]]),
+      });
+      const manager = new MCPManager(roster, factory);
+
+      await manager.startServersForSession("session-1", ["alpha"]);
+
+      // Should not throw despite stop() failure
+      await expect(manager.shutdown()).resolves.toBeUndefined();
+
+      // Server still cleaned up
+      expect(manager.isRunning("alpha")).toBe(false);
+    });
+
+    it("clears all maps (servers, processes, references)", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", mcp: { command: "node", args: ["alpha.js"] } })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      await manager.startServersForSession("session-1", ["alpha"]);
+
+      expect(manager.isRunning("alpha")).toBe(true);
+
+      await manager.shutdown();
+
+      // All state cleared
+      expect(manager.isRunning("alpha")).toBe(false);
+
+      // Can start a new session after shutdown (references map was cleared)
+      await manager.startServersForSession("session-2", ["alpha"]);
+      expect(manager.isRunning("alpha")).toBe(true);
     });
 
     it("clears subscribers so no events fire after shutdown", async () => {
@@ -446,6 +752,61 @@ describe("MCPManager", () => {
       const countAfterShutdown = postShutdownEvents.length;
       await manager.startServersForSession("session-2", ["alpha"]);
       expect(postShutdownEvents.length).toBe(countAfterShutdown);
+    });
+
+    it("updates roster member status to disconnected on successful shutdown", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", mcp: { command: "node", args: ["alpha.js"] } })],
+        ["beta", makeGuildMember({ name: "beta", mcp: { command: "python", args: ["beta.py"] } })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      await manager.startServersForSession("session-1", ["alpha", "beta"]);
+
+      expect(roster.get("alpha")!.status).toBe("connected");
+      expect(roster.get("beta")!.status).toBe("connected");
+
+      await manager.shutdown();
+
+      expect(roster.get("alpha")!.status).toBe("disconnected");
+      expect(roster.get("beta")!.status).toBe("disconnected");
+      expect(roster.get("alpha")!.error).toBeUndefined();
+      expect(roster.get("beta")!.error).toBeUndefined();
+    });
+
+    it("updates roster member status to error and emits error event when stop() fails during shutdown", async () => {
+      const failHandle = createMockHandle({
+        stopError: new Error("Process already exited"),
+      });
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", mcp: { command: "node", args: ["alpha.js"] } })],
+      ]);
+      const factory = createMockFactory({
+        handles: new Map([["alpha.js", failHandle]]),
+      });
+      const manager = new MCPManager(roster, factory);
+      const events = collectEvents(manager);
+
+      await manager.startServersForSession("session-1", ["alpha"]);
+
+      expect(roster.get("alpha")!.status).toBe("connected");
+
+      // Clear startup events
+      events.length = 0;
+
+      await manager.shutdown();
+
+      // Status set to error when stop() fails
+      expect(roster.get("alpha")!.status).toBe("error");
+      expect(roster.get("alpha")!.error).toBe("Process already exited");
+
+      // Error event emitted
+      const errorEvents = events.filter((e) => e.type === "error");
+      expect(errorEvents).toHaveLength(1);
+      expect(errorEvents[0].type === "error" && errorEvents[0].error).toBe(
+        "Process already exited",
+      );
     });
   });
 

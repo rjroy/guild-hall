@@ -17,6 +17,7 @@ export const GuildMemberManifestSchema = z.object({
   displayName: z.string(),
   description: z.string(),
   version: z.string(),
+  transport: z.enum(["http"]),
   mcp: z.object({
     command: z.string(),
     args: z.array(z.string()),

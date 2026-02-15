@@ -339,6 +339,7 @@ import type {
   SDKToolProgressMessage,
   SDKToolUseSummaryMessage,
   McpStdioServerConfig,
+  McpServerConfig,
   PermissionMode,
 } from "@anthropic-ai/claude-agent-sdk";
 
@@ -386,7 +387,7 @@ export type AgentQueryOptions = {
   /** The user's message */
   prompt: string;
   /** MCP servers keyed by member name */
-  mcpServers: Record<string, McpStdioServerConfig>;
+  mcpServers: Record<string, McpServerConfig>;
   /** Working directory for the agent session */
   cwd: string;
   /** System prompt (includes context file instructions) */

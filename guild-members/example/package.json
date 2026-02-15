@@ -1,0 +1,16 @@
+{
+  "name": "guild-hall-example-plugin",
+  "version": "0.1.0",
+  "description": "Example MCP plugin for Guild Hall development and testing",
+  "type": "module",
+  "main": "server.ts",
+  "scripts": {
+    "start": "tsx server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

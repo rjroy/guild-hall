@@ -14,6 +14,7 @@ function validManifest() {
     displayName: "Test Member",
     description: "A test guild member",
     version: "1.0.0",
+    transport: "http" as const,
     mcp: {
       command: "node",
       args: ["server.js"],
@@ -102,6 +103,28 @@ describe("GuildMemberManifestSchema", () => {
     const manifest = { ...validManifest(), extraField: "should-be-removed" };
     const result = GuildMemberManifestSchema.parse(manifest);
     expect("extraField" in result).toBe(false);
+  });
+
+  it("accepts manifest with transport: http", () => {
+    const result = GuildMemberManifestSchema.parse(validManifest());
+    expect(result.transport).toBe("http");
+  });
+
+  it("rejects manifest missing transport field", () => {
+    const manifest: Record<string, unknown> = { ...validManifest() };
+    delete manifest.transport;
+    expect(() => GuildMemberManifestSchema.parse(manifest)).toThrow();
+  });
+
+  it("rejects manifest with invalid transport value", () => {
+    const manifest = { ...validManifest(), transport: "stdio" };
+    expect(() => GuildMemberManifestSchema.parse(manifest)).toThrow();
+
+    const manifest2 = { ...validManifest(), transport: "websocket" };
+    expect(() => GuildMemberManifestSchema.parse(manifest2)).toThrow();
+
+    const manifest3 = { ...validManifest(), transport: 42 };
+    expect(() => GuildMemberManifestSchema.parse(manifest3)).toThrow();
   });
 });
 
