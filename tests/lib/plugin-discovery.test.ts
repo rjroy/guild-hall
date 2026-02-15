@@ -11,6 +11,7 @@ function validManifestJson(): string {
     displayName: "Test Member",
     description: "A test guild member",
     version: "1.0.0",
+    transport: "http",
     mcp: {
       command: "node",
       args: ["server.js"],
@@ -127,6 +128,7 @@ describe("discoverGuildMembers", () => {
       displayName: "Member One",
       description: "First member",
       version: "1.0.0",
+      transport: "http",
       mcp: { command: "node", args: ["one.js"] },
     });
     const manifest2 = JSON.stringify({
@@ -134,6 +136,7 @@ describe("discoverGuildMembers", () => {
       displayName: "Member Two",
       description: "Second member",
       version: "2.0.0",
+      transport: "http",
       mcp: { command: "python", args: ["two.py"] },
     });
 
@@ -181,6 +184,7 @@ describe("discoverGuildMembers", () => {
       displayName: "Display Name",
       description: "Test",
       version: "1.0.0",
+      transport: "http",
       mcp: { command: "echo", args: [] },
     });
 
@@ -203,6 +207,7 @@ describe("discoverGuildMembers", () => {
       displayName: "Nested Plugin",
       description: "Plugin in a collection",
       version: "1.0.0",
+      transport: "http",
       mcp: { command: "node", args: ["nested.js"] },
     });
 
@@ -233,6 +238,7 @@ describe("discoverGuildMembers", () => {
       displayName: "Flat Plugin",
       description: "Standalone plugin",
       version: "1.0.0",
+      transport: "http",
       mcp: { command: "node", args: ["flat.js"] },
     });
 
@@ -241,6 +247,7 @@ describe("discoverGuildMembers", () => {
       displayName: "Nested Plugin",
       description: "Plugin in collection",
       version: "2.0.0",
+      transport: "http",
       mcp: { command: "python", args: ["nested.py"] },
     });
 

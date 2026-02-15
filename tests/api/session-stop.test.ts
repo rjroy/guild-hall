@@ -1,4 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 
 import { AgentManager } from "@/lib/agent-manager";
 import type { AgentManagerDeps } from "@/lib/agent-manager";
@@ -16,6 +18,11 @@ import { createMockSessionFs } from "@/tests/helpers/mock-session-fs";
 
 const NOW = "2026-02-12T12:00:00.000Z";
 const SESSION_ID = "2026-02-12-stop-session";
+
+function createMockProcess(): ChildProcess {
+  const emitter = new EventEmitter();
+  return emitter as ChildProcess;
+}
 
 // -- Mock SDK message factories --
 
@@ -64,19 +71,25 @@ function makeGuildMember(name: string): GuildMember {
     displayName: name,
     description: `The ${name} member`,
     version: "1.0.0",
+    transport: "http",
     mcp: { command: "node", args: [`${name}.js`] },
     status: "disconnected",
     tools: [],
+    pluginDir: `/test/${name}`,
   };
 }
 
 function createMockMcpFactory(): MCPServerFactory {
   return {
-    spawn(): Promise<MCPServerHandle> {
+    spawn() {
       return Promise.resolve({
-        stop: () => Promise.resolve(),
-        listTools: () => Promise.resolve([]),
-        invokeTool: () => Promise.resolve(null),
+        process: createMockProcess(),
+        handle: {
+          stop: () => Promise.resolve(),
+          listTools: () => Promise.resolve([]),
+          invokeTool: () => Promise.resolve(null),
+        },
+        port: 50000,
       });
     },
   };

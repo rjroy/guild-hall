@@ -1,3 +1,5 @@
+import type { ChildProcess } from "node:child_process";
+
 import type { GuildMember, ToolInfo } from "./types";
 
 // -- MCP server abstractions --
@@ -33,17 +35,17 @@ export interface MCPServerFactory {
     command: string;
     args: string[];
     env?: Record<string, string>;
-  }): Promise<MCPServerHandle>;
+    pluginDir: string;
+  }): Promise<{ process: ChildProcess; handle: MCPServerHandle; port: number }>;
 }
 
 /**
  * MCP server config in the format the Agent SDK expects for query().
- * Placeholder shape, will be confirmed in Phase 7 (Agent SDK verification).
+ * HTTP transport: { type: "http", url: "..." }
  */
 export interface MCPServerConfig {
-  command: string;
-  args: string[];
-  env?: Record<string, string>;
+  type: "http";
+  url: string;
 }
 
 // -- Events --
@@ -66,12 +68,27 @@ export type MCPEvent =
 export class MCPManager {
   private references = new Map<string, Set<string>>();
   private servers = new Map<string, MCPServerHandle>();
+  private processes = new Map<string, ChildProcess>();
   private subscribers = new Set<(event: MCPEvent) => void>();
 
   constructor(
     private roster: Map<string, GuildMember>,
     private serverFactory: MCPServerFactory,
   ) {}
+
+  /**
+   * Eagerly start all HTTP transport servers. Called during backend initialization.
+   * Uses Promise.allSettled to continue even if some servers fail.
+   */
+  async initializeRoster(): Promise<void> {
+    const httpMembers = Array.from(this.roster.entries()).filter(
+      ([, member]) => member.transport === "http",
+    );
+
+    await Promise.allSettled(
+      httpMembers.map(([name, member]) => this.spawnServer(name, member)),
+    );
+  }
 
   /**
    * Start MCP servers for the given session. Each member gets the session
@@ -136,24 +153,22 @@ export class MCPManager {
    * Return MCP configs for the named members, suitable for passing to the
    * Agent SDK's query() call. Keyed by member name, matching the SDK's
    * expected Record<string, McpServerConfig> shape.
+   *
+   * Only connected HTTP transport members are included.
    */
   getServerConfigs(memberNames: string[]): Record<string, MCPServerConfig> {
     const configs: Record<string, MCPServerConfig> = {};
 
     for (const name of memberNames) {
       const member = this.roster.get(name);
-      if (!member) continue;
+      if (!member || member.status !== "connected") continue;
 
-      const config: MCPServerConfig = {
-        command: member.mcp.command,
-        args: member.mcp.args,
-      };
-
-      if (member.mcp.env) {
-        config.env = member.mcp.env;
+      if (member.transport === "http") {
+        configs[name] = {
+          type: "http",
+          url: `http://localhost:${member.port}/mcp`,
+        };
       }
-
-      configs[name] = config;
     }
 
     return configs;
@@ -208,14 +223,32 @@ export class MCPManager {
 
   /** Stop all running servers and clear all state. */
   async shutdown(): Promise<void> {
-    const stopPromises: Promise<void>[] = [];
+    const shutdownPromises = Array.from(this.servers.entries()).map(
+      async ([name, handle]) => {
+        try {
+          await handle.stop();
+          const member = this.roster.get(name);
+          if (member) {
+            member.status = "disconnected";
+            delete member.error;
+          }
+          this.emit({ type: "stopped", memberName: name });
+        } catch (err) {
+          console.error(`Failed to stop MCP server ${name}:`, err);
+          const member = this.roster.get(name);
+          if (member) {
+            member.status = "error";
+            member.error = err instanceof Error ? err.message : String(err);
+          }
+          const message = err instanceof Error ? err.message : String(err);
+          this.emit({ type: "error", memberName: name, error: message });
+        }
+      },
+    );
 
-    for (const [name, handle] of this.servers) {
-      stopPromises.push(this.stopServer(name, handle));
-    }
-
-    await Promise.all(stopPromises);
-
+    await Promise.allSettled(shutdownPromises);
+    this.servers.clear();
+    this.processes.clear();
     this.references.clear();
     this.subscribers.clear();
   }
@@ -227,29 +260,56 @@ export class MCPManager {
     member: GuildMember,
   ): Promise<void> {
     try {
+      // Ensure pluginDir is present
+      if (!member.pluginDir) {
+        throw new Error(`Plugin directory not set for member "${name}"`);
+      }
+
       // Note: serverFactory.spawn() is responsible for setting the working
       // directory to the plugin's directory before spawning. See the
       // MCPServerFactory interface documentation for the contract.
-      const handle = await this.serverFactory.spawn({
+      const { process, handle, port } = await this.serverFactory.spawn({
         command: member.mcp.command,
         args: member.mcp.args,
         env: member.mcp.env,
+        pluginDir: member.pluginDir,
       });
 
       this.servers.set(name, handle);
+      this.processes.set(name, process);
+
+      // Attach crash detection listener
+      process.on("exit", (code, signal) => {
+        // Only handle crashes if the server was expected to be running
+        if (!this.servers.has(name)) {
+          return;
+        }
+
+        const errorMsg = signal
+          ? `Process killed with signal ${signal}`
+          : `Process exited with code ${code ?? "unknown"}`;
+
+        member.status = "error";
+        member.error = errorMsg;
+
+        this.servers.delete(name);
+        this.processes.delete(name);
+
+        this.emit({ type: "error", memberName: name, error: errorMsg });
+      });
 
       const tools = await handle.listTools();
 
       // Update the roster entry
       member.status = "connected";
       member.tools = tools;
+      member.port = port;
       delete member.error;
 
       this.emit({ type: "started", memberName: name });
       this.emit({ type: "tools_updated", memberName: name, tools });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : String(err);
+      const message = err instanceof Error ? err.message : String(err);
 
       // Update the roster entry with error status
       member.status = "error";
@@ -264,6 +324,7 @@ export class MCPManager {
     handle: MCPServerHandle,
   ): Promise<void> {
     this.servers.delete(name);
+    this.processes.delete(name);
 
     try {
       await handle.stop();

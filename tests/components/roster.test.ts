@@ -52,6 +52,7 @@ function makeGuildMember(overrides: Partial<GuildMember> = {}): GuildMember {
     displayName: "Test Member",
     description: "A test guild member",
     version: "1.0.0",
+    transport: "http",
     mcp: { command: "node", args: ["server.js"] },
     status: "disconnected",
     tools: [],

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 
 import { MCPManager } from "@/lib/mcp-manager";
 import type {
@@ -24,15 +26,22 @@ async function parseJson(response: Response): Promise<ApiResponse> {
 
 // -- Fixtures --
 
+function createMockProcess(): ChildProcess {
+  const emitter = new EventEmitter();
+  return emitter as ChildProcess;
+}
+
 function makeGuildMember(name: string): GuildMember {
   return {
     name,
     displayName: name,
     description: `The ${name} member`,
     version: "1.0.0",
+    transport: "http",
     mcp: { command: "node", args: [`${name}.js`] },
     status: "disconnected",
     tools: [],
+    pluginDir: `/test/${name}`,
   };
 }
 
@@ -65,7 +74,11 @@ function createMockHandle(options: {
 
 function createMockFactory(handle: MCPServerHandle): MCPServerFactory {
   return {
-    spawn: () => Promise.resolve(handle),
+    spawn: () => Promise.resolve({
+      process: createMockProcess(),
+      handle,
+      port: 50000,
+    }),
   };
 }
 
@@ -281,7 +294,11 @@ describe("POST /api/tools/invoke", () => {
     it("returns 404 with empty roster", async () => {
       const roster = new Map<string, GuildMember>();
       const factory: MCPServerFactory = {
-        spawn: () => Promise.resolve(createMockHandle()),
+        spawn: () => Promise.resolve({
+          process: createMockProcess(),
+          handle: createMockHandle(),
+          port: 50000,
+        }),
       };
       const mcpManager = new MCPManager(roster, factory);
 

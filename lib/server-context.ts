@@ -46,7 +46,9 @@ export type ServerContext = {
 
 // -- Factory --
 
-export function createServerContext(deps: ServerContextDeps): ServerContext {
+export function createServerContext(deps: ServerContextDeps): ServerContext & {
+  getInitPromise?: () => Promise<void> | null;
+} {
   let eventBus: EventBus | null = null;
   let mcpManagerInstance: MCPManager | null = null;
   let rosterInstance: Map<string, GuildMember> | null = null;
@@ -68,6 +70,10 @@ export function createServerContext(deps: ServerContextDeps): ServerContext {
 
     rosterInstance = roster;
     mcpManagerInstance = new MCPManager(roster, factory);
+
+    // Eagerly start all HTTP transport servers
+    await mcpManagerInstance.initializeRoster();
+
     const bus = contextGetEventBus();
 
     agentManager = new AgentManager({
@@ -117,6 +123,8 @@ export function createServerContext(deps: ServerContextDeps): ServerContext {
       // Non-null safe: initialize() sets rosterInstance before resolving
       return rosterInstance!;
     },
+
+    getInitPromise: () => initPromise,
   };
 }
 
@@ -131,6 +139,14 @@ export function createNodePluginFs(): FileSystem {
   };
 }
 
+// -- Graceful shutdown --
+
+let shutdownInProgress = false;
+
+// Expose a way to check if initialization has started
+// Declared as let so it can be reassigned after defaultContext is created
+let initPromiseGetter: (() => Promise<void> | null) | null = null;
+
 // -- Default instance for production --
 
 const defaultContext = createServerContext({
@@ -142,5 +158,37 @@ const defaultContext = createServerContext({
   sessionsDir,
 });
 
+// Wire up the initPromise getter for graceful shutdown
+if (defaultContext.getInitPromise) {
+  initPromiseGetter = defaultContext.getInitPromise;
+}
+
 export const { getEventBus, getAgentManager, getMCPManager, getRosterMap } =
   defaultContext;
+
+async function gracefulShutdown(signal: string) {
+  if (shutdownInProgress) return;
+  shutdownInProgress = true;
+
+  console.log(`Received ${signal}, shutting down gracefully...`);
+
+  try {
+    // Only shutdown if already initialized
+    // Check via the factory's internal initPromise to avoid triggering lazy init
+    const hasInit = initPromiseGetter && initPromiseGetter() !== null;
+    if (hasInit) {
+      const mcpManager = await getMCPManager();
+      await mcpManager.shutdown();
+      console.log("All MCP servers stopped");
+    } else {
+      console.log("No servers initialized, skipping shutdown");
+    }
+  } catch (err) {
+    console.error("Error during shutdown:", err);
+  }
+
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));

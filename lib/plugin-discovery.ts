@@ -124,7 +124,7 @@ async function loadManifest(
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return makeErrorMember(key, "Invalid JSON in guild-member.json");
+    return makeErrorMember(key, "Invalid JSON in guild-member.json", pluginPath);
   }
 
   // Validate against schema
@@ -135,22 +135,25 @@ async function loadManifest(
       ...result.data,
       status: "disconnected",
       tools: [],
+      pluginDir: pluginPath,
     };
   } else {
-    return makeErrorMember(key, result.error.message);
+    return makeErrorMember(key, result.error.message, pluginPath);
   }
 }
 
-function makeErrorMember(dirName: string, errorMessage: string): GuildMember {
+function makeErrorMember(dirName: string, errorMessage: string, pluginPath: string): GuildMember {
   return {
     name: dirName,
     displayName: dirName,
     description: "",
     version: "",
+    transport: "http",
     mcp: { command: "", args: [] },
     status: "error",
     tools: [],
     error: errorMessage,
+    pluginDir: pluginPath,
   };
 }
 

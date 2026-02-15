@@ -1,3 +1,4 @@
+import type { ChildProcess } from "node:child_process";
 import type { z } from "zod";
 
 import type {
@@ -21,7 +22,7 @@ export type StoredMessage = z.infer<typeof StoredMessageSchema>;
 /** Tool descriptor returned by an MCP server's listTools call. */
 export type ToolInfo = {
   name: string;
-  description: string;
+  description?: string;
   inputSchema: Record<string, unknown>;
 };
 
@@ -33,6 +34,8 @@ export type GuildMember = GuildMemberManifest & {
   status: GuildMemberStatus;
   tools: ToolInfo[];
   error?: string;
+  port?: number;
+  pluginDir?: string;
 };
 
 // -- API request/response types --
@@ -66,4 +69,53 @@ export type InvokeToolResponse = {
 export type RosterResponse = GuildMember[];
 
 export type SessionListResponse = SessionMetadata[];
+
+// -- MCP Server Abstractions --
+
+/**
+ * MCP Server Exit Code Contract
+ *
+ * MCP servers MUST use these exit codes to communicate termination reasons:
+ * - 0: Normal shutdown
+ * - 1: General error
+ * - 2: EADDRINUSE (port collision) - server tried to bind to an already-occupied port
+ * - 3+: Reserved for future use
+ */
+export const MCP_EXIT_CODE = {
+  SUCCESS: 0,
+  ERROR: 1,
+  PORT_COLLISION: 2,
+} as const;
+
+/** A running MCP server process. */
+export interface MCPServerHandle {
+  stop(): Promise<void>;
+  listTools(): Promise<ToolInfo[]>;
+  invokeTool(
+    toolName: string,
+    toolInput: Record<string, unknown>,
+  ): Promise<unknown>;
+}
+
+/**
+ * Factory for creating MCP server handles.
+ *
+ * Working Directory Contract:
+ * Implementations MUST set the current working directory (cwd) to pluginDir
+ * before spawning the process. This allows plugins to use relative paths in
+ * their command/args and server code without knowing their install path.
+ *
+ * Return Value:
+ * - process: The spawned ChildProcess for lifecycle management
+ * - handle: Interface for interacting with the MCP server
+ * - port: The allocated port number the server is listening on
+ */
+export interface MCPServerFactory {
+  spawn(config: {
+    command: string;
+    args: string[];
+    env?: Record<string, string>;
+    pluginDir: string;
+  }): Promise<{ process: ChildProcess; handle: MCPServerHandle; port: number }>;
+}
 
