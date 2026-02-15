@@ -10,8 +10,6 @@
 
 const PORT_RANGE_START = 50000;
 const PORT_RANGE_END = 51000;
-const PORT_RANGE_SIZE = PORT_RANGE_END - PORT_RANGE_START + 1;
-
 export interface IPortRegistry {
   allocate(): number;
   release(port: number): void;

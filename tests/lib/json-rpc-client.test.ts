@@ -17,6 +17,18 @@ import {
   type ToolResult,
 } from "../../lib/json-rpc-client";
 
+/** Structural type for parsed JSON-RPC request bodies in tests */
+type JsonRpcBody = {
+  jsonrpc: string;
+  id?: number;
+  method: string;
+  params?: unknown;
+};
+
+function parseBody(options?: RequestInit): JsonRpcBody {
+  return JSON.parse(options?.body as string) as JsonRpcBody;
+}
+
 describe("JsonRpcClient", () => {
   describe("initialize", () => {
     it("sends initialize request and initialized notification", async () => {
@@ -26,22 +38,22 @@ describe("JsonRpcClient", () => {
         serverInfo: { name: "test-server", version: "1.0.0" },
       };
 
-      const calls: Array<{ url: string; body: unknown; headers: Headers }> = [];
-      const mockFetch = mock(async (url: string, options?: RequestInit) => {
-        const body = JSON.parse(options?.body as string);
+      const calls: Array<{ url: string; body: JsonRpcBody; headers: Headers }> = [];
+      const mockFetch = mock((url: string, options?: RequestInit) => {
+        const body = parseBody(options);
         calls.push({ url, body, headers: new Headers(options?.headers) });
 
         // First call is initialize request, second is notification
         if (calls.length === 1) {
-          return new Response(
+          return Promise.resolve(new Response(
             JSON.stringify({
               jsonrpc: "2.0",
               id: body.id,
               result: mockResponse,
             }),
-          );
+          ));
         } else {
-          return new Response(null, { status: 204 });
+          return Promise.resolve(new Response(null, { status: 204 }));
         }
       });
 
@@ -80,7 +92,7 @@ describe("JsonRpcClient", () => {
     it("throws JsonRpcTimeoutError on timeout", async () => {
       const mockFetch = mock(
         (_url: string, options?: RequestInit): Promise<Response> =>
-          new Promise((resolve, reject) => {
+          new Promise((_resolve, reject) => {
             // Listen for abort signal
             const signal = options?.signal;
             if (signal) {
@@ -95,7 +107,7 @@ describe("JsonRpcClient", () => {
       );
 
       // Use fast timer (1ms instead of 5000ms) to avoid waiting
-      const mockSetTimeout = mock((fn: () => void, _ms: number) => {
+      const mockSetTimeout = mock((fn: () => void) => {
         return global.setTimeout(fn, 1) as unknown as number;
       });
       const mockClearTimeout = mock(global.clearTimeout);
@@ -106,9 +118,12 @@ describe("JsonRpcClient", () => {
         clearTimeout: mockClearTimeout,
       });
 
-      await expect(
+      expect(
         client.initialize({ name: "test", version: "1.0" }),
       ).rejects.toThrow(JsonRpcTimeoutError);
+
+      // Wait for the async rejection to settle
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Verify timeout was set and cleared
       expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 5000);
@@ -130,15 +145,15 @@ describe("JsonRpcClient", () => {
         },
       ];
 
-      const mockFetch = mock(async (_url: string, options?: RequestInit) => {
-        const body = JSON.parse(options?.body as string);
-        return new Response(
+      const mockFetch = mock((_url: string, options?: RequestInit) => {
+        const body = parseBody(options);
+        return Promise.resolve(new Response(
           JSON.stringify({
             jsonrpc: "2.0",
             id: body.id,
             result: { tools: mockTools },
           }),
-        );
+        ));
       });
 
       const client = createJsonRpcClient("http://localhost:50000/mcp", {
@@ -152,15 +167,15 @@ describe("JsonRpcClient", () => {
 
     it("includes required headers", async () => {
       let capturedHeaders: Headers | undefined;
-      const mockFetch = mock(async (_url: string, options?: RequestInit) => {
+      const mockFetch = mock((_url: string, options?: RequestInit) => {
         capturedHeaders = new Headers(options?.headers);
-        return new Response(
+        return Promise.resolve(new Response(
           JSON.stringify({
             jsonrpc: "2.0",
             id: 1,
             result: { tools: [] },
           }),
-        );
+        ));
       });
 
       const client = createJsonRpcClient("http://localhost:50000/mcp", {
@@ -182,15 +197,15 @@ describe("JsonRpcClient", () => {
         isError: false,
       };
 
-      const mockFetch = mock(async (_url: string, options?: RequestInit) => {
-        const body = JSON.parse(options?.body as string);
-        return new Response(
+      const mockFetch = mock((_url: string, options?: RequestInit) => {
+        const body = parseBody(options);
+        return Promise.resolve(new Response(
           JSON.stringify({
             jsonrpc: "2.0",
             id: body.id,
             result: mockResult,
           }),
-        );
+        ));
       });
 
       const client = createJsonRpcClient("http://localhost:50000/mcp", {
@@ -208,39 +223,42 @@ describe("JsonRpcClient", () => {
         isError: true,
       };
 
-      const mockFetch = mock(async (_url: string, options?: RequestInit) => {
-        const body = JSON.parse(options?.body as string);
-        return new Response(
+      const mockFetch = mock((_url: string, options?: RequestInit) => {
+        const body = parseBody(options);
+        return Promise.resolve(new Response(
           JSON.stringify({
             jsonrpc: "2.0",
             id: body.id,
             result: mockResult,
           }),
-        );
+        ));
       });
 
       const client = createJsonRpcClient("http://localhost:50000/mcp", {
         fetch: mockFetch,
       });
 
-      await expect(
+      expect(
         client.invokeTool("test-tool", { arg1: "value1" }),
       ).rejects.toThrow(JsonRpcToolExecutionError);
+
+      // Wait for the async rejection to settle
+      await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
     it("sends correct request format", async () => {
-      let capturedBody: unknown;
+      let capturedBody: JsonRpcBody | undefined;
       let capturedHeaders: Headers | undefined;
-      const mockFetch = mock(async (_url: string, options?: RequestInit) => {
-        capturedBody = JSON.parse(options?.body as string);
+      const mockFetch = mock((_url: string, options?: RequestInit) => {
+        capturedBody = parseBody(options);
         capturedHeaders = new Headers(options?.headers);
-        return new Response(
+        return Promise.resolve(new Response(
           JSON.stringify({
             jsonrpc: "2.0",
             id: 1,
             result: { content: [], isError: false },
           }),
-        );
+        ));
       });
 
       const client = createJsonRpcClient("http://localhost:50000/mcp", {
@@ -264,20 +282,23 @@ describe("JsonRpcClient", () => {
   describe("error handling", () => {
     it("throws JsonRpcHttpError on HTTP error status", async () => {
       const mockFetch = mock(
-        async () => new Response("Internal Server Error", { status: 500 }),
+        () => Promise.resolve(new Response("Internal Server Error", { status: 500 })),
       );
 
       const client = createJsonRpcClient("http://localhost:50000/mcp", {
         fetch: mockFetch,
       });
 
-      await expect(client.listTools()).rejects.toThrow(JsonRpcHttpError);
+      expect(client.listTools()).rejects.toThrow(JsonRpcHttpError);
+
+      // Wait for the async rejection to settle
+      await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
     it("throws JsonRpcProtocolError on JSON-RPC error object", async () => {
-      const mockFetch = mock(async (_url: string, options?: RequestInit) => {
-        const body = JSON.parse(options?.body as string);
-        return new Response(
+      const mockFetch = mock((_url: string, options?: RequestInit) => {
+        const body = parseBody(options);
+        return Promise.resolve(new Response(
           JSON.stringify({
             jsonrpc: "2.0",
             id: body.id,
@@ -287,20 +308,23 @@ describe("JsonRpcClient", () => {
               data: { method: "unknown/method" },
             },
           }),
-        );
+        ));
       });
 
       const client = createJsonRpcClient("http://localhost:50000/mcp", {
         fetch: mockFetch,
       });
 
-      await expect(client.listTools()).rejects.toThrow(JsonRpcProtocolError);
+      expect(client.listTools()).rejects.toThrow(JsonRpcProtocolError);
+
+      // Wait for the async rejection to settle
+      await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
     it("throws JsonRpcTimeoutError on timeout", async () => {
       const mockFetch = mock(
         (_url: string, options?: RequestInit): Promise<Response> =>
-          new Promise((resolve, reject) => {
+          new Promise((_resolve, reject) => {
             // Listen for abort signal
             const signal = options?.signal;
             if (signal) {
@@ -315,7 +339,7 @@ describe("JsonRpcClient", () => {
       );
 
       // Use fast timer (1ms instead of 30000ms) to avoid waiting
-      const mockSetTimeout = mock((fn: () => void, _ms: number) => {
+      const mockSetTimeout = mock((fn: () => void) => {
         return global.setTimeout(fn, 1) as unknown as number;
       });
       const mockClearTimeout = mock(global.clearTimeout);
@@ -326,7 +350,10 @@ describe("JsonRpcClient", () => {
         clearTimeout: mockClearTimeout,
       });
 
-      await expect(client.listTools()).rejects.toThrow(JsonRpcTimeoutError);
+      expect(client.listTools()).rejects.toThrow(JsonRpcTimeoutError);
+
+      // Wait for the async rejection to settle
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Verify timeout was set and cleared
       expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
@@ -336,15 +363,15 @@ describe("JsonRpcClient", () => {
 
   describe("timeout cleanup", () => {
     it("clears timeout on successful request", async () => {
-      const mockFetch = mock(async (_url: string, options?: RequestInit) => {
-        const body = JSON.parse(options?.body as string);
-        return new Response(
+      const mockFetch = mock((_url: string, options?: RequestInit) => {
+        const body = parseBody(options);
+        return Promise.resolve(new Response(
           JSON.stringify({
             jsonrpc: "2.0",
             id: body.id,
             result: { tools: [] },
           }),
-        );
+        ));
       });
 
       const mockClearTimeout = mock(global.clearTimeout);
@@ -363,7 +390,7 @@ describe("JsonRpcClient", () => {
 
     it("clears timeout on error", async () => {
       const mockFetch = mock(
-        async () => new Response("Error", { status: 500 }),
+        () => Promise.resolve(new Response("Error", { status: 500 })),
       );
 
       const mockClearTimeout = mock(global.clearTimeout);
@@ -373,7 +400,10 @@ describe("JsonRpcClient", () => {
         clearTimeout: mockClearTimeout,
       });
 
-      await expect(client.listTools()).rejects.toThrow(JsonRpcHttpError);
+      expect(client.listTools()).rejects.toThrow(JsonRpcHttpError);
+
+      // Wait for the async rejection to settle
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Verify clearTimeout was called even on error
       expect(mockClearTimeout).toHaveBeenCalledTimes(1);
@@ -383,7 +413,7 @@ describe("JsonRpcClient", () => {
     it("clears timeout on abort", async () => {
       const mockFetch = mock(
         (_url: string, options?: RequestInit): Promise<Response> =>
-          new Promise((resolve, reject) => {
+          new Promise((_resolve, reject) => {
             // Listen for abort signal
             const signal = options?.signal;
             if (signal) {
@@ -398,7 +428,7 @@ describe("JsonRpcClient", () => {
       );
 
       // Use fast timer to avoid waiting
-      const mockSetTimeout = mock((fn: () => void, _ms: number) => {
+      const mockSetTimeout = mock((fn: () => void) => {
         return global.setTimeout(fn, 1) as unknown as number;
       });
       const mockClearTimeout = mock(global.clearTimeout);
@@ -409,7 +439,10 @@ describe("JsonRpcClient", () => {
         clearTimeout: mockClearTimeout,
       });
 
-      await expect(client.listTools()).rejects.toThrow(JsonRpcTimeoutError);
+      expect(client.listTools()).rejects.toThrow(JsonRpcTimeoutError);
+
+      // Wait for the async rejection to settle
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Verify clearTimeout was called even on timeout
       expect(mockClearTimeout).toHaveBeenCalledTimes(1);
@@ -420,18 +453,18 @@ describe("JsonRpcClient", () => {
   describe("request/response correlation", () => {
     it("uses monotonically increasing IDs", async () => {
       const capturedIds: number[] = [];
-      const mockFetch = mock(async (_url: string, options?: RequestInit) => {
-        const body = JSON.parse(options?.body as string);
+      const mockFetch = mock((_url: string, options?: RequestInit) => {
+        const body = parseBody(options);
         if (body.id !== undefined) {
           capturedIds.push(body.id);
         }
-        return new Response(
+        return Promise.resolve(new Response(
           JSON.stringify({
             jsonrpc: "2.0",
             id: body.id,
             result: { tools: [] },
           }),
-        );
+        ));
       });
 
       const client = createJsonRpcClient("http://localhost:50000/mcp", {
@@ -450,12 +483,12 @@ describe("JsonRpcClient", () => {
 
     it("notifications omit id field", async () => {
       let notificationBody: unknown;
-      const mockFetch = mock(async (url: string, options?: RequestInit) => {
-        const body = JSON.parse(options?.body as string);
+      const mockFetch = mock((_url: string, options?: RequestInit) => {
+        const body = parseBody(options);
 
         // First call is initialize request with id
         if (body.method === "initialize") {
-          return new Response(
+          return Promise.resolve(new Response(
             JSON.stringify({
               jsonrpc: "2.0",
               id: body.id,
@@ -465,12 +498,12 @@ describe("JsonRpcClient", () => {
                 serverInfo: { name: "test", version: "1.0" },
               },
             }),
-          );
+          ));
         }
 
         // Second call is notification without id
         notificationBody = body;
-        return new Response(null, { status: 204 });
+        return Promise.resolve(new Response(null, { status: 204 }));
       });
 
       const client = createJsonRpcClient("http://localhost:50000/mcp", {

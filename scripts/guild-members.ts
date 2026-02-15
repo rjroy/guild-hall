@@ -20,6 +20,10 @@ interface Plugin {
   path: string;
 }
 
+interface PackageJson {
+  scripts?: Record<string, string>;
+}
+
 async function findPlugins(): Promise<Plugin[]> {
   const plugins: Plugin[] = [];
 
@@ -94,8 +98,8 @@ async function installPlugins(plugins: Plugin[]): Promise<void> {
     try {
       await runCommand("bun", ["install"], plugin.path);
       console.log(`✓ ${plugin.name}\n`);
-    } catch (error) {
-      console.error(`✗ ${plugin.name}: ${error}\n`);
+    } catch (error: unknown) {
+      console.error(`✗ ${plugin.name}: ${String(error)}\n`);
       process.exitCode = 1;
     }
   }
@@ -112,7 +116,7 @@ async function buildPlugins(plugins: Plugin[]): Promise<void> {
   for (const plugin of plugins) {
     // Check if plugin has a build script
     try {
-      const pkg = await import(join(process.cwd(), plugin.path, "package.json"));
+      const pkg = await import(join(process.cwd(), plugin.path, "package.json")) as PackageJson;
       if (!pkg.scripts?.build) {
         console.log(`⊘ ${plugin.name} (no build script)`);
         continue;
@@ -121,8 +125,8 @@ async function buildPlugins(plugins: Plugin[]): Promise<void> {
       console.log(`🔨 Building ${plugin.name}...`);
       await runCommand("bun", ["run", "build"], plugin.path);
       console.log(`✓ ${plugin.name}\n`);
-    } catch (error) {
-      console.error(`✗ ${plugin.name}: ${error}\n`);
+    } catch (error: unknown) {
+      console.error(`✗ ${plugin.name}: ${String(error)}\n`);
       process.exitCode = 1;
     }
   }
@@ -139,7 +143,7 @@ async function testPlugins(plugins: Plugin[]): Promise<void> {
   for (const plugin of plugins) {
     // Check if plugin has a test script
     try {
-      const pkg = await import(join(process.cwd(), plugin.path, "package.json"));
+      const pkg = await import(join(process.cwd(), plugin.path, "package.json")) as PackageJson;
       if (!pkg.scripts?.test) {
         console.log(`⊘ ${plugin.name} (no test script)`);
         continue;
@@ -148,8 +152,8 @@ async function testPlugins(plugins: Plugin[]): Promise<void> {
       console.log(`🧪 Testing ${plugin.name}...`);
       await runCommand("bun", ["run", "test"], plugin.path);
       console.log(`✓ ${plugin.name}\n`);
-    } catch (error) {
-      console.error(`✗ ${plugin.name}: ${error}\n`);
+    } catch (error: unknown) {
+      console.error(`✗ ${plugin.name}: ${String(error)}\n`);
       process.exitCode = 1;
     }
   }
@@ -166,7 +170,7 @@ async function testCoveragePlugins(plugins: Plugin[]): Promise<void> {
   for (const plugin of plugins) {
     // Check if plugin has a test:coverage script
     try {
-      const pkg = await import(join(process.cwd(), plugin.path, "package.json"));
+      const pkg = await import(join(process.cwd(), plugin.path, "package.json")) as PackageJson;
       if (!pkg.scripts?.["test:coverage"]) {
         console.log(`⊘ ${plugin.name} (no test:coverage script)`);
         continue;
@@ -175,8 +179,8 @@ async function testCoveragePlugins(plugins: Plugin[]): Promise<void> {
       console.log(`🧪 Testing ${plugin.name} with coverage...`);
       await runCommand("bun", ["run", "test:coverage"], plugin.path);
       console.log(`✓ ${plugin.name}\n`);
-    } catch (error) {
-      console.error(`✗ ${plugin.name}: ${error}\n`);
+    } catch (error: unknown) {
+      console.error(`✗ ${plugin.name}: ${String(error)}\n`);
       process.exitCode = 1;
     }
   }
@@ -193,7 +197,7 @@ async function lintPlugins(plugins: Plugin[]): Promise<void> {
   for (const plugin of plugins) {
     // Check if plugin has a lint script
     try {
-      const pkg = await import(join(process.cwd(), plugin.path, "package.json"));
+      const pkg = await import(join(process.cwd(), plugin.path, "package.json")) as PackageJson;
       if (!pkg.scripts?.lint) {
         console.log(`⊘ ${plugin.name} (no lint script)`);
         continue;
@@ -202,8 +206,8 @@ async function lintPlugins(plugins: Plugin[]): Promise<void> {
       console.log(`🔍 Linting ${plugin.name}...`);
       await runCommand("bun", ["run", "lint"], plugin.path);
       console.log(`✓ ${plugin.name}\n`);
-    } catch (error) {
-      console.error(`✗ ${plugin.name}: ${error}\n`);
+    } catch (error: unknown) {
+      console.error(`✗ ${plugin.name}: ${String(error)}\n`);
       process.exitCode = 1;
     }
   }
@@ -220,7 +224,7 @@ async function typecheckPlugins(plugins: Plugin[]): Promise<void> {
   for (const plugin of plugins) {
     // Check if plugin has a typecheck script
     try {
-      const pkg = await import(join(process.cwd(), plugin.path, "package.json"));
+      const pkg = await import(join(process.cwd(), plugin.path, "package.json")) as PackageJson;
       if (!pkg.scripts?.typecheck) {
         console.log(`⊘ ${plugin.name} (no typecheck script)`);
         continue;
@@ -229,8 +233,8 @@ async function typecheckPlugins(plugins: Plugin[]): Promise<void> {
       console.log(`📝 Typechecking ${plugin.name}...`);
       await runCommand("bun", ["run", "typecheck"], plugin.path);
       console.log(`✓ ${plugin.name}\n`);
-    } catch (error) {
-      console.error(`✗ ${plugin.name}: ${error}\n`);
+    } catch (error: unknown) {
+      console.error(`✗ ${plugin.name}: ${String(error)}\n`);
       process.exitCode = 1;
     }
   }

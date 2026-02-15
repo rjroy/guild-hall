@@ -338,7 +338,6 @@ import type {
   SDKStatusMessage,
   SDKToolProgressMessage,
   SDKToolUseSummaryMessage,
-  McpStdioServerConfig,
   McpServerConfig,
   PermissionMode,
 } from "@anthropic-ai/claude-agent-sdk";

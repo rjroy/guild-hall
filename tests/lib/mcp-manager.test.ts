@@ -192,27 +192,23 @@ describe("MCPManager", () => {
         ["alpha", makeGuildMember({ name: "alpha", transport: "http", mcp: { command: "fail", args: [] } })],
         ["beta", makeGuildMember({ name: "beta", transport: "http", mcp: { command: "succeed", args: [] } })],
       ]);
-      const failFactory = createMockFactory({
-        spawnError: new Error("Connection refused"),
-      });
-
       // Create a factory that fails for "fail" command but succeeds for others
       const factory: MCPServerFactory & { spawnCount: number; spawnCalls: SpawnConfig[] } = {
         spawnCount: 0,
         spawnCalls: [],
-        async spawn(config: SpawnConfig) {
+        spawn(config: SpawnConfig) {
           factory.spawnCount++;
           factory.spawnCalls.push(config);
 
           if (config.command === "fail") {
-            throw new Error("Connection refused");
+            return Promise.reject(new Error("Connection refused"));
           }
 
-          return {
+          return Promise.resolve({
             process: createMockProcess(),
             handle: createMockHandle(),
             port: 50000,
-          };
+          });
         },
       };
 
@@ -439,13 +435,13 @@ describe("MCPManager", () => {
       // Custom factory that returns a specific port
       const factory: MCPServerFactory & { spawnCount: number } = {
         spawnCount: 0,
-        async spawn(config) {
+        spawn() {
           factory.spawnCount++;
-          return {
+          return Promise.resolve({
             process: createMockProcess(),
             handle: createMockHandle(),
             port: 50123,
-          };
+          });
         },
       };
 
@@ -458,7 +454,7 @@ describe("MCPManager", () => {
       expect(roster.get("alpha")!.port).toBe(50123);
     });
 
-    it("excludes disconnected members", async () => {
+    it("excludes disconnected members", () => {
       const roster = createRoster([
         ["alpha", makeGuildMember({ name: "alpha", transport: "http", status: "connected", port: 50000 })],
         ["beta", makeGuildMember({ name: "beta", transport: "http", status: "disconnected" })],
@@ -473,7 +469,7 @@ describe("MCPManager", () => {
       expect(configs["beta"]).toBeUndefined();
     });
 
-    it("only includes status=connected members", async () => {
+    it("only includes status=connected members", () => {
       const roster = createRoster([
         ["alpha", makeGuildMember({ name: "alpha", transport: "http", status: "connected", port: 50000 })],
         ["beta", makeGuildMember({ name: "beta", transport: "http", status: "error", port: 50001 })],
@@ -700,7 +696,8 @@ describe("MCPManager", () => {
       await manager.startServersForSession("session-1", ["alpha"]);
 
       // Should not throw despite stop() failure
-      await expect(manager.shutdown()).resolves.toBeUndefined();
+      const shutdownResult = await manager.shutdown();
+      expect(shutdownResult).toBeUndefined();
 
       // Server still cleaned up
       expect(manager.isRunning("alpha")).toBe(false);

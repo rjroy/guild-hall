@@ -1,8 +1,13 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 /**
  * Unit tests for HTTP MCP Factory
  *
  * Tests process spawning, port collision retry, initialize handshake,
  * error handling, and cleanup behavior.
+ *
+ * unbound-method is disabled file-wide because mock assertions like
+ * expect(mockClient.initialize).toHaveBeenCalled() separate mock methods
+ * from their objects, which the linter flags but is safe for test assertions.
  */
 
 import { describe, test, expect, mock } from "bun:test";
@@ -11,7 +16,6 @@ import { EventEmitter } from "node:events";
 
 import {
   createHttpMCPFactory,
-  type HttpMCPFactoryDeps,
 } from "../../lib/http-mcp-factory";
 import {
   JsonRpcTimeoutError,
@@ -44,13 +48,20 @@ function createMockPortRegistry(): IPortRegistry {
   };
 }
 
-function createMockProcess(): ChildProcess {
-  const proc = new EventEmitter();
-  const mockProc = proc as any;
-  mockProc.exitCode = null;
-  mockProc.kill = mock(() => true);
-  mockProc.stderr = new EventEmitter();
-  return mockProc as ChildProcess;
+type MockProcess = EventEmitter & {
+  exitCode: number | null;
+  kill: ReturnType<typeof mock>;
+  stderr: EventEmitter;
+  killed: boolean;
+};
+
+function createMockProcess(): ChildProcess & MockProcess {
+  const proc = new EventEmitter() as MockProcess;
+  proc.exitCode = null;
+  proc.kill = mock(() => true);
+  proc.stderr = new EventEmitter();
+  proc.killed = false;
+  return proc as ChildProcess & MockProcess;
 }
 
 function createMockJsonRpcClient(
@@ -60,7 +71,7 @@ function createMockJsonRpcClient(
     invokeTool?: ReturnType<typeof mock>;
   } = {},
 ): JsonRpcClient {
-  const client = {
+  return {
     initialize:
       behavior.initialize ??
       mock(() =>
@@ -80,8 +91,7 @@ function createMockJsonRpcClient(
           content: [{ type: "text", text: "result" }],
         } as ToolResult),
       ),
-  };
-  return client as unknown as JsonRpcClient;
+  } as unknown as JsonRpcClient;
 }
 
 // -- Tests --
@@ -116,6 +126,7 @@ describe("HTTP MCP Factory", () => {
     expect(result.port).toBe(50000);
     expect(spawnMock).toHaveBeenCalledWith("bun", ["run", "server.ts"], {
       cwd: "/path/to/plugin",
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.any() returns any by design
       env: expect.any(Object),
       stdio: ["ignore", "ignore", "pipe"],
     });
@@ -179,6 +190,7 @@ describe("HTTP MCP Factory", () => {
 
     expect(spawnMock).toHaveBeenCalledWith("bun", expect.any(Array), {
       cwd: "/custom/plugin/dir",
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.any() returns any by design
       env: expect.any(Object),
       stdio: ["ignore", "ignore", "pipe"],
     });
@@ -234,9 +246,14 @@ describe("HTTP MCP Factory", () => {
     // Emit exit event after kill
     setTimeout(() => mockProc.emit("exit", MCP_EXIT_CODE.ERROR), 10);
 
-    await expect(spawnPromise).rejects.toThrow(
-      /Server failed to initialize.*timeout/,
-    );
+    let caught: Error | null = null;
+    try {
+      await spawnPromise;
+    } catch (err) {
+      caught = err as Error;
+    }
+    expect(caught).not.toBeNull();
+    expect(caught!.message).toMatch(/Server failed to initialize.*timeout/);
     expect(mockProc.kill).toHaveBeenCalled();
     expect(portRegistry.release).toHaveBeenCalledWith(50000);
   });
@@ -252,7 +269,7 @@ describe("HTTP MCP Factory", () => {
         if (spawnCount === 1) {
           // First spawn: simulate quick exit with code 2
           const proc = createMockProcess();
-          (proc as any).exitCode = MCP_EXIT_CODE.PORT_COLLISION;
+          (proc as MockProcess).exitCode = MCP_EXIT_CODE.PORT_COLLISION;
           return proc;
         }
         // Second spawn: success
@@ -292,9 +309,7 @@ describe("HTTP MCP Factory", () => {
         if (spawnCount === 1) {
           // First initialize fails, process will exit with code 2
           return createMockJsonRpcClient({
-            initialize: mock(async () => {
-              throw new Error("Connection refused");
-            }),
+            initialize: mock(() => Promise.reject(new Error("Connection refused"))),
           });
         }
         // Second initialize succeeds
@@ -347,7 +362,14 @@ describe("HTTP MCP Factory", () => {
     // Emit exit with non-collision code
     setTimeout(() => mockProc.emit("exit", MCP_EXIT_CODE.ERROR), 10);
 
-    await expect(spawnPromise).rejects.toThrow(/Server failed to initialize/);
+    let caught: Error | null = null;
+    try {
+      await spawnPromise;
+    } catch (err) {
+      caught = err as Error;
+    }
+    expect(caught).not.toBeNull();
+    expect(caught!.message).toMatch(/Server failed to initialize/);
     expect(portRegistry.release).toHaveBeenCalledWith(50000);
     expect(portRegistry.markDead).not.toHaveBeenCalled();
   });
@@ -365,11 +387,12 @@ describe("HTTP MCP Factory", () => {
       createClient: () => mockClient,
     });
 
-    const spawnPromise = factory.spawn({
+    // Fire-and-forget: we only care that markDead is called during retry
+    void factory.spawn({
       command: "bun",
       args: ["run", "server.ts"],
       pluginDir: "/path/to/plugin",
-    });
+    }).catch(() => { /* retry exhaustion expected */ });
 
     await new Promise((resolve) => setTimeout(resolve, 150));
 
@@ -396,23 +419,25 @@ describe("HTTP MCP Factory", () => {
       portRegistry,
       spawn: () => {
         const proc = createMockProcess();
-        (proc as any).exitCode = MCP_EXIT_CODE.PORT_COLLISION;
+        (proc as MockProcess).exitCode = MCP_EXIT_CODE.PORT_COLLISION;
         return proc;
       },
       createClient: () => createMockJsonRpcClient(),
     });
 
-    const spawnPromise = factory.spawn({
-      command: "bun",
-      args: ["run", "server.ts"],
-      pluginDir: "/path/to/plugin",
-    });
+    let caught: Error | null = null;
+    try {
+      await factory.spawn({
+        command: "bun",
+        args: ["run", "server.ts"],
+        pluginDir: "/path/to/plugin",
+      });
+    } catch (err) {
+      caught = err as Error;
+    }
 
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
-    await expect(spawnPromise).rejects.toThrow(
-      /port collision retry limit.*exceeded/,
-    );
+    expect(caught).not.toBeNull();
+    expect(caught!.message).toMatch(/port collision retry limit.*exceeded/);
   });
 
   test("stop() kills process and releases port", async () => {
@@ -463,8 +488,8 @@ describe("HTTP MCP Factory", () => {
     });
 
     // Emit stderr data
-    mockProc.stderr!.emit("data", Buffer.from("Error line 1\n"));
-    mockProc.stderr!.emit("data", Buffer.from("Error line 2\n"));
+    mockProc.stderr.emit("data", Buffer.from("Error line 1\n"));
+    mockProc.stderr.emit("data", Buffer.from("Error line 2\n"));
 
     await new Promise((resolve) => setTimeout(resolve, 150));
     await resultPromise;
@@ -559,14 +584,21 @@ describe("HTTP MCP Factory", () => {
     });
 
     // Emit stderr before failure
-    mockProc.stderr!.emit("data", Buffer.from("Fatal error occurred\n"));
+    mockProc.stderr.emit("data", Buffer.from("Fatal error occurred\n"));
 
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     // Emit exit
     setTimeout(() => mockProc.emit("exit", MCP_EXIT_CODE.ERROR), 10);
 
-    await expect(spawnPromise).rejects.toThrow(/Fatal error occurred/);
+    let caught: Error | null = null;
+    try {
+      await spawnPromise;
+    } catch (err) {
+      caught = err as Error;
+    }
+    expect(caught).not.toBeNull();
+    expect(caught!.message).toMatch(/Fatal error occurred/);
   });
 
   test("substitutes multiple ${PORT} occurrences in same arg", async () => {
@@ -621,10 +653,12 @@ describe("HTTP MCP Factory", () => {
     await new Promise((resolve) => setTimeout(resolve, 150));
     await resultPromise;
 
-    const spawnCall = spawnMock.mock.calls[0] as any;
+    const spawnCall = spawnMock.mock.calls[0] as unknown as [string, string[], { env: Record<string, string | undefined> }];
     const envArg = spawnCall[2].env;
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- expect.objectContaining() returns any by design
     expect(envArg).toEqual(expect.objectContaining({ CUSTOM_VAR: "custom-value" }));
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- expect.objectContaining() returns any by design
     expect(envArg).toEqual(expect.objectContaining(process.env));
   });
 });
