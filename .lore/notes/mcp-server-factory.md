@@ -1,13 +1,17 @@
 ---
 title: Implementation notes: mcp-server-factory
 date: 2026-02-14
-status: active
-tags: [implementation, notes, mcp, process-spawning, stdio, phase-1-completion]
+status: complete
+tags: [implementation, notes, mcp, process-spawning, stdio, phase-1-completion, archived]
 source: .lore/plans/mcp-server-factory.md
 modules: [mcp-manager, server-context, stdio-mcp-factory]
+related:
+  - .lore/brainstorm/mcp-transport-stdio-vs-http.md
 ---
 
-# Implementation Notes: MCPServerFactory
+# Implementation Notes: MCPServerFactory (Stdio - Reverted)
+
+> **Status**: Implementation completed through Phase 9 with all tests passing. Manual testing revealed architectural issues that led to HTTP transport decision. Code was reverted but implementation learnings preserved here. See `.lore/brainstorm/mcp-transport-stdio-vs-http.md` for the architectural decision.
 
 ## Progress
 - [x] Phase 1: Update MCPServerFactory Interface

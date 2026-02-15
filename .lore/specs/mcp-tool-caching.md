@@ -1,17 +1,20 @@
 ---
 title: MCP Tool Caching - Solve Agent Discovery Chicken-and-Egg Problem
 date: 2026-02-14
-status: draft
-tags: [mcp, caching, tool-discovery, agent-integration]
+status: superseded
+tags: [mcp, caching, tool-discovery, agent-integration, archived]
 modules: [mcp-manager, plugin-discovery]
 related:
   - .lore/specs/mcp-server-factory.md
   - .lore/specs/guild-hall-phase-1.md
   - .lore/notes/mcp-server-factory.md
+  - .lore/brainstorm/mcp-transport-stdio-vs-http.md
 req-prefix: MCP-TOOL
 ---
 
 # Spec: MCP Tool Caching
+
+> **Status**: This spec is superseded by the decision to use HTTP transport with eager loading instead of stdio with lazy loading (see `.lore/brainstorm/mcp-transport-stdio-vs-http.md`). Tool caching may still be needed for fast startup, but the design will be simpler with HTTP. Preserved for historical context - the chicken-and-egg problem analysis remains valid.
 
 ## Overview
 

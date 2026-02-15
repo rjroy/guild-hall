@@ -1,17 +1,20 @@
 ---
 title: MCPServerFactory - Stdio MCP Server Process Spawning
 date: 2026-02-14
-status: approved
-tags: [mcp, process-spawning, stdio, plugin-system, phase-1-completion]
+status: superseded
+tags: [mcp, process-spawning, stdio, plugin-system, phase-1-completion, archived]
 modules: [mcp-manager, server-context]
 related:
   - .lore/specs/guild-hall-phase-1.md
   - .lore/brainstorm/plugin-architecture-hybrid.md
+  - .lore/brainstorm/mcp-transport-stdio-vs-http.md
   - .lore/research/claude-agent-sdk.md
 req-prefix: MCPF
 ---
 
 # Spec: MCPServerFactory - Stdio MCP Server Process Spawning
+
+> **Status**: This spec is superseded by the decision to use HTTP transport instead of stdio (see `.lore/brainstorm/mcp-transport-stdio-vs-http.md`). Preserved for historical context and lessons learned. The stdio implementation was completed and reverted - code is cheap, architecture matters.
 
 ## Overview
 
