@@ -9,7 +9,7 @@ import type { QueryFn } from "@/lib/agent";
 import type { SSEEvent } from "@/lib/types";
 import { SessionStore } from "@/lib/session-store";
 import { MCPManager } from "@/lib/mcp-manager";
-import type { MCPServerFactory, MCPServerHandle } from "@/lib/mcp-manager";
+import type { MCPServerFactory } from "@/lib/mcp-manager";
 import type { GuildMember } from "@/lib/types";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { createMockSessionFs } from "@/tests/helpers/mock-session-fs";

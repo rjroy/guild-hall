@@ -18,7 +18,7 @@ describe("PortRegistry", () => {
   test("reuses released ports", () => {
     const registry = new PortRegistry();
     const port1 = registry.allocate();
-    const port2 = registry.allocate();
+    registry.allocate(); // allocate second port to advance counter
 
     registry.release(port1);
     const port3 = registry.allocate();

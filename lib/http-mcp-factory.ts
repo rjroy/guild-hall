@@ -20,7 +20,7 @@ import {
   JsonRpcHttpError,
   JsonRpcProtocolError,
 } from "./json-rpc-client";
-import { PortRegistry, type IPortRegistry } from "./port-registry";
+import type { IPortRegistry } from "./port-registry";
 import type { MCPServerFactory, MCPServerHandle } from "./types";
 import { MCP_EXIT_CODE } from "./types";
 
@@ -140,14 +140,16 @@ export function createHttpMCPFactory(
 
           throw new Error(
             `Server failed to initialize on port ${port}: ${errorMessage} (${errorType})\nstderr: ${stderrBuffer}`,
+            { cause: err },
           );
         }
 
         // Create handle
         const handle: MCPServerHandle = {
-          async stop() {
+          stop() {
             proc.kill();
             deps.portRegistry.release(port);
+            return Promise.resolve();
           },
           async listTools() {
             return client.listTools();

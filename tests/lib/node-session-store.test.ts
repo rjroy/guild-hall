@@ -32,7 +32,7 @@ describe("createNodeSessionStore", () => {
 
     // Verify files were written to disk
     const metaPath = path.join(tmpDir, session.id, "meta.json");
-    const meta = JSON.parse(await fs.readFile(metaPath, "utf-8"));
+    const meta = JSON.parse(await fs.readFile(metaPath, "utf-8")) as Record<string, unknown>;
     expect(meta.name).toBe("test session");
   });
 
@@ -50,7 +50,7 @@ describe("createNodeSessionStore", () => {
     const raw = await fs.readFile(messagesPath, "utf-8");
     const lines = raw.trim().split("\n");
     expect(lines).toHaveLength(1);
-    expect(JSON.parse(lines[0]).content).toBe("hello");
+    expect((JSON.parse(lines[0]) as Record<string, unknown>).content).toBe("hello");
   });
 
   it("listSessions returns created sessions", async () => {

@@ -124,7 +124,7 @@ export class JsonRpcClient {
   constructor(baseUrl: string, deps: JsonRpcClientDeps) {
     this.baseUrl = baseUrl;
     this.fetch = deps.fetch;
-    this.setTimeoutFn = deps.setTimeout ?? ((cb, ms) => global.setTimeout(cb, ms) as any);
+    this.setTimeoutFn = deps.setTimeout ?? ((cb, ms) => global.setTimeout(cb, ms) as unknown as number);
     this.clearTimeoutFn = deps.clearTimeout ?? ((id) => global.clearTimeout(id));
   }
 

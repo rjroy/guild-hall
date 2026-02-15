@@ -80,7 +80,7 @@ describe("HTTP MCP Transport Integration", () => {
     const registry = new PortRegistry();
     const factory = createHttpMCPFactory({ portRegistry: registry });
 
-    const { process: proc, handle, port } = await factory.spawn({
+    const { process: proc, handle } = await factory.spawn({
       command: "bun",
       args: ["run", "server.ts", "--port", "${PORT}"],
       pluginDir: EXAMPLE_PLUGIN_DIR,
@@ -131,7 +131,7 @@ describe("HTTP MCP Transport Integration", () => {
     const registry = new PortRegistry();
     const factory = createHttpMCPFactory({ portRegistry: registry });
 
-    const { process: proc, handle, port } = await factory.spawn({
+    const { process: proc, handle } = await factory.spawn({
       command: "bun",
       args: ["run", "server.ts", "--port", "${PORT}"],
       pluginDir: EXAMPLE_PLUGIN_DIR,
@@ -278,7 +278,7 @@ describe("HTTP MCP Transport Integration", () => {
     const registry = new PortRegistry();
     const factory = createHttpMCPFactory({ portRegistry: registry });
 
-    const { process: proc, handle, port } = await factory.spawn({
+    const { process: proc, handle, port: serverPort } = await factory.spawn({
       command: "bun",
       args: ["run", "server.ts", "--port", "${PORT}"],
       pluginDir: EXAMPLE_PLUGIN_DIR,
@@ -291,26 +291,23 @@ describe("HTTP MCP Transport Integration", () => {
     expect(proc.exitCode).toBeNull();
 
     // Create a client with very short timeout
-    const client = createJsonRpcClient(`http://localhost:${port}/mcp`, {
+    const client = createJsonRpcClient(`http://localhost:${serverPort}/mcp`, {
       fetch: global.fetch,
-      setTimeout: (fn: () => void, ms: number) => {
+      setTimeout: (fn: () => void) => {
         // Override timeout to 100ms for testing
-        return global.setTimeout(fn, 100) as any as number;
+        return global.setTimeout(fn, 100) as unknown as number;
       },
       clearTimeout: global.clearTimeout,
     });
 
     // Attempt a tool call that would timeout
-    let caught: Error | null = null;
     try {
       // Call sleep tool with 31 seconds, which will timeout with our 100ms limit
       await client.invokeTool("sleep", { seconds: 31 });
       throw new Error("Should have timed out");
     } catch (err) {
-      caught = err as Error;
+      expect(err).toBeInstanceOf(JsonRpcTimeoutError);
     }
-
-    expect(caught).toBeInstanceOf(JsonRpcTimeoutError);
 
     // Verify server process is still running
     expect(proc.exitCode).toBeNull();
@@ -328,7 +325,7 @@ describe("HTTP MCP Transport Integration", () => {
     const registry = new PortRegistry();
     const factory = createHttpMCPFactory({ portRegistry: registry });
 
-    const { process: proc, handle, port } = await factory.spawn({
+    const { process: proc, handle } = await factory.spawn({
       command: "bun",
       args: ["run", "server.ts", "--port", "${PORT}"],
       pluginDir: EXAMPLE_PLUGIN_DIR,
@@ -339,11 +336,9 @@ describe("HTTP MCP Transport Integration", () => {
 
     // Set up exit listener
     let exitDetected = false;
-    let exitSignal: NodeJS.Signals | null = null;
     const exitPromise = new Promise<void>((resolve) => {
-      proc.once("exit", (code, signal) => {
+      proc.once("exit", () => {
         exitDetected = true;
-        exitSignal = signal;
         resolve();
       });
     });
@@ -377,7 +372,7 @@ describe("HTTP MCP Transport Integration", () => {
     const registry = new PortRegistry();
     const factory = createHttpMCPFactory({ portRegistry: registry });
 
-    const { process: proc, handle, port } = await factory.spawn({
+    const { process: proc, handle, port: agentPort } = await factory.spawn({
       command: "bun",
       args: ["run", "server.ts", "--port", "${PORT}"],
       pluginDir: EXAMPLE_PLUGIN_DIR,
@@ -390,7 +385,7 @@ describe("HTTP MCP Transport Integration", () => {
     const mcpServers = {
       example: {
         type: "http" as const,
-        url: `http://localhost:${port}/mcp`,
+        url: `http://localhost:${agentPort}/mcp`,
       },
     };
 
@@ -408,22 +403,10 @@ describe("HTTP MCP Transport Integration", () => {
     });
 
     const messages: SDKMessage[] = [];
-    let hasToolUse = false;
 
     try {
       for await (const message of queryResult) {
         messages.push(message);
-
-        // Check for tool use in assistant messages
-        if (message.type === "assistant") {
-          const assistantMsg = message as {
-            message?: { content?: Array<{ type: string }> };
-          };
-          const content = assistantMsg.message?.content ?? [];
-          if (content.some((c) => c.type === "tool_use")) {
-            hasToolUse = true;
-          }
-        }
       }
     } catch (err) {
       // If no API key is set, the query will fail with authentication error

@@ -171,7 +171,11 @@ export const { getEventBus, getAgentManager, getMCPManager, getRosterMap } =
 
 // Eagerly initialize roster on backend startup per REQ-MCP-HTTP-10
 // Skip in test environment to avoid interference with test isolation
-if (process.env.NODE_ENV !== "test" && typeof (globalThis as any).Bun?.jest === "undefined") {
+// Skip during Next.js build to avoid noisy worker initialization
+const isTest = process.env.NODE_ENV === "test" || typeof (globalThis as Record<string, unknown>).Bun !== "undefined";
+const isBuild = process.argv.includes("build") || process.env.NEXT_PHASE === "phase-production-build";
+
+if (!isTest && !isBuild) {
   void getMCPManager().catch((err) => {
     console.error("[MCP] Failed to initialize roster on startup:", err);
   });
@@ -181,19 +185,17 @@ async function gracefulShutdown(signal: string) {
   if (shutdownInProgress) return;
   shutdownInProgress = true;
 
-  console.log(`Received ${signal}, shutting down gracefully...`);
-
   try {
     // Only shutdown if already initialized
     // Check via the factory's internal initPromise to avoid triggering lazy init
     const hasInit = initPromiseGetter && initPromiseGetter() !== null;
     if (hasInit) {
+      console.log(`Received ${signal}, shutting down gracefully...`);
       const mcpManager = await getMCPManager();
       await mcpManager.shutdown();
       console.log("All MCP servers stopped");
-    } else {
-      console.log("No servers initialized, skipping shutdown");
     }
+    // Else: no servers running, exit silently
   } catch (err) {
     console.error("Error during shutdown:", err);
   }
@@ -201,5 +203,5 @@ async function gracefulShutdown(signal: string) {
   process.exit(0);
 }
 
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => { void gracefulShutdown("SIGTERM"); });
+process.on("SIGINT", () => { void gracefulShutdown("SIGINT"); });

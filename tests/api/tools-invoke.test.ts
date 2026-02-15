@@ -410,7 +410,7 @@ describe("createPOST", () => {
     const deps = createDeps({ invokeResult: { created: true } });
     await deps.mcpManager.startServersForSession("test", ["alpha"]);
 
-    const post = createPOST(async () => deps);
+    const post = createPOST(() => Promise.resolve(deps));
     const request = makeRequest({
       guildMember: "alpha",
       toolName: "read_file",
@@ -427,7 +427,7 @@ describe("createPOST", () => {
   it("returns errors from the delegated handler", async () => {
     const deps = createDeps({ invokeError: new Error("boom") });
 
-    const post = createPOST(async () => deps);
+    const post = createPOST(() => Promise.resolve(deps));
     const request = makeRequest({
       guildMember: "alpha",
       toolName: "read_file",

@@ -32,7 +32,7 @@ describe("createMockFs", () => {
     expect(result.isDirectory()).toBe(false);
   });
 
-  it("stat rejects with ENOENT for a nonexistent path", async () => {
+  it("stat rejects with ENOENT for a nonexistent path", () => {
     const fs = createMockFs({}, new Set());
 
     expect(fs.stat("/no/such/path")).rejects.toThrow("ENOENT");
