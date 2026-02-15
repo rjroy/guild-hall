@@ -25,6 +25,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "guild-members/**",
+    "lib/_singleton-cache.cjs",
   ]),
 ]);
 

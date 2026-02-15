@@ -105,4 +105,36 @@ describe("PortRegistry", () => {
     // Should still allocate from the beginning
     expect(registry.allocate()).toBe(50000);
   });
+
+  test("reserve() marks port as used so allocate() skips it", () => {
+    const registry = new PortRegistry();
+
+    registry.reserve(50000);
+
+    // Allocate should skip 50000 since it's reserved
+    expect(registry.allocate()).toBe(50001);
+  });
+
+  test("reserve() on out-of-range port is a no-op", () => {
+    const registry = new PortRegistry();
+
+    expect(() => registry.reserve(49999)).not.toThrow();
+    expect(() => registry.reserve(51001)).not.toThrow();
+
+    // Should still allocate from the beginning
+    expect(registry.allocate()).toBe(50000);
+  });
+
+  test("reserve() on already-used port is idempotent", () => {
+    const registry = new PortRegistry();
+
+    const port = registry.allocate();
+    expect(port).toBe(50000);
+
+    // Reserve the same port again (should be a no-op)
+    expect(() => registry.reserve(50000)).not.toThrow();
+
+    // Next allocation should still be 50001
+    expect(registry.allocate()).toBe(50001);
+  });
 });

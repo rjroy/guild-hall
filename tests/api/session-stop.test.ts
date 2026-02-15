@@ -92,6 +92,15 @@ function createMockMcpFactory(): MCPServerFactory {
         port: 50000,
       });
     },
+    connect() {
+      return Promise.resolve({
+        handle: {
+          stop: () => Promise.resolve(),
+          listTools: () => Promise.resolve([]),
+          invokeTool: () => Promise.resolve(null),
+        },
+      });
+    },
   };
 }
 

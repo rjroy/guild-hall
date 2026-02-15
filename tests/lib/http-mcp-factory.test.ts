@@ -43,6 +43,7 @@ function createMockPortRegistry(): IPortRegistry {
       }
       return ports[index++];
     },
+    reserve: mock(() => {}),
     release: mock(() => {}),
     markDead: mock(() => {}),
   };
@@ -411,6 +412,7 @@ describe("HTTP MCP Factory", () => {
   test("retry limit exceeded throws error", async () => {
     const portRegistry = {
       allocate: mock(() => 50000),
+      reserve: mock(() => {}),
       release: mock(() => {}),
       markDead: mock(() => {}),
     };
@@ -628,6 +630,94 @@ describe("HTTP MCP Factory", () => {
       ["run", "server.ts", "--url=http://localhost:50000/mcp?port=50000"],
       expect.any(Object),
     );
+  });
+
+  describe("connect()", () => {
+    test("successful connect creates working handle", async () => {
+      const portRegistry = createMockPortRegistry();
+      const tools: ToolInfo[] = [
+        { name: "test-tool", description: "A test tool", inputSchema: { type: "object" } },
+      ];
+      const mockClient = createMockJsonRpcClient({
+        listTools: mock(() => Promise.resolve(tools)),
+      });
+
+      const factory = createHttpMCPFactory({
+        portRegistry,
+        spawn: () => createMockProcess(),
+        createClient: () => mockClient,
+      });
+
+      const result = await factory.connect({ port: 50000 });
+
+      expect(result.handle).toBeDefined();
+      expect(mockClient.initialize).toHaveBeenCalled();
+
+      const toolsList = await result.handle.listTools();
+      expect(toolsList).toEqual(tools);
+    });
+
+    test("connect handle stop() does not kill process or release port", async () => {
+      const portRegistry = createMockPortRegistry();
+      const mockClient = createMockJsonRpcClient();
+
+      const factory = createHttpMCPFactory({
+        portRegistry,
+        spawn: () => createMockProcess(),
+        createClient: () => mockClient,
+      });
+
+      const result = await factory.connect({ port: 50000 });
+      await result.handle.stop();
+
+      // Release should NOT have been called (connect doesn't own the process)
+      expect(portRegistry.release).not.toHaveBeenCalled();
+    });
+
+    test("connect throws on handshake timeout", async () => {
+      const portRegistry = createMockPortRegistry();
+      const mockClient = createMockJsonRpcClient({
+        initialize: mock(() => Promise.reject(new JsonRpcTimeoutError("initialize handshake", 2000))),
+      });
+
+      const factory = createHttpMCPFactory({
+        portRegistry,
+        spawn: () => createMockProcess(),
+        createClient: () => mockClient,
+      });
+
+      let caught: Error | null = null;
+      try {
+        await factory.connect({ port: 50000 });
+      } catch (err) {
+        caught = err as Error;
+      }
+
+      expect(caught).not.toBeNull();
+      expect(caught!.message).toMatch(/timed out/i);
+    });
+
+    test("connect throws on HTTP error", async () => {
+      const portRegistry = createMockPortRegistry();
+      const mockClient = createMockJsonRpcClient({
+        initialize: mock(() => Promise.reject(new JsonRpcHttpError(500, "Internal Server Error"))),
+      });
+
+      const factory = createHttpMCPFactory({
+        portRegistry,
+        spawn: () => createMockProcess(),
+        createClient: () => mockClient,
+      });
+
+      let caught: Error | null = null;
+      try {
+        await factory.connect({ port: 50000 });
+      } catch (err) {
+        caught = err as Error;
+      }
+
+      expect(caught).not.toBeNull();
+    });
   });
 
   test("merges config.env with process.env", async () => {

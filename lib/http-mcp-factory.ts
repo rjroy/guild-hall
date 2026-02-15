@@ -50,6 +50,29 @@ export function createHttpMCPFactory(
   const createClientFn = deps.createClient ?? createJsonRpcClient;
 
   return {
+    async connect(config: { port: number }): Promise<{ handle: MCPServerHandle }> {
+      const client = createClientFn(`http://localhost:${config.port}/mcp`);
+      await client.initialize(
+        { name: "GuildHall", version: "0.1.0" },
+        { timeoutMs: 2000 },
+      );
+
+      const handle: MCPServerHandle = {
+        stop() {
+          console.log(`[MCP] Disconnected (reconnected handle, process not owned)`);
+          return Promise.resolve();
+        },
+        async listTools() {
+          return client.listTools();
+        },
+        async invokeTool(name, input) {
+          return client.invokeTool(name, input);
+        },
+      };
+
+      return { handle };
+    },
+
     async spawn(config: {
       command: string;
       args: string[];

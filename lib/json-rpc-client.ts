@@ -142,12 +142,13 @@ export class JsonRpcClient {
    * @throws JsonRpcHttpError on HTTP error status
    * @throws JsonRpcProtocolError on JSON-RPC error response
    */
-  async initialize(clientInfo: {
-    name: string;
-    version: string;
-  }): Promise<InitializeResponse> {
+  async initialize(
+    clientInfo: { name: string; version: string },
+    options?: { timeoutMs?: number },
+  ): Promise<InitializeResponse> {
+    const timeoutMs = options?.timeoutMs ?? 5000;
     const controller = new AbortController();
-    const timeoutId = this.setTimeoutFn(() => controller.abort(), 5000);
+    const timeoutId = this.setTimeoutFn(() => controller.abort(), timeoutMs);
 
     try {
       const response = await this.call(
@@ -166,7 +167,7 @@ export class JsonRpcClient {
       return response as InitializeResponse;
     } catch (error) {
       if ((error as Error).name === "AbortError") {
-        throw new JsonRpcTimeoutError("initialize handshake", 5000);
+        throw new JsonRpcTimeoutError("initialize handshake", timeoutMs);
       }
       throw error;
     } finally {

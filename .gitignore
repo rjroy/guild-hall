@@ -51,3 +51,6 @@ guild-members/*
 
 # example plugin dependencies (node_modules installed locally, lockfile committed)
 guild-members/example/node_modules/
+
+# MCP server PID files (runtime state, not committed)
+.mcp-servers/

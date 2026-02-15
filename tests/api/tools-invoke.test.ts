@@ -79,6 +79,7 @@ function createMockFactory(handle: MCPServerHandle): MCPServerFactory {
       handle,
       port: 50000,
     }),
+    connect: () => Promise.resolve({ handle }),
   };
 }
 
@@ -293,12 +294,14 @@ describe("POST /api/tools/invoke", () => {
 
     it("returns 404 with empty roster", async () => {
       const roster = new Map<string, GuildMember>();
+      const defaultHandle = createMockHandle();
       const factory: MCPServerFactory = {
         spawn: () => Promise.resolve({
           process: createMockProcess(),
-          handle: createMockHandle(),
+          handle: defaultHandle,
           port: 50000,
         }),
+        connect: () => Promise.resolve({ handle: defaultHandle }),
       };
       const mcpManager = new MCPManager(roster, factory);
 
@@ -340,6 +343,7 @@ describe("POST /api/tools/invoke", () => {
       ]);
       const failFactory: MCPServerFactory = {
         spawn: () => Promise.reject(new Error("Connection refused")),
+        connect: () => Promise.reject(new Error("Connection refused")),
       };
       const mcpManager = new MCPManager(roster, failFactory);
 

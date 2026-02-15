@@ -1,6 +1,8 @@
 import type { ChildProcess } from "node:child_process";
 
 import type { GuildMember, ToolInfo } from "./types";
+import type { PidFileManager } from "./pid-file-manager";
+import type { IPortRegistry } from "./port-registry";
 
 // -- MCP server abstractions --
 
@@ -37,6 +39,7 @@ export interface MCPServerFactory {
     env?: Record<string, string>;
     pluginDir: string;
   }): Promise<{ process: ChildProcess; handle: MCPServerHandle; port: number }>;
+  connect(config: { port: number }): Promise<{ handle: MCPServerHandle }>;
 }
 
 /**
@@ -74,6 +77,8 @@ export class MCPManager {
   constructor(
     private roster: Map<string, GuildMember>,
     private serverFactory: MCPServerFactory,
+    private pidFiles?: PidFileManager,
+    private portRegistry?: IPortRegistry,
   ) {}
 
   /**
@@ -261,6 +266,11 @@ export class MCPManager {
     this.processes.clear();
     this.references.clear();
     this.subscribers.clear();
+
+    if (this.pidFiles) {
+      await this.pidFiles.shutdownAll();
+    }
+
     console.log(`[MCP] Shutdown complete`);
   }
 
@@ -278,6 +288,34 @@ export class MCPManager {
 
       console.log(`[MCP:${name}] Starting server...`);
 
+      // Check PID file for existing server
+      if (this.pidFiles) {
+        const pidData = await this.pidFiles.read(name);
+        if (pidData) {
+          if (this.pidFiles.isAlive(pidData.pid)) {
+            try {
+              const { handle } = await this.serverFactory.connect({ port: pidData.port });
+              this.servers.set(name, handle);
+              this.portRegistry?.reserve(pidData.port);
+
+              const tools = await handle.listTools();
+              member.status = "connected";
+              member.tools = tools;
+              member.port = pidData.port;
+              delete member.error;
+
+              console.log(`[MCP:${name}] Reconnected to existing server on port ${pidData.port} (${tools.length} tools)`);
+              this.emit({ type: "started", memberName: name });
+              this.emit({ type: "tools_updated", memberName: name, tools });
+              return;
+            } catch {
+              console.log(`[MCP:${name}] PID ${pidData.pid} alive but not responsive, treating as stale`);
+            }
+          }
+          await this.pidFiles.remove(name);
+        }
+      }
+
       // Note: serverFactory.spawn() is responsible for setting the working
       // directory to the plugin's directory before spawning. See the
       // MCPServerFactory interface documentation for the contract.
@@ -290,6 +328,11 @@ export class MCPManager {
 
       this.servers.set(name, handle);
       this.processes.set(name, process);
+
+      // Write PID file after successful spawn
+      if (this.pidFiles) {
+        await this.pidFiles.write(name, { pid: process.pid ?? 0, port });
+      }
 
       // Attach crash detection listener
       process.on("exit", (code, signal) => {
