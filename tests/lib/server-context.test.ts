@@ -1,7 +1,7 @@
 import * as nodeFs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, mock } from "bun:test";
 
 import { createServerContext, createNodePluginFs } from "@/lib/server-context";
 import type { ServerContextDeps } from "@/lib/server-context";
@@ -148,6 +148,55 @@ describe("createServerContext", () => {
     expect(member).toBeDefined();
     expect(member!.status).toBe("error");
     expect(member!.error).toContain("MCP server spawning not yet implemented");
+  });
+});
+
+describe("createServerContext boot cleanup", () => {
+  it("boot cleanup runs when bootCleanup is true", async () => {
+    const pidFileManager = {
+      read: () => Promise.resolve(null),
+      write: () => Promise.resolve(),
+      remove: () => Promise.resolve(),
+      isAlive: () => false,
+      cleanupAll: mock(() => Promise.resolve()),
+      shutdownAll: () => Promise.resolve(),
+    };
+
+    const ctx = createServerContext(makeDeps({
+      bootCleanup: true,
+      pidFileManager,
+    }));
+
+    // Trigger initialization
+    await ctx.getRosterMap();
+
+    expect(pidFileManager.cleanupAll).toHaveBeenCalled();
+  });
+
+  it("boot cleanup does not run when bootCleanup is false/undefined", async () => {
+    const pidFileManager = {
+      read: () => Promise.resolve(null),
+      write: () => Promise.resolve(),
+      remove: () => Promise.resolve(),
+      isAlive: () => false,
+      cleanupAll: mock(() => Promise.resolve()),
+      shutdownAll: () => Promise.resolve(),
+    };
+
+    // bootCleanup not set (undefined)
+    const ctx1 = createServerContext(makeDeps({ pidFileManager }));
+    await ctx1.getRosterMap();
+    expect(pidFileManager.cleanupAll).not.toHaveBeenCalled();
+
+    // bootCleanup explicitly false
+    const cleanupAll2 = mock(() => Promise.resolve());
+    const pidFileManager2 = { ...pidFileManager, cleanupAll: cleanupAll2 };
+    const ctx2 = createServerContext(makeDeps({
+      bootCleanup: false,
+      pidFileManager: pidFileManager2,
+    }));
+    await ctx2.getRosterMap();
+    expect(cleanupAll2).not.toHaveBeenCalled();
   });
 });
 

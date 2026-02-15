@@ -117,5 +117,6 @@ export interface MCPServerFactory {
     env?: Record<string, string>;
     pluginDir: string;
   }): Promise<{ process: ChildProcess; handle: MCPServerHandle; port: number }>;
+  connect(config: { port: number }): Promise<{ handle: MCPServerHandle }>;
 }
 

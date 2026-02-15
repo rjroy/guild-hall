@@ -11,6 +11,7 @@
  */
 
 import * as fs from "node:fs/promises";
+import { createRequire } from "node:module";
 import * as path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
@@ -21,11 +22,14 @@ import { MCPManager } from "./mcp-manager";
 import type { MCPServerFactory } from "./mcp-manager";
 import { createHttpMCPFactory } from "./http-mcp-factory";
 import { PortRegistry } from "./port-registry";
+import { createNodePidFileManager } from "./pid-file-manager";
 import { sessionStore, sessionsDir } from "./node-session-store";
 import { discoverGuildMembers } from "./plugin-discovery";
 import type { FileSystem } from "./plugin-discovery";
 import type { SessionStore, Clock } from "./session-store";
 import type { GuildMember } from "./types";
+import type { PidFileManager } from "./pid-file-manager";
+import type { IPortRegistry } from "./port-registry";
 
 // -- Factory types --
 
@@ -37,6 +41,9 @@ export type ServerContextDeps = {
   sessionsDir: string;
   serverFactory?: MCPServerFactory;
   clock?: Clock;
+  pidFileManager?: PidFileManager;
+  portRegistry?: IPortRegistry;
+  bootCleanup?: boolean;
 };
 
 export type ServerContext = {
@@ -58,6 +65,11 @@ export function createServerContext(deps: ServerContextDeps): ServerContext & {
   let initPromise: Promise<void> | null = null;
 
   async function initialize(): Promise<void> {
+    // Boot cleanup: kill orphaned servers from prior crashes before discovery
+    if (deps.bootCleanup && deps.pidFileManager) {
+      await deps.pidFileManager.cleanupAll();
+    }
+
     const roster = await discoverGuildMembers(deps.guildMembersDir, deps.fs);
 
     const factory: MCPServerFactory = deps.serverFactory ?? {
@@ -68,10 +80,22 @@ export function createServerContext(deps: ServerContextDeps): ServerContext & {
           ),
         );
       },
+      connect() {
+        return Promise.reject(
+          new Error(
+            "MCP server connection not yet implemented for agent queries",
+          ),
+        );
+      },
     };
 
     rosterInstance = roster;
-    mcpManagerInstance = new MCPManager(roster, factory);
+    mcpManagerInstance = new MCPManager(
+      roster,
+      factory,
+      deps.pidFileManager,
+      deps.portRegistry,
+    );
 
     // Eagerly start all HTTP transport servers
     await mcpManagerInstance.initializeRoster();
@@ -141,30 +165,61 @@ export function createNodePluginFs(): FileSystem {
   };
 }
 
-// -- Graceful shutdown --
-
-let shutdownInProgress = false;
-
-// Expose a way to check if initialization has started
-// Declared as let so it can be reassigned after defaultContext is created
-let initPromiseGetter: (() => Promise<void> | null) | null = null;
-
 // -- Default instance for production --
+//
+// Turbopack evaluates server-side modules per-route in dev mode. Each route
+// compilation gets its own module scope where both globalThis and process
+// are sandboxed. Module-level singletons don't survive across routes.
+//
+// Fix: load a CJS module via Node.js native require() (through createRequire).
+// Native require() uses a process-wide module cache keyed by resolved file
+// path, which Turbopack cannot sandbox. All route bundles get the same
+// exports object from _singleton-cache.cjs.
+//
+// This ensures ServerContext, EventBus, and AgentManager are shared across
+// routes. MCP server processes are coordinated via PID files (pid-file-manager.ts)
+// so duplicate module evaluations reconnect to existing servers instead of
+// spawning duplicates.
 
-const defaultContext = createServerContext({
-  guildMembersDir:
-    process.env.GUILD_MEMBERS_DIR ?? path.resolve("./guild-members"),
-  fs: createNodePluginFs(),
-  queryFn: query as QueryFn,
-  sessionStore,
-  sessionsDir,
-  serverFactory: createHttpMCPFactory({ portRegistry: new PortRegistry() }),
-});
+type SingletonCache = {
+  context?: ServerContext & { getInitPromise?: () => Promise<void> | null };
+  shutdownRegistered?: boolean;
+};
 
-// Wire up the initPromise getter for graceful shutdown
-if (defaultContext.getInitPromise) {
-  initPromiseGetter = defaultContext.getInitPromise;
+// createRequire needs a base path for resolving relative imports.
+// We use an absolute path to the cache file, so the base doesn't matter
+// beyond needing to be a valid file path.
+const nativeRequire = createRequire(
+  path.join(process.cwd(), "package.json"),
+);
+const singletonCache = nativeRequire(
+  path.join(process.cwd(), "lib", "_singleton-cache.cjs"),
+) as SingletonCache;
+
+if (!singletonCache.context) {
+  console.log("[server-context] Creating new ServerContext (first evaluation)");
+  const portRegistry = new PortRegistry();
+  singletonCache.context = createServerContext({
+    guildMembersDir:
+      process.env.GUILD_MEMBERS_DIR ?? path.resolve("./guild-members"),
+    fs: createNodePluginFs(),
+    queryFn: query as QueryFn,
+    sessionStore,
+    sessionsDir,
+    serverFactory: createHttpMCPFactory({ portRegistry }),
+    pidFileManager: createNodePidFileManager(
+      path.resolve(".mcp-servers"),
+    ),
+    portRegistry,
+    // bootCleanup is intentionally false here. Turbopack creates multiple
+    // module evaluations, each triggering initialize(). Boot cleanup would
+    // kill healthy servers spawned by earlier evaluations. The per-member
+    // PID file check in spawnServer handles crash recovery: dead PIDs get
+    // cleaned up, alive+responsive servers get reconnected.
+  });
 }
+
+const defaultContext = singletonCache.context;
 
 export const { getEventBus, getAgentManager, getMCPManager, getRosterMap } =
   defaultContext;
@@ -176,32 +231,41 @@ const isTest = process.env.NODE_ENV === "test" || typeof (globalThis as Record<s
 const isBuild = process.argv.includes("build") || process.env.NEXT_PHASE === "phase-production-build";
 
 if (!isTest && !isBuild) {
-  void getMCPManager().catch((err) => {
+  void getMCPManager().catch((err: unknown) => {
     console.error("[MCP] Failed to initialize roster on startup:", err);
   });
 }
 
-async function gracefulShutdown(signal: string) {
-  if (shutdownInProgress) return;
-  shutdownInProgress = true;
+// -- Graceful shutdown --
+//
+// Signal handlers are also guarded via the singleton cache to avoid
+// stacking duplicate handlers across module re-evaluations.
 
-  try {
-    // Only shutdown if already initialized
-    // Check via the factory's internal initPromise to avoid triggering lazy init
-    const hasInit = initPromiseGetter && initPromiseGetter() !== null;
-    if (hasInit) {
-      console.log(`Received ${signal}, shutting down gracefully...`);
-      const mcpManager = await getMCPManager();
-      await mcpManager.shutdown();
-      console.log("All MCP servers stopped");
+if (!singletonCache.shutdownRegistered) {
+  singletonCache.shutdownRegistered = true;
+
+  let shutdownInProgress = false;
+
+  async function gracefulShutdown(signal: string) {
+    if (shutdownInProgress) return;
+    shutdownInProgress = true;
+
+    try {
+      const initPromiseGetter = defaultContext.getInitPromise;
+      const hasInit = initPromiseGetter && initPromiseGetter() !== null;
+      if (hasInit) {
+        console.log(`Received ${signal}, shutting down gracefully...`);
+        const mcpManager = await getMCPManager();
+        await mcpManager.shutdown();
+        console.log("All MCP servers stopped");
+      }
+    } catch (err) {
+      console.error("Error during shutdown:", err);
     }
-    // Else: no servers running, exit silently
-  } catch (err) {
-    console.error("Error during shutdown:", err);
+
+    process.exit(0);
   }
 
-  process.exit(0);
+  process.on("SIGTERM", () => { void gracefulShutdown("SIGTERM"); });
+  process.on("SIGINT", () => { void gracefulShutdown("SIGINT"); });
 }
-
-process.on("SIGTERM", () => { void gracefulShutdown("SIGTERM"); });
-process.on("SIGINT", () => { void gracefulShutdown("SIGINT"); });

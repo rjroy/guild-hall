@@ -12,6 +12,7 @@ const PORT_RANGE_START = 50000;
 const PORT_RANGE_END = 51000;
 export interface IPortRegistry {
   allocate(): number;
+  reserve(port: number): void;
   release(port: number): void;
   markDead(port: number): void;
 }
@@ -43,6 +44,16 @@ export class PortRegistry implements IPortRegistry {
     throw new Error(
       `Port range exhausted: all ports from ${PORT_RANGE_START} to ${PORT_RANGE_END} are in use`
     );
+  }
+
+  /**
+   * Marks a known port as in-use without auto-selecting.
+   * Used when reconnecting to a server whose port we know from a PID file.
+   * Ignores ports outside the managed range. Idempotent.
+   */
+  reserve(port: number): void {
+    if (port < PORT_RANGE_START || port > PORT_RANGE_END) return;
+    this.usedPorts.add(port);
   }
 
   /**

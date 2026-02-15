@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 
@@ -80,17 +80,29 @@ type SpawnConfig = {
   pluginDir: string;
 };
 
+type ConnectConfig = {
+  port: number;
+};
+
 function createMockFactory(options: {
   handles?: Map<string, MCPServerHandle & { stopped: boolean }>;
   spawnError?: Error;
+  connectError?: Error;
   processes?: Map<string, ChildProcess>;
-} = {}): MCPServerFactory & { spawnCount: number; spawnCalls: SpawnConfig[] } {
+} = {}): MCPServerFactory & {
+  spawnCount: number;
+  spawnCalls: SpawnConfig[];
+  connectCount: number;
+  connectCalls: ConnectConfig[];
+} {
   const handles = options.handles ?? new Map<string, MCPServerHandle & { stopped: boolean }>();
   const processes = options.processes ?? new Map<string, ChildProcess>();
 
   const factory = {
     spawnCount: 0,
     spawnCalls: [] as SpawnConfig[],
+    connectCount: 0,
+    connectCalls: [] as ConnectConfig[],
     spawn(config: SpawnConfig): Promise<{ process: ChildProcess; handle: MCPServerHandle; port: number }> {
       factory.spawnCount++;
       factory.spawnCalls.push(config);
@@ -109,6 +121,14 @@ function createMockFactory(options: {
       // Return a default mock handle
       const proc = createMockProcess();
       return Promise.resolve({ process: proc, handle: createMockHandle(), port: 50000 });
+    },
+    connect(config: ConnectConfig): Promise<{ handle: MCPServerHandle }> {
+      factory.connectCount++;
+      factory.connectCalls.push(config);
+
+      if (options.connectError) return Promise.reject(options.connectError);
+
+      return Promise.resolve({ handle: createMockHandle() });
     },
   };
 
@@ -210,6 +230,7 @@ describe("MCPManager", () => {
             port: 50000,
           });
         },
+        connect: () => Promise.resolve({ handle: createMockHandle() }),
       };
 
       const manager = new MCPManager(roster, factory);
@@ -443,6 +464,7 @@ describe("MCPManager", () => {
             port: 50123,
           });
         },
+        connect: () => Promise.resolve({ handle: createMockHandle() }),
       };
 
       const manager = new MCPManager(roster, factory);
@@ -619,6 +641,7 @@ describe("MCPManager", () => {
           factory.spawnCount++;
           return Promise.reject("string error"); // eslint-disable-line @typescript-eslint/prefer-promise-reject-errors
         },
+        connect: () => Promise.resolve({ handle: createMockHandle() }),
       };
       const manager = new MCPManager(roster, factory);
 
@@ -900,6 +923,159 @@ describe("MCPManager", () => {
       const manager = new MCPManager(roster, factory);
 
       expect(manager.isRunning("nonexistent")).toBe(false);
+    });
+  });
+
+  describe("PID file coordination", () => {
+    function createMockPidFileManager() {
+      return {
+        read: mock(() => Promise.resolve(null as { pid: number; port: number } | null)),
+        write: mock(() => Promise.resolve()),
+        remove: mock(() => Promise.resolve()),
+        isAlive: mock(() => false),
+        cleanupAll: mock(() => Promise.resolve()),
+        shutdownAll: mock(() => Promise.resolve()),
+      };
+    }
+
+    function createMockPortRegistry() {
+      return {
+        allocate: mock(() => 50000),
+        reserve: mock(() => {}),
+        release: mock(() => {}),
+        markDead: mock(() => {}),
+      };
+    }
+
+    it("PID file with alive+responsive server triggers reconnect (connect called, not spawn)", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+      const pidFiles = createMockPidFileManager();
+      const portRegistry = createMockPortRegistry();
+
+      // PID file exists and process is alive
+      pidFiles.read.mockImplementation(() => Promise.resolve({ pid: 1234, port: 50500 }));
+      pidFiles.isAlive.mockImplementation(() => true);
+
+      const manager = new MCPManager(roster, factory, pidFiles, portRegistry);
+      await manager.initializeRoster();
+
+      // connect was called, spawn was not
+      expect(factory.connectCount).toBe(1);
+      expect(factory.connectCalls[0].port).toBe(50500);
+      expect(factory.spawnCount).toBe(0);
+      expect(roster.get("alpha")!.status).toBe("connected");
+      expect(roster.get("alpha")!.port).toBe(50500);
+    });
+
+    it("PID file with dead PID triggers delete + fresh spawn", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+      const pidFiles = createMockPidFileManager();
+      const portRegistry = createMockPortRegistry();
+
+      // PID file exists but process is dead
+      pidFiles.read.mockImplementation(() => Promise.resolve({ pid: 9999, port: 50500 }));
+      pidFiles.isAlive.mockImplementation(() => false);
+
+      const manager = new MCPManager(roster, factory, pidFiles, portRegistry);
+      await manager.initializeRoster();
+
+      // PID file removed, then spawn was called
+      expect(pidFiles.remove).toHaveBeenCalledWith("alpha");
+      expect(factory.spawnCount).toBe(1);
+      expect(factory.connectCount).toBe(0);
+      expect(roster.get("alpha")!.status).toBe("connected");
+    });
+
+    it("PID file with alive but unresponsive server triggers delete + fresh spawn", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory({
+        connectError: new Error("Connection refused"),
+      });
+      const pidFiles = createMockPidFileManager();
+      const portRegistry = createMockPortRegistry();
+
+      // PID file exists, process is alive, but connect will fail
+      pidFiles.read.mockImplementation(() => Promise.resolve({ pid: 1234, port: 50500 }));
+      pidFiles.isAlive.mockImplementation(() => true);
+
+      const manager = new MCPManager(roster, factory, pidFiles, portRegistry);
+      await manager.initializeRoster();
+
+      // connect attempted, failed, PID file removed, then spawn
+      expect(factory.connectCount).toBe(1);
+      expect(pidFiles.remove).toHaveBeenCalledWith("alpha");
+      expect(factory.spawnCount).toBe(1);
+      expect(roster.get("alpha")!.status).toBe("connected");
+    });
+
+    it("successful spawn writes PID file", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+      const pidFiles = createMockPidFileManager();
+
+      const manager = new MCPManager(roster, factory, pidFiles);
+      await manager.initializeRoster();
+
+      expect(pidFiles.write).toHaveBeenCalledWith("alpha", expect.objectContaining({
+        port: 50000,
+      }));
+    });
+
+    it("reconnected port is reserved in PortRegistry", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+      const pidFiles = createMockPidFileManager();
+      const portRegistry = createMockPortRegistry();
+
+      pidFiles.read.mockImplementation(() => Promise.resolve({ pid: 1234, port: 50500 }));
+      pidFiles.isAlive.mockImplementation(() => true);
+
+      const manager = new MCPManager(roster, factory, pidFiles, portRegistry);
+      await manager.initializeRoster();
+
+      expect(portRegistry.reserve).toHaveBeenCalledWith(50500);
+    });
+
+    it("shutdown calls pidFiles.shutdownAll()", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+      const pidFiles = createMockPidFileManager();
+
+      const manager = new MCPManager(roster, factory, pidFiles);
+      await manager.initializeRoster();
+      await manager.shutdown();
+
+      expect(pidFiles.shutdownAll).toHaveBeenCalled();
+    });
+
+    it("without pidFiles injected, behavior is unchanged", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+
+      // No pidFiles or portRegistry passed
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      // Just spawns normally
+      expect(factory.spawnCount).toBe(1);
+      expect(factory.connectCount).toBe(0);
+      expect(roster.get("alpha")!.status).toBe("connected");
     });
   });
 });

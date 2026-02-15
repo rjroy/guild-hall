@@ -175,6 +175,15 @@ function createMockMcpFactory(): MCPServerFactory {
         port: 50000,
       });
     },
+    connect() {
+      return Promise.resolve({
+        handle: {
+          stop: () => Promise.resolve(),
+          listTools: () => Promise.resolve([]),
+          invokeTool: () => Promise.resolve(null),
+        },
+      });
+    },
   };
 }
 
@@ -307,6 +316,7 @@ describe("Integration: MCP server crash mid-session", () => {
         handle: crashingHandle,
         port: 50000,
       }),
+      connect: () => Promise.resolve({ handle: crashingHandle }),
     };
 
     const manager = new MCPManager(roster, factory);
@@ -364,6 +374,7 @@ describe("Integration: MCP server crash mid-session", () => {
         handle: crashingHandle,
         port: 50000,
       }),
+      connect: () => Promise.resolve({ handle: crashingHandle }),
     };
 
     const manager = new MCPManager(roster, factory);
