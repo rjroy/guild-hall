@@ -57,7 +57,7 @@ This brainstorm explores whether to continue with stdio transport (accepting dup
 **How it works:**
 - Plugin manifest specifies `"transport": "http"` + `"command": "bun run server.ts --port ${PORT}"`
 - Guild Hall starts the HTTP server as a subprocess, manages lifecycle
-- Guild Hall allocates ports from 49152-59152 range
+- Guild Hall allocates ports from 50000-51000 range
 - Both Guild Hall and Agent SDK connect to `http://localhost:${PORT}`
 - No duplicate processes, guaranteed consistency
 
@@ -68,7 +68,7 @@ This brainstorm explores whether to continue with stdio transport (accepting dup
    - Slower initial load (acceptable - server restarts weekly, not per-session)
    - Servers always running = agent always has fresh tools
 
-2. **Port management**: Guild Hall allocates from 49152-59152 range
+2. **Port management**: Guild Hall allocates from 50000-51000 range
    - Plugins MUST accept `--port` argument
    - Guild Hall substitutes `${PORT}` in manifest args before spawning
    - PortAllocator tracks used ports, prevents conflicts
@@ -80,7 +80,7 @@ This brainstorm explores whether to continue with stdio transport (accepting dup
 
 4. **Security**: Localhost-only + port range restriction
    - All servers bind to 127.0.0.1 (no external access)
-   - Port range 49152-59152 can be firewalled (Omarchy scripts)
+   - Port range 50000-51000 can be firewalled (Omarchy scripts)
    - Guild Hall controls all subprocesses (no rogue servers)
 
 **Why the "cons" don't matter:**
@@ -191,7 +191,7 @@ const response = await query({
   prompt: userMessage,
   mcp: {
     "example": {
-      url: "http://localhost:49152"
+      url: "http://localhost:50000"
     }
   }
 });
@@ -204,8 +204,8 @@ const response = await query({
 ```typescript
 class PortAllocator {
   private usedPorts = new Set<number>();
-  private readonly minPort = 49152;
-  private readonly maxPort = 59152;
+  private readonly minPort = 50000;
+  private readonly maxPort = 51000;
 
   allocate(): number {
     for (let port = this.minPort; port <= this.maxPort; port++) {
@@ -214,7 +214,7 @@ class PortAllocator {
         return port;
       }
     }
-    throw new Error("No ports available in range 49152-59152");
+    throw new Error("No ports available in range 50000-51000");
   }
 
   release(port: number): void {
@@ -283,7 +283,7 @@ With HTTP transport and eager loading, **tool caching becomes simpler**:
 
 - **Transport**: Plain HTTP only (stdio removed, SSE deferred)
 - **Loading**: Eager (start all servers on roster initialization)
-- **Port range**: 49152-59152, managed by PortAllocator
+- **Port range**: 50000-51000, managed by PortAllocator
 - **Plugin requirement**: Must accept `--port` argument
 - **Security**: Localhost-only, firewall-ready port range
 - **Migration**: No cost (no plugins exist yet)
