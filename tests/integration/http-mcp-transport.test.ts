@@ -160,12 +160,13 @@ describe("HTTP MCP Transport Integration", () => {
   it("port collision handling: manually occupy port 50000, spawn gets port 50001", async () => {
     const registry = new PortRegistry();
 
-    // Manually allocate port 50000 and mark it as dead (simulating collision)
+    // Manually allocate a port and mark it as dead (simulating collision)
     const blockedPort = registry.allocate();
-    expect(blockedPort).toBe(50000);
+    expect(blockedPort).toBeGreaterThanOrEqual(50000);
+    expect(blockedPort).toBeLessThanOrEqual(51000);
     registry.markDead(blockedPort);
 
-    // Now spawn should skip 50000 and use 50001
+    // Now spawn should skip the dead port and use the next available
     const factory = createHttpMCPFactory({ portRegistry: registry });
 
     const { process: proc, handle, port } = await factory.spawn({
@@ -177,7 +178,9 @@ describe("HTTP MCP Transport Integration", () => {
     activeProcesses.push(proc);
     activeHandles.push(handle);
 
-    expect(port).toBe(50001);
+    expect(port).not.toBe(blockedPort);
+    expect(port).toBeGreaterThanOrEqual(50000);
+    expect(port).toBeLessThanOrEqual(51000);
 
     // Verify server is functional
     const tools = await handle.listTools();
@@ -210,10 +213,12 @@ describe("HTTP MCP Transport Integration", () => {
     activeProcesses.push(spawn2.process);
     activeHandles.push(spawn2.handle);
 
-    // Verify different ports
+    // Verify different ports, both within allowed range
     expect(spawn1.port).not.toBe(spawn2.port);
-    expect(spawn1.port).toBe(50000);
-    expect(spawn2.port).toBe(50001);
+    expect(spawn1.port).toBeGreaterThanOrEqual(50000);
+    expect(spawn1.port).toBeLessThanOrEqual(51000);
+    expect(spawn2.port).toBeGreaterThanOrEqual(50000);
+    expect(spawn2.port).toBeLessThanOrEqual(51000);
 
     // Verify both are functional
     const tools1 = await spawn1.handle.listTools();

@@ -27,5 +27,24 @@
         "url": "rjroy/vibe-garden"
       }
     }
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun install",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "bun install:guild-members",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }
