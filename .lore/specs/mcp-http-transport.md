@@ -15,7 +15,7 @@ req-prefix: MCP-HTTP
 
 ## Overview
 
-Guild Hall's HTTP MCP transport enables plugins to expose tools via HTTP endpoints using JSON-RPC over HTTP POST. Guild Hall controls MCP server lifecycle (eager loading on roster initialization), allocates ports from a managed range (20000-30000), and configures the Claude Agent SDK to connect to these HTTP endpoints. This replaces the stdio transport approach, eliminating duplicate process spawning and enabling simpler server management.
+Guild Hall's HTTP MCP transport enables plugins to expose tools via HTTP endpoints using JSON-RPC over HTTP POST. Guild Hall controls MCP server lifecycle (eager loading on roster initialization), allocates ports from a managed ephemeral range (49152-59152), and configures the Claude Agent SDK to connect to these HTTP endpoints. This replaces the stdio transport approach, eliminating duplicate process spawning and enabling simpler server management.
 
 **Note**: This implements a simplified subset of MCP's Streamable HTTP specification. Full Streamable HTTP includes GET for server-initiated messages and SSE responses for streaming. Phase I uses POST-only with plain JSON responses. SSE streaming is deferred to future phases.
 
@@ -51,7 +51,7 @@ Example manifest:
 
 ### Port Allocation
 
-- REQ-MCP-HTTP-5: Guild Hall MUST allocate ports from the range 20000-30000
+- REQ-MCP-HTTP-5: Guild Hall MUST allocate ports from the ephemeral range 49152-59152 (dynamic/private ports designed for temporary services)
 - REQ-MCP-HTTP-6: If a port is unavailable (EADDRINUSE), Guild Hall MUST try the next port in sequence
 - REQ-MCP-HTTP-7: If all ports in the range are exhausted, server spawn MUST fail with descriptive error message
 - REQ-MCP-HTTP-8: Each plugin MUST receive a unique port (one port per plugin)
@@ -95,7 +95,7 @@ Example manifest:
 
 - REQ-MCP-HTTP-30: MCP servers MUST bind to 127.0.0.1 (localhost only, not 0.0.0.0)
 - REQ-MCP-HTTP-31: Guild Hall MUST validate Origin header to prevent DNS rebinding attacks
-- REQ-MCP-HTTP-32: Ports MUST only be allocated from the managed range 20000-30000
+- REQ-MCP-HTTP-32: Ports MUST only be allocated from the managed ephemeral range 49152-59152
 
 ### Agent SDK Integration
 
@@ -191,7 +191,7 @@ Boundaries and limitations for Phase I:
 - Architectural decision to use HTTP transport instead of stdio
 - Rationale: eliminates duplicate processes (Guild Hall + Agent SDK both spawning servers)
 - Eager loading chosen over lazy loading for simpler tool discovery
-- Port allocation strategy: 20000-30000 range, `${PORT}` substitution in manifest args
+- Port allocation strategy: ephemeral range 49152-59152, `${PORT}` substitution in manifest args
 
 **Research: MCP HTTP Protocol and Claude Agent SDK Integration** (.lore/research/mcp-http-protocol.md)
 - Complete MCP Streamable HTTP transport specification (POST + GET with SSE)
