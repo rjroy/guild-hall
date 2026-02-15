@@ -182,11 +182,66 @@ async function testCoveragePlugins(plugins: Plugin[]): Promise<void> {
   }
 }
 
+async function lintPlugins(plugins: Plugin[]): Promise<void> {
+  if (plugins.length === 0) {
+    console.log("No plugins with package.json found");
+    return;
+  }
+
+  console.log(`Found ${plugins.length} plugin(s) to lint:\n`);
+
+  for (const plugin of plugins) {
+    // Check if plugin has a lint script
+    try {
+      const pkg = await import(join(process.cwd(), plugin.path, "package.json"));
+      if (!pkg.scripts?.lint) {
+        console.log(`⊘ ${plugin.name} (no lint script)`);
+        continue;
+      }
+
+      console.log(`🔍 Linting ${plugin.name}...`);
+      await runCommand("bun", ["run", "lint"], plugin.path);
+      console.log(`✓ ${plugin.name}\n`);
+    } catch (error) {
+      console.error(`✗ ${plugin.name}: ${error}\n`);
+      process.exitCode = 1;
+    }
+  }
+}
+
+async function typecheckPlugins(plugins: Plugin[]): Promise<void> {
+  if (plugins.length === 0) {
+    console.log("No plugins with package.json found");
+    return;
+  }
+
+  console.log(`Found ${plugins.length} plugin(s) to typecheck:\n`);
+
+  for (const plugin of plugins) {
+    // Check if plugin has a typecheck script
+    try {
+      const pkg = await import(join(process.cwd(), plugin.path, "package.json"));
+      if (!pkg.scripts?.typecheck) {
+        console.log(`⊘ ${plugin.name} (no typecheck script)`);
+        continue;
+      }
+
+      console.log(`📝 Typechecking ${plugin.name}...`);
+      await runCommand("bun", ["run", "typecheck"], plugin.path);
+      console.log(`✓ ${plugin.name}\n`);
+    } catch (error) {
+      console.error(`✗ ${plugin.name}: ${error}\n`);
+      process.exitCode = 1;
+    }
+  }
+}
+
 async function main() {
   const operation = process.argv[2];
 
-  if (!operation || !["install", "build", "test", "test:coverage"].includes(operation)) {
-    console.error("Usage: bun run scripts/guild-members.ts <install|build|test|test:coverage>");
+  const validOps = ["install", "build", "test", "test:coverage", "lint", "typecheck"];
+  if (!operation || !validOps.includes(operation)) {
+    console.error(`Usage: bun run scripts/guild-members.ts <${validOps.join("|")}>`);
     process.exit(1);
   }
 
@@ -200,6 +255,10 @@ async function main() {
     await testPlugins(plugins);
   } else if (operation === "test:coverage") {
     await testCoveragePlugins(plugins);
+  } else if (operation === "lint") {
+    await lintPlugins(plugins);
+  } else if (operation === "typecheck") {
+    await typecheckPlugins(plugins);
   }
 }
 
