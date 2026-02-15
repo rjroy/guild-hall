@@ -51,6 +51,3 @@ guild-members/*
 
 # example plugin dependencies (node_modules installed locally, lockfile committed)
 guild-members/example/node_modules/
-
-# claude-plugin metadata (not used in this project, prevents corruption issues)
-.claude-plugin/

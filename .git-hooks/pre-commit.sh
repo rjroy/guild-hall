@@ -15,12 +15,6 @@ FAILED=0
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-# Clean up marketplace.json corruption if present
-# (recurring issue with unknown root cause)
-git ls-files --stage | grep -q "\.claude-plugin/marketplace\.json" && {
-    git read-tree HEAD 2>/dev/null || true
-} || true
-
 # Run a command quietly, showing output only on failure
 run_quiet() {
     local label="$1"
