@@ -155,11 +155,38 @@ async function testPlugins(plugins: Plugin[]): Promise<void> {
   }
 }
 
+async function testCoveragePlugins(plugins: Plugin[]): Promise<void> {
+  if (plugins.length === 0) {
+    console.log("No plugins with package.json found");
+    return;
+  }
+
+  console.log(`Found ${plugins.length} plugin(s) to test with coverage:\n`);
+
+  for (const plugin of plugins) {
+    // Check if plugin has a test:coverage script
+    try {
+      const pkg = await import(join(process.cwd(), plugin.path, "package.json"));
+      if (!pkg.scripts?.["test:coverage"]) {
+        console.log(`⊘ ${plugin.name} (no test:coverage script)`);
+        continue;
+      }
+
+      console.log(`🧪 Testing ${plugin.name} with coverage...`);
+      await runCommand("bun", ["run", "test:coverage"], plugin.path);
+      console.log(`✓ ${plugin.name}\n`);
+    } catch (error) {
+      console.error(`✗ ${plugin.name}: ${error}\n`);
+      process.exitCode = 1;
+    }
+  }
+}
+
 async function main() {
   const operation = process.argv[2];
 
-  if (!operation || !["install", "build", "test"].includes(operation)) {
-    console.error("Usage: bun run scripts/guild-members.ts <install|build|test>");
+  if (!operation || !["install", "build", "test", "test:coverage"].includes(operation)) {
+    console.error("Usage: bun run scripts/guild-members.ts <install|build|test|test:coverage>");
     process.exit(1);
   }
 
@@ -171,6 +198,8 @@ async function main() {
     await buildPlugins(plugins);
   } else if (operation === "test") {
     await testPlugins(plugins);
+  } else if (operation === "test:coverage") {
+    await testCoveragePlugins(plugins);
   }
 }
 
