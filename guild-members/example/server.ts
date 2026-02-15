@@ -24,12 +24,13 @@ class HttpTransport implements Transport {
     // No initial connection setup needed for HTTP
   }
 
-  async close(): Promise<void> {
+  close(): Promise<void> {
     this._responseMap.clear();
     this.onclose?.();
+    return Promise.resolve();
   }
 
-  async send(message: JSONRPCMessage): Promise<void> {
+  send(message: JSONRPCMessage): Promise<void> {
     // Get the response object for this message ID
     const id = "id" in message ? message.id : null;
     if (id !== null && id !== undefined) {
@@ -40,6 +41,7 @@ class HttpTransport implements Transport {
         this._responseMap.delete(id);
       }
     }
+    return Promise.resolve();
   }
 
   /**
@@ -48,8 +50,9 @@ class HttpTransport implements Transport {
   async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
       // Read request body
-      const chunks: Buffer[] = [];
+      const chunks: Uint8Array[] = [];
       for await (const chunk of req) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         chunks.push(chunk);
       }
       const body = Buffer.concat(chunks).toString();
@@ -97,7 +100,7 @@ const server = new Server(
   },
 );
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
+server.setRequestHandler(ListToolsRequestSchema, () => ({
   tools: [
     {
       name: "echo",
@@ -162,7 +165,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   if (name === "echo") {
-    const message = String(args?.message ?? "");
+    const message = typeof args?.message === "string" ? args.message : "";
     return {
       content: [
         {
@@ -174,7 +177,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   if (name === "reverse") {
-    const text = String(args?.text ?? "");
+    const text = typeof args?.text === "string" ? args.text : "";
     const reversed = text.split("").reverse().join("");
     return {
       content: [
@@ -200,7 +203,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   if (name === "read-file") {
-    const path = String(args?.path ?? "");
+    const path = typeof args?.path === "string" ? args.path : "";
     const content = await readFile(path, "utf-8");
     return {
       content: [
@@ -239,7 +242,7 @@ async function main() {
   await server.connect(transport);
 
   // Create HTTP server
-  const httpServer = createServer(async (req, res) => {
+  const httpServer = createServer((req, res) => {
     // Only handle POST requests to /mcp
     if (req.method !== "POST" || req.url !== "/mcp") {
       res.writeHead(404);
@@ -247,7 +250,7 @@ async function main() {
       return;
     }
 
-    await transport.handleRequest(req, res);
+    void transport.handleRequest(req, res);
   });
 
   // Handle server errors
