@@ -40,14 +40,16 @@ export function ConversationHistory({
         </div>
       )}
 
-      {messages.map((msg, index) => (
-        <MessageBubble
-          key={`${msg.timestamp}-${index}`}
-          role={msg.role}
-          content={msg.content}
-          timestamp={msg.timestamp}
-        />
-      ))}
+      {messages
+        .filter((msg) => !msg.toolName)
+        .map((msg, index) => (
+          <MessageBubble
+            key={`${msg.timestamp}-${index}`}
+            role={msg.role}
+            content={msg.content}
+            timestamp={msg.timestamp}
+          />
+        ))}
 
       {pendingToolCalls.size > 0 && (
         <ToolCallGroup toolCalls={pendingToolCalls} />

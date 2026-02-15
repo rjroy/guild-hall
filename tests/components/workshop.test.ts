@@ -218,6 +218,38 @@ describe("WorkshopView error state determination", () => {
   });
 });
 
+describe("tool call message filtering", () => {
+  it("filters out messages with toolName set", () => {
+    const messages: StoredMessage[] = [
+      makeStoredMessage({ role: "user", content: "do something" }),
+      makeStoredMessage({
+        role: "assistant",
+        content: "",
+        toolName: "read_file",
+      }),
+      makeStoredMessage({
+        role: "assistant",
+        content: "",
+        toolName: "write_file",
+      }),
+      makeStoredMessage({ role: "assistant", content: "Done!" }),
+    ];
+    const visible = messages.filter((msg) => !msg.toolName);
+    expect(visible).toHaveLength(2);
+    expect(visible[0].content).toBe("do something");
+    expect(visible[1].content).toBe("Done!");
+  });
+
+  it("keeps all messages when none have toolName", () => {
+    const messages: StoredMessage[] = [
+      makeStoredMessage({ role: "user", content: "hello" }),
+      makeStoredMessage({ role: "assistant", content: "hi" }),
+    ];
+    const visible = messages.filter((msg) => !msg.toolName);
+    expect(visible).toHaveLength(2);
+  });
+});
+
 describe("ToolCallGroup", () => {
   describe("toolCallSummary", () => {
     it("returns singular for one tool call", () => {
