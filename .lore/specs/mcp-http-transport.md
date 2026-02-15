@@ -73,9 +73,9 @@ Example manifest:
 
 ### Health Monitoring
 
-- REQ-MCP-HTTP-19: Before invoking a tool on a server that is not running, Guild Hall MUST start the server and complete the initialize handshake (which serves as health verification)
+- REQ-MCP-HTTP-19: With eager loading, all servers start during roster initialization. If a server crashes after startup, subsequent tool invocations will fail. Guild Hall MAY implement automatic restart on crash in future phases
 - REQ-MCP-HTTP-20: The initialize handshake MUST have a timeout of 5 seconds. On timeout, the HTTP request is aborted, guild member status is set to "error", and the server process is terminated
-- REQ-MCP-HTTP-21: Guild Hall does not perform proactive health checks beyond the initialize handshake. Server health is verified only at startup and before first tool invocation on a stopped server
+- REQ-MCP-HTTP-21: Guild Hall does not perform proactive health checks beyond the initialize handshake. Server health is verified only at startup during eager loading
 
 ### JSON-RPC Protocol
 
