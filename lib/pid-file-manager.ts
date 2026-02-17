@@ -41,12 +41,19 @@ export interface PidFileManager {
 export function createPidFileManager(deps: PidFileManagerDeps): PidFileManager {
   const { baseDir, fs, processKill } = deps;
 
+  // Flatten member names containing path separators (e.g.,
+  // "guild-founders/aegis-of-focus" becomes "guild-founders--aegis-of-focus")
+  // so PID files stay in baseDir rather than creating subdirectories.
+  function safeName(memberName: string): string {
+    return memberName.replace(/\//g, "--");
+  }
+
   function filePath(memberName: string): string {
-    return path.join(baseDir, `${memberName}.json`);
+    return path.join(baseDir, `${safeName(memberName)}.json`);
   }
 
   function tmpPath(memberName: string): string {
-    return path.join(baseDir, `.${memberName}.json.tmp`);
+    return path.join(baseDir, `.${safeName(memberName)}.json.tmp`);
   }
 
   function isEnoent(err: unknown): boolean {
