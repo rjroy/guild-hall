@@ -136,6 +136,35 @@ describe("PidFileManager", () => {
     });
   });
 
+  describe("nested member names (collection/plugin)", () => {
+    it("flattens slashes in write path so files stay in baseDir", async () => {
+      const { deps, fs } = makeDeps();
+      const manager = createPidFileManager(deps);
+
+      await manager.write("guild-founders/aegis-of-focus", { pid: 5678, port: 50001 });
+
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        "/project/.mcp-servers/.guild-founders--aegis-of-focus.json.tmp",
+        JSON.stringify({ pid: 5678, port: 50001 }),
+      );
+      expect(fs.rename).toHaveBeenCalledWith(
+        "/project/.mcp-servers/.guild-founders--aegis-of-focus.json.tmp",
+        "/project/.mcp-servers/guild-founders--aegis-of-focus.json",
+      );
+    });
+
+    it("reads back data written with nested name", async () => {
+      const { deps } = makeDeps({
+        "/project/.mcp-servers/guild-founders--aegis-of-focus.json": JSON.stringify({ pid: 5678, port: 50001 }),
+      });
+      const manager = createPidFileManager(deps);
+
+      const data = await manager.read("guild-founders/aegis-of-focus");
+
+      expect(data).toEqual({ pid: 5678, port: 50001 });
+    });
+  });
+
   describe("read", () => {
     it("returns parsed data for valid file", async () => {
       const { deps } = makeDeps({

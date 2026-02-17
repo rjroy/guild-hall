@@ -26,6 +26,8 @@ import { MCP_EXIT_CODE } from "./types";
 
 const MAX_RETRY_ATTEMPTS = 10;
 const PORT_COLLISION_WAIT_MS = 100;
+const READINESS_POLL_INTERVAL_MS = 200;
+const READINESS_TIMEOUT_MS = 10000;
 const STDERR_BUFFER_MAX = 10000;
 const STDERR_BUFFER_KEEP = 5000;
 
@@ -108,9 +110,15 @@ export function createHttpMCPFactory(
           console.error(`[MCP stderr] ${text.trimEnd()}`);
         });
 
-        // Set up exit code tracking
+        // Track process exit. Uses a listener rather than proc.exitCode
+        // because exitCode isn't guaranteed to be set synchronously on all
+        // runtimes/mocks when the exit event fires.
+        let exitCode: number | null = null;
         const exitPromise = new Promise<number>((resolve) => {
-          proc.once("exit", (code) => resolve(code ?? MCP_EXIT_CODE.ERROR));
+          proc.once("exit", (code) => {
+            exitCode = code ?? MCP_EXIT_CODE.ERROR;
+            resolve(exitCode);
+          });
         });
 
         // Wait briefly for quick port collision detection
@@ -118,8 +126,10 @@ export function createHttpMCPFactory(
           setTimeout(resolve, PORT_COLLISION_WAIT_MS),
         );
 
-        // Check if already exited with EADDRINUSE
-        if (proc.exitCode === MCP_EXIT_CODE.PORT_COLLISION) {
+        // Check if already exited with EADDRINUSE. Check both the
+        // event-tracked exitCode and proc.exitCode for the quick-exit
+        // path, since the process may exit before the listener fires.
+        if (exitCode === MCP_EXIT_CODE.PORT_COLLISION || proc.exitCode === MCP_EXIT_CODE.PORT_COLLISION) {
           deps.portRegistry.markDead(port);
           console.log(`[MCP] Port ${port} collision (quick exit), retrying...`);
           lastError = new Error(
@@ -128,20 +138,70 @@ export function createHttpMCPFactory(
           continue;
         }
 
-        // Create JSON-RPC client
+        // Poll for server readiness. Servers with async bootstrap (network
+        // calls, session init) may not be listening immediately after spawn.
+        // Retry connection-refused errors until the server is up or the
+        // timeout expires. Non-transient errors (HTTP errors, protocol
+        // errors, timeouts) fail immediately.
         const client = createClientFn(`http://localhost:${port}/mcp`);
+        const deadline = Date.now() + READINESS_TIMEOUT_MS;
+        let initError: unknown = null;
+        let initialized = false;
+        let pollAttempt = 0;
 
-        // Wait for server to be ready (initialize handshake)
-        try {
-          await client.initialize({
-            name: "GuildHall",
-            version: "0.1.0",
-          });
-        } catch (err) {
+        while (Date.now() < deadline) {
+          // If the process exited, stop polling
+          if (exitCode !== null) {
+            console.log(`[MCP] Process exited (code ${exitCode}) during readiness poll`);
+            break;
+          }
+
+          pollAttempt++;
+          try {
+            await client.initialize({
+              name: "GuildHall",
+              version: "0.1.0",
+            });
+            initialized = true;
+            if (pollAttempt > 1) {
+              console.log(`[MCP] Server ready after ${pollAttempt} poll attempts`);
+            }
+            break;
+          } catch (err) {
+            initError = err;
+
+            // Non-transient errors: stop polling immediately.
+            // Connection-refused / fetch-failed are the only transient ones
+            // (server not yet listening). Everything else means the server
+            // responded but something is wrong.
+            if (!isTransientConnectionError(err)) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              console.log(`[MCP] Non-transient error during readiness poll: ${errMsg}`);
+              break;
+            }
+
+            if (pollAttempt === 1) {
+              console.log(`[MCP] Server not ready yet, polling for readiness...`);
+            }
+
+            // Transient error (fetch failed / connection refused): wait and retry
+            await new Promise((resolve) =>
+              setTimeout(resolve, READINESS_POLL_INTERVAL_MS),
+            );
+          }
+        }
+
+        if (!initialized && initError && Date.now() >= deadline) {
+          console.log(`[MCP] Readiness poll timed out after ${READINESS_TIMEOUT_MS}ms (${pollAttempt} attempts)`);
+        }
+
+        if (!initialized) {
           proc.kill();
 
-          // Wait for exit code
-          const exitCode = await exitPromise;
+          // If process hasn't exited yet, wait for it
+          if (exitCode === null) {
+            exitCode = await exitPromise;
+          }
 
           // If process exited with code 2, mark port dead and retry
           if (exitCode === MCP_EXIT_CODE.PORT_COLLISION) {
@@ -155,6 +215,7 @@ export function createHttpMCPFactory(
 
           // Other errors: release port and fail
           deps.portRegistry.release(port);
+          const err = initError;
           console.error(`[MCP] Spawn failed on port ${port}: ${err instanceof Error ? err.message : String(err)}`);
 
           const errorMessage =
@@ -205,4 +266,36 @@ function getErrorType(err: unknown): string {
   if (err instanceof JsonRpcProtocolError) return "protocol-error";
   if (err instanceof Error && err.name === "AbortError") return "aborted";
   return "unknown";
+}
+
+/**
+ * Returns true if the error indicates the server isn't listening yet
+ * (connection refused, fetch failed). These are the only errors worth
+ * retrying during readiness polling. Everything else (timeouts, HTTP
+ * errors, protocol errors, aborts) means the server responded or the
+ * request was intentionally cancelled.
+ */
+function isTransientConnectionError(err: unknown): boolean {
+  // Known non-transient error types from our JSON-RPC client
+  if (
+    err instanceof JsonRpcTimeoutError ||
+    err instanceof JsonRpcHttpError ||
+    err instanceof JsonRpcProtocolError
+  ) {
+    return false;
+  }
+
+  if (err instanceof Error) {
+    // AbortError from fetch signal cancellation
+    if (err.name === "AbortError") return false;
+
+    // Connection refused / fetch failed: server not listening yet
+    const msg = err.message.toLowerCase();
+    if (msg.includes("fetch failed") || msg.includes("econnrefused") || msg.includes("connection refused")) {
+      return true;
+    }
+  }
+
+  // Unknown errors: treat as non-transient to avoid infinite retries
+  return false;
 }

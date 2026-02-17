@@ -55,7 +55,7 @@ describe("discoverGuildMembers", () => {
     const member = result.get("alpha");
     expect(member).toBeDefined();
     // Non-null safe: toBeDefined() above confirms presence
-    expect(member!.name).toBe("test-member"); // name from manifest, not dir
+    expect(member!.name).toBe("alpha"); // name matches map key, not manifest
     expect(member!.displayName).toBe("Test Member");
     expect(member!.status).toBe("disconnected");
     expect(member!.tools).toEqual([]);
@@ -155,13 +155,13 @@ describe("discoverGuildMembers", () => {
     const first = result.get("one");
     expect(first).toBeDefined();
     // Non-null safe: toBeDefined() above confirms presence
-    expect(first!.name).toBe("member-one");
+    expect(first!.name).toBe("one");
     expect(first!.status).toBe("disconnected");
 
     const second = result.get("two");
     expect(second).toBeDefined();
     // Non-null safe: toBeDefined() above confirms presence
-    expect(second!.name).toBe("member-two");
+    expect(second!.name).toBe("two");
     expect(second!.status).toBe("disconnected");
   });
 
@@ -198,7 +198,7 @@ describe("discoverGuildMembers", () => {
     expect(result.has("dir-name")).toBe(true);
     expect(result.has("internal-name")).toBe(false);
     // Non-null safe: has() above confirms presence
-    expect(result.get("dir-name")!.name).toBe("internal-name");
+    expect(result.get("dir-name")!.name).toBe("dir-name");
   });
 
   it("discovers nested plugins in plugin collections", async () => {
@@ -228,7 +228,7 @@ describe("discoverGuildMembers", () => {
     const member = result.get("guild-founders/aegis-of-focus");
     expect(member).toBeDefined();
     // Non-null safe: toBeDefined() above confirms presence
-    expect(member!.name).toBe("nested-plugin");
+    expect(member!.name).toBe("guild-founders/aegis-of-focus");
     expect(member!.status).toBe("disconnected");
   });
 
@@ -269,10 +269,10 @@ describe("discoverGuildMembers", () => {
     expect(result.size).toBe(2);
 
     expect(result.has("standalone")).toBe(true);
-    expect(result.get("standalone")!.name).toBe("flat-plugin");
+    expect(result.get("standalone")!.name).toBe("standalone");
 
     expect(result.has("guild-founders/echo-server")).toBe(true);
-    expect(result.get("guild-founders/echo-server")!.name).toBe("nested-plugin");
+    expect(result.get("guild-founders/echo-server")!.name).toBe("guild-founders/echo-server");
   });
 
   it("skips plugin collections without valid manifests", async () => {

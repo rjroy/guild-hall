@@ -632,6 +632,82 @@ describe("HTTP MCP Factory", () => {
     );
   });
 
+  test("readiness polling: retries connection-refused then succeeds", async () => {
+    const portRegistry = createMockPortRegistry();
+    const mockProc = createMockProcess();
+    let initCallCount = 0;
+
+    const mockClient = createMockJsonRpcClient({
+      initialize: mock(() => {
+        initCallCount++;
+        // First 3 calls fail with connection refused (server still starting)
+        if (initCallCount <= 3) {
+          return Promise.reject(new TypeError("fetch failed"));
+        }
+        // 4th call succeeds (server is ready)
+        return Promise.resolve({
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          serverInfo: { name: "test", version: "1.0" },
+        });
+      }),
+    });
+
+    const factory = createHttpMCPFactory({
+      portRegistry,
+      spawn: () => mockProc,
+      createClient: () => mockClient,
+    });
+
+    const result = await factory.spawn({
+      command: "bun",
+      args: ["run", "server.ts"],
+      pluginDir: "/path/to/plugin",
+    });
+
+    expect(result.port).toBe(50000);
+    expect(initCallCount).toBe(4);
+    expect(mockProc.kill).not.toHaveBeenCalled();
+  });
+
+  test("readiness polling: stops when process exits during poll", async () => {
+    const portRegistry = createMockPortRegistry();
+    const mockProc = createMockProcess();
+
+    const mockClient = createMockJsonRpcClient({
+      initialize: mock(() => {
+        // Always fail with connection refused
+        return Promise.reject(new TypeError("fetch failed"));
+      }),
+    });
+
+    const factory = createHttpMCPFactory({
+      portRegistry,
+      spawn: () => mockProc,
+      createClient: () => mockClient,
+    });
+
+    const spawnPromise = factory.spawn({
+      command: "bun",
+      args: ["run", "server.ts"],
+      pluginDir: "/path/to/plugin",
+    });
+
+    // Process crashes after 300ms
+    setTimeout(() => mockProc.emit("exit", MCP_EXIT_CODE.ERROR), 300);
+
+    let caught: Error | null = null;
+    try {
+      await spawnPromise;
+    } catch (err) {
+      caught = err as Error;
+    }
+
+    expect(caught).not.toBeNull();
+    expect(caught!.message).toMatch(/Server failed to initialize/);
+    expect(caught!.message).toMatch(/fetch failed/);
+  });
+
   describe("connect()", () => {
     test("successful connect creates working handle", async () => {
       const portRegistry = createMockPortRegistry();

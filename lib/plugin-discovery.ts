@@ -133,6 +133,10 @@ async function loadManifest(
   if (result.success) {
     return {
       ...result.data,
+      // Override manifest name with discovery key so the name matches
+      // the roster map key. For nested plugins this includes the
+      // collection prefix (e.g., "guild-founders/aegis-of-focus").
+      name: key,
       status: "disconnected",
       tools: [],
       pluginDir: pluginPath,
