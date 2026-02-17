@@ -609,6 +609,7 @@ export function startAgentQuery(
     permissionMode: options.permissionMode,
     abortController,
     includePartialMessages: true,
+    settingSources: ["user"],
   };
 
   if (options.resumeSessionId) {
