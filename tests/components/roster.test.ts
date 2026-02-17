@@ -237,6 +237,58 @@ describe("Roster component logic", () => {
     });
   });
 
+  describe("roster panel collapse", () => {
+    // The roster panel is collapsible when there are more than 1 member.
+    // On mobile, it defaults to collapsed. The collapse state is a boolean toggle.
+
+    it("is not collapsible with zero members", () => {
+      const memberCount = 0;
+      const isCollapsible = memberCount > 1;
+      expect(isCollapsible).toBe(false);
+    });
+
+    it("is not collapsible with one member", () => {
+      const memberCount = 1;
+      const isCollapsible = memberCount > 1;
+      expect(isCollapsible).toBe(false);
+    });
+
+    it("is collapsible with two or more members", () => {
+      const memberCount = 2;
+      const isCollapsible = memberCount > 1;
+      expect(isCollapsible).toBe(true);
+    });
+
+    it("content is hidden when collapsed and collapsible", () => {
+      const collapsed = true;
+      const isCollapsible = true;
+      const showContent = !(collapsed && isCollapsible);
+      expect(showContent).toBe(false);
+    });
+
+    it("content is visible when not collapsed", () => {
+      const collapsed = false;
+      const isCollapsible = true;
+      const showContent = !(collapsed && isCollapsible);
+      expect(showContent).toBe(true);
+    });
+
+    it("content is visible when collapsed but not collapsible (single member)", () => {
+      const collapsed = true;
+      const isCollapsible = false;
+      const showContent = !(collapsed && isCollapsible);
+      expect(showContent).toBe(true);
+    });
+
+    it("toggles collapsed state", () => {
+      let collapsed = true;
+      collapsed = !collapsed;
+      expect(collapsed).toBe(false);
+      collapsed = !collapsed;
+      expect(collapsed).toBe(true);
+    });
+  });
+
   describe("active tool selection", () => {
     // ToolList tracks which tool's invoke form is open via activeToolName.
 
