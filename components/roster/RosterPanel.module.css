@@ -11,6 +11,11 @@
   overflow: hidden;
 }
 
+.panelCollapsed {
+  flex: 0 0 auto;
+  height: auto;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -18,6 +23,37 @@
   padding: 14px 16px;
   background: var(--panel-header-bg);
   border-bottom: 1px solid var(--panel-border);
+}
+
+.panelCollapsed .header {
+  border-bottom: none;
+}
+
+.headerClickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.headerClickable:hover {
+  background: var(--card-hover-bg);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collapseIcon {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--foreground-muted);
+  transition: transform 0.15s;
+}
+
+.collapseIconOpen {
+  composes: collapseIcon;
+  transform: rotate(90deg);
 }
 
 .title {
