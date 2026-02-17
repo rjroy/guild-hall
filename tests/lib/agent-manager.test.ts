@@ -883,6 +883,47 @@ describe("AgentManager", () => {
       expect(session!.metadata.status).toBe("idle");
     });
   });
+
+  describe("MCP config ordering", () => {
+    it("passes MCP server configs to SDK even after servers were released by a previous query", async () => {
+      // This test catches a bug where getServerConfigs() was called before
+      // startServersForSession(). After the first query released its servers,
+      // getServerConfigs() would return empty configs because the servers
+      // were disconnected, even though startServersForSession() would
+      // immediately respawn them.
+      const sdkSid = "sdk-session-1";
+      const messages = [
+        makeInitMessage(sdkSid),
+        makeStreamTextDelta("Hello", sdkSid),
+        makeSuccessResult(sdkSid),
+      ];
+
+      const { queryFn: capturingFn, calls } = createCapturingQueryFn(messages);
+
+      const { deps } = setup({ sdkSessionId: null });
+      (deps as { queryFn: QueryFn }).queryFn = capturingFn;
+      const manager = new AgentManager(deps);
+
+      const sessionId = "2026-02-12-test-session";
+
+      // First query: servers start, query runs, servers release on completion
+      await manager.runQuery(sessionId, "First message");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Second query: servers must be restarted and configs must reflect them
+      await manager.runQuery(sessionId, "Second message");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Both calls should have received MCP server configs
+      expect(calls).toHaveLength(2);
+
+      const firstMcp = calls[0].options.mcpServers as Record<string, unknown>;
+      const secondMcp = calls[1].options.mcpServers as Record<string, unknown>;
+
+      expect(Object.keys(firstMcp)).toContain("alpha");
+      expect(Object.keys(secondMcp)).toContain("alpha");
+    });
+  });
 });
 
 describe("AgentManagerError", () => {

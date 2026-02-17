@@ -80,11 +80,13 @@ export class AgentManager {
     // Fresh start when: no sdkSessionId, or status is "expired".
     const shouldResume = sdkSessionId !== null && status !== "expired";
 
-    // Build MCP server configs
-    const mcpServers = this.deps.mcpManager.getServerConfigs(guildMembers);
-
-    // Start MCP servers for this session
+    // Start MCP servers for this session (must happen before getServerConfigs
+    // so that servers released after a previous query are respawned and their
+    // status/port is current when we build the SDK config).
     await this.deps.mcpManager.startServersForSession(sessionId, guildMembers);
+
+    // Build MCP server configs (reads port and status from running servers)
+    const mcpServers = this.deps.mcpManager.getServerConfigs(guildMembers);
 
     // Build query options
     const sessionDir = `${this.deps.sessionsDir}/${sessionId}`;
