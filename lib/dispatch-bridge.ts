@@ -85,7 +85,7 @@ export function createDispatchTools(
         const result = await client.dispatchWorker({
           description: input.description,
           task: input.task,
-          config: input.config as Record<string, unknown> | undefined,
+          config: input.config,
         });
         return textResult(result);
       } catch (err) {
@@ -219,9 +219,9 @@ export function createDispatchBridge(
 
   // Cast required: createSdkMcpServer expects SdkMcpToolDefinition<any>[]
   // but our tools are concretely typed per-schema. The SDK accepts both.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return createSdkMcpServer({
     name: `${memberName}-dispatch`,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools: tools as SdkMcpToolDefinition<any>[],
   });
 }

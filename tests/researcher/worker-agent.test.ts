@@ -81,6 +81,7 @@ function createCapturingQueryFn(messages: SDKMessage[]): {
 
 function createErrorQueryFn(errorMessage: string): QueryFn {
   return () => {
+    // eslint-disable-next-line require-yield, @typescript-eslint/require-await -- intentionally throws without yielding
     async function* generator(): AsyncGenerator<SDKMessage> {
       throw new Error(errorMessage);
     }
@@ -241,7 +242,7 @@ describe("spawnWorkerAgent", () => {
     }
 
     expect(caught).not.toBeNull();
-    expect(caught!.message).toBe("Agent crashed"); // eslint-disable-line @typescript-eslint/no-non-null-assertion -- test verifies caught is not null
+    expect(caught!.message).toBe("Agent crashed");
   });
 
   it("passes AbortController through to query options", async () => {

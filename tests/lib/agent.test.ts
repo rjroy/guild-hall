@@ -428,6 +428,7 @@ describe("translateSdkMessage", () => {
   });
 
   it("handles assistant message with empty content array", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- SDKMessage can't be resolved by eslint's type-checker
     const msg = {
       type: "assistant",
       message: { content: [] },

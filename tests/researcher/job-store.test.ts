@@ -22,6 +22,7 @@ function createMemoryFs(): JobStoreFs & { files: Map<string, string> } {
     return files.has(dirKey);
   }
 
+  /* eslint-disable @typescript-eslint/require-await -- mock fs implements async interface synchronously */
   return {
     files,
 
@@ -85,6 +86,7 @@ function createMemoryFs(): JobStoreFs & { files: Map<string, string> } {
       }
     },
   };
+  /* eslint-enable @typescript-eslint/require-await */
 }
 
 // -- Test helpers --
@@ -262,6 +264,7 @@ describe("createJobStore", () => {
       const { deps } = createTestDeps();
       const store = createJobStore(JOBS_DIR, deps);
 
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test expect().rejects returns Promise
       await expect(store.updateStatus("nonexistent", "completed")).rejects.toThrow(
         "Job not found: nonexistent",
       );
@@ -508,6 +511,7 @@ describe("createJobStore", () => {
       const { deps } = createTestDeps();
       const store = createJobStore(JOBS_DIR, deps);
 
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test expect().rejects returns Promise
       await expect(store.setError("nonexistent", "some error")).rejects.toThrow(
         "Job not found: nonexistent",
       );

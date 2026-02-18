@@ -575,7 +575,7 @@ describe("JsonRpcClient", () => {
           return Promise.resolve(new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              id: capturedBody!.id,
+              id: capturedBody.id,
               result: { jobId: "job-123" },
             }),
           ));
@@ -657,7 +657,7 @@ describe("JsonRpcClient", () => {
           return Promise.resolve(new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              id: capturedBody!.id,
+              id: capturedBody.id,
               result: { jobs: mockJobs },
             }),
           ));
@@ -684,7 +684,7 @@ describe("JsonRpcClient", () => {
           return Promise.resolve(new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              id: capturedBody!.id,
+              id: capturedBody.id,
               result: { jobs: [] },
             }),
           ));
@@ -759,7 +759,7 @@ describe("JsonRpcClient", () => {
           return Promise.resolve(new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              id: capturedBody!.id,
+              id: capturedBody.id,
               result: mockStatus,
             }),
           ));
@@ -834,7 +834,7 @@ describe("JsonRpcClient", () => {
           return Promise.resolve(new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              id: capturedBody!.id,
+              id: capturedBody.id,
               result: mockResult,
             }),
           ));
@@ -904,7 +904,7 @@ describe("JsonRpcClient", () => {
           return Promise.resolve(new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              id: capturedBody!.id,
+              id: capturedBody.id,
               result: { jobId: "job-123", status: "cancelled" as const },
             }),
           ));
@@ -974,7 +974,7 @@ describe("JsonRpcClient", () => {
           return Promise.resolve(new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              id: capturedBody!.id,
+              id: capturedBody.id,
               result: { jobId: "job-123", deleted: true },
             }),
           ));

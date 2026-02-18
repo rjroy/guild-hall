@@ -14,6 +14,7 @@ function createMemoryFs(): JobStoreFs & { files: Map<string, string> } {
     return files.has(dirKey);
   }
 
+  /* eslint-disable @typescript-eslint/require-await -- mock fs implements async interface synchronously */
   return {
     files,
 
@@ -76,6 +77,7 @@ function createMemoryFs(): JobStoreFs & { files: Map<string, string> } {
       }
     },
   };
+  /* eslint-enable @typescript-eslint/require-await */
 }
 
 // -- Test helpers --
@@ -121,7 +123,7 @@ describe("handlers", () => {
 
       // Verify meta.json was updated
       const meta = JSON.parse(
-        fs.files.get(`${JOBS_DIR}/job-1/meta.json`)!,  // eslint-disable-line @typescript-eslint/no-non-null-assertion -- test verifies file exists
+        fs.files.get(`${JOBS_DIR}/job-1/meta.json`)!,   
       ) as Record<string, unknown>;
       expect(meta.status).toBe("cancelled");
       expect(meta.completedAt).toBe("2026-02-17T12:00:00Z");
@@ -140,7 +142,7 @@ describe("handlers", () => {
       expect(result).toEqual({ jobId: "job-1", status: "cancelled" });
 
       const job = await store.getJob("job-1");
-      expect(job!.status).toBe("cancelled"); // eslint-disable-line @typescript-eslint/no-non-null-assertion -- test verifies job exists
+      expect(job!.status).toBe("cancelled");  
     });
 
     it("returns current status for already-completed job (no-op)", async () => {
@@ -157,7 +159,7 @@ describe("handlers", () => {
 
       // Verify status was not changed
       const job = await store.getJob("job-1");
-      expect(job!.status).toBe("completed"); // eslint-disable-line @typescript-eslint/no-non-null-assertion -- test verifies job exists
+      expect(job!.status).toBe("completed");  
     });
 
     it("returns current status for already-cancelled job (no-op)", async () => {

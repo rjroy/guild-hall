@@ -166,6 +166,10 @@ export function createHttpMCPFactory(
         while (Date.now() < deadline) {
           // If the process exited, stop polling
           if (exitCode !== null) {
+            // exitCode is mutated by the proc.once("exit") callback above;
+            // TypeScript's control flow doesn't track callback mutations so
+            // it incorrectly narrows the type to never here.
+            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
             console.log(`[MCP] Process exited (code ${exitCode}) during readiness poll`);
             break;
           }

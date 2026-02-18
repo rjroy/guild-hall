@@ -14,6 +14,7 @@ function createMemoryFs(): JobStoreFs & { files: Map<string, string> } {
     return files.has(dirKey);
   }
 
+  /* eslint-disable @typescript-eslint/require-await -- mock fs implements async interface synchronously */
   return {
     files,
 
@@ -76,6 +77,7 @@ function createMemoryFs(): JobStoreFs & { files: Map<string, string> } {
       }
     },
   };
+  /* eslint-enable @typescript-eslint/require-await */
 }
 
 // -- Test helpers --
@@ -148,7 +150,7 @@ describe("handlers", () => {
       });
 
       const config = JSON.parse(
-        fs.files.get(`${JOBS_DIR}/job-1/config.json`)!,  // eslint-disable-line @typescript-eslint/no-non-null-assertion -- test verifies file exists
+        fs.files.get(`${JOBS_DIR}/job-1/config.json`)!,   
       ) as Record<string, unknown>;
       expect(config).toEqual({ timeout: 600, depth: "comprehensive" });
     });
@@ -177,7 +179,7 @@ describe("handlers", () => {
       });
 
       const meta = JSON.parse(
-        fs.files.get(`${JOBS_DIR}/job-1/meta.json`)!,  // eslint-disable-line @typescript-eslint/no-non-null-assertion -- test verifies file exists
+        fs.files.get(`${JOBS_DIR}/job-1/meta.json`)!,   
       ) as Record<string, unknown>;
       expect(meta.status).toBe("running");
       expect(meta.startedAt).toBe("2026-02-17T12:00:00Z");
@@ -203,6 +205,7 @@ describe("handlers", () => {
       expect(ids).toEqual(["job-1", "job-2"]);
       // Simple mode should only have jobId and status
       expect(jobs[0]).toEqual(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument -- expect.any() returns any
         expect.objectContaining({ jobId: expect.any(String), status: "running" }),
       );
       expect("description" in jobs[0]).toBe(false);

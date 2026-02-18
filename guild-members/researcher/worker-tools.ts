@@ -20,7 +20,7 @@ import type {
   SdkMcpToolDefinition,
 } from "@anthropic-ai/claude-agent-sdk";
 
-import type { JobStore } from "./job-store";
+import type { JobStore } from "./job-store.js";
 
 // -- Memory store interface (implemented in Phase 11: memory.ts) --
 
@@ -154,9 +154,9 @@ export function createWorkerTools(
 
   // Cast required: createSdkMcpServer expects SdkMcpToolDefinition<any>[]
   // but our tools are concretely typed per-schema. The SDK accepts both.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return createSdkMcpServer({
     name: "worker-internal",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools: tools as SdkMcpToolDefinition<any>[],
   });
 }

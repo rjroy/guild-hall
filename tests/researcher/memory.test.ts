@@ -82,6 +82,7 @@ function createCapturingQueryFn(messages: SDKMessage[]): {
 
 function createErrorQueryFn(errorMessage: string): QueryFn {
   return () => {
+    // eslint-disable-next-line require-yield, @typescript-eslint/require-await -- intentionally throws without yielding
     async function* generator(): AsyncGenerator<SDKMessage> {
       throw new Error(errorMessage);
     }
@@ -111,6 +112,7 @@ function createMockFs(initialFiles: Record<string, MockFileEntry> = {}) {
 
   const removedFiles: string[] = [];
 
+  /* eslint-disable @typescript-eslint/require-await -- mock fs implements async interface synchronously */
   const fs: MemoryStoreFs = {
     mkdir: mock(async (path: string) => {
       dirs.add(path);
@@ -159,6 +161,7 @@ function createMockFs(initialFiles: Record<string, MockFileEntry> = {}) {
       return { mtimeMs: entry.mtimeMs, size: entry.size };
     }),
   };
+  /* eslint-enable @typescript-eslint/require-await */
 
   return { fs, files, dirs, removedFiles };
 }
@@ -651,7 +654,7 @@ describe("MemoryStore", () => {
       });
 
       let callCount = 0;
-      const slowQueryFn: QueryFn = (params) => {
+      const slowQueryFn: QueryFn = (_params) => {
         callCount++;
         async function* generator() {
           await new Promise<void>((resolve) => setTimeout(resolve, 50));

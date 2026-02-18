@@ -73,6 +73,7 @@ function createMockQueryFn(messages: SDKMessage[]): QueryFn {
 
 function createErrorQueryFn(errorMessage: string): QueryFn {
   return () => {
+    // eslint-disable-next-line require-yield, @typescript-eslint/require-await -- intentionally throws without yielding
     async function* generator(): AsyncGenerator<SDKMessage> {
       throw new Error(errorMessage);
     }
@@ -133,6 +134,7 @@ function createMemoryFs(): JobStoreFs & { files: Map<string, string> } {
     return files.has(dirKey);
   }
 
+  /* eslint-disable @typescript-eslint/require-await -- mock fs implements async interface synchronously */
   return {
     files,
 
@@ -195,6 +197,7 @@ function createMemoryFs(): JobStoreFs & { files: Map<string, string> } {
       }
     },
   };
+  /* eslint-enable @typescript-eslint/require-await */
 }
 
 // -- Test helpers --
@@ -290,7 +293,7 @@ describe("dispatch with agent spawn", () => {
 
     // Verify job was updated to completed
     const meta = JSON.parse(
-      fs.files.get(`${JOBS_DIR}/job-1/meta.json`)!,  // eslint-disable-line @typescript-eslint/no-non-null-assertion -- test verifies file exists
+      fs.files.get(`${JOBS_DIR}/job-1/meta.json`)!,   
     ) as Record<string, unknown>;
     expect(meta.status).toBe("completed");
     expect(meta.completedAt).toBe("2026-02-17T13:00:00Z");
@@ -322,7 +325,7 @@ describe("dispatch with agent spawn", () => {
 
     // Verify job was updated to failed
     const meta = JSON.parse(
-      fs.files.get(`${JOBS_DIR}/job-1/meta.json`)!,  // eslint-disable-line @typescript-eslint/no-non-null-assertion -- test verifies file exists
+      fs.files.get(`${JOBS_DIR}/job-1/meta.json`)!,   
     ) as Record<string, unknown>;
     expect(meta.status).toBe("failed");
     expect(meta.error).toBe("Rate limit exceeded");
@@ -415,7 +418,7 @@ describe("dispatch with agent spawn", () => {
 
     // Job should remain "running" (no agent to complete it)
     const meta = JSON.parse(
-      fs.files.get(`${JOBS_DIR}/job-1/meta.json`)!,  // eslint-disable-line @typescript-eslint/no-non-null-assertion -- test verifies file exists
+      fs.files.get(`${JOBS_DIR}/job-1/meta.json`)!,   
     ) as Record<string, unknown>;
     expect(meta.status).toBe("running");
   });
