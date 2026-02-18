@@ -78,6 +78,9 @@ export class MCPManager {
   private processes = new Map<string, ChildProcess>();
   private subscribers = new Set<(event: MCPEvent) => void>();
   private dispatchBridges = new Map<string, McpSdkServerConfigWithInstance>();
+  // Servers started by initializeRoster live for the process lifetime.
+  // releaseServersForSession skips them; only shutdown() stops them.
+  private rosterServers = new Set<string>();
 
   constructor(
     private roster: Map<string, GuildMember>,
@@ -98,7 +101,10 @@ export class MCPManager {
     console.log(`[MCP] Initializing roster: ${httpMembers.length} HTTP server(s) to spawn`);
 
     const results = await Promise.allSettled(
-      httpMembers.map(([name, member]) => this.spawnServer(name, member)),
+      httpMembers.map(async ([name, member]) => {
+        await this.spawnServer(name, member);
+        this.rosterServers.add(name);
+      }),
     );
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
@@ -140,7 +146,8 @@ export class MCPManager {
 
   /**
    * Remove a session's references from all servers. Servers with no remaining
-   * references are stopped.
+   * references are stopped, UNLESS they were started by initializeRoster.
+   * Roster servers live for the process lifetime (only shutdown() stops them).
    */
   async releaseServersForSession(sessionId: string): Promise<void> {
     const stopPromises: Promise<void>[] = [];
@@ -151,9 +158,12 @@ export class MCPManager {
 
       if (refs.size === 0) {
         toRemove.push(name);
-        const handle = this.servers.get(name);
-        if (handle) {
-          stopPromises.push(this.stopServer(name, handle));
+        // Roster servers stay running between sessions
+        if (!this.rosterServers.has(name)) {
+          const handle = this.servers.get(name);
+          if (handle) {
+            stopPromises.push(this.stopServer(name, handle));
+          }
         }
       }
     }
@@ -330,6 +340,7 @@ export class MCPManager {
     this.references.clear();
     this.subscribers.clear();
     this.dispatchBridges.clear();
+    this.rosterServers.clear();
 
     if (this.pidFiles) {
       await this.pidFiles.shutdownAll();
