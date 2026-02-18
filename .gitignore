@@ -54,5 +54,9 @@ guild-members/*
 guild-members/example/node_modules/
 guild-members/researcher/node_modules/
 
+# plugin runtime data (jobs, memory stores)
+guild-members/*/jobs/
+guild-members/*/memory/
+
 # MCP server PID files (runtime state, not committed)
 .mcp-servers/

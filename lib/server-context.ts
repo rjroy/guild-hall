@@ -65,12 +65,17 @@ export function createServerContext(deps: ServerContextDeps): ServerContext & {
   let initPromise: Promise<void> | null = null;
 
   async function initialize(): Promise<void> {
+    const initStart = Date.now();
+    console.log("[server-context] Initializing: discovering guild members...");
+
     // Boot cleanup: kill orphaned servers from prior crashes before discovery
     if (deps.bootCleanup && deps.pidFileManager) {
       await deps.pidFileManager.cleanupAll();
     }
 
     const roster = await discoverGuildMembers(deps.guildMembersDir, deps.fs);
+    const memberNames = Array.from(roster.keys());
+    console.log(`[server-context] Discovered ${roster.size} guild member(s): [${memberNames.join(", ")}]`);
 
     const factory: MCPServerFactory = deps.serverFactory ?? {
       spawn() {
@@ -110,6 +115,9 @@ export function createServerContext(deps: ServerContextDeps): ServerContext & {
       clock: deps.clock ?? (() => new Date()),
       sessionsDir: deps.sessionsDir,
     });
+
+    const initElapsed = Date.now() - initStart;
+    console.log(`[server-context] Initialization complete (${initElapsed}ms)`);
   }
 
   function ensureInit(): Promise<void> {
@@ -197,7 +205,11 @@ const singletonCache = nativeRequire(
 ) as SingletonCache;
 
 if (!singletonCache.context) {
-  console.log("[server-context] Creating new ServerContext (first evaluation)");
+  console.log("[server-context] Creating ServerContext (guildDir=%s, sessionsDir=%s, pidDir=%s)",
+    process.env.GUILD_MEMBERS_DIR ?? path.resolve("./guild-members"),
+    sessionsDir,
+    path.resolve(".mcp-servers"),
+  );
   const portRegistry = new PortRegistry();
   singletonCache.context = createServerContext({
     guildMembersDir:
@@ -217,6 +229,8 @@ if (!singletonCache.context) {
     // PID file check in spawnServer handles crash recovery: dead PIDs get
     // cleaned up, alive+responsive servers get reconnected.
   });
+} else {
+  console.log("[server-context] Reusing existing ServerContext from singleton cache");
 }
 
 const defaultContext = singletonCache.context;

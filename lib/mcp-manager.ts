@@ -121,11 +121,15 @@ export class MCPManager {
     sessionId: string,
     memberNames: string[],
   ): Promise<void> {
+    console.log(`[MCP] startServersForSession: session=${sessionId}, members=[${memberNames.join(", ")}]`);
     const startPromises: Promise<void>[] = [];
 
     for (const name of memberNames) {
       const member = this.roster.get(name);
-      if (!member) continue;
+      if (!member) {
+        console.log(`[MCP:${name}] Not in roster, skipping`);
+        continue;
+      }
 
       // Add session to reference set
       let refs = this.references.get(name);
@@ -136,7 +140,10 @@ export class MCPManager {
       refs.add(sessionId);
 
       // If server is already running, skip spawn
-      if (this.servers.has(name)) continue;
+      if (this.servers.has(name)) {
+        console.log(`[MCP:${name}] Already running, added session ref (${refs.size} total refs)`);
+        continue;
+      }
 
       startPromises.push(this.spawnServer(name, member));
     }
@@ -150,6 +157,7 @@ export class MCPManager {
    * Roster servers live for the process lifetime (only shutdown() stops them).
    */
   async releaseServersForSession(sessionId: string): Promise<void> {
+    console.log(`[MCP] releaseServersForSession: session=${sessionId}`);
     const stopPromises: Promise<void>[] = [];
     const toRemove: string[] = [];
 
@@ -159,12 +167,17 @@ export class MCPManager {
       if (refs.size === 0) {
         toRemove.push(name);
         // Roster servers stay running between sessions
-        if (!this.rosterServers.has(name)) {
+        if (this.rosterServers.has(name)) {
+          console.log(`[MCP:${name}] Session refs cleared, keeping alive (roster server)`);
+        } else {
           const handle = this.servers.get(name);
           if (handle) {
+            console.log(`[MCP:${name}] No remaining session refs, stopping server`);
             stopPromises.push(this.stopServer(name, handle));
           }
         }
+      } else {
+        console.log(`[MCP:${name}] Released session ref (${refs.size} remaining)`);
       }
     }
 
@@ -375,12 +388,13 @@ export class MCPManager {
         throw new Error(`Plugin directory not set for member "${name}"`);
       }
 
-      console.log(`[MCP:${name}] Starting server...`);
+      console.log(`[MCP:${name}] Starting server (transport=${member.transport}, capabilities=[${member.capabilities?.join(", ") ?? "none"}])...`);
 
       // Check PID file for existing server
       if (this.pidFiles) {
         const pidData = await this.pidFiles.read(name);
         if (pidData) {
+          console.log(`[MCP:${name}] Found PID file: pid=${pidData.pid}, port=${pidData.port}`);
           if (this.pidFiles.isAlive(pidData.pid)) {
             try {
               const { handle } = await this.serverFactory.connect({ port: pidData.port });
@@ -393,15 +407,19 @@ export class MCPManager {
               member.port = pidData.port;
               delete member.error;
 
-              console.log(`[MCP:${name}] Reconnected to existing server on port ${pidData.port} (${tools.length} tools)`);
+              console.log(`[MCP:${name}] Reconnected to existing server on port ${pidData.port} (pid=${pidData.pid}, ${tools.length} tools)`);
               this.emit({ type: "started", memberName: name });
               this.emit({ type: "tools_updated", memberName: name, tools });
               return;
             } catch {
               console.log(`[MCP:${name}] PID ${pidData.pid} alive but not responsive, treating as stale`);
             }
+          } else {
+            console.log(`[MCP:${name}] PID ${pidData.pid} is dead, removing stale PID file`);
           }
           await this.pidFiles.remove(name);
+        } else {
+          console.log(`[MCP:${name}] No PID file found, spawning fresh`);
         }
       }
 
@@ -420,6 +438,7 @@ export class MCPManager {
 
       // Write PID file after successful spawn
       if (this.pidFiles) {
+        console.log(`[MCP:${name}] Writing PID file: pid=${process.pid ?? 0}, port=${port}`);
         await this.pidFiles.write(name, { pid: process.pid ?? 0, port });
       }
 
@@ -474,13 +493,16 @@ export class MCPManager {
     name: string,
     handle: MCPServerHandle,
   ): Promise<void> {
+    console.log(`[MCP:${name}] Stopping server...`);
     this.servers.delete(name);
     this.processes.delete(name);
 
     try {
       await handle.stop();
+      console.log(`[MCP:${name}] Server stopped`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      console.error(`[MCP:${name}] Error stopping server: ${message}`);
       this.emit({ type: "error", memberName: name, error: message });
     }
 

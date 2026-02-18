@@ -430,7 +430,28 @@ async function main() {
     process.exit(1);
   }
 
-  const server = createResearcherServer(port);
+  // Wire real dependencies. The process cwd is set to the plugin directory
+  // by MCPServerFactory (see its interface docs in mcp-manager.ts).
+  const { query } = await import("@anthropic-ai/claude-agent-sdk");
+  const { createJobStore } = await import("./job-store.js");
+  const { createMemoryStore, createDefaultDeps: createMemoryDeps } = await import("./memory.js");
+
+  const queryFn = query as unknown as import("@/lib/agent").QueryFn;
+  const jobStore = createJobStore("./jobs");
+  const memoryStore = createMemoryStore("./memory", {
+    ...createMemoryDeps(),
+    queryFn,
+  });
+
+  const server = createResearcherServer(port, {
+    createHttpServer: createServer,
+    jobStore,
+    dispatchDeps: {
+      queryFn,
+      memoryStore,
+      clock: { now: () => new Date().toISOString() },
+    },
+  });
   await server.start();
 }
 
