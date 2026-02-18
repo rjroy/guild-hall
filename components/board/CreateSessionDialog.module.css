@@ -10,6 +10,7 @@
   align-items: center;
   justify-content: center;
   z-index: 100;
+  padding: 16px;
 }
 
 .dialog {
@@ -22,7 +23,8 @@
   width: 100%;
   max-width: 480px;
   max-height: 80vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
@@ -31,6 +33,7 @@
   justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
 }
 
 .headerTitle {
@@ -58,6 +61,9 @@
 
 .body {
   padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .fieldGroup {
@@ -158,6 +164,7 @@
   gap: 10px;
   padding: 16px 20px;
   border-top: 1px solid var(--panel-border);
+  flex-shrink: 0;
 }
 
 .cancelButton {
