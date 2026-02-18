@@ -110,11 +110,31 @@ In this spec, "plugin" refers specifically to a Claude Code plugin directory (sk
 - Backward compatible: existing MCP-only manifests remain valid
 - Guild Hall validates path containment (REQ-PLUG-4) but does not validate the plugin directory's internal structure. Invalid plugin contents surface as SDK errors at query time.
 - Plugin load order in `plugins[]` is undefined. Conflicts between plugins from different guild members are out of scope for this spec.
+- Worker capability (`capabilities: ["worker"]`) requires `mcp`. Plugin-only members cannot be worker-capable because the dispatch bridge proxies JSON-RPC to the member's HTTP endpoint, which plugin-only members lack. Schema validation should reject `capabilities: ["worker"]` without `mcp`.
+
+## Interaction with Worker Dispatch
+
+The worker dispatch infrastructure (`.lore/plans/worker-dispatch.md`, merged) introduced:
+
+1. **`capabilities` field** on `GuildMemberManifestSchema` (optional string array). Already in the schema. The plugin spec's changes are additive, not conflicting.
+
+2. **`MCPManager.getDispatchConfigs()`** creates in-process SDK servers for worker-capable plugins. These rely on `member.status === "connected"` and `member.port`, which only exist for members with HTTP transport. Plugin-only members are naturally excluded.
+
+3. **`MCPManager.getServerConfigs()`** now skips worker-only plugins (has "worker" but not "tools" capability). Plugin-only members would also be excluded (no `transport === "http"`, never `status === "connected"`).
+
+4. **`AgentManager.runQuery()`** now merges `toolConfigs` and `dispatchConfigs` and builds a system prompt with worker guidance. REQ-PLUG-12's member partition (MCP vs plugin) adds a third merge for `plugins[]`. The three merges are independent.
+
+5. **`makeErrorMember()`** in `plugin-discovery.ts` now includes `capabilities: []` but still hardcodes `transport: "http"` and `mcp`. REQ-PLUG-7 still applies: make these optional for error members.
+
+6. **`MCPServerFactory.spawn()` signature** in `types.ts` now has `name?: string` for logging. The spec doesn't change the factory, so no conflict.
+
+No blocking conflicts. The main architectural constraint is that worker capability and plugin-only status are mutually exclusive for now (a worker needs an HTTP endpoint).
 
 ## Context
 
 - Brainstorm: `.lore/brainstorm/sdk-plugin-config-support.md` (resolved: merge behavior confirmed, plugin-only members valuable, roster uses description)
 - Phase I spec: `.lore/specs/guild-hall-phase-1.md` (REQ-GH1-5, REQ-GH1-24, REQ-GH1-25 define MCP-only members)
 - HTTP transport spec: `.lore/specs/mcp-http-transport.md` (REQ-MCP-HTTP-1 requires `transport: "http"`, now becomes optional)
+- Worker dispatch plan: `.lore/plans/worker-dispatch.md` (capabilities field, dispatch bridge, MCPManager extensions)
 - Agent SDK research: `.lore/research/claude-agent-sdk.md` (Section 10 documents `options.plugins`)
 - Plugin systems research: `.lore/research/typescript-plugin-systems.md` (Claude Code plugin directory structure)
