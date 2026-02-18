@@ -25,7 +25,7 @@
 - Agent SDK for LLM sessions
 - MCP-only plugins discovered from `guild-members/` directory
 
-## Agent SDK (@anthropic-ai/claude-agent-sdk@0.2.39)
+## Agent SDK (@anthropic-ai/claude-agent-sdk@0.2.45)
 - Top-level API is `query({ prompt, options })`, returns `Query` (async generator)
 - No class-based client in TypeScript (Python has ClaudeSDKClient, TS does not)
 - MCP servers passed as `Record<string, McpServerConfig>`, keyed by server name (not an array)
