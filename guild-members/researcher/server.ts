@@ -311,23 +311,42 @@ export function createDefaultWorkerHandlers(
       runningAbortControllers.set(jobId, abortController);
 
       // Fire-and-forget: spawn agent in background
+      console.log(`[dispatch:${jobId}] Spawning worker agent...`);
       spawnWorkerAgent(task, systemPrompt, internalTools, config, queryFn, abortController)
         .then(async (output) => {
-          // Only write result if submit_result tool wasn't called.
-          // The tool writes result.md directly during execution, which is
-          // more reliable than capturing the agent's final text message.
+          // Check if submit_result already wrote the result during execution.
+          // If so, don't overwrite it with the agent's final text message
+          // (which is typically a brief completion notice, not the report).
           const existing = await jobStore.readResult(jobId);
-          if (!existing || !existing.output) {
+          if (existing?.output) {
+            console.log(`[dispatch:${jobId}] Result already stored via submit_result (${existing.output.length} chars)`);
+          } else if (output) {
+            console.log(`[dispatch:${jobId}] Writing agent result text as fallback (${output.length} chars)`);
             await jobStore.writeResult(jobId, output);
+          } else {
+            console.log(`[dispatch:${jobId}] No result from submit_result or agent text`);
           }
           await jobStore.updateStatus(jobId, "completed", clock.now());
+          console.log(`[dispatch:${jobId}] Job completed`);
         })
         .catch(async (error) => {
           const message = error instanceof Error ? error.message : String(error);
+          console.error(`[dispatch:${jobId}] Agent error: ${message}`);
+
+          // Check if submit_result stored a result before the error.
+          // The agent may have done useful work and submitted results
+          // before hitting a limit or failing.
           try {
-            await jobStore.setError(jobId, message);
+            const existing = await jobStore.readResult(jobId);
+            if (existing?.output) {
+              console.log(`[dispatch:${jobId}] Result was stored via submit_result despite agent error (${existing.output.length} chars). Marking completed.`);
+              await jobStore.updateStatus(jobId, "completed", clock.now());
+            } else {
+              console.log(`[dispatch:${jobId}] No result stored. Marking failed.`);
+              await jobStore.setError(jobId, message);
+            }
           } catch (storeErr) {
-            console.error(`Failed to record error for job ${jobId}:`, storeErr);
+            console.error(`[dispatch:${jobId}] Failed to update job store:`, storeErr);
           }
         })
         .finally(() => {

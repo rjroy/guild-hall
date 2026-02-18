@@ -205,22 +205,22 @@ describe("spawnWorkerAgent", () => {
     expect(result).toBe("Final research report with findings");
   });
 
-  it("throws when agent yields no success result", async () => {
+  it("returns empty string when agent yields no success result", async () => {
     const queryFn = createMockQueryFn([
       makeInitMessage(),
       // No success result message
     ]);
 
-    await expect(
-      spawnWorkerAgent(
-        "task",
-        "prompt",
-        mockInternalTools,
-        undefined,
-        queryFn,
-        new AbortController(),
-      ),
-    ).rejects.toThrow("Worker agent completed without producing a result");
+    const result = await spawnWorkerAgent(
+      "task",
+      "prompt",
+      mockInternalTools,
+      undefined,
+      queryFn,
+      new AbortController(),
+    );
+
+    expect(result).toBe("");
   });
 
   it("throws when agent fails (for dispatch handler .catch())", async () => {
@@ -279,7 +279,7 @@ describe("spawnWorkerAgent", () => {
       new AbortController(),
     );
 
-    expect(calls[0].options.maxTurns).toBe(30);
+    expect(calls[0].options.maxTurns).toBe(150);
   });
 
   it("uses default maxBudgetUsd of 0.50 when config is undefined", async () => {
@@ -351,7 +351,7 @@ describe("spawnWorkerAgent", () => {
       new AbortController(),
     );
 
-    expect(calls[0].options.maxTurns).toBe(30);
+    expect(calls[0].options.maxTurns).toBe(150);
   });
 
   it("ignores non-numeric maxBudgetUsd in config and uses default", async () => {

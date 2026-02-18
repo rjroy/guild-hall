@@ -78,6 +78,7 @@ export function createHttpMCPFactory(
     },
 
     async spawn(config: {
+      name?: string;
       command: string;
       args: string[];
       env?: Record<string, string>;
@@ -95,11 +96,21 @@ export function createHttpMCPFactory(
           arg.replace(/\$\{PORT\}/g, String(port)),
         );
 
+        const pluginTag = config.name ?? "unknown";
+
         // Spawn process with cwd=pluginDir
         const proc = spawnFn(config.command, substitutedArgs, {
           cwd: config.pluginDir,
           env: { ...process.env, ...config.env },
-          stdio: ["ignore", "ignore", "pipe"],
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+
+        // Capture stdout, tagged by plugin name
+        proc.stdout?.on("data", (chunk: Buffer) => {
+          const text = chunk.toString().trimEnd();
+          if (text) {
+            console.log(`[plugin:${pluginTag}] ${text}`);
+          }
         });
 
         // Capture stderr for debugging
@@ -110,7 +121,7 @@ export function createHttpMCPFactory(
           if (stderrBuffer.length > STDERR_BUFFER_MAX) {
             stderrBuffer = stderrBuffer.slice(-STDERR_BUFFER_KEEP);
           }
-          console.error(`[MCP stderr] ${text.trimEnd()}`);
+          console.error(`[plugin:${pluginTag}:stderr] ${text.trimEnd()}`);
         });
 
         // Track process exit. Uses a listener rather than proc.exitCode

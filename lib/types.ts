@@ -169,6 +169,7 @@ export interface MCPServerHandle {
  */
 export interface MCPServerFactory {
   spawn(config: {
+    name?: string;
     command: string;
     args: string[];
     env?: Record<string, string>;

@@ -35,7 +35,7 @@ function isSuccessResult(
 
 // -- Constants --
 
-const DEFAULT_MAX_TURNS = 30;
+const DEFAULT_MAX_TURNS = 150;
 const DEFAULT_MAX_BUDGET_USD = 0.5;
 
 const AGENT_TOOLS = ["Read", "Write", "Edit", "Grep", "Glob", "WebSearch", "WebFetch"];
@@ -92,13 +92,25 @@ export async function spawnWorkerAgent(
   });
 
   let resultText = "";
+  let turnCount = 0;
   for await (const msg of q) {
     if (isSuccessResult(msg)) {
       resultText = msg.result;
     }
+    // Count assistant messages as turns for logging
+    if (typeof msg === "object" && msg !== null && "type" in msg) {
+      const msgType = (msg as Record<string, unknown>).type;
+      if (msgType === "assistant") {
+        turnCount++;
+      }
+    }
   }
-  if (!resultText) {
-    throw new Error("Worker agent completed without producing a result");
+
+  if (resultText) {
+    console.log(`[worker-agent] Agent completed with success result (${turnCount} turns)`);
+  } else {
+    console.log(`[worker-agent] Agent completed without success result (${turnCount} turns). submit_result may have stored output directly.`);
   }
+
   return resultText;
 }

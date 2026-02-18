@@ -52,6 +52,7 @@ function createMockPortRegistry(): IPortRegistry {
 type MockProcess = EventEmitter & {
   exitCode: number | null;
   kill: ReturnType<typeof mock>;
+  stdout: EventEmitter;
   stderr: EventEmitter;
   killed: boolean;
 };
@@ -60,6 +61,7 @@ function createMockProcess(): ChildProcess & MockProcess {
   const proc = new EventEmitter() as MockProcess;
   proc.exitCode = null;
   proc.kill = mock(() => true);
+  proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
   proc.killed = false;
   return proc as ChildProcess & MockProcess;
@@ -129,7 +131,7 @@ describe("HTTP MCP Factory", () => {
       cwd: "/path/to/plugin",
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.any() returns any by design
       env: expect.any(Object),
-      stdio: ["ignore", "ignore", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
     });
     expect(createClientMock).toHaveBeenCalledWith("http://localhost:50000/mcp");
     expect(mockClient.initialize).toHaveBeenCalledWith({
@@ -193,7 +195,7 @@ describe("HTTP MCP Factory", () => {
       cwd: "/custom/plugin/dir",
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.any() returns any by design
       env: expect.any(Object),
-      stdio: ["ignore", "ignore", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
     });
   });
 
@@ -496,8 +498,73 @@ describe("HTTP MCP Factory", () => {
     await new Promise((resolve) => setTimeout(resolve, 150));
     await resultPromise;
 
-    expect(consoleErrorMock).toHaveBeenCalledWith("[MCP stderr] Error line 1");
-    expect(consoleErrorMock).toHaveBeenCalledWith("[MCP stderr] Error line 2");
+    expect(consoleErrorMock).toHaveBeenCalledWith("[plugin:unknown:stderr] Error line 1");
+    expect(consoleErrorMock).toHaveBeenCalledWith("[plugin:unknown:stderr] Error line 2");
+
+    console.error = originalConsoleError;
+  });
+
+  test("stdout captured and tagged with plugin name", async () => {
+    const portRegistry = createMockPortRegistry();
+    const mockProc = createMockProcess();
+    const mockClient = createMockJsonRpcClient();
+
+    const consoleLogMock = mock(() => {});
+    const originalConsoleLog = console.log;
+    console.log = consoleLogMock;
+
+    const factory = createHttpMCPFactory({
+      portRegistry,
+      spawn: () => mockProc,
+      createClient: () => mockClient,
+    });
+
+    const resultPromise = factory.spawn({
+      name: "researcher",
+      command: "bun",
+      args: ["run", "server.ts"],
+      pluginDir: "/path/to/plugin",
+    });
+
+    // Emit stdout data
+    mockProc.stdout.emit("data", Buffer.from("Server started\n"));
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await resultPromise;
+
+    expect(consoleLogMock).toHaveBeenCalledWith("[plugin:researcher] Server started");
+
+    console.log = originalConsoleLog;
+  });
+
+  test("stderr tagged with plugin name when name provided", async () => {
+    const portRegistry = createMockPortRegistry();
+    const mockProc = createMockProcess();
+    const mockClient = createMockJsonRpcClient();
+
+    const consoleErrorMock = mock(() => {});
+    const originalConsoleError = console.error;
+    console.error = consoleErrorMock;
+
+    const factory = createHttpMCPFactory({
+      portRegistry,
+      spawn: () => mockProc,
+      createClient: () => mockClient,
+    });
+
+    const resultPromise = factory.spawn({
+      name: "researcher",
+      command: "bun",
+      args: ["run", "server.ts"],
+      pluginDir: "/path/to/plugin",
+    });
+
+    mockProc.stderr.emit("data", Buffer.from("Warning\n"));
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await resultPromise;
+
+    expect(consoleErrorMock).toHaveBeenCalledWith("[plugin:researcher:stderr] Warning");
 
     console.error = originalConsoleError;
   });

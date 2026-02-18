@@ -427,6 +427,7 @@ export class MCPManager {
       // directory to the plugin's directory before spawning. See the
       // MCPServerFactory interface documentation for the contract.
       const { process, handle, port } = await this.serverFactory.spawn({
+        name,
         command: member.mcp.command,
         args: member.mcp.args,
         env: member.mcp.env,
