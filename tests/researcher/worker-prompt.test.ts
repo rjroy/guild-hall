@@ -65,6 +65,13 @@ describe("buildWorkerPrompt", () => {
     expect(prompt).toContain("future research jobs");
   });
 
+  it("includes tool usage instructions for submit_result", () => {
+    const prompt = buildWorkerPrompt("Do research", "");
+
+    expect(prompt).toContain("### submit_result");
+    expect(prompt).toContain("REQUIRED");
+  });
+
   it("includes output instructions for structured report", () => {
     const prompt = buildWorkerPrompt("Do research", "");
 
@@ -75,6 +82,12 @@ describe("buildWorkerPrompt", () => {
     expect(prompt).toContain("Sources");
     expect(prompt).toContain("Open Questions");
     expect(prompt).toContain("Recommendations");
+  });
+
+  it("output instructions reference submit_result", () => {
+    const prompt = buildWorkerPrompt("Do research", "");
+
+    expect(prompt).toContain("call submit_result");
   });
 
   it("includes role description", () => {

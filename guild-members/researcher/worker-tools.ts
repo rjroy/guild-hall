@@ -31,6 +31,9 @@ export type MemoryStore = {
   triggerCompaction: () => void;
 };
 
+/** Reads a file by path. Injected for testability. */
+export type ReadFileFn = (path: string) => Promise<string>;
+
 // -- Compaction threshold --
 
 /** Memory size in characters above which compaction is triggered. */
@@ -39,7 +42,7 @@ const COMPACTION_THRESHOLD = 16000;
 // -- Tool definitions --
 
 /**
- * Create the four worker tool definitions. Separated from createWorkerTools
+ * Create the five worker tool definitions. Separated from createWorkerTools
  * so tests can invoke tool handlers directly without the MCP server layer.
  *
  * Each tool handler is strongly typed via Zod schemas. The return type
@@ -50,6 +53,7 @@ export function createWorkerToolDefs(
   jobId: string,
   jobStore: JobStore,
   memoryStore: MemoryStore,
+  readFile?: ReadFileFn,
 ) {
   const updateSummary = tool(
     "update_summary",
@@ -106,7 +110,28 @@ export function createWorkerToolDefs(
     },
   );
 
-  return [updateSummary, recordDecision, logQuestion, storeMemory];
+  const submitResult = tool(
+    "submit_result",
+    "Submit your final research report. This is REQUIRED before finishing. Write your complete report to a file using the Write tool, then call this with the file path. The file contents are what the requesting agent receives.",
+    {
+      path: z.string().describe("Path to the report file (written via the Write tool)"),
+    },
+    async (input) => {
+      if (!readFile) {
+        return { content: [{ type: "text" as const, text: "Error: readFile not available." }], isError: true };
+      }
+      try {
+        const content = await readFile(input.path);
+        await jobStore.writeResult(jobId, content);
+        return { content: [{ type: "text" as const, text: "Result submitted." }] };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: "text" as const, text: `Error reading file: ${msg}` }], isError: true };
+      }
+    },
+  );
+
+  return [updateSummary, recordDecision, logQuestion, storeMemory, submitResult];
 }
 
 // -- Worker tools MCP server factory --
@@ -116,15 +141,16 @@ export function createWorkerToolDefs(
  * Returns a McpSdkServerConfigWithInstance that can be placed directly into
  * the mcpServers record passed to the Agent SDK's query().
  *
- * The server is named "worker-internal" and exposes four tools:
- * update_summary, record_decision, log_question, store_memory.
+ * The server is named "worker-internal" and exposes five tools:
+ * update_summary, record_decision, log_question, store_memory, submit_result.
  */
 export function createWorkerTools(
   jobId: string,
   jobStore: JobStore,
   memoryStore: MemoryStore,
+  readFileFn?: ReadFileFn,
 ): McpSdkServerConfigWithInstance {
-  const tools = createWorkerToolDefs(jobId, jobStore, memoryStore);
+  const tools = createWorkerToolDefs(jobId, jobStore, memoryStore, readFileFn);
 
   // Cast required: createSdkMcpServer expects SdkMcpToolDefinition<any>[]
   // but our tools are concretely typed per-schema. The SDK accepts both.

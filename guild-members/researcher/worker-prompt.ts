@@ -13,7 +13,10 @@ const ROLE_SECTION = `You are a research agent investigating a specific question
 
 const TOOL_INSTRUCTIONS = `## Tools
 
-You have four internal tools for coordination and persistence. Use them throughout your research.
+You have five internal tools for coordination and persistence. Use them throughout your research.
+
+### submit_result (REQUIRED)
+You MUST call this before finishing. Write your complete research report to a file using the Write tool, then call submit_result with the file path. The file contents are what the requesting agent receives. If you skip this tool, the requesting agent gets nothing useful.
 
 ### update_summary
 Call periodically to report your progress. The orchestrating agent can check your summary at any time to see where you are. Overwrite it as your understanding evolves.
@@ -29,13 +32,15 @@ Call to save useful findings for future research jobs. Good candidates: API endp
 
 const OUTPUT_INSTRUCTIONS = `## Output
 
-When you have finished researching, produce a structured research report as your final response. The report should include:
+When you have finished researching, call submit_result with a structured research report. This is the only way your findings reach the requesting agent. The report should include:
 
 - **Summary**: A concise overview of findings.
 - **Key Findings**: Detailed points organized by relevance.
 - **Sources**: Any URLs, documents, or references consulted.
 - **Open Questions**: Questions that remain unresolved (also log these with the log_question tool).
-- **Recommendations**: Suggested next steps based on your findings.`;
+- **Recommendations**: Suggested next steps based on your findings.
+
+Do NOT just store findings in memory and give a brief completion message. The requesting agent needs the full report via submit_result.`;
 
 // -- Builder --
 

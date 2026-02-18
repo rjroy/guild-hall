@@ -18,6 +18,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHandlers, HandlerError, type DispatchParams, type ListParams, type StatusParams, type ResultParams, type CancelParams, type DeleteParams } from "./handlers.js";
 import type { JobStore } from "./job-store.js";
@@ -299,7 +300,10 @@ export function createDefaultWorkerHandlers(
       const { jobId } = result;
       const { task, config } = params;
 
-      const internalTools = createWorkerTools(jobId, jobStore, memoryStore);
+      const internalTools = createWorkerTools(
+        jobId, jobStore, memoryStore,
+        (path) => readFile(path, "utf-8"),
+      );
       const memories = await memoryStore.loadMemories(8000);
       const systemPrompt = buildWorkerPrompt(task, memories);
       const abortController = new AbortController();
@@ -309,7 +313,13 @@ export function createDefaultWorkerHandlers(
       // Fire-and-forget: spawn agent in background
       spawnWorkerAgent(task, systemPrompt, internalTools, config, queryFn, abortController)
         .then(async (output) => {
-          await jobStore.writeResult(jobId, output);
+          // Only write result if submit_result tool wasn't called.
+          // The tool writes result.md directly during execution, which is
+          // more reliable than capturing the agent's final text message.
+          const existing = await jobStore.readResult(jobId);
+          if (!existing || !existing.output) {
+            await jobStore.writeResult(jobId, output);
+          }
           await jobStore.updateStatus(jobId, "completed", clock.now());
         })
         .catch(async (error) => {

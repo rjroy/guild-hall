@@ -92,17 +92,18 @@ describe("createWorkerTools", () => {
 });
 
 describe("createWorkerToolDefs", () => {
-  it("creates four tools with correct names", () => {
+  it("creates five tools with correct names", () => {
     const jobStore = createMockJobStore();
     const memoryStore = createMockMemoryStore();
     const tools = createWorkerToolDefs("job-1", jobStore, memoryStore);
 
-    expect(tools).toHaveLength(4);
+    expect(tools).toHaveLength(5);
     const names = tools.map((t) => t.name);
     expect(names).toContain("update_summary");
     expect(names).toContain("record_decision");
     expect(names).toContain("log_question");
     expect(names).toContain("store_memory");
+    expect(names).toContain("submit_result");
   });
 
   describe("update_summary", () => {
@@ -326,6 +327,67 @@ describe("createWorkerToolDefs", () => {
 
       expect(result).toEqual({
         content: [{ type: "text", text: "Memory stored." }],
+      });
+    });
+  });
+
+  describe("submit_result", () => {
+    it("reads file and writes content to result.md via JobStore.writeResult", async () => {
+      const jobStore = createMockJobStore();
+      const memoryStore = createMockMemoryStore();
+      const reportContent = "## Summary\nFound 3 relevant papers.\n\n## Key Findings\n- Paper A covers X.";
+      const mockReadFile = mock(() => Promise.resolve(reportContent));
+      const tools = createWorkerToolDefs("job-res", jobStore, memoryStore, mockReadFile);
+      const submitResult = findTool(tools, "submit_result");
+
+      await submitResult.handler({ path: "/tmp/report.md" }, {});
+
+      expect(mockReadFile).toHaveBeenCalledWith("/tmp/report.md");
+      expect(jobStore.writeResult).toHaveBeenCalledWith("job-res", reportContent);
+    });
+
+    it("returns correct response shape", async () => {
+      const jobStore = createMockJobStore();
+      const memoryStore = createMockMemoryStore();
+      const mockReadFile = mock(() => Promise.resolve("test report"));
+      const tools = createWorkerToolDefs("job-res", jobStore, memoryStore, mockReadFile);
+      const submitResult = findTool(tools, "submit_result");
+
+      const result = await submitResult.handler({ path: "/tmp/report.md" }, {});
+
+      expect(result).toEqual({
+        content: [{ type: "text", text: "Result submitted." }],
+      });
+    });
+
+    it("returns error when file cannot be read", async () => {
+      const jobStore = createMockJobStore();
+      const memoryStore = createMockMemoryStore();
+      const mockReadFile = mock(() => Promise.reject(new Error("ENOENT: no such file")));
+      const tools = createWorkerToolDefs("job-res", jobStore, memoryStore, mockReadFile);
+      const submitResult = findTool(tools, "submit_result");
+
+      const result = await submitResult.handler({ path: "/tmp/nonexistent.md" }, {});
+
+      expect(result).toEqual({
+        content: [{ type: "text", text: "Error reading file: ENOENT: no such file" }],
+        isError: true,
+      });
+      expect(jobStore.writeResult).not.toHaveBeenCalled();
+    });
+
+    it("returns error when readFile is not provided", async () => {
+      const jobStore = createMockJobStore();
+      const memoryStore = createMockMemoryStore();
+      // No readFile provided
+      const tools = createWorkerToolDefs("job-res", jobStore, memoryStore);
+      const submitResult = findTool(tools, "submit_result");
+
+      const result = await submitResult.handler({ path: "/tmp/report.md" }, {});
+
+      expect(result).toEqual({
+        content: [{ type: "text", text: "Error: readFile not available." }],
+        isError: true,
       });
     });
   });

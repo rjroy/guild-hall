@@ -38,7 +38,7 @@ function isSuccessResult(
 const DEFAULT_MAX_TURNS = 30;
 const DEFAULT_MAX_BUDGET_USD = 0.5;
 
-const READ_ONLY_TOOLS = ["Read", "Grep", "Glob", "WebSearch", "WebFetch"];
+const AGENT_TOOLS = ["Read", "Write", "Edit", "Grep", "Glob", "WebSearch", "WebFetch"];
 
 // -- Worker agent --
 
@@ -82,7 +82,7 @@ export async function spawnWorkerAgent(
       },
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
-      tools: READ_ONLY_TOOLS,
+      tools: AGENT_TOOLS,
       maxTurns,
       maxBudgetUsd,
       settingSources: [],

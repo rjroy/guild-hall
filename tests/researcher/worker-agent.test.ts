@@ -144,7 +144,7 @@ describe("spawnWorkerAgent", () => {
     );
 
     const opts = calls[0].options;
-    expect(opts.tools).toEqual(["Read", "Grep", "Glob", "WebSearch", "WebFetch"]);
+    expect(opts.tools).toEqual(["Read", "Write", "Edit", "Grep", "Glob", "WebSearch", "WebFetch"]);
 
     const mcpServers = opts.mcpServers as Record<string, unknown>;
     expect(Object.keys(mcpServers)).toEqual(["worker-internal"]);
