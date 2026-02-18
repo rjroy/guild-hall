@@ -350,4 +350,42 @@ describe("discoverGuildMembers", () => {
     expect(member!.status).toBe("error");
     expect(member!.error).toContain("Invalid JSON");
   });
+
+  it("returns capabilities from the manifest on discovered members", async () => {
+    const manifest = JSON.stringify({
+      name: "worker-plugin",
+      displayName: "Worker Plugin",
+      description: "A plugin with worker capability",
+      version: "1.0.0",
+      transport: "http",
+      capabilities: ["worker"],
+      mcp: { command: "node", args: ["worker.js"] },
+    });
+
+    const fs = createMockFs(
+      { [`${basePath}/worker-plugin/guild-member.json`]: manifest },
+      new Set([basePath, `${basePath}/worker-plugin`]),
+    );
+
+    const result = await discoverGuildMembers(basePath, fs);
+
+    const member = result.get("worker-plugin");
+    expect(member).toBeDefined();
+    // Non-null safe: toBeDefined() above confirms presence
+    expect(member!.capabilities).toEqual(["worker"]);
+  });
+
+  it("normalizes missing capabilities to empty array", async () => {
+    const fs = createMockFs(
+      { [`${basePath}/no-caps/guild-member.json`]: validManifestJson() },
+      new Set([basePath, `${basePath}/no-caps`]),
+    );
+
+    const result = await discoverGuildMembers(basePath, fs);
+
+    const member = result.get("no-caps");
+    expect(member).toBeDefined();
+    // Non-null safe: toBeDefined() above confirms presence
+    expect(member!.capabilities).toEqual([]);
+  });
 });

@@ -53,15 +53,17 @@ export function createHttpMCPFactory(
 
   return {
     async connect(config: { port: number }): Promise<{ handle: MCPServerHandle }> {
+      console.log(`[MCP] Connecting to existing server on port ${config.port}...`);
       const client = createClientFn(`http://localhost:${config.port}/mcp`);
       await client.initialize(
         { name: "GuildHall", version: "0.1.0" },
         { timeoutMs: 2000 },
       );
+      console.log(`[MCP] Connected to port ${config.port}`);
 
       const handle: MCPServerHandle = {
         stop() {
-          console.log(`[MCP] Disconnected (reconnected handle, process not owned)`);
+          // Reconnected handles don't own the process, so stop() is a no-op
           return Promise.resolve();
         },
         async listTools() {
@@ -76,27 +78,39 @@ export function createHttpMCPFactory(
     },
 
     async spawn(config: {
+      name?: string;
       command: string;
       args: string[];
       env?: Record<string, string>;
       pluginDir: string;
     }): Promise<{ process: ChildProcess; handle: MCPServerHandle; port: number }> {
       let lastError: Error | null = null;
+      const spawnStart = Date.now();
 
       for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt++) {
         const port = deps.portRegistry.allocate();
-        console.log(`[MCP] Spawning server (attempt ${attempt + 1}/${MAX_RETRY_ATTEMPTS}, port ${port}): ${config.command} ${config.args.join(" ")}`);
+        console.log(`[MCP] Spawn attempt ${attempt + 1}/${MAX_RETRY_ATTEMPTS} on port ${port}: ${config.command} ${config.args.join(" ")} (cwd=${config.pluginDir})`);
 
         // Substitute ${PORT} in args
         const substitutedArgs = config.args.map((arg) =>
           arg.replace(/\$\{PORT\}/g, String(port)),
         );
 
+        const pluginTag = config.name ?? "unknown";
+
         // Spawn process with cwd=pluginDir
         const proc = spawnFn(config.command, substitutedArgs, {
           cwd: config.pluginDir,
           env: { ...process.env, ...config.env },
-          stdio: ["ignore", "ignore", "pipe"],
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+
+        // Capture stdout, tagged by plugin name
+        proc.stdout?.on("data", (chunk: Buffer) => {
+          const text = chunk.toString().trimEnd();
+          if (text) {
+            console.log(`[plugin:${pluginTag}] ${text}`);
+          }
         });
 
         // Capture stderr for debugging
@@ -107,7 +121,7 @@ export function createHttpMCPFactory(
           if (stderrBuffer.length > STDERR_BUFFER_MAX) {
             stderrBuffer = stderrBuffer.slice(-STDERR_BUFFER_KEEP);
           }
-          console.error(`[MCP stderr] ${text.trimEnd()}`);
+          console.error(`[plugin:${pluginTag}:stderr] ${text.trimEnd()}`);
         });
 
         // Track process exit. Uses a listener rather than proc.exitCode
@@ -131,7 +145,7 @@ export function createHttpMCPFactory(
         // path, since the process may exit before the listener fires.
         if (exitCode === MCP_EXIT_CODE.PORT_COLLISION || proc.exitCode === MCP_EXIT_CODE.PORT_COLLISION) {
           deps.portRegistry.markDead(port);
-          console.log(`[MCP] Port ${port} collision (quick exit), retrying...`);
+          console.log(`[MCP] Port ${port} collision (EADDRINUSE, quick exit), will retry on next port`);
           lastError = new Error(
             `Port ${port} collision detected (EADDRINUSE), retrying`,
           );
@@ -163,9 +177,8 @@ export function createHttpMCPFactory(
               version: "0.1.0",
             });
             initialized = true;
-            if (pollAttempt > 1) {
-              console.log(`[MCP] Server ready after ${pollAttempt} poll attempts`);
-            }
+            const readyElapsed = Date.now() - spawnStart;
+            console.log(`[MCP] Server ready on port ${port} (${pollAttempt} poll attempt(s), ${readyElapsed}ms elapsed)`);
             break;
           } catch (err) {
             initError = err;
@@ -181,7 +194,7 @@ export function createHttpMCPFactory(
             }
 
             if (pollAttempt === 1) {
-              console.log(`[MCP] Server not ready yet, polling for readiness...`);
+              console.log(`[MCP] Server on port ${port} not ready yet, polling for readiness (timeout=${READINESS_TIMEOUT_MS}ms)...`);
             }
 
             // Transient error (fetch failed / connection refused): wait and retry
@@ -206,7 +219,7 @@ export function createHttpMCPFactory(
           // If process exited with code 2, mark port dead and retry
           if (exitCode === MCP_EXIT_CODE.PORT_COLLISION) {
             deps.portRegistry.markDead(port);
-            console.log(`[MCP] Port ${port} collision (during initialize), retrying...`);
+            console.log(`[MCP] Port ${port} collision (EADDRINUSE, during initialize), will retry on next port`);
             lastError = new Error(
               `Port ${port} collision detected during initialize, retrying`,
             );
@@ -245,7 +258,8 @@ export function createHttpMCPFactory(
         };
 
         // Success - return process, handle, and port
-        console.log(`[MCP] Server spawned successfully on port ${port}`);
+        const totalElapsed = Date.now() - spawnStart;
+        console.log(`[MCP] Server spawned on port ${port}, pid=${proc.pid} (${totalElapsed}ms total)`);
         return { process: proc, handle, port };
       }
 

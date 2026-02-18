@@ -25,7 +25,7 @@
 - Agent SDK for LLM sessions
 - MCP-only plugins discovered from `guild-members/` directory
 
-## Agent SDK (@anthropic-ai/claude-agent-sdk@0.2.39)
+## Agent SDK (@anthropic-ai/claude-agent-sdk@0.2.45)
 - Top-level API is `query({ prompt, options })`, returns `Query` (async generator)
 - No class-based client in TypeScript (Python has ClaudeSDKClient, TS does not)
 - MCP servers passed as `Record<string, McpServerConfig>`, keyed by server name (not an array)
@@ -41,3 +41,6 @@
 ## Critical Lessons
 - Bun's function coverage counts every anonymous lambda at the source location level. Module-level production wiring (e.g., `const fs = { readdir: (...) => ... }`) inflates the function denominator even when real logic is fully tested through mocks. Extract wiring into named, exported factory functions to make the coverage metric reflect actual test quality.
 - The DI factory pattern used throughout this codebase: export a `createX(deps)` factory, keep a default instance for production via destructured re-export. Applied to SessionStore, AgentManager, MCPManager, ServerContext, NodeSessionStore, NodePluginFs, and the POST route handler. New modules that wire dependencies should follow this pattern.
+- DI factory codebases need an explicit "production wiring" step in every plan. If the plan creates `createX(deps)` factories and tests them with mocks, the plan must also say "create the production `main()` that instantiates real deps." Tested factories with no production assembly pass all tests while doing nothing in production.
+- Reference counting for shared resources (like MCP servers shared across sessions) needs visible lifecycle logging. Log transitions (acquire, release, remaining count) so reference counting bugs are diagnosable from logs without tracing through multiple files.
+- Duplicate interface definitions are a drift timebomb. When the same interface exists in two files, one will fall behind. Import from one canonical location. (Example: MCPServerFactory in both types.ts and mcp-manager.ts drifted when `name` was added to only one.)

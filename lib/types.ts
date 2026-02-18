@@ -70,6 +70,63 @@ export type RosterResponse = GuildMember[];
 
 export type SessionListResponse = SessionMetadata[];
 
+// -- Worker dispatch types --
+
+export interface WorkerHandle {
+  dispatch(params: {
+    description: string;
+    task: string;
+    config?: Record<string, unknown>;
+  }): Promise<{ jobId: string }>;
+  list(params?: {
+    detail?: "simple" | "detailed";
+    filter?: string;
+  }): Promise<{ jobs: WorkerJobSummary[] }>;
+  status(params: { jobId: string }): Promise<WorkerJobStatus>;
+  result(params: { jobId: string }): Promise<WorkerJobResult>;
+  cancel(params: { jobId: string }): Promise<{ jobId: string; status: string }>;
+  delete(params: {
+    jobId: string;
+  }): Promise<{ jobId: string; deleted: true }>;
+}
+
+export type WorkerJobSimple = {
+  jobId: string;
+  status: "running" | "completed" | "failed" | "cancelled";
+};
+
+export type WorkerJobDetailed = WorkerJobSimple & {
+  description: string;
+  summary: string | null;
+};
+
+// Intentional: status uses the union literal "running" | "completed" | "failed" | "cancelled"
+// rather than spec's `string`. This is tighter than the spec but correct since list
+// returns the same status values as worker/status. Update if new status values are added.
+export type WorkerJobSummary = WorkerJobSimple | WorkerJobDetailed;
+
+export type WorkerJobStatus = {
+  jobId: string;
+  status: "running" | "completed" | "failed" | "cancelled";
+  description: string;
+  summary: string | null;
+  questions: string[] | null;
+  decisions: Array<{
+    question: string;
+    decision: string;
+    reasoning: string;
+  }> | null;
+  error: string | null;
+  startedAt: string;
+  completedAt: string | null;
+};
+
+export type WorkerJobResult = {
+  jobId: string;
+  output: string;
+  artifacts: string[] | null;
+};
+
 // -- MCP Server Abstractions --
 
 /**
@@ -112,6 +169,7 @@ export interface MCPServerHandle {
  */
 export interface MCPServerFactory {
   spawn(config: {
+    name?: string;
     command: string;
     args: string[];
     env?: Record<string, string>;

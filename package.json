@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 5050",
+    "dev": "next dev -p 5051",
     "build": "next build",
     "start": "next start -p 5050",
     "lint": "eslint",
@@ -18,7 +18,7 @@
     "typecheck:guild-members": "bun run scripts/guild-members.ts typecheck"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.39",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.45",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",

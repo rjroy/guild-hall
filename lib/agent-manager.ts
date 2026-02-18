@@ -24,6 +24,48 @@ As you work:
 
 The context file has these sections: Goal, Decisions, In Progress, Resources.`;
 
+// -- Worker dispatch prompt --
+
+/**
+ * Build the worker dispatch section of the system prompt. Returns an empty
+ * string when no worker-capable plugins are present, so the prompt stays
+ * clean for sessions without workers.
+ */
+export function buildWorkerDispatchPrompt(
+  workers: Array<{ name: string; description: string }>,
+): string {
+  if (workers.length === 0) return "";
+
+  const workerList = workers
+    .map((w) => `- ${w.name} (via ${w.name}-dispatch): ${w.description}`)
+    .join("\n");
+
+  return `
+
+## Worker Dispatch
+
+You can dispatch long-running tasks to specialized worker agents. Available workers:
+${workerList}
+
+To dispatch work:
+1. Use the \`dispatch\` tool on the worker's dispatch server (e.g., \`${workers[0].name}-dispatch\`) with a description and detailed task
+2. The worker runs autonomously in the background. Check progress with \`status\`
+3. If the worker has questions, relay them to the user and provide answers
+4. When complete, retrieve results with \`result\`
+
+Available tools on each dispatch server: dispatch, list, status, result, cancel, delete`;
+}
+
+/**
+ * Build the full system prompt by combining the context file instructions
+ * with optional worker dispatch guidance.
+ */
+export function buildSystemPrompt(
+  workers: Array<{ name: string; description: string }>,
+): string {
+  return CONTEXT_FILE_PROMPT + buildWorkerDispatchPrompt(workers);
+}
+
 // -- Agent manager dependencies --
 
 export type AgentManagerDeps = {
@@ -86,7 +128,13 @@ export class AgentManager {
     await this.deps.mcpManager.startServersForSession(sessionId, guildMembers);
 
     // Build MCP server configs (reads port and status from running servers)
-    const mcpServers = this.deps.mcpManager.getServerConfigs(guildMembers);
+    const toolConfigs = this.deps.mcpManager.getServerConfigs(guildMembers);
+    const dispatchConfigs = this.deps.mcpManager.getDispatchConfigs(guildMembers);
+    const mcpServers = { ...toolConfigs, ...dispatchConfigs };
+
+    // Build system prompt with optional worker dispatch guidance
+    const workers = this.deps.mcpManager.getWorkerCapableMembers(guildMembers);
+    const systemPrompt = buildSystemPrompt(workers);
 
     // Build query options
     const sessionDir = `${this.deps.sessionsDir}/${sessionId}`;
@@ -94,7 +142,7 @@ export class AgentManager {
       prompt: userMessage,
       mcpServers,
       cwd: sessionDir,
-      systemPrompt: CONTEXT_FILE_PROMPT,
+      systemPrompt,
       permissionMode: "bypassPermissions",
       resumeSessionId: shouldResume ? sdkSessionId : undefined,
     };

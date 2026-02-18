@@ -137,6 +137,9 @@ async function loadManifest(
       // the roster map key. For nested plugins this includes the
       // collection prefix (e.g., "guild-founders/aegis-of-focus").
       name: key,
+      // Normalize undefined capabilities to empty array so consumers
+      // don't need to check for undefined.
+      capabilities: result.data.capabilities ?? [],
       status: "disconnected",
       tools: [],
       pluginDir: pluginPath,
@@ -153,6 +156,7 @@ function makeErrorMember(dirName: string, errorMessage: string, pluginPath: stri
     description: "",
     version: "",
     transport: "http",
+    capabilities: [],
     mcp: { command: "", args: [] },
     status: "error",
     tools: [],

@@ -126,6 +126,26 @@ describe("GuildMemberManifestSchema", () => {
     const manifest3 = { ...validManifest(), transport: 42 };
     expect(() => GuildMemberManifestSchema.parse(manifest3)).toThrow();
   });
+
+  it("accepts manifest with capabilities: ['worker']", () => {
+    const manifest = { ...validManifest(), capabilities: ["worker"] };
+    const result = GuildMemberManifestSchema.parse(manifest);
+    expect(result.capabilities).toEqual(["worker"]);
+  });
+
+  it("accepts manifest with multiple capabilities (hybrid)", () => {
+    const manifest = {
+      ...validManifest(),
+      capabilities: ["worker", "tools"],
+    };
+    const result = GuildMemberManifestSchema.parse(manifest);
+    expect(result.capabilities).toEqual(["worker", "tools"]);
+  });
+
+  it("accepts manifest without capabilities", () => {
+    const result = GuildMemberManifestSchema.parse(validManifest());
+    expect(result.capabilities).toBeUndefined();
+  });
 });
 
 // -- SessionMetadataSchema --
