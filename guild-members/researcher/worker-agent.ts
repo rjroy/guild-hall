@@ -10,7 +10,7 @@
  */
 
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import type { QueryFn } from "@/lib/agent";
+import type { QueryFn } from "../../lib/agent.js";
 
 // -- Type guard --
 

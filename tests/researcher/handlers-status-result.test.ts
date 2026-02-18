@@ -14,6 +14,7 @@ function createMemoryFs(): JobStoreFs & { files: Map<string, string> } {
     return files.has(dirKey);
   }
 
+  /* eslint-disable @typescript-eslint/require-await -- mock fs implements async interface synchronously */
   return {
     files,
 
@@ -76,6 +77,7 @@ function createMemoryFs(): JobStoreFs & { files: Map<string, string> } {
       }
     },
   };
+  /* eslint-enable @typescript-eslint/require-await */
 }
 
 // -- Test helpers --

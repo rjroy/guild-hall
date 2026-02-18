@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from "bun:test";
-import { createServer, type Server as HttpServerType } from "node:http";
+import { createServer } from "node:http";
 
 import {
   createResearcherServer,
@@ -9,7 +9,6 @@ import {
   HttpTransport,
 } from "@/guild-members/researcher/server";
 import { HandlerError } from "@/guild-members/researcher/handlers";
-import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 
 // -- Test helpers --
 
@@ -71,7 +70,8 @@ describe("createDefaultWorkerHandlers", () => {
   it("all handlers throw 'not implemented'", async () => {
     const handlers = createDefaultWorkerHandlers();
 
-    for (const [method, handler] of Object.entries(handlers)) {
+    for (const [, handler] of Object.entries(handlers)) {
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test expect().rejects returns Promise
       await expect(handler(undefined)).rejects.toThrow("not implemented");
     }
   });
@@ -90,6 +90,7 @@ describe("HttpTransport", () => {
   it("routes worker/* methods to handlers instead of MCP SDK", async () => {
     let receivedParams: Record<string, unknown> | undefined;
     const transport = new HttpTransport({
+      // eslint-disable-next-line @typescript-eslint/require-await -- mock handler implements async interface
       "worker/dispatch": async (params) => {
         receivedParams = params;
         return { jobId: "test-123" };
@@ -151,7 +152,7 @@ describe("HttpTransport", () => {
       },
     });
 
-    let forwardedMessage: JSONRPCMessage | null = null;
+    let forwardedMessage: Record<string, unknown> | null = null;
     transport.onmessage = (msg) => {
       forwardedMessage = msg;
     };
@@ -307,6 +308,7 @@ describe("createResearcherServer (integration)", () => {
     const server = createResearcherServer(testPort, {
       createHttpServer: createServer,
       workerHandlers: {
+        // eslint-disable-next-line @typescript-eslint/require-await -- mock handler
         "worker/dispatch": async (params) => ({
           jobId: "custom-job-1",
           params,
@@ -334,6 +336,7 @@ describe("createResearcherServer (integration)", () => {
     const server = createResearcherServer(testPort, {
       createHttpServer: createServer,
       workerHandlers: {
+        // eslint-disable-next-line @typescript-eslint/require-await -- mock handler
         "worker/dispatch": async () => {
           throw new HandlerError(-32602, "test error");
         },
@@ -371,19 +374,17 @@ function createMockHttpPair(body: Record<string, unknown>): {
 } {
   const bodyStr = JSON.stringify(body);
   let responseBody = "";
-  let headWritten = false;
 
   // Minimal mock of IncomingMessage: an async iterable that yields the body
   const req = {
+    // eslint-disable-next-line @typescript-eslint/require-await -- mock async iterator yields synchronously
     [Symbol.asyncIterator]: async function* () {
       yield Buffer.from(bodyStr);
     },
   } as unknown as import("node:http").IncomingMessage;
 
   const res = {
-    writeHead: (_status: number, _headers?: Record<string, string>) => {
-      headWritten = true;
-    },
+    writeHead: (_status: number, _headers?: Record<string, string>) => {},
     end: (data?: string) => {
       if (data) responseBody = data;
     },

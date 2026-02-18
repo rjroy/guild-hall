@@ -23,7 +23,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createHandlers, HandlerError, type DispatchParams, type ListParams, type StatusParams, type ResultParams, type CancelParams, type DeleteParams } from "./handlers.js";
 import type { JobStore } from "./job-store.js";
 import type { FullMemoryStore } from "./memory.js";
-import type { QueryFn } from "@/lib/agent";
+import type { QueryFn } from "../../lib/agent.js";
 import { createWorkerTools } from "./worker-tools.js";
 import { buildWorkerPrompt } from "./worker-prompt.js";
 import { spawnWorkerAgent } from "./worker-agent.js";
@@ -182,7 +182,7 @@ export class HttpTransport implements Transport {
       };
     } else {
       try {
-        const result = await handler(request.params as Record<string, unknown> | undefined);
+        const result = await handler(request.params);
         response = {
           jsonrpc: "2.0",
           id: request.id,
@@ -429,7 +429,7 @@ export function createResearcherServer(
       });
 
       await new Promise<void>((resolve) => {
-        httpServer!.listen(port, "127.0.0.1", () => { // eslint-disable-line @typescript-eslint/no-non-null-assertion -- httpServer assigned on the line above
+        httpServer!.listen(port, "127.0.0.1", () => {  
           console.log(`Researcher MCP server listening on http://127.0.0.1:${port}/mcp`);
           resolve();
         });
@@ -440,7 +440,7 @@ export function createResearcherServer(
       await transport.close();
       if (httpServer) {
         await new Promise<void>((resolve, reject) => {
-          httpServer!.close((err) => { // eslint-disable-line @typescript-eslint/no-non-null-assertion -- guarded by if
+          httpServer!.close((err) => {  
             if (err) reject(err);
             else resolve();
           });
@@ -465,7 +465,7 @@ async function main() {
   const { createJobStore } = await import("./job-store.js");
   const { createMemoryStore, createDefaultDeps: createMemoryDeps } = await import("./memory.js");
 
-  const queryFn = query as unknown as import("@/lib/agent").QueryFn;
+  const queryFn = query as unknown as import("../../lib/agent.js").QueryFn;
   const jobStore = createJobStore("./jobs");
   const memoryStore = createMemoryStore("./memory", {
     ...createMemoryDeps(),

@@ -724,6 +724,12 @@ export type EventBus = {
 };
 
 // -- SDK message type guards --
+//
+// SDKMessage is a discriminated union from the agent SDK whose .d.ts
+// re-exports can't be resolved by eslint's type-checker. The type guards
+// are correct (narrowing on the `type` discriminant), but eslint sees the
+// property accesses as unsafe. Suppress for the entire block.
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 export function isSystemInitMessage(
   msg: SDKMessage,
@@ -774,6 +780,8 @@ export function isToolUseSummaryMessage(
 ): msg is SDKToolUseSummaryMessage {
   return msg.type === "tool_use_summary";
 }
+
+/* eslint-enable @typescript-eslint/no-unsafe-member-access */
 
 // -- SDK event to SSE event translation --
 

@@ -14,8 +14,8 @@
 import { join } from "node:path";
 import { mkdir, writeFile, readFile, readdir, rm, stat } from "node:fs/promises";
 
-import type { QueryFn } from "@/lib/agent";
-import type { MemoryStore } from "./worker-tools";
+import type { QueryFn } from "../../lib/agent.js";
+import type { MemoryStore } from "./worker-tools.js";
 
 // -- Types --
 
