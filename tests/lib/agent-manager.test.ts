@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 
-import { AgentManager, AgentManagerError, CONTEXT_FILE_PROMPT } from "@/lib/agent-manager";
+import { AgentManager, AgentManagerError, CONTEXT_FILE_PROMPT, buildSystemPrompt, buildWorkerDispatchPrompt } from "@/lib/agent-manager";
 import type { AgentManagerDeps } from "@/lib/agent-manager";
 import { createEventBus } from "@/lib/agent";
 import type { QueryFn } from "@/lib/agent";
@@ -166,13 +166,14 @@ function createCapturingQueryFn(messages: SDKMessage[]): {
 
 // -- Helpers for building test dependencies --
 
-function makeGuildMember(name: string): GuildMember {
+function makeGuildMember(name: string, options?: { capabilities?: string[]; description?: string }): GuildMember {
   return {
     name,
     displayName: name,
-    description: `The ${name} member`,
+    description: options?.description ?? `The ${name} member`,
     version: "1.0.0",
     transport: "http",
+    capabilities: options?.capabilities,
     mcp: { command: "node", args: [`${name}.js`] },
     status: "disconnected",
     tools: [],
@@ -923,6 +924,315 @@ describe("AgentManager", () => {
       expect(Object.keys(firstMcp)).toContain("alpha");
       expect(Object.keys(secondMcp)).toContain("alpha");
     });
+  });
+});
+
+describe("buildWorkerDispatchPrompt", () => {
+  it("returns empty string when no workers are provided", () => {
+    expect(buildWorkerDispatchPrompt([])).toBe("");
+  });
+
+  it("includes worker name and dispatch server name", () => {
+    const prompt = buildWorkerDispatchPrompt([
+      { name: "researcher", description: "Research agent" },
+    ]);
+
+    expect(prompt).toContain("researcher");
+    expect(prompt).toContain("researcher-dispatch");
+    expect(prompt).toContain("Research agent");
+  });
+
+  it("lists multiple workers", () => {
+    const prompt = buildWorkerDispatchPrompt([
+      { name: "researcher", description: "Research agent" },
+      { name: "writer", description: "Writing agent" },
+    ]);
+
+    expect(prompt).toContain("researcher (via researcher-dispatch)");
+    expect(prompt).toContain("writer (via writer-dispatch)");
+  });
+
+  it("includes workflow guidance (dispatch, status, result)", () => {
+    const prompt = buildWorkerDispatchPrompt([
+      { name: "researcher", description: "Research agent" },
+    ]);
+
+    expect(prompt).toContain("`dispatch`");
+    expect(prompt).toContain("`status`");
+    expect(prompt).toContain("`result`");
+  });
+
+  it("lists all available dispatch tools", () => {
+    const prompt = buildWorkerDispatchPrompt([
+      { name: "researcher", description: "Research agent" },
+    ]);
+
+    expect(prompt).toContain("dispatch");
+    expect(prompt).toContain("list");
+    expect(prompt).toContain("status");
+    expect(prompt).toContain("result");
+    expect(prompt).toContain("cancel");
+    expect(prompt).toContain("delete");
+  });
+
+  it("mentions relaying questions to the user", () => {
+    const prompt = buildWorkerDispatchPrompt([
+      { name: "researcher", description: "Research agent" },
+    ]);
+
+    expect(prompt).toContain("questions");
+    expect(prompt).toContain("relay");
+  });
+});
+
+describe("buildSystemPrompt", () => {
+  it("includes context file instructions regardless of workers", () => {
+    const withWorkers = buildSystemPrompt([
+      { name: "researcher", description: "Research agent" },
+    ]);
+    const withoutWorkers = buildSystemPrompt([]);
+
+    expect(withWorkers).toContain("context.md");
+    expect(withoutWorkers).toContain("context.md");
+  });
+
+  it("includes worker guidance when workers are present", () => {
+    const prompt = buildSystemPrompt([
+      { name: "researcher", description: "Research agent" },
+    ]);
+
+    expect(prompt).toContain("Worker Dispatch");
+    expect(prompt).toContain("researcher-dispatch");
+  });
+
+  it("omits worker guidance when no workers are present", () => {
+    const prompt = buildSystemPrompt([]);
+
+    expect(prompt).not.toContain("Worker Dispatch");
+    expect(prompt).not.toContain("-dispatch");
+  });
+
+  it("equals CONTEXT_FILE_PROMPT when no workers present", () => {
+    expect(buildSystemPrompt([])).toBe(CONTEXT_FILE_PROMPT);
+  });
+});
+
+describe("MCPManager.getWorkerCapableMembers", () => {
+  it("returns members with 'worker' capability", () => {
+    const roster = new Map<string, GuildMember>([
+      ["researcher", makeGuildMember("researcher", { capabilities: ["worker"], description: "Research agent" })],
+      ["example", makeGuildMember("example")],
+    ]);
+    const mcpManager = new MCPManager(roster, createMockMcpFactory());
+
+    const workers = mcpManager.getWorkerCapableMembers(["researcher", "example"]);
+
+    expect(workers).toHaveLength(1);
+    expect(workers[0].name).toBe("researcher");
+  });
+
+  it("returns empty array when no members have worker capability", () => {
+    const roster = new Map<string, GuildMember>([
+      ["example", makeGuildMember("example")],
+      ["tools", makeGuildMember("tools", { capabilities: ["search"] })],
+    ]);
+    const mcpManager = new MCPManager(roster, createMockMcpFactory());
+
+    const workers = mcpManager.getWorkerCapableMembers(["example", "tools"]);
+
+    expect(workers).toHaveLength(0);
+  });
+
+  it("only checks members in the provided names list", () => {
+    const roster = new Map<string, GuildMember>([
+      ["researcher", makeGuildMember("researcher", { capabilities: ["worker"] })],
+      ["example", makeGuildMember("example")],
+    ]);
+    const mcpManager = new MCPManager(roster, createMockMcpFactory());
+
+    // Only ask about "example", not "researcher"
+    const workers = mcpManager.getWorkerCapableMembers(["example"]);
+
+    expect(workers).toHaveLength(0);
+  });
+
+  it("handles members with multiple capabilities", () => {
+    const roster = new Map<string, GuildMember>([
+      ["multi", makeGuildMember("multi", { capabilities: ["search", "worker", "summarize"] })],
+    ]);
+    const mcpManager = new MCPManager(roster, createMockMcpFactory());
+
+    const workers = mcpManager.getWorkerCapableMembers(["multi"]);
+
+    expect(workers).toHaveLength(1);
+    expect(workers[0].name).toBe("multi");
+  });
+
+  it("skips member names not in the roster", () => {
+    const roster = new Map<string, GuildMember>([
+      ["example", makeGuildMember("example")],
+    ]);
+    const mcpManager = new MCPManager(roster, createMockMcpFactory());
+
+    const workers = mcpManager.getWorkerCapableMembers(["nonexistent"]);
+
+    expect(workers).toHaveLength(0);
+  });
+
+  it("handles members with no capabilities field", () => {
+    const member = makeGuildMember("bare");
+    // Ensure no capabilities field at all
+    delete (member as Record<string, unknown>).capabilities;
+
+    const roster = new Map<string, GuildMember>([["bare", member]]);
+    const mcpManager = new MCPManager(roster, createMockMcpFactory());
+
+    const workers = mcpManager.getWorkerCapableMembers(["bare"]);
+
+    expect(workers).toHaveLength(0);
+  });
+});
+
+describe("AgentManager worker dispatch prompt integration", () => {
+  it("passes system prompt with worker guidance when worker-capable plugins exist", async () => {
+    let receivedPrompt = "";
+
+    const captureQueryFn: QueryFn = (params) => {
+      receivedPrompt = (params.options as Record<string, unknown>)?.systemPrompt as string ?? "";
+      return createMockQueryFn([
+        makeInitMessage(),
+        makeSuccessResult(),
+      ])({ prompt: params.prompt, options: params.options });
+    };
+
+    // Build roster with a worker-capable member
+    const roster = new Map<string, GuildMember>([
+      ["researcher", makeGuildMember("researcher", { capabilities: ["worker"], description: "Research agent" })],
+    ]);
+
+    const mockFs = createMockSessionFs(
+      {
+        "/sessions/2026-02-12-test-session/meta.json": JSON.stringify({
+          id: "2026-02-12-test-session",
+          name: "Test Session",
+          status: "idle",
+          guildMembers: ["researcher"],
+          sdkSessionId: null,
+          createdAt: "2026-02-12T10:00:00.000Z",
+          lastActivityAt: "2026-02-12T10:00:00.000Z",
+          messageCount: 0,
+        }, null, 2),
+        "/sessions/2026-02-12-test-session/messages.jsonl": "",
+        "/sessions/2026-02-12-test-session/context.md": "# Context",
+      },
+      new Set([
+        "/sessions",
+        "/sessions/2026-02-12-test-session",
+        "/sessions/2026-02-12-test-session/artifacts",
+      ]),
+    );
+    const sessionStore = new SessionStore("/sessions", mockFs, () => new Date(NOW));
+    const mcpManager = new MCPManager(roster, createMockMcpFactory());
+    const eventBus = createEventBus();
+
+    const deps: AgentManagerDeps = {
+      queryFn: captureQueryFn,
+      sessionStore,
+      mcpManager,
+      eventBus,
+      clock: () => new Date(NOW),
+      sessionsDir: "/sessions",
+    };
+
+    const manager = new AgentManager(deps);
+    await manager.runQuery("2026-02-12-test-session", "Hello");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(receivedPrompt).toContain("context.md");
+    expect(receivedPrompt).toContain("Worker Dispatch");
+    expect(receivedPrompt).toContain("researcher-dispatch");
+    expect(receivedPrompt).toContain("Research agent");
+  });
+
+  it("passes system prompt without worker guidance when no worker-capable plugins exist", async () => {
+    let receivedPrompt = "";
+
+    const captureQueryFn: QueryFn = (params) => {
+      receivedPrompt = (params.options as Record<string, unknown>)?.systemPrompt as string ?? "";
+      return createMockQueryFn([
+        makeInitMessage(),
+        makeSuccessResult(),
+      ])({ prompt: params.prompt, options: params.options });
+    };
+
+    const { deps } = setup();
+    (deps as { queryFn: QueryFn }).queryFn = captureQueryFn;
+    const manager = new AgentManager(deps);
+
+    await manager.runQuery("2026-02-12-test-session", "Hello");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(receivedPrompt).toContain("context.md");
+    expect(receivedPrompt).not.toContain("Worker Dispatch");
+    expect(receivedPrompt).not.toContain("-dispatch");
+  });
+
+  it("references correct dispatch server name format for each worker", async () => {
+    let receivedPrompt = "";
+
+    const captureQueryFn: QueryFn = (params) => {
+      receivedPrompt = (params.options as Record<string, unknown>)?.systemPrompt as string ?? "";
+      return createMockQueryFn([
+        makeInitMessage(),
+        makeSuccessResult(),
+      ])({ prompt: params.prompt, options: params.options });
+    };
+
+    const roster = new Map<string, GuildMember>([
+      ["researcher", makeGuildMember("researcher", { capabilities: ["worker"], description: "Research agent" })],
+      ["writer", makeGuildMember("writer", { capabilities: ["worker"], description: "Writing agent" })],
+    ]);
+
+    const mockFs = createMockSessionFs(
+      {
+        "/sessions/2026-02-12-test-session/meta.json": JSON.stringify({
+          id: "2026-02-12-test-session",
+          name: "Test Session",
+          status: "idle",
+          guildMembers: ["researcher", "writer"],
+          sdkSessionId: null,
+          createdAt: "2026-02-12T10:00:00.000Z",
+          lastActivityAt: "2026-02-12T10:00:00.000Z",
+          messageCount: 0,
+        }, null, 2),
+        "/sessions/2026-02-12-test-session/messages.jsonl": "",
+        "/sessions/2026-02-12-test-session/context.md": "# Context",
+      },
+      new Set([
+        "/sessions",
+        "/sessions/2026-02-12-test-session",
+        "/sessions/2026-02-12-test-session/artifacts",
+      ]),
+    );
+    const sessionStore = new SessionStore("/sessions", mockFs, () => new Date(NOW));
+    const mcpManager = new MCPManager(roster, createMockMcpFactory());
+    const eventBus = createEventBus();
+
+    const deps: AgentManagerDeps = {
+      queryFn: captureQueryFn,
+      sessionStore,
+      mcpManager,
+      eventBus,
+      clock: () => new Date(NOW),
+      sessionsDir: "/sessions",
+    };
+
+    const manager = new AgentManager(deps);
+    await manager.runQuery("2026-02-12-test-session", "Hello");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(receivedPrompt).toContain("researcher (via researcher-dispatch)");
+    expect(receivedPrompt).toContain("writer (via writer-dispatch)");
   });
 });
 

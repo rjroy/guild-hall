@@ -45,12 +45,14 @@ next-env.d.ts
 sessions/*
 !sessions/.gitkeep
 
-# guild-members (only example plugin is tracked)
+# guild-members (only tracked plugins get exceptions below)
 guild-members/*
 !guild-members/example/
+!guild-members/researcher/
 
-# example plugin dependencies (node_modules installed locally, lockfile committed)
+# plugin dependencies (node_modules installed locally, lockfiles committed)
 guild-members/example/node_modules/
+guild-members/researcher/node_modules/
 
 # MCP server PID files (runtime state, not committed)
 .mcp-servers/

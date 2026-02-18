@@ -1,0 +1,27 @@
+{
+  "name": "guild-member-researcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "server.ts",
+  "scripts": {
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "start": "tsx server.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.45",
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "picomatch": "^4.0.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22",
+    "@types/picomatch": "^3.0.1",
+    "bun-types": "^1.3.9",
+    "eslint": "^9",
+    "tsx": "^4.19.2",
+    "typescript": "^5",
+    "typescript-eslint": "^8.55.0"
+  }
+}

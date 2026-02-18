@@ -1078,4 +1078,248 @@ describe("MCPManager", () => {
       expect(roster.get("alpha")!.status).toBe("connected");
     });
   });
+
+  describe("getDispatchConfigs", () => {
+    it("returns dispatch configs for worker-capable plugins", async () => {
+      const roster = createRoster([
+        ["researcher", makeGuildMember({
+          name: "researcher",
+          transport: "http",
+          capabilities: ["worker"],
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs = manager.getDispatchConfigs(["researcher"]);
+
+      expect(Object.keys(configs)).toEqual(["researcher-dispatch"]);
+      expect(configs["researcher-dispatch"].type).toBe("sdk");
+      expect(configs["researcher-dispatch"].name).toBe("researcher-dispatch");
+    });
+
+    it("returns empty for tool-only plugins (no worker capability)", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({
+          name: "alpha",
+          transport: "http",
+          capabilities: ["tools"],
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs = manager.getDispatchConfigs(["alpha"]);
+
+      expect(Object.keys(configs)).toHaveLength(0);
+    });
+
+    it("returns empty for plugins without capabilities", async () => {
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs = manager.getDispatchConfigs(["alpha"]);
+
+      expect(Object.keys(configs)).toHaveLength(0);
+    });
+
+    it("returns configs for hybrid plugins (both worker and tools)", async () => {
+      const roster = createRoster([
+        ["hybrid", makeGuildMember({
+          name: "hybrid",
+          transport: "http",
+          capabilities: ["worker", "tools"],
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs = manager.getDispatchConfigs(["hybrid"]);
+
+      expect(Object.keys(configs)).toEqual(["hybrid-dispatch"]);
+    });
+
+    it("skips disconnected members", () => {
+      const roster = createRoster([
+        ["researcher", makeGuildMember({
+          name: "researcher",
+          transport: "http",
+          capabilities: ["worker"],
+          status: "disconnected",
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      const configs = manager.getDispatchConfigs(["researcher"]);
+
+      expect(Object.keys(configs)).toHaveLength(0);
+    });
+
+    it("caches dispatch bridges across calls", async () => {
+      const roster = createRoster([
+        ["researcher", makeGuildMember({
+          name: "researcher",
+          transport: "http",
+          capabilities: ["worker"],
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs1 = manager.getDispatchConfigs(["researcher"]);
+      const configs2 = manager.getDispatchConfigs(["researcher"]);
+
+      // Same instance returned (cached)
+      expect(configs1["researcher-dispatch"]).toBe(configs2["researcher-dispatch"]);
+    });
+
+    it("returns configs for multiple worker-capable plugins", async () => {
+      const roster = createRoster([
+        ["researcher", makeGuildMember({
+          name: "researcher",
+          transport: "http",
+          capabilities: ["worker"],
+        })],
+        ["writer", makeGuildMember({
+          name: "writer",
+          transport: "http",
+          capabilities: ["worker"],
+        })],
+        ["toolbox", makeGuildMember({
+          name: "toolbox",
+          transport: "http",
+          capabilities: ["tools"],
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs = manager.getDispatchConfigs(["researcher", "writer", "toolbox"]);
+
+      expect(Object.keys(configs).sort()).toEqual(["researcher-dispatch", "writer-dispatch"]);
+    });
+  });
+
+  describe("getServerConfigs with worker-only filtering", () => {
+    it("excludes worker-only plugins from server configs", async () => {
+      const roster = createRoster([
+        ["researcher", makeGuildMember({
+          name: "researcher",
+          transport: "http",
+          capabilities: ["worker"],
+        })],
+        ["toolbox", makeGuildMember({
+          name: "toolbox",
+          transport: "http",
+          capabilities: ["tools"],
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs = manager.getServerConfigs(["researcher", "toolbox"]);
+
+      // researcher (worker-only) should be excluded
+      expect(Object.keys(configs)).toEqual(["toolbox"]);
+    });
+
+    it("includes hybrid plugins (both worker and tools)", async () => {
+      const roster = createRoster([
+        ["hybrid", makeGuildMember({
+          name: "hybrid",
+          transport: "http",
+          capabilities: ["worker", "tools"],
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs = manager.getServerConfigs(["hybrid"]);
+
+      expect(Object.keys(configs)).toEqual(["hybrid"]);
+    });
+
+    it("includes plugins without capabilities (backwards compatible)", async () => {
+      const roster = createRoster([
+        ["legacy", makeGuildMember({
+          name: "legacy",
+          transport: "http",
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs = manager.getServerConfigs(["legacy"]);
+
+      expect(Object.keys(configs)).toEqual(["legacy"]);
+    });
+
+    it("includes plugins with unrelated capabilities", async () => {
+      const roster = createRoster([
+        ["search", makeGuildMember({
+          name: "search",
+          transport: "http",
+          capabilities: ["search", "summarize"],
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const configs = manager.getServerConfigs(["search"]);
+
+      expect(Object.keys(configs)).toEqual(["search"]);
+    });
+
+    it("worker-only plugin appears in dispatch configs but not server configs", async () => {
+      const roster = createRoster([
+        ["researcher", makeGuildMember({
+          name: "researcher",
+          transport: "http",
+          capabilities: ["worker"],
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const serverConfigs = manager.getServerConfigs(["researcher"]);
+      const dispatchConfigs = manager.getDispatchConfigs(["researcher"]);
+
+      expect(Object.keys(serverConfigs)).toHaveLength(0);
+      expect(Object.keys(dispatchConfigs)).toEqual(["researcher-dispatch"]);
+    });
+
+    it("hybrid plugin appears in both server configs and dispatch configs", async () => {
+      const roster = createRoster([
+        ["hybrid", makeGuildMember({
+          name: "hybrid",
+          transport: "http",
+          capabilities: ["worker", "tools"],
+        })],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+      await manager.initializeRoster();
+
+      const serverConfigs = manager.getServerConfigs(["hybrid"]);
+      const dispatchConfigs = manager.getDispatchConfigs(["hybrid"]);
+
+      expect(Object.keys(serverConfigs)).toEqual(["hybrid"]);
+      expect(Object.keys(dispatchConfigs)).toEqual(["hybrid-dispatch"]);
+    });
+  });
 });

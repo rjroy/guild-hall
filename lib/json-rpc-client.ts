@@ -5,6 +5,12 @@
  * Follows Guild Hall's dependency injection pattern for testability.
  */
 
+import type {
+  WorkerJobSummary,
+  WorkerJobStatus,
+  WorkerJobResult,
+} from "./types";
+
 export interface InitializeResponse {
   protocolVersion: string;
   capabilities: {
@@ -239,6 +245,169 @@ export class JsonRpcClient {
     } catch (error) {
       if ((error as Error).name === "AbortError") {
         throw new JsonRpcTimeoutError("tools/call", 30000);
+      }
+      throw error;
+    } finally {
+      this.clearTimeoutFn(timeoutId);
+    }
+  }
+
+  /**
+   * Dispatch a worker task on the MCP server.
+   *
+   * @param params Worker dispatch parameters (description, task, optional config)
+   * @returns Object with the assigned jobId
+   * @throws JsonRpcTimeoutError if request exceeds 30s
+   * @throws JsonRpcHttpError on HTTP error status
+   * @throws JsonRpcProtocolError on JSON-RPC error response
+   */
+  async dispatchWorker(params: {
+    description: string;
+    task: string;
+    config?: Record<string, unknown>;
+  }): Promise<{ jobId: string }> {
+    const controller = new AbortController();
+    const timeoutId = this.setTimeoutFn(() => controller.abort(), 30000);
+
+    try {
+      const response = await this.call("worker/dispatch", params, controller.signal);
+      return response as { jobId: string };
+    } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        throw new JsonRpcTimeoutError("worker/dispatch", 30000);
+      }
+      throw error;
+    } finally {
+      this.clearTimeoutFn(timeoutId);
+    }
+  }
+
+  /**
+   * List worker jobs on the MCP server.
+   *
+   * @param params Optional filter and detail level
+   * @returns Object with array of job summaries
+   * @throws JsonRpcTimeoutError if request exceeds 30s
+   * @throws JsonRpcHttpError on HTTP error status
+   * @throws JsonRpcProtocolError on JSON-RPC error response
+   */
+  async listWorkers(params?: {
+    detail?: "simple" | "detailed";
+    filter?: string;
+  }): Promise<{ jobs: WorkerJobSummary[] }> {
+    const controller = new AbortController();
+    const timeoutId = this.setTimeoutFn(() => controller.abort(), 30000);
+
+    try {
+      const response = await this.call("worker/list", params ?? {}, controller.signal);
+      return response as { jobs: WorkerJobSummary[] };
+    } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        throw new JsonRpcTimeoutError("worker/list", 30000);
+      }
+      throw error;
+    } finally {
+      this.clearTimeoutFn(timeoutId);
+    }
+  }
+
+  /**
+   * Get status of a worker job.
+   *
+   * @param params Object with jobId
+   * @returns Full job status
+   * @throws JsonRpcTimeoutError if request exceeds 30s
+   * @throws JsonRpcHttpError on HTTP error status
+   * @throws JsonRpcProtocolError on JSON-RPC error response
+   */
+  async workerStatus(params: { jobId: string }): Promise<WorkerJobStatus> {
+    const controller = new AbortController();
+    const timeoutId = this.setTimeoutFn(() => controller.abort(), 30000);
+
+    try {
+      const response = await this.call("worker/status", params, controller.signal);
+      return response as WorkerJobStatus;
+    } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        throw new JsonRpcTimeoutError("worker/status", 30000);
+      }
+      throw error;
+    } finally {
+      this.clearTimeoutFn(timeoutId);
+    }
+  }
+
+  /**
+   * Get the result of a completed worker job.
+   *
+   * @param params Object with jobId
+   * @returns Job output and artifacts
+   * @throws JsonRpcTimeoutError if request exceeds 30s
+   * @throws JsonRpcHttpError on HTTP error status
+   * @throws JsonRpcProtocolError on JSON-RPC error response
+   */
+  async workerResult(params: { jobId: string }): Promise<WorkerJobResult> {
+    const controller = new AbortController();
+    const timeoutId = this.setTimeoutFn(() => controller.abort(), 30000);
+
+    try {
+      const response = await this.call("worker/result", params, controller.signal);
+      return response as WorkerJobResult;
+    } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        throw new JsonRpcTimeoutError("worker/result", 30000);
+      }
+      throw error;
+    } finally {
+      this.clearTimeoutFn(timeoutId);
+    }
+  }
+
+  /**
+   * Cancel a running worker job.
+   *
+   * @param params Object with jobId
+   * @returns Object with jobId and resulting status
+   * @throws JsonRpcTimeoutError if request exceeds 30s
+   * @throws JsonRpcHttpError on HTTP error status
+   * @throws JsonRpcProtocolError on JSON-RPC error response
+   */
+  async cancelWorker(params: { jobId: string }): Promise<{ jobId: string; status: string }> {
+    const controller = new AbortController();
+    const timeoutId = this.setTimeoutFn(() => controller.abort(), 30000);
+
+    try {
+      const response = await this.call("worker/cancel", params, controller.signal);
+      return response as { jobId: string; status: string };
+    } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        throw new JsonRpcTimeoutError("worker/cancel", 30000);
+      }
+      throw error;
+    } finally {
+      this.clearTimeoutFn(timeoutId);
+    }
+  }
+
+  /**
+   * Delete a worker job record.
+   *
+   * @param params Object with jobId
+   * @returns Object confirming deletion
+   * @throws JsonRpcTimeoutError if request exceeds 30s
+   * @throws JsonRpcHttpError on HTTP error status
+   * @throws JsonRpcProtocolError on JSON-RPC error response
+   */
+  async deleteWorker(params: { jobId: string }): Promise<{ jobId: string; deleted: true }> {
+    const controller = new AbortController();
+    const timeoutId = this.setTimeoutFn(() => controller.abort(), 30000);
+
+    try {
+      const response = await this.call("worker/delete", params, controller.signal);
+      return response as { jobId: string; deleted: true };
+    } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        throw new JsonRpcTimeoutError("worker/delete", 30000);
       }
       throw error;
     } finally {

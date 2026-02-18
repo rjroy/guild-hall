@@ -1,7 +1,7 @@
 ---
 title: Create per-plugin dispatch MCP servers (dispatch bridge)
 date: 2026-02-17
-status: pending
+status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:

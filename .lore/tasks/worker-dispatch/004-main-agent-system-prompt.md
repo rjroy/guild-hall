@@ -1,7 +1,7 @@
 ---
 title: Add worker dispatch guidance to main agent system prompt
 date: 2026-02-17
-status: pending
+status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:

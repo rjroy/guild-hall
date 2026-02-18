@@ -1,7 +1,7 @@
 ---
 title: Add capabilities to schema, types, and discovery
 date: 2026-02-17
-status: pending
+status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:

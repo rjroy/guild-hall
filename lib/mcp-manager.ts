@@ -1,8 +1,12 @@
 import type { ChildProcess } from "node:child_process";
 
+import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
+
 import type { GuildMember, ToolInfo } from "./types";
 import type { PidFileManager } from "./pid-file-manager";
 import type { IPortRegistry } from "./port-registry";
+import { createDispatchBridge } from "./dispatch-bridge";
+import type { DispatchBridgeDeps } from "./dispatch-bridge";
 
 // -- MCP server abstractions --
 
@@ -73,6 +77,7 @@ export class MCPManager {
   private servers = new Map<string, MCPServerHandle>();
   private processes = new Map<string, ChildProcess>();
   private subscribers = new Set<(event: MCPEvent) => void>();
+  private dispatchBridges = new Map<string, McpSdkServerConfigWithInstance>();
 
   constructor(
     private roster: Map<string, GuildMember>,
@@ -165,7 +170,11 @@ export class MCPManager {
    * Agent SDK's query() call. Keyed by member name, matching the SDK's
    * expected Record<string, McpServerConfig> shape.
    *
-   * Only connected HTTP transport members are included.
+   * Only connected HTTP transport members are included. Worker-only plugins
+   * (capabilities includes "worker" but NOT "tools") are excluded since they
+   * have no direct tools for the main agent. Hybrid plugins (both "worker"
+   * and "tools") are included. Plugins without capabilities are included
+   * for backwards compatibility.
    */
   getServerConfigs(memberNames: string[]): Record<string, MCPServerConfig> {
     const configs: Record<string, MCPServerConfig> = {};
@@ -173,6 +182,9 @@ export class MCPManager {
     for (const name of memberNames) {
       const member = this.roster.get(name);
       if (!member || member.status !== "connected") continue;
+
+      // Skip worker-only plugins: has "worker" but not "tools" capability
+      if (this.isWorkerOnly(member)) continue;
 
       if (member.transport === "http") {
         configs[name] = {
@@ -185,9 +197,60 @@ export class MCPManager {
     return configs;
   }
 
+  /**
+   * Return dispatch MCP server configs for worker-capable plugins. Each config
+   * is an in-process SDK server that proxies dispatch/list/status/result/cancel/delete
+   * tool calls to the plugin's worker/* JSON-RPC endpoints.
+   *
+   * Keyed as `${memberName}-dispatch`. Only connected members with "worker"
+   * capability are included. Dispatch bridges are created lazily on first call.
+   */
+  getDispatchConfigs(
+    memberNames: string[],
+    deps?: Partial<DispatchBridgeDeps>,
+  ): Record<string, McpSdkServerConfigWithInstance> {
+    const configs: Record<string, McpSdkServerConfigWithInstance> = {};
+
+    for (const name of memberNames) {
+      const member = this.roster.get(name);
+      if (!member || member.status !== "connected") continue;
+      if (!member.capabilities?.includes("worker")) continue;
+      if (member.port === undefined) continue;
+
+      const key = `${name}-dispatch`;
+
+      // Check cache first
+      let config = this.dispatchBridges.get(key);
+      if (!config) {
+        config = createDispatchBridge(name, member.port, deps);
+        this.dispatchBridges.set(key, config);
+      }
+
+      configs[key] = config;
+    }
+
+    return configs;
+  }
+
   /** Check whether a server is currently running for the given member. */
   isRunning(memberName: string): boolean {
     return this.servers.has(memberName);
+  }
+
+  /**
+   * Return the subset of the given member names that have "worker" in their
+   * capabilities. Used by the system prompt builder to add dispatch guidance
+   * only when worker-capable plugins are present in the session.
+   */
+  getWorkerCapableMembers(memberNames: string[]): GuildMember[] {
+    const result: GuildMember[] = [];
+    for (const name of memberNames) {
+      const member = this.roster.get(name);
+      if (member?.capabilities?.includes("worker")) {
+        result.push(member);
+      }
+    }
+    return result;
   }
 
   /**
@@ -266,6 +329,7 @@ export class MCPManager {
     this.processes.clear();
     this.references.clear();
     this.subscribers.clear();
+    this.dispatchBridges.clear();
 
     if (this.pidFiles) {
       await this.pidFiles.shutdownAll();
@@ -275,6 +339,20 @@ export class MCPManager {
   }
 
   // -- Private helpers --
+
+  /**
+   * A worker-only plugin has "worker" in capabilities but NOT "tools".
+   * These plugins expose no direct tools for the main agent; they're
+   * accessed exclusively through the dispatch bridge.
+   *
+   * Plugins without capabilities are NOT worker-only (backwards compatible
+   * as tool-only).
+   */
+  private isWorkerOnly(member: GuildMember): boolean {
+    const caps = member.capabilities;
+    if (!caps) return false;
+    return caps.includes("worker") && !caps.includes("tools");
+  }
 
   private async spawnServer(
     name: string,

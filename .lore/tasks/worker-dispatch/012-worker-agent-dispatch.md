@@ -1,7 +1,7 @@
 ---
 title: Wire Agent SDK into dispatch, cancel, and prompt construction
 date: 2026-02-17
-status: pending
+status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:

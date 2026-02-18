@@ -518,4 +518,522 @@ describe("JsonRpcClient", () => {
       expect(notificationBody).toHaveProperty("jsonrpc");
     });
   });
+
+  describe("worker protocol methods", () => {
+    // Helper: creates a mock fetch that returns a JSON-RPC error
+    function protocolErrorFetch() {
+      return mock((_url: string, options?: RequestInit) => {
+        const body = parseBody(options);
+        return Promise.resolve(new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            error: { code: -32601, message: "Method not found" },
+          }),
+        ));
+      });
+    }
+
+    // Helper: creates a mock fetch that returns an HTTP error
+    function httpErrorFetch() {
+      return mock(
+        () => Promise.resolve(new Response("Internal Server Error", { status: 500 })),
+      );
+    }
+
+    // Helper: creates a mock fetch that never resolves (for timeout tests)
+    function hangingFetch() {
+      return mock(
+        (_url: string, options?: RequestInit): Promise<Response> =>
+          new Promise((_resolve, reject) => {
+            const signal = options?.signal;
+            if (signal) {
+              signal.addEventListener("abort", () => {
+                const error = new Error("Request aborted");
+                error.name = "AbortError";
+                reject(error);
+              });
+            }
+          }),
+      );
+    }
+
+    // Helper: creates fast setTimeout/clearTimeout mocks for timeout tests
+    function fastTimers() {
+      const mockSetTimeout = mock((fn: () => void) => {
+        return global.setTimeout(fn, 1) as unknown as number;
+      });
+      const mockClearTimeout = mock(global.clearTimeout);
+      return { mockSetTimeout, mockClearTimeout };
+    }
+
+    describe("dispatchWorker", () => {
+      it("sends correct method and params", async () => {
+        let capturedBody: JsonRpcBody | undefined;
+        const mockFetch = mock((_url: string, options?: RequestInit) => {
+          capturedBody = parseBody(options);
+          return Promise.resolve(new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: capturedBody!.id,
+              result: { jobId: "job-123" },
+            }),
+          ));
+        });
+
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: mockFetch,
+        });
+
+        const result = await client.dispatchWorker({
+          description: "Run analysis",
+          task: "Analyze the codebase",
+          config: { maxTokens: 1000 },
+        });
+
+        expect(result).toEqual({ jobId: "job-123" });
+        expect(capturedBody).toMatchObject({
+          jsonrpc: "2.0",
+          method: "worker/dispatch",
+          params: {
+            description: "Run analysis",
+            task: "Analyze the codebase",
+            config: { maxTokens: 1000 },
+          },
+        });
+      });
+
+      it("throws JsonRpcTimeoutError on timeout", async () => {
+        const { mockSetTimeout, mockClearTimeout } = fastTimers();
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: hangingFetch(),
+          setTimeout: mockSetTimeout,
+          clearTimeout: mockClearTimeout,
+        });
+
+        expect(
+          client.dispatchWorker({ description: "test", task: "test" }),
+        ).rejects.toThrow(JsonRpcTimeoutError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
+        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
+      });
+
+      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: protocolErrorFetch(),
+        });
+
+        expect(
+          client.dispatchWorker({ description: "test", task: "test" }),
+        ).rejects.toThrow(JsonRpcProtocolError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+
+      it("throws JsonRpcHttpError on HTTP error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: httpErrorFetch(),
+        });
+
+        expect(
+          client.dispatchWorker({ description: "test", task: "test" }),
+        ).rejects.toThrow(JsonRpcHttpError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+    });
+
+    describe("listWorkers", () => {
+      it("sends correct method and params", async () => {
+        let capturedBody: JsonRpcBody | undefined;
+        const mockJobs = [
+          { jobId: "job-1", status: "running" as const },
+          { jobId: "job-2", status: "completed" as const },
+        ];
+        const mockFetch = mock((_url: string, options?: RequestInit) => {
+          capturedBody = parseBody(options);
+          return Promise.resolve(new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: capturedBody!.id,
+              result: { jobs: mockJobs },
+            }),
+          ));
+        });
+
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: mockFetch,
+        });
+
+        const result = await client.listWorkers({ detail: "detailed", filter: "running" });
+
+        expect(result).toEqual({ jobs: mockJobs });
+        expect(capturedBody).toMatchObject({
+          jsonrpc: "2.0",
+          method: "worker/list",
+          params: { detail: "detailed", filter: "running" },
+        });
+      });
+
+      it("sends empty params when called without arguments", async () => {
+        let capturedBody: JsonRpcBody | undefined;
+        const mockFetch = mock((_url: string, options?: RequestInit) => {
+          capturedBody = parseBody(options);
+          return Promise.resolve(new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: capturedBody!.id,
+              result: { jobs: [] },
+            }),
+          ));
+        });
+
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: mockFetch,
+        });
+
+        const result = await client.listWorkers();
+
+        expect(result).toEqual({ jobs: [] });
+        expect(capturedBody).toMatchObject({
+          jsonrpc: "2.0",
+          method: "worker/list",
+          params: {},
+        });
+      });
+
+      it("throws JsonRpcTimeoutError on timeout", async () => {
+        const { mockSetTimeout, mockClearTimeout } = fastTimers();
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: hangingFetch(),
+          setTimeout: mockSetTimeout,
+          clearTimeout: mockClearTimeout,
+        });
+
+        expect(client.listWorkers()).rejects.toThrow(JsonRpcTimeoutError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
+        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
+      });
+
+      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: protocolErrorFetch(),
+        });
+
+        expect(client.listWorkers()).rejects.toThrow(JsonRpcProtocolError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+
+      it("throws JsonRpcHttpError on HTTP error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: httpErrorFetch(),
+        });
+
+        expect(client.listWorkers()).rejects.toThrow(JsonRpcHttpError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+    });
+
+    describe("workerStatus", () => {
+      it("sends correct method and params", async () => {
+        let capturedBody: JsonRpcBody | undefined;
+        const mockStatus = {
+          jobId: "job-123",
+          status: "running" as const,
+          description: "Analysis task",
+          summary: null,
+          questions: null,
+          decisions: null,
+          error: null,
+          startedAt: "2026-02-17T10:00:00Z",
+          completedAt: null,
+        };
+        const mockFetch = mock((_url: string, options?: RequestInit) => {
+          capturedBody = parseBody(options);
+          return Promise.resolve(new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: capturedBody!.id,
+              result: mockStatus,
+            }),
+          ));
+        });
+
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: mockFetch,
+        });
+
+        const result = await client.workerStatus({ jobId: "job-123" });
+
+        expect(result).toEqual(mockStatus);
+        expect(capturedBody).toMatchObject({
+          jsonrpc: "2.0",
+          method: "worker/status",
+          params: { jobId: "job-123" },
+        });
+      });
+
+      it("throws JsonRpcTimeoutError on timeout", async () => {
+        const { mockSetTimeout, mockClearTimeout } = fastTimers();
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: hangingFetch(),
+          setTimeout: mockSetTimeout,
+          clearTimeout: mockClearTimeout,
+        });
+
+        expect(
+          client.workerStatus({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcTimeoutError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
+        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
+      });
+
+      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: protocolErrorFetch(),
+        });
+
+        expect(
+          client.workerStatus({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcProtocolError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+
+      it("throws JsonRpcHttpError on HTTP error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: httpErrorFetch(),
+        });
+
+        expect(
+          client.workerStatus({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcHttpError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+    });
+
+    describe("workerResult", () => {
+      it("sends correct method and params", async () => {
+        let capturedBody: JsonRpcBody | undefined;
+        const mockResult = {
+          jobId: "job-123",
+          output: "Analysis complete. Found 3 issues.",
+          artifacts: ["report.md", "issues.json"],
+        };
+        const mockFetch = mock((_url: string, options?: RequestInit) => {
+          capturedBody = parseBody(options);
+          return Promise.resolve(new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: capturedBody!.id,
+              result: mockResult,
+            }),
+          ));
+        });
+
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: mockFetch,
+        });
+
+        const result = await client.workerResult({ jobId: "job-123" });
+
+        expect(result).toEqual(mockResult);
+        expect(capturedBody).toMatchObject({
+          jsonrpc: "2.0",
+          method: "worker/result",
+          params: { jobId: "job-123" },
+        });
+      });
+
+      it("throws JsonRpcTimeoutError on timeout", async () => {
+        const { mockSetTimeout, mockClearTimeout } = fastTimers();
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: hangingFetch(),
+          setTimeout: mockSetTimeout,
+          clearTimeout: mockClearTimeout,
+        });
+
+        expect(
+          client.workerResult({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcTimeoutError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
+        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
+      });
+
+      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: protocolErrorFetch(),
+        });
+
+        expect(
+          client.workerResult({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcProtocolError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+
+      it("throws JsonRpcHttpError on HTTP error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: httpErrorFetch(),
+        });
+
+        expect(
+          client.workerResult({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcHttpError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+    });
+
+    describe("cancelWorker", () => {
+      it("sends correct method and params", async () => {
+        let capturedBody: JsonRpcBody | undefined;
+        const mockFetch = mock((_url: string, options?: RequestInit) => {
+          capturedBody = parseBody(options);
+          return Promise.resolve(new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: capturedBody!.id,
+              result: { jobId: "job-123", status: "cancelled" as const },
+            }),
+          ));
+        });
+
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: mockFetch,
+        });
+
+        const result = await client.cancelWorker({ jobId: "job-123" });
+
+        expect(result).toEqual({ jobId: "job-123", status: "cancelled" as const });
+        expect(capturedBody).toMatchObject({
+          jsonrpc: "2.0",
+          method: "worker/cancel",
+          params: { jobId: "job-123" },
+        });
+      });
+
+      it("throws JsonRpcTimeoutError on timeout", async () => {
+        const { mockSetTimeout, mockClearTimeout } = fastTimers();
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: hangingFetch(),
+          setTimeout: mockSetTimeout,
+          clearTimeout: mockClearTimeout,
+        });
+
+        expect(
+          client.cancelWorker({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcTimeoutError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
+        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
+      });
+
+      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: protocolErrorFetch(),
+        });
+
+        expect(
+          client.cancelWorker({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcProtocolError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+
+      it("throws JsonRpcHttpError on HTTP error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: httpErrorFetch(),
+        });
+
+        expect(
+          client.cancelWorker({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcHttpError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+    });
+
+    describe("deleteWorker", () => {
+      it("sends correct method and params", async () => {
+        let capturedBody: JsonRpcBody | undefined;
+        const mockFetch = mock((_url: string, options?: RequestInit) => {
+          capturedBody = parseBody(options);
+          return Promise.resolve(new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: capturedBody!.id,
+              result: { jobId: "job-123", deleted: true },
+            }),
+          ));
+        });
+
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: mockFetch,
+        });
+
+        const result = await client.deleteWorker({ jobId: "job-123" });
+
+        expect(result).toEqual({ jobId: "job-123", deleted: true });
+        expect(capturedBody).toMatchObject({
+          jsonrpc: "2.0",
+          method: "worker/delete",
+          params: { jobId: "job-123" },
+        });
+      });
+
+      it("throws JsonRpcTimeoutError on timeout", async () => {
+        const { mockSetTimeout, mockClearTimeout } = fastTimers();
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: hangingFetch(),
+          setTimeout: mockSetTimeout,
+          clearTimeout: mockClearTimeout,
+        });
+
+        expect(
+          client.deleteWorker({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcTimeoutError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
+        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
+      });
+
+      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: protocolErrorFetch(),
+        });
+
+        expect(
+          client.deleteWorker({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcProtocolError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+
+      it("throws JsonRpcHttpError on HTTP error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: httpErrorFetch(),
+        });
+
+        expect(
+          client.deleteWorker({ jobId: "job-123" }),
+        ).rejects.toThrow(JsonRpcHttpError);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+    });
+  });
 });
