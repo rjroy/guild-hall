@@ -1,0 +1,3 @@
+# 2026-02-18
+
+- The researcher example plugin needs to be refactored so that the common code exists in guild-hall. We've already set precedence for this with `../../lib/agent.ts`.
