@@ -11,8 +11,6 @@ import type {
 } from "@/lib/mcp-manager";
 import type { GuildMember } from "@/lib/types";
 
-// -- Fixtures --
-
 function makeGuildMember(overrides: Partial<GuildMember> = {}): GuildMember {
   return {
     name: "test-member",
@@ -146,8 +144,6 @@ function collectEvents(manager: MCPManager): MCPEvent[] {
   manager.subscribe((event) => events.push(event));
   return events;
 }
-
-// -- Tests --
 
 describe("MCPManager", () => {
   describe("initializeRoster", () => {

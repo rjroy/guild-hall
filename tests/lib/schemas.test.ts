@@ -6,8 +6,6 @@ import {
   SSEEventSchema,
 } from "@/lib/schemas";
 
-// -- Fixtures --
-
 function validManifest() {
   return {
     name: "test-member",
@@ -37,8 +35,6 @@ function validSessionMetadata(
     ...overrides,
   };
 }
-
-// -- GuildMemberManifestSchema --
 
 describe("GuildMemberManifestSchema", () => {
   it("accepts a valid manifest", () => {
@@ -273,8 +269,6 @@ describe("GuildMemberManifestSchema", () => {
   });
 });
 
-// -- SessionMetadataSchema --
-
 describe("SessionMetadataSchema", () => {
   it("accepts valid metadata", () => {
     const result = SessionMetadataSchema.parse(validSessionMetadata());
@@ -323,8 +317,6 @@ describe("SessionMetadataSchema", () => {
     ).toThrow();
   });
 });
-
-// -- SSEEventSchema --
 
 describe("SSEEventSchema", () => {
   it("parses a processing event", () => {

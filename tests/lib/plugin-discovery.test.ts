@@ -5,8 +5,6 @@ import { describe, expect, it } from "bun:test";
 import { discoverGuildMembers } from "@/lib/plugin-discovery";
 import { createMockFs } from "@/tests/helpers/mock-fs";
 
-// -- Fixtures --
-
 function validManifestJson(): string {
   return JSON.stringify({
     name: "test-member",
@@ -20,8 +18,6 @@ function validManifestJson(): string {
     },
   });
 }
-
-// -- Tests --
 
 describe("createMockFs", () => {
   it("stat returns isDirectory: false for a file path", async () => {

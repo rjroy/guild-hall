@@ -28,8 +28,6 @@ import {
 import { type IPortRegistry } from "../../lib/port-registry";
 import { MCP_EXIT_CODE } from "../../lib/types";
 
-// -- Mock Factories --
-
 function createMockPortRegistry(): IPortRegistry {
   const ports = [50000, 50001, 50002];
   let index = 0;
@@ -96,8 +94,6 @@ function createMockJsonRpcClient(
       ),
   } as unknown as JsonRpcClient;
 }
-
-// -- Tests --
 
 describe("HTTP MCP Factory", () => {
   test("spawns server successfully with valid config", async () => {

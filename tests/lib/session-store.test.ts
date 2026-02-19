@@ -8,8 +8,6 @@ import { SessionStore, slugify } from "@/lib/session-store";
 import type { StoredMessage } from "@/lib/types";
 import { createMockSessionFs } from "@/tests/helpers/mock-session-fs";
 
-// -- Fixtures --
-
 const FIXED_DATE = new Date("2026-02-12T14:30:00.000Z");
 const fixedClock = () => FIXED_DATE;
 
@@ -22,8 +20,6 @@ function makeStore(
   const store = new SessionStore("/sessions", fs, clock);
   return { store, fs };
 }
-
-// -- Slugification --
 
 describe("slugify", () => {
   it("lowercases and replaces spaces with hyphens", () => {
@@ -57,8 +53,6 @@ describe("slugify", () => {
     expect(slugify("")).toBe("");
   });
 });
-
-// -- createSession --
 
 describe("SessionStore.createSession", () => {
   it("creates directory with all expected files", async () => {
@@ -137,8 +131,6 @@ describe("SessionStore.createSession", () => {
   });
 });
 
-// -- Session ID slugification --
-
 describe("Session ID slugification", () => {
   it("slugifies spaces correctly", async () => {
     const { store } = makeStore();
@@ -158,8 +150,6 @@ describe("Session ID slugification", () => {
     expect(meta.id).toBe("2026-02-12-recherche-avancee");
   });
 });
-
-// -- Collision detection --
 
 describe("Session ID collision detection", () => {
   it("appends -2 when base ID already exists", async () => {
@@ -187,8 +177,6 @@ describe("Session ID collision detection", () => {
     expect(meta.id).toBe("2026-02-12-popular-3");
   });
 });
-
-// -- listSessions --
 
 describe("SessionStore.listSessions", () => {
   it("returns sessions sorted by lastActivityAt descending", async () => {
@@ -282,8 +270,6 @@ describe("SessionStore.listSessions", () => {
   });
 });
 
-// -- getSession --
-
 describe("SessionStore.getSession", () => {
   it("returns metadata and messages for existing session", async () => {
     const meta = JSON.stringify({
@@ -367,8 +353,6 @@ describe("SessionStore.getSession", () => {
   });
 });
 
-// -- updateMetadata --
-
 describe("SessionStore.updateMetadata", () => {
   it("merges fields without overwriting unspecified fields", async () => {
     const meta = JSON.stringify({
@@ -414,8 +398,6 @@ describe("SessionStore.updateMetadata", () => {
     expect(written.name).toBe("Update Test");
   });
 });
-
-// -- getSession JSONL resilience --
 
 describe("SessionStore.getSession JSONL resilience", () => {
   it("skips corrupt JSONL lines and returns valid messages", async () => {
@@ -468,8 +450,6 @@ describe("SessionStore.getSession JSONL resilience", () => {
   });
 });
 
-// -- appendMessage --
-
 describe("SessionStore.appendMessage", () => {
   it("appends JSONL lines readable by getSession", async () => {
     const meta = JSON.stringify({
@@ -520,8 +500,6 @@ describe("SessionStore.appendMessage", () => {
     expect(result!.messages[1].toolResult).toBe("file contents");
   });
 });
-
-// -- deleteSession --
 
 describe("SessionStore.deleteSession", () => {
   it("removes the session directory and all its contents", async () => {
@@ -583,8 +561,6 @@ describe("SessionStore.deleteSession", () => {
     expect(result!.metadata.name).toBe("Session B");
   });
 });
-
-// -- CreateSessionBodySchema --
 
 describe("CreateSessionBodySchema", () => {
   it("accepts a valid create body", () => {

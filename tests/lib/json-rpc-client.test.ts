@@ -1,10 +1,3 @@
-/**
- * Unit tests for JsonRpcClient
- *
- * Uses dependency injection to mock fetch for isolation.
- * Verifies JSON-RPC protocol implementation, timeout behavior, and error handling.
- */
-
 import { describe, expect, it, mock } from "bun:test";
 import {
   createJsonRpcClient,
@@ -27,6 +20,11 @@ type JsonRpcBody = {
 
 function parseBody(options?: RequestInit): JsonRpcBody {
   return JSON.parse(options?.body as string) as JsonRpcBody;
+}
+
+/** Let pending async rejections settle before asserting side effects. */
+function settle(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 50));
 }
 
 describe("JsonRpcClient", () => {
@@ -69,7 +67,6 @@ describe("JsonRpcClient", () => {
       expect(result).toEqual(mockResponse);
       expect(calls).toHaveLength(2);
 
-      // Verify initialize request
       expect(calls[0].body).toMatchObject({
         jsonrpc: "2.0",
         method: "initialize",
@@ -122,10 +119,8 @@ describe("JsonRpcClient", () => {
         client.initialize({ name: "test", version: "1.0" }),
       ).rejects.toThrow(JsonRpcTimeoutError);
 
-      // Wait for the async rejection to settle
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await settle();
 
-      // Verify timeout was set and cleared
       expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 5000);
       expect(mockClearTimeout).toHaveBeenCalledTimes(1);
     });
@@ -242,8 +237,7 @@ describe("JsonRpcClient", () => {
         client.invokeTool("test-tool", { arg1: "value1" }),
       ).rejects.toThrow(JsonRpcToolExecutionError);
 
-      // Wait for the async rejection to settle
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await settle();
     });
 
     it("sends correct request format", async () => {
@@ -291,8 +285,7 @@ describe("JsonRpcClient", () => {
 
       expect(client.listTools()).rejects.toThrow(JsonRpcHttpError);
 
-      // Wait for the async rejection to settle
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await settle();
     });
 
     it("throws JsonRpcProtocolError on JSON-RPC error object", async () => {
@@ -317,8 +310,7 @@ describe("JsonRpcClient", () => {
 
       expect(client.listTools()).rejects.toThrow(JsonRpcProtocolError);
 
-      // Wait for the async rejection to settle
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await settle();
     });
 
     it("throws JsonRpcTimeoutError on timeout", async () => {
@@ -352,10 +344,8 @@ describe("JsonRpcClient", () => {
 
       expect(client.listTools()).rejects.toThrow(JsonRpcTimeoutError);
 
-      // Wait for the async rejection to settle
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await settle();
 
-      // Verify timeout was set and cleared
       expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
       expect(mockClearTimeout).toHaveBeenCalledTimes(1);
     });
@@ -383,7 +373,6 @@ describe("JsonRpcClient", () => {
 
       await client.listTools();
 
-      // Verify clearTimeout was called exactly once with the timeout ID
       expect(mockClearTimeout).toHaveBeenCalledTimes(1);
       expect(mockClearTimeout).toHaveBeenCalledWith(expect.anything());
     });
@@ -402,8 +391,7 @@ describe("JsonRpcClient", () => {
 
       expect(client.listTools()).rejects.toThrow(JsonRpcHttpError);
 
-      // Wait for the async rejection to settle
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await settle();
 
       // Verify clearTimeout was called even on error
       expect(mockClearTimeout).toHaveBeenCalledTimes(1);
@@ -441,8 +429,7 @@ describe("JsonRpcClient", () => {
 
       expect(client.listTools()).rejects.toThrow(JsonRpcTimeoutError);
 
-      // Wait for the async rejection to settle
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await settle();
 
       // Verify clearTimeout was called even on timeout
       expect(mockClearTimeout).toHaveBeenCalledTimes(1);
@@ -520,7 +507,6 @@ describe("JsonRpcClient", () => {
   });
 
   describe("worker protocol methods", () => {
-    // Helper: creates a mock fetch that returns a JSON-RPC error
     function protocolErrorFetch() {
       return mock((_url: string, options?: RequestInit) => {
         const body = parseBody(options);
@@ -534,14 +520,12 @@ describe("JsonRpcClient", () => {
       });
     }
 
-    // Helper: creates a mock fetch that returns an HTTP error
     function httpErrorFetch() {
       return mock(
         () => Promise.resolve(new Response("Internal Server Error", { status: 500 })),
       );
     }
 
-    // Helper: creates a mock fetch that never resolves (for timeout tests)
     function hangingFetch() {
       return mock(
         (_url: string, options?: RequestInit): Promise<Response> =>
@@ -558,13 +542,55 @@ describe("JsonRpcClient", () => {
       );
     }
 
-    // Helper: creates fast setTimeout/clearTimeout mocks for timeout tests
     function fastTimers() {
       const mockSetTimeout = mock((fn: () => void) => {
         return global.setTimeout(fn, 1) as unknown as number;
       });
       const mockClearTimeout = mock(global.clearTimeout);
       return { mockSetTimeout, mockClearTimeout };
+    }
+
+    type ClientMethod = (client: ReturnType<typeof createJsonRpcClient>) => Promise<unknown>;
+
+    /**
+     * Generates timeout, protocol error, and HTTP error tests for a worker method.
+     * Every worker method shares identical error handling; only the invocation differs.
+     */
+    function describeWorkerErrors(invoke: ClientMethod): void {
+      it("throws JsonRpcTimeoutError on timeout", async () => {
+        const { mockSetTimeout, mockClearTimeout } = fastTimers();
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: hangingFetch(),
+          setTimeout: mockSetTimeout,
+          clearTimeout: mockClearTimeout,
+        });
+
+        expect(invoke(client)).rejects.toThrow(JsonRpcTimeoutError);
+
+        await settle();
+        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
+        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
+      });
+
+      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: protocolErrorFetch(),
+        });
+
+        expect(invoke(client)).rejects.toThrow(JsonRpcProtocolError);
+
+        await settle();
+      });
+
+      it("throws JsonRpcHttpError on HTTP error", async () => {
+        const client = createJsonRpcClient("http://localhost:50000/mcp", {
+          fetch: httpErrorFetch(),
+        });
+
+        expect(invoke(client)).rejects.toThrow(JsonRpcHttpError);
+
+        await settle();
+      });
     }
 
     describe("dispatchWorker", () => {
@@ -603,46 +629,7 @@ describe("JsonRpcClient", () => {
         });
       });
 
-      it("throws JsonRpcTimeoutError on timeout", async () => {
-        const { mockSetTimeout, mockClearTimeout } = fastTimers();
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: hangingFetch(),
-          setTimeout: mockSetTimeout,
-          clearTimeout: mockClearTimeout,
-        });
-
-        expect(
-          client.dispatchWorker({ description: "test", task: "test" }),
-        ).rejects.toThrow(JsonRpcTimeoutError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
-        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
-      });
-
-      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: protocolErrorFetch(),
-        });
-
-        expect(
-          client.dispatchWorker({ description: "test", task: "test" }),
-        ).rejects.toThrow(JsonRpcProtocolError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
-
-      it("throws JsonRpcHttpError on HTTP error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: httpErrorFetch(),
-        });
-
-        expect(
-          client.dispatchWorker({ description: "test", task: "test" }),
-        ).rejects.toThrow(JsonRpcHttpError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
+      describeWorkerErrors((c) => c.dispatchWorker({ description: "test", task: "test" }));
     });
 
     describe("listWorkers", () => {
@@ -704,40 +691,7 @@ describe("JsonRpcClient", () => {
         });
       });
 
-      it("throws JsonRpcTimeoutError on timeout", async () => {
-        const { mockSetTimeout, mockClearTimeout } = fastTimers();
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: hangingFetch(),
-          setTimeout: mockSetTimeout,
-          clearTimeout: mockClearTimeout,
-        });
-
-        expect(client.listWorkers()).rejects.toThrow(JsonRpcTimeoutError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
-        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
-      });
-
-      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: protocolErrorFetch(),
-        });
-
-        expect(client.listWorkers()).rejects.toThrow(JsonRpcProtocolError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
-
-      it("throws JsonRpcHttpError on HTTP error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: httpErrorFetch(),
-        });
-
-        expect(client.listWorkers()).rejects.toThrow(JsonRpcHttpError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
+      describeWorkerErrors((c) => c.listWorkers());
     });
 
     describe("workerStatus", () => {
@@ -779,46 +733,7 @@ describe("JsonRpcClient", () => {
         });
       });
 
-      it("throws JsonRpcTimeoutError on timeout", async () => {
-        const { mockSetTimeout, mockClearTimeout } = fastTimers();
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: hangingFetch(),
-          setTimeout: mockSetTimeout,
-          clearTimeout: mockClearTimeout,
-        });
-
-        expect(
-          client.workerStatus({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcTimeoutError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
-        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
-      });
-
-      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: protocolErrorFetch(),
-        });
-
-        expect(
-          client.workerStatus({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcProtocolError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
-
-      it("throws JsonRpcHttpError on HTTP error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: httpErrorFetch(),
-        });
-
-        expect(
-          client.workerStatus({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcHttpError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
+      describeWorkerErrors((c) => c.workerStatus({ jobId: "job-123" }));
     });
 
     describe("workerResult", () => {
@@ -854,46 +769,7 @@ describe("JsonRpcClient", () => {
         });
       });
 
-      it("throws JsonRpcTimeoutError on timeout", async () => {
-        const { mockSetTimeout, mockClearTimeout } = fastTimers();
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: hangingFetch(),
-          setTimeout: mockSetTimeout,
-          clearTimeout: mockClearTimeout,
-        });
-
-        expect(
-          client.workerResult({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcTimeoutError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
-        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
-      });
-
-      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: protocolErrorFetch(),
-        });
-
-        expect(
-          client.workerResult({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcProtocolError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
-
-      it("throws JsonRpcHttpError on HTTP error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: httpErrorFetch(),
-        });
-
-        expect(
-          client.workerResult({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcHttpError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
+      describeWorkerErrors((c) => c.workerResult({ jobId: "job-123" }));
     });
 
     describe("cancelWorker", () => {
@@ -924,46 +800,7 @@ describe("JsonRpcClient", () => {
         });
       });
 
-      it("throws JsonRpcTimeoutError on timeout", async () => {
-        const { mockSetTimeout, mockClearTimeout } = fastTimers();
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: hangingFetch(),
-          setTimeout: mockSetTimeout,
-          clearTimeout: mockClearTimeout,
-        });
-
-        expect(
-          client.cancelWorker({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcTimeoutError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
-        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
-      });
-
-      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: protocolErrorFetch(),
-        });
-
-        expect(
-          client.cancelWorker({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcProtocolError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
-
-      it("throws JsonRpcHttpError on HTTP error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: httpErrorFetch(),
-        });
-
-        expect(
-          client.cancelWorker({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcHttpError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
+      describeWorkerErrors((c) => c.cancelWorker({ jobId: "job-123" }));
     });
 
     describe("deleteWorker", () => {
@@ -994,46 +831,7 @@ describe("JsonRpcClient", () => {
         });
       });
 
-      it("throws JsonRpcTimeoutError on timeout", async () => {
-        const { mockSetTimeout, mockClearTimeout } = fastTimers();
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: hangingFetch(),
-          setTimeout: mockSetTimeout,
-          clearTimeout: mockClearTimeout,
-        });
-
-        expect(
-          client.deleteWorker({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcTimeoutError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 30000);
-        expect(mockClearTimeout).toHaveBeenCalledTimes(1);
-      });
-
-      it("throws JsonRpcProtocolError on JSON-RPC error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: protocolErrorFetch(),
-        });
-
-        expect(
-          client.deleteWorker({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcProtocolError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
-
-      it("throws JsonRpcHttpError on HTTP error", async () => {
-        const client = createJsonRpcClient("http://localhost:50000/mcp", {
-          fetch: httpErrorFetch(),
-        });
-
-        expect(
-          client.deleteWorker({ jobId: "job-123" }),
-        ).rejects.toThrow(JsonRpcHttpError);
-
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
+      describeWorkerErrors((c) => c.deleteWorker({ jobId: "job-123" }));
     });
   });
 });
