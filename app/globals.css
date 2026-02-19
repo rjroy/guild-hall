@@ -40,6 +40,8 @@
   --status-idle: #6B7280;
   --status-running: #10B981;
   --status-connected: #10B981;
+  --status-disconnected: #6B7280;
+  --status-available: #3B82F6;
   --status-completed: #3B82F6;
   --status-expired: #F59E0B;
   --status-error: #EF4444;

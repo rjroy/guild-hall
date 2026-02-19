@@ -73,7 +73,7 @@
  *   options.outputFormat      - { type: 'json_schema', schema: Record<string, unknown> }
  *   options.thinking          - { type: 'adaptive' } | { type: 'enabled', budgetTokens: number } | { type: 'disabled' }
  *   options.effort            - 'low' | 'medium' | 'high' | 'max'
- *   options.plugins           - { type: 'local', path: string }[]
+ *   options.plugins           - { type: 'local', path: string }[]  // Passed through from AgentQueryOptions.plugins
  *   options.sandbox           - SandboxSettings
  *
  * DIVERGENCE FROM PLAN:
@@ -700,6 +700,8 @@ export type AgentQueryOptions = {
   permissionMode: PermissionMode;
   /** SDK session ID to resume (undefined for new sessions) */
   resumeSessionId?: string;
+  /** Claude Code plugins to load (plugin-only and hybrid members) */
+  plugins?: { type: "local"; path: string }[];
 };
 
 // -- Query handle for tracking running queries --
@@ -927,6 +929,10 @@ export function startAgentQuery(
 
   if (options.resumeSessionId) {
     sdkOptions.resume = options.resumeSessionId;
+  }
+
+  if (options.plugins && options.plugins.length > 0) {
+    sdkOptions.plugins = options.plugins;
   }
 
   const q = queryFn({ prompt: options.prompt, options: sdkOptions });

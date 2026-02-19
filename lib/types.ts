@@ -28,7 +28,11 @@ export type ToolInfo = {
 
 // -- Runtime guild member state --
 
-export type GuildMemberStatus = "connected" | "disconnected" | "error";
+export type GuildMemberStatus =
+  | "connected"
+  | "disconnected"
+  | "error"
+  | "available";
 
 export type GuildMember = GuildMemberManifest & {
   status: GuildMemberStatus;
@@ -36,6 +40,8 @@ export type GuildMember = GuildMemberManifest & {
   error?: string;
   port?: number;
   pluginDir?: string;
+  pluginPath?: string;
+  memberType?: "mcp" | "plugin" | "hybrid";
 };
 
 // -- API request/response types --

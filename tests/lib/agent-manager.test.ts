@@ -181,6 +181,38 @@ function makeGuildMember(name: string, options?: { capabilities?: string[]; desc
   };
 }
 
+function makePluginMember(name: string, options?: { description?: string }): GuildMember {
+  return {
+    name,
+    displayName: name,
+    description: options?.description ?? `The ${name} member`,
+    version: "1.0.0",
+    capabilities: [],
+    status: "available",
+    tools: [],
+    pluginDir: `/test/${name}`,
+    pluginPath: `/test/${name}/plugin`,
+    memberType: "plugin",
+  };
+}
+
+function makeHybridMember(name: string, options?: { description?: string }): GuildMember {
+  return {
+    name,
+    displayName: name,
+    description: options?.description ?? `The ${name} member`,
+    version: "1.0.0",
+    transport: "http",
+    capabilities: [],
+    mcp: { command: "node", args: [`${name}.js`] },
+    status: "disconnected",
+    tools: [],
+    pluginDir: `/test/${name}`,
+    pluginPath: `/test/${name}/plugin`,
+    memberType: "hybrid",
+  };
+}
+
 function createMockMcpFactory(): MCPServerFactory {
   return {
     spawn() {
@@ -273,6 +305,7 @@ function setup(options: {
     eventBus,
     clock,
     sessionsDir: "/sessions",
+    roster,
   };
 
   const manager = new AgentManager(deps);
@@ -1142,6 +1175,7 @@ describe("AgentManager worker dispatch prompt integration", () => {
       eventBus,
       clock: () => new Date(NOW),
       sessionsDir: "/sessions",
+      roster,
     };
 
     const manager = new AgentManager(deps);
@@ -1225,6 +1259,7 @@ describe("AgentManager worker dispatch prompt integration", () => {
       eventBus,
       clock: () => new Date(NOW),
       sessionsDir: "/sessions",
+      roster,
     };
 
     const manager = new AgentManager(deps);
@@ -1233,6 +1268,185 @@ describe("AgentManager worker dispatch prompt integration", () => {
 
     expect(receivedPrompt).toContain("researcher (via researcher-dispatch)");
     expect(receivedPrompt).toContain("writer (via writer-dispatch)");
+  });
+});
+
+describe("AgentManager plugin member integration", () => {
+  function setupWithRoster(options: {
+    roster: Map<string, GuildMember>;
+    guildMembers: string[];
+    messages?: SDKMessage[];
+  }) {
+    const sdkSid = "sdk-session-1";
+    const messages = options.messages ?? [
+      makeInitMessage(sdkSid),
+      makeStreamTextDelta("Hello", sdkSid),
+      makeSuccessResult(sdkSid),
+    ];
+
+    const { queryFn: capturingFn, calls } = createCapturingQueryFn(messages);
+
+    const meta = {
+      id: "2026-02-12-test-session",
+      name: "Test Session",
+      status: "idle",
+      guildMembers: options.guildMembers,
+      sdkSessionId: null,
+      createdAt: "2026-02-12T10:00:00.000Z",
+      lastActivityAt: "2026-02-12T10:00:00.000Z",
+      messageCount: 0,
+    };
+
+    const files: Record<string, string> = {
+      "/sessions/2026-02-12-test-session/meta.json": JSON.stringify(meta, null, 2),
+      "/sessions/2026-02-12-test-session/messages.jsonl": "",
+      "/sessions/2026-02-12-test-session/context.md": "# Context",
+    };
+    const dirs = new Set([
+      "/sessions",
+      "/sessions/2026-02-12-test-session",
+      "/sessions/2026-02-12-test-session/artifacts",
+    ]);
+
+    const mockFs = createMockSessionFs(files, dirs);
+    const sessionStore = new SessionStore("/sessions", mockFs, () => new Date(NOW));
+    const mcpManager = new MCPManager(options.roster, createMockMcpFactory());
+    const eventBus = createEventBus();
+
+    const deps: AgentManagerDeps = {
+      queryFn: capturingFn,
+      sessionStore,
+      mcpManager,
+      eventBus,
+      clock: () => new Date(NOW),
+      sessionsDir: "/sessions",
+      roster: options.roster,
+    };
+
+    const manager = new AgentManager(deps);
+
+    return { manager, calls, mcpManager };
+  }
+
+  it("passes plugins array for plugin-only members", async () => {
+    const roster = new Map<string, GuildMember>([
+      ["plugin-a", makePluginMember("plugin-a")],
+    ]);
+
+    const { manager, calls } = setupWithRoster({
+      roster,
+      guildMembers: ["plugin-a"],
+    });
+
+    await manager.runQuery("2026-02-12-test-session", "Hello");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(calls).toHaveLength(1);
+    const sdkPlugins = calls[0].options.plugins as Array<{ type: string; path: string }>;
+    expect(sdkPlugins).toEqual([
+      { type: "local", path: "/test/plugin-a/plugin" },
+    ]);
+  });
+
+  it("hybrid member appears in both MCP configs and plugins array", async () => {
+    const roster = new Map<string, GuildMember>([
+      ["hybrid-a", makeHybridMember("hybrid-a")],
+    ]);
+
+    const { manager, calls } = setupWithRoster({
+      roster,
+      guildMembers: ["hybrid-a"],
+    });
+
+    await manager.runQuery("2026-02-12-test-session", "Hello");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(calls).toHaveLength(1);
+
+    // Should have MCP server config for hybrid member
+    const mcpServers = calls[0].options.mcpServers as Record<string, unknown>;
+    expect(Object.keys(mcpServers)).toContain("hybrid-a");
+
+    // Should also have plugin entry for hybrid member
+    const sdkPlugins = calls[0].options.plugins as Array<{ type: string; path: string }>;
+    expect(sdkPlugins).toEqual([
+      { type: "local", path: "/test/hybrid-a/plugin" },
+    ]);
+  });
+
+  it("MCPManager receives only MCP member names, not plugin-only names", async () => {
+    const roster = new Map<string, GuildMember>([
+      ["mcp-only", makeGuildMember("mcp-only")],
+      ["plugin-only", makePluginMember("plugin-only")],
+    ]);
+
+    const { manager, calls } = setupWithRoster({
+      roster,
+      guildMembers: ["mcp-only", "plugin-only"],
+    });
+
+    await manager.runQuery("2026-02-12-test-session", "Hello");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(calls).toHaveLength(1);
+
+    // MCP server config should contain mcp-only but NOT plugin-only
+    const mcpServers = calls[0].options.mcpServers as Record<string, unknown>;
+    expect(Object.keys(mcpServers)).toContain("mcp-only");
+    expect(Object.keys(mcpServers)).not.toContain("plugin-only");
+
+    // Plugins should contain plugin-only
+    const sdkPlugins = calls[0].options.plugins as Array<{ type: string; path: string }>;
+    expect(sdkPlugins).toEqual([
+      { type: "local", path: "/test/plugin-only/plugin" },
+    ]);
+  });
+
+  it("does not pass plugins when no plugin members exist", async () => {
+    const roster = new Map<string, GuildMember>([
+      ["mcp-only", makeGuildMember("mcp-only")],
+    ]);
+
+    const { manager, calls } = setupWithRoster({
+      roster,
+      guildMembers: ["mcp-only"],
+    });
+
+    await manager.runQuery("2026-02-12-test-session", "Hello");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].options.plugins).toBeUndefined();
+  });
+
+  it("handles mix of MCP, plugin, and hybrid members", async () => {
+    const roster = new Map<string, GuildMember>([
+      ["mcp-a", makeGuildMember("mcp-a")],
+      ["plugin-b", makePluginMember("plugin-b")],
+      ["hybrid-c", makeHybridMember("hybrid-c")],
+    ]);
+
+    const { manager, calls } = setupWithRoster({
+      roster,
+      guildMembers: ["mcp-a", "plugin-b", "hybrid-c"],
+    });
+
+    await manager.runQuery("2026-02-12-test-session", "Hello");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(calls).toHaveLength(1);
+
+    // MCP configs: mcp-a and hybrid-c (both have mcp field)
+    const mcpServers = calls[0].options.mcpServers as Record<string, unknown>;
+    expect(Object.keys(mcpServers)).toContain("mcp-a");
+    expect(Object.keys(mcpServers)).toContain("hybrid-c");
+    expect(Object.keys(mcpServers)).not.toContain("plugin-b");
+
+    // Plugins: plugin-b and hybrid-c (both have pluginPath)
+    const sdkPlugins = calls[0].options.plugins as Array<{ type: string; path: string }>;
+    expect(sdkPlugins).toHaveLength(2);
+    expect(sdkPlugins).toContainEqual({ type: "local", path: "/test/plugin-b/plugin" });
+    expect(sdkPlugins).toContainEqual({ type: "local", path: "/test/hybrid-c/plugin" });
   });
 });
 

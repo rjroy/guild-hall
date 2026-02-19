@@ -39,6 +39,11 @@
   background: var(--status-disconnected);
 }
 
+.statusAvailable {
+  background: var(--status-available);
+  box-shadow: 0 0 4px var(--status-available);
+}
+
 .statusError {
   background: var(--status-error);
   box-shadow: 0 0 4px var(--status-error);
@@ -102,6 +107,19 @@
 .expandIconOpen {
   composes: expandIcon;
   transform: rotate(90deg);
+}
+
+.pluginBadge {
+  composes: toolBadge;
+}
+
+.staticHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  cursor: default;
+  user-select: none;
 }
 
 .avatar {

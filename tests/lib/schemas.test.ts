@@ -45,8 +45,8 @@ describe("GuildMemberManifestSchema", () => {
     const result = GuildMemberManifestSchema.parse(validManifest());
     expect(result.name).toBe("test-member");
     expect(result.displayName).toBe("Test Member");
-    expect(result.mcp.command).toBe("node");
-    expect(result.mcp.args).toEqual(["server.js"]);
+    expect(result.mcp?.command).toBe("node");
+    expect(result.mcp?.args).toEqual(["server.js"]);
   });
 
   it("accepts a manifest with optional env", () => {
@@ -58,7 +58,7 @@ describe("GuildMemberManifestSchema", () => {
       },
     };
     const result = GuildMemberManifestSchema.parse(manifest);
-    expect(result.mcp.env).toEqual({ NODE_ENV: "production" });
+    expect(result.mcp?.env).toEqual({ NODE_ENV: "production" });
   });
 
   it("rejects a manifest missing required top-level fields", () => {
@@ -110,10 +110,12 @@ describe("GuildMemberManifestSchema", () => {
     expect(result.transport).toBe("http");
   });
 
-  it("rejects manifest missing transport field", () => {
+  it("rejects mcp manifest missing transport field", () => {
     const manifest: Record<string, unknown> = { ...validManifest() };
     delete manifest.transport;
-    expect(() => GuildMemberManifestSchema.parse(manifest)).toThrow();
+    expect(() => GuildMemberManifestSchema.parse(manifest)).toThrow(
+      "'transport' and 'mcp' must be both present or both absent",
+    );
   });
 
   it("rejects manifest with invalid transport value", () => {
@@ -145,6 +147,129 @@ describe("GuildMemberManifestSchema", () => {
   it("accepts manifest without capabilities", () => {
     const result = GuildMemberManifestSchema.parse(validManifest());
     expect(result.capabilities).toBeUndefined();
+  });
+
+  // -- Plugin-only manifests --
+
+  it("accepts a plugin-only manifest", () => {
+    const manifest = {
+      name: "plugin-member",
+      displayName: "Plugin Member",
+      description: "A plugin-only guild member",
+      version: "1.0.0",
+      plugin: { path: "./plugin" },
+    };
+    const result = GuildMemberManifestSchema.parse(manifest);
+    expect(result.name).toBe("plugin-member");
+    expect(result.plugin?.path).toBe("./plugin");
+    expect(result.mcp).toBeUndefined();
+    expect(result.transport).toBeUndefined();
+  });
+
+  it("accepts a hybrid manifest with both mcp and plugin", () => {
+    const manifest = {
+      ...validManifest(),
+      plugin: { path: "./plugin" },
+    };
+    const result = GuildMemberManifestSchema.parse(manifest);
+    expect(result.mcp?.command).toBe("node");
+    expect(result.plugin?.path).toBe("./plugin");
+    expect(result.transport).toBe("http");
+  });
+
+  // -- Invalid combinations --
+
+  it("rejects manifest with neither mcp nor plugin", () => {
+    const manifest = {
+      name: "empty-member",
+      displayName: "Empty Member",
+      description: "Has neither mcp nor plugin",
+      version: "1.0.0",
+    };
+    expect(() => GuildMemberManifestSchema.parse(manifest)).toThrow(
+      "At least one of 'mcp' or 'plugin' must be present",
+    );
+  });
+
+  it("rejects transport without mcp", () => {
+    const manifest = {
+      name: "bad-member",
+      displayName: "Bad Member",
+      description: "Has transport but no mcp",
+      version: "1.0.0",
+      transport: "http" as const,
+      plugin: { path: "./plugin" },
+    };
+    expect(() => GuildMemberManifestSchema.parse(manifest)).toThrow(
+      "'transport' and 'mcp' must be both present or both absent",
+    );
+  });
+
+  it("rejects mcp without transport", () => {
+    const manifest = {
+      name: "bad-member",
+      displayName: "Bad Member",
+      description: "Has mcp but no transport",
+      version: "1.0.0",
+      mcp: { command: "node", args: ["server.js"] },
+    };
+    expect(() => GuildMemberManifestSchema.parse(manifest)).toThrow(
+      "'transport' and 'mcp' must be both present or both absent",
+    );
+  });
+
+  it("rejects worker capability without mcp", () => {
+    const manifest = {
+      name: "worker-plugin",
+      displayName: "Worker Plugin",
+      description: "Plugin with worker capability but no mcp",
+      version: "1.0.0",
+      plugin: { path: "./plugin" },
+      capabilities: ["worker"],
+    };
+    expect(() => GuildMemberManifestSchema.parse(manifest)).toThrow(
+      "'worker' capability requires 'mcp' configuration",
+    );
+  });
+
+  // -- Edge cases --
+
+  it("accepts hybrid manifest with worker capability", () => {
+    const manifest = {
+      ...validManifest(),
+      plugin: { path: "./plugin" },
+      capabilities: ["worker"],
+    };
+    const result = GuildMemberManifestSchema.parse(manifest);
+    expect(result.capabilities).toEqual(["worker"]);
+    expect(result.mcp?.command).toBe("node");
+    expect(result.plugin?.path).toBe("./plugin");
+  });
+
+  it("accepts plugin-only manifest with empty capabilities", () => {
+    const manifest = {
+      name: "plugin-member",
+      displayName: "Plugin Member",
+      description: "Plugin with empty capabilities",
+      version: "1.0.0",
+      plugin: { path: "./plugin" },
+      capabilities: [],
+    };
+    const result = GuildMemberManifestSchema.parse(manifest);
+    expect(result.capabilities).toEqual([]);
+  });
+
+  it("accepts plugin-only manifest with non-worker capabilities", () => {
+    const manifest = {
+      name: "plugin-member",
+      displayName: "Plugin Member",
+      description: "Plugin with non-worker capabilities",
+      version: "1.0.0",
+      plugin: { path: "./plugin" },
+      capabilities: ["tools", "custom"],
+    };
+    const result = GuildMemberManifestSchema.parse(manifest);
+    expect(result.capabilities).toEqual(["tools", "custom"]);
   });
 });
 

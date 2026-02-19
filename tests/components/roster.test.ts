@@ -60,6 +60,38 @@ function makeGuildMember(overrides: Partial<GuildMember> = {}): GuildMember {
   };
 }
 
+function makePluginMember(overrides: Partial<GuildMember> = {}): GuildMember {
+  return {
+    name: "plugin-member",
+    displayName: "Plugin Member",
+    description: "A plugin-only guild member",
+    version: "1.0.0",
+    plugin: { path: "./plugin" },
+    status: "available",
+    tools: [],
+    memberType: "plugin",
+    pluginPath: "/absolute/path/to/plugin",
+    ...overrides,
+  };
+}
+
+function makeHybridMember(overrides: Partial<GuildMember> = {}): GuildMember {
+  return {
+    name: "hybrid-member",
+    displayName: "Hybrid Member",
+    description: "A hybrid guild member",
+    version: "1.0.0",
+    transport: "http",
+    mcp: { command: "node", args: ["server.js"] },
+    plugin: { path: "./plugin" },
+    status: "disconnected",
+    tools: [{ name: "some_tool", description: "A tool", inputSchema: {} }],
+    memberType: "hybrid",
+    pluginPath: "/absolute/path/to/plugin",
+    ...overrides,
+  };
+}
+
 // -- Tests --
 
 describe("Roster component logic", () => {
@@ -313,6 +345,125 @@ describe("Roster component logic", () => {
       let activeToolName: string | null = "read_file";
       activeToolName = activeToolName === "list_all" ? null : "list_all";
       expect(activeToolName).toBe("list_all");
+    });
+  });
+
+  describe("status class mapping", () => {
+    // The component maps GuildMemberStatus to CSS module class names.
+    // "available" must map to a distinct class, not reuse disconnected.
+
+    it("available maps to a distinct status class", () => {
+      // Replicate the component's statusClass mapping logic.
+      // Each status should map to a unique string (CSS class name).
+      const statusMap: Record<string, string> = {
+        available: "statusAvailable",
+        connected: "statusConnected",
+        disconnected: "statusDisconnected",
+        error: "statusError",
+      };
+
+      // "available" must exist and be distinct from connected, disconnected, and error
+      expect(statusMap.available).toBeDefined();
+      expect(statusMap.available).not.toBe(statusMap.connected);
+      expect(statusMap.available).not.toBe(statusMap.disconnected);
+      expect(statusMap.available).not.toBe(statusMap.error);
+    });
+  });
+
+  describe("memberType badge logic", () => {
+    // Badge visibility is driven by memberType:
+    // - MCP (or undefined): tool count badge only
+    // - Plugin-only: "Plugin" badge only (no tool count)
+    // - Hybrid: both tool count and "Plugin" badge
+
+    it("MCP member shows tool count badge", () => {
+      const member = makeGuildMember({
+        memberType: "mcp",
+        tools: [readFileTool],
+      });
+      const isPluginOnly = member.memberType === "plugin";
+      const showToolBadge = !isPluginOnly && member.tools.length > 0;
+      const showPluginBadge =
+        member.memberType === "plugin" || member.memberType === "hybrid";
+
+      expect(showToolBadge).toBe(true);
+      expect(showPluginBadge).toBe(false);
+    });
+
+    it("plugin-only member shows Plugin badge", () => {
+      const member = makePluginMember();
+      const isPluginOnly = member.memberType === "plugin";
+      const showToolBadge = !isPluginOnly && member.tools.length > 0;
+      const showPluginBadge =
+        member.memberType === "plugin" || member.memberType === "hybrid";
+
+      expect(showToolBadge).toBe(false);
+      expect(showPluginBadge).toBe(true);
+    });
+
+    it("plugin-only member does not show tool count", () => {
+      const member = makePluginMember({
+        tools: [readFileTool], // even with tools, plugin-only hides tool count
+      });
+      const isPluginOnly = member.memberType === "plugin";
+      const showToolBadge = !isPluginOnly && member.tools.length > 0;
+
+      expect(showToolBadge).toBe(false);
+    });
+
+    it("hybrid member shows both tool count and Plugin badge", () => {
+      const member = makeHybridMember();
+      const isPluginOnly = member.memberType === "plugin";
+      const showToolBadge = !isPluginOnly && member.tools.length > 0;
+      const showPluginBadge =
+        member.memberType === "plugin" || member.memberType === "hybrid";
+
+      expect(showToolBadge).toBe(true);
+      expect(showPluginBadge).toBe(true);
+    });
+
+    it("member without memberType falls back to MCP behavior", () => {
+      const member = makeGuildMember({ tools: [readFileTool] });
+      // memberType is undefined, which is neither "plugin" nor "hybrid"
+      const isPluginOnly = member.memberType === "plugin";
+      const showToolBadge = !isPluginOnly && member.tools.length > 0;
+      const showPluginBadge =
+        member.memberType === "plugin" || member.memberType === "hybrid";
+
+      expect(showToolBadge).toBe(true);
+      expect(showPluginBadge).toBe(false);
+    });
+  });
+
+  describe("plugin-only card interactivity", () => {
+    // Plugin-only members have a static (non-interactive) card header.
+    // MCP and hybrid members have the standard interactive header with
+    // expand/collapse behavior.
+
+    it("plugin-only member is not interactive", () => {
+      const member = makePluginMember();
+      const isPluginOnly = member.memberType === "plugin";
+      expect(isPluginOnly).toBe(true);
+      // Plugin-only members render a static header: no onClick, no chevron,
+      // no expand/collapse state.
+    });
+
+    it("MCP member is interactive", () => {
+      const member = makeGuildMember({ memberType: "mcp" });
+      const isPluginOnly = member.memberType === "plugin";
+      expect(isPluginOnly).toBe(false);
+    });
+
+    it("hybrid member is interactive", () => {
+      const member = makeHybridMember();
+      const isPluginOnly = member.memberType === "plugin";
+      expect(isPluginOnly).toBe(false);
+    });
+
+    it("member without memberType is interactive", () => {
+      const member = makeGuildMember();
+      const isPluginOnly = member.memberType === "plugin";
+      expect(isPluginOnly).toBe(false);
     });
   });
 });

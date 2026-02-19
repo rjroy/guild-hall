@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { GuildMemberManifestSchema } from "./schemas";
 import type { GuildMember } from "./types";
 
@@ -21,7 +23,8 @@ export interface FileSystem {
  * Returns a Map keyed by relative path from directoryPath (e.g., "standalone"
  * or "collection/plugin") so that even invalid manifests are keyed.
  *
- * - Valid manifests produce a GuildMember with status "disconnected"
+ * - Valid MCP/hybrid manifests produce a GuildMember with status "disconnected"
+ * - Valid plugin-only manifests produce a GuildMember with status "available"
  * - Invalid manifests produce a GuildMember with status "error" and an error message
  * - Nonexistent directories return an empty map (no throw)
  */
@@ -131,18 +134,52 @@ async function loadManifest(
   const result = GuildMemberManifestSchema.safeParse(parsed);
 
   if (result.success) {
+    const manifest = result.data;
+    const hasMcp = manifest.mcp !== undefined;
+    const hasPlugin = manifest.plugin !== undefined;
+
+    const memberType: "mcp" | "plugin" | "hybrid" = hasMcp && hasPlugin
+      ? "hybrid"
+      : hasMcp
+        ? "mcp"
+        : "plugin";
+
+    // MCP members need a server process, so they start disconnected.
+    // Plugin-only members have no server process, so they're immediately available.
+    const status = memberType === "plugin" ? "available" : "disconnected";
+
+    // Resolve and validate plugin path when plugin field is present
+    let resolvedPluginPath: string | undefined;
+    if (manifest.plugin) {
+      const resolved = path.resolve(pluginPath, manifest.plugin.path);
+      const relative = path.relative(pluginPath, resolved);
+
+      // Path escapes the guild member directory (REQ-PLUG-4)
+      if (relative.startsWith("..") || path.isAbsolute(relative)) {
+        return makeErrorMember(
+          key,
+          `Plugin path "${manifest.plugin.path}" escapes guild member directory`,
+          pluginPath,
+        );
+      }
+
+      resolvedPluginPath = resolved;
+    }
+
     return {
-      ...result.data,
+      ...manifest,
       // Override manifest name with discovery key so the name matches
       // the roster map key. For nested plugins this includes the
       // collection prefix (e.g., "guild-founders/aegis-of-focus").
       name: key,
       // Normalize undefined capabilities to empty array so consumers
       // don't need to check for undefined.
-      capabilities: result.data.capabilities ?? [],
-      status: "disconnected",
+      capabilities: manifest.capabilities ?? [],
+      memberType,
+      status,
       tools: [],
       pluginDir: pluginPath,
+      ...(resolvedPluginPath !== undefined && { pluginPath: resolvedPluginPath }),
     };
   } else {
     return makeErrorMember(key, result.error.message, pluginPath);
@@ -155,9 +192,7 @@ function makeErrorMember(dirName: string, errorMessage: string, pluginPath: stri
     displayName: dirName,
     description: "",
     version: "",
-    transport: "http",
     capabilities: [],
-    mcp: { command: "", args: [] },
     status: "error",
     tools: [],
     error: errorMessage,

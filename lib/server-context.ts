@@ -114,6 +114,7 @@ export function createServerContext(deps: ServerContextDeps): ServerContext & {
       eventBus: bus,
       clock: deps.clock ?? (() => new Date()),
       sessionsDir: deps.sessionsDir,
+      roster,
     });
 
     const initElapsed = Date.now() - initStart;
