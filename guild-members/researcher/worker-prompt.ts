@@ -3,7 +3,7 @@
  *
  * Constructs the system prompt injected into the worker agent session.
  * The prompt defines the agent's role, provides the task and prior
- * memories, explains the four internal tools, and sets output format
+ * memories, explains the five internal tools, and sets output format
  * expectations.
  */
 

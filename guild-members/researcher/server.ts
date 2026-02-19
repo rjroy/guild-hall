@@ -167,42 +167,35 @@ export class HttpTransport implements Transport {
     request: JsonRpcRequest,
     res: ServerResponse,
   ): Promise<void> {
-    const handler = this._workerHandlers[request.method];
-
-    let response: JsonRpcSuccessResponse | JsonRpcErrorResponse;
-
-    if (!handler) {
-      response = {
-        jsonrpc: "2.0",
-        id: request.id,
-        error: {
-          code: -32601,
-          message: `not implemented: ${request.method}`,
-        },
-      };
-    } else {
-      try {
-        const result = await handler(request.params);
-        response = {
-          jsonrpc: "2.0",
-          id: request.id,
-          result,
-        };
-      } catch (err) {
-        const code = err instanceof HandlerError ? err.code : -32603;
-        response = {
-          jsonrpc: "2.0",
-          id: request.id,
-          error: {
-            code,
-            message: err instanceof Error ? err.message : String(err),
-          },
-        };
-      }
-    }
-
+    const response = await this._invokeWorkerHandler(request);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(response));
+  }
+
+  private async _invokeWorkerHandler(
+    request: JsonRpcRequest,
+  ): Promise<JsonRpcSuccessResponse | JsonRpcErrorResponse> {
+    const handler = this._workerHandlers[request.method];
+
+    if (!handler) {
+      return {
+        jsonrpc: "2.0",
+        id: request.id,
+        error: { code: -32601, message: `not implemented: ${request.method}` },
+      };
+    }
+
+    try {
+      const result = await handler(request.params);
+      return { jsonrpc: "2.0", id: request.id, result };
+    } catch (err) {
+      const code = err instanceof HandlerError ? err.code : -32603;
+      return {
+        jsonrpc: "2.0",
+        id: request.id,
+        error: { code, message: err instanceof Error ? err.message : String(err) },
+      };
+    }
   }
 }
 
@@ -259,9 +252,9 @@ export function createDefaultWorkerHandlers(
   jobStore?: JobStore,
   dispatchDeps?: WorkerDispatchDeps,
 ): Record<string, WorkerMethodHandler> {
-  const notImplemented = (_params: Record<string, unknown> | undefined): Promise<unknown> => {
+  function notImplemented(_params: Record<string, unknown> | undefined): Promise<unknown> {
     return Promise.reject(new Error("not implemented"));
-  };
+  }
 
   // When no JobStore is provided, all handlers are stubs (for tests that
   // don't need real dispatch/list behavior).
@@ -276,23 +269,64 @@ export function createDefaultWorkerHandlers(
     };
   }
 
-  // Map of running job abort controllers, keyed by jobId.
-  // The dispatch handler adds entries; the cancel handler and the
-  // .finally() cleanup remove them.
+  // Bind narrowed jobStore so nested functions see it as non-optional
+  const store = jobStore;
+
+  // Running job abort controllers, keyed by jobId. Dispatch adds entries;
+  // cancel and the agent lifecycle cleanup remove them.
   const runningAbortControllers = new Map<string, AbortController>();
 
-  const onCancel = (jobId: string) => {
+  function onCancel(jobId: string): void {
     const controller = runningAbortControllers.get(jobId);
     if (controller) {
       controller.abort();
       runningAbortControllers.delete(jobId);
     }
-  };
+  }
 
-  const handlers = createHandlers(jobStore, onCancel);
+  const handlers = createHandlers(store, onCancel);
 
-  // Wrap dispatch to spawn the agent after creating the job
-  const dispatchWithAgent = async (params: DispatchParams) => {
+  /**
+   * Handles agent completion: stores result (preferring submit_result over
+   * the agent's final text), then marks the job completed.
+   */
+  async function handleAgentSuccess(jobId: string, output: string, clock: { now: () => string }): Promise<void> {
+    const existing = await store.readResult(jobId);
+    if (existing?.output) {
+      console.log(`[dispatch:${jobId}] Result already stored via submit_result (${existing.output.length} chars)`);
+    } else if (output) {
+      console.log(`[dispatch:${jobId}] Writing agent result text as fallback (${output.length} chars)`);
+      await store.writeResult(jobId, output);
+    } else {
+      console.log(`[dispatch:${jobId}] No result from submit_result or agent text`);
+    }
+    await store.updateStatus(jobId, "completed", clock.now());
+    console.log(`[dispatch:${jobId}] Job completed`);
+  }
+
+  /**
+   * Handles agent failure: if submit_result stored a result before the error,
+   * mark completed. Otherwise mark failed.
+   */
+  async function handleAgentError(jobId: string, error: unknown, clock: { now: () => string }): Promise<void> {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[dispatch:${jobId}] Agent error: ${message}`);
+
+    try {
+      const existing = await store.readResult(jobId);
+      if (existing?.output) {
+        console.log(`[dispatch:${jobId}] Result was stored via submit_result despite agent error (${existing.output.length} chars). Marking completed.`);
+        await store.updateStatus(jobId, "completed", clock.now());
+      } else {
+        console.log(`[dispatch:${jobId}] No result stored. Marking failed.`);
+        await store.setError(jobId, message);
+      }
+    } catch (storeErr) {
+      console.error(`[dispatch:${jobId}] Failed to update job store:`, storeErr);
+    }
+  }
+
+  async function dispatchWithAgent(params: DispatchParams): Promise<{ jobId: string }> {
     const result = await handlers.dispatch(params);
 
     if (dispatchDeps) {
@@ -301,7 +335,7 @@ export function createDefaultWorkerHandlers(
       const { task, config } = params;
 
       const internalTools = createWorkerTools(
-        jobId, jobStore, memoryStore,
+        jobId, store, memoryStore,
         (path) => readFile(path, "utf-8"),
       );
       const memories = await memoryStore.loadMemories(8000);
@@ -310,52 +344,15 @@ export function createDefaultWorkerHandlers(
 
       runningAbortControllers.set(jobId, abortController);
 
-      // Fire-and-forget: spawn agent in background
       console.log(`[dispatch:${jobId}] Spawning worker agent...`);
       spawnWorkerAgent(task, systemPrompt, internalTools, config, queryFn, abortController)
-        .then(async (output) => {
-          // Check if submit_result already wrote the result during execution.
-          // If so, don't overwrite it with the agent's final text message
-          // (which is typically a brief completion notice, not the report).
-          const existing = await jobStore.readResult(jobId);
-          if (existing?.output) {
-            console.log(`[dispatch:${jobId}] Result already stored via submit_result (${existing.output.length} chars)`);
-          } else if (output) {
-            console.log(`[dispatch:${jobId}] Writing agent result text as fallback (${output.length} chars)`);
-            await jobStore.writeResult(jobId, output);
-          } else {
-            console.log(`[dispatch:${jobId}] No result from submit_result or agent text`);
-          }
-          await jobStore.updateStatus(jobId, "completed", clock.now());
-          console.log(`[dispatch:${jobId}] Job completed`);
-        })
-        .catch(async (error) => {
-          const message = error instanceof Error ? error.message : String(error);
-          console.error(`[dispatch:${jobId}] Agent error: ${message}`);
-
-          // Check if submit_result stored a result before the error.
-          // The agent may have done useful work and submitted results
-          // before hitting a limit or failing.
-          try {
-            const existing = await jobStore.readResult(jobId);
-            if (existing?.output) {
-              console.log(`[dispatch:${jobId}] Result was stored via submit_result despite agent error (${existing.output.length} chars). Marking completed.`);
-              await jobStore.updateStatus(jobId, "completed", clock.now());
-            } else {
-              console.log(`[dispatch:${jobId}] No result stored. Marking failed.`);
-              await jobStore.setError(jobId, message);
-            }
-          } catch (storeErr) {
-            console.error(`[dispatch:${jobId}] Failed to update job store:`, storeErr);
-          }
-        })
-        .finally(() => {
-          runningAbortControllers.delete(jobId);
-        });
+        .then((output) => handleAgentSuccess(jobId, output, clock))
+        .catch((error) => handleAgentError(jobId, error, clock))
+        .finally(() => runningAbortControllers.delete(jobId));
     }
 
     return result;
-  };
+  }
 
   return {
     "worker/dispatch": (params) =>
@@ -429,7 +426,8 @@ export function createResearcherServer(
       });
 
       await new Promise<void>((resolve) => {
-        httpServer!.listen(port, "127.0.0.1", () => {  
+        // httpServer is assigned on the line above; non-null is safe here
+        httpServer!.listen(port, "127.0.0.1", () => {
           console.log(`Researcher MCP server listening on http://127.0.0.1:${port}/mcp`);
           resolve();
         });
@@ -440,7 +438,8 @@ export function createResearcherServer(
       await transport.close();
       if (httpServer) {
         await new Promise<void>((resolve, reject) => {
-          httpServer!.close((err) => {  
+          // Guarded by the if-check above; non-null is safe here
+          httpServer!.close((err) => {
             if (err) reject(err);
             else resolve();
           });
@@ -452,7 +451,7 @@ export function createResearcherServer(
 
 // -- Main entrypoint --
 
-async function main() {
+async function main(): Promise<void> {
   const port = parsePort(process.argv);
   if (port === null) {
     console.error("Error: --port argument required (valid range: 1-65535)");

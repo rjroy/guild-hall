@@ -22,7 +22,7 @@ import type {
 
 import type { JobStore } from "./job-store.js";
 
-// -- Memory store interface (implemented in Phase 11: memory.ts) --
+// -- Memory store interface (implemented in memory.ts) --
 
 export type MemoryStore = {
   storeMemory: (key: string, content: string) => Promise<void>;

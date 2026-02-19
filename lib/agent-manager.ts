@@ -10,8 +10,6 @@ import { startAgentQuery } from "./agent";
 import type { Clock } from "./session-store";
 import type { GuildMember, StoredMessage } from "./types";
 
-// -- Context file system prompt --
-
 export const CONTEXT_FILE_PROMPT = `You have access to a context file at context.md in your working directory. This file captures the distilled state of the work in this session.
 
 At the start of each conversation:
@@ -23,8 +21,6 @@ As you work:
 - Remove stale information rather than accumulating
 
 The context file has these sections: Goal, Decisions, In Progress, Resources.`;
-
-// -- Worker dispatch prompt --
 
 /**
  * Build the worker dispatch section of the system prompt. Returns an empty
@@ -66,8 +62,6 @@ export function buildSystemPrompt(
   return CONTEXT_FILE_PROMPT + buildWorkerDispatchPrompt(workers);
 }
 
-// -- Agent manager dependencies --
-
 export type AgentManagerDeps = {
   queryFn: QueryFn;
   sessionStore: SessionStore;
@@ -78,14 +72,10 @@ export type AgentManagerDeps = {
   roster: Map<string, GuildMember>;
 };
 
-// -- Type predicate for plugin members --
-
 /** Narrows GuildMember to one that has a pluginPath, avoiding non-null assertions. */
 function hasPluginPath(m: GuildMember): m is GuildMember & { pluginPath: string } {
   return m.pluginPath !== undefined;
 }
-
-// -- Agent manager --
 
 /**
  * Orchestrates agent queries across sessions. Enforces single-query-per-session,
@@ -116,7 +106,6 @@ export class AgentManager {
       );
     }
 
-    // Read session metadata
     const session = await this.deps.sessionStore.getSession(sessionId);
     if (!session) {
       throw new AgentManagerError("Session not found", 404);
@@ -125,13 +114,11 @@ export class AgentManager {
     const { metadata } = session;
     const { guildMembers, sdkSessionId, status } = metadata;
 
-    // Determine whether to resume the SDK session or start fresh.
-    // Resume when: sdkSessionId exists AND status is not "expired".
-    // Fresh start when: no sdkSessionId, or status is "expired".
+    // Resume when sdkSessionId exists and hasn't expired; otherwise fresh start
     const shouldResume = sdkSessionId !== null && status !== "expired";
 
-    // Partition members by type: MCP members get servers started via MCPManager,
-    // plugin members get passed as SDK plugins. Hybrid members appear in both.
+    // Partition members: MCP members get servers, plugin members become SDK plugins.
+    // Independent if-checks (not else-if) because hybrid members appear in both.
     const mcpMemberNames: string[] = [];
     const pluginMembers: (GuildMember & { pluginPath: string })[] = [];
 
@@ -146,24 +133,19 @@ export class AgentManager {
       }
     }
 
-    // Start MCP servers only for MCP members (must happen before getServerConfigs
-    // so that servers released after a previous query are respawned and their
-    // status/port is current when we build the SDK config).
+    // Must start servers before getServerConfigs so that servers released
+    // after a previous query are respawned with current status/port.
     await this.deps.mcpManager.startServersForSession(sessionId, mcpMemberNames);
 
-    // Build MCP server configs only for MCP members
     const toolConfigs = this.deps.mcpManager.getServerConfigs(mcpMemberNames);
     const dispatchConfigs = this.deps.mcpManager.getDispatchConfigs(mcpMemberNames);
     const mcpServers = { ...toolConfigs, ...dispatchConfigs };
 
-    // Build system prompt with worker dispatch guidance only for MCP members
     const workers = this.deps.mcpManager.getWorkerCapableMembers(mcpMemberNames);
     const systemPrompt = buildSystemPrompt(workers);
 
-    // Build plugins array from plugin members
     const plugins = pluginMembers.map(m => ({ type: "local" as const, path: m.pluginPath }));
 
-    // Build query options
     const sessionDir = `${this.deps.sessionsDir}/${sessionId}`;
     const options: AgentQueryOptions = {
       prompt: userMessage,
@@ -175,27 +157,24 @@ export class AgentManager {
       plugins: plugins.length > 0 ? plugins : undefined,
     };
 
-    // Update session status to running
     const now = this.deps.clock();
     await this.deps.sessionStore.updateMetadata(sessionId, {
       status: "running",
       lastActivityAt: now.toISOString(),
     });
 
-    // Store the user message
     await this.deps.sessionStore.appendMessage(sessionId, {
       role: "user",
       content: userMessage,
       timestamp: now.toISOString(),
     });
 
-    // Start the query (returns immediately, iteration runs in background)
     const handle = startAgentQuery(
       sessionId,
       options,
       this.deps.eventBus,
       (capturedSdkSessionId) => {
-        // Update meta.json with the SDK session ID for future resume
+        // Persist SDK session ID for future resume
         void this.deps.sessionStore.updateMetadata(sessionId, {
           sdkSessionId: capturedSdkSessionId,
         }).catch((err: unknown) => {
@@ -207,8 +186,6 @@ export class AgentManager {
     );
 
     this.runningQueries.set(sessionId, handle);
-
-    // Wait for completion in background, then clean up
     void this.awaitCompletion(sessionId, handle);
   }
 
@@ -228,8 +205,6 @@ export class AgentManager {
     handle.abortController.abort();
   }
 
-  // -- Private helpers --
-
   /**
    * Wait for a query's iteration to complete, then persist assistant messages,
    * update session metadata, and clean up the running queries map.
@@ -246,11 +221,8 @@ export class AgentManager {
       await handle._iterationPromise;
     } finally {
       this.runningQueries.delete(sessionId);
-
-      // Check whether any accumulated error events indicate session expiration
       const expired = this.detectSessionExpired(handle);
 
-      // Persist assistant response from accumulated events
       try {
         await this.persistAssistantMessages(sessionId, handle);
       } catch {
@@ -258,7 +230,6 @@ export class AgentManager {
         // these events to the client in real time.
       }
 
-      // messageCount tracks user-visible turns (one send-message -> agent-response cycle)
       const now = this.deps.clock();
       try {
         const session = await this.deps.sessionStore.getSession(sessionId);
@@ -270,7 +241,6 @@ export class AgentManager {
             lastActivityAt: now.toISOString(),
           });
 
-          // Notify subscribers of the status transition so the UI updates
           this.deps.eventBus.emit(sessionId, {
             type: "status_change",
             status: nextStatus,
@@ -281,7 +251,6 @@ export class AgentManager {
         // until the next interaction corrects it.
       }
 
-      // Release MCP servers for this session
       try {
         await this.deps.mcpManager.releaseServersForSession(sessionId);
       } catch {
@@ -296,21 +265,14 @@ export class AgentManager {
    * for expired sessions, so we match on error message content.
    */
   private detectSessionExpired(handle: QueryHandle): boolean {
-    for (const event of handle._accumulatedEvents) {
-      if (event.type !== "error") continue;
-
+    return handle._accumulatedEvents.some((event) => {
+      if (event.type !== "error") return false;
       const msg = event.message.toLowerCase();
-      if (
-        (msg.includes("session") && msg.includes("expired")) ||
-        (msg.includes("session") && msg.includes("not found")) ||
-        (msg.includes("session") && msg.includes("invalid")) ||
-        msg.includes("session has expired") ||
-        msg.includes("session expired")
-      ) {
-        return true;
-      }
-    }
-    return false;
+      return (
+        msg.includes("session") &&
+        (msg.includes("expired") || msg.includes("not found") || msg.includes("invalid"))
+      );
+    });
   }
 
   /**
@@ -326,11 +288,9 @@ export class AgentManager {
     const events = handle._accumulatedEvents;
     const now = this.deps.clock().toISOString();
 
-    // Accumulate all assistant text into one message
     const textParts: string[] = [];
     const toolMessages: StoredMessage[] = [];
-
-    // Track tool_use events so we can pair them with tool_result events
+    // Pairs tool_use events with their tool_result by toolUseId
     const pendingTools = new Map<string, { toolName: string; toolInput: Record<string, unknown> }>();
 
     for (const event of events) {
@@ -355,7 +315,7 @@ export class AgentManager {
       }
     }
 
-    // Store any tool_use events that never got a result
+    // Orphaned tool_use events (no matching result)
     for (const [, tool] of pendingTools) {
       toolMessages.push({
         role: "assistant",
@@ -366,7 +326,6 @@ export class AgentManager {
       });
     }
 
-    // Append assistant text message if there was any text
     if (textParts.length > 0) {
       await this.deps.sessionStore.appendMessage(sessionId, {
         role: "assistant",
@@ -375,15 +334,12 @@ export class AgentManager {
       });
     }
 
-    // Append tool messages
     for (const toolMsg of toolMessages) {
       await this.deps.sessionStore.appendMessage(sessionId, toolMsg);
     }
   }
 
 }
-
-// -- Error type --
 
 export class AgentManagerError extends Error {
   constructor(
