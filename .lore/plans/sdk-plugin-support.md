@@ -57,6 +57,55 @@ Requirements addressed:
 
 ## Implementation Steps
 
+### Step 0: Example Plugin-Only Guild Member
+
+**Files**: `guild-members/linkedin-editor/guild-member.json`, `guild-members/linkedin-editor/plugin/` (new directory tree)
+**Addresses**: No requirements directly. Serves as the concrete target for Steps 1-4 and a test fixture for discovery/integration tests.
+**Tests**: None (static files only; validated by Step 1 schema tests and Step 2 discovery tests)
+
+Create a plugin-only guild member that demonstrates the value proposition: a useful agent capability that needs no MCP server process. A LinkedIn post editor with skills for drafting and refining posts.
+
+Directory structure:
+```
+guild-members/linkedin-editor/
+├── guild-member.json
+└── plugin/
+    ├── .claude-plugin/
+    │   └── plugin.json
+    └── skills/
+        ├── draft-post/
+        │   └── SKILL.md
+        └── refine-post/
+            └── SKILL.md
+```
+
+**guild-member.json** (plugin-only, no `transport` or `mcp`):
+```json
+{
+  "name": "linkedin-editor",
+  "displayName": "LinkedIn Editor",
+  "description": "Helps craft and refine LinkedIn posts with professional voice, structure, and engagement patterns.",
+  "version": "0.1.0",
+  "plugin": {
+    "path": "./plugin"
+  }
+}
+```
+
+**plugin.json** (minimal Claude Code plugin manifest):
+```json
+{
+  "name": "linkedin-editor",
+  "description": "LinkedIn post drafting and refinement skills."
+}
+```
+
+**Skills:**
+- `draft-post`: Takes a topic, audience, and goal. Produces a LinkedIn post following platform conventions (hook-driven opening, scannable structure, clear call to action). Encodes voice guidance: direct, no filler, no corporate speak.
+- `refine-post`: Takes an existing draft. Reviews for clarity, structure, engagement, and LinkedIn-specific formatting. Flags weak openings, buried ledes, and passive constructions.
+
+This member will be invalid under the current schema (no `transport`/`mcp`). That's intentional. It becomes valid after Step 1 adds the `plugin` field and makes `transport`/`mcp` optional. Discovery tests in Step 2 will use it as a real fixture alongside synthetic test manifests.
+
 ### Step 1: Schema and Types
 
 **Files**: `lib/schemas.ts`, `lib/types.ts`
@@ -168,6 +217,7 @@ Launch a sub-agent that reads the spec at `.lore/specs/sdk-plugin-support.md`, r
 ## Delegation Guide
 
 Steps requiring specialized expertise:
+- **Step 0**: Example content creation. Requires understanding of LinkedIn post conventions and Claude Code plugin/skill structure. No codebase expertise needed.
 - **Step 1-3**: Core backend work. No specialized expertise beyond TypeScript and the existing codebase patterns.
 - **Step 4**: Frontend (React components, CSS). Standard component work, no accessibility or performance specialization needed.
 - **Step 5**: Fresh-context review agent for spec compliance.
