@@ -11,27 +11,7 @@
 
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type { QueryFn } from "../../lib/agent.js";
-
-// -- Type guard --
-
-/**
- * Type guard for SDK success result messages.
- * Local to avoid cross-compilation-context imports (same pattern as memory.ts).
- */
-function isSuccessResult(
-  msg: unknown,
-): msg is { type: "result"; subtype: "success"; result: string } {
-  return (
-    typeof msg === "object" &&
-    msg !== null &&
-    "type" in msg &&
-    (msg as Record<string, unknown>).type === "result" &&
-    "subtype" in msg &&
-    (msg as Record<string, unknown>).subtype === "success" &&
-    "result" in msg &&
-    typeof (msg as Record<string, unknown>).result === "string"
-  );
-}
+import { isSuccessResult, isAssistantMessage } from "./sdk-guards.js";
 
 // -- Constants --
 
@@ -97,12 +77,8 @@ export async function spawnWorkerAgent(
     if (isSuccessResult(msg)) {
       resultText = msg.result;
     }
-    // Count assistant messages as turns for logging
-    if (typeof msg === "object" && msg !== null && "type" in msg) {
-      const msgType = (msg as Record<string, unknown>).type;
-      if (msgType === "assistant") {
-        turnCount++;
-      }
+    if (isAssistantMessage(msg)) {
+      turnCount++;
     }
   }
 

@@ -113,8 +113,7 @@ export type WorkerHandlers = {
   delete: (params: DeleteParams) => Promise<DeleteResult>;
 };
 
-/** Optional callback invoked when a running job is cancelled. Phase 12 will
- *  use this to abort the Agent SDK session. */
+/** Callback invoked when a running job is cancelled, used to abort the Agent SDK session. */
 export type OnCancelFn = (jobId: string) => void;
 
 // -- Factory --
@@ -124,7 +123,7 @@ export type OnCancelFn = (jobId: string) => void;
  *
  * @param jobStore - The job store to operate on.
  * @param onCancel - Optional callback invoked when a running job is cancelled.
- *   Phase 12 will supply this to abort the Agent SDK session.
+ *   Used by the server to abort the Agent SDK session.
  */
 export function createHandlers(jobStore: JobStore, onCancel?: OnCancelFn): WorkerHandlers {
   return {

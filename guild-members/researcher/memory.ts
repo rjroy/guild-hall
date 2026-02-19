@@ -16,6 +16,7 @@ import { mkdir, writeFile, readFile, readdir, rm, stat } from "node:fs/promises"
 
 import type { QueryFn } from "../../lib/agent.js";
 import type { MemoryStore } from "./worker-tools.js";
+import { isSuccessResult } from "./sdk-guards.js";
 
 // -- Types --
 
@@ -41,24 +42,6 @@ export type FullMemoryStore = MemoryStore & {
   /** Exposed for testing. Returns a promise so tests can await completion. */
   compactMemories: () => Promise<void>;
 };
-
-// -- Type guards --
-
-/** Type guard for SDK success result messages. Local to avoid cross-compilation-context imports. */
-function isSuccessResult(
-  msg: unknown,
-): msg is { type: "result"; subtype: "success"; result: string } {
-  return (
-    typeof msg === "object" &&
-    msg !== null &&
-    "type" in msg &&
-    (msg as Record<string, unknown>).type === "result" &&
-    "subtype" in msg &&
-    (msg as Record<string, unknown>).subtype === "success" &&
-    "result" in msg &&
-    typeof (msg as Record<string, unknown>).result === "string"
-  );
-}
 
 // -- Validation --
 
