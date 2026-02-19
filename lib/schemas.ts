@@ -12,19 +12,42 @@ export const SessionStatusSchema = z.union([
 
 // -- Guild member manifest (guild-member.json) --
 
-export const GuildMemberManifestSchema = z.object({
-  name: z.string(),
-  displayName: z.string(),
-  description: z.string(),
-  version: z.string(),
-  transport: z.enum(["http"]),
-  capabilities: z.array(z.string()).optional(),
-  mcp: z.object({
-    command: z.string(),
-    args: z.array(z.string()),
-    env: z.record(z.string(), z.string()).optional(),
-  }),
-});
+export const GuildMemberManifestSchema = z
+  .object({
+    name: z.string(),
+    displayName: z.string(),
+    description: z.string(),
+    version: z.string(),
+    transport: z.enum(["http"]).optional(),
+    capabilities: z.array(z.string()).optional(),
+    mcp: z
+      .object({
+        command: z.string(),
+        args: z.array(z.string()),
+        env: z.record(z.string(), z.string()).optional(),
+      })
+      .optional(),
+    plugin: z.object({ path: z.string() }).optional(),
+  })
+  .refine((data) => data.mcp !== undefined || data.plugin !== undefined, {
+    message: "At least one of 'mcp' or 'plugin' must be present",
+  })
+  .refine(
+    (data) => {
+      const hasMcp = data.mcp !== undefined;
+      const hasTransport = data.transport !== undefined;
+      return hasMcp === hasTransport;
+    },
+    { message: "'transport' and 'mcp' must be both present or both absent" },
+  )
+  .refine(
+    (data) => {
+      const hasWorker = data.capabilities?.includes("worker") ?? false;
+      if (hasWorker && data.mcp === undefined) return false;
+      return true;
+    },
+    { message: "'worker' capability requires 'mcp' configuration" },
+  );
 
 // -- Session metadata (meta.json) --
 

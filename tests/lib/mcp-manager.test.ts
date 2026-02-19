@@ -262,6 +262,36 @@ describe("MCPManager", () => {
       expect(manager.isRunning("beta")).toBe(false);
     });
 
+    it("skips plugin-only members (no transport field) REQ-PLUG-14", async () => {
+      const pluginOnlyMember: GuildMember = {
+        name: "plugin-only",
+        displayName: "Plugin Only",
+        description: "A plugin-only member",
+        version: "1.0.0",
+        capabilities: [],
+        status: "available",
+        tools: [],
+        pluginDir: "/test/plugin-only",
+        pluginPath: "/test/plugin-only/plugin",
+        memberType: "plugin",
+      };
+      const roster = createRoster([
+        ["alpha", makeGuildMember({ name: "alpha", transport: "http" })],
+        ["plugin-only", pluginOnlyMember],
+      ]);
+      const factory = createMockFactory();
+      const manager = new MCPManager(roster, factory);
+
+      await manager.initializeRoster();
+
+      // Only HTTP member started; plugin-only member has no transport so is skipped
+      expect(factory.spawnCount).toBe(1);
+      expect(manager.isRunning("alpha")).toBe(true);
+      expect(manager.isRunning("plugin-only")).toBe(false);
+      // Plugin-only member status should remain "available" (not changed to error or disconnected)
+      expect(roster.get("plugin-only")!.status).toBe("available");
+    });
+
     it("passes pluginDir to factory", async () => {
       const roster = createRoster([
         ["alpha", makeGuildMember({ name: "alpha", transport: "http", pluginDir: "/custom/path" })],

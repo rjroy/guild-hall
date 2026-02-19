@@ -384,6 +384,11 @@ export class MCPManager {
     member: GuildMember,
   ): Promise<void> {
     try {
+      // Ensure mcp config is present
+      if (!member.mcp) {
+        throw new Error(`[MCP:${name}] Cannot spawn server: mcp config is missing`);
+      }
+
       // Ensure pluginDir is present
       if (!member.pluginDir) {
         throw new Error(`Plugin directory not set for member "${name}"`);

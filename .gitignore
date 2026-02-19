@@ -48,6 +48,7 @@ sessions/*
 # guild-members (only tracked plugins get exceptions below)
 guild-members/*
 !guild-members/example/
+!guild-members/linkedin-editor/
 !guild-members/researcher/
 
 # plugin dependencies (node_modules installed locally, lockfiles committed)

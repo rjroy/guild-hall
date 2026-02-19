@@ -441,6 +441,7 @@ describe("Integration: expired SDK session full flow", () => {
       eventBus,
       clock: fixedClock,
       sessionsDir: "/sessions",
+      roster,
     };
 
     const manager = new AgentManager(deps);

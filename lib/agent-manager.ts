@@ -8,7 +8,7 @@ import type {
 } from "./agent";
 import { startAgentQuery } from "./agent";
 import type { Clock } from "./session-store";
-import type { StoredMessage } from "./types";
+import type { GuildMember, StoredMessage } from "./types";
 
 // -- Context file system prompt --
 
@@ -75,7 +75,15 @@ export type AgentManagerDeps = {
   eventBus: EventBus;
   clock: Clock;
   sessionsDir: string;
+  roster: Map<string, GuildMember>;
 };
+
+// -- Type predicate for plugin members --
+
+/** Narrows GuildMember to one that has a pluginPath, avoiding non-null assertions. */
+function hasPluginPath(m: GuildMember): m is GuildMember & { pluginPath: string } {
+  return m.pluginPath !== undefined;
+}
 
 // -- Agent manager --
 
@@ -122,19 +130,38 @@ export class AgentManager {
     // Fresh start when: no sdkSessionId, or status is "expired".
     const shouldResume = sdkSessionId !== null && status !== "expired";
 
-    // Start MCP servers for this session (must happen before getServerConfigs
+    // Partition members by type: MCP members get servers started via MCPManager,
+    // plugin members get passed as SDK plugins. Hybrid members appear in both.
+    const mcpMemberNames: string[] = [];
+    const pluginMembers: (GuildMember & { pluginPath: string })[] = [];
+
+    for (const name of guildMembers) {
+      const member = this.deps.roster.get(name);
+      if (!member) continue;
+      if (member.mcp) {
+        mcpMemberNames.push(name);
+      }
+      if (hasPluginPath(member)) {
+        pluginMembers.push(member);
+      }
+    }
+
+    // Start MCP servers only for MCP members (must happen before getServerConfigs
     // so that servers released after a previous query are respawned and their
     // status/port is current when we build the SDK config).
-    await this.deps.mcpManager.startServersForSession(sessionId, guildMembers);
+    await this.deps.mcpManager.startServersForSession(sessionId, mcpMemberNames);
 
-    // Build MCP server configs (reads port and status from running servers)
-    const toolConfigs = this.deps.mcpManager.getServerConfigs(guildMembers);
-    const dispatchConfigs = this.deps.mcpManager.getDispatchConfigs(guildMembers);
+    // Build MCP server configs only for MCP members
+    const toolConfigs = this.deps.mcpManager.getServerConfigs(mcpMemberNames);
+    const dispatchConfigs = this.deps.mcpManager.getDispatchConfigs(mcpMemberNames);
     const mcpServers = { ...toolConfigs, ...dispatchConfigs };
 
-    // Build system prompt with optional worker dispatch guidance
-    const workers = this.deps.mcpManager.getWorkerCapableMembers(guildMembers);
+    // Build system prompt with worker dispatch guidance only for MCP members
+    const workers = this.deps.mcpManager.getWorkerCapableMembers(mcpMemberNames);
     const systemPrompt = buildSystemPrompt(workers);
+
+    // Build plugins array from plugin members
+    const plugins = pluginMembers.map(m => ({ type: "local" as const, path: m.pluginPath }));
 
     // Build query options
     const sessionDir = `${this.deps.sessionsDir}/${sessionId}`;
@@ -145,6 +172,7 @@ export class AgentManager {
       systemPrompt,
       permissionMode: "bypassPermissions",
       resumeSessionId: shouldResume ? sdkSessionId : undefined,
+      plugins: plugins.length > 0 ? plugins : undefined,
     };
 
     // Update session status to running

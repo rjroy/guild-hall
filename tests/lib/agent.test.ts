@@ -704,6 +704,95 @@ describe("startAgentQuery", () => {
     expect(receivedOptions!.resume).toBeUndefined();
   });
 
+  it("passes plugins to SDK options when provided", () => {
+    const bus = createEventBus();
+    let receivedOptions: Record<string, unknown> | undefined;
+
+    const queryFn: QueryFn = (params) => {
+      receivedOptions = params.options as Record<string, unknown>;
+      return createMockQuery([makeInitMessage(), makeSuccessResult()]);
+    };
+
+    startAgentQuery(
+      guildSessionId,
+      {
+        prompt: "Hi",
+        mcpServers: {},
+        cwd: "/tmp",
+        systemPrompt: "",
+        permissionMode: "bypassPermissions",
+        plugins: [
+          { type: "local", path: "/plugins/alpha/plugin" },
+          { type: "local", path: "/plugins/beta/plugin" },
+        ],
+      },
+      bus,
+      () => {},
+      queryFn,
+    );
+
+    expect(receivedOptions).toBeDefined();
+    expect(receivedOptions!.plugins).toEqual([
+      { type: "local", path: "/plugins/alpha/plugin" },
+      { type: "local", path: "/plugins/beta/plugin" },
+    ]);
+  });
+
+  it("does not pass plugins to SDK options when not provided", () => {
+    const bus = createEventBus();
+    let receivedOptions: Record<string, unknown> | undefined;
+
+    const queryFn: QueryFn = (params) => {
+      receivedOptions = params.options as Record<string, unknown>;
+      return createMockQuery([makeInitMessage(), makeSuccessResult()]);
+    };
+
+    startAgentQuery(
+      guildSessionId,
+      {
+        prompt: "Hi",
+        mcpServers: {},
+        cwd: "/tmp",
+        systemPrompt: "",
+        permissionMode: "bypassPermissions",
+      },
+      bus,
+      () => {},
+      queryFn,
+    );
+
+    expect(receivedOptions).toBeDefined();
+    expect(receivedOptions!.plugins).toBeUndefined();
+  });
+
+  it("does not pass plugins to SDK options when empty array", () => {
+    const bus = createEventBus();
+    let receivedOptions: Record<string, unknown> | undefined;
+
+    const queryFn: QueryFn = (params) => {
+      receivedOptions = params.options as Record<string, unknown>;
+      return createMockQuery([makeInitMessage(), makeSuccessResult()]);
+    };
+
+    startAgentQuery(
+      guildSessionId,
+      {
+        prompt: "Hi",
+        mcpServers: {},
+        cwd: "/tmp",
+        systemPrompt: "",
+        permissionMode: "bypassPermissions",
+        plugins: [],
+      },
+      bus,
+      () => {},
+      queryFn,
+    );
+
+    expect(receivedOptions).toBeDefined();
+    expect(receivedOptions!.plugins).toBeUndefined();
+  });
+
   it("does not emit duplicate done when result message already has done", async () => {
     const bus = createEventBus();
     const sdkSessionId = "sdk-session-dup";

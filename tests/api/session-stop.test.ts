@@ -203,6 +203,7 @@ function setup(options: {
     eventBus,
     clock,
     sessionsDir: "/sessions",
+    roster,
   };
 
   const manager = new AgentManager(deps);

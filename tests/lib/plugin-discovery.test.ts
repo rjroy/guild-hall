@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { describe, expect, it } from "bun:test";
 
 import { discoverGuildMembers } from "@/lib/plugin-discovery";
@@ -299,6 +301,7 @@ describe("discoverGuildMembers", () => {
       displayName: "Plugin One",
       description: "First in collection",
       version: "1.0.0",
+      transport: "http",
       mcp: { command: "node", args: ["one.js"] },
     });
 
@@ -307,6 +310,7 @@ describe("discoverGuildMembers", () => {
       displayName: "Plugin Two",
       description: "Second in collection",
       version: "2.0.0",
+      transport: "http",
       mcp: { command: "node", args: ["two.js"] },
     });
 
@@ -387,5 +391,174 @@ describe("discoverGuildMembers", () => {
     expect(member).toBeDefined();
     // Non-null safe: toBeDefined() above confirms presence
     expect(member!.capabilities).toEqual([]);
+  });
+
+  it("assigns memberType 'mcp' to MCP-only manifests", async () => {
+    const fs = createMockFs(
+      { [`${basePath}/alpha/guild-member.json`]: validManifestJson() },
+      new Set([basePath, `${basePath}/alpha`]),
+    );
+
+    const result = await discoverGuildMembers(basePath, fs);
+
+    const member = result.get("alpha");
+    expect(member).toBeDefined();
+    // Non-null safe: toBeDefined() above confirms presence
+    expect(member!.memberType).toBe("mcp");
+    expect(member!.status).toBe("disconnected");
+    expect(member!.pluginPath).toBeUndefined();
+  });
+
+  it("discovers plugin-only members with status 'available' and pluginPath", async () => {
+    const manifest = JSON.stringify({
+      name: "skill-plugin",
+      displayName: "Skill Plugin",
+      description: "A plugin-only guild member",
+      version: "1.0.0",
+      plugin: { path: "./plugin" },
+    });
+
+    const pluginDir = `${basePath}/skill-plugin`;
+    const fs = createMockFs(
+      { [`${pluginDir}/guild-member.json`]: manifest },
+      new Set([basePath, pluginDir]),
+    );
+
+    const result = await discoverGuildMembers(basePath, fs);
+
+    const member = result.get("skill-plugin");
+    expect(member).toBeDefined();
+    // Non-null safe: toBeDefined() above confirms presence
+    expect(member!.memberType).toBe("plugin");
+    expect(member!.status).toBe("available");
+    expect(member!.pluginPath).toBe(path.resolve(pluginDir, "./plugin"));
+    // Plugin-only members should not have transport or mcp
+    expect(member!.transport).toBeUndefined();
+    expect(member!.mcp).toBeUndefined();
+  });
+
+  it("discovers hybrid members with both MCP and plugin fields", async () => {
+    const manifest = JSON.stringify({
+      name: "hybrid-member",
+      displayName: "Hybrid Member",
+      description: "Has both MCP and plugin",
+      version: "1.0.0",
+      transport: "http",
+      mcp: { command: "node", args: ["server.js"] },
+      plugin: { path: "./skills" },
+    });
+
+    const pluginDir = `${basePath}/hybrid-member`;
+    const fs = createMockFs(
+      { [`${pluginDir}/guild-member.json`]: manifest },
+      new Set([basePath, pluginDir]),
+    );
+
+    const result = await discoverGuildMembers(basePath, fs);
+
+    const member = result.get("hybrid-member");
+    expect(member).toBeDefined();
+    // Non-null safe: toBeDefined() above confirms presence
+    expect(member!.memberType).toBe("hybrid");
+    expect(member!.status).toBe("disconnected");
+    expect(member!.pluginPath).toBe(path.resolve(pluginDir, "./skills"));
+    expect(member!.mcp).toEqual({ command: "node", args: ["server.js"] });
+    expect(member!.transport).toBe("http");
+  });
+
+  it("returns error member when plugin path escapes guild member directory", async () => {
+    const manifest = JSON.stringify({
+      name: "escape-plugin",
+      displayName: "Escape Plugin",
+      description: "Plugin with escaping path",
+      version: "1.0.0",
+      plugin: { path: "../../escape" },
+    });
+
+    const pluginDir = `${basePath}/escape-plugin`;
+    const fs = createMockFs(
+      { [`${pluginDir}/guild-member.json`]: manifest },
+      new Set([basePath, pluginDir]),
+    );
+
+    const result = await discoverGuildMembers(basePath, fs);
+
+    const member = result.get("escape-plugin");
+    expect(member).toBeDefined();
+    // Non-null safe: toBeDefined() above confirms presence
+    expect(member!.status).toBe("error");
+    expect(member!.error).toContain("escapes guild member directory");
+  });
+
+  it("accepts contained plugin paths", async () => {
+    const manifest = JSON.stringify({
+      name: "contained-plugin",
+      displayName: "Contained Plugin",
+      description: "Plugin with contained path",
+      version: "1.0.0",
+      plugin: { path: "./plugin" },
+    });
+
+    const pluginDir = `${basePath}/contained-plugin`;
+    const fs = createMockFs(
+      { [`${pluginDir}/guild-member.json`]: manifest },
+      new Set([basePath, pluginDir]),
+    );
+
+    const result = await discoverGuildMembers(basePath, fs);
+
+    const member = result.get("contained-plugin");
+    expect(member).toBeDefined();
+    // Non-null safe: toBeDefined() above confirms presence
+    expect(member!.status).toBe("available");
+    expect(member!.pluginPath).toBe(path.resolve(pluginDir, "./plugin"));
+  });
+
+  it("error members do not have transport or mcp fields", async () => {
+    const fs = createMockFs(
+      { [`${basePath}/broken/guild-member.json`]: "{ not valid json !!!" },
+      new Set([basePath, `${basePath}/broken`]),
+    );
+
+    const result = await discoverGuildMembers(basePath, fs);
+
+    const member = result.get("broken");
+    expect(member).toBeDefined();
+    // Non-null safe: toBeDefined() above confirms presence
+    expect(member!.status).toBe("error");
+    expect(member!.transport).toBeUndefined();
+    expect(member!.mcp).toBeUndefined();
+  });
+
+  it("discovers nested plugin-only member in a collection", async () => {
+    const manifest = JSON.stringify({
+      name: "nested-skill",
+      displayName: "Nested Skill",
+      description: "Plugin-only in a collection",
+      version: "1.0.0",
+      plugin: { path: "./dist" },
+    });
+
+    const nestedDir = `${basePath}/guild-founders/nested-skill`;
+    const fs = createMockFs(
+      { [`${nestedDir}/guild-member.json`]: manifest },
+      new Set([
+        basePath,
+        `${basePath}/guild-founders`,
+        nestedDir,
+      ]),
+    );
+
+    const result = await discoverGuildMembers(basePath, fs);
+
+    expect(result.has("guild-founders/nested-skill")).toBe(true);
+
+    const member = result.get("guild-founders/nested-skill");
+    expect(member).toBeDefined();
+    // Non-null safe: toBeDefined() above confirms presence
+    expect(member!.memberType).toBe("plugin");
+    expect(member!.status).toBe("available");
+    // Path resolution should use the nested directory, not the collection root
+    expect(member!.pluginPath).toBe(path.resolve(nestedDir, "./dist"));
   });
 });

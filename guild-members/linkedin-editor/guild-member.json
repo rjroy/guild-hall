@@ -1,0 +1,9 @@
+{
+  "name": "linkedin-editor",
+  "displayName": "LinkedIn Editor",
+  "description": "Helps craft and refine LinkedIn posts with professional voice, structure, and engagement patterns.",
+  "version": "0.1.0",
+  "plugin": {
+    "path": "./plugin"
+  }
+}
