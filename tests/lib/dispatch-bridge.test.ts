@@ -14,8 +14,6 @@ import type {
   WorkerJobSummary,
 } from "@/lib/types";
 
-// -- Mock JsonRpcClient --
-
 type MockClientMethods = {
   dispatchWorker: ReturnType<typeof mock>;
   listWorkers: ReturnType<typeof mock>;
@@ -97,8 +95,6 @@ function findTool(tools: ReturnType<typeof createDispatchTools>, name: string): 
   if (!found) throw new Error(`Tool "${name}" not found`);
   return found as unknown as TestTool;
 }
-
-// -- Tests --
 
 describe("createDispatchBridge", () => {
   it("creates a server config with correct name", () => {

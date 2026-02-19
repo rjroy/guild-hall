@@ -5,8 +5,6 @@ import {
   type PidFileManagerDeps,
 } from "@/lib/pid-file-manager";
 
-// -- Mock filesystem --
-
 type MockFiles = Record<string, string>;
 
 function createMockPidFs(initialFiles: MockFiles = {}): PidFileManagerDeps["fs"] {
@@ -96,8 +94,6 @@ function makeDeps(
     killed,
   };
 }
-
-// -- Tests --
 
 describe("PidFileManager", () => {
   describe("write", () => {

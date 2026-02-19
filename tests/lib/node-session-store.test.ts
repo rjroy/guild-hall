@@ -5,8 +5,6 @@ import { afterEach, describe, expect, it } from "bun:test";
 
 import { createNodeSessionStore } from "@/lib/node-session-store";
 
-// -- Integration tests using real temp directories --
-
 describe("createNodeSessionStore", () => {
   let tmpDir: string;
 

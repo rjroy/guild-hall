@@ -13,158 +13,29 @@ import type { MCPServerFactory } from "@/lib/mcp-manager";
 import type { GuildMember } from "@/lib/types";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { createMockSessionFs } from "@/tests/helpers/mock-session-fs";
-
-// -- Constants --
+import {
+  makeInitMessage,
+  makeSuccessResult,
+  makeStreamTextDelta,
+  makeAssistantMessage,
+  makeToolUseSummary,
+} from "@/tests/helpers/mock-sdk-messages";
+import {
+  createMockQueryFn,
+  createErrorQueryFn,
+  createCapturingQueryFn,
+} from "@/tests/helpers/mock-query";
 
 const NOW = "2026-02-12T12:00:00.000Z";
+
+function tick(ms = 50): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function createMockProcess(): ChildProcess {
   const emitter = new EventEmitter();
   return emitter as ChildProcess;
 }
-
-// -- Mock SDK message factories (duplicated from agent.test.ts for isolation) --
-
-function makeInitMessage(sessionId = "sdk-session-1"): SDKMessage {
-  return {
-    type: "system",
-    subtype: "init",
-    session_id: sessionId,
-    uuid: "00000000-0000-0000-0000-000000000001",
-    agents: [],
-    apiKeySource: "user",
-    betas: [],
-    claude_code_version: "2.1.39",
-    cwd: "/tmp",
-    tools: [],
-    mcp_servers: [],
-    model: "claude-sonnet-4-5-20250929",
-    permissionMode: "bypassPermissions",
-  } as unknown as SDKMessage;
-}
-
-function makeSuccessResult(sessionId = "sdk-session-1"): SDKMessage {
-  return {
-    type: "result",
-    subtype: "success",
-    duration_ms: 1000,
-    duration_api_ms: 800,
-    is_error: false,
-    num_turns: 1,
-    result: "Done",
-    stop_reason: "end_turn",
-    total_cost_usd: 0.01,
-    usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
-    modelUsage: {},
-    permission_denials: [],
-    uuid: "00000000-0000-0000-0000-000000000007",
-    session_id: sessionId,
-  } as unknown as SDKMessage;
-}
-
-function makeStreamTextDelta(
-  text: string,
-  sessionId = "sdk-session-1",
-): SDKMessage {
-  return {
-    type: "stream_event",
-    event: {
-      type: "content_block_delta",
-      index: 0,
-      delta: { type: "text_delta", text },
-    },
-    parent_tool_use_id: null,
-    uuid: "00000000-0000-0000-0000-000000000002",
-    session_id: sessionId,
-  } as unknown as SDKMessage;
-}
-
-function makeAssistantMessage(
-  content: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }>,
-  sessionId = "sdk-session-1",
-): SDKMessage {
-  return {
-    type: "assistant",
-    message: { content },
-    uuid: "00000000-0000-0000-0000-000000000003",
-    session_id: sessionId,
-  } as unknown as SDKMessage;
-}
-
-function makeToolUseSummary(
-  toolUseIds: string[],
-  summary: string,
-  sessionId = "sdk-session-1",
-): SDKMessage {
-  return {
-    type: "tool_use_summary",
-    preceding_tool_use_ids: toolUseIds,
-    summary,
-    uuid: "00000000-0000-0000-0000-000000000004",
-    session_id: sessionId,
-  } as unknown as SDKMessage;
-}
-
-// -- Mock query function --
-
-function createMockQueryFn(messages: SDKMessage[]): QueryFn {
-  return () => {
-    async function* generator() {
-      for (const msg of messages) {
-        yield await Promise.resolve(msg);
-      }
-    }
-    const gen = generator();
-    (gen as unknown as Record<string, unknown>).interrupt = () => Promise.resolve();
-    (gen as unknown as Record<string, unknown>).close = () => {};
-    return gen as ReturnType<QueryFn>;
-  };
-}
-
-/**
- * Creates a mock query function that yields some messages then throws an error.
- * Useful for simulating expired session errors from the SDK.
- */
-function createErrorQueryFn(
-  messagesBeforeError: SDKMessage[],
-  errorMessage: string,
-): QueryFn {
-  return () => {
-    async function* generator() {
-      for (const msg of messagesBeforeError) {
-        yield await Promise.resolve(msg);
-      }
-      throw new Error(errorMessage);
-    }
-    const gen = generator();
-    (gen as unknown as Record<string, unknown>).interrupt = () => Promise.resolve();
-    (gen as unknown as Record<string, unknown>).close = () => {};
-    return gen as ReturnType<QueryFn>;
-  };
-}
-
-/**
- * Creates a capturing mock query function that records the options passed to each call.
- * Returns the captured calls and the query function.
- */
-function createCapturingQueryFn(messages: SDKMessage[]): {
-  queryFn: QueryFn;
-  calls: Array<{ prompt: string; options: Record<string, unknown> }>;
-} {
-  const calls: Array<{ prompt: string; options: Record<string, unknown> }> = [];
-
-  const queryFn: QueryFn = (params) => {
-    calls.push({
-      prompt: params.prompt,
-      options: (params.options ?? {}) as Record<string, unknown>,
-    });
-    return createMockQueryFn(messages)(params);
-  };
-
-  return { queryFn, calls };
-}
-
-// -- Helpers for building test dependencies --
 
 function makeGuildMember(name: string, options?: { capabilities?: string[]; description?: string }): GuildMember {
   return {
@@ -313,8 +184,6 @@ function setup(options: {
   return { manager, deps, fs: mockFs, sessionStore };
 }
 
-// -- Tests --
-
 describe("AgentManager", () => {
   describe("runQuery", () => {
     it("runs a query and emits events through the event bus", async () => {
@@ -326,9 +195,7 @@ describe("AgentManager", () => {
 
       await manager.runQuery(sessionId, "Hello agent");
 
-      // Wait for the background iteration to complete
-      // Give it a tick to finish
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const eventTypes = events.map((e) => e.type);
       expect(eventTypes).toContain("processing");
@@ -342,8 +209,7 @@ describe("AgentManager", () => {
 
       await manager.runQuery(sessionId, "Hello agent");
 
-      // Wait for completion
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const session = await sessionStore.getSession(sessionId);
       expect(session).not.toBeNull();
@@ -356,8 +222,7 @@ describe("AgentManager", () => {
 
       await manager.runQuery(sessionId, "Hello agent");
 
-      // Wait for completion
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const messagesContent = mockFs.files[`/sessions/${sessionId}/messages.jsonl`];
       expect(messagesContent).toBeDefined();
@@ -377,8 +242,7 @@ describe("AgentManager", () => {
 
       await manager.runQuery(sessionId, "Hello agent");
 
-      // Wait for completion
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const messagesContent = mockFs.files[`/sessions/${sessionId}/messages.jsonl`];
       const lines = messagesContent.trim().split("\n").filter(Boolean);
@@ -407,7 +271,7 @@ describe("AgentManager", () => {
       const sessionId = "2026-02-12-test-session";
 
       await manager.runQuery(sessionId, "Read a file");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const messagesContent = mockFs.files[`/sessions/${sessionId}/messages.jsonl`];
       const lines = messagesContent.trim().split("\n").filter(Boolean);
@@ -429,8 +293,7 @@ describe("AgentManager", () => {
 
       await manager.runQuery(sessionId, "Hello");
 
-      // Wait for completion
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const session = await sessionStore.getSession(sessionId);
       expect(session).not.toBeNull();
@@ -443,8 +306,7 @@ describe("AgentManager", () => {
 
       await manager.runQuery(sessionId, "Hello");
 
-      // Wait for completion
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const session = await sessionStore.getSession(sessionId);
       expect(session!.metadata.messageCount).toBe(1);  
@@ -541,7 +403,7 @@ describe("AgentManager", () => {
       const sessionId = "2026-02-12-test-session";
 
       await manager.runQuery(sessionId, "Hello");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       expect(manager.isQueryRunning(sessionId)).toBe(false);
     });
@@ -611,7 +473,7 @@ describe("AgentManager", () => {
       const manager = new AgentManager(deps);
 
       await manager.runQuery("2026-02-12-test-session", "Hello");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       expect(receivedPrompt).toContain("context.md");
     });
@@ -630,7 +492,7 @@ describe("AgentManager", () => {
       const manager = new AgentManager(deps);
 
       await manager.runQuery("2026-02-12-test-session", "Continue work");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       expect(calls.length).toBe(1);
       expect(calls[0].options.resume).toBe("previous-sdk-session");
@@ -648,7 +510,7 @@ describe("AgentManager", () => {
       const manager = new AgentManager(deps);
 
       await manager.runQuery("2026-02-12-test-session", "Hello");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       expect(calls.length).toBe(1);
       expect(calls[0].options.resume).toBeUndefined();
@@ -702,7 +564,7 @@ describe("AgentManager", () => {
       const manager = new AgentManager(deps);
 
       await manager.runQuery("2026-02-12-test-session", "Resume");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       expect(orderLog.indexOf("mcp-started")).toBeLessThan(orderLog.indexOf("query-started"));
     });
@@ -723,7 +585,7 @@ describe("AgentManager", () => {
       const manager = new AgentManager(deps);
 
       await manager.runQuery("2026-02-12-test-session", "Fresh start");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       expect(calls.length).toBe(1);
       // Should NOT pass resume because status is "expired"
@@ -745,7 +607,7 @@ describe("AgentManager", () => {
 
       const sessionId = "2026-02-12-test-session";
       await manager.runQuery(sessionId, "Hello");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const session = await sessionStore.getSession(sessionId);
       expect(session).not.toBeNull();
@@ -765,7 +627,7 @@ describe("AgentManager", () => {
 
       const sessionId = "2026-02-12-test-session";
       await manager.runQuery(sessionId, "Hello");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const metaJson = JSON.parse(mockFs.files[`/sessions/${sessionId}/meta.json`]) as Record<string, unknown>;
       expect(metaJson.status).toBe("expired");
@@ -784,7 +646,7 @@ describe("AgentManager", () => {
 
       const sessionId = "2026-02-12-test-session";
       await manager.runQuery(sessionId, "Hello");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const session = await sessionStore.getSession(sessionId);
       expect(session!.metadata.status).toBe("expired");
@@ -803,7 +665,7 @@ describe("AgentManager", () => {
 
       const sessionId = "2026-02-12-test-session";
       await manager.runQuery(sessionId, "Hello");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const session = await sessionStore.getSession(sessionId);
       expect(session!.metadata.status).toBe("idle");
@@ -828,7 +690,7 @@ describe("AgentManager", () => {
       const manager = new AgentManager(deps);
 
       await manager.runQuery("2026-02-12-test-session", "Start fresh");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       expect(calls.length).toBe(1);
       expect(calls[0].options.resume).toBeUndefined();
@@ -859,7 +721,7 @@ describe("AgentManager", () => {
       const manager = new AgentManager(deps);
 
       await manager.runQuery(sessionId, "Continue from expired");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       // context.md should still contain the original content
       expect(mockFs.files[`/sessions/${sessionId}/context.md`]).toContain("Build the thing");
@@ -888,7 +750,7 @@ describe("AgentManager", () => {
 
       const sessionId = "2026-02-12-test-session";
       await manager.runQuery(sessionId, "Fresh start");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const session = await sessionStore.getSession(sessionId);
       expect(session).not.toBeNull();
@@ -911,7 +773,7 @@ describe("AgentManager", () => {
 
       const sessionId = "2026-02-12-test-session";
       await manager.runQuery(sessionId, "Fresh start");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       const session = await sessionStore.getSession(sessionId);
       expect(session!.metadata.status).toBe("idle");
@@ -942,11 +804,11 @@ describe("AgentManager", () => {
 
       // First query: servers start, query runs, servers release on completion
       await manager.runQuery(sessionId, "First message");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       // Second query: servers must be restarted and configs must reflect them
       await manager.runQuery(sessionId, "Second message");
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tick();
 
       // Both calls should have received MCP server configs
       expect(calls).toHaveLength(2);
@@ -1180,7 +1042,7 @@ describe("AgentManager worker dispatch prompt integration", () => {
 
     const manager = new AgentManager(deps);
     await manager.runQuery("2026-02-12-test-session", "Hello");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await tick();
 
     expect(receivedPrompt).toContain("context.md");
     expect(receivedPrompt).toContain("Worker Dispatch");
@@ -1204,7 +1066,7 @@ describe("AgentManager worker dispatch prompt integration", () => {
     const manager = new AgentManager(deps);
 
     await manager.runQuery("2026-02-12-test-session", "Hello");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await tick();
 
     expect(receivedPrompt).toContain("context.md");
     expect(receivedPrompt).not.toContain("Worker Dispatch");
@@ -1264,7 +1126,7 @@ describe("AgentManager worker dispatch prompt integration", () => {
 
     const manager = new AgentManager(deps);
     await manager.runQuery("2026-02-12-test-session", "Hello");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await tick();
 
     expect(receivedPrompt).toContain("researcher (via researcher-dispatch)");
     expect(receivedPrompt).toContain("writer (via writer-dispatch)");
@@ -1339,7 +1201,7 @@ describe("AgentManager plugin member integration", () => {
     });
 
     await manager.runQuery("2026-02-12-test-session", "Hello");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await tick();
 
     expect(calls).toHaveLength(1);
     const sdkPlugins = calls[0].options.plugins as Array<{ type: string; path: string }>;
@@ -1359,7 +1221,7 @@ describe("AgentManager plugin member integration", () => {
     });
 
     await manager.runQuery("2026-02-12-test-session", "Hello");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await tick();
 
     expect(calls).toHaveLength(1);
 
@@ -1386,7 +1248,7 @@ describe("AgentManager plugin member integration", () => {
     });
 
     await manager.runQuery("2026-02-12-test-session", "Hello");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await tick();
 
     expect(calls).toHaveLength(1);
 
@@ -1413,7 +1275,7 @@ describe("AgentManager plugin member integration", () => {
     });
 
     await manager.runQuery("2026-02-12-test-session", "Hello");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await tick();
 
     expect(calls).toHaveLength(1);
     expect(calls[0].options.plugins).toBeUndefined();
@@ -1432,7 +1294,7 @@ describe("AgentManager plugin member integration", () => {
     });
 
     await manager.runQuery("2026-02-12-test-session", "Hello");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await tick();
 
     expect(calls).toHaveLength(1);
 

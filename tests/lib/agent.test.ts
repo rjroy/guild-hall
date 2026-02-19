@@ -20,47 +20,8 @@ import type {
 } from "@/lib/agent";
 import type { SSEEvent } from "@/lib/types";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-
-// -- Mock SDK message factories --
-
-// The SDK message types reference BetaMessage and BetaRawMessageStreamEvent
-// from @anthropic-ai/sdk. For tests, we construct structurally compatible
-// objects and cast to SDKMessage.
-
-function makeInitMessage(sessionId = "sdk-session-1"): SDKMessage {
-  return {
-    type: "system",
-    subtype: "init",
-    session_id: sessionId,
-    uuid: "00000000-0000-0000-0000-000000000001",
-    agents: [],
-    apiKeySource: "user",
-    betas: [],
-    claude_code_version: "2.1.39",
-    cwd: "/tmp",
-    tools: [],
-    mcp_servers: [],
-    model: "claude-sonnet-4-5-20250929",
-    permissionMode: "bypassPermissions",
-  } as unknown as SDKMessage;
-}
-
-function makeStreamTextDelta(
-  text: string,
-  sessionId = "sdk-session-1",
-): SDKMessage {
-  return {
-    type: "stream_event",
-    event: {
-      type: "content_block_delta",
-      index: 0,
-      delta: { type: "text_delta", text },
-    },
-    parent_tool_use_id: null,
-    uuid: "00000000-0000-0000-0000-000000000002",
-    session_id: sessionId,
-  } as unknown as SDKMessage;
-}
+import { makeInitMessage, makeSuccessResult, makeStreamTextDelta, makeToolUseSummary } from "@/tests/helpers/mock-sdk-messages";
+import { createMockQuery, createMockQueryFn, createFailingQueryFn } from "@/tests/helpers/mock-query";
 
 function makeStreamNonTextDelta(sessionId = "sdk-session-1"): SDKMessage {
   return {
@@ -130,25 +91,6 @@ function makeAssistantMixedMessage(
   } as unknown as SDKMessage;
 }
 
-function makeSuccessResult(sessionId = "sdk-session-1"): SDKMessage {
-  return {
-    type: "result",
-    subtype: "success",
-    duration_ms: 1000,
-    duration_api_ms: 800,
-    is_error: false,
-    num_turns: 1,
-    result: "Done",
-    stop_reason: "end_turn",
-    total_cost_usd: 0.01,
-    usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
-    modelUsage: {},
-    permission_denials: [],
-    uuid: "00000000-0000-0000-0000-000000000007",
-    session_id: sessionId,
-  } as unknown as SDKMessage;
-}
-
 function makeErrorResult(
   errors: string[] = ["Something went wrong"],
   subtype = "error_during_execution",
@@ -167,20 +109,6 @@ function makeErrorResult(
     permission_denials: [],
     errors,
     uuid: "00000000-0000-0000-0000-000000000008",
-    session_id: sessionId,
-  } as unknown as SDKMessage;
-}
-
-function makeToolUseSummary(
-  summary: string,
-  toolUseIds: string[] = ["tool-1"],
-  sessionId = "sdk-session-1",
-): SDKMessage {
-  return {
-    type: "tool_use_summary",
-    summary,
-    preceding_tool_use_ids: toolUseIds,
-    uuid: "00000000-0000-0000-0000-000000000009",
     session_id: sessionId,
   } as unknown as SDKMessage;
 }
@@ -214,44 +142,6 @@ function makeUserMessage(sessionId = "sdk-session-1"): SDKMessage {
   } as unknown as SDKMessage;
 }
 
-// -- Mock async generator for SDK query --
-
-function createMockQuery(
-  messages: SDKMessage[],
-): ReturnType<QueryFn> {
-  async function* generator() {
-    for (const msg of messages) {
-      // Wrap in resolved promise to satisfy require-await rule
-      yield await Promise.resolve(msg);
-    }
-  }
-
-  const gen = generator();
-
-  // Add the Query interface methods as stubs
-  const queryObj = gen as ReturnType<QueryFn>;
-  (queryObj as unknown as Record<string, unknown>).interrupt = () => Promise.resolve();
-  (queryObj as unknown as Record<string, unknown>).close = () => {};
-
-  return queryObj;
-}
-
-function createMockQueryFn(messages: SDKMessage[]): QueryFn {
-  return () => createMockQuery(messages);
-}
-
-function createFailingQueryFn(error: Error): QueryFn {
-  return () => {
-    async function* generator(): AsyncGenerator<SDKMessage> {
-      yield await Promise.reject(error);
-    }
-    const gen = generator();
-    (gen as unknown as Record<string, unknown>).interrupt = () => Promise.resolve();
-    (gen as unknown as Record<string, unknown>).close = () => {};
-    return gen as ReturnType<QueryFn>;
-  };
-}
-
 // -- Collect SSE events from event bus --
 
 function collectEvents(eventBus: EventBus, sessionId: string): SSEEvent[] {
@@ -259,8 +149,6 @@ function collectEvents(eventBus: EventBus, sessionId: string): SSEEvent[] {
   eventBus.subscribe(sessionId, (event) => events.push(event));
   return events;
 }
-
-// -- Tests --
 
 describe("type guards", () => {
   it("isSystemInitMessage identifies init messages", () => {
@@ -307,7 +195,7 @@ describe("type guards", () => {
   });
 
   it("isToolUseSummaryMessage identifies tool use summaries", () => {
-    expect(isToolUseSummaryMessage(makeToolUseSummary("done"))).toBe(true);
+    expect(isToolUseSummaryMessage(makeToolUseSummary(["tool-1"], "done"))).toBe(true);
     expect(isToolUseSummaryMessage(makeUserMessage())).toBe(false);
   });
 });
@@ -411,7 +299,7 @@ describe("translateSdkMessage", () => {
 
   it("translates tool use summary to tool_result event", () => {
     const events = translateSdkMessage(
-      makeToolUseSummary("Read 3 files successfully", ["tool-1", "tool-2"]),
+      makeToolUseSummary(["tool-1", "tool-2"], "Read 3 files successfully"),
     );
     expect(events).toEqual([
       {

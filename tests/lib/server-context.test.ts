@@ -5,33 +5,11 @@ import { afterEach, describe, expect, it, mock } from "bun:test";
 
 import { createServerContext, createNodePluginFs } from "@/lib/server-context";
 import type { ServerContextDeps } from "@/lib/server-context";
-import type { QueryFn } from "@/lib/agent";
 import { SessionStore } from "@/lib/session-store";
 import { createMockFs } from "@/tests/helpers/mock-fs";
 import { createMockSessionFs } from "@/tests/helpers/mock-session-fs";
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-
-// -- Mock query function (same pattern as agent.test.ts) --
-
-function createMockQueryFn(): QueryFn {
-  return () => {
-    async function* generator(): AsyncGenerator<SDKMessage> {
-      // Yield nothing; we only need the factory to construct without error
-      yield await Promise.resolve({
-        type: "system",
-        subtype: "init",
-        session_id: "test-session",
-      } as unknown as SDKMessage);
-    }
-    const gen = generator();
-    (gen as unknown as Record<string, unknown>).interrupt = () =>
-      Promise.resolve();
-    (gen as unknown as Record<string, unknown>).close = () => {};
-    return gen as ReturnType<QueryFn>;
-  };
-}
-
-// -- Helpers --
+import { makeInitMessage } from "@/tests/helpers/mock-sdk-messages";
+import { createMockQueryFn as createMockQueryFnFromMessages } from "@/tests/helpers/mock-query";
 
 function makeDeps(overrides?: Partial<ServerContextDeps>): ServerContextDeps {
   const manifest = JSON.stringify({
@@ -54,14 +32,12 @@ function makeDeps(overrides?: Partial<ServerContextDeps>): ServerContextDeps {
   return {
     guildMembersDir: "/guild",
     fs: pluginFs,
-    queryFn: createMockQueryFn(),
+    queryFn: createMockQueryFnFromMessages([makeInitMessage("test-session")]),
     sessionStore,
     sessionsDir: "/sessions",
     ...overrides,
   };
 }
-
-// -- Tests --
 
 describe("createServerContext", () => {
   it("getEventBus returns a consistent instance", () => {
