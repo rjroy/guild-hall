@@ -150,19 +150,54 @@ The guild metaphor maps perfectly onto the four primitives:
 
 **Design direction:** Dark fantasy guild aesthetic. Glassmorphic translucent panels over a medieval library background. Warm brass, bronze, and amber color palette. Information-dense but atmospheric. Continues the existing prototype's visual language while completely rethinking the interaction model.
 
+### Drill-Down Views
+
+Four views complete the navigation model. All rendered in the same fantasy guild aesthetic.
+
+**Meeting / Audience Chamber:** `.lore/prototypes/agentic-ux/view-meeting-audience_0.webp`
+
+Worker portrait and title on the left, meeting agenda on the right. Collapsible "Artifacts & References" panel showing the scrolls/documents relevant to this audience. Standard chat interface below with alternating message bubbles. Message input at the bottom. The worker's identity and the meeting's purpose are always visible, grounding the conversation in context.
+
+**Project / Quest Board:** `.lore/prototypes/agentic-ux/view-project-quest_0.webp`
+
+Top section: project name, description, and linked GitHub repository. Three tabbed sections (Tasks, Artifacts, Audiences). Task list shows status gems, assigned worker portraits, and descriptions. Prominent "Start Audience with Guild Master" button alongside the project's dependency graph. This is the workspace detail: settings, all related items, and the manager meeting entry point.
+
+**Task / Commission:** `.lore/prototypes/agentic-ux/view-task-commission_0.webp`
+
+Task title with status gem and assigned guild member portrait. DISPATCH button. Agentic prompt displayed in a readable text block (editable before dispatch, read-only after). Dependencies shown as a mini-graph centered on this task's neighborhood. Linked Artifacts list. Comment thread with Worker Notes / User Notes / Manager Notes tabs showing timestamped entries with portraits. Activity Timeline tracking status transitions and artifact creation events. Provenance: who dispatched, when, what's been produced.
+
+**Artifact / Scroll Viewer:** `.lore/prototypes/agentic-ux/view-artifact-scroll_0.webp`
+
+Breadcrumb navigation (Project > Artifact). Provenance line: "Created by [worker] during Task #N, Revised in Audience #N." Edit toggle for raw markdown editing (no WYSIWYG). Rendered markdown in the main panel. Metadata sidebar: linked project, associated tasks with status gems, "Create Task from Artifact" button. The artifact is the center of gravity; everything else links out from it.
+
+### Navigation Model
+
+Five views total (dashboard + four drill-downs). Navigation flows:
+
+- **Dashboard** -> click workspace sidebar -> **Project**
+- **Dashboard** -> click task node in dependency graph -> **Task**
+- **Dashboard** -> click artifact in recent scrolls -> **Artifact**
+- **Dashboard** -> click pending audience -> **Meeting**
+- **Project** -> click task/artifact/audience in tabs -> respective view
+- **Project** -> "Start Audience with Guild Master" -> **Meeting** (with manager)
+- **Task** -> click linked artifact -> **Artifact**
+- **Task** -> DISPATCH -> worker starts, view updates with activity
+- **Artifact** -> "Create Task from Artifact" -> **Task** (new, pre-linked)
+- **Artifact** -> click associated task -> **Task**
+- **Meeting** -> produces artifacts -> visible in **Project** and **Dashboard**
+
 ## Open Questions
 
 - **Worker memory scope.** The mail worker accumulates knowledge spanning workspaces (your mail patterns, filtering preferences). The implementation worker's context is workspace-specific. Per-worker-per-workspace, per-worker-global, or both?
-- **Drill-down views.** Front page is resolved (see Visual Direction). What happens when you click into a workspace? Into a task node? Into an artifact? What does the meeting/audience interface look like?
 - **Conversation persistence tension.** Conversations are where thinking happens, but they also create the illusion that the thinking lives there. Artifacts are primary, conversations are secondary. But multi-day brainstorms need persistent conversations. How to embrace persistence without making the conversation the organizing unit?
 - **Task creation UX.** Creating a task is a meeting with the manager. But is every task formal enough for a meeting? Is there a lightweight dispatch that's less than a meeting but more than clicking a button?
 - **Plugin contract.** If "toolbox" is the extension point, what's the minimal contract? An MCP server? A directory with a manifest? How does a toolbox declare what it provides?
 - **Worker-to-worker communication.** Can workers request meetings with each other, or only with the human? Can the researcher hand off to the implementer directly, or does everything route through the manager?
+- **Fresh start scope.** The prototype code will be replaced. What to extract first: CSS theme variables/assets? Agent SDK integration patterns? DI testing approach? Or just carry the lessons in lore and rebuild from scratch?
 
 ## Next Steps
 
-- Design the drill-down views: workspace detail, task detail, artifact viewer, meeting interface
 - Define what a minimal toolbox contract looks like
 - Map the lore-development workflow onto this model as a validation exercise (does brainstorm/research/specify/plan/implement/review fit cleanly into artifacts + workers + meetings?)
 - Sketch the manager worker's posture and capabilities
-- Generate mockups for the meeting interface (the interactive mode view)
+- Write a spec from this brainstorm to lock down requirements before rebuilding
