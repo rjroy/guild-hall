@@ -112,6 +112,54 @@ The manager's coordination job includes managing this graph. In a manager meetin
 
 **Dependencies are artifact dependencies.** Task B depends on Task A because it needs the research artifact that A produces. Task B's frontmatter says "requires: research-competitor-analysis.md." A task is "ready" when its input artifacts exist. A task is "blocked" when they don't. The graph is implicit in artifact references.
 
+## Storage Model
+
+Two storage locations, cleanly separated by durability and ownership.
+
+### `~/.guild-hall/` - Application state
+
+Guild Hall's home directory. Everything the application owns that doesn't belong to any single project.
+
+```
+~/.guild-hall/
+  config.yaml              # project registry, app settings
+  workers/                 # worker definitions, postures
+    researcher.md
+    implementer.md
+    manager.md
+  memory/                  # worker memory (global, cross-project)
+    researcher/
+    manager/
+  meetings/                # active meeting transcripts (ephemeral)
+    audience-abc123.md
+  projects/
+    guild-hall/             # git worktree (or sparse checkout)
+      .lore/
+    memory-loop/
+      .lore/
+    tax-prep-2025/
+      .lore/
+```
+
+**Meetings are ephemeral.** They live in `~/.guild-hall/meetings/` for as long as the conversation is active. Once the meeting's purpose is fulfilled (tasks created, brainstorm saved, decision made), the transcript can be cleaned up. Meetings produce artifacts; the artifacts are what matter. The transcript is scratch paper.
+
+**Worker definitions and memory are global.** A worker's posture and accumulated knowledge span projects. The researcher's expertise isn't project-specific. Global memory lives in `~/.guild-hall/memory/`.
+
+### `<repo>/.lore/` - Project artifacts
+
+Each project's artifacts live in its repo's `.lore/` directory. This already exists with a defined schema (frontmatter, directory structure, cross-references). Tasks, specs, research, brainstorms, implementation notes, all version-controlled alongside the code they describe.
+
+### Git isolation via worktrees
+
+Guild Hall maintains its own git worktree (or sparse checkout) of each project's repo under `~/.guild-hall/projects/`. Workers read and write `.lore/` in the worktree, not in the user's working directory. This means:
+
+- Workers don't step on the user's uncommitted changes
+- Worker-produced artifacts don't show up in the user's `git status`
+- Git handles sync: workers commit to the worktree, user pulls when ready (or auto-sync)
+- Sparse checkout (`git sparse-checkout set .lore`) can limit the worktree to just `.lore/` for a lighter footprint
+
+The project definition in `config.yaml` maps a project name to its repo path. Guild Hall creates the worktree on project registration.
+
 ## Relationship to Existing Work
 
 **Lore-development skills** map to worker types: researcher, specifier, brainstormer, implementer, reviewer. Each is a posture + toolbox combination.
@@ -189,11 +237,11 @@ Five views total (dashboard + four drill-downs). Navigation flows:
 ## Open Questions
 
 - **Worker memory scope.** The mail worker accumulates knowledge spanning workspaces (your mail patterns, filtering preferences). The implementation worker's context is workspace-specific. Per-worker-per-workspace, per-worker-global, or both?
-- **Conversation persistence tension.** Conversations are where thinking happens, but they also create the illusion that the thinking lives there. Artifacts are primary, conversations are secondary. But multi-day brainstorms need persistent conversations. How to embrace persistence without making the conversation the organizing unit?
+- **Multi-day meeting lifecycle.** Meetings are ephemeral, but a brainstorm might span days. When does a meeting transcript get cleaned up? Explicit close? Idle timeout? After the artifact it produces is committed? Needs a simple policy that doesn't lose in-progress work.
 - **Task creation UX.** Creating a task is a meeting with the manager. But is every task formal enough for a meeting? Is there a lightweight dispatch that's less than a meeting but more than clicking a button?
 - **Plugin contract.** If "toolbox" is the extension point, what's the minimal contract? An MCP server? A directory with a manifest? How does a toolbox declare what it provides?
 - **Worker-to-worker communication.** Can workers request meetings with each other, or only with the human? Can the researcher hand off to the implementer directly, or does everything route through the manager?
-- **Fresh start scope.** The prototype code will be replaced. What to extract first: CSS theme variables/assets? Agent SDK integration patterns? DI testing approach? Or just carry the lessons in lore and rebuild from scratch?
+- **Git sync strategy.** How does the user's repo and Guild Hall's worktree stay in sync? Auto-push from worktree? Notification that new artifacts are available? Manual pull? What happens on merge conflicts in `.lore/`?
 
 ## Next Steps
 
