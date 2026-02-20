@@ -23,7 +23,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 ## Entry Points
 
 - Package author creates a new worker or toolbox package (from package development)
-- Guild Hall activates a worker for a task or meeting (from [STUB: task-dispatch] or [STUB: meeting-lifecycle])
+- Guild Hall activates a worker for a commission or meeting (from [Spec: guild-hall-commissions](guild-hall-commissions.md) or [STUB: meeting-lifecycle])
 
 ## Requirements
 
@@ -38,13 +38,13 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   - **Domain toolbox requirements**: list of toolbox package names the worker needs
   - **Additional built-in tool requirements**: which Agent SDK built-in tools beyond the base file tools the worker needs (e.g., WebSearch, WebFetch, Bash). The base file tools (Grep, Glob, Read, Write, Edit) are always available per REQ-SYS-5 and do not need declaration.
   - **Checkout scope**: "sparse" (`.lore/` only) or "full" (entire repo), fulfilling REQ-SYS-29
-  - **Resource defaults**: optional maxTurns and maxBudgetUsd defaults for task execution
+  - **Resource defaults**: optional maxTurns and maxBudgetUsd defaults for commission execution
 
 - REQ-WKR-3: The posture is the primary mechanism for differentiating specialists. A researcher's posture emphasizes thoroughness and source evaluation. An implementer's posture emphasizes code quality and test coverage. The posture shapes how the worker uses its tools, not which tools it has.
 
 - REQ-WKR-4: Worker identity persists via the package. Name, posture, and capabilities are stable across all invocations. Memory accumulates across tasks and meetings, but identity does not change.
 
-- REQ-WKR-4a: A worker package exports an activation function. Guild Hall calls this function when activating the worker for a task or meeting, passing the activation context (resolved toolbox tools, injected memory, project information). The function returns the configuration needed for an SDK invocation (assembled system prompt, tool set, resource bounds). This is how Guild Hall bridges the worker definition to the SDK runtime.
+- REQ-WKR-4a: A worker package exports an activation function. Guild Hall calls this function when activating the worker for a commission or meeting, passing the activation context (resolved toolbox tools, injected memory, project information). The function returns the configuration needed for an SDK invocation (assembled system prompt, tool set, resource bounds). This is how Guild Hall bridges the worker definition to the SDK runtime.
 
 ### Toolbox Package API
 
@@ -65,7 +65,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   - **Artifact tools**: read and write artifacts in the active project's `.lore/` directory.
   - **Decision recording**: record autonomous judgment calls with question, decision, and reasoning. Creates an audit trail reviewable after the fact.
 
-- REQ-WKR-10: The **task toolbox** is provided when a worker executes a task. Its contents (progress reporting, result submission, question logging) are defined in [STUB: task-dispatch].
+- REQ-WKR-10: The **commission toolbox** is provided when a worker executes a commission. Its contents (progress reporting, result submission, question logging) are defined in [Spec: guild-hall-commissions](guild-hall-commissions.md).
 
 - REQ-WKR-11: The **meeting toolbox** is provided when a worker participates in a meeting. Its contents are defined in [STUB: meeting-lifecycle].
 
@@ -73,7 +73,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-WKR-12: When a worker is activated, Guild Hall assembles its complete tool set by combining:
   (a) The base toolbox (always present)
-  (b) The context toolbox (task or meeting, depending on activation mode)
+  (b) The context toolbox (commission or meeting, depending on activation mode)
   (c) The worker's declared domain toolboxes (resolved from `~/.guild-hall/packages/`)
   (d) The worker's declared built-in SDK tools
 
@@ -91,11 +91,11 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-WKR-18: Workers do not load external filesystem settings. All configuration comes from Guild Hall (posture, tools, memory), not from `.claude/` directories or project-level settings files. This prevents workers from inheriting unexpected behaviors from the user's Claude Code configuration.
 
-- REQ-WKR-19: Resource bounds (maxTurns, maxBudgetUsd) are set per invocation. The worker's package metadata provides defaults. The invoking context (task or meeting) can override. Resource defaults must be validated against real workloads before declaring them production-ready (lesson: the Phase 1 researcher's 30-turn default failed every real task and was increased to 150).
+- REQ-WKR-19: Resource bounds (maxTurns, maxBudgetUsd) are set per invocation. The worker's package metadata provides defaults. The invoking context (commission or meeting) can override. Resource defaults must be validated against real workloads before declaring them production-ready (lesson: the Phase 1 researcher's 30-turn default failed every real commission and was increased to 150).
 
-- REQ-WKR-20: In meeting context, worker sessions persist across multiple sittings. The user can leave and resume a meeting days later with conversation context intact. In task context, sessions are non-interactive: the worker runs autonomously to completion without user input or mid-task pausing. A task may involve multiple SDK invocations internally (e.g., memory compaction), but does not persist across separate dispatch events.
+- REQ-WKR-20: In meeting context, worker sessions persist across multiple sittings. The user can leave and resume a meeting days later with conversation context intact. In commission context, sessions are non-interactive: the worker runs autonomously to completion without user input or mid-commission pausing. A commission may involve multiple SDK invocations internally (e.g., memory compaction), but does not persist across separate dispatch events.
 
-- REQ-WKR-21: In meeting context, the SDK delivers incremental responses for real-time display. In task context, streaming to the UI is not required; the worker runs autonomously and reports results via the task toolbox.
+- REQ-WKR-21: In meeting context, the SDK delivers incremental responses for real-time display. In commission context, streaming to the UI is not required; the worker runs autonomously and reports results via the commission toolbox.
 
 ### Memory Injection
 
@@ -105,17 +105,17 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 ### Manager Worker
 
-- REQ-WKR-24: The manager is a worker package that ships with Guild Hall. It is not a user-installed package. Its posture is coordination: it knows all registered workers and their capabilities, all active workspaces and their task graphs, and the state of in-progress work.
+- REQ-WKR-24: The manager is a worker package that ships with Guild Hall. It is not a user-installed package. Its posture is coordination: it knows all registered workers and their capabilities, all active workspaces and their commission graphs, and the state of in-progress work.
 
 - REQ-WKR-25: The manager has capabilities beyond other workers, provided through a manager-specific system toolbox:
-  - **Task creation**: create task artifacts and assign workers to them.
+  - **Commission creation**: create commission artifacts and assign workers to them.
   - **Worker dispatch**: start tasks immediately (dispatch with review, see REQ-WKR-27).
   - **PR management**: create pull requests from `claude` to `master` when work is ready for user review (fulfills REQ-SYS-23).
   - **Meeting initiation**: request meetings with the user when it has findings, completed tasks, or blocked work to present.
 
-- REQ-WKR-26: The manager's toolbox is a system toolbox, not a domain toolbox. Other workers do not have access to task creation, dispatch, or PR management tools. These capabilities are exclusive to the manager.
+- REQ-WKR-26: The manager's toolbox is a system toolbox, not a domain toolbox. Other workers do not have access to commission creation, dispatch, or PR management tools. These capabilities are exclusive to the manager.
 
-- REQ-WKR-27: The manager uses a dispatch-with-review model. It can dispatch tasks immediately without waiting for user approval. All manager-dispatched tasks are created with a status that makes them visible and cancellable (the specific status values and review mechanics are defined in [STUB: task-dispatch]). The user can cancel or modify dispatched tasks after the fact. The manager acts first; the user reviews second.
+- REQ-WKR-27: The manager uses a dispatch-with-review model. It can dispatch commissions immediately without waiting for user approval. All manager-dispatched commissions are created with a status that makes them visible and cancellable (status values and review mechanics are defined in [Spec: guild-hall-commissions](guild-hall-commissions.md)). The user can cancel or modify dispatched commissions after the fact. The manager acts first; the user reviews second.
 
 - REQ-WKR-28: The manager defers to the user on:
   - Decisions that change project scope or direction
@@ -128,7 +128,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 | Exit | Triggers When | Target |
 |------|---------------|--------|
-| Task toolbox and execution | Need to define task-specific tools and process lifecycle | [STUB: task-dispatch] |
+| Commission toolbox and execution | Need to define commission-specific tools and process lifecycle | [Spec: guild-hall-commissions](guild-hall-commissions.md) |
 | Meeting toolbox and lifecycle | Need to define meeting-specific tools and conversation management | [STUB: meeting-lifecycle] |
 | Worker UI presentation | Need to present worker identity, status, and capabilities | [STUB: views] |
 | Worker-to-worker communication | Workers need to coordinate without going through the manager | [STUB: worker-communication] |
@@ -137,7 +137,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - [ ] Worker packages declare identity, posture, toolbox requirements, built-in tool requirements, and checkout scope via package metadata
 - [ ] Toolbox packages provide named tool definitions with typed input schemas and handler functions
-- [ ] System toolboxes (base, task, meeting) and the manager-exclusive toolbox are injected based on context without worker declaration
+- [ ] System toolboxes (base, commission, meeting) and the manager-exclusive toolbox are injected based on context without worker declaration
 - [ ] Toolbox resolution combines base + context + domain + built-in tools correctly
 - [ ] Missing domain toolbox dependency prevents activation with clear error
 - [ ] Workers run as Agent SDK sessions with only their declared tools available
@@ -146,7 +146,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - [ ] Manager can create tasks, dispatch workers, create PRs, and initiate meetings via its exclusive toolbox
 - [ ] Manager dispatches appear as reviewable items the user can cancel or modify
 - [ ] Manager deference rules are encoded in posture; system enforces PR-requires-merge
-- [ ] Meeting sessions persist across multiple sittings; task sessions are non-interactive and do not persist
+- [ ] Meeting sessions persist across multiple sittings; commission sessions are non-interactive and do not persist
 - [ ] Worker and toolbox packages export activation functions / tool collections loadable by Guild Hall
 
 ## AI Validation
@@ -161,9 +161,9 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - Toolbox resolution: combinations of base + context + domain toolboxes resolve to the expected tool set; partial resolution (missing toolbox) fails cleanly
 - Tool restriction: activated worker receives exactly its declared tools, nothing more
 - Memory injection: memory from all three scopes loaded; size limit enforced; compaction triggered when exceeded; compaction runs as separate invocation
-- Manager isolation: non-manager workers cannot access task creation, dispatch, or PR tools
-- Dispatch review: manager-dispatched tasks appear as reviewable; cancellation removes or stops the task
-- Session persistence: meeting session resumes with prior context; task session does not persist
+- Manager isolation: non-manager workers cannot access commission creation, dispatch, or PR tools
+- Dispatch review: manager-dispatched commissions appear as reviewable; cancellation removes or stops the commission
+- Session persistence: meeting session resumes with prior context; commission session does not persist
 
 ## Constraints
 

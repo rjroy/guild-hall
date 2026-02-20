@@ -23,21 +23,21 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 ## Entry Points
 
 - User installs Guild Hall and registers their first project (from startup)
-- Other specs depend on System primitives, storage paths, memory model, and git strategy (from [STUB: worker-definition], [STUB: task-dispatch], [STUB: meeting-lifecycle], [STUB: views])
+- Other specs depend on System primitives, storage paths, memory model, and git strategy (from [STUB: worker-definition], [Spec: guild-hall-commissions](guild-hall-commissions.md), [STUB: meeting-lifecycle], [STUB: views])
 
 ## Requirements
 
 ### Primitives
 
-- REQ-SYS-1: The system has five primitives: workspaces, artifacts, toolboxes, workers, and meetings. Workspaces are the organizing primitive: they own the storage boundary and the other primitives operate within them. All other concepts (task chains, the manager) compose from these primitives.
+- REQ-SYS-1: The system has five primitives: workspaces, artifacts, toolboxes, workers, and meetings. Workspaces are the organizing primitive: they own the storage boundary and the other primitives operate within them. All other concepts (commission chains, the manager) compose from these primitives.
 
-- REQ-SYS-1a: A **workspace** is a registered project with its repository, `.lore/` directory, task graph, and active contexts. Workspaces own the storage boundary (the project worktree and its `.lore/` directory). Workspaces separate concerns: the guild-hall project is a different workspace from mail workflow is a different workspace from tax prep 2025. In the storage model, a workspace maps one-to-one with a registered project.
+- REQ-SYS-1a: A **workspace** is a registered project with its repository, `.lore/` directory, commission graph, and active contexts. Workspaces own the storage boundary (the project worktree and its `.lore/` directory). Workspaces separate concerns: the guild-hall project is a different workspace from mail workflow is a different workspace from tax prep 2025. In the storage model, a workspace maps one-to-one with a registered project.
 
 - REQ-SYS-2: An **artifact** is a markdown file with YAML frontmatter. Artifacts live in a project's `.lore/` directory and follow the existing lore document schema defined in `.lore/` conventions (title, date, status, tags, modules, related fields; see the frontmatter schema used by lore-development). Artifacts reference each other by relative path, forming a directed graph.
 
 - REQ-SYS-3: Artifact types are conventions, not a fixed set. The system files, finds, and links artifacts. It does not enumerate all possible types. New types are established by frontmatter convention.
 
-- REQ-SYS-4: Artifacts are the durable unit of work. Conversations, meetings, and task executions are transient. The artifact is what you navigate to later. Meeting notes reference the artifacts they produced. Task records reference the artifacts they consumed and created.
+- REQ-SYS-4: Artifacts are the durable unit of work. Conversations, meetings, and commission executions are transient. The artifact is what you navigate to later. Meeting notes reference the artifacts they produced. Commission records reference the artifacts they consumed and created.
 
 - REQ-SYS-5: A **toolbox** is a set of tool functions grouped by domain. Two kinds exist:
   - **Built-in toolbox:** The Agent SDK's default tools (Grep, Glob, Read, Write, Edit). Always available to all workers. Not a bun package.
@@ -55,29 +55,29 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 ### Worker Is a Definition
 
-- REQ-SYS-9: A worker definition is loaded into a meeting or used to configure a task. The worker package does not manage its own lifecycle. Meeting lifecycle belongs to [STUB: meeting-lifecycle]. Task lifecycle belongs to [STUB: task-dispatch].
+- REQ-SYS-9: A worker definition is loaded into a meeting or used to configure a commission. The worker package does not manage its own lifecycle. Meeting lifecycle belongs to [STUB: meeting-lifecycle]. Commission lifecycle belongs to [Spec: guild-hall-commissions](guild-hall-commissions.md).
 
-- REQ-SYS-10: The same worker definition can be active in multiple contexts simultaneously: in a meeting with the user while also executing a task. State isolation between contexts is the responsibility of the meeting and task systems, not the worker definition.
+- REQ-SYS-10: The same worker definition can be active in multiple contexts simultaneously: in a meeting with the user while also executing a commission. State isolation between contexts is the responsibility of the meeting and commission systems, not the worker definition.
 
 ### Primitive Relationships
 
 - REQ-SYS-11: Workers consume and produce artifacts. A worker reads input artifacts (research, specs) and creates output artifacts (summaries, plans, implementation notes).
 
-- REQ-SYS-12: Workers require toolboxes. A worker's definition declares which toolboxes it needs. The system provides those toolboxes when the worker is activated in a meeting or task.
+- REQ-SYS-12: Workers require toolboxes. A worker's definition declares which toolboxes it needs. The system provides those toolboxes when the worker is activated in a meeting or commission.
 
 - REQ-SYS-13: Meetings produce artifacts. The organizing unit of a meeting is the artifact being produced, not the conversation itself. Conversation history is secondary: available for reconstruction, not the primary navigation target.
 
-- REQ-SYS-14: Tasks form dependency graphs through artifact references. Task B depends on Task A because it needs an artifact that A produces. A task is "ready" when its input artifacts exist. A task is "blocked" when they don't. The dependency graph is implicit in artifact references, not maintained as a separate data structure.
+- REQ-SYS-14: Commissions form dependency graphs through artifact references. Commission B depends on Commission A because it needs an artifact that A produces. A commission is "ready" when its input artifacts exist. A commission is "blocked" when they don't. The dependency graph is implicit in artifact references, not maintained as a separate data structure.
 
-- REQ-SYS-15: All primitive relationships are scoped to a workspace. A worker's artifact consumption, toolbox bindings, meeting contexts, and task assignments are per-workspace. Cross-workspace coordination (a worker applying knowledge from one project to another) flows through the memory model (global and worker-scoped memory), not through direct primitive relationships.
+- REQ-SYS-15: All primitive relationships are scoped to a workspace. A worker's artifact consumption, toolbox bindings, meeting contexts, and commission assignments are per-workspace. Cross-workspace coordination (a worker applying knowledge from one project to another) flows through the memory model (global and worker-scoped memory), not through direct primitive relationships.
 
 ### Manager
 
-- REQ-SYS-16: The **manager** is a distinguished worker whose posture is coordination. It knows the other workers, their capabilities, active workspaces, and the task graph. The user meets with the manager to plan and prioritize. The manager dispatches to specialists.
+- REQ-SYS-16: The **manager** is a distinguished worker whose posture is coordination. It knows the other workers, their capabilities, active workspaces, and the commission graph. The user meets with the manager to plan and prioritize. The manager dispatches to specialists.
 
-- REQ-SYS-17: The manager can initiate meetings when it has information to present: completed tasks, findings ready for review, blocked work needing decisions. The user can decline or defer.
+- REQ-SYS-17: The manager can initiate meetings when it has information to present: completed commissions, findings ready for review, blocked work needing decisions. The user can decline or defer.
 
-- REQ-SYS-18: The manager's detailed posture, unique capabilities (task creation, worker dispatch, PR management), and autonomy/deference balance are defined in [STUB: worker-definition].
+- REQ-SYS-18: The manager's detailed posture, unique capabilities (commission creation, worker dispatch, PR management), and autonomy/deference balance are defined in [STUB: worker-definition].
 
 ### Memory Model
 
@@ -95,7 +95,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 - REQ-SYS-22: Each registered project uses a branch-based workflow with three tiers:
   - `master` (or `main`): The user's branch. Protected. Changes arrive only via pull request.
   - `claude`: Guild Hall's integration branch. Activity branches are created from it and merged back.
-  - Activity branches: Short-lived feature branches off `claude`. One branch per task, one branch per meeting. Squash-merged back into `claude` with one clean commit per activity. Naming convention: `claude/task/<task-id>`, `claude/meeting/<meeting-id>`.
+  - Activity branches: Short-lived feature branches off `claude`. One branch per commission, one branch per meeting. Squash-merged back into `claude` with one clean commit per activity. Naming convention: `claude/commission/<commission-id>`, `claude/meeting/<meeting-id>`.
 
 - REQ-SYS-23: A pull request from `claude` to `master` is squash-merged, producing one commit per PR. The manager worker creates PRs when work is ready for review. How the manager initiates this is defined in [STUB: worker-definition].
 
@@ -121,9 +121,9 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
       <meeting-id>.md
     projects/                # integration worktrees (one per project, on claude branch)
       <project-name>/
-    worktrees/               # activity worktrees (ephemeral, per task/meeting)
+    worktrees/               # activity worktrees (ephemeral, per commission/meeting)
       <project-name>/
-        task-<task-id>/
+        commission-<commission-id>/
         meeting-<meeting-id>/
   ```
 
@@ -135,7 +135,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 - REQ-SYS-29: Worktree checkout scope is worker-configurable. Workers that only need artifacts use sparse checkout (`.lore/` only). Workers that need the full codebase get a full worktree. The worker definition declares its checkout requirements. How workers declare this is defined in [STUB: worker-definition].
 
-- REQ-SYS-29a: Each task and each meeting gets its own git worktree, branched from `claude`. This isolates concurrent activities from each other and from the integration branch. Worktrees are created on activity start and cleaned up after the activity's branch is squash-merged back to `claude`. Physical worktree locations live under `~/.guild-hall/worktrees/<project-name>/` with subdirectories per activity. Lifecycle details are defined in [STUB: task-dispatch] and [STUB: meeting-lifecycle].
+- REQ-SYS-29a: Each commission and each meeting gets its own git worktree, branched from `claude`. This isolates concurrent activities from each other and from the integration branch. Worktrees are created on activity start and cleaned up after the activity's branch is squash-merged back to `claude`. Physical worktree locations live under `~/.guild-hall/worktrees/<project-name>/` with subdirectories per activity. Lifecycle details are defined in [Spec: guild-hall-commissions](guild-hall-commissions.md) and [STUB: meeting-lifecycle].
 
 - REQ-SYS-30: Meetings are ephemeral. Transcripts live in `~/.guild-hall/meetings/` while active. Once a meeting produces its artifacts, the transcript can be cleaned up. Artifacts persist; conversations don't.
 
@@ -173,7 +173,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 | Exit | Triggers When | Target |
 |------|---------------|--------|
 | Worker/toolbox package API | Need to define what packages export | [STUB: worker-definition] |
-| Task dispatch and lifecycle | Need to run workers autonomously | [STUB: task-dispatch] |
+| Commission dispatch and lifecycle | Need to run workers autonomously | [Spec: guild-hall-commissions](guild-hall-commissions.md) |
 | Meeting lifecycle | Need interactive worker sessions | [STUB: meeting-lifecycle] |
 | Manager posture and capabilities | Need detailed manager behavior | [STUB: worker-definition] |
 | Views and navigation | Need to present the system in a UI | [STUB: views] |
@@ -184,12 +184,12 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 - [ ] Artifact schema validates required frontmatter fields (title, date, status, tags)
 - [ ] Worker and toolbox package structures pass package validation
 - [ ] Memory model supports three scopes with correct access rules (worker memory private, global/project shared)
-- [ ] Git worktree isolates workers from user's working directory (integration worktree per project, activity worktrees per task/meeting)
+- [ ] Git worktree isolates workers from user's working directory (integration worktree per project, activity worktrees per commission/meeting)
 - [ ] Storage layout separates application state (`~/.guild-hall/`) from project artifacts (`<worktree>/.lore/`)
 - [ ] Package discovery finds and categorizes bun packages from scan directory
 - [ ] Project registration creates worktrees, initializes `claude` branch, and maintains config.yaml
 - [ ] config.yaml is editable by both humans and agents with CLI validation available
-- [ ] Task dependency graph is derivable from artifact references without additional data structures
+- [ ] Commission dependency graph is derivable from artifact references without additional data structures
 - [ ] Per-project meeting cap is configurable and enforced
 - [ ] All system state is in plain files (no binary formats, no databases)
 
@@ -217,9 +217,9 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 ## Context
 
-- [Brainstorm: Agentic Work UX](.lore/brainstorm/agentic-work-ux.md): The authoritative source. Lines 297-308 scope this spec. Resolved questions on memory layers, meeting lifecycle, task creation parity, plugin contract, git strategy.
+- [Brainstorm: Agentic Work UX](.lore/brainstorm/agentic-work-ux.md): The authoritative source. Lines 297-308 scope this spec. Resolved questions on memory layers, meeting lifecycle, commission creation parity, plugin contract, git strategy.
 - [Spec: Guild Hall Phase 1](.lore/specs/phase-1/guild-hall-phase-1.md): Superseded. Lessons carried forward: DI factory pattern, deferred initialization, file-based storage.
-- [Spec: Worker Dispatch](.lore/specs/phase-1/worker-dispatch.md): Superseded. Internal tool pattern (status updates, decisions, questions, memory) carries forward into the Task spec.
+- [Spec: Worker Dispatch](.lore/specs/phase-1/worker-dispatch.md): Superseded. Internal tool pattern (status updates, decisions, questions, memory) carries forward into the Commissions spec.
 - [Research: Agent-Native Applications](.lore/research/agent-native-applications.md): Parity principle, files as universal interface.
 - [Retro: Phase 1](.lore/retros/guild-hall-phase-1.md): Navigation is implicit requirement. Never skip review.
 - [Retro: Worker Dispatch](.lore/retros/worker-dispatch.md): Plans need explicit production wiring. Design explicit result submission.
