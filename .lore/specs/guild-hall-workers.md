@@ -33,7 +33,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-WKR-2: Worker package metadata includes:
   - **Type**: "worker" (or both "worker" and "toolbox" if the package provides tools to others)
-  - **Identity**: name and description
+  - **Identity**: name, description, portrait asset path, and display title. Portrait and display title are presentation metadata used by the views layer (REQ-VIEW-3) for visual identification.
   - **Posture**: system prompt that shapes behavior and expertise
   - **Domain toolbox requirements**: list of toolbox package names the worker needs
   - **Additional built-in tool requirements**: which Agent SDK built-in tools beyond the base file tools the worker needs (e.g., WebSearch, WebFetch, Bash). The base file tools (Grep, Glob, Read, Write, Edit) are always available per REQ-SYS-5 and do not need declaration.
@@ -130,7 +130,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 |------|---------------|--------|
 | Commission toolbox and execution | Need to define commission-specific tools and process lifecycle | [Spec: guild-hall-commissions](guild-hall-commissions.md) |
 | Meeting toolbox and lifecycle | Need to define meeting-specific tools and conversation management | [Spec: guild-hall-meetings](guild-hall-meetings.md) |
-| Worker UI presentation | Need to present worker identity, status, and capabilities | [STUB: views] |
+| Worker UI presentation | Need to present worker identity, status, and capabilities | [Spec: guild-hall-views](guild-hall-views.md) |
 | Worker-to-worker communication | Workers need to coordinate without going through the manager | [STUB: worker-communication] |
 
 ## Success Criteria

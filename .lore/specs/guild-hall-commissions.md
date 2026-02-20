@@ -28,7 +28,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 ## Entry Points
 
-- User creates a commission through the UI and dispatches it (from [STUB: views])
+- User creates a commission through the UI and dispatches it (from [Spec: guild-hall-views](guild-hall-views.md))
 - Manager worker creates and dispatches commissions programmatically (from REQ-WKR-25)
 - Guild Hall checks commission dependencies and auto-transitions blocked/ready states (from artifact references, REQ-SYS-14)
 - Guild Hall starts up and scans for orphaned commissions (from crash recovery)
@@ -179,7 +179,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 | Exit | Triggers When | Target |
 |------|---------------|--------|
-| Commission UI | Need to present commissions in the frontend | [STUB: views] |
+| Commission UI | Need to present commissions in the frontend | [Spec: guild-hall-views](guild-hall-views.md) |
 
 ## Success Criteria
 

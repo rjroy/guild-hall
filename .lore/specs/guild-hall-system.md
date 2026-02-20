@@ -23,7 +23,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 ## Entry Points
 
 - User installs Guild Hall and registers their first project (from startup)
-- Other specs depend on System primitives, storage paths, memory model, and git strategy (from [STUB: worker-definition], [Spec: guild-hall-commissions](guild-hall-commissions.md), [Spec: guild-hall-meetings](guild-hall-meetings.md), [STUB: views])
+- Other specs depend on System primitives, storage paths, memory model, and git strategy (from [Spec: guild-hall-workers](guild-hall-workers.md), [Spec: guild-hall-commissions](guild-hall-commissions.md), [Spec: guild-hall-meetings](guild-hall-meetings.md), [Spec: guild-hall-views](guild-hall-views.md))
 
 ## Requirements
 
@@ -77,7 +77,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 - REQ-SYS-17: The manager can initiate meetings when it has information to present: completed commissions, findings ready for review, blocked work needing decisions. The user can decline or defer.
 
-- REQ-SYS-18: The manager's detailed posture, unique capabilities (commission creation, worker dispatch, PR management), and autonomy/deference balance are defined in [STUB: worker-definition].
+- REQ-SYS-18: The manager's detailed posture, unique capabilities (commission creation, worker dispatch, PR management), and autonomy/deference balance are defined in [Spec: guild-hall-workers](guild-hall-workers.md) (REQ-WKR-24 through REQ-WKR-28).
 
 ### Memory Model
 
@@ -97,7 +97,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
   - `claude`: Guild Hall's integration branch. Activity branches are created from it and merged back.
   - Activity branches: Short-lived feature branches off `claude`. One branch per commission, one branch per meeting. Squash-merged back into `claude` with one clean commit per activity. Naming convention: `claude/commission/<commission-id>`, `claude/meeting/<meeting-id>`.
 
-- REQ-SYS-23: A pull request from `claude` to `master` is squash-merged, producing one commit per PR. The manager worker creates PRs when work is ready for review. How the manager initiates this is defined in [STUB: worker-definition].
+- REQ-SYS-23: A pull request from `claude` to `master` is squash-merged, producing one commit per PR. The manager worker creates PRs when work is ready for review. How the manager initiates this is defined in [Spec: guild-hall-workers](guild-hall-workers.md) (REQ-WKR-25).
 
 - REQ-SYS-24: When the user pushes changes to `master`, `claude` rebases onto `master` to stay current without diverging.
 
@@ -142,7 +142,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 - REQ-SYS-28: Guild Hall maintains its own git worktree of each project's repo under `~/.guild-hall/projects/<name>/`. Workers read and write `.lore/` in the worktree, not in the user's working directory. Worker-produced artifacts stay out of the user's `git status` and don't conflict with uncommitted changes.
 
-- REQ-SYS-29: Worktree checkout scope is worker-configurable. Workers that only need artifacts use sparse checkout (`.lore/` only). Workers that need the full codebase get a full worktree. The worker definition declares its checkout requirements. How workers declare this is defined in [STUB: worker-definition].
+- REQ-SYS-29: Worktree checkout scope is worker-configurable. Workers that only need artifacts use sparse checkout (`.lore/` only). Workers that need the full codebase get a full worktree. The worker definition declares its checkout requirements. How workers declare this is defined in [Spec: guild-hall-workers](guild-hall-workers.md) (REQ-WKR-2).
 
 - REQ-SYS-29a: Each commission and each meeting gets its own git worktree, branched from `claude`. This isolates concurrent activities from each other and from the integration branch. Worktrees are created on activity start and cleaned up after the activity's branch is squash-merged back to `claude`. Physical worktree locations live under `~/.guild-hall/worktrees/<project-name>/` with subdirectories per activity. Lifecycle details are defined in [Spec: guild-hall-commissions](guild-hall-commissions.md) and [Spec: guild-hall-meetings](guild-hall-meetings.md).
 
@@ -156,7 +156,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 - REQ-SYS-33: Standard bun package resolution, versioning, and dependency management. Packages can depend on other packages (a worker depending on a toolbox resolves through bun's dependency system).
 
-- REQ-SYS-34: The specific export interface for worker and toolbox packages (what functions they expose, what metadata they declare) is defined in [STUB: worker-definition].
+- REQ-SYS-34: The specific export interface for worker and toolbox packages (what functions they expose, what metadata they declare) is defined in [Spec: guild-hall-workers](guild-hall-workers.md) (REQ-WKR-1 through REQ-WKR-7, REQ-WKR-4a, REQ-WKR-6a).
 
 ### Project Configuration
 
@@ -181,11 +181,11 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 | Exit | Triggers When | Target |
 |------|---------------|--------|
-| Worker/toolbox package API | Need to define what packages export | [STUB: worker-definition] |
+| Worker/toolbox package API | Need to define what packages export | [Spec: guild-hall-workers](guild-hall-workers.md) |
 | Commission dispatch and lifecycle | Need to run workers autonomously | [Spec: guild-hall-commissions](guild-hall-commissions.md) |
 | Meeting lifecycle | Need interactive worker sessions | [Spec: guild-hall-meetings](guild-hall-meetings.md) |
-| Manager posture and capabilities | Need detailed manager behavior | [STUB: worker-definition] |
-| Views and navigation | Need to present the system in a UI | [STUB: views] |
+| Manager posture and capabilities | Need detailed manager behavior | [Spec: guild-hall-workers](guild-hall-workers.md) |
+| Views and navigation | Need to present the system in a UI | [Spec: guild-hall-views](guild-hall-views.md) |
 | Worker-to-worker communication | Workers need direct coordination | [STUB: worker-communication] |
 
 ## Success Criteria

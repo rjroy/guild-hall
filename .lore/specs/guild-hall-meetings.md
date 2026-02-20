@@ -28,9 +28,9 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 ## Entry Points
 
-- User starts a meeting with a worker through the UI (from [STUB: views])
+- User starts a meeting with a worker through the UI (from [Spec: guild-hall-views](guild-hall-views.md))
 - Worker or manager requests a meeting by creating a meeting request artifact (from REQ-WKR-25, REQ-SYS-8)
-- User resumes an existing open meeting (from [STUB: views])
+- User resumes an existing open meeting (from [Spec: guild-hall-views](guild-hall-views.md))
 - Guild Hall starts up and discovers open meetings with persisted session IDs (from daemon startup)
 
 ## Requirements
@@ -46,6 +46,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   - **Linked artifacts**: artifacts discussed, reviewed, or produced during the meeting (populated during execution)
   - **Meeting log**: chronological log of lifecycle events (status transitions with timestamps and reasons, session renewals, progress summaries from summarize_progress). Append-only during the meeting's life.
   - **Notes summary**: generated summary of the meeting (populated on close)
+  - **Deferred until**: optional date for sort ordering when the user defers a meeting request (populated by the defer action in the views, null by default). Meeting requests sort by deferred_until date (null sorts to top), then by creation date.
 
 - REQ-MTG-2a: Machine-local state for each meeting is stored in `~/.guild-hall/state/meetings/<meeting-id>.json` (REQ-SYS-26b). This includes the SDK session_id (for multi-turn persistence) and the activity worktree path. This state is machine-specific and not portable. The meeting artifact in the activity worktree holds the durable data: agenda, status, meeting log, linked artifacts, notes summary (REQ-SYS-26c).
 
@@ -129,7 +130,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-MTG-23: Meeting requests follow the parity principle: a worker creates a meeting request artifact using the base toolbox's artifact tools. The system recognizes it as a meeting request by its location in `.lore/meetings/` and its frontmatter (status: requested). No special request-creation API is needed.
 
-- REQ-MTG-24: The user can accept (transition to open, creating branch/worktree/session), decline (mark as declined), or defer (leave as requested for later). Deferring is the default: requests sit until acted upon. Declining does not discard the referenced artifacts; the findings that prompted the request remain available.
+- REQ-MTG-24: The user can accept (transition to open, creating branch/worktree/session), decline (mark as declined), or defer (set a deferred_until date to push the request lower in sort order; the request remains in "requested" state). Deferring is the default: requests sit until acted upon. Declining does not discard the referenced artifacts; the findings that prompted the request remain available.
 
 ### Git Integration
 
@@ -157,7 +158,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 | Exit | Triggers When | Target |
 |------|---------------|--------|
-| Meeting UI | Need to present meetings in the frontend | [STUB: views] |
+| Meeting UI | Need to present meetings in the frontend | [Spec: guild-hall-views](guild-hall-views.md) |
 
 ## Success Criteria
 
