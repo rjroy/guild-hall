@@ -23,7 +23,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 ## Entry Points
 
 - Package author creates a new worker or toolbox package (from package development)
-- Guild Hall activates a worker for a commission or meeting (from [Spec: guild-hall-commissions](guild-hall-commissions.md) or [STUB: meeting-lifecycle])
+- Guild Hall activates a worker for a commission or meeting (from [Spec: guild-hall-commissions](guild-hall-commissions.md) or [Spec: guild-hall-meetings](guild-hall-meetings.md))
 
 ## Requirements
 
@@ -67,7 +67,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-WKR-10: The **commission toolbox** is provided when a worker executes a commission. Its contents (progress reporting, result submission, question logging) are defined in [Spec: guild-hall-commissions](guild-hall-commissions.md).
 
-- REQ-WKR-11: The **meeting toolbox** is provided when a worker participates in a meeting. Its contents are defined in [STUB: meeting-lifecycle].
+- REQ-WKR-11: The **meeting toolbox** is provided when a worker participates in a meeting. Its contents (artifact linking, follow-up proposals, progress summaries) are defined in [Spec: guild-hall-meetings](guild-hall-meetings.md).
 
 ### Toolbox Resolution
 
@@ -129,7 +129,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 | Exit | Triggers When | Target |
 |------|---------------|--------|
 | Commission toolbox and execution | Need to define commission-specific tools and process lifecycle | [Spec: guild-hall-commissions](guild-hall-commissions.md) |
-| Meeting toolbox and lifecycle | Need to define meeting-specific tools and conversation management | [STUB: meeting-lifecycle] |
+| Meeting toolbox and lifecycle | Need to define meeting-specific tools and conversation management | [Spec: guild-hall-meetings](guild-hall-meetings.md) |
 | Worker UI presentation | Need to present worker identity, status, and capabilities | [STUB: views] |
 | Worker-to-worker communication | Workers need to coordinate without going through the manager | [STUB: worker-communication] |
 

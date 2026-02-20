@@ -23,7 +23,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 ## Entry Points
 
 - User installs Guild Hall and registers their first project (from startup)
-- Other specs depend on System primitives, storage paths, memory model, and git strategy (from [STUB: worker-definition], [Spec: guild-hall-commissions](guild-hall-commissions.md), [STUB: meeting-lifecycle], [STUB: views])
+- Other specs depend on System primitives, storage paths, memory model, and git strategy (from [STUB: worker-definition], [Spec: guild-hall-commissions](guild-hall-commissions.md), [Spec: guild-hall-meetings](guild-hall-meetings.md), [STUB: views])
 
 ## Requirements
 
@@ -55,7 +55,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 ### Worker Is a Definition
 
-- REQ-SYS-9: A worker definition is loaded into a meeting or used to configure a commission. The worker package does not manage its own lifecycle. Meeting lifecycle belongs to [STUB: meeting-lifecycle]. Commission lifecycle belongs to [Spec: guild-hall-commissions](guild-hall-commissions.md).
+- REQ-SYS-9: A worker definition is loaded into a meeting or used to configure a commission. The worker package does not manage its own lifecycle. Meeting lifecycle belongs to [Spec: guild-hall-meetings](guild-hall-meetings.md). Commission lifecycle belongs to [Spec: guild-hall-commissions](guild-hall-commissions.md).
 
 - REQ-SYS-10: The same worker definition can be active in multiple contexts simultaneously: in a meeting with the user while also executing a commission. State isolation between contexts is the responsibility of the meeting and commission systems, not the worker definition.
 
@@ -135,7 +135,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 - REQ-SYS-29: Worktree checkout scope is worker-configurable. Workers that only need artifacts use sparse checkout (`.lore/` only). Workers that need the full codebase get a full worktree. The worker definition declares its checkout requirements. How workers declare this is defined in [STUB: worker-definition].
 
-- REQ-SYS-29a: Each commission and each meeting gets its own git worktree, branched from `claude`. This isolates concurrent activities from each other and from the integration branch. Worktrees are created on activity start and cleaned up after the activity's branch is squash-merged back to `claude`. Physical worktree locations live under `~/.guild-hall/worktrees/<project-name>/` with subdirectories per activity. Lifecycle details are defined in [Spec: guild-hall-commissions](guild-hall-commissions.md) and [STUB: meeting-lifecycle].
+- REQ-SYS-29a: Each commission and each meeting gets its own git worktree, branched from `claude`. This isolates concurrent activities from each other and from the integration branch. Worktrees are created on activity start and cleaned up after the activity's branch is squash-merged back to `claude`. Physical worktree locations live under `~/.guild-hall/worktrees/<project-name>/` with subdirectories per activity. Lifecycle details are defined in [Spec: guild-hall-commissions](guild-hall-commissions.md) and [Spec: guild-hall-meetings](guild-hall-meetings.md).
 
 - REQ-SYS-30: Meetings are ephemeral. Transcripts live in `~/.guild-hall/meetings/` while active. Once a meeting produces its artifacts, the transcript can be cleaned up. Artifacts persist; conversations don't.
 
@@ -174,7 +174,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 |------|---------------|--------|
 | Worker/toolbox package API | Need to define what packages export | [STUB: worker-definition] |
 | Commission dispatch and lifecycle | Need to run workers autonomously | [Spec: guild-hall-commissions](guild-hall-commissions.md) |
-| Meeting lifecycle | Need interactive worker sessions | [STUB: meeting-lifecycle] |
+| Meeting lifecycle | Need interactive worker sessions | [Spec: guild-hall-meetings](guild-hall-meetings.md) |
 | Manager posture and capabilities | Need detailed manager behavior | [STUB: worker-definition] |
 | Views and navigation | Need to present the system in a UI | [STUB: views] |
 | Worker-to-worker communication | Workers need direct coordination | [STUB: worker-communication] |
