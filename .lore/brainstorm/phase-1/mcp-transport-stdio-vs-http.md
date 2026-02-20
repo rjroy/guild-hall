@@ -6,7 +6,7 @@ tags: [mcp, transport, architecture, http, sse, stdio]
 modules: [mcp-manager, mcp-server-factory]
 related:
   - .lore/specs/phase-1/mcp-server-factory.md
-  - .lore/notes/mcp-server-factory.md
+  - .lore/notes/phase-1/mcp-server-factory.md
   - .lore/research/claude-agent-sdk.md
 ---
 

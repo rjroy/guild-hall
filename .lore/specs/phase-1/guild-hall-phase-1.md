@@ -9,7 +9,7 @@ related:
   - .lore/research/agent-native-applications.md
   - .lore/research/claude-agent-sdk.md
   - .lore/research/typescript-plugin-systems.md
-  - .lore/notes/phase-1-research-summary.md
+  - .lore/notes/phase-1/phase-1-research-summary.md
 req-prefix: GH1
 ---
 
@@ -134,4 +134,4 @@ This resolves the four open architectural questions from the brainstorm: Next.js
 - [Claude Agent SDK](.lore/research/claude-agent-sdk.md): TypeScript SDK provides hooks (SessionStart/End, PreToolUse/PostToolUse, Notification, PermissionRequest), session resume/fork, MCP integration via stdio/HTTP/in-process servers, and streaming message types.
 - [Plugin Systems](.lore/research/typescript-plugin-systems.md): Guild Hall borrows directory-scan discovery (Claude Code, Grafana), manifest-based metadata (VS Code, Grafana), and the "MCP-only vs full" plugin tier distinction.
 - [Phase I Brainstorm](.lore/brainstorm/phase-1/guild-hall-phase-1.md): Settled the hybrid agent model, dashboard-first UI, file-based sessions, three-zone metaphor (Roster, Board, Workshop).
-- [Research Summary](.lore/notes/phase-1-research-summary.md): Consolidation of findings and the four open questions resolved by this spec.
+- [Research Summary](.lore/notes/phase-1/phase-1-research-summary.md): Consolidation of findings and the four open questions resolved by this spec.

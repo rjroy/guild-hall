@@ -45,6 +45,6 @@ Complete redesign of Guild Hall UI from modern minimalist to fantasy theme with 
 
 ## Artifacts
 - Spec: `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`
-- Implementation notes: `.lore/notes/ui-redesign-fantasy-theme.md`
-- Plan: `.lore/plans/ui-redesign-fantasy-theme.md`
+- Implementation notes: `.lore/notes/phase-1/ui-redesign-fantasy-theme.md`
+- Plan: `.lore/plans/phase-1/ui-redesign-fantasy-theme.md`
 - Key commit: ed18a39 (CSS property order fix with explanatory comment)

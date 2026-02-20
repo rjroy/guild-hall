@@ -6,8 +6,8 @@ tags: [phase-1, implementation, autonomous-implementation, sse, testing, fronten
 modules: [guild-hall, workshop, board, roster]
 related:
   - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/plans/guild-hall-phase-1.md
-  - .lore/notes/guild-hall-phase-1.md
+  - .lore/plans/phase-1/guild-hall-phase-1.md
+  - .lore/notes/phase-1/guild-hall-phase-1.md
 ---
 
 # Retro: Guild Hall Phase I
@@ -57,7 +57,7 @@ The backend is solid. The frontend has three bugs that surfaced in manual testin
 ## Artifacts
 
 - Spec: `.lore/specs/phase-1/guild-hall-phase-1.md`
-- Plan: `.lore/plans/guild-hall-phase-1.md`
-- Notes: `.lore/notes/guild-hall-phase-1.md`
-- Tasks: `.lore/tasks/guild-hall-phase-1/` (17 task files)
+- Plan: `.lore/plans/phase-1/guild-hall-phase-1.md`
+- Notes: `.lore/notes/phase-1/guild-hall-phase-1.md`
+- Tasks: `.lore/tasks/phase-1/guild-hall-phase-1/` (17 task files)
 - PR: https://github.com/rjroy/guild-hall/pull/3

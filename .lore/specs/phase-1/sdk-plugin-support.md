@@ -114,7 +114,7 @@ In this spec, "plugin" refers specifically to a Claude Code plugin directory (sk
 
 ## Interaction with Worker Dispatch
 
-The worker dispatch infrastructure (`.lore/plans/worker-dispatch.md`, merged) introduced:
+The worker dispatch infrastructure (`.lore/plans/phase-1/worker-dispatch.md`, merged) introduced:
 
 1. **`capabilities` field** on `GuildMemberManifestSchema` (optional string array). Already in the schema. The plugin spec's changes are additive, not conflicting.
 
@@ -135,6 +135,6 @@ No blocking conflicts. The main architectural constraint is that worker capabili
 - Brainstorm: `.lore/brainstorm/phase-1/sdk-plugin-config-support.md` (resolved: merge behavior confirmed, plugin-only members valuable, roster uses description)
 - Phase I spec: `.lore/specs/phase-1/guild-hall-phase-1.md` (REQ-GH1-5, REQ-GH1-24, REQ-GH1-25 define MCP-only members)
 - HTTP transport spec: `.lore/specs/phase-1/mcp-http-transport.md` (REQ-MCP-HTTP-1 requires `transport: "http"`, now becomes optional)
-- Worker dispatch plan: `.lore/plans/worker-dispatch.md` (capabilities field, dispatch bridge, MCPManager extensions)
+- Worker dispatch plan: `.lore/plans/phase-1/worker-dispatch.md` (capabilities field, dispatch bridge, MCPManager extensions)
 - Agent SDK research: `.lore/research/claude-agent-sdk.md` (Section 10 documents `options.plugins`)
 - Plugin systems research: `.lore/research/typescript-plugin-systems.md` (Claude Code plugin directory structure)

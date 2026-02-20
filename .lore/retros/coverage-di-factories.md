@@ -4,7 +4,7 @@ date: 2026-02-13
 status: complete
 tags: [testing, coverage, dependency-injection, refactor]
 modules: [server-context, node-session-store, tools-invoke-route, mock-fs]
-related: [.lore/notes/coverage-gaps.md, .lore/plans/coverage-di-factories.md]
+related: [.lore/notes/phase-1/coverage-gaps.md, .lore/plans/phase-1/coverage-di-factories.md]
 ---
 
 # Retro: Coverage DI Factories
@@ -33,6 +33,6 @@ Four files were below the 80% functions / 90% lines coverage threshold. Three sh
 
 ## Artifacts
 
-- Gap analysis: `.lore/notes/coverage-gaps.md`
-- Implementation plan: `.lore/plans/coverage-di-factories.md`
+- Gap analysis: `.lore/notes/phase-1/coverage-gaps.md`
+- Implementation plan: `.lore/plans/phase-1/coverage-di-factories.md`
 - PR: https://github.com/rjroy/guild-hall/pull/4

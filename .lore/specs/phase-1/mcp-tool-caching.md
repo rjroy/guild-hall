@@ -7,7 +7,7 @@ modules: [mcp-manager, plugin-discovery]
 related:
   - .lore/specs/phase-1/mcp-server-factory.md
   - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/notes/mcp-server-factory.md
+  - .lore/notes/phase-1/mcp-server-factory.md
   - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
 req-prefix: MCP-TOOL
 ---
