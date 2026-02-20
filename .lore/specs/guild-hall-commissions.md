@@ -47,8 +47,9 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   - **Linked artifacts**: artifacts this commission has produced (populated during and after execution)
   - **Resource overrides**: optional maxTurns and maxBudgetUsd that override the worker package defaults (REQ-WKR-19)
 
-- REQ-COM-3: The agentic prompt is the primary input to the worker. It describes the desired outcome, not the steps to achieve it. The worker's posture and expertise shape how it approaches the prompt.
-**REVIEWER NOTE** - The prompt should also define verification criteria for the worker to self-assess whether it has achieved the desired outcome. This is essential for autonomous work. Completion of the commision isn't just making an attempt, but validating it is correct. This is up to the user, but we could have a step 1 always be "can I verify my work?" If the agent cannot, it requests a meeting for clarifcation.
+- REQ-COM-3: The agentic prompt is the primary input to the worker. It describes the desired outcome, not the steps to achieve it. The worker's posture and expertise shape how it approaches the prompt. Prompts should include verification criteria when possible: how the worker can self-assess whether it achieved the desired outcome. Completion is not just making an attempt; it's validating the result is correct.
+
+- REQ-COM-3a: When a worker cannot verify its own output (no verification criteria provided, or criteria require judgment beyond its context), it should log the gap via log_question (REQ-COM-18) before calling submit_result. The question surfaces to the user through the commission view and the manager, who can initiate a meeting for clarification if needed. Self-verification behavior is encoded in worker posture, not enforced by the system.
 
 - REQ-COM-4: Commission creation follows the parity principle (REQ-SYS-39): the user creates commissions through the UI, the manager creates them programmatically, both produce the same artifact file.
 
