@@ -281,16 +281,110 @@ Guild Hall's git model mirrors a real development team:
 
 This avoids rebase headaches while keeping both branches clean. Workers never touch `master`. The user never sees worker activity unless they review the PR. Standard git team practices apply because this IS a team of developers (AI workers) managed by someone (the manager), working on a project owned by someone else (the user).
 
+## Spec Decomposition
+
+Five specs, each with a single concern. Dependency order top to bottom.
+
+### Critical distinction: a Worker is not a process
+
+A Guild Hall Worker is a **definition**, not a running thing. It's a posture (system prompt), a set of toolbox requirements, and a way of thinking. Like a class, not an instance.
+
+- In a **meeting**, the worker definition is loaded into the current process (the Guild Hall server handling the conversation). No forked process. Just configuration for the interactive session.
+- In a **task**, the worker definition is used to spawn a separate process that runs autonomously. The process management belongs entirely to the task system, not to the worker definition.
+
+This means: the Worker spec describes what a worker IS. The Tasks spec describes how to run one in isolation. The Meeting spec describes how to talk to one interactively.
+
+### 1. System Spec
+
+Foundation everything else builds on.
+
+- The four primitives (artifacts, toolboxes, workers, meetings) and their relationships
+- Three-layer memory model (global, project, worker)
+- Git strategy (protected master, claude integration branch, worker feature branches, squash-merge PRs)
+- Storage model (`~/.guild-hall/` for app state, `<repo>/.lore/` for project artifacts, worktree isolation)
+- Plugin architecture: bun packages as the extension mechanism for workers and toolboxes
+- Project registration and configuration
+
+Does NOT include: process management, Agent SDK integration, UI details, or specifics of how tasks/meetings work internally.
+
+### 2. Worker Spec
+
+What a worker is and how to define one.
+
+- Worker package API: what a bun package exports (posture, toolbox requirements, capabilities)
+- Toolbox package API: what a toolbox exports (tool functions)
+- Base worker functionality available to all workers (memory read/write, artifact read/write)
+- Worker identity and how it persists across tasks and meetings
+- Claude Agent SDK integration: the worker is the entry point to agents. This spec defines how the SDK is configured, how tools are provided, how streaming works.
+- Manager worker: its posture, its unique capabilities (task creation, worker dispatch, PR management), and how it balances autonomy with deference
+
+Depends on: System (package contract, memory model, primitives).
+
+### 3. Tasks Spec
+
+The async interaction mode: giving work to a worker.
+
+- Task artifact structure (summary, agentic prompt, status, dependencies, linked artifacts)
+- Dispatch: taking a worker definition + task artifact, spawning a forked process
+- Process lifecycle: starting, monitoring, collecting results, handling crashes
+- Status transitions (pending, dispatched, in progress, blocked, complete, failed)
+- How workers produce artifacts during task execution
+- How workers update status and write notes
+- Concurrent task limits and resource management
+- The activity timeline: tracking what happened and when
+
+Does NOT include: Claude Agent SDK details (that's in Worker). The task system passes a task artifact to a worker; what happens inside the worker is the Worker spec's concern.
+
+Depends on: System (primitives, storage), Worker (package API, what gets spawned).
+
+### 4. Meeting Spec
+
+The sync interaction mode: talking to a worker.
+
+- Meeting creation: loading a worker definition into an interactive session with a meeting context
+- Meeting persistence: transcripts in `~/.guild-hall/meetings/`, ephemeral by design
+- Meeting lifecycle: per-project cap (default 5), explicit close only, multi-day support
+- Meeting agenda: worker identity, reason for meeting, referenced artifacts
+- How meetings produce artifacts (task creation, brainstorm docs, decisions)
+- Resuming a meeting across sessions
+
+Does NOT include: Claude Agent SDK details (that's in Worker), process management (meetings don't fork). The meeting system configures a worker for interactive use; how the worker thinks is the Worker spec's concern.
+
+Depends on: System (primitives, storage), Worker (package API, what gets loaded).
+
+### 5. Views Spec
+
+The UX that ties everything together.
+
+- Dashboard: five-zone layout (workspace sidebar, manager briefing, task dependency map, recent scrolls, pending audiences)
+- Project view: settings, task/artifact/meeting tabs, manager audience button, project dependency graph
+- Task view: commission details, agentic prompt, dependencies, linked artifacts, comment thread, activity timeline, dispatch button
+- Artifact view: scroll viewer with markdown rendering, provenance, metadata sidebar, edit mode, create-task button
+- Meeting view: audience chamber with worker portrait, agenda, artifact references, chat interface
+- Navigation model: flows between all five views
+- Fantasy guild aesthetic: glassmorphic panels, brass/bronze/amber palette, medieval library background
+- Parity: every UI action has a corresponding agent capability
+
+Depends on: System, Worker, Tasks, Meeting (all of them, since Views presents everything).
+
+### Spec writing order
+
+1. **System** first (foundation, no dependencies)
+2. **Worker** second (depends on System)
+3. **Tasks** and **Meeting** in parallel (both depend on System and Worker, independent of each other)
+4. **Views** last (depends on all)
+
 ## Open Questions
 
-- **Bun package API.** What does a worker package export? What does a toolbox package export? How does Guild Hall discover and load them?
-- **Manager posture.** The manager is the most complex worker. What's in its system prompt? What tools does it have? How does it balance autonomy (creating tasks, dispatching workers) with deference (checking with the user on priorities)?
-- **Dashboard aggregation.** The dashboard shows cross-project state. How does it aggregate task graphs and artifacts across multiple repo worktrees efficiently?
-- **Meeting-to-artifact flow.** When a meeting produces an artifact, what's the mechanics? Does the worker write it directly to `.lore/`? Does the user review before commit? Is there a "draft" state?
+- **Bun package API details.** Exact exports, discovery mechanism, loading. Resolved in Worker spec.
+- **Manager posture.** System prompt, tools, autonomy vs deference balance. Resolved in Worker spec.
+- **Dashboard aggregation.** Cross-project state aggregation across worktrees. Resolved in Views spec.
+- **Meeting-to-artifact flow.** Mechanics of producing artifacts from meetings. Resolved in Meeting spec.
 
 ## Next Steps
 
-- Write a spec from this brainstorm to lock down requirements for V1
-- Define the bun package API for workers and toolboxes
-- Sketch the manager worker's posture and capabilities
-- Map the lore-development workflow onto this model as validation
+1. Write the System spec (`/specify`)
+2. Write the Worker spec
+3. Write Tasks and Meeting specs (can be parallel)
+4. Write the Views spec
+5. Delete prototype code, keep `.lore/` and assets, rebuild from specs
