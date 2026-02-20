@@ -6,12 +6,12 @@ tags: [implementation, notes, mcp, process-spawning, stdio, phase-1-completion, 
 source: .lore/plans/mcp-server-factory.md
 modules: [mcp-manager, server-context, stdio-mcp-factory]
 related:
-  - .lore/brainstorm/mcp-transport-stdio-vs-http.md
+  - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
 ---
 
 # Implementation Notes: MCPServerFactory (Stdio - Reverted)
 
-> **Status**: Implementation completed through Phase 9 with all tests passing. Manual testing revealed architectural issues that led to HTTP transport decision. Code was reverted but implementation learnings preserved here. See `.lore/brainstorm/mcp-transport-stdio-vs-http.md` for the architectural decision.
+> **Status**: Implementation completed through Phase 9 with all tests passing. Manual testing revealed architectural issues that led to HTTP transport decision. Code was reverted but implementation learnings preserved here. See `.lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md` for the architectural decision.
 
 ## Progress
 - [x] Phase 1: Update MCPServerFactory Interface

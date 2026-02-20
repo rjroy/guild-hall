@@ -5,7 +5,7 @@ status: draft
 tags: [architecture, agents, dispatch, workers, mcp, json-rpc, protocol-extension]
 modules: [guild-hall-core, plugin-contract, json-rpc-client, mcp-manager, plugin-discovery]
 related:
-  - .lore/brainstorm/worker-agents.md
+  - .lore/brainstorm/phase-1/worker-agents.md
   - .lore/specs/phase-1/mcp-http-transport.md
   - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/research/claude-agent-sdk.md
@@ -203,7 +203,7 @@ Extend Guild Hall's plugin protocol so that any plugin can accept autonomous wor
 
 ## Context
 
-- [Brainstorm: Worker agent dispatch](../brainstorm/worker-agents.md) - exploratory session that generated this spec
+- [Brainstorm: Worker agent dispatch](../../brainstorm/phase-1/worker-agents.md) - exploratory session that generated this spec
 - [Spec: HTTP MCP Transport](mcp-http-transport.md) - the protocol being extended
 - [Research: Claude Agent SDK](../research/claude-agent-sdk.md) - `query()` API, sandbox, session management
 - [Spec: Guild Hall Phase 1](guild-hall-phase-1.md) - existing plugin contract and session model

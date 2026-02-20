@@ -8,13 +8,13 @@ related:
   - .lore/specs/phase-1/mcp-server-factory.md
   - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/notes/mcp-server-factory.md
-  - .lore/brainstorm/mcp-transport-stdio-vs-http.md
+  - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
 req-prefix: MCP-TOOL
 ---
 
 # Spec: MCP Tool Caching
 
-> **Status**: This spec is superseded by the decision to use HTTP transport with eager loading instead of stdio with lazy loading (see `.lore/brainstorm/mcp-transport-stdio-vs-http.md`). Tool caching may still be needed for fast startup, but the design will be simpler with HTTP. Preserved for historical context - the chicken-and-egg problem analysis remains valid.
+> **Status**: This spec is superseded by the decision to use HTTP transport with eager loading instead of stdio with lazy loading (see `.lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md`). Tool caching may still be needed for fast startup, but the design will be simpler with HTTP. Preserved for historical context - the chicken-and-egg problem analysis remains valid.
 
 ## Overview
 

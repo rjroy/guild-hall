@@ -6,7 +6,7 @@ tags: [plugin-architecture, mcp, react-components, isolation, hybrid, design-dec
 modules: [plugin-system]
 related:
   - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/brainstorm/plugin-repository-structure.md
+  - .lore/brainstorm/phase-1/plugin-repository-structure.md
 ---
 
 # Brainstorm: Plugin Architecture - Process Isolation vs In-Process Integration

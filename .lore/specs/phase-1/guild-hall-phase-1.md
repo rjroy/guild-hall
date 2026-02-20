@@ -5,7 +5,7 @@ status: draft
 tags: [phase-1, frontend, sessions, mcp, dashboard, agent-sdk, plugin-system]
 modules: [guild-hall]
 related:
-  - .lore/brainstorm/guild-hall-phase-1.md
+  - .lore/brainstorm/phase-1/guild-hall-phase-1.md
   - .lore/research/agent-native-applications.md
   - .lore/research/claude-agent-sdk.md
   - .lore/research/typescript-plugin-systems.md
@@ -133,5 +133,5 @@ This resolves the four open architectural questions from the brainstorm: Next.js
 - [Agent-Native Architecture](.lore/research/agent-native-applications.md): Parity (user and agent share the same tools), granularity (atomic MCP tools), composability (features as prompts over tools). These principles drive the hybrid model and the Roster's direct tool invocation.
 - [Claude Agent SDK](.lore/research/claude-agent-sdk.md): TypeScript SDK provides hooks (SessionStart/End, PreToolUse/PostToolUse, Notification, PermissionRequest), session resume/fork, MCP integration via stdio/HTTP/in-process servers, and streaming message types.
 - [Plugin Systems](.lore/research/typescript-plugin-systems.md): Guild Hall borrows directory-scan discovery (Claude Code, Grafana), manifest-based metadata (VS Code, Grafana), and the "MCP-only vs full" plugin tier distinction.
-- [Phase I Brainstorm](.lore/brainstorm/guild-hall-phase-1.md): Settled the hybrid agent model, dashboard-first UI, file-based sessions, three-zone metaphor (Roster, Board, Workshop).
+- [Phase I Brainstorm](.lore/brainstorm/phase-1/guild-hall-phase-1.md): Settled the hybrid agent model, dashboard-first UI, file-based sessions, three-zone metaphor (Roster, Board, Workshop).
 - [Research Summary](.lore/notes/phase-1-research-summary.md): Consolidation of findings and the four open questions resolved by this spec.

@@ -6,7 +6,7 @@ tags: [implementation, plan, mcp, http, json-rpc, phase-1]
 modules: [mcp-manager, server-context, plugin-discovery, port-allocator]
 related:
   - .lore/specs/phase-1/mcp-http-transport.md
-  - .lore/brainstorm/mcp-transport-stdio-vs-http.md
+  - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
   - .lore/research/mcp-http-protocol.md
 ---
 

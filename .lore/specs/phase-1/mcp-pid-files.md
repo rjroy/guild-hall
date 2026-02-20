@@ -7,7 +7,7 @@ modules: [mcp-manager, http-mcp-factory, server-context]
 related:
   - .lore/specs/phase-1/mcp-http-transport.md
   - .lore/specs/phase-1/mcp-server-factory.md
-  - .lore/brainstorm/mcp-transport-stdio-vs-http.md
+  - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
   - .lore/retros/coverage-di-factories.md
 req-prefix: MCPPID
 ---

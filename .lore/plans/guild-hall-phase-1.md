@@ -6,7 +6,7 @@ tags: [phase-1, implementation, nextjs, agent-sdk, mcp, sessions, frontend]
 modules: [guild-hall]
 related:
   - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/brainstorm/guild-hall-phase-1.md
+  - .lore/brainstorm/phase-1/guild-hall-phase-1.md
   - .lore/research/claude-agent-sdk.md
   - .lore/research/typescript-plugin-systems.md
 ---

@@ -5,7 +5,7 @@ status: draft
 tags: [mcp, http, json-rpc, transport, plugin-system, phase-1]
 modules: [mcp-manager, server-context, plugin-discovery]
 related:
-  - .lore/brainstorm/mcp-transport-stdio-vs-http.md
+  - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
   - .lore/research/mcp-http-protocol.md
   - .lore/specs/phase-1/guild-hall-phase-1.md
 req-prefix: MCP-HTTP
@@ -187,7 +187,7 @@ Boundaries and limitations for Phase I:
 
 ### Related Lore
 
-**Brainstorm: MCP Transport - Stdio vs HTTP/SSE** (.lore/brainstorm/mcp-transport-stdio-vs-http.md)
+**Brainstorm: MCP Transport - Stdio vs HTTP/SSE** (.lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md)
 - Architectural decision to use HTTP transport instead of stdio
 - Rationale: eliminates duplicate processes (Guild Hall + Agent SDK both spawning servers)
 - Eager loading chosen over lazy loading for simpler tool discovery
@@ -206,7 +206,7 @@ Boundaries and limitations for Phase I:
 - MCP-only plugins for Phase I (UI components deferred)
 - Plugin manifest format and discovery from `guild-members/` directory
 
-**Brainstorm: Plugin Architecture - Hybrid Model** (.lore/brainstorm/plugin-architecture-hybrid.md)
+**Brainstorm: Plugin Architecture - Hybrid Model** (.lore/brainstorm/phase-1/plugin-architecture-hybrid.md)
 - Established hybrid model: MCP servers (code isolation) + React components (UI integration)
 - MCP server = backend/logic, React component = frontend/UX
 - Phase I implements MCP-only, UI components deferred to future phases

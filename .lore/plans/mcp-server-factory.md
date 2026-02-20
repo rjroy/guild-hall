@@ -6,14 +6,14 @@ tags: [implementation, mcp, process-spawning, stdio, phase-1-completion, archive
 modules: [mcp-manager, server-context, stdio-mcp-factory]
 related:
   - .lore/specs/phase-1/mcp-server-factory.md
-  - .lore/brainstorm/mcp-transport-stdio-vs-http.md
-  - .lore/brainstorm/plugin-architecture-hybrid.md
+  - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
+  - .lore/brainstorm/phase-1/plugin-architecture-hybrid.md
   - .lore/notes/mcp-server-factory.md
 ---
 
 # Plan: MCPServerFactory Implementation
 
-> **Status**: This plan was executed through Phase 9, with implementation completed and all tests passing. However, manual testing revealed architectural issues (duplicate stdio processes, chicken-and-egg tool discovery) that led to the decision to use HTTP transport instead. The stdio implementation was reverted. See `.lore/brainstorm/mcp-transport-stdio-vs-http.md` for the architectural decision and `.lore/notes/mcp-server-factory.md` for implementation learnings. Preserved for historical context.
+> **Status**: This plan was executed through Phase 9, with implementation completed and all tests passing. However, manual testing revealed architectural issues (duplicate stdio processes, chicken-and-egg tool discovery) that led to the decision to use HTTP transport instead. The stdio implementation was reverted. See `.lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md` for the architectural decision and `.lore/notes/mcp-server-factory.md` for implementation learnings. Preserved for historical context.
 
 ## Spec Reference
 
