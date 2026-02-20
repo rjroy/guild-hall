@@ -37,7 +37,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 ### Commission Artifact
 
-- REQ-COM-1: A commission is an artifact (REQ-SYS-2) that lives in the project's `.lore/commissions/` directory. Commission artifacts use the standard lore frontmatter schema with additional commission-specific fields.
+- REQ-COM-1: A commission is an artifact (REQ-SYS-2) that lives in the project's `.lore/commissions/` directory. Commission artifacts use the standard lore frontmatter schema with additional commission-specific fields. The commission-id is derived from the artifact filename (e.g., `research-oauth-patterns.md` has commission-id `research-oauth-patterns`). This ID is used in branch naming, worktree paths, and state file references.
 
 - REQ-COM-2: Commission-specific fields beyond standard frontmatter:
   - **Worker**: which worker package handles this commission
@@ -89,7 +89,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   4. Create a worktree under `~/.guild-hall/worktrees/<project>/commission-<commission-id>/`
   5. Activate the worker (load package, call activation function with resolved tools and commission context). If activation fails (missing toolbox, invalid package), transition to failed with reason.
   6. Spawn the worker as a separate OS process (Bun.spawn or equivalent). The process runs the Agent SDK session configured from the activation result.
-  7. Record the process ID (PID). Transition to in_progress once the process is running.
+  7. Record the process ID (PID) in machine-local state (REQ-SYS-26b). Transition to in_progress once the process is running.
 
 - REQ-COM-10: Each commission runs in its own OS process, its own worktree, and its own branch. Process isolation provides crash containment: one commission crashing does not affect others or the Guild Hall server. Multiple commissions for the same project run concurrently without interfering with each other or the integration branch.
 
@@ -97,7 +97,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 ### Process Lifecycle
 
-- REQ-COM-12: The commission system monitors each running worker process: OS process ID (PID), start time, last heartbeat timestamp, and commission ID.
+- REQ-COM-12: The commission system monitors each running worker process: OS process ID (PID), start time, last heartbeat timestamp, and commission ID. PID and heartbeat timestamps are machine-local state stored in `~/.guild-hall/state/commissions/<commission-id>.json` (REQ-SYS-26b), not in the commission artifact. The commission artifact in the activity worktree holds the activity timeline and linked artifacts (REQ-SYS-26c).
 
 - REQ-COM-13: Worker processes signal liveness via heartbeat. The primary heartbeat signal is report_progress (REQ-COM-18): each call updates the heartbeat timestamp. Workers performing long operations without progress to report should call report_progress periodically to avoid appearing dead. If the heartbeat timestamp exceeds a configurable staleness threshold (default: 180 seconds), the commission transitions to failed with reason "process unresponsive."
 
@@ -152,9 +152,10 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 ### Crash Recovery
 
-- REQ-COM-27: On startup, Guild Hall scans all commissions with status "dispatched" or "in_progress." For each, it checks whether the worker process (by PID) is still alive:
-  - Process dead: transition to failed with reason "process lost on restart." Preserve partial results per REQ-COM-14a.
-  - Process alive: reattach monitoring (begin tracking heartbeats and liveness). If the commission was "dispatched," transition to in_progress. The surviving process continues normally.
+- REQ-COM-27: On startup, Guild Hall scans machine-local state files in `~/.guild-hall/state/commissions/` and commission artifacts in activity worktrees (REQ-SYS-26c). For each active commission, it checks whether the worker process (by PID from state) is still alive:
+  - State file exists, process dead: transition to failed with reason "process lost on restart." Preserve partial results per REQ-COM-14a.
+  - State file exists, process alive: reattach monitoring (begin tracking heartbeats and liveness). If the commission was "dispatched," transition to in_progress. The surviving process continues normally.
+  - Activity worktree exists but no state file (fresh install with pushed branches): transition to failed with reason "state lost." The commission branch and its artifacts are preserved for manual or manager-assisted recovery.
 
 - REQ-COM-28: During operation, the heartbeat mechanism (REQ-COM-13) detects unresponsive worker processes. Stale heartbeats trigger transition to failed with reason "process unresponsive."
 

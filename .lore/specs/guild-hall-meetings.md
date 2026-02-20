@@ -37,16 +37,17 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 ### Meeting Artifact
 
-- REQ-MTG-1: A meeting is represented by an artifact in the project's `.lore/meetings/` directory. Meeting artifacts use the standard lore frontmatter schema with additional meeting-specific fields.
+- REQ-MTG-1: A meeting is represented by an artifact in the project's `.lore/meetings/` directory. Meeting artifacts use the standard lore frontmatter schema with additional meeting-specific fields. The meeting-id is derived from the artifact filename (e.g., `review-auth-findings.md` has meeting-id `review-auth-findings`). This ID is used in branch naming, worktree paths, and state file references.
 
 - REQ-MTG-2: Meeting-specific fields beyond standard frontmatter:
   - **Worker**: which worker package participates in this meeting
   - **Agenda**: why the meeting was called (text description) and referenced artifacts (paths to findings, commissions, or work products that prompted it)
   - **Status**: current meeting state (see Status Transitions)
-  - **Session ID**: SDK session identifier for multi-turn persistence (populated after first turn)
   - **Linked artifacts**: artifacts discussed, reviewed, or produced during the meeting (populated during execution)
   - **Meeting log**: chronological log of lifecycle events (status transitions with timestamps and reasons, session renewals, progress summaries from summarize_progress). Append-only during the meeting's life.
   - **Notes summary**: generated summary of the meeting (populated on close)
+
+- REQ-MTG-2a: Machine-local state for each meeting is stored in `~/.guild-hall/state/meetings/<meeting-id>.json` (REQ-SYS-26b). This includes the SDK session_id (for multi-turn persistence) and the activity worktree path. This state is machine-specific and not portable. The meeting artifact in the activity worktree holds the durable data: agenda, status, meeting log, linked artifacts, notes summary (REQ-SYS-26c).
 
 - REQ-MTG-3: Meeting creation follows the parity principle (REQ-SYS-39): the user creates meetings through the UI, the manager creates meeting requests programmatically, both produce the same meeting artifact file. User-created meetings start as open (REQ-MTG-6); manager-created meetings start as requested.
 
@@ -76,7 +77,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   4. Create a worktree under `~/.guild-hall/worktrees/<project>/meeting-<meeting-id>/`
   5. Activate the worker (load package, call activation function with resolved tools and meeting context per REQ-WKR-4a). Meeting context adds meeting-specific data to the standard activation context: meeting ID, agenda text, referenced artifact paths, and the indication that this is a meeting (not a commission).
   6. Create an SDK session via `query()` with the worker's system prompt and the initial prompt. For user-created meetings, the initial prompt is the user's message. For accepted meeting requests, the agenda from the request artifact serves as the initial context; the worker opens the conversation by presenting its findings from the referenced artifacts. The user may provide an additional message on acceptance, appended to the agenda context.
-  7. Capture and persist the session_id from the first SDK response
+  7. Capture the session_id from the first SDK response and persist it in machine-local state (REQ-MTG-2a)
 
 - REQ-MTG-9: If the concurrent meeting cap is reached, the user must close an existing meeting before opening a new one. The system rejects the creation with a clear message identifying the cap and the open meetings.
 
@@ -84,7 +85,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-MTG-10: Meeting sessions are Agent SDK sessions. The first turn creates the session; every subsequent turn resumes it via `options.resume` with the persisted session_id. This is the fundamental multi-turn mechanism, not a recovery feature. Whether the daemon restarted between turns or not, the resumption path is identical.
 
-- REQ-MTG-11: The session_id is persisted in the meeting artifact so it survives daemon restarts. When the user sends a follow-up message, the system reads the session_id from the artifact and passes it via `options.resume`.
+- REQ-MTG-11: The session_id is persisted in machine-local state (REQ-MTG-2a) so it survives daemon restarts on the same machine. When the user sends a follow-up message, the system reads the session_id from state and passes it via `options.resume`. If the state file is missing (fresh install), the meeting cannot resume its SDK session; it starts a fresh session per REQ-MTG-12.
 
 - REQ-MTG-12: If an SDK session has expired (too old to resume), the meeting starts a fresh session. The worker's posture, memory, and a summary of prior conversation (from the transcript) are injected into the new session's context. The session renewal is recorded in the meeting log with the old and new session IDs.
 

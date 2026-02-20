@@ -119,6 +119,11 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
       workers/<name>/
     meetings/                # active meeting transcripts (ephemeral)
       <meeting-id>.md
+    state/                   # machine-local daemon state (not in git, not portable)
+      commissions/
+        <commission-id>.json
+      meetings/
+        <meeting-id>.json
     projects/                # integration worktrees (one per project, on claude branch)
       <project-name>/
     worktrees/               # activity worktrees (ephemeral, per commission/meeting)
@@ -128,6 +133,10 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
   ```
 
 - REQ-SYS-26a: The brainstorm's storage sketch shows a top-level `workers/` directory with markdown definition files. That layout predates the "bun packages" resolution. Worker identity and posture are defined entirely within the bun package in `packages/`. There is no separate `workers/` directory for definition files.
+
+- REQ-SYS-26b: Machine-local state (`~/.guild-hall/state/`) stores daemon-managed process state that is specific to the current machine and not portable across installations: session IDs, process IDs, worktree path pointers. This state is separate from the durable artifacts in `.lore/` which are committed to git. On a fresh installation, state files are absent; the daemon reconstructs what it can from the git-committed artifacts and worktrees, or marks activities as failed. State files point to their corresponding artifacts in activity worktrees.
+
+- REQ-SYS-26c: While a commission or meeting is active, the activity worktree contains the authoritative copy of its tracking artifact. Both the daemon and the worker write to this copy. The integration worktree's (`claude` branch) copy is stale during the activity and gets replaced on squash-merge at close. For all non-activity artifacts, the integration worktree is authoritative and merge resolution handles conflicts normally.
 
 - REQ-SYS-27: Project artifacts live in `<project-worktree>/.lore/` within the project's git worktree. The existing lore document schema is preserved unchanged.
 
