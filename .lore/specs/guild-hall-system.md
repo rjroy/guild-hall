@@ -16,7 +16,7 @@ req-prefix: SYS
 
 ## Overview
 
-Guild Hall is a multi-agent workspace for delegating work to AI specialists and reviewing their output. This spec defines the foundation: four primitives (artifacts, toolboxes, workers, meetings), memory model, git strategy, storage layout, plugin architecture, and project configuration.
+Guild Hall is a multi-agent workspace for delegating work to AI specialists and reviewing their output. This spec defines the foundation: five primitives (workspaces, artifacts, toolboxes, workers, meetings), memory model, git strategy, storage layout, plugin architecture, and project configuration.
 
 This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC protocol, SSE streaming, and chat-centric UX are all superseded. What carries forward: file-based storage, DI factory patterns, and the lore artifact schema.
 
@@ -29,7 +29,9 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 ### Primitives
 
-- REQ-SYS-1: The system has four primitives: artifacts, toolboxes, workers, and meetings. All other concepts (workspaces, task chains, the manager) compose from these.
+- REQ-SYS-1: The system has five primitives: workspaces, artifacts, toolboxes, workers, and meetings. Workspaces are the organizing primitive: they own the storage boundary and the other primitives operate within them. All other concepts (task chains, the manager) compose from these primitives.
+
+- REQ-SYS-1a: A **workspace** is a registered project with its repository, `.lore/` directory, task graph, and active contexts. Workspaces own the storage boundary (the project worktree and its `.lore/` directory). Workspaces separate concerns: the guild-hall project is a different workspace from mail workflow is a different workspace from tax prep 2025. In the storage model, a workspace maps one-to-one with a registered project.
 
 - REQ-SYS-2: An **artifact** is a markdown file with YAML frontmatter. Artifacts live in a project's `.lore/` directory and follow the existing lore document schema defined in `.lore/` conventions (title, date, status, tags, modules, related fields; see the frontmatter schema used by lore-development). Artifacts reference each other by relative path, forming a directed graph.
 
@@ -37,7 +39,11 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 - REQ-SYS-4: Artifacts are the durable unit of work. Conversations, meetings, and task executions are transient. The artifact is what you navigate to later. Meeting notes reference the artifacts they produced. Task records reference the artifacts they consumed and created.
 
-- REQ-SYS-5: A **toolbox** is a bun package that provides tool functions grouped by domain. Base toolbox: file manipulation. Mail toolbox: email access. Calendar toolbox: schedule access. Code toolbox: build, test, lint. Adding a new domain means adding a toolbox. Toolboxes are the capability extension point.
+- REQ-SYS-5: A **toolbox** is a set of tool functions grouped by domain. Two kinds exist:
+  - **Built-in toolbox:** The Agent SDK's default tools (Grep, Glob, Read, Write, Edit). Always available to all workers. Not a bun package.
+  - **Extension toolboxes:** Bun packages that add domain-specific capabilities. Mail toolbox: email access. Calendar toolbox: schedule access. Code toolbox: build, test, lint.
+
+  Adding a new domain means adding an extension toolbox. Extension toolboxes are the capability extension point. The built-in toolbox is always present and does not need to be declared in a worker's toolbox requirements.
 
 - REQ-SYS-6: A **worker** is a bun package that defines a persistent specialist. A worker has: identity (name, description), posture (system prompt shaping behavior and expertise), toolbox requirements (which toolboxes it needs), and memory access. A worker is a definition, not a running process (see REQ-SYS-9).
 
@@ -63,7 +69,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 - REQ-SYS-14: Tasks form dependency graphs through artifact references. Task B depends on Task A because it needs an artifact that A produces. A task is "ready" when its input artifacts exist. A task is "blocked" when they don't. The dependency graph is implicit in artifact references, not maintained as a separate data structure.
 
-- REQ-SYS-15: A **workspace** is a registered project with its associated task graph, artifacts, and workers who have context in it. Workspaces separate concerns: the guild-hall project is a different workspace from mail workflow is a different workspace from tax prep 2025. In the storage model, a workspace maps one-to-one with a registered project.
+- REQ-SYS-15: All primitive relationships are scoped to a workspace. A worker's artifact consumption, toolbox bindings, meeting contexts, and task assignments are per-workspace. Cross-workspace coordination (a worker applying knowledge from one project to another) flows through the memory model (global and worker-scoped memory), not through direct primitive relationships.
 
 ### Manager
 
@@ -88,8 +94,8 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 - REQ-SYS-22: Each registered project uses a branch-based workflow with three tiers:
   - `master` (or `main`): The user's branch. Protected. Changes arrive only via pull request.
-  - `claude`: Guild Hall's integration branch. Workers branch from it and merge back.
-  - Worker branches: Short-lived feature branches off `claude`. One branch per task. Squash-merged back into `claude` with one clean commit per task.
+  - `claude`: Guild Hall's integration branch. Activity branches are created from it and merged back.
+  - Activity branches: Short-lived feature branches off `claude`. One branch per task, one branch per meeting. Squash-merged back into `claude` with one clean commit per activity. Naming convention: `claude/task/<task-id>`, `claude/meeting/<meeting-id>`.
 
 - REQ-SYS-23: A pull request from `claude` to `master` is squash-merged, producing one commit per PR. The manager worker creates PRs when work is ready for review. How the manager initiates this is defined in [STUB: worker-definition].
 
@@ -113,8 +119,12 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
       workers/<name>/
     meetings/                # active meeting transcripts (ephemeral)
       <meeting-id>.md
-    projects/                # git worktrees (one per registered project)
+    projects/                # integration worktrees (one per project, on claude branch)
       <project-name>/
+    worktrees/               # activity worktrees (ephemeral, per task/meeting)
+      <project-name>/
+        task-<task-id>/
+        meeting-<meeting-id>/
   ```
 
 - REQ-SYS-26a: The brainstorm's storage sketch shows a top-level `workers/` directory with markdown definition files. That layout predates the "bun packages" resolution. Worker identity and posture are defined entirely within the bun package in `packages/`. There is no separate `workers/` directory for definition files.
@@ -124,6 +134,8 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 - REQ-SYS-28: Guild Hall maintains its own git worktree of each project's repo under `~/.guild-hall/projects/<name>/`. Workers read and write `.lore/` in the worktree, not in the user's working directory. Worker-produced artifacts stay out of the user's `git status` and don't conflict with uncommitted changes.
 
 - REQ-SYS-29: Worktree checkout scope is worker-configurable. Workers that only need artifacts use sparse checkout (`.lore/` only). Workers that need the full codebase get a full worktree. The worker definition declares its checkout requirements. How workers declare this is defined in [STUB: worker-definition].
+
+- REQ-SYS-29a: Each task and each meeting gets its own git worktree, branched from `claude`. This isolates concurrent activities from each other and from the integration branch. Worktrees are created on activity start and cleaned up after the activity's branch is squash-merged back to `claude`. Physical worktree locations live under `~/.guild-hall/worktrees/<project-name>/` with subdirectories per activity. Lifecycle details are defined in [STUB: task-dispatch] and [STUB: meeting-lifecycle].
 
 - REQ-SYS-30: Meetings are ephemeral. Transcripts live in `~/.guild-hall/meetings/` while active. Once a meeting produces its artifacts, the transcript can be cleaned up. Artifacts persist; conversations don't.
 
@@ -172,7 +184,7 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 - [ ] Artifact schema validates required frontmatter fields (title, date, status, tags)
 - [ ] Worker and toolbox package structures pass package validation
 - [ ] Memory model supports three scopes with correct access rules (worker memory private, global/project shared)
-- [ ] Git worktree isolates workers from user's working directory
+- [ ] Git worktree isolates workers from user's working directory (integration worktree per project, activity worktrees per task/meeting)
 - [ ] Storage layout separates application state (`~/.guild-hall/`) from project artifacts (`<worktree>/.lore/`)
 - [ ] Package discovery finds and categorizes bun packages from scan directory
 - [ ] Project registration creates worktrees, initializes `claude` branch, and maintains config.yaml
