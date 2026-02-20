@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [task, css, badges, status]
 source: .lore/plans/ui-redesign-fantasy-theme.md
-related: [.lore/specs/ui-redesign-fantasy-theme.md]
+related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
 sequence: 11
 modules: [board, session-board]
 ---
@@ -85,7 +85,7 @@ Verify by inspecting `SessionCard.module.css` for these CSS properties and statu
 
 ## Why
 
-From `.lore/specs/ui-redesign-fantasy-theme.md`:
+From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-30**: Session title uses prominent typography (16-18px, medium weight)
 

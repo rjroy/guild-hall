@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [task, assets, fonts, typography]
 source: .lore/plans/ui-redesign-fantasy-theme.md
-related: [.lore/specs/ui-redesign-fantasy-theme.md]
+related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
 sequence: 2
 modules: [dashboard]
 ---
@@ -43,7 +43,7 @@ file public/fonts/ysabeau-office/YsabeauOffice-VariableFont_wght.ttf  # Should i
 
 ## Why
 
-From `.lore/specs/ui-redesign-fantasy-theme.md`:
+From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-39**: Primary font uses Ysabeau Office (currently in tmp/Ysabeau_Office directory, temporary location) as the main sans-serif typeface
 

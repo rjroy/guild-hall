@@ -5,7 +5,7 @@ status: complete
 tags: [integration, di-pattern, agent-behavior, production-wiring, worker-dispatch]
 modules: [researcher-plugin, worker-tools, worker-agent, server-context]
 related:
-  - .lore/specs/worker-dispatch.md
+  - .lore/specs/phase-1/worker-dispatch.md
   - .lore/plans/worker-dispatch.md
   - .lore/notes/worker-dispatch.md
   - .lore/retros/coverage-di-factories.md
@@ -55,7 +55,7 @@ Fix: added `submit_result` tool that accepts a file path. The agent writes its r
 
 ## Artifacts
 
-- `.lore/specs/worker-dispatch.md` - 47 requirements
+- `.lore/specs/phase-1/worker-dispatch.md` - 47 requirements
 - `.lore/plans/worker-dispatch.md` - 11 steps
 - `.lore/tasks/worker-dispatch/` - 13 task files
 - `.lore/notes/worker-dispatch.md` - implementation log

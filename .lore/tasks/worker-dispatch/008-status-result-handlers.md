@@ -5,7 +5,7 @@ status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:
-  - .lore/specs/worker-dispatch.md
+  - .lore/specs/phase-1/worker-dispatch.md
 sequence: 8
 modules: [researcher-plugin]
 ---
@@ -65,7 +65,7 @@ Wire both handlers into `server.ts`.
 
 ## Why
 
-From `.lore/specs/worker-dispatch.md`:
+From `.lore/specs/phase-1/worker-dispatch.md`:
 - REQ-WD-11: `worker/status` response shape with all fields
 - REQ-WD-12: `questions` contains unresolved questions the worker documented
 - REQ-WD-13: `decisions` contains judgment calls the worker made autonomously

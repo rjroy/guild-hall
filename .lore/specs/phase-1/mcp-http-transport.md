@@ -7,7 +7,7 @@ modules: [mcp-manager, server-context, plugin-discovery]
 related:
   - .lore/brainstorm/mcp-transport-stdio-vs-http.md
   - .lore/research/mcp-http-protocol.md
-  - .lore/specs/guild-hall-phase-1.md
+  - .lore/specs/phase-1/guild-hall-phase-1.md
 req-prefix: MCP-HTTP
 ---
 
@@ -201,7 +201,7 @@ Boundaries and limitations for Phase I:
 - Agent SDK HTTP configuration pattern: `{ type: "http", url: "..." }`
 - Protocol version: 2025-06-18 for tools, 2025-03-26 for lifecycle
 
-**Spec: Guild Hall Phase I** (.lore/specs/guild-hall-phase-1.md)
+**Spec: Guild Hall Phase I** (.lore/specs/phase-1/guild-hall-phase-1.md)
 - Direct tool invocation requirement (REQ-GH1-8, REQ-GH1-29)
 - MCP-only plugins for Phase I (UI components deferred)
 - Plugin manifest format and discovery from `guild-members/` directory
@@ -218,13 +218,13 @@ Boundaries and limitations for Phase I:
 
 ### Superseded Specs
 
-**Spec: MCPServerFactory - Stdio Implementation** (.lore/specs/mcp-server-factory.md)
+**Spec: MCPServerFactory - Stdio Implementation** (.lore/specs/phase-1/mcp-server-factory.md)
 - Status: superseded by HTTP transport decision
 - Complete stdio implementation executed through Phase 9, then reverted
 - Manual testing revealed architectural issues: duplicate processes, chicken-and-egg tool discovery
 - Implementation learnings preserved in notes for future reference
 
-**Spec: MCP Tool Caching** (.lore/specs/mcp-tool-caching.md)
+**Spec: MCP Tool Caching** (.lore/specs/phase-1/mcp-tool-caching.md)
 - Status: superseded by HTTP eager loading approach
 - Chicken-and-egg problem analysis remains valid (tools invisible until server starts)
 - Solution: eager loading instead of caching (HTTP transport enables this)

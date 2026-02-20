@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [task]
 source: .lore/plans/mcp-http-transport.md
-related: [.lore/specs/mcp-http-transport.md]
+related: [.lore/specs/phase-1/mcp-http-transport.md]
 sequence: 5
 modules: [mcp-manager, server-context, plugin-discovery]
 ---
@@ -62,7 +62,7 @@ Integration test:
 
 ## Why
 
-From `.lore/specs/mcp-http-transport.md`:
+From `.lore/specs/phase-1/mcp-http-transport.md`:
 - REQ-MCP-HTTP-10: "During roster initialization, Guild Hall MUST start all MCP servers (eager loading)"
 - REQ-MCP-HTTP-16: "Guild Hall MUST detect server process exits via event listener (process.on('exit'))"
 - REQ-MCP-HTTP-17: "When a server process crashes, guild member status MUST be set to \"error\" and the port MUST be deallocated"

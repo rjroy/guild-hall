@@ -28,7 +28,7 @@ modules: [dashboard, workshop, roster, session-board, conversation, fonts, asset
 
 ## Summary
 
-Successfully implemented Guild Hall UI redesign with fantasy theme across 15 phases. All 54 requirements from `.lore/specs/ui-redesign-fantasy-theme.md` verified and met.
+Successfully implemented Guild Hall UI redesign with fantasy theme across 15 phases. All 54 requirements from `.lore/specs/phase-1/ui-redesign-fantasy-theme.md` verified and met.
 
 **Key accomplishments**:
 - Migrated background image and variable fonts to public/ directory

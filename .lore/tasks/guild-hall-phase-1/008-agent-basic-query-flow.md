@@ -7,7 +7,7 @@ source: .lore/plans/guild-hall-phase-1.md
 sequence: 8
 modules: [guild-hall]
 related:
-  - .lore/specs/guild-hall-phase-1.md
+  - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/plans/guild-hall-phase-1.md
 ---
 

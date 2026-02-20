@@ -5,7 +5,7 @@ status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:
-  - .lore/specs/worker-dispatch.md
+  - .lore/specs/phase-1/worker-dispatch.md
   - .lore/research/claude-agent-sdk.md
 sequence: 5
 modules: [guild-hall-core, mcp-manager, plugin-contract]
@@ -60,7 +60,7 @@ const mcpServers = { ...toolConfigs, ...dispatchConfigs };
 
 ## Why
 
-From `.lore/specs/worker-dispatch.md`:
+From `.lore/specs/phase-1/worker-dispatch.md`:
 - REQ-WD-36: A `WorkerHandle` interface provides the six worker methods. Worker-capable plugins receive both handles.
 - REQ-WD-45: If `worker/dispatch` is called on a plugin that doesn't support it, Guild Hall does not send the request.
 - REQ-WD-4: Worker-capable plugins MAY also expose regular tools. The two capabilities are independent.

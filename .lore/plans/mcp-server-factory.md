@@ -5,7 +5,7 @@ status: executed
 tags: [implementation, mcp, process-spawning, stdio, phase-1-completion, archived]
 modules: [mcp-manager, server-context, stdio-mcp-factory]
 related:
-  - .lore/specs/mcp-server-factory.md
+  - .lore/specs/phase-1/mcp-server-factory.md
   - .lore/brainstorm/mcp-transport-stdio-vs-http.md
   - .lore/brainstorm/plugin-architecture-hybrid.md
   - .lore/notes/mcp-server-factory.md
@@ -17,7 +17,7 @@ related:
 
 ## Spec Reference
 
-**Spec**: `.lore/specs/mcp-server-factory.md`
+**Spec**: `.lore/specs/phase-1/mcp-server-factory.md`
 
 Requirements addressed:
 - REQ-MCPF-1: Factory spawn config includes pluginDir → Steps 1, 2
@@ -429,7 +429,7 @@ Start the Guild Hall dev server and manually verify:
 **Expertise**: None needed
 
 Launch a sub-agent that:
-1. Reads the spec at `.lore/specs/mcp-server-factory.md`
+1. Reads the spec at `.lore/specs/phase-1/mcp-server-factory.md`
 2. Reviews the implementation in `lib/stdio-mcp-factory.ts`, `lib/mcp-manager.ts`, `lib/server-context.ts`
 3. Checks all 23 requirements (REQ-MCPF-1 through REQ-MCPF-23) are met
 4. Verifies all 10 success criteria are satisfied

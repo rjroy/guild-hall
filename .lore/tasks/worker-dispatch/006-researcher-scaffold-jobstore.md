@@ -5,7 +5,7 @@ status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:
-  - .lore/specs/worker-dispatch.md
+  - .lore/specs/phase-1/worker-dispatch.md
 sequence: 6
 modules: [researcher-plugin]
 ---
@@ -102,7 +102,7 @@ JobStore API:
 
 ## Why
 
-From `.lore/specs/worker-dispatch.md`:
+From `.lore/specs/phase-1/worker-dispatch.md`:
 - REQ-WD-3: Worker-capable plugins MUST handle six additional JSON-RPC methods
 - REQ-WD-7: Plugin assigns globally unique job ID per dispatch (UUIDs recommended)
 - REQ-WD-19: Each plugin manages its own `jobs/` directory within its plugin root

@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [responsive, mobile, css, layout, pattern-mismatch]
 modules: [roster, dashboard, workshop]
-related: [.lore/specs/ui-redesign-fantasy-theme.md, .lore/tasks/ui-redesign-fantasy-theme/009-add-responsive-sidebar.md]
+related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md, .lore/tasks/ui-redesign-fantasy-theme/009-add-responsive-sidebar.md]
 ---
 
 # Retro: Mobile Roster Layout Fix
@@ -58,7 +58,7 @@ Don't implement half of a pattern (width constraint) without the other half (ico
 
 ## Artifacts
 
-- **Spec**: `.lore/specs/ui-redesign-fantasy-theme.md` (REQ-UI-REDESIGN-44, REQ-UI-REDESIGN-46)
+- **Spec**: `.lore/specs/phase-1/ui-redesign-fantasy-theme.md` (REQ-UI-REDESIGN-44, REQ-UI-REDESIGN-46)
 - **Task**: `.lore/tasks/ui-redesign-fantasy-theme/009-add-responsive-sidebar.md`
 - **Files changed**:
   - `app/page.module.css` - Changed mobile breakpoint from 56px sidebar to vertical stacking

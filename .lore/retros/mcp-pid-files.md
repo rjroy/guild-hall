@@ -5,7 +5,7 @@ status: complete
 tags: [turbopack, process-management, bundler-sandboxing, boot-cleanup, pid-files, race-condition]
 modules: [mcp-manager, server-context, pid-file-manager, http-mcp-factory]
 related:
-  - .lore/specs/mcp-pid-files.md
+  - .lore/specs/phase-1/mcp-pid-files.md
   - .lore/plans/unified-jingling-scone.md
   - .lore/retros/coverage-di-factories.md
 ---
@@ -38,7 +38,7 @@ Implemented PID file coordination for MCP server processes to survive Turbopack'
 
 ## Artifacts
 
-- Spec: `.lore/specs/mcp-pid-files.md`
+- Spec: `.lore/specs/phase-1/mcp-pid-files.md`
 - Plan: `.lore/plans/unified-jingling-scone.md`
 - New module: `lib/pid-file-manager.ts`
 - Modified: `lib/mcp-manager.ts`, `lib/server-context.ts`, `lib/http-mcp-factory.ts`, `lib/port-registry.ts`, `lib/json-rpc-client.ts`, `lib/types.ts`

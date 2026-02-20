@@ -5,7 +5,7 @@ status: complete
 tags: [implementation, notes, plugins, sdk-plugin-config, guild-members]
 source: .lore/plans/sdk-plugin-support.md
 modules: [schemas, plugin-discovery, agent, agent-manager, types]
-related: [.lore/specs/sdk-plugin-support.md, .lore/plans/sdk-plugin-support.md]
+related: [.lore/specs/phase-1/sdk-plugin-support.md, .lore/plans/sdk-plugin-support.md]
 ---
 
 # Implementation Notes: SDK Plugin Support

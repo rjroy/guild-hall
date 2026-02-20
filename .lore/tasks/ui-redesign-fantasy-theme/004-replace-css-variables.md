@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [task, css, theme, colors]
 source: .lore/plans/ui-redesign-fantasy-theme.md
-related: [.lore/specs/ui-redesign-fantasy-theme.md]
+related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
 sequence: 4
 modules: [dashboard]
 ---
@@ -54,7 +54,7 @@ grep -E "^  --color-brass:|^  --panel-bg:|^  --text-primary:" app/globals.css  #
 
 ## Why
 
-From `.lore/specs/ui-redesign-fantasy-theme.md`:
+From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-5**: Primary color palette uses warm tones: ambers (#D4A574, #C79A5C), golds (#E8C170, #F4D58D), and browns (#5C4033, #3E2723)
 

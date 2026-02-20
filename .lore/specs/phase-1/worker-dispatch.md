@@ -6,8 +6,8 @@ tags: [architecture, agents, dispatch, workers, mcp, json-rpc, protocol-extensio
 modules: [guild-hall-core, plugin-contract, json-rpc-client, mcp-manager, plugin-discovery]
 related:
   - .lore/brainstorm/worker-agents.md
-  - .lore/specs/mcp-http-transport.md
-  - .lore/specs/guild-hall-phase-1.md
+  - .lore/specs/phase-1/mcp-http-transport.md
+  - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/research/claude-agent-sdk.md
 req-prefix: WD
 ---

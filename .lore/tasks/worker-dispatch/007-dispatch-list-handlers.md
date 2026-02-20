@@ -5,7 +5,7 @@ status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:
-  - .lore/specs/worker-dispatch.md
+  - .lore/specs/phase-1/worker-dispatch.md
 sequence: 7
 modules: [researcher-plugin]
 ---
@@ -43,7 +43,7 @@ The actual agent spawn happens in Task 012. For now, dispatch creates the job di
 
 ## Why
 
-From `.lore/specs/worker-dispatch.md`:
+From `.lore/specs/phase-1/worker-dispatch.md`:
 - REQ-WD-5: `worker/dispatch` accepts `{ description, task, config? }` and returns `{ jobId }` within 30s timeout
 - REQ-WD-6: `description` is short label, `task` is full prompt, `config` is plugin-specific
 - REQ-WD-8: `worker/list` accepts `{ detail?, filter? }`, filter matches as glob against descriptions

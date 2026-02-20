@@ -4,7 +4,7 @@ date: 2026-02-17
 status: draft
 tags: [plugins, sdk-plugin-config, guild-members, schema, discovery, agent-sdk]
 modules: [schemas, plugin-discovery, agent, agent-manager, types]
-related: [.lore/brainstorm/sdk-plugin-config-support.md, .lore/specs/guild-hall-phase-1.md, .lore/specs/mcp-http-transport.md]
+related: [.lore/brainstorm/sdk-plugin-config-support.md, .lore/specs/phase-1/guild-hall-phase-1.md, .lore/specs/phase-1/mcp-http-transport.md]
 req-prefix: PLUG
 ---
 
@@ -133,8 +133,8 @@ No blocking conflicts. The main architectural constraint is that worker capabili
 ## Context
 
 - Brainstorm: `.lore/brainstorm/sdk-plugin-config-support.md` (resolved: merge behavior confirmed, plugin-only members valuable, roster uses description)
-- Phase I spec: `.lore/specs/guild-hall-phase-1.md` (REQ-GH1-5, REQ-GH1-24, REQ-GH1-25 define MCP-only members)
-- HTTP transport spec: `.lore/specs/mcp-http-transport.md` (REQ-MCP-HTTP-1 requires `transport: "http"`, now becomes optional)
+- Phase I spec: `.lore/specs/phase-1/guild-hall-phase-1.md` (REQ-GH1-5, REQ-GH1-24, REQ-GH1-25 define MCP-only members)
+- HTTP transport spec: `.lore/specs/phase-1/mcp-http-transport.md` (REQ-MCP-HTTP-1 requires `transport: "http"`, now becomes optional)
 - Worker dispatch plan: `.lore/plans/worker-dispatch.md` (capabilities field, dispatch bridge, MCPManager extensions)
 - Agent SDK research: `.lore/research/claude-agent-sdk.md` (Section 10 documents `options.plugins`)
 - Plugin systems research: `.lore/research/typescript-plugin-systems.md` (Claude Code plugin directory structure)

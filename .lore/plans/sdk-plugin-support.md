@@ -4,14 +4,14 @@ date: 2026-02-18
 status: draft
 tags: [plugins, sdk-plugin-config, guild-members, schema, discovery, agent-sdk]
 modules: [schemas, plugin-discovery, agent, agent-manager, types]
-related: [.lore/specs/sdk-plugin-support.md]
+related: [.lore/specs/phase-1/sdk-plugin-support.md]
 ---
 
 # Plan: SDK Plugin Support for Guild Members
 
 ## Spec Reference
 
-**Spec**: `.lore/specs/sdk-plugin-support.md`
+**Spec**: `.lore/specs/phase-1/sdk-plugin-support.md`
 
 Requirements addressed:
 - REQ-PLUG-1: `plugin` field on manifest schema --> Step 1
@@ -212,7 +212,7 @@ Tests: Extend `tests/components/roster.test.ts` (existing) with plugin-only memb
 
 ### Step 5: Validate Against Spec
 
-Launch a sub-agent that reads the spec at `.lore/specs/sdk-plugin-support.md`, reviews all implementation files, and flags any requirements not met. Check each of the 10 success criteria from the spec.
+Launch a sub-agent that reads the spec at `.lore/specs/phase-1/sdk-plugin-support.md`, reviews all implementation files, and flags any requirements not met. Check each of the 10 success criteria from the spec.
 
 ## Delegation Guide
 

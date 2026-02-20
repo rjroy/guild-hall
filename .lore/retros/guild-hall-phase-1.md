@@ -5,7 +5,7 @@ status: complete
 tags: [phase-1, implementation, autonomous-implementation, sse, testing, frontend, agent-sdk]
 modules: [guild-hall, workshop, board, roster]
 related:
-  - .lore/specs/guild-hall-phase-1.md
+  - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/plans/guild-hall-phase-1.md
   - .lore/notes/guild-hall-phase-1.md
 ---
@@ -56,7 +56,7 @@ The backend is solid. The frontend has three bugs that surfaced in manual testin
 
 ## Artifacts
 
-- Spec: `.lore/specs/guild-hall-phase-1.md`
+- Spec: `.lore/specs/phase-1/guild-hall-phase-1.md`
 - Plan: `.lore/plans/guild-hall-phase-1.md`
 - Notes: `.lore/notes/guild-hall-phase-1.md`
 - Tasks: `.lore/tasks/guild-hall-phase-1/` (17 task files)

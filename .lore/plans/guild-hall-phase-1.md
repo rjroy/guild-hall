@@ -5,7 +5,7 @@ status: draft
 tags: [phase-1, implementation, nextjs, agent-sdk, mcp, sessions, frontend]
 modules: [guild-hall]
 related:
-  - .lore/specs/guild-hall-phase-1.md
+  - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/brainstorm/guild-hall-phase-1.md
   - .lore/research/claude-agent-sdk.md
   - .lore/research/typescript-plugin-systems.md
@@ -15,7 +15,7 @@ related:
 
 ## Spec Reference
 
-**Spec**: `.lore/specs/guild-hall-phase-1.md`
+**Spec**: `.lore/specs/phase-1/guild-hall-phase-1.md`
 
 Requirements addressed:
 
@@ -506,7 +506,7 @@ Tests: Integration-level tests for error scenarios. Invalid manifest renders err
 
 ### Step 14: Validate Against Spec
 
-Launch a sub-agent that reads the spec at `.lore/specs/guild-hall-phase-1.md`, reviews the entire implementation, and flags any requirements not met. This step is not optional.
+Launch a sub-agent that reads the spec at `.lore/specs/phase-1/guild-hall-phase-1.md`, reviews the entire implementation, and flags any requirements not met. This step is not optional.
 
 The validator checks:
 - Every REQ-GH1-* has corresponding implementation

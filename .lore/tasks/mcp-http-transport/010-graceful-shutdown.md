@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [task]
 source: .lore/plans/mcp-http-transport.md
-related: [.lore/specs/mcp-http-transport.md]
+related: [.lore/specs/phase-1/mcp-http-transport.md]
 sequence: 10
 modules: [mcp-manager, server-context]
 ---
@@ -94,7 +94,7 @@ Signal handler tests:
 
 ## Why
 
-From `.lore/specs/mcp-http-transport.md`:
+From `.lore/specs/phase-1/mcp-http-transport.md`:
 - REQ-MCP-HTTP-15: "Guild Hall MUST stop all MCP servers gracefully on roster unload"
 
 Graceful shutdown ensures ports are properly deallocated and server processes are cleanly terminated when Guild Hall restarts or stops. Without this, orphaned processes may hold ports and prevent restart.

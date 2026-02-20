@@ -5,7 +5,7 @@ status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:
-  - .lore/specs/worker-dispatch.md
+  - .lore/specs/phase-1/worker-dispatch.md
 sequence: 2
 modules: [guild-hall-core, plugin-discovery]
 ---
@@ -67,7 +67,7 @@ This replaces the plan's original approach of checking `tools/list` at runtime. 
 
 ## Why
 
-From `.lore/specs/worker-dispatch.md`:
+From `.lore/specs/phase-1/worker-dispatch.md`:
 - REQ-WD-1: Plugins MAY declare worker capability by adding `"capabilities": ["worker"]` to `guild-member.json`
 - REQ-WD-2: Guild Hall discovers worker-capable plugins at roster initialization
 - REQ-WD-37: `GuildMemberManifestSchema` adds an optional `capabilities` field

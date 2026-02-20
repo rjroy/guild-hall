@@ -5,7 +5,7 @@ status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:
-  - .lore/specs/worker-dispatch.md
+  - .lore/specs/phase-1/worker-dispatch.md
 sequence: 9
 modules: [researcher-plugin]
 ---
@@ -48,7 +48,7 @@ Wire both handlers into `server.ts`.
 
 ## Why
 
-From `.lore/specs/worker-dispatch.md`:
+From `.lore/specs/phase-1/worker-dispatch.md`:
 - REQ-WD-16: `worker/cancel` terminates session, cancelling completed/cancelled is no-op
 - REQ-WD-17: `worker/delete` removes job directory, only completed/cancelled can be deleted
 - REQ-WD-18: Deletion is permanent

@@ -5,7 +5,7 @@ status: resolved
 tags: [plugin-architecture, mcp, react-components, isolation, hybrid, design-decision]
 modules: [plugin-system]
 related:
-  - .lore/specs/guild-hall-phase-1.md
+  - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/brainstorm/plugin-repository-structure.md
 ---
 

@@ -5,8 +5,8 @@ status: superseded
 tags: [mcp, caching, tool-discovery, agent-integration, archived]
 modules: [mcp-manager, plugin-discovery]
 related:
-  - .lore/specs/mcp-server-factory.md
-  - .lore/specs/guild-hall-phase-1.md
+  - .lore/specs/phase-1/mcp-server-factory.md
+  - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/notes/mcp-server-factory.md
   - .lore/brainstorm/mcp-transport-stdio-vs-http.md
 req-prefix: MCP-TOOL

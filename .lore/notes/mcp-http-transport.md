@@ -87,7 +87,7 @@ Implementation started 2026-02-14.
 
 ## Final Validation
 
-Holistic review against `.lore/specs/mcp-http-transport.md`:
+Holistic review against `.lore/specs/phase-1/mcp-http-transport.md`:
 - **43 of 44 requirements FULLY met**
 - **1 requirement PARTIALLY met**: REQ-MCP-HTTP-30 (localhost binding) - Guild Hall client uses localhost, but doesn't validate server binding (server responsibility)
 - All success criteria verified

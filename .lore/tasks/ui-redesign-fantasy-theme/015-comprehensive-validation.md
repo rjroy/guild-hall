@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [task, validation, verification]
 source: .lore/plans/ui-redesign-fantasy-theme.md
-related: [.lore/specs/ui-redesign-fantasy-theme.md]
+related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
 sequence: 15
 modules: [dashboard, workshop, roster, session-board, conversation]
 ---
@@ -68,7 +68,7 @@ After automated checks pass, launch a fresh-context sub-agent for final verifica
 Use the Task tool to invoke `general-purpose` agent:
 
 ```
-Verify the fantasy theme implementation meets all requirements in .lore/specs/ui-redesign-fantasy-theme.md.
+Verify the fantasy theme implementation meets all requirements in .lore/specs/phase-1/ui-redesign-fantasy-theme.md.
 
 Run these specific checks:
 1. Read app/globals.css - verify @font-face declarations use variable font syntax (font-weight: 100 900)
@@ -95,7 +95,7 @@ All requirement categories must pass. Any failures must be addressed before decl
 
 ## Why
 
-From `.lore/specs/ui-redesign-fantasy-theme.md`:
+From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
 
 **All 54 requirements** - This validation task ensures comprehensive coverage of the entire spec. It addresses:
 

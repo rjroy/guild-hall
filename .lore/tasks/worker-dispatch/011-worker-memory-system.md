@@ -5,7 +5,7 @@ status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:
-  - .lore/specs/worker-dispatch.md
+  - .lore/specs/phase-1/worker-dispatch.md
   - .lore/research/claude-agent-sdk.md
 sequence: 11
 modules: [researcher-plugin]
@@ -73,7 +73,7 @@ Functions:
 
 ## Why
 
-From `.lore/specs/worker-dispatch.md`:
+From `.lore/specs/phase-1/worker-dispatch.md`:
 - REQ-WD-26: `store_memory` writes to plugin `memory/` directory, MAY spawn compaction query
 - REQ-WD-27: Plugins maintain a `memory/` directory at plugin root, persists across jobs
 - REQ-WD-28: Worker system prompt includes relevant memory content up to size cap (8000 chars default)

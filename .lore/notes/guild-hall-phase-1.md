@@ -6,7 +6,7 @@ tags: [implementation, notes, phase-1, frontend, sessions, mcp, agent-sdk]
 source: .lore/plans/guild-hall-phase-1.md
 modules: [guild-hall]
 related:
-  - .lore/specs/guild-hall-phase-1.md
+  - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/plans/guild-hall-phase-1.md
 ---
 

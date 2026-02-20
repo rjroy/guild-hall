@@ -5,7 +5,7 @@ status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:
-  - .lore/specs/worker-dispatch.md
+  - .lore/specs/phase-1/worker-dispatch.md
 sequence: 3
 modules: [json-rpc-client]
 ---
@@ -39,7 +39,7 @@ Use the response types defined in Task 002 (`WorkerJobSummary`, `WorkerJobStatus
 
 ## Why
 
-From `.lore/specs/worker-dispatch.md`:
+From `.lore/specs/phase-1/worker-dispatch.md`:
 - REQ-WD-35: `JsonRpcClient` gains methods for each `worker/*` call: `dispatchWorker()`, `listWorkers()`, `workerStatus()`, `workerResult()`, `cancelWorker()`, `deleteWorker()`. Same timeout and error handling patterns as `invokeTool()`.
 
 ## Files

@@ -5,7 +5,7 @@ status: superseded
 tags: [mcp, process-spawning, stdio, plugin-system, phase-1-completion, archived]
 modules: [mcp-manager, server-context]
 related:
-  - .lore/specs/guild-hall-phase-1.md
+  - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/brainstorm/plugin-architecture-hybrid.md
   - .lore/brainstorm/mcp-transport-stdio-vs-http.md
   - .lore/research/claude-agent-sdk.md
@@ -117,7 +117,7 @@ This is the "code isolation" half of Guild Hall's hybrid plugin architecture. UI
 
 ### Related Lore
 
-- **Phase I Spec** (`.lore/specs/guild-hall-phase-1.md`): REQ-GH1-8 and REQ-GH1-29 define direct tool invocation, which requires MCPServerFactory. This spec completes the final Phase I success criterion.
+- **Phase I Spec** (`.lore/specs/phase-1/guild-hall-phase-1.md`): REQ-GH1-8 and REQ-GH1-29 define direct tool invocation, which requires MCPServerFactory. This spec completes the final Phase I success criterion.
 - **Plugin Architecture Brainstorm** (`.lore/brainstorm/plugin-architecture-hybrid.md`): Established the hybrid model (MCP servers for code isolation, React components for UI integration). MCPServerFactory implements the "code isolation" half.
 - **Agent SDK Research** (`.lore/research/claude-agent-sdk.md`): Documents the MCP SDK's stdio transport and client libraries. The factory uses `@modelcontextprotocol/sdk/client/stdio.js`.
 - **Phase I Retro** (`.lore/retros/guild-hall-phase-1.md`): Identified MCPServerFactory stub as the only outstanding Phase I item. Noted that the API route, validation, and test infrastructure are already in place.

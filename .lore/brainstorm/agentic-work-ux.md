@@ -7,7 +7,7 @@ modules: [guild-hall-core]
 related:
   - .lore/brainstorm/worker-agents.md
   - .lore/research/agent-native-applications.md
-  - .lore/specs/guild-hall-phase-1.md
+  - .lore/specs/phase-1/guild-hall-phase-1.md
   - .lore/retros/guild-hall-phase-1.md
 ---
 

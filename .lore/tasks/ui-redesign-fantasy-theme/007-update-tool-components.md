@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [task, css, tools]
 source: .lore/plans/ui-redesign-fantasy-theme.md
-related: [.lore/specs/ui-redesign-fantasy-theme.md]
+related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
 sequence: 7
 modules: [roster, workshop]
 ---
@@ -61,7 +61,7 @@ Verify by inspecting each file for the specified CSS properties and values.
 
 ## Why
 
-From `.lore/specs/ui-redesign-fantasy-theme.md`:
+From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-18**: ToolList displays with subtle separator lines (1px, 10-20% opacity) between tools when guild member is expanded
 

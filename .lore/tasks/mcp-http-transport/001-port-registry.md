@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [task]
 source: .lore/plans/mcp-http-transport.md
-related: [.lore/specs/mcp-http-transport.md]
+related: [.lore/specs/phase-1/mcp-http-transport.md]
 sequence: 1
 modules: [port-registry]
 ---
@@ -39,7 +39,7 @@ Unit tests in `tests/lib/port-registry.test.ts`:
 
 ## Why
 
-From `.lore/specs/mcp-http-transport.md`:
+From `.lore/specs/phase-1/mcp-http-transport.md`:
 - REQ-MCP-HTTP-5: "Guild Hall MUST allocate ports from the ephemeral range 50000-51000"
 - REQ-MCP-HTTP-6: "If a port is unavailable (EADDRINUSE), Guild Hall MUST try the next port in sequence"
 - REQ-MCP-HTTP-7: "If all ports in the range are exhausted, server spawn MUST fail with descriptive error message"

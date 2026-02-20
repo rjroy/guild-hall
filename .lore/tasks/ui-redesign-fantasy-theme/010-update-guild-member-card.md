@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [task, css, avatar, members]
 source: .lore/plans/ui-redesign-fantasy-theme.md
-related: [.lore/specs/ui-redesign-fantasy-theme.md]
+related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
 sequence: 10
 modules: [roster]
 ---
@@ -81,7 +81,7 @@ Verify by inspecting `GuildMemberCard.module.css` for these CSS properties and v
 
 ## Why
 
-From `.lore/specs/ui-redesign-fantasy-theme.md`:
+From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-26**: GuildMemberCard displays circular avatar thumbnail (48px on mobile, 64px on desktop)
 

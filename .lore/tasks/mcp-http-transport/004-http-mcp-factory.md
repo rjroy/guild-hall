@@ -4,7 +4,7 @@ date: 2026-02-14
 status: complete
 tags: [task]
 source: .lore/plans/mcp-http-transport.md
-related: [.lore/specs/mcp-http-transport.md]
+related: [.lore/specs/phase-1/mcp-http-transport.md]
 sequence: 4
 modules: [http-mcp-factory]
 ---
@@ -65,7 +65,7 @@ Unit tests in `tests/lib/http-mcp-factory.test.ts`:
 
 ## Why
 
-From `.lore/specs/mcp-http-transport.md`:
+From `.lore/specs/phase-1/mcp-http-transport.md`:
 - REQ-MCP-HTTP-6: "If a port is unavailable (EADDRINUSE), Guild Hall MUST try the next port in sequence"
 - REQ-MCP-HTTP-9: "Guild Hall MUST substitute `${PORT}` in manifest `args` with the allocated port number"
 - REQ-MCP-HTTP-11: "MCP server processes MUST be spawned with current working directory set to `pluginDir`"

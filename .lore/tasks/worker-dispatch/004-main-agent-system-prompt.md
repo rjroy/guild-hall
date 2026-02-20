@@ -5,7 +5,7 @@ status: complete
 tags: [task]
 source: .lore/plans/worker-dispatch.md
 related:
-  - .lore/specs/worker-dispatch.md
+  - .lore/specs/phase-1/worker-dispatch.md
 sequence: 4
 modules: [guild-hall-core]
 ---
@@ -38,7 +38,7 @@ The system prompt builder is in `lib/agent-manager.ts` (or wherever the system p
 
 ## Why
 
-From `.lore/specs/worker-dispatch.md`:
+From `.lore/specs/phase-1/worker-dispatch.md`:
 - REQ-WD-39: Guild Hall's main agent system prompt includes guidance on worker dispatch: how to check status, how to relay questions, and how to present results. The prompt lists worker-capable plugins by name so the agent knows which plugins accept dispatch.
 
 ## Files
