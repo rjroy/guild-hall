@@ -234,18 +234,63 @@ Five views total (dashboard + four drill-downs). Navigation flows:
 - **Artifact** -> click associated task -> **Task**
 - **Meeting** -> produces artifacts -> visible in **Project** and **Dashboard**
 
+## Resolved Questions
+
+### Worker memory: three layers
+
+Memory exists at three scopes:
+
+- **Global memory** (`~/.guild-hall/memory/global/`): Available to all workers across all projects. A worker can write here when it learns something project-independent (e.g., the user's communication preferences, common patterns).
+- **Project memory** (`~/.guild-hall/memory/projects/<name>/`): Available to all workers within a project. A researcher stores findings here; an implementer reads them. Shared knowledge about this specific codebase or domain.
+- **Worker memory** (`~/.guild-hall/memory/workers/<name>/`): Private to a specific worker. Always available to that worker regardless of project. The researcher's accumulated research methodology, the implementer's coding patterns.
+
+Any worker can write to global or project memory, making knowledge available to others. Worker memory is private. This means knowledge flows naturally: a researcher's findings land in project memory where the implementer can read them, without explicit handoff.
+
+### Meeting lifecycle: explicit close with per-project cap
+
+V1 rule: each project allows a maximum of X concurrent open meetings (default: 5). Meetings are closed only when the user explicitly closes them. No auto-detection of "done" (too complicated for V1). If a user hits the cap, they must close an existing meeting before starting a new one. This is simple, predictable, and prevents meeting accumulation without losing in-progress work.
+
+### Task creation: same UX for humans and agents (parity)
+
+Task creation uses the same interface as the Task View. The user fills in the task summary, agentic prompt, links artifacts, and dispatches. The manager worker can also create tasks programmatically. This is the "lightweight dispatch" from the parity principle: anything the user can do through the UI, an agent can do through tools. The manager creating a task on behalf of the user IS the lightweight alternative to a full meeting about every task.
+
+### Plugin contract: bun packages
+
+Complete departure from the prototype's MCP-based plugin system. Both workers and toolboxes are bun packages. The entry point is a function call, not an MCP server process. This means:
+
+- Workers are packages that export their posture, toolbox requirements, and an entry function
+- Toolboxes are packages that export a set of tool functions
+- No process management, no stdio communication, no MCP protocol overhead
+- Standard package resolution, versioning, and dependency management via bun
+
+Details of the package API are TBD for the spec.
+
+### Worker-to-worker communication: not MVP
+
+Workers communicate with the user (via meetings) and with the system (via artifacts and task status). Direct worker-to-worker communication is a good idea but not V1. Starting without it keeps the interaction model simple: all coordination flows through the manager or through shared artifacts. Adding it later won't require rearchitecting because workers already read shared project memory.
+
+### Git sync strategy: branch-based team workflow
+
+Guild Hall's git model mirrors a real development team:
+
+- **`master` (or `main`)** is protected. The user's branch. Only changes via PR.
+- **`claude`** is Guild Hall's integration branch. Workers branch from it and merge back into it.
+- **Worker branches** are short-lived feature branches off `claude`. One branch per task. Squash-merged back into `claude` (one clean commit per task).
+- **PR from `claude` to `master`** is squash-merged (one commit representing all the work). The manager handles this.
+- **`claude` rebases onto `master`** when the user makes direct changes to `master`, keeping `claude` ahead but never diverged.
+
+This avoids rebase headaches while keeping both branches clean. Workers never touch `master`. The user never sees worker activity unless they review the PR. Standard git team practices apply because this IS a team of developers (AI workers) managed by someone (the manager), working on a project owned by someone else (the user).
+
 ## Open Questions
 
-- **Worker memory scope.** The mail worker accumulates knowledge spanning workspaces (your mail patterns, filtering preferences). The implementation worker's context is workspace-specific. Per-worker-per-workspace, per-worker-global, or both?
-- **Multi-day meeting lifecycle.** Meetings are ephemeral, but a brainstorm might span days. When does a meeting transcript get cleaned up? Explicit close? Idle timeout? After the artifact it produces is committed? Needs a simple policy that doesn't lose in-progress work.
-- **Task creation UX.** Creating a task is a meeting with the manager. But is every task formal enough for a meeting? Is there a lightweight dispatch that's less than a meeting but more than clicking a button?
-- **Plugin contract.** If "toolbox" is the extension point, what's the minimal contract? An MCP server? A directory with a manifest? How does a toolbox declare what it provides?
-- **Worker-to-worker communication.** Can workers request meetings with each other, or only with the human? Can the researcher hand off to the implementer directly, or does everything route through the manager?
-- **Git sync strategy.** How does the user's repo and Guild Hall's worktree stay in sync? Auto-push from worktree? Notification that new artifacts are available? Manual pull? What happens on merge conflicts in `.lore/`?
+- **Bun package API.** What does a worker package export? What does a toolbox package export? How does Guild Hall discover and load them?
+- **Manager posture.** The manager is the most complex worker. What's in its system prompt? What tools does it have? How does it balance autonomy (creating tasks, dispatching workers) with deference (checking with the user on priorities)?
+- **Dashboard aggregation.** The dashboard shows cross-project state. How does it aggregate task graphs and artifacts across multiple repo worktrees efficiently?
+- **Meeting-to-artifact flow.** When a meeting produces an artifact, what's the mechanics? Does the worker write it directly to `.lore/`? Does the user review before commit? Is there a "draft" state?
 
 ## Next Steps
 
-- Define what a minimal toolbox contract looks like
-- Map the lore-development workflow onto this model as a validation exercise (does brainstorm/research/specify/plan/implement/review fit cleanly into artifacts + workers + meetings?)
+- Write a spec from this brainstorm to lock down requirements for V1
+- Define the bun package API for workers and toolboxes
 - Sketch the manager worker's posture and capabilities
-- Write a spec from this brainstorm to lock down requirements before rebuilding
+- Map the lore-development workflow onto this model as validation
