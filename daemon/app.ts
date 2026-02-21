@@ -59,12 +59,11 @@ export async function createProductionApp(options?: {
   const config = await readConfig();
   const guildHallHome = getGuildHallHome();
 
-  // Scan paths: the packages directory (from CLI flag or default) plus
-  // any paths configured in the config file settings.
-  const scanPaths: string[] = [];
-  if (options?.packagesDir) {
-    scanPaths.push(options.packagesDir);
-  }
+  // Scan paths: CLI flag overrides the default, otherwise scan
+  // ~/.guild-hall/packages/ where workers are installed.
+  const nodePath = await import("node:path");
+  const defaultPackagesDir = nodePath.join(guildHallHome, "packages");
+  const scanPaths: string[] = [options?.packagesDir ?? defaultPackagesDir];
 
   const packages = await discoverPackages(scanPaths);
 

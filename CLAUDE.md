@@ -38,9 +38,12 @@ Phase 2 complete. 499 tests pass. Phase 1 delivered three views (Dashboard, Proj
 ```bash
 bun install                    # install dependencies
 bun run dev                    # start daemon + Next.js (concurrently)
-bun run dev:daemon             # start daemon only (watch mode)
+bun run dev:daemon             # start daemon only (watch mode, ./packages)
 bun run dev:next               # start Next.js only (turbopack)
 bun run build                  # production build
+bun run start                  # start daemon + Next.js (production)
+bun run start:daemon           # start daemon only (~/.guild-hall/packages/)
+bun run start:next             # start Next.js only (production)
 bun run lint                   # ESLint
 bun run typecheck              # TypeScript type checking
 bun test                       # run all tests
