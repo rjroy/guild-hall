@@ -25,6 +25,28 @@ function displayTitle(artifact: Artifact): string {
   return filename.replace(/\.md$/, "");
 }
 
+/**
+ * Determines the correct href for an artifact in the dashboard feed.
+ * Open meeting artifacts link to the meeting view; everything else
+ * links to the standard artifact view.
+ */
+export function artifactHref(
+  artifact: Artifact,
+  projectName: string
+): string {
+  const encodedName = encodeURIComponent(projectName);
+  const isMeeting = artifact.relativePath.startsWith("meetings/");
+  const isOpen = artifact.meta.status.toLowerCase().trim() === "open";
+
+  if (isMeeting && isOpen) {
+    const filename = artifact.relativePath.split("/").pop() ?? "";
+    const meetingId = filename.replace(/\.md$/, "");
+    return `/projects/${encodedName}/meetings/${encodeURIComponent(meetingId)}`;
+  }
+
+  return `/projects/${encodedName}/artifacts/${artifact.relativePath}`;
+}
+
 export default function RecentArtifacts({
   artifacts,
   projectName,
@@ -42,7 +64,7 @@ export default function RecentArtifacts({
             return (
               <li key={artifact.relativePath} className={styles.item}>
                 <Link
-                  href={`/projects/${encodeURIComponent(projectName)}/artifacts/${artifact.relativePath}`}
+                  href={artifactHref(artifact, projectName)}
                   className={styles.link}
                 >
                   {/* Static decorative icon. next/image optimization not beneficial. */}

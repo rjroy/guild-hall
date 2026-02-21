@@ -1,0 +1,35 @@
+/* Daemon status indicator, shown only when the daemon is offline.
+   Positioned at the bottom-right of the viewport, over all content. */
+
+.container {
+  position: fixed;
+  bottom: var(--space-md);
+  right: var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-bronze);
+  border-radius: 4px;
+  z-index: 1000;
+  /* Vendor prefix must come before standard property (Next.js compilation quirk) */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.gem {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-amber);
+  box-shadow: 0 0 6px var(--color-amber);
+}
+
+.text {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}

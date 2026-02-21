@@ -1,0 +1,81 @@
+.toolUse {
+  border: 1px solid rgba(184, 134, 11, 0.15);
+  border-radius: 4px;
+  margin: var(--space-xs) 0;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.toolHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  color: var(--color-text);
+  text-align: left;
+}
+
+.toolHeader:hover {
+  background-color: rgba(184, 134, 11, 0.05);
+}
+
+.toolName {
+  font-family: var(--font-code);
+  font-size: 0.8rem;
+  color: var(--color-brass);
+  font-weight: 500;
+}
+
+.toolStatus {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
+
+.expandIcon {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+/* --- Expanded details --- */
+
+.toolDetails {
+  border-top: 1px solid rgba(184, 134, 11, 0.1);
+  padding: var(--space-sm);
+}
+
+.detailSection {
+  margin-bottom: var(--space-sm);
+}
+
+.detailSection:last-child {
+  margin-bottom: 0;
+}
+
+.detailLabel {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-xs);
+}
+
+.detailContent {
+  font-family: var(--font-code);
+  font-size: 0.75rem;
+  color: var(--color-text);
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: var(--space-sm);
+  border-radius: 3px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}

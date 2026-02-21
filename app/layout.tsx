@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DaemonStatus from "@/components/ui/DaemonStatus";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,6 +20,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <div style={{ minHeight: "100vh" }}>{children}</div>
+        <DaemonStatus />
       </body>
     </html>
   );

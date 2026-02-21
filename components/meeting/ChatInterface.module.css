@@ -1,0 +1,40 @@
+.chatInterface {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-panel-bg);
+  border: 1px solid rgba(184, 134, 11, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
+  /* Fill available vertical space in the meeting view */
+  flex: 1;
+  min-height: 400px;
+
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.messageArea {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg);
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar styling for the message area */
+.messageArea::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messageArea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messageArea::-webkit-scrollbar-thumb {
+  background-color: rgba(184, 134, 11, 0.3);
+  border-radius: 3px;
+}
+
+.messageArea::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(184, 134, 11, 0.5);
+}

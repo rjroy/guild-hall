@@ -1,7 +1,7 @@
 ---
 title: Package types and discovery
 date: 2026-02-21
-status: pending
+status: complete
 tags: [task]
 source: .lore/plans/phase-2-workers-first-audience.md
 related:

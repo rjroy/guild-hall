@@ -1,0 +1,106 @@
+.messageRow {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  justify-content: flex-start;
+}
+
+.portrait {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: var(--space-xs);
+}
+
+.bubble {
+  max-width: 75%;
+  border-radius: 8px;
+  padding: var(--space-sm) var(--space-md);
+  position: relative;
+  background-color: var(--color-panel-bg);
+  border: 1px solid rgba(168, 152, 120, 0.15);
+
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* Parchment texture underlay */
+.bubble::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/images/ui/paper-bg.webp");
+  background-size: cover;
+  opacity: 0.06;
+  pointer-events: none;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.content p {
+  margin: 0 0 0.5em 0;
+}
+
+.content p:last-child {
+  margin-bottom: 0;
+}
+
+.content code {
+  font-family: var(--font-code);
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.82em;
+}
+
+.content pre {
+  font-family: var(--font-code);
+  background: rgba(0, 0, 0, 0.35);
+  padding: var(--space-sm);
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+  font-size: 0.82rem;
+}
+
+.content pre code {
+  background: none;
+  padding: 0;
+}
+
+/* --- Pulsing cursor --- */
+
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background-color: var(--color-brass);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+/* --- Tool uses --- */
+
+.tools {
+  position: relative;
+  z-index: 1;
+  margin-bottom: var(--space-sm);
+}

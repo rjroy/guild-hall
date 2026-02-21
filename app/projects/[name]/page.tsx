@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import { getProject } from "@/lib/config";
 import { scanArtifacts } from "@/lib/artifacts";
 import { projectLorePath } from "@/lib/paths";
@@ -5,6 +6,7 @@ import { notFound } from "next/navigation";
 import ProjectHeader from "@/components/project/ProjectHeader";
 import ProjectTabs from "@/components/project/ProjectTabs";
 import ArtifactList from "@/components/project/ArtifactList";
+import MeetingList from "@/components/project/MeetingList";
 import EmptyState from "@/components/ui/EmptyState";
 import Panel from "@/components/ui/Panel";
 import styles from "./page.module.css";
@@ -26,6 +28,10 @@ export default async function ProjectPage({
   const lorePath = projectLorePath(project.path);
   const artifacts = await scanArtifacts(lorePath);
 
+  // Scan for meeting artifacts in the meetings subdirectory
+  const meetingsPath = path.join(lorePath, "meetings");
+  const meetingArtifacts = await scanArtifacts(meetingsPath);
+
   return (
     <div className={styles.projectView}>
       <ProjectHeader project={project} />
@@ -40,9 +46,7 @@ export default async function ProjectPage({
           </Panel>
         )}
         {tab === "meetings" && (
-          <Panel>
-            <EmptyState message="No meetings yet." />
-          </Panel>
+          <MeetingList meetings={meetingArtifacts} projectName={projectName} />
         )}
       </div>
     </div>
