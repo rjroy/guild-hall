@@ -3,9 +3,12 @@
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  background-color: rgba(26, 20, 18, 0.4);
+  background-color: rgba(26, 20, 18, 0.85);
   border-radius: 4px;
   margin-bottom: var(--space-md);
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .text {

@@ -5,7 +5,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-sm) var(--space-md);
-  background-color: rgba(26, 20, 18, 0.5);
+  background-color: rgba(26, 20, 18, 0.9);
   border-radius: 4px 4px 0 0;
   border-bottom: 1px solid rgba(184, 134, 11, 0.2);
 }
@@ -90,9 +90,12 @@
 /* --- View mode --- */
 
 .viewer {
-  background-color: rgba(26, 20, 18, 0.3);
+  background-color: rgba(26, 20, 18, 0.85);
   border-radius: 4px;
   overflow: hidden;
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .markdownContent {
@@ -258,11 +261,14 @@
 /* --- Edit mode --- */
 
 .editor {
-  background-color: rgba(26, 20, 18, 0.3);
+  background-color: rgba(26, 20, 18, 0.85);
   border-radius: 4px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .textarea {
