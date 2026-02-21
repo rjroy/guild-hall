@@ -1,0 +1,63 @@
+.panel {
+  position: relative;
+  background-color: var(--color-panel-bg);
+  border: 10px solid transparent;
+  border-image-source: url("/images/ui/border.webp");
+  border-image-slice: 120 120 120 120;
+  border-image-width: 30px;
+  border-radius: 30px;
+
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* Paper texture underlay via pseudo-element */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/images/ui/paper-bg.webp");
+  background-size: cover;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ensure panel content sits above the texture */
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- Size Variants --- */
+
+.sm {
+  padding: var(--space-sm);
+}
+
+.md {
+  padding: var(--space-md);
+}
+
+.lg {
+  padding: var(--space-lg);
+}
+
+.full {
+  padding: var(--space-lg);
+  width: 100%;
+}
+
+/* --- Header --- */
+
+.header {
+  margin-bottom: var(--space-md);
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-brass);
+  margin: 0;
+}

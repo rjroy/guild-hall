@@ -1,46 +1,99 @@
 # Guild Hall
 
-A self-hosted web application that manages Claude Agent SDK sessions and exposes MCP tools through a dashboard interface.
+A multi-agent workspace for delegating work to AI specialists and reviewing their output. Fantasy guild aesthetic, file-based state, no database.
 
-Guild Hall gives you a roster of MCP-powered tools ("guild members"), lets you create agent sessions that combine them, and streams agent activity in real time. You can also invoke any tool directly without starting a session.
+Guild Hall treats AI collaboration as a structured process: register a project, browse its artifacts (markdown files with YAML frontmatter), edit them in-browser, and (in future phases) dispatch work to specialized AI workers through meetings and commissions.
 
-## Status
+## Current State
 
-Pre-implementation. Phase I spec is complete.
+Phase 1 is complete. The UI skeleton is navigable with three views:
 
-## Concepts
+- **Dashboard** showing registered projects and recent artifacts
+- **Project view** with tabbed artifact browsing by type/status
+- **Artifact view** with markdown rendering, in-browser editing, and metadata sidebar
 
-**Guild Members** are filesystem-discovered plugins. Each one is a directory with a manifest file and an MCP server. Drop a valid guild member into the discovery directory and it appears in the Roster.
+CLI tools handle project registration and config validation. 171 tests pass.
 
-**Three zones** organize the interface:
+## Prerequisites
 
-- **Roster**: All discovered guild members, their connection status, and their tools. Expand a member to see individual tools. Invoke any tool directly from here, no session required.
-- **Board**: Session cards sorted by recent activity. Create new sessions, select which guild members to include, and resume existing sessions.
-- **Workshop**: The active session view. Full conversation history (messages, tool calls, tool results), real-time streaming, message input, and stop control.
+- [Bun](https://bun.sh/) (runtime and package manager)
+- Node.js 20+ (for Next.js)
 
-## Architecture
+## Getting Started
 
-- **Next.js** (App Router) with API routes as the backend. Single TypeScript codebase.
-- **Claude Agent SDK** (TypeScript) manages agent sessions. Each user message triggers a `query()` call; the agent runs to completion and stops. No persistent agent process between queries.
-- **SSE** streams agent activity from backend to frontend during query execution.
-- **File-based session storage**. Each session is a directory containing metadata, message history, a context file, and an artifacts directory.
-- **MCP-only plugins**. Guild members provide MCP servers discovered by scanning a directory at startup.
+```bash
+bun install
+bun run dev
+```
 
-## Session Lifecycle
+Then open [http://localhost:3000](http://localhost:3000).
 
-Sessions move through these statuses: **idle** (ready for messages), **running** (query executing), **completed** (user ended the session), **expired** (SDK session no longer valid), **error** (unrecoverable failure).
+Register a project that has a `.lore/` directory:
 
-Each session directory includes a **context file** that captures distilled state: goals, decisions, progress, and relevant resources. The agent reads it at the start of each query and updates it as work progresses. When a session expires, the context file provides continuity for a fresh SDK session without replaying the full message history.
+```bash
+bun run guild-hall register my-project /path/to/project
+```
 
-The context file is plain text, readable and editable outside the application. The user and agent share it as a working document.
+## Commands
 
-## Requirements
+```bash
+bun run dev          # Next.js dev server
+bun run build        # production build
+bun run start        # start production server
+bun run lint         # ESLint
+bun run typecheck    # TypeScript type checking
+bun test             # run all tests
+bun test tests/lib/config.test.ts  # single test file
+bun run guild-hall register <name> <path>  # register a project
+bun run guild-hall validate                # validate config
+```
 
-- Node.js
-- Bun
-- Claude Agent SDK (TypeScript, v0.2.39+)
-- Anthropic API key
+## Tech Stack
+
+- **Next.js** (App Router) with React 19 server and client components
+- **CSS Modules** with a custom fantasy design system (glassmorphic panels, image-based borders, gem status indicators)
+- **gray-matter** + **react-markdown** for artifact parsing and rendering
+- **Zod** for config and frontmatter validation
+- **Bun** for runtime, testing, and CLI scripts
+
+## Project Structure
+
+```
+app/                          # Next.js App Router pages
+  api/artifacts/              # PUT endpoint for artifact editing
+  projects/[name]/            # Project view (tabbed artifacts)
+    artifacts/[...path]/      # Artifact view (catch-all for deep paths)
+components/
+  ui/                         # Reusable fantasy-themed components (Panel, GemIndicator, etc.)
+  dashboard/                  # Dashboard-specific components
+  project/                    # Project view components
+  artifact/                   # Artifact view components
+lib/                          # Core business logic (server-side)
+  config.ts                   # Config schemas, read/write
+  artifacts.ts                # Artifact scanning, reading, writing
+  paths.ts                    # Path resolution utilities
+  types.ts                    # Shared interfaces
+cli/                          # Bun CLI scripts (register, validate)
+tests/                        # Mirrors source structure
+public/images/ui/             # Fantasy UI assets (borders, gems, textures)
+public/fonts/                 # Ysabeau Office (body), Source Code Pro (code)
+```
+
+## Configuration
+
+Guild Hall stores its config at `~/.guild-hall/config.yaml`. Each registered project must contain a `.git/` directory and a `.lore/` directory with markdown artifacts.
+
+## Roadmap
+
+Development follows vertical slices defined in `.lore/plans/implementation-phases.md`:
+
+1. **The Empty Hall** (complete) -- UI skeleton, artifact browsing, editing, CLI tools
+2. **Workers + First Audience** -- Package discovery, worker identities, basic chat with AI specialists
+3. **Meeting Lifecycle** -- Persistent meetings, meeting toolbox, notes generation
+4. **Commissions** -- Async work delegation, dependency graphs, progress tracking
+5. **Git Integration** -- Worktree isolation, branch-per-commission, PR creation
+6. **Full System** -- Manager coordination, cross-workspace memory, plugin architecture
 
 ## License
 
-MIT
+Private.

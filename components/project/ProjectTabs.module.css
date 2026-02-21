@@ -1,0 +1,43 @@
+.tabBar {
+  display: flex;
+  gap: var(--space-xs);
+  background-color: var(--color-panel-bg);
+  border-bottom: 1px solid rgba(184, 134, 11, 0.2);
+  padding: 0 50px;
+
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  background-image: url('/images/ui/scroll-window.webp');
+  background-size: 100% 100%;
+  background-blend-mode: hue;
+  border-radius: 50px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
+}
+
+.tab:hover {
+  color: var(--color-text);
+}
+
+.active {
+  color: var(--color-text-heading);
+  border-bottom-color: var(--color-brass);
+}
+
+.label {
+  white-space: nowrap;
+}

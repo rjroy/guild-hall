@@ -1,67 +1,44 @@
+/* ============================================================
+   Dashboard: Five-Zone Grid Layout
+
+   +----------+------------------------+-------------+
+   | sidebar  |  briefing              | recent      |
+   |          +------------------------+ artifacts   |
+   |          |  depMap                |             |
+   +----------+------------------------+-------------+
+   |          |  audiences (spans center + right)    |
+   +----------+--------------------------------------+
+   ============================================================ */
+
 .dashboard {
   display: grid;
-  grid-template-columns: 340px 1fr;
-  grid-template-rows: auto 1fr;
-  gap: 0;
-  height: 100vh;
-  overflow: hidden;
+  grid-template-columns: 260px 1fr 320px;
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "sidebar briefing   recent"
+    "sidebar depMap     recent"
+    "sidebar audiences  audiences";
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  min-height: 100vh;
 }
 
-.header {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  background: var(--panel-header-bg);
-  border-bottom: 1px solid var(--panel-border);
+.sidebar {
+  grid-area: sidebar;
 }
 
-.headerTitle {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--foreground);
-  letter-spacing: 0.02em;
+.briefing {
+  grid-area: briefing;
 }
 
-.headerBadge {
-  margin-left: 10px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 2px 8px;
-  border-radius: 3px;
-  background: var(--accent);
-  color: var(--accent-text);
+.depMap {
+  grid-area: depMap;
 }
 
-.rosterColumn {
-  border-right: 1px solid var(--panel-border);
-  overflow: hidden;
-  padding: 12px;
+.recentArtifacts {
+  grid-area: recent;
 }
 
-.boardColumn {
-  overflow: hidden;
-  padding: 12px;
-}
-
-/* Responsive: stack vertically on mobile */
-@media (max-width: 767px) {
-  .dashboard {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr;
-  }
-
-  .rosterColumn {
-    border-right: none;
-    border-bottom: 1px solid var(--panel-border);
-    max-height: 40vh;
-    overflow-y: auto;
-  }
-
-  .boardColumn {
-    overflow-y: auto;
-  }
+.audiences {
+  grid-area: audiences;
 }

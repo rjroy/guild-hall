@@ -1,0 +1,34 @@
+.gem {
+  display: inline-block;
+  object-fit: contain;
+}
+
+/* --- Sizes --- */
+
+.sm {
+  width: 16px;
+  height: 16px;
+}
+
+.md {
+  width: 24px;
+  height: 24px;
+}
+
+/* --- Status tints (CSS filters applied to the blue base gem) --- */
+
+.active {
+  filter: var(--gem-active);
+}
+
+.pending {
+  filter: var(--gem-pending);
+}
+
+.blocked {
+  filter: var(--gem-blocked);
+}
+
+.info {
+  filter: var(--gem-info);
+}

@@ -4,7 +4,7 @@ date: 2026-02-11
 status: active
 tags: [plugin-system, typescript, extensibility, architecture, mcp, frontend]
 modules: [guild-hall]
-related: [.lore/brainstorm/guild-hall-phase-1.md, .lore/research/agent-native-applications.md]
+related: [.lore/brainstorm/phase-1/guild-hall-phase-1.md, .lore/research/agent-native-applications.md]
 ---
 
 # Research: Plugin Systems in TypeScript Applications

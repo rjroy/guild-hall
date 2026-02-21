@@ -44,7 +44,7 @@ Complete redesign of Guild Hall UI from modern minimalist to fantasy theme with 
 **DRY vs clarity tradeoff**: Reviewer caught over-abstraction in color system (nested CSS variables that made the code harder to understand without providing real flexibility). Sometimes duplication is clearer than indirection.
 
 ## Artifacts
-- Spec: `.lore/specs/ui-redesign-fantasy-theme.md`
-- Implementation notes: `.lore/notes/ui-redesign-fantasy-theme.md`
-- Plan: `.lore/plans/ui-redesign-fantasy-theme.md`
+- Spec: `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`
+- Implementation notes: `.lore/notes/phase-1/ui-redesign-fantasy-theme.md`
+- Plan: `.lore/plans/phase-1/ui-redesign-fantasy-theme.md`
 - Key commit: ed18a39 (CSS property order fix with explanatory comment)

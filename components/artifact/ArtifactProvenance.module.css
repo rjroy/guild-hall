@@ -1,0 +1,30 @@
+.provenance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 50px;
+  background-color: rgba(26, 20, 18, 0.85);
+  background-image: url('/images/ui/scroll-window.webp');
+  background-size: 100% 100%;
+  background-blend-mode: hue;
+  border-radius: 50px;
+  margin-bottom: var(--space-md);
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.sourceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid rgba(184, 134, 11, 0.15);
+}
+
+.text {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+  margin: 0;
+}

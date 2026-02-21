@@ -1,0 +1,96 @@
+.portrait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* Container for the circular frame and inner image */
+.frameContainer {
+  position: relative;
+}
+
+/* The bronze ring frame image */
+.frame {
+  display: block;
+  object-fit: contain;
+}
+
+/* The portrait image or placeholder, clipped to a circle inside the frame.
+   Sized slightly smaller than the frame to sit within the ring. */
+.inner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Placeholder shown when no portrait image is provided */
+.placeholder {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background-color: var(--color-panel-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  user-select: none;
+}
+
+/* --- Sizes --- */
+
+.sm .frame {
+  width: 48px;
+  height: 48px;
+}
+.sm .inner,
+.sm .placeholder {
+  width: 34px;
+  height: 34px;
+  font-size: 0.7rem;
+}
+
+.md .frame {
+  width: 72px;
+  height: 72px;
+}
+.md .inner,
+.md .placeholder {
+  width: 52px;
+  height: 52px;
+  font-size: 0.9rem;
+}
+
+.lg .frame {
+  width: 96px;
+  height: 96px;
+}
+.lg .inner,
+.lg .placeholder {
+  width: 70px;
+  height: 70px;
+  font-size: 1.1rem;
+}
+
+/* --- Text --- */
+
+.name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: center;
+  margin: 0;
+}
+
+.title {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: 0;
+}

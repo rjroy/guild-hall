@@ -1,26 +1,55 @@
-import { BoardPanel } from "@/components/board/BoardPanel";
-import { RosterPanel } from "@/components/roster/RosterPanel";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { readConfig } from "@/lib/config";
+import { recentArtifacts } from "@/lib/artifacts";
+import { projectLorePath } from "@/lib/paths";
+import type { Artifact } from "@/lib/types";
+import WorkspaceSidebar from "@/components/dashboard/WorkspaceSidebar";
+import ManagerBriefing from "@/components/dashboard/ManagerBriefing";
+import DependencyMap from "@/components/dashboard/DependencyMap";
+import RecentArtifacts from "@/components/dashboard/RecentArtifacts";
+import PendingAudiences from "@/components/dashboard/PendingAudiences";
 import styles from "./page.module.css";
 
-export default function Home() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
+  const { project: selectedProject } = await searchParams;
+  const config = await readConfig();
+
+  const selectedConfig = selectedProject
+    ? config.projects.find((p) => p.name === selectedProject)
+    : undefined;
+
+  let artifacts: Artifact[] = [];
+  if (selectedConfig) {
+    const lorePath = projectLorePath(selectedConfig.path);
+    artifacts = await recentArtifacts(lorePath, 10);
+  }
+
   return (
     <div className={styles.dashboard}>
-      <header className={styles.header}>
-        <div>
-          <h1 className={styles.headerTitle}>Guild Hall</h1>
-          <span className={styles.headerBadge}>Phase I</span>
-        </div>
-        <ThemeToggle />
-      </header>
-
-      <aside className={styles.rosterColumn}>
-        <RosterPanel />
-      </aside>
-
-      <main className={styles.boardColumn}>
-        <BoardPanel />
-      </main>
+      <div className={styles.sidebar}>
+        <WorkspaceSidebar
+          projects={config.projects}
+          selectedProject={selectedProject}
+        />
+      </div>
+      <div className={styles.briefing}>
+        <ManagerBriefing />
+      </div>
+      <div className={styles.depMap}>
+        <DependencyMap />
+      </div>
+      <div className={styles.recentArtifacts}>
+        <RecentArtifacts
+          artifacts={artifacts}
+          projectName={selectedProject}
+        />
+      </div>
+      <div className={styles.audiences}>
+        <PendingAudiences />
+      </div>
     </div>
   );
 }

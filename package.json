@@ -2,39 +2,39 @@
   "name": "guild-hall",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "guild-hall": "./cli/index.ts"
+  },
   "scripts": {
-    "dev": "next dev -p 5051",
+    "dev": "next dev",
     "build": "next build",
-    "start": "next start -p 5050",
+    "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
-    "install:guild-members": "bun run scripts/guild-members.ts install",
-    "build:guild-members": "bun run scripts/guild-members.ts build",
-    "test:guild-members": "bun run scripts/guild-members.ts test",
-    "test:coverage:guild-members": "bun run scripts/guild-members.ts test:coverage",
-    "lint:guild-members": "bun run scripts/guild-members.ts lint",
-    "typecheck:guild-members": "bun run scripts/guild-members.ts typecheck"
+    "typecheck": "tsc --noEmit",
+    "guild-hall": "bun run cli/index.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.45",
+    "gray-matter": "^4.0.3",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "yaml": "^2.8.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@types/bun": "^1.3.9",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "bun-types": "^1.3.9",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "prettier": "^3.8.1",
     "typescript": "^5",
-    "typescript-eslint": "^8.55.0"
+    "typescript-eslint": "^8.56.0"
   },
   "ignoreScripts": [
     "sharp",

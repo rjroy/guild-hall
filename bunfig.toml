@@ -1,7 +1,0 @@
-[test]
-coverageSkipTestFiles = true
-coverageDir = "coverage"
-coverageReporter = ["text", "lcov"]
-# Raise these as coverage improves. Currently: 92% lines, 80% functions overall.
-# Thresholds are checked per-file, so low-coverage files cause failure.
-coverageThreshold = { lines = 0.25, functions = 0 }

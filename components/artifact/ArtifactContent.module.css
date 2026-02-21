@@ -1,0 +1,315 @@
+/* --- Shared toolbar --- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  background-color: rgba(26, 20, 18, 0.9);
+  border-radius: 4px 4px 0 0;
+  border-bottom: 1px solid rgba(184, 134, 11, 0.2);
+}
+
+.toolbarLabel {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.toolbarActions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+/* --- Buttons --- */
+
+.editButton,
+.saveButton,
+.cancelButton {
+  padding: var(--space-xs) var(--space-md);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.editButton {
+  background-color: rgba(184, 134, 11, 0.15);
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+}
+
+.editButton:hover {
+  background-color: rgba(184, 134, 11, 0.3);
+  color: var(--color-amber);
+}
+
+.saveButton {
+  background-color: rgba(76, 148, 76, 0.2);
+  border: 1px solid #4c944c;
+  color: #8bc88b;
+}
+
+.saveButton:hover:not(:disabled) {
+  background-color: rgba(76, 148, 76, 0.35);
+}
+
+.saveButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cancelButton {
+  background-color: transparent;
+  border: 1px solid var(--color-text-muted);
+  color: var(--color-text-muted);
+}
+
+.cancelButton:hover:not(:disabled) {
+  border-color: var(--color-text);
+  color: var(--color-text);
+}
+
+.cancelButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --- Error message --- */
+
+.error {
+  color: #e06060;
+  font-size: 0.8rem;
+  padding: var(--space-xs) var(--space-md);
+  margin: 0;
+  background-color: rgba(224, 96, 96, 0.1);
+}
+
+/* --- View mode --- */
+
+.viewer {
+  background-color: rgba(26, 20, 18, 0.85);
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  padding: 8px;
+}
+
+.viewer::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: -3px;
+  border: 40px solid transparent;
+  border-image-source: url("/images/ui/border-ornate.webp");
+  border-image-slice: 120 120 120 120 fill;
+  border-image-width: 40px;
+}
+
+.markdownContent {
+  padding: var(--space-lg);
+  position: relative;
+  line-height: 1.7;
+}
+
+/* Parchment texture underlay for the markdown content */
+.markdownContent::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/images/ui/paper-bg.webp");
+  background-size: cover;
+  opacity: 0.06;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ensure markdown content sits above the texture */
+.markdownContent > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- Markdown element styles --- */
+
+.markdownContent h1,
+.markdownContent h2,
+.markdownContent h3,
+.markdownContent h4,
+.markdownContent h5,
+.markdownContent h6 {
+  color: var(--color-text-heading);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.markdownContent h1 {
+  font-size: 1.6rem;
+  border-bottom: 1px solid rgba(184, 134, 11, 0.2);
+  padding-bottom: var(--space-xs);
+}
+
+.markdownContent h2 {
+  font-size: 1.35rem;
+  border-bottom: 1px solid rgba(184, 134, 11, 0.1);
+  padding-bottom: var(--space-xs);
+}
+
+.markdownContent h3 {
+  font-size: 1.15rem;
+}
+
+.markdownContent h4 {
+  font-size: 1rem;
+}
+
+.markdownContent p {
+  margin-bottom: 0.8em;
+}
+
+.markdownContent a {
+  color: var(--color-brass);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdownContent a:hover {
+  color: var(--color-amber);
+}
+
+.markdownContent strong {
+  color: var(--color-parchment);
+  font-weight: 600;
+}
+
+.markdownContent em {
+  font-style: italic;
+}
+
+.markdownContent ul,
+.markdownContent ol {
+  margin-bottom: 0.8em;
+  padding-left: 1.5em;
+}
+
+.markdownContent li {
+  margin-bottom: 0.3em;
+}
+
+.markdownContent li > ul,
+.markdownContent li > ol {
+  margin-bottom: 0;
+}
+
+.markdownContent blockquote {
+  border-left: 3px solid var(--color-brass);
+  padding-left: var(--space-md);
+  margin: 0.8em 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.markdownContent code {
+  font-family: var(--font-code);
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+.markdownContent pre {
+  font-family: var(--font-code);
+  background: rgba(0, 0, 0, 0.4);
+  padding: var(--space-md);
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 0.8em 0;
+  line-height: 1.5;
+}
+
+/* Code inside pre blocks should not have the inline-code background */
+.markdownContent pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.85rem;
+}
+
+.markdownContent table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.8em 0;
+}
+
+.markdownContent th,
+.markdownContent td {
+  border: 1px solid var(--color-bronze);
+  padding: var(--space-sm);
+  text-align: left;
+}
+
+.markdownContent th {
+  background-color: rgba(184, 134, 11, 0.1);
+  color: var(--color-text-heading);
+  font-weight: 600;
+}
+
+.markdownContent hr {
+  border: none;
+  border-top: 1px solid rgba(184, 134, 11, 0.2);
+  margin: 1.5em 0;
+}
+
+.markdownContent img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+/* --- Edit mode --- */
+
+.editor {
+  background-color: rgba(26, 20, 18, 0.85);
+  display: flex;
+  flex-direction: column;
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  padding: 8px;
+}
+
+.editor::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: -3px;
+  border: 40px solid transparent;
+  border-image-source: url("/images/ui/border-ornate.webp");
+  border-image-slice: 120 120 120 120 fill;
+  border-image-width: 40px;
+}
+
+
+.textarea {
+  font-family: var(--font-code);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  background-color: rgba(0, 0, 0, 0.3);
+  border: none;
+  padding: var(--space-md);
+  min-height: 500px;
+  width: 100%;
+  resize: vertical;
+  outline: none;
+}
+
+.textarea:focus {
+  box-shadow: inset 0 0 0 1px rgba(184, 134, 11, 0.3);
+}
+
+.textarea:disabled {
+  opacity: 0.5;
+}

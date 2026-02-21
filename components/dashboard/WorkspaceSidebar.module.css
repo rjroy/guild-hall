@@ -1,0 +1,85 @@
+.homeLink {
+  display: block;
+  text-decoration: none;
+}
+
+.guildTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-brass);
+  margin: 0 0 var(--space-lg);
+}
+
+.sectionHeading {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 var(--space-sm);
+}
+
+.projectList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.projectItem {
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.projectItem:hover {
+  background-color: rgba(184, 134, 11, 0.1);
+}
+
+.selected {
+  border-left: 3px solid var(--color-brass);
+  background-color: rgba(184, 134, 11, 0.08);
+}
+
+.projectLink {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+.projectInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.projectName {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.projectDescription {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewProjectLink {
+  display: block;
+  padding: 0 var(--space-sm) var(--space-xs);
+  padding-left: calc(var(--space-sm) + 16px + var(--space-sm));
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.viewProjectLink:hover {
+  color: var(--color-brass);
+}

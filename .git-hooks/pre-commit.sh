@@ -47,18 +47,6 @@ if ! run_quiet "test" bun test; then
     FAILED=1
 fi
 
-if ! run_quiet "typecheck:guild-members" bun run typecheck:guild-members; then
-    FAILED=1
-fi
-
-if ! run_quiet "lint:guild-members" bun run lint:guild-members; then
-    FAILED=1
-fi
-
-if ! run_quiet "test:guild-members" bun test:guild-members; then
-    FAILED=1
-fi
-
 if [ $FAILED -ne 0 ]; then
     echo -e "${RED}Pre-commit checks failed${NC}"
     exit 1

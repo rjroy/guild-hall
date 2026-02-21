@@ -1,0 +1,29 @@
+.artifactView {
+  display: flex;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  min-height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+}
+
+/* Stack vertically on smaller screens */
+@media (max-width: 768px) {
+  .artifactView {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+  }
+}

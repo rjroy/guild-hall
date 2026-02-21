@@ -5,7 +5,7 @@ status: complete
 tags: [bug-fix, sse, streaming, sdk, data-duplication]
 modules: [agent]
 related:
-  - .lore/notes/phase-1-known-bugs.md
+  - .lore/notes/phase-1/phase-1-known-bugs.md
   - .lore/retros/sse-streaming-bug-fix.md
 ---
 
@@ -37,4 +37,4 @@ Fixed bug #2 from Phase I manual testing: "Double data in the response." When `i
 
 ## Artifacts
 
-- Known bugs: `.lore/notes/phase-1-known-bugs.md` (bug #2 marked resolved)
+- Known bugs: `.lore/notes/phase-1/phase-1-known-bugs.md` (bug #2 marked resolved)
