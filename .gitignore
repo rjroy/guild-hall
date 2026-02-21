@@ -41,23 +41,3 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# sessions (file-based storage, not committed)
-sessions/*
-!sessions/.gitkeep
-
-# guild-members (only tracked plugins get exceptions below)
-guild-members/*
-!guild-members/example/
-!guild-members/linkedin-editor/
-!guild-members/researcher/
-
-# plugin dependencies (node_modules installed locally, lockfiles committed)
-guild-members/example/node_modules/
-guild-members/researcher/node_modules/
-
-# plugin runtime data (jobs, memory stores)
-guild-members/*/jobs/
-guild-members/*/memory/
-
-# MCP server PID files (runtime state, not committed)
-.mcp-servers/
