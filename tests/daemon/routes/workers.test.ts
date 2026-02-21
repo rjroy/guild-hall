@@ -77,7 +77,8 @@ describe("GET /workers", () => {
     const body = await res.json();
     expect(body.workers).toHaveLength(1);
     expect(body.workers[0]).toEqual({
-      name: "Researcher",
+      name: "guild-hall-test-assistant",
+      displayName: "Researcher",
       displayTitle: "Research Scholar",
       description: "Explores codebases",
       portraitUrl: null,
@@ -115,8 +116,10 @@ describe("GET /workers", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.workers).toHaveLength(2);
-    expect(body.workers[0].name).toBe("Alpha");
-    expect(body.workers[1].name).toBe("Beta");
+    expect(body.workers[0].name).toBe("pkg-a");
+    expect(body.workers[0].displayName).toBe("Alpha");
+    expect(body.workers[1].name).toBe("pkg-b");
+    expect(body.workers[1].displayName).toBe("Beta");
   });
 
   test("filters out toolbox-only packages", async () => {
@@ -130,7 +133,7 @@ describe("GET /workers", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.workers).toHaveLength(1);
-    expect(body.workers[0].name).toBe("Assistant");
+    expect(body.workers[0].name).toBe("guild-hall-test-assistant");
   });
 
   test("includes portrait as base64 data URI when file exists", async () => {
@@ -234,7 +237,8 @@ describe("GET /workers", () => {
 
     const body = await res.json();
     const worker = body.workers[0];
-    expect(worker).toHaveProperty("name", "CodeReviewer");
+    expect(worker).toHaveProperty("name", "guild-hall-test-assistant");
+    expect(worker).toHaveProperty("displayName", "CodeReviewer");
     expect(worker).toHaveProperty("displayTitle", "The Code Reviewer");
     expect(worker).toHaveProperty("description", "Reviews pull requests with care");
     expect(worker).toHaveProperty("portraitUrl");

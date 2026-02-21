@@ -90,7 +90,8 @@ export function createWorkerRoutes(deps: WorkerRoutesDeps): Hono {
         }
 
         return {
-          name: identity.name,
+          name: pkg.name,
+          displayName: identity.name,
           displayTitle: identity.displayTitle,
           description: identity.description,
           portraitUrl,

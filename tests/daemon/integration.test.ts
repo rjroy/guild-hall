@@ -663,13 +663,15 @@ describe("integration: GET /workers returns discovered workers", () => {
     const body = (await res.json()) as {
       workers: Array<{
         name: string;
+        displayName: string;
         displayTitle: string;
         description: string;
         portraitUrl: string | null;
       }>;
     };
     expect(body.workers).toHaveLength(1);
-    expect(body.workers[0].name).toBe("Assistant");
+    expect(body.workers[0].name).toBe("guild-hall-sample-assistant");
+    expect(body.workers[0].displayName).toBe("Assistant");
     expect(body.workers[0].displayTitle).toBe("Guild Assistant");
     expect(body.workers[0].description).toBe(
       "A test assistant for integration tests.",

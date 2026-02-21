@@ -9,6 +9,7 @@ import styles from "./WorkerPicker.module.css";
 
 interface WorkerInfo {
   name: string;
+  displayName: string;
   displayTitle: string;
   description: string;
   portraitUrl?: string;
@@ -367,12 +368,12 @@ function WorkerPickerContent({
                           onClick={() => setSelectedWorker(worker.name)}
                         >
                           <WorkerPortrait
-                            name={worker.name}
+                            name={worker.displayName}
                             portraitUrl={worker.portraitUrl}
                             size="sm"
                           />
                           <div className={styles.workerInfo}>
-                            <p className={styles.workerName}>{worker.name}</p>
+                            <p className={styles.workerName}>{worker.displayName}</p>
                             <p className={styles.workerTitle}>
                               {worker.displayTitle}
                             </p>
