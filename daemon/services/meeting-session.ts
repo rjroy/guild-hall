@@ -229,8 +229,10 @@ notes_summary: ""
     if (deps.activateFn) {
       return deps.activateFn(workerPkg, context);
     }
-    // Dynamic import for production use
-    const workerModule = (await import(path.join(workerPkg.path, "index.ts"))) as {
+    // Dynamic import for production use. path.resolve() ensures an absolute
+    // path even when the package was discovered from a relative scan path
+    // (e.g., --packages-dir ./packages).
+    const workerModule = (await import(path.resolve(workerPkg.path, "index.ts"))) as {
       activate: (ctx: ActivationContext) => ActivationResult;
     };
     return workerModule.activate(context);
