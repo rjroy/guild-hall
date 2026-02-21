@@ -91,8 +91,11 @@
 
 .viewer {
   background-color: rgba(26, 20, 18, 0.85);
-  border-radius: 4px;
   overflow: hidden;
+  border: 25px solid transparent;
+  border-image-source: url("/images/ui/border-ornate.webp");
+  border-image-slice: 80 fill;
+  border-image-width: 25px;
   /* vendor prefix must precede standard property in Next.js */
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -262,10 +265,13 @@
 
 .editor {
   background-color: rgba(26, 20, 18, 0.85);
-  border-radius: 4px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  border: 25px solid transparent;
+  border-image-source: url("/images/ui/border-ornate.webp");
+  border-image-slice: 80 fill;
+  border-image-width: 25px;
   /* vendor prefix must precede standard property in Next.js */
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
