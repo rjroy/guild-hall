@@ -17,6 +17,19 @@ const eslintConfig = defineConfig([
       },
     },
   },
+  // Test files: suppress false positives from bun's assertion types and
+  // React's JSX.Element typing (.props is `any`). These rules catch real
+  // issues in source but only produce noise in tests that call components
+  // directly or use expect().rejects.
+  {
+    files: ["tests/**/*.ts", "tests/**/*.tsx"],
+    rules: {
+      "@typescript-eslint/await-thenable": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

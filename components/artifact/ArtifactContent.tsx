@@ -53,10 +53,12 @@ export default function ArtifactContent({
         }),
       });
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(
-          (data as { error?: string }).error || "Save failed"
-        );
+        const data: unknown = await response.json().catch(() => ({}));
+        const errorMessage =
+          data && typeof data === "object" && "error" in data
+            ? String((data as { error: unknown }).error)
+            : "Save failed";
+        throw new Error(errorMessage);
       }
       router.refresh();
       setIsEditing(false);
@@ -86,7 +88,7 @@ export default function ArtifactContent({
             </button>
             <button
               className={styles.saveButton}
-              onClick={handleSave}
+              onClick={() => void handleSave()}
               disabled={isSaving || !hasUnsavedChanges}
             >
               {isSaving ? "Saving..." : "Save"}

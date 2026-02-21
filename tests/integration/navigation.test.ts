@@ -6,7 +6,7 @@ import { readConfig, getProject, writeConfig } from "@/lib/config";
 import { scanArtifacts, readArtifact } from "@/lib/artifacts";
 import { projectLorePath, getConfigPath } from "@/lib/paths";
 import { statusToGem } from "@/lib/types";
-import type { GemStatus, Artifact } from "@/lib/types";
+import type { GemStatus } from "@/lib/types";
 import { relatedToHref } from "@/components/artifact/MetadataSidebar";
 
 /**
@@ -261,7 +261,7 @@ describe("project view URL construction", () => {
     }
   });
 
-  test("tab links use /projects/{name}?tab={key} format", async () => {
+  test("tab links use /projects/{name}?tab={key} format", () => {
     const encodedName = encodeURIComponent(PROJECT_NAME);
     const tabs = ["commissions", "artifacts", "meetings"];
 
