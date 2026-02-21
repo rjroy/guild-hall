@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { getProject } from "@/lib/config";
 import { readArtifact } from "@/lib/artifacts";
 import { projectLorePath } from "@/lib/paths";
-import ArtifactBreadcrumb from "@/components/artifact/ArtifactBreadcrumb";
 import ArtifactProvenance from "@/components/artifact/ArtifactProvenance";
 import ArtifactContent from "@/components/artifact/ArtifactContent";
 import MetadataSidebar from "@/components/artifact/MetadataSidebar";
@@ -33,11 +32,10 @@ export default async function ArtifactPage({
   return (
     <div className={styles.artifactView}>
       <div className={styles.main}>
-        <ArtifactBreadcrumb
+        <ArtifactProvenance
           projectName={projectName}
           artifactTitle={displayTitle}
         />
-        <ArtifactProvenance />
         <ArtifactContent
           body={artifact.content}
           projectName={projectName}

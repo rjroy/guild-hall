@@ -1,6 +1,6 @@
 .provenance {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   background-color: rgba(26, 20, 18, 0.85);
@@ -9,6 +9,14 @@
   /* vendor prefix must precede standard property in Next.js */
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
+}
+
+.sourceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid rgba(184, 134, 11, 0.15);
 }
 
 .text {
