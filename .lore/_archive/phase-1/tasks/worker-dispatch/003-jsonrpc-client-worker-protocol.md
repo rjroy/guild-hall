@@ -3,9 +3,9 @@ title: Add worker protocol methods to JsonRpcClient
 date: 2026-02-17
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/worker-dispatch.md
+source: .lore/_archive/phase-1/plans/worker-dispatch.md
 related:
-  - .lore/specs/phase-1/worker-dispatch.md
+  - .lore/_archive/phase-1/specs/worker-dispatch.md
 sequence: 3
 modules: [json-rpc-client]
 ---
@@ -39,7 +39,7 @@ Use the response types defined in Task 002 (`WorkerJobSummary`, `WorkerJobStatus
 
 ## Why
 
-From `.lore/specs/phase-1/worker-dispatch.md`:
+From `.lore/_archive/phase-1/specs/worker-dispatch.md`:
 - REQ-WD-35: `JsonRpcClient` gains methods for each `worker/*` call: `dispatchWorker()`, `listWorkers()`, `workerStatus()`, `workerResult()`, `cancelWorker()`, `deleteWorker()`. Same timeout and error handling patterns as `invokeTool()`.
 
 ## Files

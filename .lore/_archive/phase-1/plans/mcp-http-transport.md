@@ -5,8 +5,8 @@ status: draft
 tags: [implementation, plan, mcp, http, json-rpc, phase-1]
 modules: [mcp-manager, server-context, plugin-discovery, port-allocator]
 related:
-  - .lore/specs/phase-1/mcp-http-transport.md
-  - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
+  - .lore/_archive/phase-1/specs/mcp-http-transport.md
+  - .lore/_archive/phase-1/brainstorm/mcp-transport-stdio-vs-http.md
   - .lore/research/mcp-http-protocol.md
 ---
 
@@ -14,7 +14,7 @@ related:
 
 ## Spec Reference
 
-**Spec**: .lore/specs/phase-1/mcp-http-transport.md
+**Spec**: .lore/_archive/phase-1/specs/mcp-http-transport.md
 
 Requirements addressed:
 - REQ-MCP-HTTP-1, 2, 3, 4: Plugin manifest transport type and `${PORT}` substitution → Steps 2, 4
@@ -1065,7 +1065,7 @@ Test scenarios:
 **Addresses**: Final validation requirement
 **Expertise**: Fresh-context review
 
-Launch a sub-agent that reads the spec at `.lore/specs/phase-1/mcp-http-transport.md`, reviews the implementation, and flags any requirements not met:
+Launch a sub-agent that reads the spec at `.lore/_archive/phase-1/specs/mcp-http-transport.md`, reviews the implementation, and flags any requirements not met:
 
 - All 44 REQ-MCP-HTTP-* requirements implemented
 - Success criteria met (example plugin, roster display, tool invocation, concurrent plugins, timeouts, crashes)

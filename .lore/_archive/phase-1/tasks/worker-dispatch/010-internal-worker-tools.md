@@ -3,9 +3,9 @@ title: Define internal tools for worker agents
 date: 2026-02-17
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/worker-dispatch.md
+source: .lore/_archive/phase-1/plans/worker-dispatch.md
 related:
-  - .lore/specs/phase-1/worker-dispatch.md
+  - .lore/_archive/phase-1/specs/worker-dispatch.md
   - .lore/research/claude-agent-sdk.md
 sequence: 10
 modules: [researcher-plugin]
@@ -61,7 +61,7 @@ These tools run in the plugin process (REQ-WD-22), so they have full filesystem 
 
 ## Why
 
-From `.lore/specs/phase-1/worker-dispatch.md`:
+From `.lore/_archive/phase-1/specs/worker-dispatch.md`:
 - REQ-WD-22: Worker agents receive internal tools via `createSdkMcpServer()` running in plugin process
 - REQ-WD-23: `update_summary` writes to `status.md`
 - REQ-WD-24: `record_decision` appends to `decisions.json`

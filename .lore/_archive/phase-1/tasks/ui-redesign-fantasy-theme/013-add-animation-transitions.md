@@ -3,8 +3,8 @@ title: Add animation and transition effects
 date: 2026-02-14
 status: complete
 tags: [task, css, animations, transitions]
-source: .lore/plans/phase-1/ui-redesign-fantasy-theme.md
-related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
+source: .lore/_archive/phase-1/plans/ui-redesign-fantasy-theme.md
+related: [.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md]
 sequence: 13
 modules: [board, workshop, dashboard]
 ---
@@ -67,7 +67,7 @@ Verify by inspecting each file for transition properties, @keyframes definition,
 
 ## Why
 
-From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
+From `.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-21**: ProcessingIndicator uses animated spinner with brass color, 24-32px size, positioned inline with content
 

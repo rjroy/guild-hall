@@ -3,12 +3,12 @@ title: Implement MCP server lifecycle management
 date: 2026-02-11
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/guild-hall-phase-1.md
+source: .lore/_archive/phase-1/plans/guild-hall-phase-1.md
 sequence: 4
 modules: [guild-hall]
 related:
-  - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/plans/phase-1/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/specs/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/plans/guild-hall-phase-1.md
 ---
 
 # Task: Implement MCP server lifecycle management

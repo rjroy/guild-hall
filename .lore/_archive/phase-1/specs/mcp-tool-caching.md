@@ -5,16 +5,16 @@ status: superseded
 tags: [mcp, caching, tool-discovery, agent-integration, archived]
 modules: [mcp-manager, plugin-discovery]
 related:
-  - .lore/specs/phase-1/mcp-server-factory.md
-  - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/notes/phase-1/mcp-server-factory.md
-  - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
+  - .lore/_archive/phase-1/specs/mcp-server-factory.md
+  - .lore/_archive/phase-1/specs/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/notes/mcp-server-factory.md
+  - .lore/_archive/phase-1/brainstorm/mcp-transport-stdio-vs-http.md
 req-prefix: MCP-TOOL
 ---
 
 # Spec: MCP Tool Caching
 
-> **Status**: This spec is superseded by the decision to use HTTP transport with eager loading instead of stdio with lazy loading (see `.lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md`). Tool caching may still be needed for fast startup, but the design will be simpler with HTTP. Preserved for historical context - the chicken-and-egg problem analysis remains valid.
+> **Status**: This spec is superseded by the decision to use HTTP transport with eager loading instead of stdio with lazy loading (see `.lore/_archive/phase-1/brainstorm/mcp-transport-stdio-vs-http.md`). Tool caching may still be needed for fast startup, but the design will be simpler with HTTP. Preserved for historical context - the chicken-and-egg problem analysis remains valid.
 
 ## Overview
 

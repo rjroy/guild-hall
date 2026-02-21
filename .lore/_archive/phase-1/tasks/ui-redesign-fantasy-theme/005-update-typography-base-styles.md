@@ -3,8 +3,8 @@ title: Update typography and base styles
 date: 2026-02-14
 status: complete
 tags: [task, typography, css]
-source: .lore/plans/phase-1/ui-redesign-fantasy-theme.md
-related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
+source: .lore/_archive/phase-1/plans/ui-redesign-fantasy-theme.md
+related: [.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md]
 sequence: 5
 modules: [dashboard]
 ---
@@ -47,7 +47,7 @@ Verify by inspecting `app/globals.css` for these selectors and properties.
 
 ## Why
 
-From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
+From `.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-2**: Fixed background image displays across all views (Dashboard, Workshop, CreateSessionDialog)
 

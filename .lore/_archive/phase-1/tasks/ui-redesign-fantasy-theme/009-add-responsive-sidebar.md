@@ -3,8 +3,8 @@ title: Add responsive sidebar behavior for mobile
 date: 2026-02-14
 status: complete
 tags: [task, css, responsive, mobile]
-source: .lore/plans/phase-1/ui-redesign-fantasy-theme.md
-related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
+source: .lore/_archive/phase-1/plans/ui-redesign-fantasy-theme.md
+related: [.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md]
 sequence: 9
 modules: [roster, dashboard]
 ---
@@ -63,7 +63,7 @@ Verify by inspecting both files for `@media (max-width: 767px)` queries and the 
 
 ## Why
 
-From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
+From `.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-44**: Mobile breakpoint (below 768px) collapses RosterPanel to icon-only sidebar (48-64px wide)
 

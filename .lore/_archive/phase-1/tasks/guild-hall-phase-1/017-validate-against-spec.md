@@ -3,19 +3,19 @@ title: Validate implementation against spec
 date: 2026-02-11
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/guild-hall-phase-1.md
+source: .lore/_archive/phase-1/plans/guild-hall-phase-1.md
 sequence: 17
 modules: [guild-hall]
 related:
-  - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/plans/phase-1/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/specs/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/plans/guild-hall-phase-1.md
 ---
 
 # Task: Validate implementation against spec
 
 ## What
 
-Launch a sub-agent with fresh context that reads the spec at `.lore/specs/phase-1/guild-hall-phase-1.md` and reviews the entire implementation. The sub-agent has no prior context from the implementation process, so it checks what actually exists, not what was intended.
+Launch a sub-agent with fresh context that reads the spec at `.lore/_archive/phase-1/specs/guild-hall-phase-1.md` and reviews the entire implementation. The sub-agent has no prior context from the implementation process, so it checks what actually exists, not what was intended.
 
 The validator checks:
 

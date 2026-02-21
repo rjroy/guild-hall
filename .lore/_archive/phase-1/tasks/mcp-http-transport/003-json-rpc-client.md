@@ -3,8 +3,8 @@ title: Implement JSON-RPC client for MCP HTTP protocol
 date: 2026-02-14
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/mcp-http-transport.md
-related: [.lore/specs/phase-1/mcp-http-transport.md]
+source: .lore/_archive/phase-1/plans/mcp-http-transport.md
+related: [.lore/_archive/phase-1/specs/mcp-http-transport.md]
 sequence: 3
 modules: [json-rpc-client]
 ---
@@ -49,7 +49,7 @@ Unit tests in `tests/lib/json-rpc-client.test.ts` (mock fetch):
 
 ## Why
 
-From `.lore/specs/phase-1/mcp-http-transport.md`:
+From `.lore/_archive/phase-1/specs/mcp-http-transport.md`:
 - REQ-MCP-HTTP-22: "MCP servers MUST expose a single HTTP endpoint at `http://localhost:{PORT}/mcp`"
 - REQ-MCP-HTTP-23: "The endpoint MUST accept POST requests with `Content-Type: application/json`"
 - REQ-MCP-HTTP-24: "All requests MUST include `MCP-Protocol-Version: 2025-06-18` header"

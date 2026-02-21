@@ -3,8 +3,8 @@ title: Move background image to public directory
 date: 2026-02-14
 status: complete
 tags: [task, assets, background]
-source: .lore/plans/phase-1/ui-redesign-fantasy-theme.md
-related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
+source: .lore/_archive/phase-1/plans/ui-redesign-fantasy-theme.md
+related: [.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md]
 sequence: 1
 modules: [dashboard]
 ---
@@ -30,7 +30,7 @@ file public/guild-hall-entry.webp    # Should identify as WebP image
 
 ## Why
 
-From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
+From `.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-1**: Background image moved from `.lore/prototypes/guild-hall-entry.webp` to `public/guild-hall-entry.webp` for proper Next.js static asset serving
 

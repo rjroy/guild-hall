@@ -3,7 +3,7 @@ title: Implementation notes: worker-dispatch
 date: 2026-02-17
 status: complete
 tags: [implementation, notes]
-source: .lore/plans/phase-1/worker-dispatch.md
+source: .lore/_archive/phase-1/plans/worker-dispatch.md
 modules: [guild-hall-core, plugin-contract, json-rpc-client, mcp-manager, plugin-discovery, researcher-plugin]
 ---
 

@@ -4,14 +4,14 @@ date: 2026-02-14
 status: draft
 tags: [ui, redesign, theme, css, implementation]
 modules: [dashboard, workshop, roster, session-board, conversation, fonts, assets]
-related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
+related: [.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md]
 ---
 
 # Plan: Guild Hall UI Redesign - Fantasy Theme
 
 ## Spec Reference
 
-**Spec**: `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`
+**Spec**: `.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md`
 
 Requirements addressed by step:
 
@@ -928,7 +928,7 @@ npm test  # or bun test
 After automated checks pass, launch a fresh-context sub-agent for final verification:
 
 ```
-Verify the fantasy theme implementation meets all requirements in .lore/specs/phase-1/ui-redesign-fantasy-theme.md.
+Verify the fantasy theme implementation meets all requirements in .lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md.
 
 Run these specific checks:
 1. Read app/globals.css - verify @font-face declarations use variable font syntax (font-weight: 100 900)

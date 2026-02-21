@@ -3,8 +3,8 @@ title: Add Origin header validation for security
 date: 2026-02-14
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/mcp-http-transport.md
-related: [.lore/specs/phase-1/mcp-http-transport.md]
+source: .lore/_archive/phase-1/plans/mcp-http-transport.md
+related: [.lore/_archive/phase-1/specs/mcp-http-transport.md]
 sequence: 6
 modules: [json-rpc-client]
 ---
@@ -34,7 +34,7 @@ Port range validation:
 
 ## Why
 
-From `.lore/specs/phase-1/mcp-http-transport.md`:
+From `.lore/_archive/phase-1/specs/mcp-http-transport.md`:
 - REQ-MCP-HTTP-30: "MCP servers MUST bind to 127.0.0.1 (localhost only, not 0.0.0.0)"
 - REQ-MCP-HTTP-31: "Guild Hall MUST validate Origin header to prevent DNS rebinding attacks"
 - REQ-MCP-HTTP-32: "Ports MUST only be allocated from the managed ephemeral range 50000-51000"

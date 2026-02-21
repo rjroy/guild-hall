@@ -3,11 +3,11 @@ title: Implementation notes: guild-hall-phase-1
 date: 2026-02-12
 status: complete
 tags: [implementation, notes, phase-1, frontend, sessions, mcp, agent-sdk]
-source: .lore/plans/phase-1/guild-hall-phase-1.md
+source: .lore/_archive/phase-1/plans/guild-hall-phase-1.md
 modules: [guild-hall]
 related:
-  - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/plans/phase-1/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/specs/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/plans/guild-hall-phase-1.md
 ---
 
 # Implementation Notes: Guild Hall Phase I

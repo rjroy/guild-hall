@@ -3,8 +3,8 @@ title: Convert SessionCard layout to responsive grid
 date: 2026-02-14
 status: complete
 tags: [task, css, layout, grid, responsive]
-source: .lore/plans/phase-1/ui-redesign-fantasy-theme.md
-related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
+source: .lore/_archive/phase-1/plans/ui-redesign-fantasy-theme.md
+related: [.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md]
 sequence: 8
 modules: [board, session-board]
 ---
@@ -90,7 +90,7 @@ Verify by inspecting both files for grid layout, breakpoints, and card styling p
 
 ## Why
 
-From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
+From `.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-23**: SessionCard components display in responsive grid layout (3 columns on desktop, 2 on tablet, 1 on mobile) instead of vertical list
 

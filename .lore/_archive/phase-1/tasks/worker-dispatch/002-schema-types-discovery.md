@@ -3,9 +3,9 @@ title: Add capabilities to schema, types, and discovery
 date: 2026-02-17
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/worker-dispatch.md
+source: .lore/_archive/phase-1/plans/worker-dispatch.md
 related:
-  - .lore/specs/phase-1/worker-dispatch.md
+  - .lore/_archive/phase-1/specs/worker-dispatch.md
 sequence: 2
 modules: [guild-hall-core, plugin-discovery]
 ---
@@ -67,7 +67,7 @@ This replaces the plan's original approach of checking `tools/list` at runtime. 
 
 ## Why
 
-From `.lore/specs/phase-1/worker-dispatch.md`:
+From `.lore/_archive/phase-1/specs/worker-dispatch.md`:
 - REQ-WD-1: Plugins MAY declare worker capability by adding `"capabilities": ["worker"]` to `guild-member.json`
 - REQ-WD-2: Guild Hall discovers worker-capable plugins at roster initialization
 - REQ-WD-37: `GuildMemberManifestSchema` adds an optional `capabilities` field

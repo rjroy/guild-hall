@@ -4,7 +4,7 @@
 
 Turbopack re-evaluates server-side modules per route compilation in dev mode. Each re-evaluation creates a new MCPManager that spawns duplicate MCP server child processes, causing port conflicts. The `_singleton-cache.cjs` workaround (CJS module loaded via `createRequire`) may or may not survive Turbopack's sandbox. PID files are a filesystem-based coordination mechanism: write `{pid, port}` after spawning, check before spawning, reconnect if server is already running.
 
-Spec: `.lore/specs/phase-1/mcp-pid-files.md` (approved)
+Spec: `.lore/_archive/phase-1/specs/mcp-pid-files.md` (approved)
 
 ## Phase 1: Foundation (PortRegistry + JsonRpcClient)
 

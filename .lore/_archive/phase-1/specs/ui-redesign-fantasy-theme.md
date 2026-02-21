@@ -4,7 +4,7 @@ date: 2026-02-14
 status: approved
 tags: [ui, redesign, theme, styling, fantasy, css]
 modules: [dashboard, workshop, roster, session-board, conversation]
-related: [.lore/specs/phase-1/guild-hall-phase-1.md, .lore/prototypes/redesign-board-view.webp, .lore/prototypes/redesign-chat-view.webp, .lore/prototypes/guild-hall-entry.webp]
+related: [.lore/_archive/phase-1/specs/guild-hall-phase-1.md, .lore/prototypes/redesign-board-view.webp, .lore/prototypes/redesign-chat-view.webp, .lore/prototypes/guild-hall-entry.webp]
 req-prefix: UI-REDESIGN
 ---
 
@@ -148,7 +148,7 @@ How the AI verifies completion before declaring done.
 
 ## Context
 **Related specs:**
-- [Guild Hall Phase I - Frontend Session Shell](.lore/specs/phase-1/guild-hall-phase-1.md) - Defines current implementation being restyled
+- [Guild Hall Phase I - Frontend Session Shell](.lore/_archive/phase-1/specs/guild-hall-phase-1.md) - Defines current implementation being restyled
 
 **Prototypes:**
 - `.lore/prototypes/guild-hall-entry.webp` - Cathedral library background image

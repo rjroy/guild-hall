@@ -3,9 +3,9 @@ title: Implementation notes: sdk-plugin-support
 date: 2026-02-18
 status: complete
 tags: [implementation, notes, plugins, sdk-plugin-config, guild-members]
-source: .lore/plans/phase-1/sdk-plugin-support.md
+source: .lore/_archive/phase-1/plans/sdk-plugin-support.md
 modules: [schemas, plugin-discovery, agent, agent-manager, types]
-related: [.lore/specs/phase-1/sdk-plugin-support.md, .lore/plans/phase-1/sdk-plugin-support.md]
+related: [.lore/_archive/phase-1/specs/sdk-plugin-support.md, .lore/_archive/phase-1/plans/sdk-plugin-support.md]
 ---
 
 # Implementation Notes: SDK Plugin Support

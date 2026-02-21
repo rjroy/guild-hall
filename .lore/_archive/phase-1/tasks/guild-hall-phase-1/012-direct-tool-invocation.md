@@ -3,12 +3,12 @@ title: Implement direct tool invocation endpoint
 date: 2026-02-11
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/guild-hall-phase-1.md
+source: .lore/_archive/phase-1/plans/guild-hall-phase-1.md
 sequence: 12
 modules: [guild-hall]
 related:
-  - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/plans/phase-1/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/specs/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/plans/guild-hall-phase-1.md
 ---
 
 # Task: Implement direct tool invocation endpoint

@@ -3,9 +3,9 @@ title: Wire Agent SDK into dispatch, cancel, and prompt construction
 date: 2026-02-17
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/worker-dispatch.md
+source: .lore/_archive/phase-1/plans/worker-dispatch.md
 related:
-  - .lore/specs/phase-1/worker-dispatch.md
+  - .lore/_archive/phase-1/specs/worker-dispatch.md
   - .lore/research/claude-agent-sdk.md
 sequence: 12
 modules: [researcher-plugin]
@@ -92,7 +92,7 @@ Track running agents in a `Map<string, AbortController>`.
 
 ## Why
 
-From `.lore/specs/phase-1/worker-dispatch.md`:
+From `.lore/_archive/phase-1/specs/worker-dispatch.md`:
 - REQ-WD-16: `worker/cancel` terminates the worker's Agent SDK session
 - REQ-WD-30: Workers run as Agent SDK `query()` sessions
 - REQ-WD-31: Worker tool access restricted to internal tools plus read-only subset

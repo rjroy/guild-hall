@@ -3,8 +3,8 @@ title: Implement example plugin HTTP server
 date: 2026-02-14
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/mcp-http-transport.md
-related: [.lore/specs/phase-1/mcp-http-transport.md]
+source: .lore/_archive/phase-1/plans/mcp-http-transport.md
+related: [.lore/_archive/phase-1/specs/mcp-http-transport.md]
 sequence: 8
 modules: [example-guild-member]
 ---
@@ -54,7 +54,7 @@ Port collision test:
 
 ## Why
 
-From `.lore/specs/phase-1/mcp-http-transport.md`:
+From `.lore/_archive/phase-1/specs/mcp-http-transport.md`:
 - Success Criteria: "Example plugin runs as HTTP MCP server accepting JSON-RPC requests"
 - REQ-MCP-HTTP-22: "MCP servers MUST expose a single HTTP endpoint at `http://localhost:{PORT}/mcp`"
 - REQ-MCP-HTTP-23: "The endpoint MUST accept POST requests with `Content-Type: application/json`"

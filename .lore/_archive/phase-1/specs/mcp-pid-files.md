@@ -5,9 +5,9 @@ status: approved
 tags: [mcp, process-management, turbopack, dev-mode, singleton]
 modules: [mcp-manager, http-mcp-factory, server-context]
 related:
-  - .lore/specs/phase-1/mcp-http-transport.md
-  - .lore/specs/phase-1/mcp-server-factory.md
-  - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
+  - .lore/_archive/phase-1/specs/mcp-http-transport.md
+  - .lore/_archive/phase-1/specs/mcp-server-factory.md
+  - .lore/_archive/phase-1/brainstorm/mcp-transport-stdio-vs-http.md
   - .lore/retros/coverage-di-factories.md
 req-prefix: MCPPID
 ---

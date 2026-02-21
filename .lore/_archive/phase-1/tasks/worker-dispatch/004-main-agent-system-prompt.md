@@ -3,9 +3,9 @@ title: Add worker dispatch guidance to main agent system prompt
 date: 2026-02-17
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/worker-dispatch.md
+source: .lore/_archive/phase-1/plans/worker-dispatch.md
 related:
-  - .lore/specs/phase-1/worker-dispatch.md
+  - .lore/_archive/phase-1/specs/worker-dispatch.md
 sequence: 4
 modules: [guild-hall-core]
 ---
@@ -38,7 +38,7 @@ The system prompt builder is in `lib/agent-manager.ts` (or wherever the system p
 
 ## Why
 
-From `.lore/specs/phase-1/worker-dispatch.md`:
+From `.lore/_archive/phase-1/specs/worker-dispatch.md`:
 - REQ-WD-39: Guild Hall's main agent system prompt includes guidance on worker dispatch: how to check status, how to relay questions, and how to present results. The prompt lists worker-capable plugins by name so the agent knows which plugins accept dispatch.
 
 ## Files

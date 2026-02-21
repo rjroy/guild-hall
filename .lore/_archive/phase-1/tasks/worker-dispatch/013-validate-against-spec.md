@@ -3,9 +3,9 @@ title: Validate implementation against spec requirements
 date: 2026-02-17
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/worker-dispatch.md
+source: .lore/_archive/phase-1/plans/worker-dispatch.md
 related:
-  - .lore/specs/phase-1/worker-dispatch.md
+  - .lore/_archive/phase-1/specs/worker-dispatch.md
 sequence: 13
 modules: [guild-hall-core, researcher-plugin]
 ---
@@ -16,7 +16,7 @@ modules: [guild-hall-core, researcher-plugin]
 
 Launch sub-agents to review the implementation across all modified files and flag any requirements not met. This task is not optional.
 
-**Spec validation**: Read the spec at `.lore/specs/phase-1/worker-dispatch.md`, review implementation across all modified files, and flag any REQ-WD-* requirements not met. Use the spec's AI Validation section criteria mapping:
+**Spec validation**: Read the spec at `.lore/_archive/phase-1/specs/worker-dispatch.md`, review implementation across all modified files, and flag any REQ-WD-* requirements not met. Use the spec's AI Validation section criteria mapping:
 
 | Validation Criteria | Covered By |
 |---|---|
@@ -50,9 +50,9 @@ Launch sub-agents to review the implementation across all modified files and fla
 
 ## Why
 
-From `.lore/plans/phase-1/worker-dispatch.md`, Step 11: "Launch a sub-agent that reads the spec, reviews the implementation across all modified files, and flags any requirements not met. This step is not optional."
+From `.lore/_archive/phase-1/plans/worker-dispatch.md`, Step 11: "Launch a sub-agent that reads the spec, reviews the implementation across all modified files, and flags any requirements not met. This step is not optional."
 
-From `.lore/specs/phase-1/worker-dispatch.md`, AI Validation section: eight custom test categories.
+From `.lore/_archive/phase-1/specs/worker-dispatch.md`, AI Validation section: eight custom test categories.
 
 ## Files
 

@@ -3,8 +3,8 @@ title: Add font face declarations to globals.css
 date: 2026-02-14
 status: complete
 tags: [task, fonts, typography, css]
-source: .lore/plans/phase-1/ui-redesign-fantasy-theme.md
-related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
+source: .lore/_archive/phase-1/plans/ui-redesign-fantasy-theme.md
+related: [.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md]
 sequence: 3
 modules: [dashboard]
 ---
@@ -49,7 +49,7 @@ Verify by inspecting `app/globals.css` for the four `@font-face` blocks with cor
 
 ## Why
 
-From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
+From `.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-41**: Font files must be moved from tmp to appropriate self-hosting location (e.g., public/fonts/ or Next.js font optimization directory) and properly loaded via CSS @font-face or Next.js font API (may require code changes to support)
 

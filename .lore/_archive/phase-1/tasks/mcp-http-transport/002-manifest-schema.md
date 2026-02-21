@@ -3,8 +3,8 @@ title: Update manifest schema for HTTP transport
 date: 2026-02-14
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/mcp-http-transport.md
-related: [.lore/specs/phase-1/mcp-http-transport.md]
+source: .lore/_archive/phase-1/plans/mcp-http-transport.md
+related: [.lore/_archive/phase-1/specs/mcp-http-transport.md]
 sequence: 2
 modules: [schemas, types, mcp-manager]
 ---
@@ -55,7 +55,7 @@ Unit tests in `tests/lib/schemas.test.ts` and `tests/lib/types.test.ts`:
 
 ## Why
 
-From `.lore/specs/phase-1/mcp-http-transport.md`:
+From `.lore/_archive/phase-1/specs/mcp-http-transport.md`:
 - REQ-MCP-HTTP-1: "Plugin manifests MUST specify transport type via `\"transport\": \"http\"` field"
 - REQ-MCP-HTTP-2: "Plugin manifests MUST specify `command` field"
 - REQ-MCP-HTTP-3: "Plugin manifests MAY specify `args` array, which MUST support `${PORT}` substitution"

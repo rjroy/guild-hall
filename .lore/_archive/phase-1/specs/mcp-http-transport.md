@@ -5,9 +5,9 @@ status: draft
 tags: [mcp, http, json-rpc, transport, plugin-system, phase-1]
 modules: [mcp-manager, server-context, plugin-discovery]
 related:
-  - .lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md
+  - .lore/_archive/phase-1/brainstorm/mcp-transport-stdio-vs-http.md
   - .lore/research/mcp-http-protocol.md
-  - .lore/specs/phase-1/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/specs/guild-hall-phase-1.md
 req-prefix: MCP-HTTP
 ---
 
@@ -187,7 +187,7 @@ Boundaries and limitations for Phase I:
 
 ### Related Lore
 
-**Brainstorm: MCP Transport - Stdio vs HTTP/SSE** (.lore/brainstorm/phase-1/mcp-transport-stdio-vs-http.md)
+**Brainstorm: MCP Transport - Stdio vs HTTP/SSE** (.lore/_archive/phase-1/brainstorm/mcp-transport-stdio-vs-http.md)
 - Architectural decision to use HTTP transport instead of stdio
 - Rationale: eliminates duplicate processes (Guild Hall + Agent SDK both spawning servers)
 - Eager loading chosen over lazy loading for simpler tool discovery
@@ -201,12 +201,12 @@ Boundaries and limitations for Phase I:
 - Agent SDK HTTP configuration pattern: `{ type: "http", url: "..." }`
 - Protocol version: 2025-06-18 for tools, 2025-03-26 for lifecycle
 
-**Spec: Guild Hall Phase I** (.lore/specs/phase-1/guild-hall-phase-1.md)
+**Spec: Guild Hall Phase I** (.lore/_archive/phase-1/specs/guild-hall-phase-1.md)
 - Direct tool invocation requirement (REQ-GH1-8, REQ-GH1-29)
 - MCP-only plugins for Phase I (UI components deferred)
 - Plugin manifest format and discovery from `guild-members/` directory
 
-**Brainstorm: Plugin Architecture - Hybrid Model** (.lore/brainstorm/phase-1/plugin-architecture-hybrid.md)
+**Brainstorm: Plugin Architecture - Hybrid Model** (.lore/_archive/phase-1/brainstorm/plugin-architecture-hybrid.md)
 - Established hybrid model: MCP servers (code isolation) + React components (UI integration)
 - MCP server = backend/logic, React component = frontend/UX
 - Phase I implements MCP-only, UI components deferred to future phases
@@ -218,13 +218,13 @@ Boundaries and limitations for Phase I:
 
 ### Superseded Specs
 
-**Spec: MCPServerFactory - Stdio Implementation** (.lore/specs/phase-1/mcp-server-factory.md)
+**Spec: MCPServerFactory - Stdio Implementation** (.lore/_archive/phase-1/specs/mcp-server-factory.md)
 - Status: superseded by HTTP transport decision
 - Complete stdio implementation executed through Phase 9, then reverted
 - Manual testing revealed architectural issues: duplicate processes, chicken-and-egg tool discovery
 - Implementation learnings preserved in notes for future reference
 
-**Spec: MCP Tool Caching** (.lore/specs/phase-1/mcp-tool-caching.md)
+**Spec: MCP Tool Caching** (.lore/_archive/phase-1/specs/mcp-tool-caching.md)
 - Status: superseded by HTTP eager loading approach
 - Chicken-and-egg problem analysis remains valid (tools invisible until server starts)
 - Solution: eager loading instead of caching (HTTP transport enables this)

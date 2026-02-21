@@ -3,8 +3,8 @@ title: Update Agent SDK integration for HTTP MCP servers
 date: 2026-02-14
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/mcp-http-transport.md
-related: [.lore/specs/phase-1/mcp-http-transport.md]
+source: .lore/_archive/phase-1/plans/mcp-http-transport.md
+related: [.lore/_archive/phase-1/specs/mcp-http-transport.md]
 sequence: 7
 modules: [mcp-manager, agent-manager]
 ---
@@ -57,7 +57,7 @@ Integration test:
 
 ## Why
 
-From `.lore/specs/phase-1/mcp-http-transport.md`:
+From `.lore/_archive/phase-1/specs/mcp-http-transport.md`:
 - REQ-MCP-HTTP-33: "Guild Hall MUST configure Agent SDK with HTTP MCP servers using format: `{ type: \"http\", url: \"http://localhost:{PORT}/mcp\" }`"
 - REQ-MCP-HTTP-34: "Guild Hall MCP servers MUST be used for direct tool invocation from Roster"
 - REQ-MCP-HTTP-35: "Agent SDK MAY manage its own MCP connections during query sessions"

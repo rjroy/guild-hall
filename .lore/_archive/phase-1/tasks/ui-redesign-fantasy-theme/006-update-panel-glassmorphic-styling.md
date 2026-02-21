@@ -3,8 +3,8 @@ title: Update panel components with glassmorphic styling
 date: 2026-02-14
 status: complete
 tags: [task, css, glassmorphism, panels]
-source: .lore/plans/phase-1/ui-redesign-fantasy-theme.md
-related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
+source: .lore/_archive/phase-1/plans/ui-redesign-fantasy-theme.md
+related: [.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md]
 sequence: 6
 modules: [roster, board, workshop]
 ---
@@ -76,7 +76,7 @@ Verify by inspecting each file for `backdrop-filter`, `border-radius`, and `var(
 
 ## Why
 
-From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
+From `.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-14**: All panels (RosterPanel, BoardPanel, Workshop container, CreateSessionDialog) use glassmorphic effect: 80-90% opacity background, 8-12px backdrop blur, 1-2px brass borders
 

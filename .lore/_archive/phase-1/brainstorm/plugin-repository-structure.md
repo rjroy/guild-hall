@@ -4,7 +4,7 @@ date: 2026-02-14
 status: resolved
 tags: [plugins, repository-structure, guild-founders, development-workflow]
 related:
-  - .lore/specs/phase-1/guild-hall-phase-1.md
+  - .lore/_archive/phase-1/specs/guild-hall-phase-1.md
 ---
 
 # Brainstorm: Plugin Repository Structure

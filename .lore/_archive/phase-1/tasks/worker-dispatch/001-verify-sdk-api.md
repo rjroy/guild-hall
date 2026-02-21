@@ -3,9 +3,9 @@ title: Verify createSdkMcpServer API against Agent SDK 0.2.45
 date: 2026-02-17
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/worker-dispatch.md
+source: .lore/_archive/phase-1/plans/worker-dispatch.md
 related:
-  - .lore/specs/phase-1/worker-dispatch.md
+  - .lore/_archive/phase-1/specs/worker-dispatch.md
   - .lore/research/claude-agent-sdk.md
 sequence: 1
 modules: [guild-hall-core]
@@ -40,7 +40,7 @@ Use the `agent-sdk-dev:agent-sdk-verifier-ts` agent to assist with verification.
 
 ## Why
 
-From `.lore/plans/phase-1/worker-dispatch.md`, Pre-Step: "Per the Phase 1 retro lesson (verify SDK APIs against the actual 0.2.45 package before building), examine the createSdkMcpServer() function signature..."
+From `.lore/_archive/phase-1/plans/worker-dispatch.md`, Pre-Step: "Per the Phase 1 retro lesson (verify SDK APIs against the actual 0.2.45 package before building), examine the createSdkMcpServer() function signature..."
 
 From `.lore/retros/guild-hall-phase-1.md`: The SDK verification step in Phase 1 caught 5 API divergences before integration code was written. The research doc was against 0.2.39; the project upgraded to 0.2.45.
 

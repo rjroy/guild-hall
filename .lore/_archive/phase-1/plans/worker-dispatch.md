@@ -5,8 +5,8 @@ status: draft
 tags: [architecture, agents, dispatch, workers, mcp, json-rpc, protocol-extension]
 modules: [guild-hall-core, plugin-contract, json-rpc-client, mcp-manager, plugin-discovery]
 related:
-  - .lore/specs/phase-1/worker-dispatch.md
-  - .lore/brainstorm/phase-1/worker-agents.md
+  - .lore/_archive/phase-1/specs/worker-dispatch.md
+  - .lore/_archive/phase-1/brainstorm/worker-agents.md
   - .lore/research/claude-agent-sdk.md
   - .lore/retros/guild-hall-phase-1.md
   - .lore/retros/coverage-di-factories.md
@@ -16,7 +16,7 @@ related:
 
 ## Spec Reference
 
-**Spec**: `.lore/specs/phase-1/worker-dispatch.md`
+**Spec**: `.lore/_archive/phase-1/specs/worker-dispatch.md`
 
 Requirements addressed:
 - REQ-WD-1: Plugin capability declaration -> Step 1
@@ -679,7 +679,7 @@ The `.catch()` handler covers clean failures: budget exceeded (SDKResultError wi
 
 **Addresses**: All REQ-WD-* requirements
 
-Launch a sub-agent that reads the spec at `.lore/specs/phase-1/worker-dispatch.md`, reviews the implementation across all modified files, and flags any requirements not met. This step is not optional.
+Launch a sub-agent that reads the spec at `.lore/_archive/phase-1/specs/worker-dispatch.md`, reviews the implementation across all modified files, and flags any requirements not met. This step is not optional.
 
 **Spec validation criteria mapping.** The spec's AI Validation section defines eight custom test categories. Map each to where it's covered:
 

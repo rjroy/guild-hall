@@ -3,8 +3,8 @@ title: Write integration tests for HTTP MCP transport
 date: 2026-02-14
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/mcp-http-transport.md
-related: [.lore/specs/phase-1/mcp-http-transport.md]
+source: .lore/_archive/phase-1/plans/mcp-http-transport.md
+related: [.lore/_archive/phase-1/specs/mcp-http-transport.md]
 sequence: 9
 modules: [integration-tests]
 ---
@@ -51,7 +51,7 @@ Coverage:
 
 ## Why
 
-From `.lore/specs/phase-1/mcp-http-transport.md`, AI Validation section:
+From `.lore/_archive/phase-1/specs/mcp-http-transport.md`, AI Validation section:
 - "Integration test that starts actual HTTP MCP server and calls tools via HTTP POST"
 - "Test that verifies working directory contract (plugin reads `./test-file.txt`)"
 - "Test that verifies port allocation and `${PORT}` substitution in command args"

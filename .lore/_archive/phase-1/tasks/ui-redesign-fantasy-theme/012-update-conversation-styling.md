@@ -3,8 +3,8 @@ title: Update conversation/workshop message styling and responsive behavior
 date: 2026-02-14
 status: complete
 tags: [task, css, conversation, messages, responsive]
-source: .lore/plans/phase-1/ui-redesign-fantasy-theme.md
-related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
+source: .lore/_archive/phase-1/plans/ui-redesign-fantasy-theme.md
+related: [.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md]
 sequence: 12
 modules: [workshop, conversation]
 ---
@@ -117,7 +117,7 @@ Verify by inspecting all three files for theme-specific selectors and glassmorph
 
 ## Why
 
-From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
+From `.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-35**: Message bubbles distinguish user messages (right-aligned, warm amber background) from AI messages (left-aligned, dark background) with colors adapting to light/dark mode
 

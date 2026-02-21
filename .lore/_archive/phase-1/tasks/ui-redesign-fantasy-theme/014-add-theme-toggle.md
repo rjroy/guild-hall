@@ -3,8 +3,8 @@ title: Add theme toggle support
 date: 2026-02-14
 status: complete
 tags: [task, theme, toggle, component]
-source: .lore/plans/phase-1/ui-redesign-fantasy-theme.md
-related: [.lore/specs/phase-1/ui-redesign-fantasy-theme.md]
+source: .lore/_archive/phase-1/plans/ui-redesign-fantasy-theme.md
+related: [.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md]
 sequence: 14
 modules: [dashboard]
 ---
@@ -90,7 +90,7 @@ Manual browser test:
 
 ## Why
 
-From `.lore/specs/phase-1/ui-redesign-fantasy-theme.md`:
+From `.lore/_archive/phase-1/specs/ui-redesign-fantasy-theme.md`:
 
 **REQ-UI-REDESIGN-11**: Update CSS variables in `:root` and theme-specific selectors (e.g., `[data-theme="dark"]`, `[data-theme="light"]`) to define both color modes
 

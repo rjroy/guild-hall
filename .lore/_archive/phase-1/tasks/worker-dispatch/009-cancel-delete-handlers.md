@@ -3,9 +3,9 @@ title: Implement cancel and delete handlers
 date: 2026-02-17
 status: complete
 tags: [task]
-source: .lore/plans/phase-1/worker-dispatch.md
+source: .lore/_archive/phase-1/plans/worker-dispatch.md
 related:
-  - .lore/specs/phase-1/worker-dispatch.md
+  - .lore/_archive/phase-1/specs/worker-dispatch.md
 sequence: 9
 modules: [researcher-plugin]
 ---
@@ -48,7 +48,7 @@ Wire both handlers into `server.ts`.
 
 ## Why
 
-From `.lore/specs/phase-1/worker-dispatch.md`:
+From `.lore/_archive/phase-1/specs/worker-dispatch.md`:
 - REQ-WD-16: `worker/cancel` terminates session, cancelling completed/cancelled is no-op
 - REQ-WD-17: `worker/delete` removes job directory, only completed/cancelled can be deleted
 - REQ-WD-18: Deletion is permanent
