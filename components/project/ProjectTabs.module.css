@@ -11,7 +11,7 @@
   background-image: url('/images/ui/scroll-window.webp');
   background-size: 100% 100%;
   background-blend-mode: hue;
-  border-radius: 10px;
+  border-radius: 50px;
 }
 
 .tab {

@@ -91,14 +91,21 @@
 
 .viewer {
   background-color: rgba(26, 20, 18, 0.85);
-  overflow: hidden;
-  border: 25px solid transparent;
-  border-image-source: url("/images/ui/border-ornate.webp");
-  border-image-slice: 80 fill;
-  border-image-width: 25px;
   /* vendor prefix must precede standard property in Next.js */
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
+  padding: 8px;
+}
+
+.viewer::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: -3px;
+  border: 40px solid transparent;
+  border-image-source: url("/images/ui/border-ornate.webp");
+  border-image-slice: 120 120 120 120 fill;
+  border-image-width: 40px;
 }
 
 .markdownContent {
@@ -265,17 +272,25 @@
 
 .editor {
   background-color: rgba(26, 20, 18, 0.85);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
-  border: 25px solid transparent;
-  border-image-source: url("/images/ui/border-ornate.webp");
-  border-image-slice: 80 fill;
-  border-image-width: 25px;
   /* vendor prefix must precede standard property in Next.js */
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
+  padding: 8px;
 }
+
+.editor::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: -3px;
+  border: 40px solid transparent;
+  border-image-source: url("/images/ui/border-ornate.webp");
+  border-image-slice: 120 120 120 120 fill;
+  border-image-width: 40px;
+}
+
 
 .textarea {
   font-family: var(--font-code);
