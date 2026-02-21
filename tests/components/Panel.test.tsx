@@ -10,27 +10,31 @@ import Panel from "@/components/ui/Panel";
  * present? Does the className prop get applied?
  */
 
+// React 19 types ReactElement.props as {} by default. These helpers
+// traverse arbitrary element trees, so we use a looser props type.
+type AnyElement = React.ReactElement<Record<string, unknown>>;
+
 /**
  * Walks a React element tree depth-first and collects all elements
  * matching a predicate. Simple utility for testing component output
  * without a DOM.
  */
 function findElements(
-  element: React.ReactElement,
-  predicate: (el: React.ReactElement) => boolean
-): React.ReactElement[] {
-  const results: React.ReactElement[] = [];
+  element: AnyElement,
+  predicate: (el: AnyElement) => boolean
+): AnyElement[] {
+  const results: AnyElement[] = [];
 
   if (predicate(element)) {
     results.push(element);
   }
 
-  const children = element.props?.children;
+  const children = element.props.children;
   if (children) {
     const childArray = Array.isArray(children) ? children : [children];
     for (const child of childArray) {
       if (child && typeof child === "object" && "type" in child && "props" in child) {
-        results.push(...findElements(child, predicate));
+        results.push(...findElements(child as AnyElement, predicate));
       }
     }
   }
@@ -42,8 +46,8 @@ function findElements(
  * Checks if a React element tree contains a given text string anywhere
  * in its children (including nested elements).
  */
-function containsText(element: React.ReactElement, text: string): boolean {
-  const children = element.props?.children;
+function containsText(element: AnyElement, text: string): boolean {
+  const children = element.props.children;
   if (typeof children === "string" && children.includes(text)) {
     return true;
   }
@@ -51,13 +55,13 @@ function containsText(element: React.ReactElement, text: string): boolean {
     return children.some((child) => {
       if (typeof child === "string" && child.includes(text)) return true;
       if (child && typeof child === "object" && "props" in child) {
-        return containsText(child, text);
+        return containsText(child as AnyElement, text);
       }
       return false;
     });
   }
   if (children && typeof children === "object" && "props" in children) {
-    return containsText(children, text);
+    return containsText(children as AnyElement, text);
   }
   return false;
 }
@@ -76,7 +80,7 @@ describe("Panel", () => {
 
     test("renders JSX children", () => {
       const child = <span data-testid="child">Nested content</span>;
-      const el = Panel({ children: child });
+      const el = Panel({ children: child }) as AnyElement;
 
       const spans = findElements(el, (e) => e.type === "span");
       expect(spans.length).toBeGreaterThanOrEqual(1);
