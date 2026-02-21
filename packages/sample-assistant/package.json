@@ -1,0 +1,19 @@
+{
+  "name": "guild-hall-sample-assistant",
+  "version": "0.1.0",
+  "guildHall": {
+    "type": "worker",
+    "identity": {
+      "name": "Assistant",
+      "description": "A general-purpose assistant for exploring Guild Hall's meeting system.",
+      "displayTitle": "Guild Assistant"
+    },
+    "posture": "You are a helpful assistant participating in a Guild Hall meeting. You help users explore, understand, and work with their project artifacts. Be concise and direct. When asked to read or modify files, use the tools provided.",
+    "domainToolboxes": [],
+    "builtInTools": ["Read", "Glob", "Grep"],
+    "checkoutScope": "sparse",
+    "resourceDefaults": {
+      "maxTurns": 30
+    }
+  }
+}

@@ -1,0 +1,247 @@
+/* WorkerPicker modal overlay and dialog */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.7);
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.dialog {
+  position: relative;
+  max-width: 600px;
+  width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  background-color: var(--color-panel-bg);
+  border: 10px solid transparent;
+  border-image-source: url("/images/ui/border.webp");
+  border-image-slice: 120 120 120 120;
+  border-image-width: 30px;
+  border-radius: 30px;
+  padding: var(--space-lg);
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* Paper texture underlay matching Panel */
+.dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/images/ui/paper-bg.webp");
+  background-size: cover;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.dialogContent {
+  position: relative;
+  z-index: 1;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-brass);
+  margin: 0 0 var(--space-md) 0;
+}
+
+/* Worker list */
+
+.workerList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.workerItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.workerItem:hover {
+  background-color: rgba(184, 134, 11, 0.08);
+}
+
+.workerItemSelected {
+  border-color: var(--color-brass);
+  background-color: rgba(184, 134, 11, 0.12);
+}
+
+.workerInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.workerName {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.workerTitle {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.workerDescription {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: var(--space-xs) 0 0 0;
+  line-height: 1.4;
+}
+
+/* Prompt area */
+
+.promptLabel {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-xs);
+}
+
+.promptTextarea {
+  width: 100%;
+  min-height: 100px;
+  padding: var(--space-sm);
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-bronze);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  resize: vertical;
+  margin-bottom: var(--space-md);
+}
+
+.promptTextarea:focus {
+  outline: none;
+  border-color: var(--color-brass);
+}
+
+.promptTextarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Buttons */
+
+.buttonRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+.cancelButton {
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: 1px solid var(--color-text-muted);
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.cancelButton:hover {
+  color: var(--color-text);
+  border-color: var(--color-text);
+}
+
+.startButton {
+  padding: var(--space-sm) var(--space-md);
+  background-color: rgba(184, 134, 11, 0.15);
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.startButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.25);
+}
+
+.startButton:disabled {
+  opacity: 0.4;
+  border-color: var(--color-text-muted);
+  color: var(--color-text-muted);
+  background-color: rgba(168, 152, 120, 0.1);
+  cursor: not-allowed;
+}
+
+/* Status messages */
+
+.statusMessage {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-style: italic;
+  text-align: center;
+  padding: var(--space-md);
+  margin: 0;
+}
+
+.errorMessage {
+  color: #c87a6a;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: var(--space-md);
+  margin: 0;
+}
+
+/* Streaming progress */
+
+.streamingOverlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-xl);
+}
+
+.streamingText {
+  color: var(--color-brass);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(184, 134, 11, 0.2);
+  border-top-color: var(--color-brass);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

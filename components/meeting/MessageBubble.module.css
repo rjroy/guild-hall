@@ -1,0 +1,142 @@
+/* --- Message row layout --- */
+
+.messageRow {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.userRow {
+  justify-content: flex-end;
+}
+
+.assistantRow {
+  justify-content: flex-start;
+}
+
+.portrait {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: var(--space-xs);
+}
+
+/* --- Bubble styling --- */
+
+.bubble {
+  max-width: 75%;
+  border-radius: 8px;
+  padding: var(--space-sm) var(--space-md);
+  position: relative;
+
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.userBubble {
+  background-color: rgba(184, 134, 11, 0.12);
+  border: 1px solid rgba(184, 134, 11, 0.3);
+}
+
+.assistantBubble {
+  background-color: var(--color-panel-bg);
+  border: 1px solid rgba(168, 152, 120, 0.15);
+}
+
+/* Parchment texture on assistant bubbles */
+.assistantBubble::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/images/ui/paper-bg.webp");
+  background-size: cover;
+  opacity: 0.06;
+  pointer-events: none;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+/* --- Content --- */
+
+.content {
+  position: relative;
+  z-index: 1;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* Markdown element styles within message bubbles */
+
+.content p {
+  margin: 0 0 0.5em 0;
+}
+
+.content p:last-child {
+  margin-bottom: 0;
+}
+
+.content code {
+  font-family: var(--font-code);
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.82em;
+}
+
+.content pre {
+  font-family: var(--font-code);
+  background: rgba(0, 0, 0, 0.35);
+  padding: var(--space-sm);
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.content pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.content a {
+  color: var(--color-brass);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.content a:hover {
+  color: var(--color-amber);
+}
+
+.content strong {
+  color: var(--color-parchment);
+  font-weight: 600;
+}
+
+.content ul,
+.content ol {
+  margin: 0.4em 0;
+  padding-left: 1.5em;
+}
+
+.content li {
+  margin-bottom: 0.2em;
+}
+
+.content blockquote {
+  border-left: 2px solid var(--color-brass);
+  padding-left: var(--space-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin: 0.4em 0;
+}
+
+/* --- Tool uses section --- */
+
+.tools {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--space-sm);
+}

@@ -27,11 +27,23 @@ const EMPTY_META: ArtifactMeta = {
   tags: [],
 };
 
+/** Frontmatter keys handled by the typed ArtifactMeta fields. */
+const KNOWN_KEYS = new Set(["title", "date", "status", "tags", "modules", "related"]);
+
 /**
  * Extracts ArtifactMeta from gray-matter's data object.
  * Missing or malformed fields fall back to empty defaults.
+ * Frontmatter keys not in the typed set are collected into extras.
  */
 function parseMeta(data: Record<string, unknown>): ArtifactMeta {
+  // Collect unknown frontmatter fields into extras
+  const extras: Record<string, unknown> = {};
+  for (const key of Object.keys(data)) {
+    if (!KNOWN_KEYS.has(key)) {
+      extras[key] = data[key];
+    }
+  }
+
   return {
     title: typeof data.title === "string" ? data.title : "",
     date: data.date instanceof Date
@@ -49,6 +61,7 @@ function parseMeta(data: Record<string, unknown>): ArtifactMeta {
     related: Array.isArray(data.related)
       ? data.related.filter((r): r is string => typeof r === "string")
       : undefined,
+    extras: Object.keys(extras).length > 0 ? extras : undefined,
   };
 }
 

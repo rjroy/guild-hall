@@ -1,0 +1,76 @@
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* --- Breadcrumb --- */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.85rem;
+}
+
+.breadcrumbLink {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.breadcrumbLink:hover {
+  color: var(--color-amber);
+}
+
+.separator {
+  color: var(--color-text-muted);
+}
+
+.breadcrumbCurrent {
+  color: var(--color-brass);
+  font-weight: 500;
+}
+
+/* --- Header content row --- */
+
+.headerContent {
+  display: flex;
+  gap: var(--space-xl);
+  align-items: flex-start;
+}
+
+.workerInfo {
+  flex-shrink: 0;
+}
+
+/* --- Agenda panel --- */
+
+.agendaPanel {
+  flex: 1;
+  background-color: var(--color-panel-bg);
+  border: 1px solid rgba(184, 134, 11, 0.2);
+  border-radius: 6px;
+  padding: var(--space-md);
+
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.agendaTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-brass);
+  margin: 0 0 var(--space-sm) 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.agendaText {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}

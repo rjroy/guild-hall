@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProject } from "@/lib/config";
 import { readArtifact } from "@/lib/artifacts";
@@ -29,6 +30,17 @@ export default async function ArtifactPage({
 
   const displayTitle = artifact.meta.title || relativePath;
 
+  // For open meeting artifacts, show a link to the live meeting view
+  const isMeeting = relativePath.startsWith("meetings/");
+  const isOpen =
+    artifact.meta.status.toLowerCase().trim() === "open";
+  let meetingLink: string | null = null;
+  if (isMeeting && isOpen) {
+    const filename = relativePath.split("/").pop() ?? "";
+    const meetingId = filename.replace(/\.md$/, "");
+    meetingLink = `/projects/${encodeURIComponent(projectName)}/meetings/${encodeURIComponent(meetingId)}`;
+  }
+
   return (
     <div className={styles.artifactView}>
       <div className={styles.main}>
@@ -36,6 +48,13 @@ export default async function ArtifactPage({
           projectName={projectName}
           artifactTitle={displayTitle}
         />
+        {meetingLink && (
+          <div className={styles.meetingBanner}>
+            <Link href={meetingLink} className={styles.meetingBannerLink}>
+              View Meeting
+            </Link>
+          </div>
+        )}
         <ArtifactContent
           body={artifact.content}
           projectName={projectName}

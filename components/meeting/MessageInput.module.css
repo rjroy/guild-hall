@@ -1,0 +1,80 @@
+.inputBar {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-end;
+  padding: var(--space-md);
+  background-color: rgba(26, 20, 18, 0.9);
+  border-top: 1px solid rgba(184, 134, 11, 0.2);
+  border-radius: 0 0 8px 8px;
+}
+
+.textarea {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(184, 134, 11, 0.15);
+  border-radius: 6px;
+  padding: var(--space-sm) var(--space-md);
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+  max-height: 200px;
+}
+
+.textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.textarea:focus {
+  border-color: rgba(184, 134, 11, 0.4);
+  box-shadow: 0 0 0 1px rgba(184, 134, 11, 0.15);
+}
+
+.textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Buttons --- */
+
+.sendButton,
+.stopButton {
+  flex-shrink: 0;
+  padding: var(--space-sm) var(--space-lg);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.sendButton {
+  background-color: rgba(184, 134, 11, 0.2);
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+}
+
+.sendButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.35);
+  color: var(--color-amber);
+}
+
+.sendButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.stopButton {
+  background-color: rgba(224, 96, 96, 0.15);
+  border: 1px solid #e06060;
+  color: #e06060;
+}
+
+.stopButton:hover {
+  background-color: rgba(224, 96, 96, 0.3);
+}

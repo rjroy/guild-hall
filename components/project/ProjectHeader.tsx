@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Panel from "@/components/ui/Panel";
+import StartAudienceButton from "@/components/project/StartAudienceButton";
 import type { ProjectConfig } from "@/lib/types";
 import styles from "./ProjectHeader.module.css";
 
@@ -40,13 +41,7 @@ export default function ProjectHeader({ project }: ProjectHeaderProps) {
           </a>
         )}
 
-        <button
-          className={styles.audienceButton}
-          disabled
-          aria-label="Start Audience with Guild Master (coming soon)"
-        >
-          Start Audience with Guild Master
-        </button>
+        <StartAudienceButton projectName={project.name} />
       </div>
     </Panel>
   );

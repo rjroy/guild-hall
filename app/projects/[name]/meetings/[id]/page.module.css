@@ -1,0 +1,39 @@
+.meetingView {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  min-height: 100vh;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* --- Closed meeting state --- */
+
+.ended {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-2xl);
+  text-align: center;
+}
+
+.endedText {
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.endedLink {
+  color: var(--color-brass);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 0.9rem;
+  transition: color 0.2s;
+}
+
+.endedLink:hover {
+  color: var(--color-amber);
+}

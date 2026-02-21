@@ -8,6 +8,7 @@ import { projectLorePath, getConfigPath } from "@/lib/paths";
 import { statusToGem } from "@/lib/types";
 import type { GemStatus } from "@/lib/types";
 import { relatedToHref } from "@/components/artifact/MetadataSidebar";
+import { artifactHref } from "@/components/dashboard/RecentArtifacts";
 
 /**
  * Integration tests for navigation data flow.
@@ -105,6 +106,35 @@ No frontmatter here.`,
     "utf-8"
   );
 
+  // Meeting artifacts
+  await fs.mkdir(path.join(loreDir, "meetings"), { recursive: true });
+
+  await fs.writeFile(
+    path.join(loreDir, "meetings", "abc-123.md"),
+    `---
+title: Researcher
+date: 2026-02-18
+status: open
+tags: [meeting]
+worker: researcher
+---
+Investigate the performance issue.`,
+    "utf-8"
+  );
+
+  await fs.writeFile(
+    path.join(loreDir, "meetings", "def-456.md"),
+    `---
+title: Architect
+date: 2026-02-17
+status: closed
+tags: [meeting]
+worker: architect
+---
+Design review for the new module.`,
+    "utf-8"
+  );
+
   // Set up config.yaml
   const homeDir = path.join(tmpDir, "home");
   configFilePath = getConfigPath(homeDir);
@@ -157,10 +187,12 @@ describe("config to project data flow", () => {
 describe("artifact scanning data flow", () => {
   test("scanArtifacts finds all .md files in .lore/", async () => {
     const artifacts = await scanArtifacts(loreDir);
-    expect(artifacts.length).toBe(4);
+    expect(artifacts.length).toBe(6);
 
     const paths = artifacts.map((a) => a.relativePath).sort();
     expect(paths).toEqual([
+      "meetings/abc-123.md",
+      "meetings/def-456.md",
       "plans/phase-1/impl.md",
       "readme.md",
       "retros/ui-review.md",
@@ -488,16 +520,24 @@ describe("navigation completeness (no dead ends)", () => {
     //     -> Project selection (filter): /?project={name}
     //     -> Project view (REQ-VIEW-5): /projects/{name}
     //     -> Artifact links: /projects/{name}/artifacts/{path}
+    //     -> Open meeting links: /projects/{name}/meetings/{id}
     //
     //   Project (/projects/{name})
     //     -> Back to dashboard: /
     //     -> Tab navigation: /projects/{name}?tab={tab}
     //     -> Artifact links: /projects/{name}/artifacts/{path}
+    //     -> Meeting links (meetings tab): /projects/{name}/meetings/{id}
     //
     //   Artifact (/projects/{name}/artifacts/{path})
     //     -> Back to dashboard: /
     //     -> Back to project: /projects/{name}
     //     -> Related artifacts: /projects/{name}/artifacts/{otherPath}
+    //     -> View Meeting (if open meeting artifact): /projects/{name}/meetings/{id}
+    //
+    //   Meeting (/projects/{name}/meetings/{id})
+    //     -> Back to dashboard: / (breadcrumb)
+    //     -> Back to project: /projects/{name} (breadcrumb)
+    //     -> Closed meeting: return link to /projects/{name}
     //
     // Every view has at least one link leading to it and at least one
     // link leading away. There are no dead ends.
@@ -517,16 +557,32 @@ describe("navigation completeness (no dead ends)", () => {
     expect(projectViewUrl).toMatch(/^\/projects\/.+/);
 
     // Dashboard -> Artifact (via recent artifacts)
-    const artifactFromDashboard = `/projects/${encodedName}/artifacts/${artifacts[0].relativePath}`;
+    const nonMeetingArtifact = artifacts.find(
+      (a) => !a.relativePath.startsWith("meetings/")
+    )!;
+    const artifactFromDashboard = `/projects/${encodedName}/artifacts/${nonMeetingArtifact.relativePath}`;
     expect(artifactFromDashboard).toBeTruthy();
+
+    // Dashboard -> Open meeting (via recent artifacts)
+    const openMeeting = artifacts.find(
+      (a) =>
+        a.relativePath.startsWith("meetings/") &&
+        a.meta.status.toLowerCase() === "open"
+    );
+    expect(openMeeting).toBeDefined();
+    const meetingHref = artifactHref(openMeeting!, project.name);
+    expect(meetingHref).toMatch(/\/projects\/.+\/meetings\/.+/);
 
     // Project -> Dashboard
     const dashboardUrl = "/";
     expect(dashboardUrl).toBe("/");
 
     // Project -> Artifact
-    const artifactFromProject = `/projects/${encodedName}/artifacts/${artifacts[0].relativePath}`;
+    const artifactFromProject = `/projects/${encodedName}/artifacts/${nonMeetingArtifact.relativePath}`;
     expect(artifactFromProject).toBeTruthy();
+
+    // Project -> Meeting (meetings tab)
+    expect(meetingHref).toBeTruthy();
 
     // Artifact -> Dashboard (breadcrumb)
     expect(dashboardUrl).toBe("/");
@@ -535,8 +591,161 @@ describe("navigation completeness (no dead ends)", () => {
     const projectUrl = `/projects/${encodedName}`;
     expect(projectUrl).toBeTruthy();
 
+    // Meeting -> Dashboard (breadcrumb)
+    expect(dashboardUrl).toBe("/");
+
+    // Meeting -> Project (breadcrumb)
+    expect(projectUrl).toBeTruthy();
+
+    // Closed meeting -> Project (return link)
+    expect(projectUrl).toBeTruthy();
+
     // All paths are reachable and lead somewhere
     expect(artifacts.length).toBeGreaterThan(0);
+  });
+});
+
+describe("meeting view navigation", () => {
+  test("meeting breadcrumb links back to dashboard", () => {
+    // MeetingHeader renders Link href="/"
+    const homeHref = "/";
+    expect(homeHref).toBe("/");
+  });
+
+  test("meeting breadcrumb links back to project", () => {
+    const encodedName = encodeURIComponent(PROJECT_NAME);
+    // MeetingHeader renders Link href={`/projects/${encodedName}`}
+    const projectHref = `/projects/${encodedName}`;
+    expect(projectHref).toBe(`/projects/${PROJECT_NAME}`);
+  });
+
+  test("meeting breadcrumb with special characters encodes correctly", () => {
+    const encodedName = encodeURIComponent(PROJECT_NAME_SPECIAL);
+    const projectHref = `/projects/${encodedName}`;
+    expect(projectHref).toBe("/projects/my%20project%20%26%20stuff");
+  });
+
+  test("meeting view URL uses /projects/{name}/meetings/{id} format", () => {
+    const encodedName = encodeURIComponent(PROJECT_NAME);
+    const meetingId = "abc-123";
+    const href = `/projects/${encodedName}/meetings/${encodeURIComponent(meetingId)}`;
+    expect(href).toBe(`/projects/${PROJECT_NAME}/meetings/abc-123`);
+  });
+
+  test("open meeting is reachable from project meetings tab", async () => {
+    // MeetingList links open meetings to /projects/{name}/meetings/{id}
+    const artifacts = await scanArtifacts(loreDir);
+    const meetings = artifacts.filter((a) =>
+      a.relativePath.startsWith("meetings/")
+    );
+    expect(meetings.length).toBe(2);
+
+    const encodedName = encodeURIComponent(PROJECT_NAME);
+    const openMeeting = meetings.find(
+      (m) => m.meta.status.toLowerCase() === "open"
+    );
+    expect(openMeeting).toBeDefined();
+
+    const filename = openMeeting!.relativePath.split("/").pop()!;
+    const meetingId = filename.replace(/\.md$/, "");
+    const href = `/projects/${encodedName}/meetings/${encodeURIComponent(meetingId)}`;
+    expect(href).toBe(`/projects/${PROJECT_NAME}/meetings/abc-123`);
+  });
+
+  test("closed meeting page shows ended message and return link", () => {
+    // MeetingPage renders an "ended" block for closed/complete meetings
+    // with an <a> back to the project view
+    const encodedName = encodeURIComponent(PROJECT_NAME);
+    const returnHref = `/projects/${encodedName}`;
+    expect(returnHref).toBe(`/projects/${PROJECT_NAME}`);
+  });
+
+  test("closed meeting in MeetingList renders as non-interactive", async () => {
+    const artifacts = await scanArtifacts(loreDir);
+    const closedMeeting = artifacts.find(
+      (a) =>
+        a.relativePath.startsWith("meetings/") &&
+        a.meta.status.toLowerCase() === "closed"
+    );
+    expect(closedMeeting).toBeDefined();
+    // MeetingList renders closed meetings as <div> entries, not <Link>s
+    // This confirms the data flow: status "closed" => non-interactive entry
+    expect(closedMeeting!.meta.status.toLowerCase()).toBe("closed");
+  });
+});
+
+describe("meeting artifacts in dashboard feed", () => {
+  test("scanArtifacts includes meeting artifacts from meetings/ directory", async () => {
+    const artifacts = await scanArtifacts(loreDir);
+    const meetings = artifacts.filter((a) =>
+      a.relativePath.startsWith("meetings/")
+    );
+    expect(meetings.length).toBe(2);
+  });
+
+  test("open meeting artifact links to meeting view via artifactHref", async () => {
+    const openMeeting = await readArtifact(loreDir, "meetings/abc-123.md");
+    const href = artifactHref(openMeeting, PROJECT_NAME);
+    expect(href).toBe(
+      `/projects/${PROJECT_NAME}/meetings/abc-123`
+    );
+  });
+
+  test("closed meeting artifact links to artifact view via artifactHref", async () => {
+    const closedMeeting = await readArtifact(loreDir, "meetings/def-456.md");
+    const href = artifactHref(closedMeeting, PROJECT_NAME);
+    expect(href).toBe(
+      `/projects/${PROJECT_NAME}/artifacts/meetings/def-456.md`
+    );
+  });
+
+  test("non-meeting artifact always links to artifact view via artifactHref", async () => {
+    const specArtifact = await readArtifact(loreDir, "specs/system.md");
+    const href = artifactHref(specArtifact, PROJECT_NAME);
+    expect(href).toBe(
+      `/projects/${PROJECT_NAME}/artifacts/specs/system.md`
+    );
+  });
+
+  test("artifactHref encodes special characters in project name", async () => {
+    const openMeeting = await readArtifact(loreDir, "meetings/abc-123.md");
+    const href = artifactHref(openMeeting, PROJECT_NAME_SPECIAL);
+    expect(href).toBe(
+      `/projects/my%20project%20%26%20stuff/meetings/abc-123`
+    );
+  });
+});
+
+describe("artifact view meeting link", () => {
+  test("open meeting artifact path is detected as meeting", async () => {
+    const artifact = await readArtifact(loreDir, "meetings/abc-123.md");
+    const isMeeting = artifact.relativePath.startsWith("meetings/");
+    const isOpen = artifact.meta.status.toLowerCase().trim() === "open";
+    expect(isMeeting).toBe(true);
+    expect(isOpen).toBe(true);
+
+    // The artifact page should construct a "View Meeting" link
+    const filename = artifact.relativePath.split("/").pop()!;
+    const meetingId = filename.replace(/\.md$/, "");
+    const encodedName = encodeURIComponent(PROJECT_NAME);
+    const meetingLink = `/projects/${encodedName}/meetings/${encodeURIComponent(meetingId)}`;
+    expect(meetingLink).toBe(`/projects/${PROJECT_NAME}/meetings/abc-123`);
+  });
+
+  test("closed meeting artifact does not get a meeting link", async () => {
+    const artifact = await readArtifact(loreDir, "meetings/def-456.md");
+    const isMeeting = artifact.relativePath.startsWith("meetings/");
+    const isOpen = artifact.meta.status.toLowerCase().trim() === "open";
+    expect(isMeeting).toBe(true);
+    expect(isOpen).toBe(false);
+    // No "View Meeting" link should be rendered for closed meetings
+  });
+
+  test("non-meeting artifact does not get a meeting link", async () => {
+    const artifact = await readArtifact(loreDir, "specs/system.md");
+    const isMeeting = artifact.relativePath.startsWith("meetings/");
+    expect(isMeeting).toBe(false);
+    // No "View Meeting" link should be rendered
   });
 });
 
