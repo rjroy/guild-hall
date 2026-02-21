@@ -27,9 +27,13 @@ Phase 1 complete. Three views (Dashboard, Project, Artifact), CLI tools (registe
 ## Commands
 
 ```bash
-bun install          # install dependencies
-bun run dev          # start Next.js dev server
-bun test             # run all tests
+bun install                    # install dependencies
+bun run dev                    # start Next.js dev server
+bun run build                  # production build
+bun run lint                   # ESLint
+bun run typecheck              # TypeScript type checking
+bun test                       # run all tests
+bun test tests/lib/config.test.ts  # run a single test file
 bun run guild-hall register <name> <path>  # register a project
 bun run guild-hall validate                # validate config
 ```
@@ -46,6 +50,30 @@ bun run guild-hall validate                # validate config
 | `.lore/plans/` | Implementation phases and per-phase plans |
 | `.lore/retros/` | Post-mortems with lessons to apply |
 
+## Component Model
+
+Server components (pages) read config/artifacts from the filesystem with `await`, then pass data as props to client components. Client components handle local UI state only (e.g., edit mode toggle in ArtifactContent). No context providers or global state management in Phase 1.
+
+Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact hierarchies. Pages use `await searchParams` for query strings (Next.js 15 async params pattern).
+
+## API Routes
+
+`PUT /api/artifacts` updates artifact body content (Phase 1 exception to "daemon owns writes"). Accepts `{ projectName, artifactPath, content }`. Guards against path traversal. Writes only the markdown body, preserving raw frontmatter bytes to avoid git diff noise from gray-matter reformatting.
+
+## Core Library Modules
+
+| Module | Responsibility |
+|--------|---------------|
+| `lib/config.ts` | Zod schemas, `readConfig()`, `writeConfig()` for `config.yaml` |
+| `lib/artifacts.ts` | `scanArtifacts()`, `readArtifact()`, `writeArtifactContent()` |
+| `lib/artifact-grouping.ts` | Groups artifacts by type/status for project view tabs |
+| `lib/paths.ts` | `getGuildHallHome()`, `getConfigPath()`, `projectLorePath()` |
+| `lib/types.ts` | `ProjectConfig`, `AppConfig`, `Artifact` interfaces, `statusToGem()` |
+
+## CSS Design System
+
+`globals.css` defines the design token system: `--color-brass/bronze/amber` (metallics), `--color-parchment/dark-bg` (backgrounds), `--space-xs` through `--space-2xl` (8-step scale), `--font-body` (Ysabeau Office), `--font-code` (Source Code Pro). GemIndicator uses CSS `hue-rotate()` + `saturate()` filters on a base gem.webp image (`--gem-active/pending/blocked/info`).
+
 ## CSS Quirks
 
 **Vendor prefix order matters.** In Next.js, `-webkit-backdrop-filter` must come BEFORE `backdrop-filter` or the standard property gets dropped during compilation. Add inline comments where this applies. (Source: `.lore/retros/ui-redesign-fantasy-theme.md`)
@@ -53,6 +81,7 @@ bun run guild-hall validate                # validate config
 ## Testing
 
 - **No `mock.module()`**. It causes infinite loops in bun. All code uses dependency injection: functions accept path/config parameters with defaults, tests pass temp directories.
+- Tests use `fs.mkdtemp()` for temp directories, clean up in `afterEach`. Override `GUILD_HALL_HOME` env var for config path isolation.
 - Config tests: in-memory YAML strings, temp file paths
 - Artifact tests: temp directories with test .md files
 - Navigation tests: verify link hrefs and page rendering, not browser automation (Phase 1)
