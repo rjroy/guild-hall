@@ -8,7 +8,7 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 ## Status
 
-Greenfield. No source code exists yet. Implementation follows vertical slices defined in `.lore/plans/implementation-phases.md`. Phase 1 plan is at `.lore/plans/phase-1-empty-hall.md`.
+Phase 1 complete. Three views (Dashboard, Project, Artifact), CLI tools (register, validate), config/artifact libraries, and API route for artifact editing. 171 tests pass. Implementation follows vertical slices defined in `.lore/plans/implementation-phases.md`. Phase 1 plan and implementation notes at `.lore/plans/phase-1-empty-hall.md` and `.lore/notes/phase-1-empty-hall.md`.
 
 ## Architecture
 

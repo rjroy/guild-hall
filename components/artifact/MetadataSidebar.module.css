@@ -1,0 +1,98 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.sectionTitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brass);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.statusText {
+  font-size: 0.85rem;
+  color: var(--color-text);
+  text-transform: capitalize;
+}
+
+.value {
+  font-size: 0.85rem;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.badges {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  background-color: rgba(244, 228, 193, 0.1);
+  color: var(--color-text-muted);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.projectLink {
+  font-size: 0.85rem;
+  color: var(--color-brass);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.projectLink:hover {
+  color: var(--color-amber);
+}
+
+.disabledButton {
+  padding: var(--space-xs) var(--space-sm);
+  background-color: rgba(168, 152, 120, 0.1);
+  border: 1px solid var(--color-text-muted);
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: not-allowed;
+  opacity: 0.4;
+  width: 100%;
+  margin-top: var(--space-xs);
+}
+
+.relatedList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.relatedLink {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+  word-break: break-all;
+}
+
+.relatedLink:hover {
+  color: var(--color-amber);
+}

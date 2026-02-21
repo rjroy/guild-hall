@@ -1,0 +1,44 @@
+/* ============================================================
+   Dashboard: Five-Zone Grid Layout
+
+   +----------+------------------------+-------------+
+   | sidebar  |  briefing              | recent      |
+   |          +------------------------+ artifacts   |
+   |          |  depMap                |             |
+   +----------+------------------------+-------------+
+   |          |  audiences (spans center + right)    |
+   +----------+--------------------------------------+
+   ============================================================ */
+
+.dashboard {
+  display: grid;
+  grid-template-columns: 260px 1fr 320px;
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "sidebar briefing   recent"
+    "sidebar depMap     recent"
+    "sidebar audiences  audiences";
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  min-height: 100vh;
+}
+
+.sidebar {
+  grid-area: sidebar;
+}
+
+.briefing {
+  grid-area: briefing;
+}
+
+.depMap {
+  grid-area: depMap;
+}
+
+.recentArtifacts {
+  grid-area: recent;
+}
+
+.audiences {
+  grid-area: audiences;
+}
