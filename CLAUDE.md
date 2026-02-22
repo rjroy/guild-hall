@@ -213,3 +213,5 @@ Requirements use the format `REQ-{PREFIX}-N` (e.g., REQ-SYS-2, REQ-VIEW-12). The
 - DI factories need production wiring. If the plan creates `createX(deps)` factories, include the step that instantiates real dependencies.
 - gray-matter `stringify()` reformats YAML. When writing artifact content, splice the raw frontmatter bytes and replace only the body to avoid noisy git diffs.
 - "Pre-existing" is not a reason to defer a finding. Present all issues with their actual impact.
+- Git subprocesses spawned during hooks inherit `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_INDEX_FILE`. Any code that shells out to git (including `daemon/lib/git.ts` and test helpers) must strip these variables via `cleanGitEnv()`, or operations will target the hook's repository instead of the intended one.
+- When implementing features that interact with git internals, test under the hook execution context, not just in isolation. Pre-commit hooks set environment variables that change how git behaves. A test that passes in a normal shell may fail (or cause damage) when run from a hook.
