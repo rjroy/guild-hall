@@ -1,7 +1,21 @@
+/* Provenance-style container matching ArtifactProvenance */
 .header {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-sm);
+  padding: var(--space-sm) 50px;
+
+  border-radius: 50px;
+  margin-bottom: var(--space-md);
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+
+  border-image-source: url("/images/ui/scroll-window-dark.webp");
+  border-image-slice: 52 fill;
+  border-image-width: 50px;
+  border-image-repeat: stretch;
+
 }
 
 /* --- Breadcrumb --- */
@@ -32,11 +46,11 @@
   font-weight: 500;
 }
 
-/* --- Header content row --- */
+/* --- Worker + Agenda row --- */
 
 .headerContent {
   display: flex;
-  gap: var(--space-xl);
+  gap: var(--space-lg);
   align-items: flex-start;
 }
 
@@ -44,25 +58,21 @@
   flex-shrink: 0;
 }
 
-/* --- Agenda panel --- */
+/* --- Agenda --- */
 
-.agendaPanel {
+.agendaSection {
   flex: 1;
-  background-color: var(--color-panel-bg);
-  border: 1px solid rgba(184, 134, 11, 0.2);
-  border-radius: 6px;
-  padding: var(--space-md);
-
-  /* vendor prefix must precede standard property in Next.js */
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
 }
 
 .agendaTitle {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--color-brass);
-  margin: 0 0 var(--space-sm) 0;
+  margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -71,6 +81,20 @@
   font-size: 0.9rem;
   color: var(--color-text);
   margin: 0;
-  line-height: 1.6;
+  line-height: 1.5;
   white-space: pre-wrap;
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 600px) {
+  .header {
+    padding: var(--space-sm) var(--space-md);
+    border-radius: 12px;
+  }
+
+  .headerContent {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

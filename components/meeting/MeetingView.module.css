@@ -31,6 +31,10 @@
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s;
+
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .closeButton:hover:not(:disabled) {

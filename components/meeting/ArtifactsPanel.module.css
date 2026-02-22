@@ -4,6 +4,11 @@
   border-radius: 8px;
   padding: var(--space-md);
 
+  border-image-source: url("/images/ui/border.webp");
+  border-image-slice: 120 120 120 120;
+  border-image-width: 30px;
+  border-radius: 30px;
+
   /* vendor prefix must precede standard property in Next.js */
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -13,6 +18,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
   cursor: pointer;
   user-select: none;
   padding: var(--space-xs) 0;

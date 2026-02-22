@@ -55,6 +55,26 @@ function generateId(): string {
   return `msg-${nextMessageId++}`;
 }
 
+/**
+ * Advance the module-level counter past any IDs already present in messages.
+ * Prevents key collisions when initialMessages come from a prior session
+ * (transcript resume) or from sse-helpers (WorkerPicker first turn), both
+ * of which use their own "msg-N" counters starting at 1.
+ */
+function syncIdCounter(messages: ChatMessage[]): void {
+  let max = 0;
+  for (const m of messages) {
+    const match = m.id.match(/^msg-(\d+)$/);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (n > max) max = n;
+    }
+  }
+  if (max >= nextMessageId) {
+    nextMessageId = max + 1;
+  }
+}
+
 export default function ChatInterface({
   meetingId,
   projectName,
@@ -65,7 +85,10 @@ export default function ChatInterface({
   initialMessages = [],
   onArtifactLinked,
 }: ChatInterfaceProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    syncIdCounter(initialMessages);
+    return initialMessages;
+  });
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingTools, setStreamingTools] = useState<ToolUseEntry[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -83,6 +106,7 @@ export default function ChatInterface({
       if (stored) {
         const parsed = JSON.parse(stored) as ChatMessage[];
         if (Array.isArray(parsed) && parsed.length > 0) {
+          syncIdCounter(parsed);
           setMessages(parsed);
         }
         sessionStorage.removeItem(storageKey);
