@@ -17,6 +17,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getGuildHallHome } from "@/lib/paths";
+import { isNodeError } from "@/lib/types";
 
 // -- Types --
 
@@ -295,10 +296,4 @@ export async function removeTranscript(
     }
     throw err;
   }
-}
-
-// -- Utility --
-
-function isNodeError(err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && "code" in err;
 }

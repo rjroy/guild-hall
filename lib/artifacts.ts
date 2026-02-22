@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import matter from "gray-matter";
+import { isNodeError } from "@/lib/types";
 import type { Artifact, ArtifactMeta } from "@/lib/types";
 
 // -- Path validation --
@@ -242,8 +243,4 @@ async function collectMarkdownFiles(dir: string): Promise<string[]> {
   }
 
   return results;
-}
-
-function isNodeError(err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && "code" in err;
 }

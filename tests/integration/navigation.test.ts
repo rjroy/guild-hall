@@ -9,7 +9,9 @@ import { statusToGem } from "@/lib/types";
 import type { GemStatus } from "@/lib/types";
 import { relatedToHref } from "@/components/artifact/MetadataSidebar";
 import { artifactHref } from "@/components/dashboard/RecentArtifacts";
+import { commissionHref } from "@/components/dashboard/DependencyMap";
 import { meetingStatusToGem } from "@/components/project/MeetingList";
+import { scanCommissions } from "@/lib/commissions";
 
 /**
  * Integration tests for navigation data flow.
@@ -162,6 +164,41 @@ Code review request that was declined.`,
     "utf-8"
   );
 
+  // Commission artifacts
+  await fs.mkdir(path.join(loreDir, "commissions"), { recursive: true });
+
+  await fs.writeFile(
+    path.join(loreDir, "commissions", "commission-researcher-20260221-120000.md"),
+    `---
+title: Investigate Performance
+date: 2026-02-21
+status: in_progress
+tags: [commission]
+worker: researcher
+workerDisplayTitle: Research Specialist
+prompt: Investigate the performance bottleneck
+current_progress: Analyzing call patterns...
+---
+Commission body.`,
+    "utf-8"
+  );
+
+  await fs.writeFile(
+    path.join(loreDir, "commissions", "commission-architect-20260220-090000.md"),
+    `---
+title: Design Review
+date: 2026-02-20
+status: completed
+tags: [commission]
+worker: architect
+workerDisplayTitle: System Architect
+prompt: Review the module design
+result_summary: Design approved with minor changes.
+---
+Commission body.`,
+    "utf-8"
+  );
+
   // Set up config.yaml
   const homeDir = path.join(tmpDir, "home");
   configFilePath = getConfigPath(homeDir);
@@ -214,10 +251,12 @@ describe("config to project data flow", () => {
 describe("artifact scanning data flow", () => {
   test("scanArtifacts finds all .md files in .lore/", async () => {
     const artifacts = await scanArtifacts(loreDir);
-    expect(artifacts.length).toBe(8);
+    expect(artifacts.length).toBe(10);
 
     const paths = artifacts.map((a) => a.relativePath).sort();
     expect(paths).toEqual([
+      "commissions/commission-architect-20260220-090000.md",
+      "commissions/commission-researcher-20260221-120000.md",
       "meetings/abc-123.md",
       "meetings/def-456.md",
       "meetings/ghi-789.md",
@@ -559,12 +598,14 @@ describe("navigation completeness (no dead ends)", () => {
     //     -> Project view (REQ-VIEW-5): /projects/{name}
     //     -> Artifact links: /projects/{name}/artifacts/{path}
     //     -> Open meeting links: /projects/{name}/meetings/{id}
+    //     -> Commission links (DependencyMap): /projects/{name}/commissions/{id}
     //
     //   Project (/projects/{name})
     //     -> Back to dashboard: /
     //     -> Tab navigation: /projects/{name}?tab={tab}
     //     -> Artifact links: /projects/{name}/artifacts/{path}
     //     -> Meeting links (meetings tab): /projects/{name}/meetings/{id}
+    //     -> Commission links (commissions tab): /projects/{name}/commissions/{id}
     //
     //   Artifact (/projects/{name}/artifacts/{path})
     //     -> Back to dashboard: /
@@ -576,6 +617,10 @@ describe("navigation completeness (no dead ends)", () => {
     //     -> Back to dashboard: / (breadcrumb)
     //     -> Back to project: /projects/{name} (breadcrumb)
     //     -> Closed meeting: return link to /projects/{name}
+    //
+    //   Commission (/projects/{name}/commissions/{id})
+    //     -> Back to dashboard: / (breadcrumb)
+    //     -> Back to project: /projects/{name} (breadcrumb)
     //
     // Every view has at least one link leading to it and at least one
     // link leading away. There are no dead ends.
@@ -636,6 +681,18 @@ describe("navigation completeness (no dead ends)", () => {
     expect(projectUrl).toBeTruthy();
 
     // Closed meeting -> Project (return link)
+    expect(projectUrl).toBeTruthy();
+
+    // Dashboard -> Commission (via DependencyMap)
+    const commissions = await scanCommissions(lorePath, project.name);
+    expect(commissions.length).toBeGreaterThan(0);
+    const commHref = commissionHref(project.name, commissions[0].commissionId);
+    expect(commHref).toMatch(/\/projects\/.+\/commissions\/.+/);
+
+    // Commission -> Dashboard (breadcrumb)
+    expect(dashboardUrl).toBe("/");
+
+    // Commission -> Project (breadcrumb)
     expect(projectUrl).toBeTruthy();
 
     // All paths are reachable and lead somewhere
@@ -975,5 +1032,70 @@ describe("meeting states navigation completeness (no dead ends)", () => {
     expect(href).toBe(
       "/projects/my%20project%20%26%20stuff/artifacts/meetings/jkl-012.md"
     );
+  });
+});
+
+describe("commission navigation", () => {
+  test("commissionHref constructs valid URL from project name and commission ID", () => {
+    const href = commissionHref(
+      PROJECT_NAME,
+      "commission-researcher-20260221-120000",
+    );
+    expect(href).toBe(
+      `/projects/${PROJECT_NAME}/commissions/commission-researcher-20260221-120000`,
+    );
+  });
+
+  test("commissionHref encodes special characters in project name", () => {
+    const href = commissionHref(
+      PROJECT_NAME_SPECIAL,
+      "commission-researcher-20260221-120000",
+    );
+    expect(href).toBe(
+      "/projects/my%20project%20%26%20stuff/commissions/commission-researcher-20260221-120000",
+    );
+  });
+
+  test("scanCommissions finds commission artifacts in .lore/commissions/", async () => {
+    const commissions = await scanCommissions(loreDir, PROJECT_NAME);
+    expect(commissions.length).toBe(2);
+
+    const ids = commissions.map((c) => c.commissionId).sort();
+    expect(ids).toEqual([
+      "commission-architect-20260220-090000",
+      "commission-researcher-20260221-120000",
+    ]);
+  });
+
+  test("commission links use /projects/{name}/commissions/{id} format", async () => {
+    const commissions = await scanCommissions(loreDir, PROJECT_NAME);
+    const encodedName = encodeURIComponent(PROJECT_NAME);
+
+    for (const commission of commissions) {
+      const href = commissionHref(PROJECT_NAME, commission.commissionId);
+      expect(href).toStartWith(`/projects/${encodedName}/commissions/`);
+      expect(href).toContain(commission.commissionId);
+    }
+  });
+
+  test("commission view is reachable from dashboard via DependencyMap cards", async () => {
+    const commissions = await scanCommissions(loreDir, PROJECT_NAME);
+    expect(commissions.length).toBeGreaterThan(0);
+
+    // Each commission produces a navigable link
+    for (const commission of commissions) {
+      const href = commissionHref(PROJECT_NAME, commission.commissionId);
+      expect(href).toMatch(/^\/projects\/.+\/commissions\/.+/);
+    }
+  });
+
+  test("commission statuses from fixtures map to valid gem values", async () => {
+    const commissions = await scanCommissions(loreDir, PROJECT_NAME);
+    const validGems = new Set(["active", "pending", "blocked", "info"]);
+
+    for (const commission of commissions) {
+      const gem = statusToGem(commission.status);
+      expect(validGems.has(gem)).toBe(true);
+    }
   });
 });

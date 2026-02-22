@@ -47,6 +47,9 @@ try {
 const server = Bun.serve({
   unix: socketPath,
   fetch: app.fetch,
+  // SSE connections are long-lived. Bun's default 10s idle timeout
+  // kills them before any events arrive. Disable the timeout.
+  idleTimeout: 0 as never,
 });
 
 writePidFile(socketPath);

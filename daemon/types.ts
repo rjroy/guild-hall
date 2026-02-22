@@ -12,6 +12,7 @@
 
 export type MeetingId = string & { readonly __brand: "MeetingId" };
 export type SdkSessionId = string & { readonly __brand: "SdkSessionId" };
+export type CommissionId = string & { readonly __brand: "CommissionId" };
 
 export function asMeetingId(id: string): MeetingId {
   return id as MeetingId;
@@ -21,9 +22,36 @@ export function asSdkSessionId(id: string): SdkSessionId {
   return id as SdkSessionId;
 }
 
+export function asCommissionId(id: string): CommissionId {
+  return id as CommissionId;
+}
+
 // -- Meeting status --
 
 export type MeetingStatus = "requested" | "open" | "closed" | "declined";
+
+// -- Commission status --
+
+export type CommissionStatus =
+  | "pending"
+  | "blocked"
+  | "dispatched"
+  | "in_progress"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+// -- Tool result type --
+
+/**
+ * Matches the CallToolResult type from @modelcontextprotocol/sdk/types.js.
+ * Defined here because the MCP SDK is a transitive peer dep of the Claude
+ * Agent SDK, not a direct dependency.
+ */
+export type ToolResult = {
+  content: Array<{ type: "text"; text: string }>;
+  isError?: boolean;
+};
 
 // -- Event types --
 

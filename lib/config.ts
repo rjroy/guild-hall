@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { z } from "zod";
 import * as yaml from "yaml";
 import { getConfigPath } from "@/lib/paths";
+import { isNodeError } from "@/lib/types";
 import type { AppConfig, ProjectConfig } from "@/lib/types";
 
 // -- Zod schemas (exported so the CLI can reuse them) --
@@ -94,8 +95,3 @@ export async function getProject(
   return config.projects.find((p) => p.name === name);
 }
 
-// -- Helpers --
-
-function isNodeError(err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && "code" in err;
-}

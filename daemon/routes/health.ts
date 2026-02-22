@@ -3,6 +3,8 @@ import { Hono } from "hono";
 export interface HealthDeps {
   /** Returns the number of active meetings. */
   getMeetingCount: () => number;
+  /** Returns the number of active commissions. */
+  getCommissionCount?: () => number;
   /** Returns daemon uptime in seconds. */
   getUptimeSeconds: () => number;
 }
@@ -18,6 +20,7 @@ export function createHealthRoutes(deps: HealthDeps): Hono {
     return c.json({
       status: "ok",
       meetings: deps.getMeetingCount(),
+      commissions: { running: deps.getCommissionCount?.() ?? 0 },
       uptime: deps.getUptimeSeconds(),
     });
   });

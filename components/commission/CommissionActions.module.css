@@ -1,0 +1,114 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* --- Shared button base --- */
+
+.dispatchButton,
+.cancelButton,
+.redispatchButton,
+.confirmYes,
+.confirmNo {
+  padding: var(--space-xs) var(--space-md);
+  border-radius: 4px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.dispatchButton:disabled,
+.cancelButton:disabled,
+.redispatchButton:disabled,
+.confirmYes:disabled,
+.confirmNo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Dispatch (primary action, brass) --- */
+
+.dispatchButton {
+  background-color: rgba(184, 134, 11, 0.2);
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+}
+
+.dispatchButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.35);
+}
+
+/* --- Cancel (danger action, red) --- */
+
+.cancelButton {
+  background-color: rgba(180, 60, 60, 0.15);
+  border: 1px solid rgba(180, 60, 60, 0.3);
+  color: var(--color-text);
+}
+
+.cancelButton:hover:not(:disabled) {
+  background-color: rgba(180, 60, 60, 0.25);
+  border-color: rgba(180, 60, 60, 0.5);
+}
+
+/* --- Re-dispatch (secondary action) --- */
+
+.redispatchButton {
+  background-color: rgba(184, 134, 11, 0.15);
+  border: 1px solid rgba(184, 134, 11, 0.4);
+  color: var(--color-brass);
+}
+
+.redispatchButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.25);
+}
+
+/* --- Confirmation row --- */
+
+.confirmRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs);
+  background-color: rgba(180, 60, 60, 0.08);
+  border: 1px solid rgba(180, 60, 60, 0.2);
+  border-radius: 6px;
+}
+
+.confirmText {
+  font-size: 0.85rem;
+  color: var(--color-text);
+  flex: 1;
+}
+
+.confirmYes {
+  background-color: rgba(180, 60, 60, 0.2);
+  border: 1px solid rgba(180, 60, 60, 0.4);
+  color: #e88;
+}
+
+.confirmYes:hover:not(:disabled) {
+  background-color: rgba(180, 60, 60, 0.35);
+}
+
+.confirmNo {
+  background-color: transparent;
+  border: 1px solid var(--color-text-muted);
+  color: var(--color-text-muted);
+}
+
+.confirmNo:hover:not(:disabled) {
+  border-color: var(--color-text);
+  color: var(--color-text);
+}
+
+/* --- Error --- */
+
+.error {
+  font-size: 0.8rem;
+  color: #c44;
+  margin: 0;
+}

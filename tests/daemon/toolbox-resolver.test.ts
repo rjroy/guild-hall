@@ -74,7 +74,7 @@ function makeWorkerToolboxPackage(name: string): DiscoveredPackage {
 function testContext() {
   return {
     projectPath,
-    meetingId: "meeting-test",
+    meetingId: "meeting-test" as string,
     guildHallHome,
   };
 }
@@ -219,5 +219,47 @@ describe("resolveToolSet", () => {
     expect(meetingServer.name).toBe("guild-hall-meeting");
     expect(meetingServer.type).toBe("sdk");
     expect(meetingServer.instance).toBeDefined();
+  });
+
+  test("commission context with daemonSocketPath produces base + commission MCP servers", () => {
+    const worker = makeWorker();
+    const context = {
+      projectPath,
+      commissionId: "commission-test",
+      guildHallHome,
+      daemonSocketPath: "/tmp/fake.sock",
+    };
+    const result = resolveToolSet(worker, [], context);
+
+    expect(result.mcpServers).toHaveLength(2);
+    expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    expect(result.mcpServers[1].name).toBe("guild-hall-commission");
+    expect(result.mcpServers[1].type).toBe("sdk");
+    expect(result.mcpServers[1].instance).toBeDefined();
+  });
+
+  test("commission context without daemonSocketPath throws", () => {
+    const worker = makeWorker();
+    const context = {
+      projectPath,
+      commissionId: "commission-test",
+      guildHallHome,
+    };
+
+    expect(() => resolveToolSet(worker, [], context)).toThrow(
+      /Commission context requires daemonSocketPath/,
+    );
+  });
+
+  test("context with neither meetingId nor commissionId throws", () => {
+    const worker = makeWorker();
+    const context = {
+      projectPath,
+      guildHallHome,
+    };
+
+    expect(() => resolveToolSet(worker, [], context)).toThrow(
+      /requires either meetingId or commissionId/,
+    );
   });
 });

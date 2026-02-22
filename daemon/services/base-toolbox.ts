@@ -8,25 +8,18 @@ import type {
   McpSdkServerConfigWithInstance,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod/v4";
-
-/**
- * Matches the CallToolResult type from @modelcontextprotocol/sdk/types.js.
- * Defined locally because the MCP SDK is not a direct dependency (it's
- * a transitive peer dep of the Claude Agent SDK).
- */
-type ToolResult = {
-  content: Array<{ type: "text"; text: string }>;
-  isError?: boolean;
-};
+import type { ToolResult } from "@/daemon/types";
 import { readArtifact, writeArtifactContent, scanArtifacts } from "@/lib/artifacts";
+import { isNodeError } from "@/lib/types";
 import { projectLorePath } from "@/lib/paths";
 
 // -- Types --
 
 export interface BaseToolboxDeps {
   projectPath: string;
-  meetingId: string;
-  guildHallHome?: string; // defaults to ~/.guild-hall
+  contextId: string;                          // meetingId or commissionId
+  contextType: "meeting" | "commission";      // determines storage path
+  guildHallHome?: string;                     // defaults to ~/.guild-hall
 }
 
 // -- Path safety --
@@ -197,7 +190,12 @@ export function makeListArtifactsHandler(projectPath: string) {
   };
 }
 
-export function makeRecordDecisionHandler(guildHallHome: string, meetingId: string) {
+export function makeRecordDecisionHandler(
+  guildHallHome: string,
+  contextId: string,
+  contextType: "meeting" | "commission",
+) {
+  const stateSubdir = contextType === "meeting" ? "meetings" : "commissions";
   return async (args: {
     question: string;
     decision: string;
@@ -206,8 +204,8 @@ export function makeRecordDecisionHandler(guildHallHome: string, meetingId: stri
     const decisionsDir = path.join(
       guildHallHome,
       "state",
-      "meetings",
-      meetingId,
+      stateSubdir,
+      contextId,
     );
     const decisionsPath = path.join(decisionsDir, "decisions.jsonl");
 
@@ -222,7 +220,7 @@ export function makeRecordDecisionHandler(guildHallHome: string, meetingId: stri
     await fs.appendFile(decisionsPath, JSON.stringify(entry) + "\n", "utf-8");
 
     return {
-      content: [{ type: "text", text: `Decision recorded for meeting ${meetingId}` }],
+      content: [{ type: "text", text: `Decision recorded for ${contextType} ${contextId}` }],
     };
   };
 }
@@ -241,7 +239,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
   const readArtifactHandler = makeReadArtifactHandler(deps.projectPath);
   const writeArtifactHandler = makeWriteArtifactHandler(deps.projectPath);
   const listArtifactsHandler = makeListArtifactsHandler(deps.projectPath);
-  const recordDecision = makeRecordDecisionHandler(guildHallHome, deps.meetingId);
+  const recordDecision = makeRecordDecisionHandler(guildHallHome, deps.contextId, deps.contextType);
 
   return createSdkMcpServer({
     name: "guild-hall-base",
@@ -293,7 +291,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
       ),
       tool(
         "record_decision",
-        "Record a decision made during this meeting. Appends to the meeting's decision log.",
+        "Record a decision made during this session. Appends to the session's decision log.",
         {
           question: z.string(),
           decision: z.string(),
@@ -313,8 +311,4 @@ function defaultGuildHallHome(): string {
     throw new Error("Cannot determine home directory: HOME is not set");
   }
   return path.join(home, ".guild-hall");
-}
-
-function isNodeError(err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && "code" in err;
 }

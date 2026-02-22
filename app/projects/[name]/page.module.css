@@ -11,3 +11,14 @@
 .tabContent {
   flex: 1;
 }
+
+.commissionTab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.commissionActions {
+  display: flex;
+  justify-content: flex-end;
+}

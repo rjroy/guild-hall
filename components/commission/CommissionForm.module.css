@@ -1,0 +1,236 @@
+/* CommissionForm - inline form for creating commissions */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  background-color: rgba(26, 20, 18, 0.85);
+  /* -webkit- must come before standard property (Next.js compilation quirk) */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-bronze);
+  border-radius: 6px;
+  padding: var(--space-lg);
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.textInput {
+  width: 100%;
+  padding: var(--space-sm);
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-bronze);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.textInput:focus {
+  outline: none;
+  border-color: var(--color-brass);
+}
+
+.textInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.select {
+  width: 100%;
+  padding: var(--space-sm);
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-bronze);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a89878' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-sm) center;
+  padding-right: var(--space-xl);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--color-brass);
+}
+
+.select option {
+  background-color: #1a1412;
+  color: var(--color-text);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: var(--space-sm);
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-bronze);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--color-brass);
+}
+
+.textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Collapsible resource overrides */
+
+.overridesToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.overridesToggle:hover {
+  color: var(--color-text);
+}
+
+.overridesArrow {
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+
+.overridesArrowOpen {
+  transform: rotate(90deg);
+}
+
+.overridesFields {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-xs);
+}
+
+.overridesField {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.overridesLabel {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.numberInput {
+  width: 100%;
+  padding: var(--space-sm);
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-bronze);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.numberInput:focus {
+  outline: none;
+  border-color: var(--color-brass);
+}
+
+.numberInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Buttons */
+
+.buttonRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.cancelButton {
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: 1px solid var(--color-text-muted);
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.cancelButton:hover {
+  color: var(--color-text);
+  border-color: var(--color-text);
+}
+
+.submitButton {
+  padding: var(--space-sm) var(--space-md);
+  background-color: rgba(184, 134, 11, 0.15);
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.submitButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.25);
+}
+
+.submitButton:disabled {
+  opacity: 0.4;
+  border-color: var(--color-text-muted);
+  color: var(--color-text-muted);
+  background-color: rgba(168, 152, 120, 0.1);
+  cursor: not-allowed;
+}
+
+/* Error display */
+
+.errorMessage {
+  color: #c87a6a;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* Status messages */
+
+.statusMessage {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-style: italic;
+  margin: 0;
+}
