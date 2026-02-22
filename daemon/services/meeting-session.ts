@@ -81,7 +81,8 @@ type ActiveMeeting = {
    *  used for getWorkerByName lookups during session renewal/recovery. */
   packageName: string;
   sdkSessionId: SdkSessionId | null;
-  tempDir: string;
+  worktreeDir: string;
+  branchName: string;
   abortController: AbortController;
   // In-memory only; "requested"/"declined" are artifact-only states
   status: "open" | "closed";
@@ -439,7 +440,7 @@ notes_summary: ""
           referencedArtifacts: [],
         },
         projectPath,
-        workingDirectory: meeting.tempDir,
+        workingDirectory: meeting.worktreeDir,
       };
 
       activation = await activateWorker(workerPkg, activationContext);
@@ -470,7 +471,7 @@ notes_summary: ""
         mcpServers: mcpServersRecord,
         allowedTools: activation.tools.allowedTools,
         settingSources: [],
-        cwd: meeting.tempDir,
+        cwd: meeting.worktreeDir,
         additionalDirectories: [projectPath],
         maxTurns: activation.resourceBounds.maxTurns,
         maxBudgetUsd: activation.resourceBounds.maxBudgetUsd,
@@ -493,7 +494,7 @@ notes_summary: ""
         workerName: meeting.workerName,
         packageName: meeting.packageName,
         sdkSessionId: meeting.sdkSessionId,
-        tempDir: meeting.tempDir,
+        worktreeDir: meeting.worktreeDir,
         status: "open",
       });
     } catch {
@@ -646,9 +647,9 @@ notes_summary: ""
     }
 
     // i. Create temp directory
-    let tempDir: string;
+    let worktreeDir: string;
     try {
-      tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "guild-hall-"));
+      worktreeDir = await fs.mkdtemp(path.join(os.tmpdir(), "guild-hall-"));
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
       yield { type: "error", reason: `Failed to create temp directory: ${reason}` };
@@ -663,7 +664,7 @@ notes_summary: ""
         workerName,
         packageName: workerPkg.name,
         sdkSessionId: null,
-        tempDir,
+        worktreeDir,
         status: "open",
         createdAt: new Date().toISOString(),
       });
@@ -706,7 +707,8 @@ notes_summary: ""
       workerName,
       packageName: workerPkg.name,
       sdkSessionId: null,
-      tempDir,
+      worktreeDir,
+      branchName: "",
       abortController,
       status: "open",
     };
@@ -755,9 +757,9 @@ notes_summary: ""
     const meetingId = formatMeetingId(workerMeta.identity.name, new Date());
 
     // d. Create temp directory
-    let tempDir: string;
+    let worktreeDir: string;
     try {
-      tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "guild-hall-"));
+      worktreeDir = await fs.mkdtemp(path.join(os.tmpdir(), "guild-hall-"));
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
       yield { type: "error", reason: `Failed to create temp directory: ${reason}` };
@@ -802,7 +804,7 @@ notes_summary: ""
         workerName: workerMeta.identity.name,
         packageName: workerName,
         sdkSessionId: null,
-        tempDir,
+        worktreeDir,
         status: "open",
         createdAt: new Date().toISOString(),
       });
@@ -821,7 +823,8 @@ notes_summary: ""
       workerName: workerMeta.identity.name,
       packageName: workerName,
       sdkSessionId: null,
-      tempDir,
+      worktreeDir,
+      branchName: "",
       abortController,
       status: "open",
     };
@@ -885,7 +888,7 @@ notes_summary: ""
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
           settingSources: [],
-          cwd: meeting.tempDir,
+          cwd: meeting.worktreeDir,
           additionalDirectories: [project.path],
           abortController,
         },
@@ -923,7 +926,7 @@ notes_summary: ""
           workerName: meeting.workerName,
           packageName: meeting.packageName,
           sdkSessionId: meeting.sdkSessionId,
-          tempDir: meeting.tempDir,
+          worktreeDir: meeting.worktreeDir,
           status: "open",
         });
       } catch {
@@ -1001,7 +1004,7 @@ notes_summary: ""
         workerName: string;
         packageName?: string;
         sdkSessionId: string | null;
-        tempDir: string;
+        worktreeDir: string;
         status: string;
       };
 
@@ -1032,11 +1035,11 @@ notes_summary: ""
 
       // After an OS reboot, temp directories no longer exist. Create a fresh
       // one if the stored path is gone so the SDK's cwd doesn't fail.
-      let tempDir = state.tempDir;
+      let worktreeDir = state.worktreeDir;
       try {
-        await fs.access(tempDir);
+        await fs.access(worktreeDir);
       } catch {
-        tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "guild-hall-"));
+        worktreeDir = await fs.mkdtemp(path.join(os.tmpdir(), "guild-hall-"));
         // Persist the new path so subsequent reads are consistent
         try {
           await writeStateFile(asMeetingId(state.meetingId), {
@@ -1045,11 +1048,11 @@ notes_summary: ""
             workerName: state.workerName,
             packageName,
             sdkSessionId: state.sdkSessionId,
-            tempDir,
+            worktreeDir,
             status: "open",
           });
         } catch {
-          // Non-fatal; the meeting is still usable with the new tempDir
+          // Non-fatal; the meeting is still usable with the new worktreeDir
         }
       }
 
@@ -1061,7 +1064,8 @@ notes_summary: ""
         sdkSessionId: state.sdkSessionId
           ? asSdkSessionId(state.sdkSessionId)
           : null,
-        tempDir,
+        worktreeDir,
+        branchName: "",
         abortController: new AbortController(),
         status: "open",
       };
@@ -1145,7 +1149,7 @@ notes_summary: ""
         workerName: meeting.workerName,
         packageName: meeting.packageName,
         sdkSessionId: meeting.sdkSessionId,
-        tempDir: meeting.tempDir,
+        worktreeDir: meeting.worktreeDir,
         status: "closed",
         closedAt: new Date().toISOString(),
       });
@@ -1155,7 +1159,7 @@ notes_summary: ""
 
     // Clean up temp directory
     try {
-      await fs.rm(meeting.tempDir, { recursive: true, force: true });
+      await fs.rm(meeting.worktreeDir, { recursive: true, force: true });
     } catch {
       // Non-fatal; temp dirs are cleaned on reboot anyway
     }

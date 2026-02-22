@@ -642,16 +642,16 @@ describe("createMeetingSession", () => {
         "utf-8",
       );
       const state = JSON.parse(stateContent);
-      const tempDir = state.tempDir;
+      const worktreeDir = state.worktreeDir;
 
       // Verify temp dir exists before close
-      const existsBefore = await fs.stat(tempDir).then(() => true).catch(() => false);
+      const existsBefore = await fs.stat(worktreeDir).then(() => true).catch(() => false);
       expect(existsBefore).toBe(true);
 
       await session.closeMeeting(asMeetingId(meetingId));
 
       // Verify temp dir is cleaned up
-      const existsAfter = await fs.stat(tempDir).then(() => true).catch(() => false);
+      const existsAfter = await fs.stat(worktreeDir).then(() => true).catch(() => false);
       expect(existsAfter).toBe(false);
     });
 
@@ -918,7 +918,7 @@ describe("createMeetingSession", () => {
       expect(state).toHaveProperty("projectName");
       expect(state).toHaveProperty("workerName");
       expect(state).toHaveProperty("sdkSessionId");
-      expect(state).toHaveProperty("tempDir");
+      expect(state).toHaveProperty("worktreeDir");
       expect(state).toHaveProperty("status");
     });
 
@@ -1530,7 +1530,7 @@ notes_summary: ""
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-old-session",
-        tempDir: "/tmp/guild-hall-recovered",
+        worktreeDir: "/tmp/guild-hall-recovered",
         status: "open",
       });
 
@@ -1553,7 +1553,7 @@ notes_summary: ""
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-session-closed",
-        tempDir: "/tmp/guild-hall-closed",
+        worktreeDir: "/tmp/guild-hall-closed",
         status: "closed",
       });
 
@@ -1572,7 +1572,7 @@ notes_summary: ""
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-session-orphan",
-        tempDir: "/tmp/guild-hall-orphan",
+        worktreeDir: "/tmp/guild-hall-orphan",
         status: "open",
       });
 
@@ -1591,7 +1591,7 @@ notes_summary: ""
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-session-to-resume",
-        tempDir: "/tmp/guild-hall-resume",
+        worktreeDir: "/tmp/guild-hall-resume",
         status: "open",
       });
 
@@ -1624,7 +1624,7 @@ notes_summary: ""
       expect(recovered).toBe(0);
     });
 
-    test("creates fresh tempDir when stored tempDir no longer exists (post-reboot)", async () => {
+    test("creates fresh worktreeDir when stored worktreeDir no longer exists (post-reboot)", async () => {
       const meetingId = "audience-Assistant-20260221-100020";
       // Use a path that doesn't exist (simulates a temp dir from a previous boot)
       const nonExistentTempDir = path.join(tmpRoot, "does-not-exist-after-reboot");
@@ -1634,7 +1634,7 @@ notes_summary: ""
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-after-reboot",
-        tempDir: nonExistentTempDir,
+        worktreeDir: nonExistentTempDir,
         status: "open",
       });
 
@@ -1642,27 +1642,27 @@ notes_summary: ""
       const recovered = await session.recoverMeetings();
       expect(recovered).toBe(1);
 
-      // The recovered meeting should have a tempDir that actually exists
+      // The recovered meeting should have a worktreeDir that actually exists
       const openMeetings = session.getOpenMeetingsForProject("test-project");
       expect(openMeetings).toHaveLength(1);
       const meeting = openMeetings[0];
-      expect(meeting.tempDir).not.toBe(nonExistentTempDir);
+      expect(meeting.worktreeDir).not.toBe(nonExistentTempDir);
 
-      const tempDirExists = await fs.stat(meeting.tempDir).then(() => true).catch(() => false);
-      expect(tempDirExists).toBe(true);
+      const worktreeDirExists = await fs.stat(meeting.worktreeDir).then(() => true).catch(() => false);
+      expect(worktreeDirExists).toBe(true);
 
-      // State file should have been updated with the new tempDir
+      // State file should have been updated with the new worktreeDir
       const stateDir = path.join(ghHomeDir, "state", "meetings");
       const stateContent = await fs.readFile(
         path.join(stateDir, `${meetingId}.json`),
         "utf-8",
       );
       const state = JSON.parse(stateContent);
-      expect(state.tempDir).toBe(meeting.tempDir);
-      expect(state.tempDir).not.toBe(nonExistentTempDir);
+      expect(state.worktreeDir).toBe(meeting.worktreeDir);
+      expect(state.worktreeDir).not.toBe(nonExistentTempDir);
 
       // Clean up the created temp dir
-      await fs.rm(meeting.tempDir, { recursive: true, force: true });
+      await fs.rm(meeting.worktreeDir, { recursive: true, force: true });
     });
 
     test("recovers multiple open meetings, skipping closed ones", async () => {
@@ -1672,7 +1672,7 @@ notes_summary: ""
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-1",
-        tempDir: "/tmp/gh-1",
+        worktreeDir: "/tmp/gh-1",
         status: "open",
       });
       await writeStateFile("audience-Assistant-20260221-100011", {
@@ -1681,7 +1681,7 @@ notes_summary: ""
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-2",
-        tempDir: "/tmp/gh-2",
+        worktreeDir: "/tmp/gh-2",
         status: "closed",
       });
       await writeStateFile("audience-Assistant-20260221-100012", {
@@ -1690,7 +1690,7 @@ notes_summary: ""
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-3",
-        tempDir: "/tmp/gh-3",
+        worktreeDir: "/tmp/gh-3",
         status: "open",
       });
 
@@ -1854,7 +1854,7 @@ notes_summary: ""
           workerName: "Assistant",
           packageName: "guild-hall-sample-assistant",
           sdkSessionId: "sdk-old-session-for-log",
-          tempDir: "/tmp/guild-hall-log-test",
+          worktreeDir: "/tmp/guild-hall-log-test",
           status: "open",
         }),
         "utf-8",
@@ -1927,7 +1927,7 @@ notes_summary: ""
           workerName: "Assistant",
           packageName: "guild-hall-sample-assistant",
           sdkSessionId: "sdk-before-renewal",
-          tempDir: "/tmp/guild-hall-state-test",
+          worktreeDir: "/tmp/guild-hall-state-test",
           status: "open",
         }),
         "utf-8",
@@ -2019,7 +2019,7 @@ notes_summary: ""
           workerName: "Assistant",
           packageName: "guild-hall-sample-assistant",
           sdkSessionId: "sdk-will-throw",
-          tempDir: "/tmp/guild-hall-throw-test",
+          worktreeDir: "/tmp/guild-hall-throw-test",
           status: "open",
         }),
         "utf-8",
@@ -2113,7 +2113,7 @@ notes_summary: ""
           workerName: "Assistant",
           packageName: "guild-hall-sample-assistant",
           sdkSessionId: "sdk-regular-error",
-          tempDir: "/tmp/guild-hall-regular-error",
+          worktreeDir: "/tmp/guild-hall-regular-error",
           status: "open",
         }),
         "utf-8",

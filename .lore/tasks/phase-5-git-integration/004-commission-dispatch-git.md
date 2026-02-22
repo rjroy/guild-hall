@@ -1,7 +1,7 @@
 ---
 title: "Commission dispatch creates activity branch and worktree"
 date: 2026-02-22
-status: pending
+status: complete
 tags: [task, commission, dispatch, worktree, sparse-checkout]
 source: .lore/plans/phase-5-git-integration.md
 related:

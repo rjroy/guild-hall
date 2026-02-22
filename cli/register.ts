@@ -1,7 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { readConfig, writeConfig } from "@/lib/config";
-import { getConfigPath } from "@/lib/paths";
+import { getConfigPath, getGuildHallHome, integrationWorktreePath, activityWorktreeRoot } from "@/lib/paths";
+import { createGitOps, type GitOps } from "@/daemon/lib/git";
 
 /**
  * Register a project in the Guild Hall config.
@@ -16,7 +17,8 @@ import { getConfigPath } from "@/lib/paths";
 export async function register(
   name: string,
   projectPath: string,
-  homeOverride?: string
+  homeOverride?: string,
+  gitOps?: GitOps
 ): Promise<void> {
   const resolved = path.resolve(projectPath);
 
@@ -54,6 +56,23 @@ export async function register(
   if (config.projects.some((p) => p.name === name)) {
     throw new Error(`project '${name}' is already registered`);
   }
+
+  // Set up git integration before writing config.
+  // If any git operation fails, registration aborts and config stays untouched.
+  const git = gitOps ?? createGitOps();
+  const ghHome = getGuildHallHome(homeOverride);
+
+  // Create claude branch from HEAD if it doesn't exist
+  await git.initClaudeBranch(resolved);
+
+  // Create integration worktree (Guild Hall's checkout on the claude branch)
+  const integrationPath = integrationWorktreePath(ghHome, name);
+  await fs.mkdir(path.dirname(integrationPath), { recursive: true });
+  await git.createWorktree(resolved, integrationPath, "claude");
+
+  // Ensure the activity worktrees directory exists
+  const worktreeRoot = activityWorktreeRoot(ghHome, name);
+  await fs.mkdir(worktreeRoot, { recursive: true });
 
   config.projects.push({ name, path: resolved });
   await writeConfig(config, configFilePath);

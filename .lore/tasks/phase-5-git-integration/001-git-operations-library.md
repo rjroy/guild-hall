@@ -1,7 +1,7 @@
 ---
 title: "Git operations library with DI-injectable interface"
 date: 2026-02-22
-status: pending
+status: complete
 tags: [task, git, subprocess, di-factory]
 source: .lore/plans/phase-5-git-integration.md
 related:

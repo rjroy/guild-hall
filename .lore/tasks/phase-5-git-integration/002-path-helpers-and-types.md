@@ -1,7 +1,7 @@
 ---
 title: "Path helpers and type updates for worktrees and branches"
 date: 2026-02-22
-status: pending
+status: complete
 tags: [task, paths, types]
 source: .lore/plans/phase-5-git-integration.md
 related:
