@@ -4,7 +4,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import WorkerPortrait from "@/components/ui/WorkerPortrait";
-import type { ChatMessage } from "@/components/meeting/types";
+import {
+  consumeFirstTurnSSE,
+  storeFirstTurnMessages,
+} from "@/lib/sse-helpers";
 import styles from "./WorkerPicker.module.css";
 
 interface WorkerInfo {
@@ -19,40 +22,6 @@ interface WorkerPickerProps {
   projectName: string;
   isOpen: boolean;
   onClose: () => void;
-}
-
-/**
- * Parses SSE lines from a buffered response stream. Returns events parsed
- * from complete lines and the remaining incomplete buffer.
- */
-function parseSSEBuffer(buffer: string): {
-  events: Array<{ type: string; [key: string]: unknown }>;
-  remaining: string;
-} {
-  const events: Array<{ type: string; [key: string]: unknown }> = [];
-  const lines = buffer.split("\n");
-  const remaining = lines.pop()!;
-
-  for (const line of lines) {
-    if (line.startsWith("data: ")) {
-      try {
-        const data = JSON.parse(line.slice(6)) as {
-          type: string;
-          [key: string]: unknown;
-        };
-        events.push(data);
-      } catch {
-        // Malformed JSON line, skip
-      }
-    }
-  }
-
-  return { events, remaining };
-}
-
-let nextMessageId = 1;
-function generateId(): string {
-  return `wp-msg-${nextMessageId++}`;
 }
 
 /**
@@ -200,97 +169,15 @@ function WorkerPickerContent({
         return;
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let meetingId: string | null = null;
-      const accumulatedMessages: ChatMessage[] = [];
-      let accumulatedText = "";
+      const result = await consumeFirstTurnSSE(
+        response.body,
+        prompt.trim(),
+      );
 
-      // Add the user's prompt as the first message
-      accumulatedMessages.push({
-        id: generateId(),
-        role: "user",
-        content: prompt.trim(),
-      });
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const { events, remaining } = parseSSEBuffer(buffer);
-        buffer = remaining;
-
-        for (const event of events) {
-          switch (event.type) {
-            case "session": {
-              meetingId = event.meetingId as string;
-              break;
-            }
-
-            case "text_delta": {
-              accumulatedText += event.text as string;
-              break;
-            }
-
-            case "tool_use":
-            case "tool_result": {
-              // Accumulated but not displayed during the modal flow.
-              // These events are stored with the messages for the chat view.
-              break;
-            }
-
-            case "turn_end": {
-              if (accumulatedText) {
-                accumulatedMessages.push({
-                  id: generateId(),
-                  role: "assistant",
-                  content: accumulatedText,
-                });
-              }
-
-              // Store accumulated messages in sessionStorage
-              if (meetingId) {
-                try {
-                  sessionStorage.setItem(
-                    `meeting-${meetingId}-initial`,
-                    JSON.stringify(accumulatedMessages),
-                  );
-                } catch {
-                  // sessionStorage quota exceeded or unavailable, proceed without
-                }
-
-                router.push(
-                  `/projects/${encodeURIComponent(projectName)}/meetings/${encodeURIComponent(meetingId)}`,
-                );
-              }
-              break;
-            }
-
-            case "error": {
-              setError(event.reason as string);
-              setStreaming(false);
-              return;
-            }
-          }
-        }
-      }
-
-      // If stream ended without turn_end but we have a meetingId, navigate anyway
-      if (meetingId && accumulatedMessages.length > 0) {
-        try {
-          sessionStorage.setItem(
-            `meeting-${meetingId}-initial`,
-            JSON.stringify(accumulatedMessages),
-          );
-        } catch {
-          // sessionStorage quota exceeded or unavailable
-        }
-        router.push(
-          `/projects/${encodeURIComponent(projectName)}/meetings/${encodeURIComponent(meetingId)}`,
-        );
-      }
+      storeFirstTurnMessages(result.meetingId, result.messages);
+      router.push(
+        `/projects/${encodeURIComponent(projectName)}/meetings/${encodeURIComponent(result.meetingId)}`,
+      );
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Connection failed";

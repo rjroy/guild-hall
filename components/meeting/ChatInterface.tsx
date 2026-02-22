@@ -17,6 +17,8 @@ interface ChatInterfaceProps {
   workerDisplayTitle: string;
   workerPortraitUrl?: string;
   initialMessages?: ChatMessage[];
+  /** Called when a link_artifact tool_result event is received during streaming. */
+  onArtifactLinked?: (artifactPath: string) => void;
 }
 
 /**
@@ -53,6 +55,26 @@ function generateId(): string {
   return `msg-${nextMessageId++}`;
 }
 
+/**
+ * Advance the module-level counter past any IDs already present in messages.
+ * Prevents key collisions when initialMessages come from a prior session
+ * (transcript resume) or from sse-helpers (WorkerPicker first turn), both
+ * of which use their own "msg-N" counters starting at 1.
+ */
+function syncIdCounter(messages: ChatMessage[]): void {
+  let max = 0;
+  for (const m of messages) {
+    const match = m.id.match(/^msg-(\d+)$/);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (n > max) max = n;
+    }
+  }
+  if (max >= nextMessageId) {
+    nextMessageId = max + 1;
+  }
+}
+
 export default function ChatInterface({
   meetingId,
   projectName,
@@ -61,8 +83,12 @@ export default function ChatInterface({
   // only in MeetingHeader, not within the chat area itself.
   workerPortraitUrl,
   initialMessages = [],
+  onArtifactLinked,
 }: ChatInterfaceProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    syncIdCounter(initialMessages);
+    return initialMessages;
+  });
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingTools, setStreamingTools] = useState<ToolUseEntry[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -80,6 +106,7 @@ export default function ChatInterface({
       if (stored) {
         const parsed = JSON.parse(stored) as ChatMessage[];
         if (Array.isArray(parsed) && parsed.length > 0) {
+          syncIdCounter(parsed);
           setMessages(parsed);
         }
         sessionStorage.removeItem(storageKey);
@@ -184,8 +211,9 @@ export default function ChatInterface({
               }
 
               case "tool_result": {
+                const toolName = event.name as string;
                 accumulatedTools = accumulatedTools.map((t) =>
-                  t.name === (event.name as string) && t.status === "running"
+                  t.name === toolName && t.status === "running"
                     ? {
                         ...t,
                         output: event.output as string,
@@ -194,6 +222,20 @@ export default function ChatInterface({
                     : t
                 );
                 setStreamingTools(accumulatedTools);
+
+                // Notify parent when a link_artifact tool completes
+                if (toolName === "link_artifact" && onArtifactLinked) {
+                  const input = accumulatedTools.find(
+                    (t) => t.name === "link_artifact" && t.status === "complete",
+                  )?.input;
+                  const artifactPath =
+                    input && typeof input === "object" && "path" in input
+                      ? (input as { path: string }).path
+                      : undefined;
+                  if (artifactPath) {
+                    onArtifactLinked(artifactPath);
+                  }
+                }
                 break;
               }
 
@@ -238,7 +280,7 @@ export default function ChatInterface({
         abortRef.current = null;
       }
     },
-    [meetingId]
+    [meetingId, onArtifactLinked]
   );
 
   const handleStop = useCallback(() => {

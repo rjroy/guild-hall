@@ -21,25 +21,6 @@ export default function MeetingHeader({
 
   return (
     <div className={styles.header}>
-      <nav className={styles.breadcrumb} aria-label="Breadcrumb">
-        <Link href="/" className={styles.breadcrumbLink}>
-          Guild Hall
-        </Link>
-        <span className={styles.separator} aria-hidden="true">
-          &rsaquo;
-        </span>
-        <Link
-          href={`/projects/${encodedName}`}
-          className={styles.breadcrumbLink}
-        >
-          Project: {projectName}
-        </Link>
-        <span className={styles.separator} aria-hidden="true">
-          &rsaquo;
-        </span>
-        <span className={styles.breadcrumbCurrent}>Audience</span>
-      </nav>
-
       <div className={styles.headerContent}>
         <div className={styles.workerInfo}>
           <WorkerPortrait
@@ -49,7 +30,28 @@ export default function MeetingHeader({
             size="lg"
           />
         </div>
-        <div className={styles.agendaPanel}>
+
+        <div className={styles.agendaSection}>
+
+          <nav className={styles.breadcrumb} aria-label="Breadcrumb">
+            <Link href="/" className={styles.breadcrumbLink}>
+              Guild Hall
+            </Link>
+            <span className={styles.separator} aria-hidden="true">
+              &rsaquo;
+            </span>
+            <Link
+              href={`/projects/${encodedName}`}
+              className={styles.breadcrumbLink}
+            >
+              Project: {projectName}
+            </Link>
+            <span className={styles.separator} aria-hidden="true">
+              &rsaquo;
+            </span>
+            <span className={styles.breadcrumbCurrent}>Audience</span>
+          </nav>
+
           <h3 className={styles.agendaTitle}>Agenda</h3>
           <p className={styles.agendaText}>{agenda}</p>
         </div>

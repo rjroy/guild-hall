@@ -27,8 +27,15 @@ function displayTitle(artifact: Artifact): string {
 
 /**
  * Determines the correct href for an artifact in the dashboard feed.
- * Open meeting artifacts link to the meeting view; everything else
- * links to the standard artifact view.
+ *
+ * Meeting artifacts route based on status:
+ * - "open": link to the live meeting view
+ * - "requested": link to the project meetings tab (where MeetingList
+ *   shows the Accept action)
+ * - "declined" / "closed" / other: link to the standard artifact view
+ *   (read-only)
+ *
+ * Non-meeting artifacts always link to the standard artifact view.
  */
 export function artifactHref(
   artifact: Artifact,
@@ -36,12 +43,19 @@ export function artifactHref(
 ): string {
   const encodedName = encodeURIComponent(projectName);
   const isMeeting = artifact.relativePath.startsWith("meetings/");
-  const isOpen = artifact.meta.status.toLowerCase().trim() === "open";
 
-  if (isMeeting && isOpen) {
-    const filename = artifact.relativePath.split("/").pop() ?? "";
-    const meetingId = filename.replace(/\.md$/, "");
-    return `/projects/${encodedName}/meetings/${encodeURIComponent(meetingId)}`;
+  if (isMeeting) {
+    const status = artifact.meta.status.toLowerCase().trim();
+
+    if (status === "open") {
+      const filename = artifact.relativePath.split("/").pop() ?? "";
+      const meetingId = filename.replace(/\.md$/, "");
+      return `/projects/${encodedName}/meetings/${encodeURIComponent(meetingId)}`;
+    }
+
+    if (status === "requested") {
+      return `/projects/${encodedName}?tab=meetings`;
+    }
   }
 
   return `/projects/${encodedName}/artifacts/${artifact.relativePath}`;

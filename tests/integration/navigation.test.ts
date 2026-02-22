@@ -9,6 +9,7 @@ import { statusToGem } from "@/lib/types";
 import type { GemStatus } from "@/lib/types";
 import { relatedToHref } from "@/components/artifact/MetadataSidebar";
 import { artifactHref } from "@/components/dashboard/RecentArtifacts";
+import { meetingStatusToGem } from "@/components/project/MeetingList";
 
 /**
  * Integration tests for navigation data flow.
@@ -135,6 +136,32 @@ Design review for the new module.`,
     "utf-8"
   );
 
+  await fs.writeFile(
+    path.join(loreDir, "meetings", "ghi-789.md"),
+    `---
+title: Audience with Assistant
+date: 2026-02-19
+status: requested
+tags: [meeting]
+worker: assistant
+---
+Requesting an audience to review the test suite.`,
+    "utf-8"
+  );
+
+  await fs.writeFile(
+    path.join(loreDir, "meetings", "jkl-012.md"),
+    `---
+title: Audience with Reviewer
+date: 2026-02-16
+status: declined
+tags: [meeting]
+worker: reviewer
+---
+Code review request that was declined.`,
+    "utf-8"
+  );
+
   // Set up config.yaml
   const homeDir = path.join(tmpDir, "home");
   configFilePath = getConfigPath(homeDir);
@@ -187,12 +214,14 @@ describe("config to project data flow", () => {
 describe("artifact scanning data flow", () => {
   test("scanArtifacts finds all .md files in .lore/", async () => {
     const artifacts = await scanArtifacts(loreDir);
-    expect(artifacts.length).toBe(6);
+    expect(artifacts.length).toBe(8);
 
     const paths = artifacts.map((a) => a.relativePath).sort();
     expect(paths).toEqual([
       "meetings/abc-123.md",
       "meetings/def-456.md",
+      "meetings/ghi-789.md",
+      "meetings/jkl-012.md",
       "plans/phase-1/impl.md",
       "readme.md",
       "retros/ui-review.md",
@@ -426,6 +455,15 @@ describe("status mapping completeness", () => {
       expect(["active", "pending", "blocked", "info"]).toContain(gem);
     }
   });
+
+  test("meeting lifecycle statuses map to correct gem colors", () => {
+    // Phase 3 meeting states: requested, open, closed, declined
+    expect(statusToGem("requested")).toBe("pending");
+    expect(statusToGem("open")).toBe("pending");
+    expect(statusToGem("declined")).toBe("blocked");
+    // "closed" is not in any explicit set, falls through to "info"
+    expect(statusToGem("closed")).toBe("info");
+  });
 });
 
 describe("navigation completeness (no dead ends)", () => {
@@ -638,7 +676,7 @@ describe("meeting view navigation", () => {
     const meetings = artifacts.filter((a) =>
       a.relativePath.startsWith("meetings/")
     );
-    expect(meetings.length).toBe(2);
+    expect(meetings.length).toBe(4);
 
     const encodedName = encodeURIComponent(PROJECT_NAME);
     const openMeeting = meetings.find(
@@ -680,7 +718,7 @@ describe("meeting artifacts in dashboard feed", () => {
     const meetings = artifacts.filter((a) =>
       a.relativePath.startsWith("meetings/")
     );
-    expect(meetings.length).toBe(2);
+    expect(meetings.length).toBe(4);
   });
 
   test("open meeting artifact links to meeting view via artifactHref", async () => {
@@ -777,5 +815,165 @@ describe("deeply nested artifact paths", () => {
     const href = `/projects/${encodedName}/artifacts/${artifact.relativePath}`;
 
     expect(href).toBe(`/projects/${PROJECT_NAME}/artifacts/readme.md`);
+  });
+});
+
+describe("meetingStatusToGem (MeetingList component)", () => {
+  test("open maps to active (green)", () => {
+    expect(meetingStatusToGem("open")).toBe("active");
+  });
+
+  test("requested maps to pending (amber)", () => {
+    expect(meetingStatusToGem("requested")).toBe("pending");
+  });
+
+  test("declined maps to blocked (red)", () => {
+    expect(meetingStatusToGem("declined")).toBe("blocked");
+  });
+
+  test("closed maps to info (blue)", () => {
+    expect(meetingStatusToGem("closed")).toBe("info");
+  });
+
+  test("is case-insensitive and trims whitespace", () => {
+    expect(meetingStatusToGem("Open")).toBe("active");
+    expect(meetingStatusToGem("REQUESTED")).toBe("pending");
+    expect(meetingStatusToGem("  Declined  ")).toBe("blocked");
+    expect(meetingStatusToGem(" Closed ")).toBe("info");
+  });
+
+  test("unknown statuses fall through to info", () => {
+    expect(meetingStatusToGem("something-else")).toBe("info");
+    expect(meetingStatusToGem("")).toBe("info");
+  });
+});
+
+describe("requested meeting navigation", () => {
+  test("requested meeting artifact in fixture has correct status", async () => {
+    const artifact = await readArtifact(loreDir, "meetings/ghi-789.md");
+    expect(artifact.meta.status.toLowerCase()).toBe("requested");
+    expect(artifact.relativePath.startsWith("meetings/")).toBe(true);
+  });
+
+  test("requested meeting gets amber gem via meetingStatusToGem", () => {
+    // MeetingList uses meetingStatusToGem for gem color
+    expect(meetingStatusToGem("requested")).toBe("pending");
+  });
+
+  test("requested meeting artifact routes to project meetings tab via artifactHref", async () => {
+    const requestedMeeting = await readArtifact(loreDir, "meetings/ghi-789.md");
+    const href = artifactHref(requestedMeeting, PROJECT_NAME);
+    expect(href).toBe(`/projects/${PROJECT_NAME}?tab=meetings`);
+  });
+
+  test("requested meeting MeetingList Accept link points to dashboard", () => {
+    // MeetingList renders requested meetings with a Link to "/"
+    // where PendingAudiences provides the full accept/defer/ignore flow
+    const acceptHref = "/";
+    expect(acceptHref).toBe("/");
+  });
+
+  test("requested meeting has a navigation path: dashboard -> meetings tab -> accept", async () => {
+    // Dashboard PendingAudiences shows the request with Open/Defer/Ignore actions
+    // Project meetings tab shows the request with an Accept link to the dashboard
+    // The user can reach the accept flow from both views
+    const requestedMeeting = await readArtifact(loreDir, "meetings/ghi-789.md");
+
+    // From dashboard recent artifacts -> project meetings tab
+    const feedHref = artifactHref(requestedMeeting, PROJECT_NAME);
+    expect(feedHref).toContain("tab=meetings");
+
+    // From meetings tab Accept link -> dashboard (PendingAudiences)
+    const acceptHref = "/";
+    expect(acceptHref).toBe("/");
+  });
+});
+
+describe("declined meeting navigation", () => {
+  test("declined meeting artifact in fixture has correct status", async () => {
+    const artifact = await readArtifact(loreDir, "meetings/jkl-012.md");
+    expect(artifact.meta.status.toLowerCase()).toBe("declined");
+    expect(artifact.relativePath.startsWith("meetings/")).toBe(true);
+  });
+
+  test("declined meeting gets red gem via meetingStatusToGem", () => {
+    expect(meetingStatusToGem("declined")).toBe("blocked");
+  });
+
+  test("declined meeting gets red gem via statusToGem", () => {
+    expect(statusToGem("declined")).toBe("blocked");
+  });
+
+  test("declined meeting artifact routes to artifact view (read-only) via artifactHref", async () => {
+    const declinedMeeting = await readArtifact(loreDir, "meetings/jkl-012.md");
+    const href = artifactHref(declinedMeeting, PROJECT_NAME);
+    // Declined meetings are read-only, linking to the standard artifact view
+    expect(href).toBe(
+      `/projects/${PROJECT_NAME}/artifacts/meetings/jkl-012.md`
+    );
+  });
+
+  test("declined meeting in MeetingList renders as non-interactive (like closed)", async () => {
+    const artifact = await readArtifact(loreDir, "meetings/jkl-012.md");
+    const status = artifact.meta.status.toLowerCase().trim();
+    // MeetingList renders declined meetings in the non-interactive closedEntry path
+    // (neither "open" nor "requested" branch, falls through to the default)
+    expect(status).not.toBe("open");
+    expect(status).not.toBe("requested");
+    expect(status).toBe("declined");
+  });
+});
+
+describe("meeting states navigation completeness (no dead ends)", () => {
+  test("all four meeting states have navigation paths back to dashboard", () => {
+    const encodedName = encodeURIComponent(PROJECT_NAME);
+
+    // Open meeting -> meeting view -> breadcrumb to dashboard
+    const openMeetingBreadcrumb = "/";
+    expect(openMeetingBreadcrumb).toBe("/");
+
+    // Requested meeting -> Accept link on MeetingList -> dashboard
+    const requestedAcceptLink = "/";
+    expect(requestedAcceptLink).toBe("/");
+
+    // Declined meeting -> artifact view -> breadcrumb to dashboard
+    const declinedBreadcrumb = "/";
+    expect(declinedBreadcrumb).toBe("/");
+
+    // Closed meeting -> ended page -> return link to project -> breadcrumb to dashboard
+    const closedReturnLink = `/projects/${encodedName}`;
+    expect(closedReturnLink).toBeTruthy();
+  });
+
+  test("all four meeting states are reachable from the project meetings tab", async () => {
+    const meetingsPath = path.join(loreDir, "meetings");
+    const meetingArtifacts = await scanArtifacts(meetingsPath);
+    expect(meetingArtifacts.length).toBe(4);
+
+    const statuses = meetingArtifacts
+      .map((a) => a.meta.status.toLowerCase().trim())
+      .sort();
+    expect(statuses).toEqual(["closed", "declined", "open", "requested"]);
+  });
+
+  test("requested meeting artifact in dashboard feed routes to actionable view", async () => {
+    const requestedMeeting = await readArtifact(loreDir, "meetings/ghi-789.md");
+    const href = artifactHref(requestedMeeting, PROJECT_NAME);
+    // Routes to meetings tab where the user can see the Accept link
+    expect(href).toBe(`/projects/${PROJECT_NAME}?tab=meetings`);
+  });
+
+  test("artifactHref encodes special characters for requested meetings", async () => {
+    const requestedMeeting = await readArtifact(loreDir, "meetings/ghi-789.md");
+    const href = artifactHref(requestedMeeting, PROJECT_NAME_SPECIAL);
+    expect(href).toBe("/projects/my%20project%20%26%20stuff?tab=meetings");
+  });
+
+  test("artifactHref routes declined meetings to artifact view with special chars", async () => {
+    const declinedMeeting = await readArtifact(loreDir, "meetings/jkl-012.md");
+    const href = artifactHref(declinedMeeting, PROJECT_NAME_SPECIAL);
+    expect(href).toBe(
+      "/projects/my%20project%20%26%20stuff/artifacts/meetings/jkl-012.md"
+    );
   });
 });

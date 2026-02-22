@@ -87,7 +87,15 @@ export async function createProductionApp(options?: {
     config,
     guildHallHome,
     queryFn,
+    notesQueryFn: queryFn,
   });
+
+  // Recover open meetings from persisted state files so users can resume
+  // sessions that survived a daemon restart.
+  const recovered = await meetingSession.recoverMeetings();
+  if (recovered > 0) {
+    console.log(`[daemon] Recovered ${recovered} open meeting(s) from state files.`);
+  }
 
   const startTime = Date.now();
 

@@ -323,7 +323,7 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
     // Must consume SSE response body so the meeting session's async generator
     // finishes executing and the side effects (artifact/state writes) complete.
     const res = await postCreateMeeting(app);
-    await parseSSEResponse(res);
+    const events = await parseSSEResponse(res);
 
     const meetingsDir = path.join(projectDir, ".lore", "meetings");
     const files = await fs.readdir(meetingsDir);
@@ -341,6 +341,17 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
     expect(content).toContain("tags: [meeting]");
     expect(content).toContain("worker: Assistant");
     expect(content).toContain("Analyze the codebase");
+
+    // Verify transcript file was created and the initial user turn was appended
+    const sessionEvent = events.find((e) => e.type === "session");
+    let meetingId = "";
+    if (sessionEvent?.type === "session") {
+      meetingId = sessionEvent.meetingId;
+    }
+    const transcriptFile = path.join(ghHomeDir, "meetings", `${meetingId}.md`);
+    const transcriptContent = await fs.readFile(transcriptFile, "utf-8");
+    expect(transcriptContent).toContain("meetingId:");
+    expect(transcriptContent).toContain("## User (");
   });
 
   test("creates state file in guild-hall home", async () => {
@@ -447,6 +458,11 @@ describe("integration: POST /meetings/:id/messages sends follow-up", () => {
     const types = followUpEvents.map((e) => e.type);
     expect(types).toContain("text_delta");
     expect(types).toContain("turn_end");
+
+    // Verify transcript contains assistant turn written after the follow-up
+    const transcriptFile = path.join(ghHomeDir, "meetings", `${meetingId}.md`);
+    const transcriptContent = await fs.readFile(transcriptFile, "utf-8");
+    expect(transcriptContent).toContain("## Assistant (");
   });
 
   test("passes resume option with the correct SDK session ID", async () => {
@@ -462,12 +478,15 @@ describe("integration: POST /meetings/:id/messages sends follow-up", () => {
       meetingId = sessionEvent.meetingId;
     }
 
-    // Send follow-up
-    await app.request(`/meetings/${meetingId}/messages`, {
+    // Send follow-up and consume the SSE response to ensure the generator
+    // runs to completion (async transcript writes create gaps that require
+    // the stream to be fully consumed before checking mock call counts).
+    const followUpRes = await app.request(`/meetings/${meetingId}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "What about tests?" }),
     });
+    await followUpRes.text();
 
     // First call was createMeeting, second is sendMessage
     expect(queryMock.calls).toHaveLength(2);
@@ -478,7 +497,7 @@ describe("integration: POST /meetings/:id/messages sends follow-up", () => {
 });
 
 describe("integration: DELETE /meetings/:id closes meeting", () => {
-  test("returns 200 { status: 'ok' }", async () => {
+  test("returns 200 with status ok and notes", async () => {
     const { app } = makeFullApp();
 
     // Create meeting
@@ -498,7 +517,9 @@ describe("integration: DELETE /meetings/:id closes meeting", () => {
 
     expect(deleteRes.status).toBe(200);
     const body = await deleteRes.json();
-    expect(body).toEqual({ status: "ok" });
+    expect(body.status).toBe("ok");
+    // Without notesQueryFn, notes generation returns placeholder text
+    expect(body.notes).toBe("Notes generation not available.");
   });
 
   test("subsequent sendMessage returns error for closed meeting", async () => {
