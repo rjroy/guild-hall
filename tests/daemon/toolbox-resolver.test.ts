@@ -183,4 +183,41 @@ describe("resolveToolSet", () => {
     result.allowedTools.push("Bash");
     expect(worker.builtInTools).toEqual(["Read"]);
   });
+
+  test("meeting context with workerName produces base + meeting MCP servers", () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      workerName: "test-worker",
+    };
+    const result = resolveToolSet(worker, [], context);
+
+    expect(result.mcpServers).toHaveLength(2);
+    expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    expect(result.mcpServers[1].name).toBe("guild-hall-meeting");
+  });
+
+  test("context without workerName produces base only (no meeting toolbox)", () => {
+    const worker = makeWorker();
+    const result = resolveToolSet(worker, [], testContext());
+
+    expect(result.mcpServers).toHaveLength(1);
+    expect(result.mcpServers[0].name).toBe("guild-hall-base");
+  });
+
+  test("workerName is passed through to meeting toolbox", () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      workerName: "specific-worker",
+    };
+    const result = resolveToolSet(worker, [], context);
+
+    // The meeting toolbox should be present and correctly named
+    expect(result.mcpServers).toHaveLength(2);
+    const meetingServer = result.mcpServers[1];
+    expect(meetingServer.name).toBe("guild-hall-meeting");
+    expect(meetingServer.type).toBe("sdk");
+    expect(meetingServer.instance).toBeDefined();
+  });
 });

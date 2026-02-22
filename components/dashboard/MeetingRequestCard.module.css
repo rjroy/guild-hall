@@ -1,0 +1,185 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: 8px;
+  background-color: rgba(184, 134, 11, 0.06);
+  border: 1px solid rgba(184, 134, 11, 0.15);
+  transition: background-color 0.15s ease;
+}
+
+.card:hover {
+  background-color: rgba(184, 134, 11, 0.1);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.workerName {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-heading);
+  margin: 0;
+}
+
+.workerTitle {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.agenda {
+  font-size: 0.85rem;
+  color: var(--color-text);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.artifacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.artifactTag {
+  font-size: 0.75rem;
+  color: var(--color-brass);
+  background-color: rgba(184, 134, 11, 0.1);
+  padding: 2px var(--space-sm);
+  border-radius: 4px;
+  border: 1px solid rgba(184, 134, 11, 0.2);
+}
+
+.deferredBadge {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.actionButton {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: 4px;
+  border: 1px solid rgba(184, 134, 11, 0.3);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.actionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.openButton {
+  composes: actionButton;
+  background-color: rgba(184, 134, 11, 0.15);
+  color: var(--color-text-heading);
+}
+
+.openButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.25);
+  border-color: var(--color-brass);
+}
+
+.deferButton {
+  composes: actionButton;
+  background-color: transparent;
+  color: var(--color-text-muted);
+}
+
+.deferButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.08);
+  color: var(--color-text);
+}
+
+.ignoreButton {
+  composes: actionButton;
+  background-color: transparent;
+  color: var(--color-text-muted);
+}
+
+.ignoreButton:hover:not(:disabled) {
+  background-color: rgba(139, 69, 19, 0.1);
+  color: var(--color-text);
+}
+
+.datePickerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.dateInput {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: 4px;
+  border: 1px solid rgba(184, 134, 11, 0.3);
+  background-color: rgba(26, 20, 18, 0.5);
+  color: var(--color-text);
+}
+
+.dateConfirmButton {
+  composes: actionButton;
+  background-color: rgba(184, 134, 11, 0.12);
+  color: var(--color-text);
+}
+
+.dateConfirmButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.2);
+}
+
+.dateCancelButton {
+  composes: actionButton;
+  background-color: transparent;
+  color: var(--color-text-muted);
+}
+
+.dateCancelButton:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.error {
+  font-size: 0.8rem;
+  color: #d4534b;
+  margin: 0;
+}
+
+.streamingIndicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(184, 134, 11, 0.3);
+  border-top-color: var(--color-brass);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

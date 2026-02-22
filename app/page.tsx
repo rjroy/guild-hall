@@ -1,7 +1,9 @@
 import { readConfig } from "@/lib/config";
 import { recentArtifacts } from "@/lib/artifacts";
 import { projectLorePath } from "@/lib/paths";
+import { scanMeetingRequests } from "@/lib/meetings";
 import type { Artifact } from "@/lib/types";
+import type { MeetingMeta } from "@/lib/meetings";
 import WorkspaceSidebar from "@/components/dashboard/WorkspaceSidebar";
 import ManagerBriefing from "@/components/dashboard/ManagerBriefing";
 import DependencyMap from "@/components/dashboard/DependencyMap";
@@ -27,6 +29,30 @@ export default async function DashboardPage({
     artifacts = await recentArtifacts(lorePath, 10);
   }
 
+  // Scan meeting requests from all registered projects
+  const requestsByProject = await Promise.all(
+    config.projects.map((project) =>
+      scanMeetingRequests(projectLorePath(project.path), project.name),
+    ),
+  );
+  const allRequests: MeetingMeta[] = requestsByProject.flat();
+
+  // Sort merged list: active (no deferred_until) first, then by date descending
+  allRequests.sort((a, b) => {
+    const aDeferEmpty = !a.deferred_until;
+    const bDeferEmpty = !b.deferred_until;
+
+    if (aDeferEmpty && !bDeferEmpty) return -1;
+    if (!aDeferEmpty && bDeferEmpty) return 1;
+
+    if (!aDeferEmpty && !bDeferEmpty) {
+      const deferCmp = a.deferred_until.localeCompare(b.deferred_until);
+      if (deferCmp !== 0) return deferCmp;
+    }
+
+    return b.date.localeCompare(a.date);
+  });
+
   return (
     <div className={styles.dashboard}>
       <div className={styles.sidebar}>
@@ -48,7 +74,7 @@ export default async function DashboardPage({
         />
       </div>
       <div className={styles.audiences}>
-        <PendingAudiences />
+        <PendingAudiences requests={allRequests} />
       </div>
     </div>
   );

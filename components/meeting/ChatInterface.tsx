@@ -17,6 +17,8 @@ interface ChatInterfaceProps {
   workerDisplayTitle: string;
   workerPortraitUrl?: string;
   initialMessages?: ChatMessage[];
+  /** Called when a link_artifact tool_result event is received during streaming. */
+  onArtifactLinked?: (artifactPath: string) => void;
 }
 
 /**
@@ -61,6 +63,7 @@ export default function ChatInterface({
   // only in MeetingHeader, not within the chat area itself.
   workerPortraitUrl,
   initialMessages = [],
+  onArtifactLinked,
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [streamingContent, setStreamingContent] = useState("");
@@ -184,8 +187,9 @@ export default function ChatInterface({
               }
 
               case "tool_result": {
+                const toolName = event.name as string;
                 accumulatedTools = accumulatedTools.map((t) =>
-                  t.name === (event.name as string) && t.status === "running"
+                  t.name === toolName && t.status === "running"
                     ? {
                         ...t,
                         output: event.output as string,
@@ -194,6 +198,20 @@ export default function ChatInterface({
                     : t
                 );
                 setStreamingTools(accumulatedTools);
+
+                // Notify parent when a link_artifact tool completes
+                if (toolName === "link_artifact" && onArtifactLinked) {
+                  const input = accumulatedTools.find(
+                    (t) => t.name === "link_artifact" && t.status === "complete",
+                  )?.input;
+                  const artifactPath =
+                    input && typeof input === "object" && "path" in input
+                      ? (input as { path: string }).path
+                      : undefined;
+                  if (artifactPath) {
+                    onArtifactLinked(artifactPath);
+                  }
+                }
                 break;
               }
 
@@ -238,7 +256,7 @@ export default function ChatInterface({
         abortRef.current = null;
       }
     },
-    [meetingId]
+    [meetingId, onArtifactLinked]
   );
 
   const handleStop = useCallback(() => {

@@ -232,7 +232,7 @@ describe("MeetingList", () => {
     expect(gems[0].props.size).toBe("sm");
   });
 
-  test("renders GemIndicator with pending status for closed meeting", () => {
+  test("renders GemIndicator with info status for closed meeting", () => {
     const meetings = [
       makeMeetingArtifact({
         meta: {
@@ -251,7 +251,7 @@ describe("MeetingList", () => {
 
     const gems = findComponentElements(el, "GemIndicator");
     expect(gems).toHaveLength(1);
-    expect(gems[0].props.status).toBe("pending");
+    expect(gems[0].props.status).toBe("info");
   });
 
   test("renders meeting title from frontmatter", () => {
@@ -302,6 +302,135 @@ describe("MeetingList", () => {
     }) as AnyElement;
 
     expect(containsText(el, "Researcher")).toBe(true);
+  });
+
+  test("renders GemIndicator with pending status for requested meeting", () => {
+    const meetings = [
+      makeMeetingArtifact({
+        meta: {
+          title: "Audience with Assistant",
+          date: "2026-02-19",
+          status: "requested",
+          tags: [],
+        },
+      }),
+    ];
+
+    const el = MeetingList({
+      meetings,
+      projectName: "test-project",
+    }) as AnyElement;
+
+    const gems = findComponentElements(el, "GemIndicator");
+    expect(gems).toHaveLength(1);
+    expect(gems[0].props.status).toBe("pending");
+  });
+
+  test("renders GemIndicator with blocked status for declined meeting", () => {
+    const meetings = [
+      makeMeetingArtifact({
+        meta: {
+          title: "Declined meeting",
+          date: "2026-02-16",
+          status: "declined",
+          tags: [],
+        },
+      }),
+    ];
+
+    const el = MeetingList({
+      meetings,
+      projectName: "test-project",
+    }) as AnyElement;
+
+    const gems = findComponentElements(el, "GemIndicator");
+    expect(gems).toHaveLength(1);
+    expect(gems[0].props.status).toBe("blocked");
+  });
+
+  test("requested meeting renders Accept link", () => {
+    const meetings = [
+      makeMeetingArtifact({
+        meta: {
+          title: "Audience with Assistant",
+          date: "2026-02-19",
+          status: "requested",
+          tags: [],
+        },
+      }),
+    ];
+
+    const el = MeetingList({
+      meetings,
+      projectName: "test-project",
+    }) as AnyElement;
+
+    // The Accept link should be present (points to dashboard)
+    const links = findElements(
+      el,
+      (e) => typeof e.props.href === "string",
+    );
+    const acceptLink = links.find(
+      (l) =>
+        typeof l.props.href === "string" &&
+        l.props.href === "/",
+    );
+    expect(acceptLink).toBeDefined();
+    expect(containsText(acceptLink!, "Accept")).toBe(true);
+  });
+
+  test("requested meeting does not link to meeting view", () => {
+    const meetings = [
+      makeMeetingArtifact({
+        meta: {
+          title: "Audience with Assistant",
+          date: "2026-02-19",
+          status: "requested",
+          tags: [],
+        },
+      }),
+    ];
+
+    const el = MeetingList({
+      meetings,
+      projectName: "test-project",
+    }) as AnyElement;
+
+    const links = findElements(
+      el,
+      (e) => typeof e.props.href === "string",
+    );
+    const meetingLink = links.find(
+      (l) =>
+        typeof l.props.href === "string" &&
+        l.props.href.includes("/meetings/"),
+    );
+    expect(meetingLink).toBeUndefined();
+  });
+
+  test("declined meeting does not render as a link", () => {
+    const meetings = [
+      makeMeetingArtifact({
+        meta: {
+          title: "Declined meeting",
+          date: "2026-02-16",
+          status: "declined",
+          tags: [],
+        },
+      }),
+    ];
+
+    const el = MeetingList({
+      meetings,
+      projectName: "test-project",
+    }) as AnyElement;
+
+    // Should not have any Link elements
+    const links = findElements(
+      el,
+      (e) => typeof e.props.href === "string",
+    );
+    expect(links).toHaveLength(0);
   });
 
   test("URL-encodes project name in meeting links", () => {

@@ -140,9 +140,9 @@ const ACTIVE_STATUSES = new Set([
   "resolved",
 ]);
 
-const PENDING_STATUSES = new Set(["draft", "open", "pending"]);
+const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested"]);
 
-const BLOCKED_STATUSES = new Set(["superseded", "outdated", "wontfix"]);
+const BLOCKED_STATUSES = new Set(["superseded", "outdated", "wontfix", "declined"]);
 
 /**
  * Maps a freeform status string from artifact frontmatter to one of four

@@ -1,11 +1,67 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { redirect } from "next/navigation";
 import { getProject } from "@/lib/config";
 import { readArtifact } from "@/lib/artifacts";
-import { projectLorePath } from "@/lib/paths";
+import { projectLorePath, getGuildHallHome } from "@/lib/paths";
+import { parseTranscriptToMessages } from "@/lib/meetings";
 import MeetingHeader from "@/components/meeting/MeetingHeader";
-import ChatInterface from "@/components/meeting/ChatInterface";
+import MeetingView from "@/components/meeting/MeetingView";
 import Panel from "@/components/ui/Panel";
+import type { LinkedArtifact } from "@/components/meeting/ArtifactsPanel";
 import styles from "./page.module.css";
+
+/**
+ * Reads the transcript file for a meeting and parses it into ChatMessage[]
+ * for resume. Returns an empty array if no transcript exists.
+ */
+async function loadTranscriptMessages(meetingId: string) {
+  const home = getGuildHallHome();
+  const transcriptFile = path.join(home, "meetings", `${meetingId}.md`);
+
+  try {
+    const raw = await fs.readFile(transcriptFile, "utf-8");
+    return parseTranscriptToMessages(raw);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Resolves linked artifact paths from meeting frontmatter into LinkedArtifact
+ * objects suitable for the ArtifactsPanel. Checks whether each artifact file
+ * exists on disk.
+ */
+async function resolveLinkedArtifacts(
+  artifactPaths: string[],
+  lorePath: string,
+  projectName: string,
+): Promise<LinkedArtifact[]> {
+  const encodedProject = encodeURIComponent(projectName);
+
+  return Promise.all(
+    artifactPaths.map(async (artifactPath) => {
+      const fullPath = path.join(lorePath, artifactPath);
+      let exists = false;
+      try {
+        await fs.access(fullPath);
+        exists = true;
+      } catch {
+        // File doesn't exist
+      }
+
+      const title =
+        artifactPath.split("/").pop()?.replace(/\.md$/, "") || artifactPath;
+
+      return {
+        path: artifactPath,
+        title,
+        exists,
+        href: `/projects/${encodedProject}/artifacts/${artifactPath}`,
+      };
+    }),
+  );
+}
 
 export default async function MeetingPage({
   params,
@@ -50,6 +106,13 @@ export default async function MeetingPage({
     (typeof meta.extras?.agenda === "string" ? meta.extras.agenda : "") ||
     "No agenda provided.";
 
+  // Linked artifacts from meeting frontmatter
+  const linkedPaths = Array.isArray(meta.extras?.linked_artifacts)
+    ? (meta.extras.linked_artifacts as unknown[]).filter(
+        (a): a is string => typeof a === "string",
+      )
+    : [];
+
   // Closed meetings show an ended message
   if (status === "closed" || status === "complete") {
     return (
@@ -75,6 +138,14 @@ export default async function MeetingPage({
     );
   }
 
+  // Load transcript messages for session resume (fallback when sessionStorage is empty).
+  // Load linked artifacts for the sidebar panel.
+  // These are independent reads so we run them in parallel.
+  const [transcriptMessages, initialArtifacts] = await Promise.all([
+    loadTranscriptMessages(id),
+    resolveLinkedArtifacts(linkedPaths, lorePath, projectName),
+  ]);
+
   return (
     <div className={styles.meetingView}>
       <MeetingHeader
@@ -83,11 +154,13 @@ export default async function MeetingPage({
         workerDisplayTitle={workerDisplayTitle}
         agenda={agenda}
       />
-      <ChatInterface
+      <MeetingView
         meetingId={id}
         projectName={projectName}
         workerName={workerName}
         workerDisplayTitle={workerDisplayTitle}
+        initialArtifacts={initialArtifacts}
+        initialMessages={transcriptMessages}
       />
     </div>
   );

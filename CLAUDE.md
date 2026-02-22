@@ -8,13 +8,15 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 ## Status
 
-Phase 2 complete. 499 tests pass. Phase 1 delivered three views (Dashboard, Project, Artifact), CLI tools (register, validate), config/artifact libraries, and API route for artifact editing. Phase 2 added the daemon process (Hono on Unix socket), meeting sessions via Claude Agent SDK, worker packages, toolbox resolution, SSE streaming, and meeting chat UI. Implementation follows vertical slices defined in `.lore/plans/implementation-phases.md`. Phase 1 notes at `.lore/plans/phase-1-empty-hall.md` and `.lore/notes/phase-1-empty-hall.md`.
+Phase 3 complete. 724 tests pass. Phase 1 delivered three views (Dashboard, Project, Artifact), CLI tools (register, validate), config/artifact libraries, and API route for artifact editing. Phase 2 added the daemon process (Hono on Unix socket), meeting sessions via Claude Agent SDK, worker packages, toolbox resolution, SSE streaming, and meeting chat UI. Phase 3 added meeting lifecycle (four states: requested/open/closed/declined), transcript storage, notes generation on close, session persistence across daemon restarts, session renewal on SDK expiry, meeting requests via propose_followup tool, and pending audiences UI on the Dashboard. Implementation follows vertical slices defined in `.lore/plans/implementation-phases.md`. Phase 1 notes at `.lore/plans/phase-1-empty-hall.md` and `.lore/notes/phase-1-empty-hall.md`.
 
 ## Architecture
 
 **Phase 1: Next.js only.** Reads config and artifact files directly from the filesystem. Artifact editing writes directly to files via API route (VIEW-38 exception to the "writes go through daemon" rule).
 
-**Phase 2 (current): Daemon + meetings.** The daemon is a Bun process running a Hono app on a Unix socket at `~/.guild-hall/guild-hall.sock`. It owns meeting sessions and process management. Next.js reads files directly for page loads; writes and sessions go through the daemon. Meeting sessions use the Claude Agent SDK with SSE streaming to the browser. See `.lore/design/process-architecture.md`.
+**Phase 2: Daemon + meetings.** The daemon is a Bun process running a Hono app on a Unix socket at `~/.guild-hall/guild-hall.sock`. It owns meeting sessions and process management. Next.js reads files directly for page loads; writes and sessions go through the daemon. Meeting sessions use the Claude Agent SDK with SSE streaming to the browser. See `.lore/design/process-architecture.md`.
+
+**Phase 3 (current): Meeting lifecycle.** Meetings have four states: requested, open, closed, declined. Transcripts are stored ephemerally during sessions and removed on close. Notes are generated via SDK on close (transcript + decisions + linked artifacts). Sessions persist across daemon restarts (state rehydrated from disk) and renew automatically on SDK session expiry. Workers can propose follow-up meetings via the propose_followup tool, which creates meeting requests. The Dashboard surfaces pending requests via the PendingAudiences component with Open/Defer/Ignore actions.
 
 **Daemon process model:**
 - Entry point: `daemon/index.ts`. Parses `--packages-dir` flag, cleans stale sockets, starts `Bun.serve({ unix, fetch })`, writes PID file, registers SIGINT/SIGTERM handlers.
@@ -67,6 +69,7 @@ bun run guild-hall validate                # validate config
 | `packages/` | Worker/toolbox packages (local dev) |
 | `~/.guild-hall/packages/` | Installed worker/toolbox packages |
 | `~/.guild-hall/state/meetings/` | Machine-local meeting state |
+| `~/.guild-hall/meetings/` | Ephemeral meeting transcripts (cleaned up on close) |
 | `~/.guild-hall/guild-hall.sock` | Daemon Unix socket (runtime) |
 | `~/.guild-hall/guild-hall.sock.pid` | Daemon PID file (runtime) |
 
@@ -83,6 +86,13 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 - `components/project/StartAudienceButton.tsx` opens the worker picker from the project view.
 - `components/project/MeetingList.tsx` lists project meetings with status gems.
 
+**Phase 3 components:**
+- `components/meeting/MeetingView.tsx` client wrapper composing chat, artifacts panel, and close flow.
+- `components/meeting/ArtifactsPanel.tsx` collapsible linked artifacts sidebar with live updates during session.
+- `components/meeting/NotesDisplay.tsx` modal showing generated notes after close.
+- `components/dashboard/MeetingRequestCard.tsx` meeting request card with Open/Defer/Ignore actions.
+- `components/dashboard/PendingAudiences.tsx` server component rendering request cards (replaced stub).
+
 ## API Routes
 
 `PUT /api/artifacts` updates artifact body content (Phase 1 exception to "daemon owns writes"). Accepts `{ projectName, artifactPath, content }`. Guards against path traversal. Writes only the markdown body, preserving raw frontmatter bytes to avoid git diff noise from gray-matter reformatting.
@@ -90,10 +100,15 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 **Phase 2 routes (Next.js API routes that proxy to daemon):**
 - `POST /api/meetings` creates a meeting and streams the SSE first turn.
 - `POST /api/meetings/[meetingId]/messages` sends a user message and streams the SSE response.
-- `DELETE /api/meetings/[meetingId]` closes a meeting.
+- `DELETE /api/meetings/[meetingId]` closes a meeting and returns `{ notes }` from notes generation.
 - `POST /api/meetings/[meetingId]/interrupt` stops generation.
 - `GET /api/workers` lists discovered workers.
 - `GET /api/daemon/health` returns daemon health or `{ status: "offline" }`.
+
+**Phase 3 routes:**
+- `POST /api/meetings/[meetingId]/accept` accepts a meeting request and streams the SSE first turn.
+- `POST /api/meetings/[meetingId]/decline` declines a meeting request.
+- `POST /api/meetings/[meetingId]/defer` defers a meeting request with a date.
 
 ## Core Library Modules
 
@@ -106,6 +121,8 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 | `lib/types.ts` | `ProjectConfig`, `AppConfig`, `Artifact` interfaces, `statusToGem()` |
 | `lib/packages.ts` | Package discovery, Zod validation, worker/toolbox filtering |
 | `lib/daemon-client.ts` | Unix socket HTTP client for daemon communication |
+| `lib/meetings.ts` | `scanMeetings()`, `scanMeetingRequests()`, `readMeetingMeta()`, `parseTranscriptToMessages()` |
+| `lib/sse-helpers.ts` | Shared SSE consumption: `consumeFirstTurnSSE()`, `storeFirstTurnMessages()`, `parseSSEBuffer()` |
 
 ## Daemon Modules
 
@@ -116,14 +133,18 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 | `daemon/types.ts` | GuildHallEvent union, branded MeetingId/SdkSessionId |
 | `daemon/lib/socket.ts` | Socket path resolution, stale cleanup, PID file management |
 | `daemon/routes/health.ts` | `GET /health` liveness check |
-| `daemon/routes/meetings.ts` | Meeting CRUD + SSE streaming (4 endpoints) |
+| `daemon/routes/meetings.ts` | Meeting CRUD + SSE streaming (7 endpoints) |
 | `daemon/routes/workers.ts` | `GET /workers` listing |
-| `daemon/services/meeting-session.ts` | Meeting lifecycle, SDK session management |
+| `daemon/services/meeting-session.ts` | Meeting lifecycle, SDK session management, session recovery and renewal |
 | `daemon/services/event-translator.ts` | SDK messages to GuildHallEvent translation |
 | `daemon/services/base-toolbox.ts` | 6 base tools via `createSdkMcpServer()` |
 | `daemon/services/toolbox-resolver.ts` | Assembles base + domain + built-in tools |
+| `daemon/services/transcript.ts` | Transcript CRUD (create, append turns, read, parse, remove) |
+| `daemon/services/notes-generator.ts` | Meeting notes generation via SDK (transcript + decisions + artifacts) |
+| `daemon/services/meeting-toolbox.ts` | 3 meeting tools via MCP server (link_artifact, propose_followup, summarize_progress) |
+| `daemon/services/meeting-artifact-helpers.ts` | Shared meeting artifact frontmatter manipulation |
 
-**Type boundaries:** Daemon-specific types live in `daemon/` (e.g., `GuildHallEvent`, `MeetingId`, `AppDeps`). Shared types used by both daemon and Next.js live in `lib/types.ts`. The daemon imports from `lib/` via `@/lib/` path alias; `lib/` never imports from `daemon/`.
+**Type boundaries:** Daemon-specific types live in `daemon/` (e.g., `GuildHallEvent`, `MeetingId`, `SdkSessionId`, `MeetingStatus`, `AppDeps`). Shared types used by both daemon and Next.js live in `lib/types.ts`. The daemon imports from `lib/` via `@/lib/` path alias; `lib/` never imports from `daemon/`.
 
 ## CSS Design System
 

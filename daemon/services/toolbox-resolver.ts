@@ -5,12 +5,14 @@ import type {
   WorkerMetadata,
 } from "@/lib/types";
 import { createBaseToolbox } from "./base-toolbox";
+import { createMeetingToolbox } from "./meeting-toolbox";
 
 // -- Types --
 
 export interface ToolboxResolverContext {
   projectPath: string;
   meetingId: string;
+  workerName?: string;
   guildHallHome?: string;
 }
 
@@ -43,7 +45,17 @@ export function resolveToolSet(
     }),
   );
 
-  // 2. Context toolbox slot (Phase 2: empty, reserved for Phase 3+)
+  // 2. Context toolbox (meeting toolbox when in meeting context)
+  if (context.meetingId && context.workerName) {
+    mcpServers.push(
+      createMeetingToolbox({
+        projectPath: context.projectPath,
+        meetingId: context.meetingId,
+        workerName: context.workerName,
+        guildHallHome: context.guildHallHome,
+      }),
+    );
+  }
 
   // 3. Domain toolboxes
   for (const toolboxName of worker.domainToolboxes) {

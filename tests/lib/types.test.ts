@@ -18,13 +18,17 @@ describe("statusToGem", () => {
     ["draft", "pending"],
     ["open", "pending"],
     ["pending", "pending"],
+    ["requested", "pending"],
     ["Draft", "pending"],
+    ["Requested", "pending"],
 
     // Blocked (red)
     ["superseded", "blocked"],
     ["outdated", "blocked"],
     ["wontfix", "blocked"],
+    ["declined", "blocked"],
     ["Superseded", "blocked"],
+    ["Declined", "blocked"],
 
     // Info (blue) - recognized
     ["implemented", "info"],

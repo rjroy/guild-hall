@@ -21,6 +21,10 @@ export function asSdkSessionId(id: string): SdkSessionId {
   return id as SdkSessionId;
 }
 
+// -- Meeting status --
+
+export type MeetingStatus = "requested" | "open" | "closed" | "declined";
+
 // -- Event types --
 
 export type GuildHallEvent =

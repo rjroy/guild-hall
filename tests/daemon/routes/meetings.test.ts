@@ -9,6 +9,17 @@ function makeMockMeetingSession(
   overrides: Partial<MeetingSessionForRoutes> = {},
 ): MeetingSessionForRoutes {
   return {
+    async *acceptMeetingRequest(): AsyncGenerator<GuildHallEvent> {
+      await Promise.resolve();
+      yield {
+        type: "session",
+        meetingId: "accepted-meeting-001",
+        sessionId: "sdk-session-accept",
+        worker: "Assistant",
+      };
+      yield { type: "text_delta", text: "Meeting request accepted" };
+      yield { type: "turn_end", cost: 0.01 };
+    },
     async *createMeeting(): AsyncGenerator<GuildHallEvent> {
       await Promise.resolve();
       yield {
@@ -25,13 +36,21 @@ function makeMockMeetingSession(
       yield { type: "text_delta", text: "Follow-up response" };
       yield { type: "turn_end", cost: 0.005 };
     },
-    closeMeeting(): Promise<void> {
+    closeMeeting(): Promise<{ notes: string }> {
+      return Promise.resolve({ notes: "Mock meeting notes." });
+    },
+    declineMeeting(): Promise<void> {
+      // Default: succeeds silently
+      return Promise.resolve();
+    },
+    deferMeeting(): Promise<void> {
       // Default: succeeds silently
       return Promise.resolve();
     },
     interruptTurn(): void {
       // Default: succeeds silently
     },
+    recoverMeetings: () => Promise.resolve(0),
     getActiveMeetings: () => 0,
     ...overrides,
   };
@@ -338,7 +357,7 @@ describe("POST /meetings/:meetingId/messages", () => {
 });
 
 describe("DELETE /meetings/:meetingId", () => {
-  test("returns 200 with status ok", async () => {
+  test("returns 200 with status ok and notes", async () => {
     const app = makeTestApp();
 
     const res = await app.request("/meetings/test-meeting-001", {
@@ -347,7 +366,8 @@ describe("DELETE /meetings/:meetingId", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ status: "ok" });
+    expect(body.status).toBe("ok");
+    expect(body.notes).toBe("Mock meeting notes.");
   });
 
   test("returns 404 for unknown meeting", async () => {
@@ -386,9 +406,9 @@ describe("DELETE /meetings/:meetingId", () => {
     const closedIds: string[] = [];
 
     const app = makeTestApp({
-      closeMeeting(meetingId: MeetingId): Promise<void> {
+      closeMeeting(meetingId: MeetingId): Promise<{ notes: string }> {
         closedIds.push(meetingId as string);
-        return Promise.resolve();
+        return Promise.resolve({ notes: "Notes." });
       },
     });
 
@@ -459,5 +479,336 @@ describe("POST /meetings/:meetingId/interrupt", () => {
     });
 
     expect(interruptedIds).toEqual(["my-meeting-99"]);
+  });
+});
+
+describe("POST /meetings/:meetingId/accept", () => {
+  test("returns SSE stream with events", async () => {
+    const app = makeTestApp();
+
+    const res = await app.request("/meetings/request-meeting-001/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectName: "test-project" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+
+    const events = await parseSSEResponse(res);
+    expect(events.length).toBe(3);
+    expect(events[0].type).toBe("session");
+    if (events[0].type === "session") {
+      expect(events[0].meetingId).toBe("accepted-meeting-001");
+    }
+    expect(events[1].type).toBe("text_delta");
+    expect(events[2].type).toBe("turn_end");
+  });
+
+  test("returns 400 when projectName is missing", async () => {
+    const app = makeTestApp();
+
+    const res = await app.request("/meetings/request-meeting-001/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Missing required field: projectName");
+  });
+
+  test("returns 400 for invalid JSON body", async () => {
+    const app = makeTestApp();
+
+    const res = await app.request("/meetings/request-meeting-001/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json",
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Invalid JSON");
+  });
+
+  test("passes meetingId, projectName, and message to session", async () => {
+    const receivedCalls: Array<{
+      meetingId: string;
+      projectName: string;
+      message?: string;
+    }> = [];
+
+    const app = makeTestApp({
+      async *acceptMeetingRequest(
+        meetingId: MeetingId,
+        projectName: string,
+        message?: string,
+      ) {
+        await Promise.resolve();
+        receivedCalls.push({
+          meetingId: meetingId as string,
+          projectName,
+          message,
+        });
+        yield { type: "turn_end" as const };
+      },
+    });
+
+    await app.request("/meetings/my-request-42/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "my-project",
+        message: "Focus on the auth module",
+      }),
+    });
+
+    expect(receivedCalls).toHaveLength(1);
+    expect(receivedCalls[0].meetingId).toBe("my-request-42");
+    expect(receivedCalls[0].projectName).toBe("my-project");
+    expect(receivedCalls[0].message).toBe("Focus on the auth module");
+  });
+});
+
+describe("POST /meetings/:meetingId/decline", () => {
+  test("returns 200 with status ok", async () => {
+    const app = makeTestApp();
+
+    const res = await app.request("/meetings/request-meeting-001/decline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectName: "test-project" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("ok");
+  });
+
+  test("returns 400 when projectName is missing", async () => {
+    const app = makeTestApp();
+
+    const res = await app.request("/meetings/request-meeting-001/decline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Missing required field: projectName");
+  });
+
+  test("returns 400 for invalid JSON body", async () => {
+    const app = makeTestApp();
+
+    const res = await app.request("/meetings/request-meeting-001/decline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json",
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Invalid JSON");
+  });
+
+  test("returns 404 for not found errors", async () => {
+    const app = makeTestApp({
+      declineMeeting() {
+        return Promise.reject(new Error('Project "unknown" not found'));
+      },
+    });
+
+    const res = await app.request("/meetings/request-meeting-001/decline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectName: "unknown" }),
+    });
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toContain("not found");
+  });
+
+  test("returns 500 for unexpected errors", async () => {
+    const app = makeTestApp({
+      declineMeeting() {
+        return Promise.reject(new Error("Disk full"));
+      },
+    });
+
+    const res = await app.request("/meetings/request-meeting-001/decline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectName: "test-project" }),
+    });
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toContain("Disk full");
+  });
+
+  test("passes meetingId and projectName to session", async () => {
+    const receivedCalls: Array<{ meetingId: string; projectName: string }> = [];
+
+    const app = makeTestApp({
+      declineMeeting(meetingId: MeetingId, projectName: string) {
+        receivedCalls.push({ meetingId: meetingId as string, projectName });
+        return Promise.resolve();
+      },
+    });
+
+    await app.request("/meetings/my-request-77/decline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectName: "my-project" }),
+    });
+
+    expect(receivedCalls).toHaveLength(1);
+    expect(receivedCalls[0].meetingId).toBe("my-request-77");
+    expect(receivedCalls[0].projectName).toBe("my-project");
+  });
+});
+
+describe("POST /meetings/:meetingId/defer", () => {
+  test("returns 200 with status ok", async () => {
+    const app = makeTestApp();
+
+    const res = await app.request("/meetings/request-meeting-001/defer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        deferredUntil: "2026-03-15",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("ok");
+  });
+
+  test("returns 400 when projectName is missing", async () => {
+    const app = makeTestApp();
+
+    const res = await app.request("/meetings/request-meeting-001/defer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deferredUntil: "2026-03-15" }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Missing required fields");
+  });
+
+  test("returns 400 when deferredUntil is missing", async () => {
+    const app = makeTestApp();
+
+    const res = await app.request("/meetings/request-meeting-001/defer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectName: "test-project" }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Missing required fields");
+  });
+
+  test("returns 400 for invalid JSON body", async () => {
+    const app = makeTestApp();
+
+    const res = await app.request("/meetings/request-meeting-001/defer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json",
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Invalid JSON");
+  });
+
+  test("returns 404 for not found errors", async () => {
+    const app = makeTestApp({
+      deferMeeting() {
+        return Promise.reject(new Error('Project "unknown" not found'));
+      },
+    });
+
+    const res = await app.request("/meetings/request-meeting-001/defer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "unknown",
+        deferredUntil: "2026-03-15",
+      }),
+    });
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toContain("not found");
+  });
+
+  test("returns 500 for unexpected errors", async () => {
+    const app = makeTestApp({
+      deferMeeting() {
+        return Promise.reject(new Error("Disk full"));
+      },
+    });
+
+    const res = await app.request("/meetings/request-meeting-001/defer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        deferredUntil: "2026-03-15",
+      }),
+    });
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toContain("Disk full");
+  });
+
+  test("passes meetingId, projectName, and deferredUntil to session", async () => {
+    const receivedCalls: Array<{
+      meetingId: string;
+      projectName: string;
+      deferredUntil: string;
+    }> = [];
+
+    const app = makeTestApp({
+      deferMeeting(
+        meetingId: MeetingId,
+        projectName: string,
+        deferredUntil: string,
+      ) {
+        receivedCalls.push({
+          meetingId: meetingId as string,
+          projectName,
+          deferredUntil,
+        });
+        return Promise.resolve();
+      },
+    });
+
+    await app.request("/meetings/my-request-88/defer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "my-project",
+        deferredUntil: "2026-04-01",
+      }),
+    });
+
+    expect(receivedCalls).toHaveLength(1);
+    expect(receivedCalls[0].meetingId).toBe("my-request-88");
+    expect(receivedCalls[0].projectName).toBe("my-project");
+    expect(receivedCalls[0].deferredUntil).toBe("2026-04-01");
   });
 });
