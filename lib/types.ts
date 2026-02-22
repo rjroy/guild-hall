@@ -115,6 +115,11 @@ export interface ActivationContext {
     agenda: string;
     referencedArtifacts: string[];
   };
+  commissionContext?: {
+    commissionId: string;
+    prompt: string;
+    dependencies: string[];
+  };
   projectPath: string;
   workingDirectory: string;
 }
@@ -138,11 +143,20 @@ const ACTIVE_STATUSES = new Set([
   "current",
   "complete",
   "resolved",
+  "in_progress",
+  "dispatched",
 ]);
 
-const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested"]);
+const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested", "blocked"]);
 
-const BLOCKED_STATUSES = new Set(["superseded", "outdated", "wontfix", "declined"]);
+const BLOCKED_STATUSES = new Set([
+  "superseded",
+  "outdated",
+  "wontfix",
+  "declined",
+  "failed",
+  "cancelled",
+]);
 
 /**
  * Maps a freeform status string from artifact frontmatter to one of four

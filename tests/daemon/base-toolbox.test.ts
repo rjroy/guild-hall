@@ -51,7 +51,8 @@ describe("createBaseToolbox", () => {
   test("returns an MCP server config with type sdk", () => {
     const result = createBaseToolbox({
       projectPath,
-      meetingId: "meeting-001",
+      contextId: "meeting-001",
+      contextType: "meeting",
       guildHallHome,
     });
 
@@ -289,7 +290,7 @@ describe("list_artifacts", () => {
 
 describe("record_decision", () => {
   test("creates meeting directory and appends JSONL entry", async () => {
-    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-001");
+    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-001", "meeting");
 
     await handler({
       question: "Which framework?",
@@ -313,7 +314,7 @@ describe("record_decision", () => {
   });
 
   test("appends multiple decisions", async () => {
-    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-002");
+    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-002", "meeting");
 
     await handler({
       question: "Q1",
@@ -338,5 +339,27 @@ describe("record_decision", () => {
     const second = JSON.parse(lines[1]);
     expect(first.question).toBe("Q1");
     expect(second.question).toBe("Q2");
+  });
+
+  test("commission context writes to commissions state directory", async () => {
+    const handler = makeRecordDecisionHandler(guildHallHome, "commission-001", "commission");
+
+    await handler({
+      question: "Which approach?",
+      decision: "Pattern A",
+      reasoning: "Simpler implementation",
+    });
+
+    const logPath = path.join(
+      guildHallHome,
+      "state/commissions/commission-001/decisions.jsonl",
+    );
+    const raw = await fs.readFile(logPath, "utf-8");
+    const lines = raw.trim().split("\n");
+    expect(lines).toHaveLength(1);
+
+    const entry = JSON.parse(lines[0]);
+    expect(entry.question).toBe("Which approach?");
+    expect(entry.decision).toBe("Pattern A");
   });
 });

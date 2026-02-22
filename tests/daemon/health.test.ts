@@ -23,6 +23,7 @@ describe("GET /health", () => {
     expect(body).toEqual({
       status: "ok",
       meetings: 0,
+      commissions: { running: 0 },
       uptime: 42,
     });
   });

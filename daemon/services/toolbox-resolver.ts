@@ -5,15 +5,18 @@ import type {
   WorkerMetadata,
 } from "@/lib/types";
 import { createBaseToolbox } from "./base-toolbox";
+import { createCommissionToolbox } from "./commission-toolbox";
 import { createMeetingToolbox } from "./meeting-toolbox";
 
 // -- Types --
 
 export interface ToolboxResolverContext {
   projectPath: string;
-  meetingId: string;
+  meetingId?: string;
+  commissionId?: string;
   workerName?: string;
   guildHallHome?: string;
+  daemonSocketPath?: string;
 }
 
 // -- Resolver --
@@ -36,22 +39,43 @@ export function resolveToolSet(
 ): ResolvedToolSet {
   const mcpServers: McpSdkServerConfigWithInstance[] = [];
 
+  // Determine context identity for the base toolbox
+  const contextId = context.meetingId ?? context.commissionId;
+  if (!contextId) {
+    throw new Error("ToolboxResolverContext requires either meetingId or commissionId");
+  }
+  const contextType: "meeting" | "commission" = context.meetingId ? "meeting" : "commission";
+
   // 1. Base toolbox (always present)
   mcpServers.push(
     createBaseToolbox({
       projectPath: context.projectPath,
-      meetingId: context.meetingId,
+      contextId,
+      contextType,
       guildHallHome: context.guildHallHome,
     }),
   );
 
-  // 2. Context toolbox (meeting toolbox when in meeting context)
+  // 2. Context toolbox (meeting or commission, mutually exclusive)
   if (context.meetingId && context.workerName) {
     mcpServers.push(
       createMeetingToolbox({
         projectPath: context.projectPath,
         meetingId: context.meetingId,
         workerName: context.workerName,
+        guildHallHome: context.guildHallHome,
+      }),
+    );
+  } else if (context.commissionId && !context.daemonSocketPath) {
+    throw new Error(
+      `Commission context requires daemonSocketPath. CommissionId "${context.commissionId}" was provided without a socket path.`,
+    );
+  } else if (context.commissionId && context.daemonSocketPath) {
+    mcpServers.push(
+      createCommissionToolbox({
+        projectPath: context.projectPath,
+        commissionId: context.commissionId,
+        daemonSocketPath: context.daemonSocketPath,
         guildHallHome: context.guildHallHome,
       }),
     );

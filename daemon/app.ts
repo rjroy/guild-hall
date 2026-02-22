@@ -4,14 +4,20 @@ import {
   createMeetingRoutes,
   type MeetingSessionForRoutes,
 } from "./routes/meetings";
+import { createCommissionRoutes } from "./routes/commissions";
+import { createEventRoutes } from "./routes/events";
 import { createWorkerRoutes } from "./routes/workers";
 import type { DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting-session";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { EventBus } from "@/daemon/services/event-bus";
 
 export interface AppDeps {
   health: HealthDeps;
   meetingSession?: MeetingSessionForRoutes;
+  commissionSession?: CommissionSessionForRoutes;
   packages?: DiscoveredPackage[];
+  eventBus?: EventBus;
 }
 
 /**
@@ -31,8 +37,19 @@ export function createApp(deps: AppDeps): Hono {
     app.route("/", createMeetingRoutes({ meetingSession: deps.meetingSession }));
   }
 
+  if (deps.commissionSession) {
+    app.route(
+      "/",
+      createCommissionRoutes({ commissionSession: deps.commissionSession }),
+    );
+  }
+
   if (deps.packages) {
     app.route("/", createWorkerRoutes({ packages: deps.packages }));
+  }
+
+  if (deps.eventBus) {
+    app.route("/", createEventRoutes({ eventBus: deps.eventBus }));
   }
 
   return app;
@@ -55,9 +72,15 @@ export async function createProductionApp(options?: {
   const { createMeetingSession } = await import(
     "@/daemon/services/meeting-session"
   );
+  const { createCommissionSession } = await import(
+    "@/daemon/services/commission-session"
+  );
+
+  const { createEventBus } = await import("@/daemon/services/event-bus");
 
   const config = await readConfig();
   const guildHallHome = getGuildHallHome();
+  const eventBus = createEventBus();
 
   // Scan paths: CLI flag overrides the default, otherwise scan
   // ~/.guild-hall/packages/ where workers are installed.
@@ -97,15 +120,27 @@ export async function createProductionApp(options?: {
     console.log(`[daemon] Recovered ${recovered} open meeting(s) from state files.`);
   }
 
+  const packagesDir = options?.packagesDir ?? defaultPackagesDir;
+  const commissionSession = createCommissionSession({
+    packages,
+    config,
+    guildHallHome,
+    eventBus,
+    packagesDir,
+  });
+
   const startTime = Date.now();
 
   return createApp({
     health: {
       getMeetingCount: () => meetingSession.getActiveMeetings(),
+      getCommissionCount: () => commissionSession.getActiveCommissions(),
       getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),
     },
     meetingSession,
+    commissionSession,
     packages,
+    eventBus,
   });
 }
 

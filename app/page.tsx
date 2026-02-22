@@ -2,8 +2,10 @@ import { readConfig } from "@/lib/config";
 import { recentArtifacts } from "@/lib/artifacts";
 import { projectLorePath } from "@/lib/paths";
 import { scanMeetingRequests } from "@/lib/meetings";
+import { scanCommissions } from "@/lib/commissions";
 import type { Artifact } from "@/lib/types";
 import type { MeetingMeta } from "@/lib/meetings";
+import type { CommissionMeta } from "@/lib/commissions";
 import WorkspaceSidebar from "@/components/dashboard/WorkspaceSidebar";
 import ManagerBriefing from "@/components/dashboard/ManagerBriefing";
 import DependencyMap from "@/components/dashboard/DependencyMap";
@@ -28,6 +30,14 @@ export default async function DashboardPage({
     const lorePath = projectLorePath(selectedConfig.path);
     artifacts = await recentArtifacts(lorePath, 10);
   }
+
+  // Scan commissions from all registered projects
+  const commissionsByProject = await Promise.all(
+    config.projects.map((project) =>
+      scanCommissions(projectLorePath(project.path), project.name),
+    ),
+  );
+  const allCommissions: CommissionMeta[] = commissionsByProject.flat();
 
   // Scan meeting requests from all registered projects
   const requestsByProject = await Promise.all(
@@ -65,7 +75,7 @@ export default async function DashboardPage({
         <ManagerBriefing />
       </div>
       <div className={styles.depMap}>
-        <DependencyMap />
+        <DependencyMap commissions={allCommissions} />
       </div>
       <div className={styles.recentArtifacts}>
         <RecentArtifacts

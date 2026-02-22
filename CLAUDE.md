@@ -8,7 +8,7 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 ## Status
 
-Phase 3 complete. 724 tests pass. Phase 1 delivered three views (Dashboard, Project, Artifact), CLI tools (register, validate), config/artifact libraries, and API route for artifact editing. Phase 2 added the daemon process (Hono on Unix socket), meeting sessions via Claude Agent SDK, worker packages, toolbox resolution, SSE streaming, and meeting chat UI. Phase 3 added meeting lifecycle (four states: requested/open/closed/declined), transcript storage, notes generation on close, session persistence across daemon restarts, session renewal on SDK expiry, meeting requests via propose_followup tool, and pending audiences UI on the Dashboard. Implementation follows vertical slices defined in `.lore/plans/implementation-phases.md`. Phase 1 notes at `.lore/plans/phase-1-empty-hall.md` and `.lore/notes/phase-1-empty-hall.md`.
+Phase 4 complete. 1032 tests pass. Phase 1 delivered three views (Dashboard, Project, Artifact), CLI tools (register, validate), config/artifact libraries, and API route for artifact editing. Phase 2 added the daemon process (Hono on Unix socket), meeting sessions via Claude Agent SDK, worker packages, toolbox resolution, SSE streaming, and meeting chat UI. Phase 3 added meeting lifecycle (four states: requested/open/closed/declined), transcript storage, notes generation on close, session persistence across daemon restarts, session renewal on SDK expiry, meeting requests via propose_followup tool, and pending audiences UI on the Dashboard. Phase 4 added async commissions: seven-state lifecycle (pending/blocked/dispatched/in_progress/completed/failed/cancelled), commission worker processes (separate OS processes via Bun.spawn), commission toolbox (report_progress/submit_result/log_question with dual-channel IPC), system-wide SSE event bus, heartbeat monitoring, cancellation with SIGTERM/SIGKILL grace, re-dispatch, commission creation form, commission view with live SSE updates, and DependencyMap on the Dashboard. Implementation follows vertical slices defined in `.lore/plans/implementation-phases.md`.
 
 ## Architecture
 
@@ -16,14 +16,17 @@ Phase 3 complete. 724 tests pass. Phase 1 delivered three views (Dashboard, Proj
 
 **Phase 2: Daemon + meetings.** The daemon is a Bun process running a Hono app on a Unix socket at `~/.guild-hall/guild-hall.sock`. It owns meeting sessions and process management. Next.js reads files directly for page loads; writes and sessions go through the daemon. Meeting sessions use the Claude Agent SDK with SSE streaming to the browser. See `.lore/design/process-architecture.md`.
 
-**Phase 3 (current): Meeting lifecycle.** Meetings have four states: requested, open, closed, declined. Transcripts are stored ephemerally during sessions and removed on close. Notes are generated via SDK on close (transcript + decisions + linked artifacts). Sessions persist across daemon restarts (state rehydrated from disk) and renew automatically on SDK session expiry. Workers can propose follow-up meetings via the propose_followup tool, which creates meeting requests. The Dashboard surfaces pending requests via the PendingAudiences component with Open/Defer/Ignore actions.
+**Phase 3: Meeting lifecycle.** Meetings have four states: requested, open, closed, declined. Transcripts are stored ephemerally during sessions and removed on close. Notes are generated via SDK on close (transcript + decisions + linked artifacts). Sessions persist across daemon restarts (state rehydrated from disk) and renew automatically on SDK session expiry. Workers can propose follow-up meetings via the propose_followup tool, which creates meeting requests. The Dashboard surfaces pending requests via the PendingAudiences component with Open/Defer/Ignore actions.
+
+**Phase 4 (current): Commissions.** Async work items dispatched to AI worker processes. Seven states: pending, blocked, dispatched, in_progress, completed, failed, cancelled. Commission artifacts live in `<project>/.lore/commissions/`. Each commission runs as a separate OS process (`Bun.spawn`), self-bootstrapping from a JSON config file. The daemon owns lifecycle (spawn, monitor, terminate); the worker owns the SDK session. Communication uses dual channels: file writes (durable) and HTTP callbacks to daemon (real-time, best-effort). System-wide SSE via EventBus broadcasts lifecycle events to all browser subscribers. Heartbeat monitoring (30s interval, 180s threshold) detects stale workers. Four-way exit classification: clean+result=completed, clean+no-result=failed, crash+result=completed, crash+no-result=failed. Cancellation sends SIGTERM with 30s grace, then SIGKILL.
 
 **Daemon process model:**
 - Entry point: `daemon/index.ts`. Parses `--packages-dir` flag, cleans stale sockets, starts `Bun.serve({ unix, fetch })`, writes PID file, registers SIGINT/SIGTERM handlers.
 - PID file at `<socket-path>.pid` enables crash recovery. On boot, if a PID file exists and the process is dead, both socket and PID file are cleaned up. If the process is alive, startup is rejected.
 - Routes use DI factory pattern: `createHealthRoutes(deps)` receives injected dependencies. The app factory `createApp(deps)` wires route groups. Production wiring lives in `daemon/app.ts` via `createProductionApp()`.
 - Meeting sessions manage Claude Agent SDK lifecycle, translate SDK messages to GuildHallEvents, and stream them via SSE.
-- Toolbox resolver assembles base tools (6 built-in via MCP server), domain-specific tools from worker packages, and built-in tool configurations.
+- Toolbox resolver assembles base tools (6 built-in via MCP server), context-specific tools (meeting or commission), domain-specific tools from worker packages, and built-in tool configurations. Base toolbox uses `contextId`/`contextType` (not `meetingId`) to support both meeting and commission contexts.
+- Commission sessions manage worker process lifecycle: spawn, monitor heartbeats, handle exits, and emit events to the EventBus. The EventBus (Set-based pub/sub) broadcasts SystemEvents to SSE subscribers via `GET /events`.
 
 ## Tech Stack
 
@@ -69,7 +72,9 @@ bun run guild-hall validate                # validate config
 | `packages/` | Worker/toolbox packages (local dev) |
 | `~/.guild-hall/packages/` | Installed worker/toolbox packages |
 | `~/.guild-hall/state/meetings/` | Machine-local meeting state |
+| `~/.guild-hall/state/commissions/` | Machine-local commission state (PID, status, temp dir) |
 | `~/.guild-hall/meetings/` | Ephemeral meeting transcripts (cleaned up on close) |
+| `<project>/.lore/commissions/` | Commission artifacts (frontmatter with timeline, progress, result) |
 | `~/.guild-hall/guild-hall.sock` | Daemon Unix socket (runtime) |
 | `~/.guild-hall/guild-hall.sock.pid` | Daemon PID file (runtime) |
 
@@ -93,6 +98,19 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 - `components/dashboard/MeetingRequestCard.tsx` meeting request card with Open/Defer/Ignore actions.
 - `components/dashboard/PendingAudiences.tsx` server component rendering request cards (replaced stub).
 
+**Phase 4 components:**
+- `components/commission/CommissionForm.tsx` creation form with worker picker, prompt textarea, dependencies, resource overrides.
+- `components/commission/CommissionList.tsx` server component listing commissions with status gems.
+- `components/commission/CreateCommissionButton.tsx` client wrapper toggling inline form.
+- `components/commission/CommissionView.tsx` client wrapper with SSE subscription via EventSource, composing all sub-components.
+- `components/commission/CommissionHeader.tsx` breadcrumb, title, gem, worker, status badge.
+- `components/commission/CommissionPrompt.tsx` editable textarea when pending, read-only after dispatch.
+- `components/commission/CommissionTimeline.tsx` chronological event list with type-specific rendering.
+- `components/commission/CommissionActions.tsx` status-dependent buttons: Dispatch, Cancel (confirmation), Re-dispatch (confirmation).
+- `components/commission/CommissionLinkedArtifacts.tsx` linked artifacts with artifact view links.
+- `components/commission/CommissionNotes.tsx` user notes text input.
+- `components/dashboard/DependencyMap.tsx` commission status cards sorted by priority (replaced stub).
+
 ## API Routes
 
 `PUT /api/artifacts` updates artifact body content (Phase 1 exception to "daemon owns writes"). Accepts `{ projectName, artifactPath, content }`. Guards against path traversal. Writes only the markdown body, preserving raw frontmatter bytes to avoid git diff noise from gray-matter reformatting.
@@ -110,6 +128,15 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 - `POST /api/meetings/[meetingId]/decline` declines a meeting request.
 - `POST /api/meetings/[meetingId]/defer` defers a meeting request with a date.
 
+**Phase 4 routes (commission proxies to daemon):**
+- `POST /api/commissions` creates a commission.
+- `PUT /api/commissions/[commissionId]` updates a pending commission (prompt, dependencies, resource overrides).
+- `DELETE /api/commissions/[commissionId]` cancels a commission.
+- `POST /api/commissions/[commissionId]/dispatch` dispatches a commission.
+- `POST /api/commissions/[commissionId]/redispatch` re-dispatches a failed/cancelled commission.
+- `POST /api/commissions/[commissionId]/note` adds a user note.
+- `GET /api/events` system-wide SSE stream for lifecycle events (commissions and meetings).
+
 ## Core Library Modules
 
 | Module | Responsibility |
@@ -123,6 +150,7 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 | `lib/daemon-client.ts` | Unix socket HTTP client for daemon communication |
 | `lib/meetings.ts` | `scanMeetings()`, `scanMeetingRequests()`, `readMeetingMeta()`, `parseTranscriptToMessages()` |
 | `lib/sse-helpers.ts` | Shared SSE consumption: `consumeFirstTurnSSE()`, `storeFirstTurnMessages()`, `parseSSEBuffer()` |
+| `lib/commissions.ts` | `scanCommissions()`, `readCommissionMeta()`, `parseActivityTimeline()` for Next.js server components |
 
 ## Daemon Modules
 
@@ -143,8 +171,16 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 | `daemon/services/notes-generator.ts` | Meeting notes generation via SDK (transcript + decisions + artifacts) |
 | `daemon/services/meeting-toolbox.ts` | 3 meeting tools via MCP server (link_artifact, propose_followup, summarize_progress) |
 | `daemon/services/meeting-artifact-helpers.ts` | Shared meeting artifact frontmatter manipulation |
+| `daemon/services/commission-session.ts` | Commission lifecycle, worker process management, heartbeat monitoring, exit handling |
+| `daemon/services/commission-toolbox.ts` | 3 commission tools via MCP server (report_progress, submit_result, log_question) |
+| `daemon/services/commission-artifact-helpers.ts` | Commission artifact frontmatter manipulation (status, timeline, progress, result) |
+| `daemon/services/commission-worker-config.ts` | Zod schema for worker process JSON config |
+| `daemon/services/event-bus.ts` | SystemEvent pub/sub (Set-based, typed), EventBus interface |
+| `daemon/commission-worker.ts` | Worker process entry point (spawned by daemon, runs SDK session) |
+| `daemon/routes/commissions.ts` | 9 commission endpoints (CRUD, dispatch, IPC, notes) |
+| `daemon/routes/events.ts` | `GET /events` system-wide SSE endpoint |
 
-**Type boundaries:** Daemon-specific types live in `daemon/` (e.g., `GuildHallEvent`, `MeetingId`, `SdkSessionId`, `MeetingStatus`, `AppDeps`). Shared types used by both daemon and Next.js live in `lib/types.ts`. The daemon imports from `lib/` via `@/lib/` path alias; `lib/` never imports from `daemon/`.
+**Type boundaries:** Daemon-specific types live in `daemon/` (e.g., `GuildHallEvent`, `MeetingId`, `SdkSessionId`, `CommissionId`, `CommissionStatus`, `SystemEvent`, `MeetingStatus`, `AppDeps`). Shared types used by both daemon and Next.js live in `lib/types.ts`. The daemon imports from `lib/` via `@/lib/` path alias; `lib/` never imports from `daemon/`.
 
 ## CSS Design System
 

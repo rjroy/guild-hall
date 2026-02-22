@@ -1,0 +1,90 @@
+/* Scroll-window container matching MeetingHeader */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 50px;
+
+  border-radius: 50px;
+  margin-bottom: var(--space-md);
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+
+  border-image-source: url("/images/ui/scroll-window-dark.webp");
+  border-image-slice: 52 fill;
+  border-image-width: 50px;
+  border-image-repeat: stretch;
+}
+
+/* --- Breadcrumb --- */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.85rem;
+}
+
+.breadcrumbLink {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.breadcrumbLink:hover {
+  color: var(--color-amber);
+}
+
+.separator {
+  color: var(--color-text-muted);
+}
+
+.breadcrumbCurrent {
+  color: var(--color-brass);
+  font-weight: 500;
+}
+
+/* --- Title row --- */
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text-heading);
+  margin: 0;
+}
+
+/* --- Metadata row --- */
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: 0.85rem;
+}
+
+.statusBadge {
+  color: var(--color-brass);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.workerLabel {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 600px) {
+  .header {
+    padding: var(--space-sm) var(--space-md);
+    border-radius: 12px;
+  }
+}

@@ -247,17 +247,19 @@ export function daemonStreamAsync(
   requestPath: string,
   body?: string,
   socketPathOverride?: string,
+  options?: { method?: string },
 ): Promise<ReadableStream<Uint8Array> | DaemonError> {
   const socketPath = socketPathOverride ?? getSocketPath();
+  const method = options?.method ?? "POST";
 
   return new Promise((resolve) => {
     const req = http.request(
       {
         socketPath,
         path: requestPath,
-        method: "POST",
+        method,
         headers: {
-          "Content-Type": "application/json",
+          ...(body ? { "Content-Type": "application/json" } : {}),
           Accept: "text/event-stream",
         },
       },
@@ -265,14 +267,23 @@ export function daemonStreamAsync(
         // Connection succeeded. Build a ReadableStream from the response.
         const stream = new ReadableStream<Uint8Array>({
           start(controller) {
+            // The controller can be closed externally when the consumer
+            // cancels the stream (e.g., Next.js SSE proxy disconnect).
+            // After cancel(), req.destroy() fires error/end events on the
+            // response, but the controller is already closed. try/catch
+            // is the only reliable guard since there's no "isClosed" check.
             res.on("data", (chunk: Buffer) => {
-              controller.enqueue(new Uint8Array(chunk));
+              try {
+                controller.enqueue(new Uint8Array(chunk));
+              } catch {
+                // Controller already closed by consumer cancel
+              }
             });
             res.on("end", () => {
-              controller.close();
+              try { controller.close(); } catch { /* already closed */ }
             });
             res.on("error", () => {
-              controller.close();
+              try { controller.close(); } catch { /* already closed */ }
             });
           },
           cancel() {
