@@ -456,7 +456,6 @@ projectName: ${projectName}
       `[commission] created "${commissionId}" for project "${projectName}" (worker: ${workerName})`,
     );
 
-    // 6. Return the commission ID
     return { commissionId: commissionId as string };
   }
 
@@ -761,149 +760,73 @@ projectName: ${projectName}
       );
     }
 
-    if (exitCode === 0 && commission.resultSubmitted) {
-      // Clean exit with result: completed
-      console.log(`[commission] "${commissionId}" completed (clean exit, result submitted)`);
-      commission.status = "completed";
-      if (project) {
-        try {
-          await transitionCommission(
-            project.path,
-            commissionId,
-            "in_progress",
-            "completed",
-            "Worker completed successfully",
-          );
-        } catch (err: unknown) {
-          console.error(
-            `[commission-session] Failed to transition ${commissionId} to completed:`,
-            err instanceof Error ? err.message : String(err),
-          );
-        }
-      }
+    // Determine final status and reason from the exit code / result matrix.
+    // Result submitted -> completed (even if process crashed).
+    // No result -> failed (even if process exited cleanly).
+    let finalStatus: CommissionStatus;
+    let reason: string;
 
-      // Update result in artifact
-      if (project && commission.resultSummary) {
-        try {
-          await updateResultSummary(
-            project.path,
-            commissionId,
-            commission.resultSummary,
-            commission.resultArtifacts,
-          );
-        } catch (err: unknown) {
-          console.error(
-            `[commission-session] Failed to update result summary:`,
-            err instanceof Error ? err.message : String(err),
-          );
-        }
+    if (commission.resultSubmitted) {
+      finalStatus = "completed";
+      if (exitCode === 0) {
+        console.log(`[commission] "${commissionId}" completed (clean exit, result submitted)`);
+        reason = "Worker completed successfully";
+      } else {
+        console.warn(`[commission] "${commissionId}" completed with anomaly (exit code ${exitCode}, but result was submitted)`);
+        reason = `Worker crashed (exit code ${exitCode}) but result was submitted`;
       }
-
-      deps.eventBus.emit({
-        type: "commission_status",
-        commissionId: commissionId as string,
-        status: "completed",
-        reason: "Worker completed successfully",
-      });
-    } else if (exitCode === 0 && !commission.resultSubmitted) {
-      // Clean exit without result: failed
-      console.log(`[commission] "${commissionId}" failed (clean exit, no result submitted)`);
-      commission.status = "failed";
-      const reason = "Worker completed without submitting result";
-      if (project) {
-        try {
-          await transitionCommission(
-            project.path,
-            commissionId,
-            "in_progress",
-            "failed",
-            reason,
-          );
-        } catch (err: unknown) {
-          console.error(
-            `[commission-session] Failed to transition ${commissionId} to failed:`,
-            err instanceof Error ? err.message : String(err),
-          );
-        }
-      }
-      deps.eventBus.emit({
-        type: "commission_status",
-        commissionId: commissionId as string,
-        status: "failed",
-        reason,
-      });
-    } else if (exitCode !== 0 && commission.resultSubmitted) {
-      // Crash with result: completed (anomaly logged)
-      console.warn(`[commission] "${commissionId}" completed with anomaly (exit code ${exitCode}, but result was submitted)`);
-      commission.status = "completed";
-      const reason = `Worker crashed (exit code ${exitCode}) but result was submitted`;
-      if (project) {
-        try {
-          await transitionCommission(
-            project.path,
-            commissionId,
-            "in_progress",
-            "completed",
-            reason,
-          );
-        } catch (err: unknown) {
-          console.error(
-            `[commission-session] Failed to transition ${commissionId} to completed:`,
-            err instanceof Error ? err.message : String(err),
-          );
-        }
-      }
-
-      if (project && commission.resultSummary) {
-        try {
-          await updateResultSummary(
-            project.path,
-            commissionId,
-            commission.resultSummary,
-            commission.resultArtifacts,
-          );
-        } catch (err: unknown) {
-          console.error(
-            `[commission-session] Failed to update result summary:`,
-            err instanceof Error ? err.message : String(err),
-          );
-        }
-      }
-
-      deps.eventBus.emit({
-        type: "commission_status",
-        commissionId: commissionId as string,
-        status: "completed",
-        reason,
-      });
     } else {
-      // Crash without result: failed
-      console.error(`[commission] "${commissionId}" failed (exit code ${exitCode}, no result submitted)`);
-      commission.status = "failed";
-      const reason = `Worker crashed with exit code ${exitCode}`;
-      if (project) {
+      finalStatus = "failed";
+      if (exitCode === 0) {
+        console.log(`[commission] "${commissionId}" failed (clean exit, no result submitted)`);
+        reason = "Worker completed without submitting result";
+      } else {
+        console.error(`[commission] "${commissionId}" failed (exit code ${exitCode}, no result submitted)`);
+        reason = `Worker crashed with exit code ${exitCode}`;
+      }
+    }
+
+    commission.status = finalStatus;
+
+    if (project) {
+      try {
+        await transitionCommission(
+          project.path,
+          commissionId,
+          "in_progress",
+          finalStatus,
+          reason,
+        );
+      } catch (err: unknown) {
+        console.error(
+          `[commission-session] Failed to transition ${commissionId} to ${finalStatus}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+
+      if (finalStatus === "completed" && commission.resultSummary) {
         try {
-          await transitionCommission(
+          await updateResultSummary(
             project.path,
             commissionId,
-            "in_progress",
-            "failed",
-            reason,
+            commission.resultSummary,
+            commission.resultArtifacts,
           );
         } catch (err: unknown) {
           console.error(
-            `[commission-session] Failed to transition ${commissionId} to failed:`,
+            `[commission-session] Failed to update result summary:`,
             err instanceof Error ? err.message : String(err),
           );
         }
       }
-      deps.eventBus.emit({
-        type: "commission_status",
-        commissionId: commissionId as string,
-        status: "failed",
-        reason,
-      });
     }
+
+    deps.eventBus.emit({
+      type: "commission_status",
+      commissionId: commissionId as string,
+      status: finalStatus,
+      reason,
+    });
 
     // Clean up temp directory
     fs.rm(commission.tempDir, { recursive: true, force: true }).catch(

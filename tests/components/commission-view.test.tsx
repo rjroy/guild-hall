@@ -331,7 +331,6 @@ describe("CommissionLinkedArtifacts", () => {
   test("renders empty state when no artifacts", () => {
     const el = CommissionLinkedArtifacts({
       artifacts: [],
-      projectName: "test-project",
     }) as AnyElement;
     expect(containsText(el, "No artifacts produced yet.")).toBe(true);
   });
@@ -346,7 +345,6 @@ describe("CommissionLinkedArtifacts", () => {
     ];
     const el = CommissionLinkedArtifacts({
       artifacts,
-      projectName: "test",
     }) as AnyElement;
 
     const lists = findElements(el, (e) => e.type === "ul");
@@ -363,7 +361,6 @@ describe("CommissionLinkedArtifacts", () => {
     ];
     const el = CommissionLinkedArtifacts({
       artifacts,
-      projectName: "test",
     }) as AnyElement;
 
     const links = findElements(
@@ -388,7 +385,6 @@ describe("CommissionLinkedArtifacts", () => {
     ];
     const el = CommissionLinkedArtifacts({
       artifacts,
-      projectName: "test",
     }) as AnyElement;
 
     expect(containsText(el, "findings")).toBe(true);
@@ -404,7 +400,6 @@ describe("CommissionLinkedArtifacts", () => {
     ];
     const el = CommissionLinkedArtifacts({
       artifacts,
-      projectName: "test",
     }) as AnyElement;
 
     expect(containsText(el, "research/findings.md")).toBe(true);
@@ -418,7 +413,6 @@ describe("CommissionLinkedArtifacts", () => {
     ];
     const el = CommissionLinkedArtifacts({
       artifacts,
-      projectName: "test",
     }) as AnyElement;
 
     const items = findElements(el, (e) => e.type === "li");
@@ -428,7 +422,6 @@ describe("CommissionLinkedArtifacts", () => {
   test("renders section label", () => {
     const el = CommissionLinkedArtifacts({
       artifacts: [],
-      projectName: "test",
     }) as AnyElement;
 
     const h3s = findElements(el, (e) => e.type === "h3");

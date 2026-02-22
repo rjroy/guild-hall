@@ -41,6 +41,18 @@ export type CommissionStatus =
   | "failed"
   | "cancelled";
 
+// -- Tool result type --
+
+/**
+ * Matches the CallToolResult type from @modelcontextprotocol/sdk/types.js.
+ * Defined here because the MCP SDK is a transitive peer dep of the Claude
+ * Agent SDK, not a direct dependency.
+ */
+export type ToolResult = {
+  content: Array<{ type: "text"; text: string }>;
+  isError?: boolean;
+};
+
 // -- Event types --
 
 export type GuildHallEvent =

@@ -66,11 +66,12 @@ export function resolveToolSet(
         guildHallHome: context.guildHallHome,
       }),
     );
-  } else if (context.commissionId && !context.daemonSocketPath) {
-    throw new Error(
-      `Commission context requires daemonSocketPath. CommissionId "${context.commissionId}" was provided without a socket path.`,
-    );
-  } else if (context.commissionId && context.daemonSocketPath) {
+  } else if (context.commissionId) {
+    if (!context.daemonSocketPath) {
+      throw new Error(
+        `Commission context requires daemonSocketPath. CommissionId "${context.commissionId}" was provided without a socket path.`,
+      );
+    }
     mcpServers.push(
       createCommissionToolbox({
         projectPath: context.projectPath,

@@ -29,11 +29,8 @@ export default async function ProjectPage({
   const lorePath = projectLorePath(project.path);
   const artifacts = await scanArtifacts(lorePath);
 
-  // Scan for meeting artifacts in the meetings subdirectory
   const meetingsPath = path.join(lorePath, "meetings");
   const meetingArtifacts = await scanArtifacts(meetingsPath);
-
-  // Scan for commissions
   const commissions = await scanCommissions(lorePath, projectName);
 
   return (

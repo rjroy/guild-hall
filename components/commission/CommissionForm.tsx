@@ -25,7 +25,6 @@ export default function CommissionForm({
   onCreated,
   onCancel,
 }: CommissionFormProps) {
-  // Form fields
   const [title, setTitle] = useState("");
   const [workerName, setWorkerName] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -34,15 +33,12 @@ export default function CommissionForm({
   const [maxBudgetUsd, setMaxBudgetUsd] = useState("");
   const [overridesOpen, setOverridesOpen] = useState(false);
 
-  // Workers list
   const [workers, setWorkers] = useState<WorkerInfo[]>([]);
   const [loadingWorkers, setLoadingWorkers] = useState(true);
 
-  // Submission state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch workers on mount
   useEffect(() => {
     let cancelled = false;
 
@@ -82,13 +78,11 @@ export default function CommissionForm({
     setSubmitting(true);
     setError(null);
 
-    // Parse dependencies from comma-separated input
     const deps = dependencies
       .split(",")
       .map((d) => d.trim())
       .filter(Boolean);
 
-    // Build resource overrides only if values are provided
     const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number } = {};
     if (maxTurns.trim()) {
       const parsed = parseInt(maxTurns, 10);
@@ -155,7 +149,6 @@ export default function CommissionForm({
 
   return (
     <div className={styles.form} role="form" aria-label="Create Commission">
-      {/* Title */}
       <div className={styles.fieldGroup}>
         <label className={styles.label} htmlFor="commission-title">
           Title
@@ -171,7 +164,6 @@ export default function CommissionForm({
         />
       </div>
 
-      {/* Worker */}
       <div className={styles.fieldGroup}>
         <label className={styles.label} htmlFor="commission-worker">
           Worker
@@ -196,7 +188,6 @@ export default function CommissionForm({
         )}
       </div>
 
-      {/* Prompt */}
       <div className={styles.fieldGroup}>
         <label className={styles.label} htmlFor="commission-prompt">
           Prompt
@@ -211,7 +202,6 @@ export default function CommissionForm({
         />
       </div>
 
-      {/* Dependencies */}
       <div className={styles.fieldGroup}>
         <label className={styles.label} htmlFor="commission-dependencies">
           Dependencies (optional)
@@ -227,7 +217,6 @@ export default function CommissionForm({
         />
       </div>
 
-      {/* Resource Overrides (collapsible) */}
       <div className={styles.fieldGroup}>
         <button
           type="button"
@@ -286,10 +275,8 @@ export default function CommissionForm({
         )}
       </div>
 
-      {/* Error */}
       {error && <p className={styles.errorMessage}>{error}</p>}
 
-      {/* Buttons */}
       <div className={styles.buttonRow}>
         {onCancel && (
           <button

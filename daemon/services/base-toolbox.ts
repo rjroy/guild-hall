@@ -8,17 +8,9 @@ import type {
   McpSdkServerConfigWithInstance,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod/v4";
-
-/**
- * Matches the CallToolResult type from @modelcontextprotocol/sdk/types.js.
- * Defined locally because the MCP SDK is not a direct dependency (it's
- * a transitive peer dep of the Claude Agent SDK).
- */
-type ToolResult = {
-  content: Array<{ type: "text"; text: string }>;
-  isError?: boolean;
-};
+import type { ToolResult } from "@/daemon/types";
 import { readArtifact, writeArtifactContent, scanArtifacts } from "@/lib/artifacts";
+import { isNodeError } from "@/lib/types";
 import { projectLorePath } from "@/lib/paths";
 
 // -- Types --
@@ -319,8 +311,4 @@ function defaultGuildHallHome(): string {
     throw new Error("Cannot determine home directory: HOME is not set");
   }
   return path.join(home, ".guild-hall");
-}
-
-function isNodeError(err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && "code" in err;
 }

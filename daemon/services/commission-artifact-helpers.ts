@@ -10,15 +10,9 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
-
-// -- Types --
-
-export interface TimelineEntry {
-  timestamp: string;
-  event: string;
-  reason: string;
-  [key: string]: unknown;
-}
+import { parseActivityTimeline, type TimelineEntry } from "@/lib/commissions";
+export { parseActivityTimeline } from "@/lib/commissions";
+export type { TimelineEntry } from "@/lib/commissions";
 
 // -- Path resolution --
 
@@ -130,48 +124,6 @@ export async function readActivityTimeline(
   return parseActivityTimeline(raw);
 }
 
-/**
- * Pure function that parses the activity_timeline block from raw file
- * content into typed TimelineEntry objects.
- */
-export function parseActivityTimeline(raw: string): TimelineEntry[] {
-  // Find the activity_timeline block
-  const timelineMatch = raw.match(
-    /^activity_timeline:\n((?:  - .+\n(?:    .+\n)*)*)/m,
-  );
-  if (!timelineMatch) return [];
-
-  const block = timelineMatch[1];
-  const entries: TimelineEntry[] = [];
-  let currentEntry: Record<string, unknown> | null = null;
-
-  for (const line of block.split("\n")) {
-    if (!line.trim()) continue;
-
-    // New entry starts with "  - key: value"
-    const entryStartMatch = line.match(/^  - (\w+): (.+)$/);
-    if (entryStartMatch) {
-      if (currentEntry) {
-        entries.push(currentEntry as TimelineEntry);
-      }
-      currentEntry = { [entryStartMatch[1]]: stripQuotes(entryStartMatch[2]) };
-      continue;
-    }
-
-    // Continuation line: "    key: value"
-    const continuationMatch = line.match(/^    (\w+): (.+)$/);
-    if (continuationMatch && currentEntry) {
-      currentEntry[continuationMatch[1]] = stripQuotes(continuationMatch[2]);
-    }
-  }
-
-  if (currentEntry) {
-    entries.push(currentEntry as TimelineEntry);
-  }
-
-  return entries;
-}
-
 // -- Progress operations --
 
 /**
@@ -207,17 +159,13 @@ export async function updateResultSummary(
 ): Promise<void> {
   const artifactPath = commissionArtifactPath(projectPath, commissionId);
   let raw = await fs.readFile(artifactPath, "utf-8");
-
-  // Update result_summary
   const escaped = summary.replace(/"/g, '\\"');
   raw = raw.replace(
     /^result_summary: .*$/m,
     `result_summary: "${escaped}"`,
   );
-
   await fs.writeFile(artifactPath, raw, "utf-8");
 
-  // Append linked artifacts if provided
   if (artifacts && artifacts.length > 0) {
     for (const artifact of artifacts) {
       await addLinkedArtifact(projectPath, commissionId, artifact);
@@ -269,7 +217,6 @@ export async function addLinkedArtifact(
   const artifactPath = commissionArtifactPath(projectPath, commissionId);
   const raw = await fs.readFile(artifactPath, "utf-8");
 
-  // Check if already linked
   const existing = await readLinkedArtifacts(projectPath, commissionId);
   if (existing.includes(artifactRelPath)) {
     return false;
@@ -307,18 +254,3 @@ export async function addLinkedArtifact(
   return true;
 }
 
-// -- Helpers --
-
-/**
- * Strips surrounding quotes from a YAML string value.
- */
-function stripQuotes(value: string): string {
-  const trimmed = value.trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}

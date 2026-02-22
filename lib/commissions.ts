@@ -12,6 +12,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import matter from "gray-matter";
+import { isNodeError } from "@/lib/types";
 
 // -- Types --
 
@@ -39,10 +40,6 @@ export interface TimelineEntry {
 }
 
 // -- Internal helpers --
-
-function isNodeError(err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && "code" in err;
-}
 
 /**
  * Extracts the commission ID from a filename.
@@ -97,11 +94,7 @@ function parseCommissionData(
       ? data.result_summary
       : "",
     projectName,
-    date: data.date instanceof Date
-      ? data.date.toISOString().split("T")[0]
-      : typeof data.date === "string"
-        ? data.date
-        : "",
+    date: formatDate(data.date),
   };
 }
 
@@ -231,6 +224,13 @@ export function parseActivityTimeline(raw: string): TimelineEntry[] {
 }
 
 // -- Helpers --
+
+/** gray-matter parses dates as Date objects; coerce to YYYY-MM-DD string. */
+function formatDate(value: unknown): string {
+  if (value instanceof Date) return value.toISOString().split("T")[0];
+  if (typeof value === "string") return value;
+  return "";
+}
 
 function stripQuotes(value: string): string {
   const trimmed = value.trim();

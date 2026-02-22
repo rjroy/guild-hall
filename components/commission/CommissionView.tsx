@@ -216,10 +216,7 @@ export default function CommissionView({
         </Panel>
 
         <Panel size="sm">
-          <CommissionLinkedArtifacts
-            artifacts={artifacts}
-            projectName={projectName}
-          />
+          <CommissionLinkedArtifacts artifacts={artifacts} />
         </Panel>
       </div>
     </div>

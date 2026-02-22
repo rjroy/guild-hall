@@ -31,7 +31,6 @@ export default async function DashboardPage({
     artifacts = await recentArtifacts(lorePath, 10);
   }
 
-  // Scan commissions from all registered projects
   const commissionsByProject = await Promise.all(
     config.projects.map((project) =>
       scanCommissions(projectLorePath(project.path), project.name),
@@ -39,7 +38,6 @@ export default async function DashboardPage({
   );
   const allCommissions: CommissionMeta[] = commissionsByProject.flat();
 
-  // Scan meeting requests from all registered projects
   const requestsByProject = await Promise.all(
     config.projects.map((project) =>
       scanMeetingRequests(projectLorePath(project.path), project.name),

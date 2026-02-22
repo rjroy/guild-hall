@@ -16,6 +16,7 @@ import { readTranscript } from "@/daemon/services/transcript";
 import { readLinkedArtifacts } from "@/daemon/services/meeting-artifact-helpers";
 import type { MeetingId } from "@/daemon/types";
 import type { QueryOptions } from "@/daemon/services/meeting-session";
+import { isNodeError } from "@/lib/types";
 
 // -- Types --
 
@@ -238,8 +239,4 @@ function defaultGuildHallHome(): string {
     throw new Error("Cannot determine home directory: HOME is not set");
   }
   return path.join(home, ".guild-hall");
-}
-
-function isNodeError(err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && "code" in err;
 }

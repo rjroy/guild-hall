@@ -119,7 +119,8 @@ function TimelineEntryRow({ entry }: { entry: TimelineEntry }) {
         </div>
       );
 
-    case "result_submitted":
+    case "result_submitted": {
+      const detail = str(entry.reason) || str(entry.summary);
       return (
         <div className={styles.result}>
           <span className={styles.time}>{time}</span>
@@ -127,15 +128,11 @@ function TimelineEntryRow({ entry }: { entry: TimelineEntry }) {
             &#10003;
           </span>
           <span className={styles.eventContent}>
-            Result submitted
-            {str(entry.reason)
-              ? `: ${str(entry.reason)}`
-              : str(entry.summary)
-                ? `: ${str(entry.summary)}`
-                : ""}
+            Result submitted{detail ? `: ${detail}` : ""}
           </span>
         </div>
       );
+    }
 
     case "user_note":
       return (

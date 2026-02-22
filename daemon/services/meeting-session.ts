@@ -51,12 +51,7 @@ import {
   formatNotesForYaml,
   type NotesResult,
 } from "@/daemon/services/notes-generator";
-
-// -- Utility --
-
-function isNodeError(err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && "code" in err;
-}
+import { isNodeError } from "@/lib/types";
 
 // -- Constants --
 

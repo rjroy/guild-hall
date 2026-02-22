@@ -169,3 +169,12 @@ export function statusToGem(status: string): GemStatus {
   if (BLOCKED_STATUSES.has(normalized)) return "blocked";
   return "info";
 }
+
+// -- Error utilities --
+
+/**
+ * Type guard for Node.js filesystem errors (ENOENT, ECONNREFUSED, etc.).
+ */
+export function isNodeError(err: unknown): err is NodeJS.ErrnoException {
+  return err instanceof Error && "code" in err;
+}

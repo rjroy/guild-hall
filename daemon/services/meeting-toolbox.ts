@@ -18,22 +18,12 @@ import {
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod/v4";
 import { asMeetingId } from "@/daemon/types";
+import type { ToolResult } from "@/daemon/types";
 import {
   meetingArtifactPath,
   appendMeetingLog,
   addLinkedArtifact,
 } from "@/daemon/services/meeting-artifact-helpers";
-
-// -- Types --
-
-/**
- * Matches the CallToolResult type from @modelcontextprotocol/sdk/types.js.
- * Defined locally because the MCP SDK is not a direct dependency.
- */
-type ToolResult = {
-  content: Array<{ type: "text"; text: string }>;
-  isError?: boolean;
-};
 
 export interface MeetingToolboxDeps {
   projectPath: string;

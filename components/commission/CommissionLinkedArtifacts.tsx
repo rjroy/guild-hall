@@ -11,7 +11,6 @@ export interface CommissionArtifact {
 
 interface CommissionLinkedArtifactsProps {
   artifacts: CommissionArtifact[];
-  projectName: string;
 }
 
 /**
