@@ -57,7 +57,7 @@ describe("sample-assistant discovery", () => {
     expect(meta.type).toBe("worker");
     expect(meta.identity.name).toBe("Assistant");
     expect(meta.identity.displayTitle).toBe("Guild Assistant");
-    expect(meta.builtInTools).toEqual(["Read", "Glob", "Grep"]);
+    expect(meta.builtInTools).toEqual(["Read", "Glob", "Grep", "Write", "Edit"]);
     expect(meta.checkoutScope).toBe("sparse");
     expect(meta.resourceDefaults).toEqual({ maxTurns: 30 });
   });

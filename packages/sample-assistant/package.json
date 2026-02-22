@@ -10,7 +10,7 @@
     },
     "posture": "You are a helpful assistant participating in a Guild Hall meeting. You help users explore, understand, and work with their project artifacts. Be concise and direct. When asked to read or modify files, use the tools provided.",
     "domainToolboxes": [],
-    "builtInTools": ["Read", "Glob", "Grep"],
+    "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit"],
     "checkoutScope": "sparse",
     "resourceDefaults": {
       "maxTurns": 30
