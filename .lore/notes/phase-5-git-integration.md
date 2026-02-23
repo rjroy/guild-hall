@@ -20,7 +20,7 @@ Re-implementation after data loss (see `.lore/retros/phase-5-git-integration-dat
 - [x] Phase 6: Commission re-dispatch git integration
 - [x] Phase 7: Meeting session git integration
 - [x] Phase 8: Next.js read path migration
-- [ ] Phase 9: Claude branch maintenance
+- [x] Phase 9: Claude branch maintenance
 - [ ] Phase 10: Spec validation
 
 ## Key Lessons from Prior Attempt
@@ -75,3 +75,8 @@ Re-implementation after data loss (see `.lore/retros/phase-5-git-integration-dat
 - Dispatched: Update all Next.js server components to read from integration worktree. Add resolveCommissionBasePath and resolveMeetingBasePath helpers. Auto-commit artifact edits.
 - Result: All 6 page files + 1 API route updated. Dashboard, project view, artifact view use integrationWorktreePath. Commission/meeting detail views resolve to activity worktree for active entities. Artifact editing writes to integration worktree with auto-commit. Added resolveCommissionBasePath and resolveMeetingBasePath to lib/paths.ts.
 - Tests: 1093 pass (1 test updated for integration worktree paths)
+
+### Phase 9: Claude Branch Maintenance
+- Dispatched: Create cli/rebase.ts with rebaseProject + hasActiveActivities. Add rebase CLI command. Wire startup rebase in daemon/app.ts.
+- Result: cli/rebase.ts exports hasActiveActivities (scans state files), rebaseProject (rebases integration worktree onto master, skips if active), rebase (CLI entry, one or all projects). daemon/app.ts calls rebaseProject after worktree verification. cli/index.ts has rebase subcommand.
+- Tests: 1115 pass (22 new: 18 cli/rebase, 4 daemon/rebase)

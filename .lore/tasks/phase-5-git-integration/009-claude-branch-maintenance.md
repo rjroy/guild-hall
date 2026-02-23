@@ -1,7 +1,7 @@
 ---
 title: "Claude branch rebase utility and CLI command"
 date: 2026-02-22
-status: pending
+status: complete
 tags: [task, rebase, cli, daemon-startup]
 source: .lore/plans/phase-5-git-integration.md
 related:
