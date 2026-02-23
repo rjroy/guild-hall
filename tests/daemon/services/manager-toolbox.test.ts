@@ -119,6 +119,7 @@ function makeMockGitOps(overrides?: Partial<GitOps>): GitOps {
     async treesEqual() { return false; },
     async revParse() { return "abc123def456789012345678901234567890abcd"; },
     async rebaseOnto() {},
+    async merge() {},
     ...overrides,
   };
 }

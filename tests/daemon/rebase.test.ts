@@ -101,7 +101,7 @@ function createMockGitOps(): MockGitOps {
     },
     isAncestor: (...args) => {
       calls.push({ method: "isAncestor", args });
-      // Default: not ancestor (will fall through to diverged case, attempt rebase)
+      // Default: not ancestor (will fall through to diverged case, attempt merge)
       return Promise.resolve(false);
     },
     treesEqual: (...args) => {
@@ -114,6 +114,10 @@ function createMockGitOps(): MockGitOps {
     },
     rebaseOnto: (...args) => {
       calls.push({ method: "rebaseOnto", args });
+      return Promise.resolve();
+    },
+    merge: (...args) => {
+      calls.push({ method: "merge", args });
       return Promise.resolve();
     },
   };
@@ -165,10 +169,11 @@ describe("createProductionApp startup sync", () => {
     expect(fetchCalls).toHaveLength(1);
 
     // Default mock: isAncestor returns false for both checks, so it
-    // falls through to the diverged case and attempts rebase.
-    const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
-    expect(rebaseCalls).toHaveLength(1);
-    expect(rebaseCalls[0].args[0]).toBe(iPath);
+    // falls through to the diverged case and merges (not rebase, which
+    // conflicts after squash-merge).
+    const mergeCalls = mockGit.calls.filter((c) => c.method === "merge");
+    expect(mergeCalls).toHaveLength(1);
+    expect(mergeCalls[0].args[0]).toBe(iPath);
   });
 
   test("skips sync for projects with active activities", async () => {
@@ -211,7 +216,7 @@ describe("createProductionApp startup sync", () => {
     await fs.mkdir(iPath, { recursive: true });
 
     const mockGit = createMockGitOps();
-    mockGit.rebase = () => Promise.reject(new Error("rebase conflict"));
+    mockGit.merge = () => Promise.reject(new Error("merge conflict"));
 
     // Capture warnings
     const warnings: string[] = [];

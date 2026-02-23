@@ -174,6 +174,7 @@ export async function removePrMarker(
 export type SyncResult =
   | { action: "reset"; reason: string }
   | { action: "rebase"; reason: string }
+  | { action: "merge"; reason: string }
   | { action: "skip"; reason: string }
   | { action: "noop"; reason: string };
 
@@ -330,19 +331,20 @@ export async function syncProject(
       return { action: "reset" as const, reason: "trees equal (diverged)" };
     }
 
-    // Neither marker nor tree match. Attempt rebase as last resort.
-    console.warn(
-      `[sync] ${CLAUDE_BRANCH} and ${remoteRef} have diverged for "${projectName}". Attempting rebase.`,
-    );
+    // Neither marker nor tree match. Merge origin into claude/main.
+    // Rebase would try to replay already-squash-merged commits and conflict.
+    // Merge brings in the remote changes while keeping claude/main's history.
+    // claude/main's history is noise anyway (squash-merged activity commits);
+    // PRs to master are squash-merged, so master stays clean regardless.
     try {
-      await git.rebase(iPath, remoteRef);
-      console.log(`[sync] Rebased ${CLAUDE_BRANCH} onto ${remoteRef} for "${projectName}" (diverged)`);
-      return { action: "rebase" as const, reason: "diverged, rebased" };
+      await git.merge(iPath, remoteRef, `Merge ${remoteRef} into ${CLAUDE_BRANCH}`);
+      console.log(`[sync] Merged ${remoteRef} into ${CLAUDE_BRANCH} for "${projectName}" (diverged)`);
+      return { action: "merge" as const, reason: "diverged, merged" };
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
       throw new Error(
         `${CLAUDE_BRANCH} and ${remoteRef} have diverged for "${projectName}" ` +
-        `and rebase failed: ${reason}. Manual resolution required.`,
+        `and merge failed: ${reason}. Manual resolution required.`,
       );
     }
   });

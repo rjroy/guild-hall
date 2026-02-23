@@ -150,6 +150,13 @@ export interface GitOps {
    * Used after squash-merge to replay only post-PR commits.
    */
   rebaseOnto(worktreePath: string, ontoRef: string, afterRef: string): Promise<void>;
+
+  /**
+   * Merge a ref into the current branch. Used instead of rebase when
+   * branches have diverged after a squash-merge (rebase would try to
+   * replay already-applied commits and conflict).
+   */
+  merge(worktreePath: string, ref: string, message: string): Promise<void>;
 }
 
 export function createGitOps(): GitOps {
@@ -242,6 +249,22 @@ export function createGitOps(): GitOps {
         }
         throw new Error(
           `Rebase --onto ${ontoRef} ${afterRef} failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    },
+
+    async merge(worktreePath, ref, message) {
+      try {
+        await runGit(worktreePath, ["merge", ref, "-m", message]);
+      } catch (err) {
+        // Abort the failed merge to leave the repo clean
+        try {
+          await runGit(worktreePath, ["merge", "--abort"]);
+        } catch {
+          // Abort may fail if merge wasn't actually in progress
+        }
+        throw new Error(
+          `Merge of ${ref} failed: ${err instanceof Error ? err.message : String(err)}`
         );
       }
     },

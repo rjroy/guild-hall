@@ -321,6 +321,7 @@ function makeMockGitOps(): GitOps {
     async treesEqual() { return false; },
     async revParse() { return "abc"; },
     async rebaseOnto() {},
+    async merge() {},
   };
 }
 

@@ -416,6 +416,7 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
     async treesEqual(...args) { calls.push({ method: "treesEqual", args }); return false; },
     async revParse(...args) { calls.push({ method: "revParse", args }); return "abc"; },
     async rebaseOnto(...args) { calls.push({ method: "rebaseOnto", args }); },
+    async merge() {},
   };
   /* eslint-enable @typescript-eslint/require-await */
 }

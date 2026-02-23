@@ -122,6 +122,10 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "revParse", args });
       return Promise.resolve("aaa111bbb222ccc333ddd444eee555fff666aaa1");
     },
+    merge: (...args) => {
+      calls.push({ method: "merge", args });
+      return Promise.resolve();
+    },
   };
 }
 
@@ -823,10 +827,34 @@ describe("syncProject", () => {
     expect(resetCalls).toHaveLength(1);
   });
 
+  test("diverged: merges when no marker and trees differ (post-squash-merge fallback)", async () => {
+    // Both isAncestor calls return false (diverged after squash-merge)
+    mockGit.isAncestor = (...args) => {
+      mockGit.calls.push({ method: "isAncestor", args });
+      return Promise.resolve(false);
+    };
+    // Trees are different (claude/main has post-PR commits)
+    mockGit.treesEqual = (...args) => {
+      mockGit.calls.push({ method: "treesEqual", args });
+      return Promise.resolve(false);
+    };
+    // No PR marker file exists
+
+    const result = await syncProject("/fake/project", "my-project", ghHome, mockGit, "main");
+
+    expect(result.action).toBe("merge");
+    expect(result.reason).toContain("diverged");
+    const mergeCalls = mockGit.calls.filter((c) => c.method === "merge");
+    expect(mergeCalls).toHaveLength(1);
+    // Should not have attempted rebase
+    const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
+    expect(rebaseCalls).toHaveLength(0);
+  });
+
   test("calls fetch with origin", async () => {
     // Make sync a noop to focus on fetch call
     mockGit.isAncestor = () => Promise.resolve(false);
-    // Both calls return false, so it tries rebase in diverged case
+    // Both calls return false, so it tries merge in diverged case
     // Let's make it: origin is ancestor of claude (noop)
     let isAncestorCallCount = 0;
     mockGit.isAncestor = (...args) => {
