@@ -180,6 +180,7 @@ export async function createProductionApp(options?: {
     notesQueryFn: queryFn,
     gitOps: git,
     commissionSession,
+    eventBus,
   });
 
   // Recover open meetings from persisted state files so users can resume

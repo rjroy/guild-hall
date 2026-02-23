@@ -1,7 +1,7 @@
 ---
 title: Enable manager notes on commissions with timeline tabs
 date: 2026-02-23
-status: pending
+status: complete
 tags: [task]
 source: .lore/plans/phase-6-guild-master.md
 related: [.lore/specs/guild-hall-views.md]

@@ -6,11 +6,13 @@ import type { CommissionId } from "@/daemon/types";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { GitOps } from "@/daemon/lib/git";
 import type { ManagerToolboxDeps } from "@/daemon/services/manager-toolbox";
+import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
 import {
   makeCreateCommissionHandler,
   makeDispatchCommissionHandler,
   makeCreatePrHandler,
   makeInitiateMeetingHandler,
+  makeAddCommissionNoteHandler,
   createManagerToolbox,
 } from "@/daemon/services/manager-toolbox";
 
@@ -120,6 +122,19 @@ function makeMockGitOps(overrides?: Partial<GitOps>): GitOps {
   };
 }
 
+function makeMockEventBus(): EventBus & { emitted: SystemEvent[] } {
+  const emitted: SystemEvent[] = [];
+  return {
+    emitted,
+    emit(event: SystemEvent) {
+      emitted.push(event);
+    },
+    subscribe() {
+      return () => {};
+    },
+  };
+}
+
 /* eslint-enable @typescript-eslint/require-await */
 
 function makeDeps(
@@ -130,6 +145,7 @@ function makeDeps(
     projectName: "test-project",
     guildHallHome,
     commissionSession: makeMockCommissionSession(),
+    eventBus: makeMockEventBus(),
     gitOps: makeMockGitOps(),
     projectRepoPath: path.join(tmpDir, "repo"),
     defaultBranch: "main",
@@ -677,6 +693,141 @@ describe("initiate_meeting", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text.length).toBeGreaterThan(0);
+  });
+});
+
+// -- add_commission_note --
+
+describe("add_commission_note", () => {
+  /**
+   * resolveCommissionBasePath falls through to integrationWorktreePath(ghHome, projectName)
+   * for non-active commissions. That path is <guildHallHome>/projects/<projectName>/.
+   * We need to write artifacts there for the tool to find them.
+   */
+  async function writeArtifactAtResolvedPath(commissionId: string): Promise<string> {
+    const resolvedPath = path.join(guildHallHome, "projects", "test-project");
+    await writeCommissionArtifact(resolvedPath, commissionId);
+    return resolvedPath;
+  }
+
+  test("writes manager_note timeline entry to commission artifact", async () => {
+    const commissionId = "commission-test-worker-20260223-120000";
+    const resolvedPath = await writeArtifactAtResolvedPath(commissionId);
+
+    const mockEventBus = makeMockEventBus();
+    const deps = makeDeps({ eventBus: mockEventBus });
+    const handler = makeAddCommissionNoteHandler(deps);
+
+    const result = await handler({
+      commissionId,
+      content: "Worker seems stalled, consider re-dispatching",
+    });
+
+    expect(result.isError).toBeUndefined();
+
+    const parsed = JSON.parse(result.content[0].text) as {
+      commissionId?: string;
+      noted?: boolean;
+    };
+    expect(parsed.commissionId).toBe(commissionId);
+    expect(parsed.noted).toBe(true);
+
+    // Verify the timeline entry was written
+    const artifactPath = path.join(
+      resolvedPath,
+      ".lore",
+      "commissions",
+      `${commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("event: manager_note");
+    expect(raw).toContain("Worker seems stalled, consider re-dispatching");
+  });
+
+  test("emits commission_manager_note SystemEvent", async () => {
+    const commissionId = "commission-test-worker-20260223-120000";
+    await writeArtifactAtResolvedPath(commissionId);
+
+    const mockEventBus = makeMockEventBus();
+    const deps = makeDeps({ eventBus: mockEventBus });
+    const handler = makeAddCommissionNoteHandler(deps);
+
+    await handler({
+      commissionId,
+      content: "Status update: good progress",
+    });
+
+    expect(mockEventBus.emitted).toHaveLength(1);
+    expect(mockEventBus.emitted[0].type).toBe("commission_manager_note");
+
+    const event = mockEventBus.emitted[0] as {
+      type: string;
+      commissionId: string;
+      content: string;
+    };
+    expect(event.commissionId).toBe(commissionId);
+    expect(event.content).toBe("Status update: good progress");
+  });
+
+  test("returns error when commission artifact not found", async () => {
+    const mockEventBus = makeMockEventBus();
+    const deps = makeDeps({ eventBus: mockEventBus });
+    const handler = makeAddCommissionNoteHandler(deps);
+
+    const result = await handler({
+      commissionId: "commission-nonexistent-20260223-999999",
+      content: "This should fail",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text.length).toBeGreaterThan(0);
+
+    // No event should be emitted on failure
+    expect(mockEventBus.emitted).toHaveLength(0);
+  });
+
+  test("resolves to activity worktree for active commissions", async () => {
+    const commissionId = "commission-test-worker-20260223-120000";
+
+    // Create a state file that points to an activity worktree
+    const activityDir = path.join(tmpDir, "activity-worktree");
+    await fs.mkdir(path.join(activityDir, ".lore", "commissions"), {
+      recursive: true,
+    });
+    await writeCommissionArtifact(activityDir, commissionId);
+
+    const stateDir = path.join(guildHallHome, "state", "commissions");
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, `${commissionId}.json`),
+      JSON.stringify({
+        status: "in_progress",
+        worktreeDir: activityDir,
+        projectName: "test-project",
+      }),
+    );
+
+    const mockEventBus = makeMockEventBus();
+    const deps = makeDeps({ eventBus: mockEventBus });
+    const handler = makeAddCommissionNoteHandler(deps);
+
+    const result = await handler({
+      commissionId,
+      content: "Note for active commission",
+    });
+
+    expect(result.isError).toBeUndefined();
+
+    // Verify the note was written to the activity worktree, not integration
+    const activityArtifactPath = path.join(
+      activityDir,
+      ".lore",
+      "commissions",
+      `${commissionId}.md`,
+    );
+    const raw = await fs.readFile(activityArtifactPath, "utf-8");
+    expect(raw).toContain("event: manager_note");
+    expect(raw).toContain("Note for active commission");
   });
 });
 

@@ -129,6 +129,18 @@ export default function CommissionView({
             break;
           }
 
+          case "commission_manager_note": {
+            setTimeline((prev) => [
+              ...prev,
+              {
+                timestamp: ts,
+                event: "manager_note",
+                reason: (typeof data.content === "string" ? data.content : "") || data.reason || "",
+              } as TimelineEntry,
+            ]);
+            break;
+          }
+
           case "commission_artifact": {
             if (data.artifactPath) {
               const artifactPath = data.artifactPath;

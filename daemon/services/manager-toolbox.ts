@@ -1,11 +1,12 @@
 /**
  * Manager toolbox: exclusive tools for the Guild Master worker.
  *
- * Provides four tools for project coordination:
+ * Provides five tools for project coordination:
  * - create_commission: create (and optionally dispatch) a new commission
  * - dispatch_commission: dispatch an existing pending commission
  * - create_pr: push claude/main and open a PR on the hosting platform
  * - initiate_meeting: create a meeting request artifact
+ * - add_commission_note: annotate a commission with a manager note
  *
  * Follows the same MCP server factory pattern as commission-toolbox.ts and
  * meeting-toolbox.ts.
@@ -23,15 +24,18 @@ import { asCommissionId } from "@/daemon/types";
 import type { ToolResult } from "@/daemon/types";
 import { appendTimelineEntry } from "@/daemon/services/commission-artifact-helpers";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { EventBus } from "@/daemon/services/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import { hasActiveActivities } from "@/cli/rebase";
+import { resolveCommissionBasePath } from "@/lib/paths";
 
 export interface ManagerToolboxDeps {
   integrationPath: string;
   projectName: string;
   guildHallHome: string;
   commissionSession: CommissionSessionForRoutes;
+  eventBus: EventBus;
   gitOps: GitOps;
   projectRepoPath: string;
   defaultBranch: string;
@@ -421,6 +425,64 @@ notes_summary: ""
   };
 }
 
+export function makeAddCommissionNoteHandler(
+  deps: ManagerToolboxDeps,
+) {
+  return async (args: {
+    commissionId: string;
+    content: string;
+  }): Promise<ToolResult> => {
+    try {
+      const cid = asCommissionId(args.commissionId);
+      const basePath = await resolveCommissionBasePath(
+        deps.guildHallHome,
+        deps.projectName,
+        args.commissionId,
+      );
+
+      await appendTimelineEntry(
+        basePath,
+        cid,
+        "manager_note",
+        args.content,
+      );
+
+      deps.eventBus.emit({
+        type: "commission_manager_note",
+        commissionId: args.commissionId,
+        content: args.content,
+      });
+
+      console.log(
+        `[manager-toolbox] Added note to commission "${args.commissionId}"`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ commissionId: args.commissionId, noted: true }),
+          },
+        ],
+      };
+    } catch (err: unknown) {
+      console.error(
+        `[manager-toolbox] Failed to add note to commission "${args.commissionId}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: err instanceof Error ? err.message : String(err),
+          },
+        ],
+        isError: true,
+      };
+    }
+  };
+}
+
 // -- MCP server factory --
 
 /**
@@ -435,6 +497,7 @@ export function createManagerToolbox(
   const dispatchCommission = makeDispatchCommissionHandler(deps);
   const createPr = makeCreatePrHandler(deps);
   const initiateMeeting = makeInitiateMeetingHandler(deps);
+  const addCommissionNote = makeAddCommissionNoteHandler(deps);
 
   return createSdkMcpServer({
     name: "guild-hall-manager",
@@ -482,6 +545,15 @@ export function createManagerToolbox(
           referencedArtifacts: z.array(z.string()).optional().describe("Artifact paths to reference in the meeting"),
         },
         (args) => initiateMeeting(args),
+      ),
+      tool(
+        "add_commission_note",
+        "Add a coordination note to a commission's timeline. Use for status observations, recommendations, or context that helps the user understand commission progress.",
+        {
+          commissionId: z.string().describe("The commission ID to annotate"),
+          content: z.string().describe("The note content"),
+        },
+        (args) => addCommissionNote(args),
       ),
     ],
   });

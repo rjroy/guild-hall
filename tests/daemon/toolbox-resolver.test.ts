@@ -331,6 +331,7 @@ function makeManagerToolboxDeps(): ManagerToolboxDeps {
     projectName: "test-project",
     guildHallHome,
     commissionSession: makeMockCommissionSession(),
+    eventBus: { emit() {}, subscribe() { return () => {}; } },
     gitOps: makeMockGitOps(),
     projectRepoPath: projectPath,
     defaultBranch: "main",

@@ -2701,6 +2701,7 @@ describe("manager worker integration", () => {
       packages: [MANAGER_PKG, WORKER_PKG],
       activateFn: captureActivateFn,
       commissionSession: makeMockCommissionSession(),
+      eventBus: { emit() {}, subscribe() { return () => {}; } },
     });
 
     const session = createMeetingSession(deps);
@@ -2749,6 +2750,7 @@ describe("manager worker integration", () => {
       // No activateFn, so the built-in path is exercised
       gitOps: mockGit,
       commissionSession: makeMockCommissionSession(),
+      eventBus: { emit() {}, subscribe() { return () => {}; } },
     };
 
     const session = createMeetingSession(deps);

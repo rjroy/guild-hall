@@ -24,6 +24,7 @@ import type {
 import { getWorkerByName } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { EventBus } from "@/daemon/services/event-bus";
 import {
   MANAGER_PACKAGE_NAME,
   activateManager,
@@ -163,6 +164,12 @@ export type MeetingSessionDeps = {
    * workers don't use it.
    */
   commissionSession?: CommissionSessionForRoutes;
+  /**
+   * Event bus reference. Required for the manager worker's toolbox to emit
+   * commission_manager_note events. Optional because regular workers don't
+   * use it.
+   */
+  eventBus?: EventBus;
 };
 
 // -- Factory --
@@ -467,11 +474,12 @@ notes_summary: ""
         guildHallHome: ghHome,
         integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
         isManager,
-        managerToolboxDeps: isManager && deps.commissionSession ? {
+        managerToolboxDeps: isManager && deps.commissionSession && deps.eventBus ? {
           integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
           projectName: meeting.projectName,
           guildHallHome: ghHome,
           commissionSession: deps.commissionSession,
+          eventBus: deps.eventBus,
           gitOps: git,
           projectRepoPath: project?.path ?? projectPath,
           defaultBranch: project?.defaultBranch ?? "master",

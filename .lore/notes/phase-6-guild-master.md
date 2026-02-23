@@ -19,8 +19,8 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 7: Render dependency map SVG and neighborhood graph in views
 - [x] Phase 8: Add Quick Comment compound action to meeting request cards
 - [x] Phase 9: Design PR creation strategy resolving squash-merge branch recovery
-- [ ] Phase 10: Implement PR creation, push, and post-merge sync
-- [ ] Phase 11: Enable manager notes on commissions with timeline tabs
+- [x] Phase 10: Implement PR creation, push, and post-merge sync
+- [x] Phase 11: Enable manager notes on commissions with timeline tabs
 - [ ] Phase 12: Validate implementation against Phase 6 spec requirements
 
 ## Key Lessons from Research
@@ -34,6 +34,20 @@ modules: [guild-hall-core, guild-hall-ui]
 7. Runtime testing catches what spec validation misses.
 
 ## Log
+
+### Phase 11: Enable manager notes on commissions with timeline tabs
+- Dispatched: Add manager_note event type, add_commission_note tool, commission_manager_note SystemEvent, tab filtering in CommissionTimeline, SSE handler in CommissionView
+- Result: 5th manager tool (add_commission_note) with EventBus emission. Four timeline tabs (All, Worker Notes, User Notes, Manager Notes) as UI-only filter. Purple accent styling for manager notes. SSE live updates. EventBus threaded through meeting session deps. 7 new tests.
+- Review: Clean. One doc comment cosmetic ("four tools" -> "five") fixed.
+- Tests: 1291 pass, 0 fail
+
+### Phase 10: Implement PR creation, push, and post-merge sync
+- Dispatched: Extend GitOps with 7 new methods (fetch, push, resetHard, createPullRequest, isAncestor, treesEqual, revParse), replace create_pr placeholder, add syncProject to CLI and daemon startup, implement per-project mutex
+- Result: 7 GitOps methods added with cleanGitEnv(). create_pr does fetch-before-push, checks active activities, writes PR marker file. syncProject uses three-tier detection (marker match, tree equality, rebase fallback). Per-project mutex via withProjectLock serializes concurrent git operations. CLI `sync` command added. 24 new tests.
+- Review findings (2 issues, both fixed):
+  1. Missing fetch before push in create_pr (added gitOps.fetch() call)
+  2. Per-project mutex not implemented (created daemon/lib/project-lock.ts, wrapped syncProject, create_pr, and commission squash-merge)
+- Tests: 1284 pass, 0 fail
 
 ### Phase 9: Design PR creation strategy resolving squash-merge branch recovery
 - Dispatched: Research spike producing .lore/design/pr-strategy.md
