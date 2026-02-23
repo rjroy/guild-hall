@@ -656,7 +656,11 @@ projectName: ${projectName}
       );
     }
 
-    // 3. Create activity branch and worktree from the claude branch.
+    // 3. Commit the pending artifact to the integration worktree so
+    //    the activity branch (forked from claude/main) includes it.
+    await git.commitAll(found.integrationPath, `Add commission: ${commissionId}`);
+
+    // 4. Create activity branch and worktree from the claude branch.
     //    The worktree gets the committed state of the claude branch (pending).
     //    All subsequent artifact mutations happen in the activity worktree.
     //    On re-dispatch, the attempt number produces a suffixed branch name
@@ -668,7 +672,7 @@ projectName: ${projectName}
     await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
     await git.createWorktree(found.projectPath, worktreeDir, branchName);
 
-    // 4. Transition to dispatched (in activity worktree)
+    // 5. Transition to dispatched (in activity worktree)
     await transitionCommission(
       worktreeDir,
       commissionId,
@@ -677,7 +681,7 @@ projectName: ${projectName}
       "Commission dispatched to worker",
     );
 
-    // 5. Read the artifact to get prompt, worker, dependencies, resource overrides
+    // 6. Read the artifact to get prompt, worker, dependencies, resource overrides
     const artifactPath = commissionArtifactPath(
       worktreeDir,
       commissionId,
@@ -731,7 +735,7 @@ projectName: ${projectName}
       }
     }
 
-    // 6. Write worker config JSON
+    // 7. Write worker config JSON
     const socketPath = getSocketPath(ghHome);
     const workerConfig: CommissionWorkerConfig = {
       commissionId: commissionId as string,
@@ -757,7 +761,7 @@ projectName: ${projectName}
       "utf-8",
     );
 
-    // 7. Write machine-local state file
+    // 8. Write machine-local state file
     await writeStateFile(commissionId, {
       commissionId: commissionId as string,
       projectName: found.projectName,
@@ -768,13 +772,13 @@ projectName: ${projectName}
       configPath,
     });
 
-    // 8. Spawn the worker process
+    // 9. Spawn the worker process
     console.log(
       `[commission] dispatching "${commissionId}" -> worker="${workerName}", config="${configPath}"`,
     );
     const spawned = spawnFn(configPath);
 
-    // 9. Record in active Map
+    // 10. Record in active Map
     const now = new Date();
     const active: ActiveCommission = {
       commissionId,
@@ -796,7 +800,7 @@ projectName: ${projectName}
       `[commission] spawned "${commissionId}" pid=${spawned.pid}`,
     );
 
-    // 10. Update PID in state file
+    // 11. Update PID in state file
     await writeStateFile(commissionId, {
       commissionId: commissionId as string,
       projectName: found.projectName,
@@ -808,7 +812,7 @@ projectName: ${projectName}
       configPath,
     });
 
-    // 11. Transition to in_progress (in the activity worktree)
+    // 12. Transition to in_progress (in the activity worktree)
     await transitionCommission(
       worktreeDir,
       commissionId,
@@ -818,7 +822,7 @@ projectName: ${projectName}
     );
     active.status = "in_progress";
 
-    // 12. Emit event
+    // 13. Emit event
     deps.eventBus.emit({
       type: "commission_status",
       commissionId: commissionId as string,
@@ -826,7 +830,7 @@ projectName: ${projectName}
       reason: "Worker process started",
     });
 
-    // 13. Attach exit handler
+    // 14. Attach exit handler
     void spawned.exitPromise.then(async (result) => {
       await handleExit(commissionId, result.exitCode);
     }).catch(async (err: unknown) => {

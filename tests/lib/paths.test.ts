@@ -81,14 +81,14 @@ describe("meetingWorktreePath", () => {
 
 describe("commissionBranchName", () => {
   test("returns base name without attempt", () => {
-    expect(commissionBranchName("commission-Assistant-20260222-120000")).toBe("claude/commission-Assistant-20260222-120000");
+    expect(commissionBranchName("commission-Assistant-20260222-120000")).toBe("claude/commission/commission-Assistant-20260222-120000");
   });
   test("returns base name for attempt 1", () => {
-    expect(commissionBranchName("commission-Assistant-20260222-120000", 1)).toBe("claude/commission-Assistant-20260222-120000");
+    expect(commissionBranchName("commission-Assistant-20260222-120000", 1)).toBe("claude/commission/commission-Assistant-20260222-120000");
   });
   test("appends attempt number for attempt > 1", () => {
-    expect(commissionBranchName("commission-Assistant-20260222-120000", 2)).toBe("claude/commission-Assistant-20260222-120000-2");
-    expect(commissionBranchName("commission-Assistant-20260222-120000", 3)).toBe("claude/commission-Assistant-20260222-120000-3");
+    expect(commissionBranchName("commission-Assistant-20260222-120000", 2)).toBe("claude/commission/commission-Assistant-20260222-120000-2");
+    expect(commissionBranchName("commission-Assistant-20260222-120000", 3)).toBe("claude/commission/commission-Assistant-20260222-120000-3");
   });
 });
 

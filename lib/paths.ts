@@ -77,12 +77,11 @@ export function meetingWorktreePath(
 
 /**
  * Returns the git branch name for a commission activity.
- * The commission ID already includes the "commission-" prefix, so the
- * branch is "claude/<commissionId>" (e.g., "claude/commission-Assistant-...").
+ * Follows the same `claude/<type>/<id>` pattern as meetings.
  * For re-dispatches, append the attempt number.
  */
 export function commissionBranchName(commissionId: string, attempt?: number): string {
-  const base = `claude/${commissionId}`;
+  const base = `claude/commission/${commissionId}`;
   return attempt && attempt > 1 ? `${base}-${attempt}` : base;
 }
 
