@@ -162,6 +162,47 @@ export async function scanMeetingRequests(
   return all.filter((m) => m.status === "requested");
 }
 
+/**
+ * Returns worktree paths for active meetings belonging to a project.
+ * Scans state files in ~/.guild-hall/state/meetings/ for open meetings
+ * that have a worktreeDir. Used by the project page to find meeting
+ * artifacts that haven't been squash-merged to the integration worktree yet.
+ */
+export async function getActiveMeetingWorktrees(
+  ghHome: string,
+  projectName: string,
+): Promise<string[]> {
+  const stateDir = path.join(ghHome, "state", "meetings");
+  let files: string[];
+  try {
+    files = (await fs.readdir(stateDir)).filter((f) => f.endsWith(".json"));
+  } catch {
+    return [];
+  }
+
+  const worktrees: string[] = [];
+  for (const file of files) {
+    try {
+      const raw = await fs.readFile(path.join(stateDir, file), "utf-8");
+      const state = JSON.parse(raw) as {
+        projectName?: string;
+        status?: string;
+        worktreeDir?: string;
+      };
+      if (
+        state.projectName === projectName &&
+        state.status === "open" &&
+        state.worktreeDir
+      ) {
+        worktrees.push(state.worktreeDir);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return worktrees;
+}
+
 // -- Transcript parsing for meeting resume --
 
 /**
