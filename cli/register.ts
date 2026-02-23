@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { readConfig, writeConfig } from "@/lib/config";
 import { getConfigPath, getGuildHallHome, integrationWorktreePath, activityWorktreeRoot } from "@/lib/paths";
-import { createGitOps, type GitOps } from "@/daemon/lib/git";
+import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 
 /**
  * Register a project in the Guild Hall config.
@@ -68,7 +68,7 @@ export async function register(
   // Create integration worktree (Guild Hall's checkout on the claude branch)
   const integrationPath = integrationWorktreePath(ghHome, name);
   await fs.mkdir(path.dirname(integrationPath), { recursive: true });
-  await git.createWorktree(resolved, integrationPath, "claude");
+  await git.createWorktree(resolved, integrationPath, CLAUDE_BRANCH);
 
   // Ensure the activity worktrees directory exists
   const worktreeRoot = activityWorktreeRoot(ghHome, name);

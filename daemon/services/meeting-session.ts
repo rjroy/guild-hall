@@ -35,7 +35,7 @@ import {
   meetingBranchName,
   integrationWorktreePath,
 } from "@/lib/paths";
-import { createGitOps, type GitOps } from "@/daemon/lib/git";
+import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import {
   meetingArtifactPath,
   appendMeetingLog,
@@ -650,7 +650,7 @@ notes_summary: ""
     const branchName = meetingBranchName(meetingId as string);
     const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId as string);
     try {
-      await git.createBranch(project.path, branchName, "claude");
+      await git.createBranch(project.path, branchName, CLAUDE_BRANCH);
       await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
       await git.createWorktree(project.path, worktreeDir, branchName);
 
@@ -788,7 +788,7 @@ notes_summary: ""
     const branchName = meetingBranchName(meetingId as string);
     const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId as string);
     try {
-      await git.createBranch(project.path, branchName, "claude");
+      await git.createBranch(project.path, branchName, CLAUDE_BRANCH);
       await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
       await git.createWorktree(project.path, worktreeDir, branchName);
 

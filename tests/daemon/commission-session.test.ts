@@ -404,7 +404,7 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
     async squashMerge(...args) { calls.push({ method: "squashMerge", args }); },
     async hasUncommittedChanges(...args) { calls.push({ method: "hasUncommittedChanges", args }); return false; },
     async rebase(...args) { calls.push({ method: "rebase", args }); },
-    async currentBranch(...args) { calls.push({ method: "currentBranch", args }); return "claude"; },
+    async currentBranch(...args) { calls.push({ method: "currentBranch", args }); return "claude/main"; },
     async listWorktrees(...args) { calls.push({ method: "listWorktrees", args }); return []; },
     async initClaudeBranch(...args) { calls.push({ method: "initClaudeBranch", args }); },
   };
@@ -1467,7 +1467,7 @@ describe("createCommissionSession", () => {
       expect(branchCall).toBeDefined();
       expect(branchCall!.args[0]).toBe(projectPath); // repo path
       expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string));
-      expect(branchCall!.args[2]).toBe("claude"); // base ref
+      expect(branchCall!.args[2]).toBe("claude/main"); // base ref
 
       mockSpawn.resolveExit(0);
     });

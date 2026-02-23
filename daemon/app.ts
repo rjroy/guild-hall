@@ -12,7 +12,7 @@ import type { DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting-session";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { EventBus } from "@/daemon/services/event-bus";
-import { createGitOps, type GitOps } from "@/daemon/lib/git";
+import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 
 export interface AppDeps {
   health: HealthDeps;
@@ -99,7 +99,7 @@ export async function createProductionApp(options?: {
       try {
         await fs.mkdir(nodePath.dirname(iPath), { recursive: true });
         await git.initClaudeBranch(project.path);
-        await git.createWorktree(project.path, iPath, "claude");
+        await git.createWorktree(project.path, iPath, CLAUDE_BRANCH);
       } catch (err: unknown) {
         console.warn(
           `[daemon] Failed to recreate worktree for "${project.name}":`,

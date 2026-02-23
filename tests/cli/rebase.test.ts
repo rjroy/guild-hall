@@ -70,7 +70,7 @@ function createMockGitOps(): MockGitOps {
     },
     currentBranch: (...args) => {
       calls.push({ method: "currentBranch", args });
-      return Promise.resolve("claude");
+      return Promise.resolve("claude/main");
     },
     listWorktrees: (...args) => {
       calls.push({ method: "listWorktrees", args });

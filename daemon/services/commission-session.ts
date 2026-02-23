@@ -33,7 +33,7 @@ import {
 } from "@/lib/paths";
 import { getWorkerByName } from "@/lib/packages";
 import { getSocketPath } from "@/daemon/lib/socket";
-import { createGitOps, type GitOps } from "@/daemon/lib/git";
+import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import type { EventBus } from "./event-bus";
 import type { CommissionWorkerConfig } from "./commission-worker-config";
 import {
@@ -664,7 +664,7 @@ projectName: ${projectName}
     const branchName = commissionBranchName(commissionId as string, attempt);
     const worktreeDir = commissionWorktreePath(ghHome, found.projectName, commissionId as string);
 
-    await git.createBranch(found.projectPath, branchName, "claude");
+    await git.createBranch(found.projectPath, branchName, CLAUDE_BRANCH);
     await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
     await git.createWorktree(found.projectPath, worktreeDir, branchName);
 

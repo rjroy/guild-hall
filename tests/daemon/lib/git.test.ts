@@ -385,7 +385,7 @@ describe("initClaudeBranch", () => {
 
     await ops.initClaudeBranch(repoPath);
 
-    const exists = await ops.branchExists(repoPath, "claude");
+    const exists = await ops.branchExists(repoPath, "claude/main");
     expect(exists).toBe(true);
   });
 
@@ -393,8 +393,8 @@ describe("initClaudeBranch", () => {
     const repoPath = await initTestRepo();
 
     await ops.initClaudeBranch(repoPath);
-    // Get the ref for the claude branch
-    const ref1 = await git(repoPath, ["rev-parse", "claude"]);
+    // Get the ref for the claude/main branch
+    const ref1 = await git(repoPath, ["rev-parse", "claude/main"]);
 
     // Create a new commit on master so HEAD moves
     fs.writeFileSync(path.join(repoPath, "new.txt"), "new\n");
@@ -403,7 +403,7 @@ describe("initClaudeBranch", () => {
 
     // Second call should be a no-op (branch stays at original ref)
     await ops.initClaudeBranch(repoPath);
-    const ref2 = await git(repoPath, ["rev-parse", "claude"]);
+    const ref2 = await git(repoPath, ["rev-parse", "claude/main"]);
 
     expect(ref1).toBe(ref2);
   });

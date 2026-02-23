@@ -14,6 +14,14 @@
  * subprocess that inherits these will operate on the hook's repo, not the
  * target repo. Stripping them forces git to discover the repo from cwd.
  */
+/**
+ * The integration branch name. Uses "claude/main" (not "claude") because git
+ * refs are filesystem paths: a branch named "claude" creates refs/heads/claude
+ * as a file, which blocks activity branches like refs/heads/claude/meeting/...
+ * from being created (can't have a file and directory with the same name).
+ */
+export const CLAUDE_BRANCH = "claude/main";
+
 export function cleanGitEnv(): Record<string, string | undefined> {
   const env = { ...process.env };
   delete env.GIT_DIR;
@@ -164,9 +172,9 @@ export function createGitOps(): GitOps {
     },
 
     async initClaudeBranch(repoPath) {
-      const exists = await this.branchExists(repoPath, "claude");
+      const exists = await this.branchExists(repoPath, CLAUDE_BRANCH);
       if (!exists) {
-        await runGit(repoPath, ["branch", "claude", "HEAD"]);
+        await runGit(repoPath, ["branch", CLAUDE_BRANCH, "HEAD"]);
       }
     },
   };
