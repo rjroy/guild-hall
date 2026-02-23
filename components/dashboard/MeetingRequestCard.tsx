@@ -14,7 +14,8 @@ export interface MeetingRequestCardProps {
 }
 
 /**
- * Displays a single meeting request with Open, Defer, and Ignore actions.
+ * Displays a single meeting request with Open, Defer, Ignore, and
+ * Quick Comment actions.
  *
  * Open: accepts the meeting via the daemon, consumes the SSE first-turn
  * stream, stores messages, and navigates to the meeting view.
@@ -22,6 +23,10 @@ export interface MeetingRequestCardProps {
  * Defer: prompts for a date, then tells the daemon to defer the request.
  *
  * Ignore: declines the meeting request via the daemon.
+ *
+ * Quick Comment: reveals an inline prompt textarea, creates a commission
+ * from the meeting context, declines the meeting, and navigates to the
+ * new commission.
  */
 export default function MeetingRequestCard({
   request,
@@ -31,6 +36,8 @@ export default function MeetingRequestCard({
   const [error, setError] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [deferDate, setDeferDate] = useState("");
+  const [showQuickComment, setShowQuickComment] = useState(false);
+  const [quickCommentPrompt, setQuickCommentPrompt] = useState("");
 
   const handleOpen = useCallback(async () => {
     setLoading(true);
@@ -164,6 +171,54 @@ export default function MeetingRequestCard({
     }
   }, [request.meetingId, request.projectName, router]);
 
+  const handleQuickComment = useCallback(async () => {
+    if (!quickCommentPrompt.trim()) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/meetings/${encodeURIComponent(request.meetingId)}/quick-comment`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectName: request.projectName,
+            prompt: quickCommentPrompt.trim(),
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as Record<
+          string,
+          unknown
+        >;
+        const reason =
+          typeof data.error === "string"
+            ? data.error
+            : `Quick comment failed (${response.status})`;
+        setError(reason);
+        setLoading(false);
+        return;
+      }
+
+      const data = (await response.json()) as { commissionId: string };
+      setShowQuickComment(false);
+      setQuickCommentPrompt("");
+      setLoading(false);
+      router.push(
+        `/projects/${encodeURIComponent(request.projectName)}/commissions/${encodeURIComponent(data.commissionId)}`,
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Connection failed";
+      setError(message);
+      setLoading(false);
+    }
+  }, [quickCommentPrompt, request.meetingId, request.projectName, router]);
+
   const workerLabel = request.workerDisplayTitle || request.worker || "Unknown Worker";
 
   return (
@@ -232,6 +287,37 @@ export default function MeetingRequestCard({
             Cancel
           </button>
         </div>
+      ) : showQuickComment ? (
+        <div className={styles.quickCommentForm}>
+          <textarea
+            className={styles.quickCommentInput}
+            value={quickCommentPrompt}
+            onChange={(e) => setQuickCommentPrompt(e.target.value)}
+            placeholder="Commission prompt..."
+            aria-label="Commission prompt"
+            rows={3}
+          />
+          <div className={styles.quickCommentActions}>
+            <button
+              type="button"
+              className={styles.quickCommentSendButton}
+              disabled={!quickCommentPrompt.trim()}
+              onClick={() => void handleQuickComment()}
+            >
+              Send
+            </button>
+            <button
+              type="button"
+              className={styles.quickCommentCancelButton}
+              onClick={() => {
+                setShowQuickComment(false);
+                setQuickCommentPrompt("");
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       ) : (
         <div className={styles.actions}>
           <button
@@ -240,6 +326,13 @@ export default function MeetingRequestCard({
             onClick={() => void handleOpen()}
           >
             Open
+          </button>
+          <button
+            type="button"
+            className={styles.quickCommentButton}
+            onClick={() => setShowQuickComment(true)}
+          >
+            Quick Comment
           </button>
           <button
             type="button"

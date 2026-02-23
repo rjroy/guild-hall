@@ -4,6 +4,7 @@ import {
   sortCommissions,
   commissionHref,
 } from "@/components/dashboard/DependencyMap";
+import { buildDependencyGraph, getNeighborhood, layoutGraph } from "@/lib/dependency-graph";
 import { statusToGem } from "@/lib/types";
 
 /**
@@ -13,6 +14,9 @@ import { statusToGem } from "@/lib/types";
  * Component rendering is validated through the exported pure functions;
  * the React tree is a server component that wires these together with
  * Panel, GemIndicator, EmptyState, and Link.
+ *
+ * Graph integration tests validate the decision logic that determines
+ * whether the SVG graph or flat card list is rendered.
  */
 
 function makeCommission(overrides: Partial<CommissionMeta> = {}): CommissionMeta {
@@ -216,6 +220,134 @@ describe("commission status gem mapping completeness", () => {
     for (const status of commissionStatuses) {
       const gem = statusToGem(status);
       expect(validGems.has(gem)).toBe(true);
+    }
+  });
+});
+
+// -- Graph integration tests --
+// These validate the decision logic used in DependencyMap to choose
+// between the SVG graph and the flat card list.
+
+describe("DependencyMap graph vs flat list decision", () => {
+  test("commissions with no inter-commission dependencies produce no edges (flat list path)", () => {
+    const commissions = [
+      makeCommission({ commissionId: "a", dependencies: [] }),
+      makeCommission({ commissionId: "b", dependencies: ["specs/some-spec.md"] }),
+      makeCommission({ commissionId: "c", dependencies: [] }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    expect(graph.edges.length).toBe(0);
+    // DependencyMap renders flat card list when edges.length === 0
+  });
+
+  test("commissions with inter-commission dependencies produce edges (graph path)", () => {
+    const commissions = [
+      makeCommission({ commissionId: "a", dependencies: [] }),
+      makeCommission({
+        commissionId: "b",
+        dependencies: ["commissions/a.md"],
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    expect(graph.edges.length).toBe(1);
+    expect(graph.edges[0]).toEqual({ from: "a", to: "b" });
+    // DependencyMap renders CommissionGraph when edges.length > 0
+  });
+
+  test("graph nodes preserve projectName for multi-project dashboard navigation", () => {
+    const commissions = [
+      makeCommission({ commissionId: "a", projectName: "project-alpha" }),
+      makeCommission({
+        commissionId: "b",
+        projectName: "project-beta",
+        dependencies: ["commissions/a.md"],
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    const nodeA = graph.nodes.find((n) => n.id === "a")!;
+    const nodeB = graph.nodes.find((n) => n.id === "b")!;
+
+    expect(nodeA.projectName).toBe("project-alpha");
+    expect(nodeB.projectName).toBe("project-beta");
+
+    // CommissionGraph uses node.projectName for navigation hrefs
+    expect(commissionHref(nodeA.projectName, nodeA.id)).toBe(
+      "/projects/project-alpha/commissions/a",
+    );
+    expect(commissionHref(nodeB.projectName, nodeB.id)).toBe(
+      "/projects/project-beta/commissions/b",
+    );
+  });
+});
+
+describe("NeighborhoodGraph data flow", () => {
+  test("neighborhood with no deps or dependents has single node (component returns null)", () => {
+    const commissions = [
+      makeCommission({ commissionId: "a" }),
+      makeCommission({ commissionId: "b" }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    const neighborhood = getNeighborhood(graph, "a");
+
+    // NeighborhoodGraph returns null when neighborhood.nodes.length <= 1
+    expect(neighborhood.nodes.length).toBe(1);
+  });
+
+  test("neighborhood with deps shows focal node plus neighbors", () => {
+    const commissions = [
+      makeCommission({ commissionId: "dep-1", dependencies: [] }),
+      makeCommission({
+        commissionId: "focal",
+        dependencies: ["commissions/dep-1.md"],
+      }),
+      makeCommission({
+        commissionId: "dependent",
+        dependencies: ["commissions/focal.md"],
+      }),
+      makeCommission({ commissionId: "unrelated", dependencies: [] }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    const neighborhood = getNeighborhood(graph, "focal");
+
+    expect(neighborhood.nodes.length).toBe(3);
+    const ids = neighborhood.nodes.map((n) => n.id).sort();
+    expect(ids).toEqual(["dep-1", "dependent", "focal"]);
+
+    // "unrelated" should not be in the neighborhood
+    expect(ids).not.toContain("unrelated");
+  });
+
+  test("layout produces valid compact dimensions for neighborhood graph", () => {
+    const commissions = [
+      makeCommission({ commissionId: "a" }),
+      makeCommission({
+        commissionId: "b",
+        dependencies: ["commissions/a.md"],
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    const neighborhood = getNeighborhood(graph, "b");
+    const layout = layoutGraph(neighborhood, {
+      nodeWidth: 120,
+      nodeHeight: 40,
+      horizontalGap: 30,
+      verticalGap: 50,
+    });
+
+    expect(layout.nodes.length).toBe(2);
+    expect(layout.width).toBeGreaterThan(0);
+    expect(layout.height).toBeGreaterThan(0);
+
+    // All nodes fit within layout dimensions
+    for (const node of layout.nodes) {
+      expect(node.x + 120).toBeLessThanOrEqual(layout.width);
+      expect(node.y + 40).toBeLessThanOrEqual(layout.height);
     }
   });
 });

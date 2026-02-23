@@ -123,6 +123,8 @@ export interface ActivationContext {
     prompt: string;
     dependencies: string[];
   };
+  /** System state summary for the Guild Master. Populated by the daemon when activating the manager worker. */
+  managerContext?: string;
   projectPath: string;
   workingDirectory: string;
 }

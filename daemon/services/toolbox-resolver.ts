@@ -7,6 +7,7 @@ import type {
 import { createBaseToolbox } from "./base-toolbox";
 import { createCommissionToolbox } from "./commission-toolbox";
 import { createMeetingToolbox } from "./meeting-toolbox";
+import { createManagerToolbox, type ManagerToolboxDeps } from "./manager-toolbox";
 
 // -- Types --
 
@@ -21,6 +22,10 @@ export interface ToolboxResolverContext {
   integrationPath?: string;
   /** Activity worktree path. Commission/meeting toolbox writes go here. */
   workingDirectory?: string;
+  /** When true, the manager-exclusive toolbox is injected. */
+  isManager?: boolean;
+  /** Dependencies for the manager toolbox. Required when isManager is true. */
+  managerToolboxDeps?: ManagerToolboxDeps;
 }
 
 // -- Resolver --
@@ -86,6 +91,11 @@ export function resolveToolSet(
     });
     mcpServers.push(commissionToolbox.server);
     wasResultSubmitted = commissionToolbox.wasResultSubmitted;
+  }
+
+  // 2b. Manager toolbox (exclusive to the Guild Master, injected after context toolbox)
+  if (context.isManager && context.managerToolboxDeps) {
+    mcpServers.push(createManagerToolbox(context.managerToolboxDeps));
   }
 
   // 3. Domain toolboxes

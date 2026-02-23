@@ -1,7 +1,7 @@
 ---
 title: Build and inject manager context at activation
 date: 2026-02-23
-status: pending
+status: complete
 tags: [task]
 source: .lore/plans/phase-6-guild-master.md
 related: [.lore/specs/guild-hall-system.md, .lore/specs/guild-hall-workers.md]

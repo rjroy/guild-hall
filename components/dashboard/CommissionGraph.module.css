@@ -1,0 +1,56 @@
+.container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 120px;
+  max-height: 500px;
+}
+
+.graph.compact {
+  min-height: 80px;
+  max-height: 300px;
+}
+
+.nodeGroup {
+  cursor: pointer;
+}
+
+.nodeGroup:hover .nodeRect {
+  stroke-width: 2.5;
+  stroke: var(--color-amber);
+}
+
+.nodeRect {
+  stroke-width: 1.5;
+  transition: stroke-width 0.15s ease, stroke 0.15s ease;
+}
+
+.nodeLabel {
+  fill: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 12px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.compact .nodeLabel {
+  font-size: 10px;
+}
+
+.edge {
+  stroke: var(--color-brass);
+  stroke-opacity: 0.6;
+  stroke-width: 1.5;
+  fill: none;
+}
+
+.arrowMarker {
+  fill: var(--color-brass);
+  fill-opacity: 0.6;
+}

@@ -218,6 +218,13 @@ function createMockGitOps(options?: {
     listWorktrees: () => { calls.push("listWorktrees"); return Promise.resolve([]); },
     initClaudeBranch: () => { calls.push("initClaudeBranch"); return Promise.resolve(); },
     detectDefaultBranch: () => { calls.push("detectDefaultBranch"); return Promise.resolve("main"); },
+    fetch: () => { calls.push("fetch"); return Promise.resolve(); },
+    push: () => { calls.push("push"); return Promise.resolve(); },
+    resetHard: () => { calls.push("resetHard"); return Promise.resolve(); },
+    createPullRequest: () => { calls.push("createPullRequest"); return Promise.resolve({ url: "" }); },
+    isAncestor: () => { calls.push("isAncestor"); return Promise.resolve(false); },
+    treesEqual: () => { calls.push("treesEqual"); return Promise.resolve(false); },
+    revParse: () => { calls.push("revParse"); return Promise.resolve("abc"); },
   };
 }
 
@@ -2643,5 +2650,207 @@ notes_summary: ""
       expect(artifactContent).toContain("status: closed");
       expect(artifactContent).toContain("Worktree lost during daemon restart");
     });
+  });
+});
+
+// -- Manager worker integration --
+
+import {
+  MANAGER_PACKAGE_NAME,
+  createManagerPackage,
+} from "@/daemon/services/manager-worker";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+
+/* eslint-disable @typescript-eslint/require-await */
+function makeMockCommissionSession(): CommissionSessionForRoutes {
+  return {
+    async createCommission() { return { commissionId: "test" }; },
+    async updateCommission() {},
+    async dispatchCommission() { return { status: "accepted" as const }; },
+    async cancelCommission() {},
+    async redispatchCommission() { return { status: "accepted" as const }; },
+    reportProgress() {},
+    reportResult() {},
+    reportQuestion() {},
+    async addUserNote() {},
+    getActiveCommissions() { return 0; },
+    shutdown() {},
+  };
+}
+/* eslint-enable @typescript-eslint/require-await */
+
+const MANAGER_PKG = createManagerPackage();
+
+describe("manager worker integration", () => {
+  test("meeting session identifies manager by package name and sets isManager flag", async () => {
+    // Use an activateFn that captures the context to inspect resolvedTools
+    const activateCalls: Array<{ pkg: DiscoveredPackage; context: ActivationContext }> = [];
+    function captureActivateFn(
+      pkg: DiscoveredPackage,
+      context: ActivationContext,
+    ): Promise<ActivationResult> {
+      activateCalls.push({ pkg, context });
+      return Promise.resolve({
+        systemPrompt: "Manager prompt",
+        tools: context.resolvedTools,
+        resourceBounds: { maxTurns: 200 },
+      });
+    }
+
+    const deps = makeDeps({
+      packages: [MANAGER_PKG, WORKER_PKG],
+      activateFn: captureActivateFn,
+      commissionSession: makeMockCommissionSession(),
+    });
+
+    const session = createMeetingSession(deps);
+
+    // The manager package name is "guild-hall-manager"; use it as workerName
+    // (createMeeting looks up by package name via getWorkerByName).
+    const events = await collectEvents(
+      session.createMeeting("test-project", MANAGER_PACKAGE_NAME, "Plan project work"),
+    );
+
+    // Should have succeeded (no error events about worker not found)
+    const errorEvents = events.filter((e) => e.type === "error");
+    const workerNotFoundErrors = errorEvents.filter(
+      (e) => e.type === "error" && e.reason.includes("not found"),
+    );
+    expect(workerNotFoundErrors).toHaveLength(0);
+
+    // The activateFn should have been called with the manager package
+    expect(activateCalls).toHaveLength(1);
+    expect(activateCalls[0].pkg.name).toBe(MANAGER_PACKAGE_NAME);
+
+    // The resolved tools should include the manager toolbox MCP server
+    const mcpNames = activateCalls[0].context.resolvedTools.mcpServers.map(
+      (s) => s.name,
+    );
+    expect(mcpNames).toContain("guild-hall-manager");
+    // Also verify that base and meeting toolboxes are still present
+    expect(mcpNames).toContain("guild-hall-base");
+    expect(mcpNames).toContain("guild-hall-meeting");
+  });
+
+  test("activateWorker handles path='' for built-in manager (no activateFn)", async () => {
+    // This test verifies that when activateFn is NOT provided, the
+    // production code path for path="" routes to activateManager().
+    const mock = makeMockQueryFn();
+    const mockGit = createMockGitOps();
+
+    const config = makeConfig();
+    config.projects[0].path = projectDir;
+
+    const deps: MeetingSessionDeps = {
+      packages: [MANAGER_PKG, WORKER_PKG],
+      config,
+      guildHallHome: ghHomeDir,
+      queryFn: mock.queryFn,
+      // No activateFn, so the built-in path is exercised
+      gitOps: mockGit,
+      commissionSession: makeMockCommissionSession(),
+    };
+
+    const session = createMeetingSession(deps);
+    const events = await collectEvents(
+      session.createMeeting("test-project", MANAGER_PACKAGE_NAME, "Coordinate work"),
+    );
+
+    // Should have succeeded (session event + text + result)
+    const errorEvents = events.filter((e) => e.type === "error");
+    // No "Worker activation failed" errors
+    const activationErrors = errorEvents.filter(
+      (e) => e.type === "error" && e.reason.includes("activation failed"),
+    );
+    expect(activationErrors).toHaveLength(0);
+
+    // The query function should have been called, meaning activation succeeded
+    expect(mock.calls).toHaveLength(1);
+
+    // The system prompt should contain the manager posture
+    expect(mock.calls[0].options.systemPrompt).toContain("coordination specialist");
+  });
+
+  test("activateWorker throws for unknown built-in workers (path='' but not manager)", async () => {
+    const unknownBuiltIn: DiscoveredPackage = {
+      name: "guild-hall-unknown",
+      path: "",
+      metadata: {
+        type: "worker",
+        identity: {
+          name: "Unknown",
+          description: "An unrecognized built-in.",
+          displayTitle: "Unknown Worker",
+        },
+        posture: "You are unknown.",
+        domainToolboxes: [],
+        builtInTools: ["Read"],
+        checkoutScope: "sparse",
+      },
+    };
+
+    const mock = makeMockQueryFn();
+    const mockGit = createMockGitOps();
+
+    const config = makeConfig();
+    config.projects[0].path = projectDir;
+
+    const deps: MeetingSessionDeps = {
+      packages: [unknownBuiltIn, WORKER_PKG],
+      config,
+      guildHallHome: ghHomeDir,
+      queryFn: mock.queryFn,
+      // No activateFn, so the built-in path is exercised
+      gitOps: mockGit,
+    };
+
+    const session = createMeetingSession(deps);
+    const events = await collectEvents(
+      session.createMeeting("test-project", "guild-hall-unknown", "Do something"),
+    );
+
+    // Should have an error about unknown built-in
+    const errorEvents = events.filter((e) => e.type === "error");
+    expect(errorEvents.length).toBeGreaterThan(0);
+
+    const activationError = errorEvents.find(
+      (e) => e.type === "error" && e.reason.includes("Unknown built-in worker"),
+    );
+    expect(activationError).toBeDefined();
+    expect(activationError!.type === "error" && activationError!.reason).toContain(
+      "guild-hall-unknown",
+    );
+  });
+
+  test("regular worker is not detected as manager", async () => {
+    const activateCalls: Array<{ pkg: DiscoveredPackage; context: ActivationContext }> = [];
+    function captureActivateFn(
+      pkg: DiscoveredPackage,
+      context: ActivationContext,
+    ): Promise<ActivationResult> {
+      activateCalls.push({ pkg, context });
+      return Promise.resolve(makeActivationResult());
+    }
+
+    const deps = makeDeps({
+      packages: [MANAGER_PKG, WORKER_PKG],
+      activateFn: captureActivateFn,
+      commissionSession: makeMockCommissionSession(),
+    });
+
+    const session = createMeetingSession(deps);
+    await collectEvents(
+      session.createMeeting("test-project", "guild-hall-sample-assistant", "Regular meeting"),
+    );
+
+    // The activateFn should have been called with the regular worker
+    expect(activateCalls).toHaveLength(1);
+    expect(activateCalls[0].pkg.name).toBe("guild-hall-sample-assistant");
+
+    // The resolved tools should NOT include the manager toolbox
+    const mcpNames = activateCalls[0].context.resolvedTools.mcpServers.map(
+      (s) => s.name,
+    );
+    expect(mcpNames).not.toContain("guild-hall-manager");
   });
 });

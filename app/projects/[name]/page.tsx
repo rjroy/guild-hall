@@ -2,6 +2,7 @@ import * as path from "node:path";
 import { getProject } from "@/lib/config";
 import { scanArtifacts } from "@/lib/artifacts";
 import { scanCommissions } from "@/lib/commissions";
+import { buildDependencyGraph } from "@/lib/dependency-graph";
 import { getActiveMeetingWorktrees } from "@/lib/meetings";
 import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { notFound } from "next/navigation";
@@ -10,6 +11,7 @@ import ProjectTabs from "@/components/project/ProjectTabs";
 import ArtifactList from "@/components/project/ArtifactList";
 import MeetingList from "@/components/project/MeetingList";
 import CommissionList from "@/components/commission/CommissionList";
+import CommissionGraph from "@/components/dashboard/CommissionGraph";
 import CreateCommissionButton from "@/components/commission/CreateCommissionButton";
 import styles from "./page.module.css";
 
@@ -58,6 +60,7 @@ export default async function ProjectPage({
   });
 
   const commissions = await scanCommissions(lorePath, projectName);
+  const commissionGraph = buildDependencyGraph(commissions);
 
   return (
     <div className={styles.projectView}>
@@ -72,6 +75,13 @@ export default async function ProjectPage({
             <div className={styles.commissionActions}>
               <CreateCommissionButton projectName={projectName} />
             </div>
+            {commissionGraph.edges.length > 0 && (
+              <CommissionGraph
+                graph={commissionGraph}
+                compact
+                projectName={projectName}
+              />
+            )}
             <CommissionList commissions={commissions} projectName={projectName} />
           </div>
         )}

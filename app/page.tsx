@@ -74,7 +74,7 @@ export default async function DashboardPage({
         />
       </div>
       <div className={styles.briefing}>
-        <ManagerBriefing />
+        <ManagerBriefing projectName={selectedProject ?? config.projects[0]?.name} />
       </div>
       <div className={styles.depMap}>
         <DependencyMap commissions={allCommissions} />

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { register } from "./register";
-import { rebase } from "./rebase";
+import { rebase, sync } from "./rebase";
 import { validate } from "./validate";
 
 const USAGE = `Guild Hall CLI
@@ -8,6 +8,7 @@ const USAGE = `Guild Hall CLI
 Commands:
   register <name> <path>  Register a project
   rebase [name]           Rebase claude branch onto master
+  sync [name]             Fetch + smart sync (detects merged PRs, resets or rebases)
   validate                Validate config and projects
   help                    Show this help message`;
 
@@ -30,6 +31,12 @@ async function main(): Promise<void> {
     case "rebase": {
       const projectName = args[1]; // optional
       await rebase(projectName);
+      break;
+    }
+
+    case "sync": {
+      const projectName = args[1]; // optional
+      await sync(projectName);
       break;
     }
 

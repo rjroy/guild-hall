@@ -34,6 +34,7 @@ import {
 import { getWorkerByName } from "@/lib/packages";
 import { getSocketPath } from "@/daemon/lib/socket";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
+import { withProjectLock } from "@/daemon/lib/project-lock";
 import type { EventBus } from "./event-bus";
 import type { CommissionWorkerConfig } from "./commission-worker-config";
 import {
@@ -950,7 +951,9 @@ projectName: ${projectName}
       const iPath = integrationWorktreePath(ghHome, commission.projectName);
       try {
         await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
-        await git.squashMerge(iPath, commission.branchName, `Commission: ${commissionId}`);
+        await withProjectLock(commission.projectName, async () => {
+          await git.squashMerge(iPath, commission.branchName, `Commission: ${commissionId}`);
+        });
         await git.removeWorktree(project.path, commission.worktreeDir);
         await git.deleteBranch(project.path, commission.branchName);
         console.log(`[commission] "${commissionId}" squash-merged to claude and cleaned up`);

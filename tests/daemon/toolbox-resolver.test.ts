@@ -3,6 +3,9 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
+import type { ManagerToolboxDeps } from "@/daemon/services/manager-toolbox";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { GitOps } from "@/daemon/lib/git";
 import type {
   WorkerMetadata,
   DiscoveredPackage,
@@ -271,5 +274,145 @@ describe("resolveToolSet", () => {
     expect(() => resolveToolSet(worker, [], context)).toThrow(
       /requires either meetingId or commissionId/,
     );
+  });
+});
+
+// -- Manager toolbox integration --
+
+/* eslint-disable @typescript-eslint/require-await */
+
+function makeMockCommissionSession(): CommissionSessionForRoutes {
+  return {
+    async createCommission() { return { commissionId: "test" }; },
+    async updateCommission() {},
+    async dispatchCommission() { return { status: "accepted" as const }; },
+    async cancelCommission() {},
+    async redispatchCommission() { return { status: "accepted" as const }; },
+    reportProgress() {},
+    reportResult() {},
+    reportQuestion() {},
+    async addUserNote() {},
+    getActiveCommissions() { return 0; },
+    shutdown() {},
+  };
+}
+
+function makeMockGitOps(): GitOps {
+  return {
+    async createBranch() {},
+    async branchExists() { return false; },
+    async deleteBranch() {},
+    async createWorktree() {},
+    async removeWorktree() {},
+    async configureSparseCheckout() {},
+    async commitAll() { return false; },
+    async squashMerge() {},
+    async hasUncommittedChanges() { return false; },
+    async rebase() {},
+    async currentBranch() { return "claude/main"; },
+    async listWorktrees() { return []; },
+    async initClaudeBranch() {},
+    async detectDefaultBranch() { return "main"; },
+    async fetch() {},
+    async push() {},
+    async resetHard() {},
+    async createPullRequest() { return { url: "" }; },
+    async isAncestor() { return false; },
+    async treesEqual() { return false; },
+    async revParse() { return "abc"; },
+  };
+}
+
+/* eslint-enable @typescript-eslint/require-await */
+
+function makeManagerToolboxDeps(): ManagerToolboxDeps {
+  return {
+    integrationPath: path.join(tmpDir, "integration"),
+    projectName: "test-project",
+    guildHallHome,
+    commissionSession: makeMockCommissionSession(),
+    gitOps: makeMockGitOps(),
+    projectRepoPath: projectPath,
+    defaultBranch: "main",
+  };
+}
+
+describe("resolveToolSet with manager toolbox", () => {
+  test("isManager=true includes manager toolbox MCP server", () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      workerName: "Guild Master",
+      isManager: true,
+      managerToolboxDeps: makeManagerToolboxDeps(),
+    };
+    const result = resolveToolSet(worker, [], context);
+
+    // Should have: base + meeting + manager = 3 servers
+    expect(result.mcpServers).toHaveLength(3);
+    expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    expect(result.mcpServers[1].name).toBe("guild-hall-meeting");
+    expect(result.mcpServers[2].name).toBe("guild-hall-manager");
+  });
+
+  test("isManager=false does NOT include manager toolbox", () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      workerName: "test-worker",
+      isManager: false,
+    };
+    const result = resolveToolSet(worker, [], context);
+
+    // Should have: base + meeting = 2 servers, no manager
+    expect(result.mcpServers).toHaveLength(2);
+    const names = result.mcpServers.map((s) => s.name);
+    expect(names).not.toContain("guild-hall-manager");
+  });
+
+  test("manager tools appear in resolved allowedTools whitelist", () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      workerName: "Guild Master",
+      isManager: true,
+      managerToolboxDeps: makeManagerToolboxDeps(),
+    };
+    const result = resolveToolSet(worker, [], context);
+
+    // The allowedTools should include the mcp wildcard for the manager server
+    expect(result.allowedTools).toContain("mcp__guild-hall-manager__*");
+    // Also the base and meeting wildcards
+    expect(result.allowedTools).toContain("mcp__guild-hall-base__*");
+    expect(result.allowedTools).toContain("mcp__guild-hall-meeting__*");
+  });
+
+  test("non-manager worker with meeting context has no manager tools", () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      workerName: "test-worker",
+    };
+    const result = resolveToolSet(worker, [], context);
+
+    const names = result.mcpServers.map((s) => s.name);
+    expect(names).not.toContain("guild-hall-manager");
+    expect(result.allowedTools).not.toContain("mcp__guild-hall-manager__*");
+  });
+
+  test("isManager=true without managerToolboxDeps does not inject manager toolbox", () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      workerName: "Guild Master",
+      isManager: true,
+      // managerToolboxDeps intentionally omitted
+    };
+    const result = resolveToolSet(worker, [], context);
+
+    // Only base + meeting, no manager (guard against undefined deps)
+    expect(result.mcpServers).toHaveLength(2);
+    const names = result.mcpServers.map((s) => s.name);
+    expect(names).not.toContain("guild-hall-manager");
   });
 });

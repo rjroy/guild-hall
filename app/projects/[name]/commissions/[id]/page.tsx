@@ -2,13 +2,16 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { redirect } from "next/navigation";
 import { getProject } from "@/lib/config";
-import { projectLorePath, getGuildHallHome, resolveCommissionBasePath } from "@/lib/paths";
+import { projectLorePath, getGuildHallHome, resolveCommissionBasePath, integrationWorktreePath } from "@/lib/paths";
 import {
   readCommissionMeta,
+  scanCommissions,
   parseActivityTimeline,
 } from "@/lib/commissions";
+import { buildDependencyGraph } from "@/lib/dependency-graph";
 import CommissionHeader from "@/components/commission/CommissionHeader";
 import CommissionView from "@/components/commission/CommissionView";
+import NeighborhoodGraph from "@/components/commission/NeighborhoodGraph";
 import type { CommissionArtifact } from "@/components/commission/CommissionLinkedArtifacts";
 import styles from "./page.module.css";
 
@@ -79,6 +82,13 @@ export default async function CommissionPage({
     projectName,
   );
 
+  // Build dependency graph from all commissions in the project
+  // to show the neighborhood (direct deps and dependents) for this commission.
+  const integrationPath = integrationWorktreePath(ghHome, projectName);
+  const integrationLorePath = projectLorePath(integrationPath);
+  const allCommissions = await scanCommissions(integrationLorePath, projectName);
+  const graph = buildDependencyGraph(allCommissions);
+
   return (
     <div className={styles.commissionView}>
       <CommissionHeader
@@ -86,6 +96,11 @@ export default async function CommissionPage({
         status={commission.status}
         worker={commission.worker}
         workerDisplayTitle={commission.workerDisplayTitle}
+        projectName={projectName}
+      />
+      <NeighborhoodGraph
+        graph={graph}
+        commissionId={id}
         projectName={projectName}
       />
       <CommissionView

@@ -408,6 +408,13 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
     async listWorktrees(...args) { calls.push({ method: "listWorktrees", args }); return []; },
     async initClaudeBranch(...args) { calls.push({ method: "initClaudeBranch", args }); },
     async detectDefaultBranch(...args) { calls.push({ method: "detectDefaultBranch", args }); return "main"; },
+    async fetch(...args) { calls.push({ method: "fetch", args }); },
+    async push(...args) { calls.push({ method: "push", args }); },
+    async resetHard(...args) { calls.push({ method: "resetHard", args }); },
+    async createPullRequest(...args) { calls.push({ method: "createPullRequest", args }); return { url: "" }; },
+    async isAncestor(...args) { calls.push({ method: "isAncestor", args }); return false; },
+    async treesEqual(...args) { calls.push({ method: "treesEqual", args }); return false; },
+    async revParse(...args) { calls.push({ method: "revParse", args }); return "abc"; },
   };
   /* eslint-enable @typescript-eslint/require-await */
 }

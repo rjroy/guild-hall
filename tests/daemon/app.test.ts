@@ -36,6 +36,13 @@ function createMockGitOps(): GitOps & { calls: string[] } {
     listWorktrees: () => { calls.push("listWorktrees"); return Promise.resolve([]); },
     initClaudeBranch: () => { calls.push("initClaudeBranch"); return Promise.resolve(); },
     detectDefaultBranch: () => { calls.push("detectDefaultBranch"); return Promise.resolve("main"); },
+    fetch: () => { calls.push("fetch"); return Promise.resolve(); },
+    push: () => { calls.push("push"); return Promise.resolve(); },
+    resetHard: () => { calls.push("resetHard"); return Promise.resolve(); },
+    createPullRequest: () => { calls.push("createPullRequest"); return Promise.resolve({ url: "" }); },
+    isAncestor: () => { calls.push("isAncestor"); return Promise.resolve(false); },
+    treesEqual: () => { calls.push("treesEqual"); return Promise.resolve(false); },
+    revParse: () => { calls.push("revParse"); return Promise.resolve("abc"); },
   };
 }
 
