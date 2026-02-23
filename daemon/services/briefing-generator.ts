@@ -1,5 +1,5 @@
 /**
- * On-demand project briefing generator with in-memory caching.
+ * On-demand project briefing generator with file-based caching.
  *
  * Produces a concise project status briefing by assembling current state
  * via buildManagerContext() and either:
@@ -9,11 +9,13 @@
  * Follows the notes-generator pattern: discriminated union return type,
  * DI seam for the SDK query function, single-turn maxTurns: 1 invocation.
  *
- * Briefings are cached in-memory with a 1-hour TTL. The daemon route returns
- * cached results when available, and the invalidateCache() method lets
- * callers force regeneration.
+ * Briefings are cached to disk at `<ghHome>/state/briefings/<project>.json`
+ * with a 1-hour TTL. The cache survives daemon restarts, avoiding unnecessary
+ * SDK calls. The invalidateCache() method lets callers force regeneration.
  */
 
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { DiscoveredPackage, AppConfig } from "@/lib/types";
 import type { QueryOptions } from "@/daemon/services/meeting-session";
@@ -21,7 +23,7 @@ import {
   buildManagerContext,
   type ManagerContextDeps,
 } from "@/daemon/services/manager-context";
-import { integrationWorktreePath } from "@/lib/paths";
+import { integrationWorktreePath, briefingCachePath } from "@/lib/paths";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
 
 // -- Types --
@@ -53,6 +55,26 @@ interface CacheEntry {
 // -- Constants --
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// -- Cache helpers --
+
+async function readCacheFile(filePath: string): Promise<CacheEntry | null> {
+  try {
+    const raw = await fs.readFile(filePath, "utf-8");
+    const parsed = JSON.parse(raw) as { text?: unknown; generatedAt?: unknown };
+    if (typeof parsed.text === "string" && typeof parsed.generatedAt === "number") {
+      return { text: parsed.text, generatedAt: parsed.generatedAt };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeCacheFile(filePath: string, entry: CacheEntry): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, JSON.stringify(entry), "utf-8");
+}
 
 // -- Helpers --
 
@@ -122,14 +144,13 @@ function generateTemplateBriefing(context: string): string {
  * - invalidateCache(projectName): clears the cache for a specific project
  */
 export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
-  const cache = new Map<string, CacheEntry>();
-
   return {
     async generateBriefing(projectName: string): Promise<BriefingResult> {
       const now = (deps.clock ?? Date.now)();
 
-      // 1. Check cache
-      const cached = cache.get(projectName);
+      // 1. Check file-based cache
+      const cachePath = briefingCachePath(deps.guildHallHome, projectName);
+      const cached = await readCacheFile(cachePath);
       if (cached && (now - cached.generatedAt) < CACHE_TTL_MS) {
         return {
           briefing: cached.text,
@@ -212,8 +233,13 @@ Be factual and direct. No headers or bullet points. Plain prose.`;
         briefingText = generateTemplateBriefing(context);
       }
 
-      // 5. Cache and return
-      cache.set(projectName, { text: briefingText, generatedAt: now });
+      // 5. Write to file cache and return
+      try {
+        await writeCacheFile(cachePath, { text: briefingText, generatedAt: now });
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        console.warn(`[briefing-generator] Failed to write cache for "${projectName}": ${reason}`);
+      }
 
       return {
         briefing: briefingText,
@@ -222,8 +248,13 @@ Be factual and direct. No headers or bullet points. Plain prose.`;
       };
     },
 
-    invalidateCache(projectName: string): void {
-      cache.delete(projectName);
+    async invalidateCache(projectName: string): Promise<void> {
+      const cachePath = briefingCachePath(deps.guildHallHome, projectName);
+      try {
+        await fs.unlink(cachePath);
+      } catch {
+        // File didn't exist, nothing to invalidate
+      }
     },
   };
 }

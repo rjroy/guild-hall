@@ -185,7 +185,7 @@ describe("createBriefingGenerator - cache behavior", () => {
     // The cache is a Map inside the closure. We can't access it directly,
     // but we can test the invalidation path instead. For TTL testing,
     // we verify that invalidateCache forces a new generation.
-    generator.invalidateCache("test-project");
+    await generator.invalidateCache("test-project");
 
     // Next call should be a cache miss
     const result = await generator.generateBriefing("test-project");
@@ -267,7 +267,7 @@ describe("createBriefingGenerator - cache behavior", () => {
     expect(mock.getCallCount()).toBe(2);
 
     // Invalidate only project-a
-    generator.invalidateCache("project-a");
+    await generator.invalidateCache("project-a");
 
     // project-a should miss, project-b should still hit
     const resultA = await generator.generateBriefing("project-a");
@@ -277,6 +277,28 @@ describe("createBriefingGenerator - cache behavior", () => {
     const resultB = await generator.generateBriefing("project-b");
     expect(resultB.cached).toBe(true);
     expect(mock.getCallCount()).toBe(3); // No additional call
+  });
+});
+
+describe("createBriefingGenerator - file-based cache persistence", () => {
+  test("cache survives across generator instances (daemon restart)", async () => {
+    const mock1 = createMockQueryFn("First instance briefing.");
+    const gen1 = createBriefingGenerator(makeDeps({ queryFn: mock1.queryFn }));
+
+    // First instance generates and caches to disk
+    const first = await gen1.generateBriefing("test-project");
+    expect(first.cached).toBe(false);
+    expect(mock1.getCallCount()).toBe(1);
+
+    // Second instance (simulating daemon restart) with a different queryFn
+    const mock2 = createMockQueryFn("Second instance briefing.");
+    const gen2 = createBriefingGenerator(makeDeps({ queryFn: mock2.queryFn }));
+
+    // Should read from disk cache, not call SDK
+    const second = await gen2.generateBriefing("test-project");
+    expect(second.cached).toBe(true);
+    expect(second.briefing).toBe("First instance briefing.");
+    expect(mock2.getCallCount()).toBe(0);
   });
 });
 

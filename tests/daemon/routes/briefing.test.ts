@@ -15,7 +15,7 @@ function makeMockBriefingGenerator(overrides: Partial<BriefingGenerator> = {}): 
       generatedAt: new Date().toISOString(),
       cached: false,
     }),
-    invalidateCache: () => {},
+    invalidateCache: async () => {},
     ...overrides,
   };
 }
