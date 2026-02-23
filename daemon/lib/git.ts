@@ -115,7 +115,10 @@ export function createGitOps(): GitOps {
         return false;
       }
       await runGit(worktreePath, ["add", "-A"]);
-      await runGit(worktreePath, ["commit", "-m", message]);
+      // --no-verify: activity worktrees use sparse checkout (.lore/ only),
+      // so project pre-commit hooks (linters, tests) will fail on the
+      // incomplete repo. These are internal Guild Hall commits, not user commits.
+      await runGit(worktreePath, ["commit", "--no-verify", "-m", message]);
       return true;
     },
 
@@ -127,7 +130,9 @@ export function createGitOps(): GitOps {
           `Squash merge of ${sourceBranch} failed with conflicts: ${err instanceof Error ? err.message : String(err)}`
         );
       }
-      await runGit(worktreePath, ["commit", "-m", message]);
+      // --no-verify: same rationale as commitAll; integration worktrees
+      // share the project's hook config but aren't full working copies.
+      await runGit(worktreePath, ["commit", "--no-verify", "-m", message]);
     },
 
     async hasUncommittedChanges(worktreePath) {
