@@ -285,7 +285,30 @@ export async function syncProject(
       return { action: "noop" as const, reason: "claude/main ahead" };
     }
 
-    // Diverged: neither is ancestor of the other. Attempt rebase.
+    // Diverged: neither is ancestor of the other. This is the typical
+    // post-squash-merge state (squash creates a new commit, breaking the
+    // ancestry chain between claude/main and origin/<default>).
+    // Check for PR marker or tree equality before attempting rebase.
+    const claudeTipDiverged = await git.revParse(iPath, CLAUDE_BRANCH);
+    const markerDiverged = await readPrMarker(home, projectName);
+    if (markerDiverged && markerDiverged.claudeMainTip === claudeTipDiverged) {
+      await git.resetHard(iPath, remoteRef);
+      await removePrMarker(home, projectName);
+      console.log(`[sync] Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge (via marker, diverged)`);
+      return { action: "reset" as const, reason: "PR marker matched (diverged)" };
+    }
+
+    if (await git.treesEqual(iPath, CLAUDE_BRANCH, remoteRef)) {
+      await git.resetHard(iPath, remoteRef);
+      await removePrMarker(home, projectName);
+      console.log(
+        `[sync] Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge ` +
+        "(marker missing, detected via tree comparison, diverged)",
+      );
+      return { action: "reset" as const, reason: "trees equal (diverged)" };
+    }
+
+    // Neither marker nor tree match. Attempt rebase as last resort.
     console.warn(
       `[sync] ${CLAUDE_BRANCH} and ${remoteRef} have diverged for "${projectName}". Attempting rebase.`,
     );

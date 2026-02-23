@@ -722,6 +722,64 @@ describe("syncProject", () => {
     expect(rebaseCalls).toHaveLength(1);
   });
 
+  test("diverged: resets when PR marker matches (squash-merge scenario)", async () => {
+    // After squash-merge, neither branch is ancestor of the other.
+    // Both isAncestor calls return false.
+    mockGit.isAncestor = (...args) => {
+      mockGit.calls.push({ method: "isAncestor", args });
+      return Promise.resolve(false);
+    };
+    // revParse returns the claude tip that matches the marker
+    const claudeTip = "aaa111bbb222ccc333ddd444eee555fff666aaa1";
+    mockGit.revParse = (...args) => {
+      mockGit.calls.push({ method: "revParse", args });
+      return Promise.resolve(claudeTip);
+    };
+
+    // Write PR marker with matching tip
+    const markerDir = path.join(ghHome, "state", "pr-pending");
+    await fs.mkdir(markerDir, { recursive: true });
+    await fs.writeFile(
+      path.join(markerDir, "my-project.json"),
+      JSON.stringify({ claudeMainTip: claudeTip, prUrl: "https://github.com/test/pr/1", createdAt: new Date().toISOString() }),
+    );
+
+    const result = await syncProject("/fake/project", "my-project", ghHome, mockGit, "main");
+
+    expect(result.action).toBe("reset");
+    expect(result.reason).toContain("marker");
+    expect(result.reason).toContain("diverged");
+    const resetCalls = mockGit.calls.filter((c) => c.method === "resetHard");
+    expect(resetCalls).toHaveLength(1);
+    // Marker should be removed
+    const markerAfter = await readPrMarker(ghHome, "my-project");
+    expect(markerAfter).toBeNull();
+  });
+
+  test("diverged: resets when trees are equal (squash-merge, no marker)", async () => {
+    // After squash-merge, neither branch is ancestor of the other.
+    mockGit.isAncestor = (...args) => {
+      mockGit.calls.push({ method: "isAncestor", args });
+      return Promise.resolve(false);
+    };
+    mockGit.revParse = (...args) => {
+      mockGit.calls.push({ method: "revParse", args });
+      return Promise.resolve("some-sha");
+    };
+    mockGit.treesEqual = (...args) => {
+      mockGit.calls.push({ method: "treesEqual", args });
+      return Promise.resolve(true);
+    };
+
+    const result = await syncProject("/fake/project", "my-project", ghHome, mockGit, "main");
+
+    expect(result.action).toBe("reset");
+    expect(result.reason).toContain("trees equal");
+    expect(result.reason).toContain("diverged");
+    const resetCalls = mockGit.calls.filter((c) => c.method === "resetHard");
+    expect(resetCalls).toHaveLength(1);
+  });
+
   test("calls fetch with origin", async () => {
     // Make sync a noop to focus on fetch call
     mockGit.isAncestor = () => Promise.resolve(false);
