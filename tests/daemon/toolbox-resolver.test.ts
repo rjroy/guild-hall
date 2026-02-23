@@ -18,7 +18,7 @@ beforeEach(async () => {
   projectPath = path.join(tmpDir, "test-project");
   guildHallHome = path.join(tmpDir, ".guild-hall");
 
-  // Create project .lore directory so artifact tools don't fail on init
+  // Create project .lore directory for context-specific toolboxes
   await fs.mkdir(path.join(projectPath, ".lore"), { recursive: true });
 });
 

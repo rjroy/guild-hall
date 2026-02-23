@@ -50,10 +50,9 @@ export function resolveToolSet(
   }
   const contextType: "meeting" | "commission" = context.meetingId ? "meeting" : "commission";
 
-  // 1. Base toolbox (always present)
+  // 1. Base toolbox (always present: memory + decision tools)
   mcpServers.push(
     createBaseToolbox({
-      projectPath: context.projectPath,
       contextId,
       contextType,
       guildHallHome: context.guildHallHome,

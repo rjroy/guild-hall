@@ -27,7 +27,7 @@ Phase 5 complete. 1115 tests pass. Phase 1 delivered three views (Dashboard, Pro
 - PID file at `<socket-path>.pid` enables crash recovery. On boot, if a PID file exists and the process is dead, both socket and PID file are cleaned up. If the process is alive, startup is rejected.
 - Routes use DI factory pattern: `createHealthRoutes(deps)` receives injected dependencies. The app factory `createApp(deps)` wires route groups. Production wiring lives in `daemon/app.ts` via `createProductionApp()`.
 - Meeting sessions manage Claude Agent SDK lifecycle, translate SDK messages to GuildHallEvents, and stream them via SSE.
-- Toolbox resolver assembles base tools (6 built-in via MCP server), context-specific tools (meeting or commission), domain-specific tools from worker packages, and built-in tool configurations. Base toolbox uses `contextId`/`contextType` (not `meetingId`) to support both meeting and commission contexts.
+- Toolbox resolver assembles base tools (3 built-in via MCP server: read_memory, write_memory, record_decision), context-specific tools (meeting or commission), domain-specific tools from worker packages, and built-in tool configurations. Workers access `.lore/` artifacts directly via filesystem (activity worktrees have `.lore/` via sparse checkout). Base toolbox uses `contextId`/`contextType` (not `meetingId`) to support both meeting and commission contexts.
 - Commission sessions manage worker process lifecycle: spawn, monitor heartbeats, handle exits, and emit events to the EventBus. The EventBus (Set-based pub/sub) broadcasts SystemEvents to SSE subscribers via `GET /events`.
 
 ## Tech Stack
@@ -171,7 +171,7 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 | `daemon/routes/workers.ts` | `GET /workers` listing |
 | `daemon/services/meeting-session.ts` | Meeting lifecycle, SDK session management, session recovery and renewal |
 | `daemon/services/event-translator.ts` | SDK messages to GuildHallEvent translation |
-| `daemon/services/base-toolbox.ts` | 6 base tools via `createSdkMcpServer()` |
+| `daemon/services/base-toolbox.ts` | 3 base tools via `createSdkMcpServer()` (memory + decisions) |
 | `daemon/services/toolbox-resolver.ts` | Assembles base + domain + built-in tools |
 | `daemon/services/transcript.ts` | Transcript CRUD (create, append turns, read, parse, remove) |
 | `daemon/services/notes-generator.ts` | Meeting notes generation via SDK (transcript + decisions + artifacts) |
