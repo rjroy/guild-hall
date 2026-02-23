@@ -96,6 +96,8 @@ export interface DiscoveredPackage {
 export interface ResolvedToolSet {
   mcpServers: McpSdkServerConfigWithInstance[];
   allowedTools: string[];
+  /** Returns true if submit_result was called. Only set for commission contexts. */
+  wasResultSubmitted?: () => boolean;
 }
 
 /**

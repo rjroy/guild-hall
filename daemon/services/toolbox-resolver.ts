@@ -19,6 +19,8 @@ export interface ToolboxResolverContext {
   daemonSocketPath?: string;
   /** Integration worktree path, used by meeting toolbox for propose_followup. */
   integrationPath?: string;
+  /** Activity worktree path. Commission/meeting toolbox writes go here. */
+  workingDirectory?: string;
 }
 
 // -- Resolver --
@@ -59,6 +61,8 @@ export function resolveToolSet(
   );
 
   // 2. Context toolbox (meeting or commission, mutually exclusive)
+  let wasResultSubmitted: (() => boolean) | undefined;
+
   if (context.meetingId && context.workerName) {
     mcpServers.push(
       createMeetingToolbox({
@@ -75,14 +79,14 @@ export function resolveToolSet(
         `Commission context requires daemonSocketPath. CommissionId "${context.commissionId}" was provided without a socket path.`,
       );
     }
-    mcpServers.push(
-      createCommissionToolbox({
-        projectPath: context.projectPath,
-        commissionId: context.commissionId,
-        daemonSocketPath: context.daemonSocketPath,
-        guildHallHome: context.guildHallHome,
-      }),
-    );
+    const commissionToolbox = createCommissionToolbox({
+      projectPath: context.workingDirectory ?? context.projectPath,
+      commissionId: context.commissionId,
+      daemonSocketPath: context.daemonSocketPath,
+      guildHallHome: context.guildHallHome,
+    });
+    mcpServers.push(commissionToolbox.server);
+    wasResultSubmitted = commissionToolbox.wasResultSubmitted;
   }
 
   // 3. Domain toolboxes
@@ -102,10 +106,16 @@ export function resolveToolSet(
     // The actual MCP server creation from toolbox packages is a Phase 3+ concern.
   }
 
-  // 4. Built-in tools
-  const allowedTools = [...worker.builtInTools];
+  // 4. Built-in tools + MCP server tool wildcards.
+  //    allowedTools is a whitelist for ALL tools including MCP tools.
+  //    MCP tools follow the naming convention mcp__<server>__<tool>.
+  //    Without wildcards, MCP tools are silently filtered out.
+  const allowedTools = [
+    ...worker.builtInTools,
+    ...mcpServers.map((s) => `mcp__${s.name}__*`),
+  ];
 
-  return { mcpServers, allowedTools };
+  return { mcpServers, allowedTools, wasResultSubmitted };
 }
 
 // -- Helpers --

@@ -117,6 +117,70 @@ export function buildQueryOptions(
   };
 }
 
+// -- SDK message logging --
+
+function truncate(s: string, max = 300): string {
+  return s.length > max ? s.slice(0, max) + "..." : s;
+}
+
+/**
+ * Extracts content blocks from an SDK message's nested `message` property
+ * and logs text, tool_use (with inputs), and tool_result blocks.
+ */
+/** Safely extract a string property from an unknown record. */
+function str(obj: Record<string, unknown>, key: string, fallback = ""): string {
+  const val = obj[key];
+  return typeof val === "string" ? val : (typeof val === "number" ? String(val) : fallback);
+}
+
+function logSdkMessage(
+  log: (msg: string) => void,
+  index: number,
+  msg: unknown,
+): void {
+  const m = msg as Record<string, unknown>;
+  const prefix = `[msg ${index}]`;
+  const type = str(m, "type", "unknown");
+
+  if (type === "system" || type === "rate_limit_event") {
+    log(`${prefix} ${type}`);
+    return;
+  }
+
+  // The SDK wraps messages: { type: "assistant"|"user"|"result", message: { content: [...] } }
+  const inner = (m.message ?? m) as Record<string, unknown>;
+  const content = inner.content as Array<Record<string, unknown>> | undefined;
+
+  if (type === "result") {
+    const stop = str(m, "stop_reason") || str(inner, "stop_reason") || "?";
+    const costVal = str(m, "total_cost_usd");
+    const cost = costVal ? ` cost=$${costVal}` : "";
+    log(`${prefix} result (stop=${stop}${cost})`);
+  }
+
+  if (!Array.isArray(content)) {
+    log(`${prefix} ${type} (no content blocks)`);
+    return;
+  }
+
+  for (const block of content) {
+    const bType = str(block, "type", "unknown");
+    if (bType === "text") {
+      log(`${prefix} ${type}/text: ${truncate(str(block, "text"))}`);
+    } else if (bType === "tool_use") {
+      const input = JSON.stringify(block.input ?? {});
+      log(`${prefix} ${type}/tool_use: ${str(block, "name", "?")}(${truncate(input, 200)})`);
+    } else if (bType === "tool_result") {
+      const resultContent = Array.isArray(block.content)
+        ? (block.content as Array<Record<string, unknown>>).map((c) => truncate(str(c, "text"), 150)).join("; ")
+        : truncate(str(block, "content"), 150);
+      log(`${prefix} tool_result [${block.is_error === true ? "ERROR" : "ok"}]: ${resultContent}`);
+    } else {
+      log(`${prefix} ${type}/${bType}`);
+    }
+  }
+}
+
 // -- Main --
 
 async function main(): Promise<void> {
@@ -151,6 +215,7 @@ async function main(): Promise<void> {
     commissionId: config.commissionId,
     daemonSocketPath: config.daemonSocketPath,
     guildHallHome: config.guildHallHome,
+    workingDirectory: config.workingDirectory,
   });
   log(`tools resolved: ${resolvedTools.mcpServers.length} MCP server(s), ${resolvedTools.allowedTools?.length ?? 0} allowed tool(s)`);
 
@@ -199,18 +264,43 @@ async function main(): Promise<void> {
   });
 
   // 9. Consume all messages to completion
-  // Messages are consumed but not streamed anywhere.
-  // The commission toolbox tools (report_progress, submit_result)
-  // handle persistence and daemon notification internally.
+  // Log each message so we can see what the model is doing.
   let messageCount = 0;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const _msg of session) {
+  for await (const msg of session) {
     messageCount++;
-    if (messageCount % 10 === 0) {
-      log(`consumed ${messageCount} SDK messages...`);
-    }
+    logSdkMessage(log, messageCount, msg);
   }
   log(`SDK session complete. ${messageCount} message(s) consumed.`);
+
+  // 10. If the session finished without calling submit_result, run a
+  //     focused follow-up that forces the model to call it. Without this,
+  //     the daemon classifies the commission as "failed (no result)".
+  const wasSubmitted = resolvedTools.wasResultSubmitted?.();
+  if (!wasSubmitted) {
+    log("no result submitted, running follow-up to force submit_result...");
+    const followUp = query({
+      prompt: [
+        "Your previous session completed without calling submit_result.",
+        "The commission WILL BE MARKED AS FAILED unless you call submit_result now.",
+        "Summarize what you accomplished (or attempted) and call submit_result immediately.",
+        "Do NOT do any other work. Just call submit_result with a summary.",
+      ].join(" "),
+      options: {
+        ...options,
+        maxTurns: 3,
+      },
+    });
+    let followUpCount = 0;
+    for await (const msg of followUp) {
+      followUpCount++;
+      logSdkMessage(log, followUpCount, msg);
+    }
+    log(`follow-up session complete. ${followUpCount} message(s) consumed.`);
+
+    if (!resolvedTools.wasResultSubmitted?.()) {
+      logErr("follow-up session also failed to call submit_result");
+    }
+  }
 }
 
 // Only run main() when this file is the entry point (not when imported by tests).
