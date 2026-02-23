@@ -1198,7 +1198,7 @@ describe("createCommissionSession", () => {
       expect(branchCall).toBeDefined();
       // No attempt suffix for first dispatch
       expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string));
-      expect(branchCall!.args[1]).toBe(`claude/commission/${commissionId}`);
+      expect(branchCall!.args[1]).toBe(`claude/${commissionId}`);
 
       mockSpawn.resolveExit(0);
     });

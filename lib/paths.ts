@@ -53,13 +53,15 @@ export function activityWorktreeRoot(ghHome: string, projectName: string): strin
 
 /**
  * Returns the activity worktree path for a commission.
+ * The commission ID already includes the "commission-" prefix
+ * (e.g., "commission-Assistant-20260222-185636").
  */
 export function commissionWorktreePath(
   ghHome: string,
   projectName: string,
   commissionId: string,
 ): string {
-  return path.join(ghHome, "worktrees", projectName, `commission-${commissionId}`);
+  return path.join(ghHome, "worktrees", projectName, commissionId);
 }
 
 /**
@@ -75,10 +77,12 @@ export function meetingWorktreePath(
 
 /**
  * Returns the git branch name for a commission activity.
+ * The commission ID already includes the "commission-" prefix, so the
+ * branch is "claude/<commissionId>" (e.g., "claude/commission-Assistant-...").
  * For re-dispatches, append the attempt number.
  */
 export function commissionBranchName(commissionId: string, attempt?: number): string {
-  const base = `claude/commission/${commissionId}`;
+  const base = `claude/${commissionId}`;
   return attempt && attempt > 1 ? `${base}-${attempt}` : base;
 }
 
