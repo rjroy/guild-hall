@@ -381,6 +381,83 @@ describe("updateResultSummary", () => {
     expect(raw).toContain('result_summary: "Found 3 viable OAuth patterns"');
   });
 
+  test("handles multi-line result with markdown separators", async () => {
+    await writeCommissionArtifact();
+
+    const multiLineResult = [
+      "# Project Status",
+      "",
+      "## Architecture",
+      "- Next.js 15 monorepo",
+      "",
+      "---",
+      "",
+      "## Active Work",
+      "Server-driven chat is the critical path.",
+      "",
+      "---",
+      "",
+      "## Risks",
+      "Silent failures are documented but unfixed.",
+    ].join("\n");
+
+    await updateResultSummary(projectPath, commissionId, multiLineResult);
+
+    const artifactPath = commissionArtifactPath(projectPath, commissionId);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+
+    // Value should be on a single line with escaped newlines
+    const resultLine = raw.split("\n").find((l) => l.startsWith("result_summary:"));
+    expect(resultLine).toBeDefined();
+    expect(resultLine!.includes("\n", "result_summary:".length)).toBe(false);
+
+    // projectName should still be parseable (not swallowed by multi-line content)
+    expect(raw).toContain("projectName: guild-hall");
+
+    // gray-matter should parse the frontmatter correctly
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.data.title).toBe("Commission: Research OAuth patterns");
+    expect(parsed.data.result_summary).toContain("# Project Status");
+    expect(parsed.data.result_summary).toContain("---");
+    expect(parsed.data.projectName).toBe("guild-hall");
+  });
+
+  test("second write overwrites first correctly (no duplication)", async () => {
+    await writeCommissionArtifact();
+
+    await updateResultSummary(projectPath, commissionId, "First result\nwith newlines");
+    await updateResultSummary(projectPath, commissionId, "Second result\nwith different content");
+
+    const artifactPath = commissionArtifactPath(projectPath, commissionId);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+
+    expect(raw).not.toContain("First result");
+    expect(raw).toContain("projectName: guild-hall");
+
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.data.result_summary).toContain("Second result");
+    expect(parsed.data.result_summary).toContain("with different content");
+  });
+
+  test("escapes backslashes and quotes in result", async () => {
+    await writeCommissionArtifact();
+
+    await updateResultSummary(
+      projectPath,
+      commissionId,
+      'Path is C:\\Users\\test and "quoted" text',
+    );
+
+    const artifactPath = commissionArtifactPath(projectPath, commissionId);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.data.result_summary).toBe('Path is C:\\Users\\test and "quoted" text');
+  });
+
   test("appends linked artifacts when provided", async () => {
     await writeCommissionArtifact();
 
@@ -394,5 +471,81 @@ describe("updateResultSummary", () => {
     const artifacts = await readLinkedArtifacts(projectPath, commissionId);
     expect(artifacts).toContain("specs/oauth-report.md");
     expect(artifacts).toContain("notes/findings.md");
+  });
+});
+
+// -- Multi-line content in timeline entries --
+
+describe("appendTimelineEntry with multi-line content", () => {
+  test("escapes newlines in reason field", async () => {
+    await writeCommissionArtifact();
+
+    await appendTimelineEntry(
+      projectPath,
+      commissionId,
+      "result_submitted",
+      "# Full Result\n\nWith multiple lines\n---\nAnd separators",
+    );
+
+    const artifactPath = commissionArtifactPath(projectPath, commissionId);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+
+    // The reason should be on a single line (newlines escaped)
+    const reasonLine = raw.split("\n").find((l) => l.includes("reason:") && l.includes("Full Result"));
+    expect(reasonLine).toBeDefined();
+
+    // Frontmatter should still be valid
+    expect(raw).toContain("projectName: guild-hall");
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.data.title).toBe("Commission: Research OAuth patterns");
+  });
+
+  test("escapes newlines in extra fields", async () => {
+    await writeCommissionArtifact();
+
+    await appendTimelineEntry(
+      projectPath,
+      commissionId,
+      "question",
+      "Need clarification",
+      { detail: "Line 1\nLine 2\nLine 3" },
+    );
+
+    const artifactPath = commissionArtifactPath(projectPath, commissionId);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+
+    // Frontmatter should still be valid
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.data.title).toBe("Commission: Research OAuth patterns");
+  });
+});
+
+// -- Multi-line content in current_progress --
+
+describe("updateCurrentProgress with multi-line content", () => {
+  test("escapes newlines in progress value", async () => {
+    await writeCommissionArtifact();
+
+    await updateCurrentProgress(
+      projectPath,
+      commissionId,
+      "Step 1 done.\nStep 2 in progress.\nAnalyzing results.",
+    );
+
+    const artifactPath = commissionArtifactPath(projectPath, commissionId);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+
+    // Value should be on a single line
+    const progressLine = raw.split("\n").find((l) => l.startsWith("current_progress:"));
+    expect(progressLine).toBeDefined();
+
+    // Frontmatter should still be valid
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.data.title).toBe("Commission: Research OAuth patterns");
+    expect(parsed.data.current_progress).toContain("Step 1 done.");
+    expect(parsed.data.current_progress).toContain("Step 2 in progress.");
   });
 });

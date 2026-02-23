@@ -2,7 +2,8 @@ import * as path from "node:path";
 import { getProject } from "@/lib/config";
 import { scanArtifacts } from "@/lib/artifacts";
 import { scanCommissions } from "@/lib/commissions";
-import { projectLorePath } from "@/lib/paths";
+import { getActiveMeetingWorktrees } from "@/lib/meetings";
+import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { notFound } from "next/navigation";
 import ProjectHeader from "@/components/project/ProjectHeader";
 import ProjectTabs from "@/components/project/ProjectTabs";
@@ -26,11 +27,36 @@ export default async function ProjectPage({
   const project = await getProject(projectName);
   if (!project) notFound();
 
-  const lorePath = projectLorePath(project.path);
+  const ghHome = getGuildHallHome();
+  const integrationPath = integrationWorktreePath(ghHome, projectName);
+  const lorePath = projectLorePath(integrationPath);
   const artifacts = await scanArtifacts(lorePath);
 
+  // Scan meetings from integration worktree (closed/merged meetings)
   const meetingsPath = path.join(lorePath, "meetings");
-  const meetingArtifacts = await scanArtifacts(meetingsPath);
+  const integrationMeetings = await scanArtifacts(meetingsPath);
+
+  // Scan meetings from active meeting worktrees (open meetings live
+  // in their activity worktree and aren't in the integration worktree yet)
+  const activeWorktrees = await getActiveMeetingWorktrees(ghHome, projectName);
+  const activeMeetingArrays = await Promise.all(
+    activeWorktrees.map((wt) => scanArtifacts(path.join(wt, ".lore", "meetings"))),
+  );
+  const activeMeetings = activeMeetingArrays.flat();
+
+  // Merge, deduplicating by filename in case a meeting appears in both
+  const seenIds = new Set(integrationMeetings.map((m) => m.relativePath));
+  const meetingArtifacts = [
+    ...integrationMeetings,
+    ...activeMeetings.filter((m) => !seenIds.has(m.relativePath)),
+  ].sort((a, b) => {
+    // Open meetings first, then by date descending
+    const aOpen = a.meta.status === "open" ? 0 : 1;
+    const bOpen = b.meta.status === "open" ? 0 : 1;
+    if (aOpen !== bOpen) return aOpen - bOpen;
+    return (b.meta.date || "").localeCompare(a.meta.date || "");
+  });
+
   const commissions = await scanCommissions(lorePath, projectName);
 
   return (

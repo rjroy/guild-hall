@@ -27,6 +27,10 @@ import {
 
 export interface MeetingToolboxDeps {
   projectPath: string;
+  /** Path to the integration worktree for writing meeting request artifacts.
+   *  Used by propose_followup so the dashboard can see requests before the
+   *  parent meeting closes. Falls back to projectPath if not set. */
+  integrationPath?: string;
   meetingId: string;
   workerName: string;
   guildHallHome?: string;
@@ -234,8 +238,10 @@ export function createMeetingToolbox(
     deps.projectPath,
     deps.meetingId,
   );
+  // propose_followup writes to integration worktree so the dashboard can
+  // see the request before the parent meeting closes and squash-merges.
   const proposeFollowup = makeProposeFollowupHandler(
-    deps.projectPath,
+    deps.integrationPath ?? deps.projectPath,
     deps.meetingId,
     deps.workerName,
   );

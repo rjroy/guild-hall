@@ -22,18 +22,33 @@ import {
 import { createEventBus } from "@/daemon/services/event-bus";
 import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
 import type { AppConfig, DiscoveredPackage } from "@/lib/types";
+import type { GitOps } from "@/daemon/lib/git";
+import {
+  integrationWorktreePath,
+  commissionWorktreePath,
+  commissionBranchName,
+} from "@/lib/paths";
 
 let tmpDir: string;
 let projectPath: string;
+let ghHome: string;
+let integrationPath: string;
 let commissionId: CommissionId;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-commission-session-"));
   projectPath = path.join(tmpDir, "test-project");
+  ghHome = path.join(tmpDir, "guild-hall-home");
+  integrationPath = integrationWorktreePath(ghHome, "test-project");
   commissionId = asCommissionId("commission-researcher-20260221-143000");
 
+  // Create both the project directory and the integration worktree directory
   await fs.mkdir(
     path.join(projectPath, ".lore", "commissions"),
+    { recursive: true },
+  );
+  await fs.mkdir(
+    path.join(integrationPath, ".lore", "commissions"),
     { recursive: true },
   );
 });
@@ -44,6 +59,8 @@ afterEach(async () => {
 
 /**
  * Writes a test commission artifact with a given initial status.
+ * Artifacts are written to the integration worktree (where they live
+ * before dispatch and after completion).
  */
 async function writeCommissionArtifact(status: CommissionStatus): Promise<void> {
   const content = `---
@@ -69,7 +86,48 @@ projectName: test-project
 ---
 `;
 
-  const artifactPath = commissionArtifactPath(projectPath, commissionId);
+  const artifactPath = commissionArtifactPath(integrationPath, commissionId);
+  await fs.writeFile(artifactPath, content, "utf-8");
+}
+
+/**
+ * Writes a test commission artifact with a custom timeline.
+ * Used to simulate post-dispatch/failure states where the integration
+ * worktree has accumulated timeline entries from syncStatusToIntegration.
+ */
+async function writeCommissionArtifactWithTimeline(
+  status: CommissionStatus,
+  timeline: Array<{ event: string; reason: string }>,
+): Promise<void> {
+  const timelineYaml = timeline
+    .map(
+      (entry) =>
+        `  - timestamp: 2026-02-21T14:30:00.000Z\n    event: ${entry.event}\n    reason: "${entry.reason}"`,
+    )
+    .join("\n");
+
+  const content = `---
+title: "Commission: Research OAuth patterns"
+date: 2026-02-21
+status: ${status}
+tags: [commission]
+worker: researcher
+workerDisplayTitle: "Research Specialist"
+prompt: "Research OAuth 2.0 patterns for CLI tools..."
+dependencies: []
+linked_artifacts: []
+resource_overrides:
+  maxTurns: 150
+  maxBudgetUsd: 1.00
+activity_timeline:
+${timelineYaml}
+current_progress: ""
+result_summary: ""
+projectName: test-project
+---
+`;
+
+  const artifactPath = commissionArtifactPath(integrationPath, commissionId);
   await fs.writeFile(artifactPath, content, "utf-8");
 }
 
@@ -176,17 +234,17 @@ describe("transitionCommission", () => {
         await writeCommissionArtifact(from);
 
         await transitionCommission(
-          projectPath,
+          integrationPath,
           commissionId,
           from,
           to,
           `Transitioning from ${from} to ${to}`,
         );
 
-        const status = await readCommissionStatus(projectPath, commissionId);
+        const status = await readCommissionStatus(integrationPath, commissionId);
         expect(status).toBe(to);
 
-        const timeline = await readActivityTimeline(projectPath, commissionId);
+        const timeline = await readActivityTimeline(integrationPath, commissionId);
         expect(timeline).toHaveLength(2);
 
         const entry = timeline[1];
@@ -204,7 +262,7 @@ describe("transitionCommission", () => {
 
     await expect(
       transitionCommission(
-        projectPath,
+        integrationPath,
         commissionId,
         "completed",
         "pending",
@@ -213,11 +271,11 @@ describe("transitionCommission", () => {
     ).rejects.toThrow('Invalid commission transition: "completed" -> "pending"');
 
     // Status should remain unchanged
-    const status = await readCommissionStatus(projectPath, commissionId);
+    const status = await readCommissionStatus(integrationPath, commissionId);
     expect(status).toBe("completed");
 
     // Timeline should have only the original entry
-    const timeline = await readActivityTimeline(projectPath, commissionId);
+    const timeline = await readActivityTimeline(integrationPath, commissionId);
     expect(timeline).toHaveLength(1);
   });
 
@@ -226,14 +284,14 @@ describe("transitionCommission", () => {
     const reason = "Worker pool selected researcher for dispatch";
 
     await transitionCommission(
-      projectPath,
+      integrationPath,
       commissionId,
       "pending",
       "dispatched",
       reason,
     );
 
-    const timeline = await readActivityTimeline(projectPath, commissionId);
+    const timeline = await readActivityTimeline(integrationPath, commissionId);
     const entry = timeline[1];
     expect(entry.reason).toBe(reason);
   });
@@ -242,31 +300,31 @@ describe("transitionCommission", () => {
     await writeCommissionArtifact("pending");
 
     await transitionCommission(
-      projectPath,
+      integrationPath,
       commissionId,
       "pending",
       "dispatched",
       "Dispatching to worker",
     );
     await transitionCommission(
-      projectPath,
+      integrationPath,
       commissionId,
       "dispatched",
       "in_progress",
       "Worker started processing",
     );
     await transitionCommission(
-      projectPath,
+      integrationPath,
       commissionId,
       "in_progress",
       "completed",
       "Work finished successfully",
     );
 
-    const status = await readCommissionStatus(projectPath, commissionId);
+    const status = await readCommissionStatus(integrationPath, commissionId);
     expect(status).toBe("completed");
 
-    const timeline = await readActivityTimeline(projectPath, commissionId);
+    const timeline = await readActivityTimeline(integrationPath, commissionId);
     expect(timeline).toHaveLength(4); // created + 3 transitions
     expect(timeline[1].event).toBe("status_dispatched");
     expect(timeline[2].event).toBe("status_in_progress");
@@ -300,6 +358,58 @@ function createMockWorkerPackage(name = "guild-hall-sample-assistant"): Discover
       },
     },
   };
+}
+
+/**
+ * Creates a mock GitOps that records all calls without running real git.
+ * createWorktree simulates directory creation and copies commission artifacts
+ * from the integration worktree so that subsequent file reads succeed.
+ */
+function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unknown[] }> } {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+
+  async function copyCommissionsDir(worktreePath: string): Promise<void> {
+    // The integration path is the source for commission artifacts.
+    // Copy .lore/commissions/ so dispatch can read the artifact.
+    const srcDir = path.join(integrationPath, ".lore", "commissions");
+    const destDir = path.join(worktreePath, ".lore", "commissions");
+    try {
+      await fs.access(srcDir);
+      await fs.mkdir(destDir, { recursive: true });
+      const files = await fs.readdir(srcDir);
+      for (const file of files) {
+        await fs.copyFile(path.join(srcDir, file), path.join(destDir, file));
+      }
+    } catch {
+      // Source may not exist in some tests, just create the directory
+      await fs.mkdir(destDir, { recursive: true });
+    }
+  }
+
+  /* eslint-disable @typescript-eslint/require-await */
+  return {
+    calls,
+    async createBranch(...args) { calls.push({ method: "createBranch", args }); },
+    async branchExists(...args) { calls.push({ method: "branchExists", args }); return false; },
+    async deleteBranch(...args) { calls.push({ method: "deleteBranch", args }); },
+    async createWorktree(...args) {
+      calls.push({ method: "createWorktree", args });
+      const worktreePath = args[1];
+      await fs.mkdir(worktreePath, { recursive: true });
+      await copyCommissionsDir(worktreePath);
+    },
+    async removeWorktree(...args) { calls.push({ method: "removeWorktree", args }); },
+    async configureSparseCheckout(...args) { calls.push({ method: "configureSparseCheckout", args }); },
+    async commitAll(...args) { calls.push({ method: "commitAll", args }); return false; },
+    async squashMerge(...args) { calls.push({ method: "squashMerge", args }); },
+    async hasUncommittedChanges(...args) { calls.push({ method: "hasUncommittedChanges", args }); return false; },
+    async rebase(...args) { calls.push({ method: "rebase", args }); },
+    async currentBranch(...args) { calls.push({ method: "currentBranch", args }); return "claude/main"; },
+    async listWorktrees(...args) { calls.push({ method: "listWorktrees", args }); return []; },
+    async initClaudeBranch(...args) { calls.push({ method: "initClaudeBranch", args }); },
+    async detectDefaultBranch(...args) { calls.push({ method: "detectDefaultBranch", args }); return "main"; },
+  };
+  /* eslint-enable @typescript-eslint/require-await */
 }
 
 /** Creates a mock spawn function for testing without real processes */
@@ -363,9 +473,10 @@ function createTestDeps(
   return {
     packages: [createMockWorkerPackage()],
     config: createTestConfig(),
-    guildHallHome: path.join(tmpDir, "guild-hall-home"),
+    guildHallHome: ghHome,
     eventBus: createEventBus(),
     packagesDir: "/tmp/fake-packages",
+    gitOps: createMockGitOps(),
     ...overrides,
   };
 }
@@ -406,9 +517,9 @@ describe("createCommissionSession", () => {
 
       expect(result.commissionId).toMatch(/^commission-researcher-\d{8}-\d{6}$/);
 
-      // Read the artifact and verify its contents
+      // Read the artifact from integration worktree and verify its contents
       const id = asCommissionId(result.commissionId);
-      const artifactPath = commissionArtifactPath(projectPath, id);
+      const artifactPath = commissionArtifactPath(integrationPath, id);
       const raw = await fs.readFile(artifactPath, "utf-8");
 
       expect(raw).toContain('title: "Commission: Research OAuth patterns"');
@@ -461,8 +572,8 @@ describe("createCommissionSession", () => {
     });
 
     test("creates commissions directory if it does not exist", async () => {
-      // Remove the commissions directory
-      await fs.rm(path.join(projectPath, ".lore", "commissions"), {
+      // Remove the commissions directory from integration worktree
+      await fs.rm(path.join(integrationPath, ".lore", "commissions"), {
         recursive: true,
         force: true,
       });
@@ -494,7 +605,7 @@ describe("createCommissionSession", () => {
       );
 
       const id = asCommissionId(result.commissionId);
-      const artifactPath = commissionArtifactPath(projectPath, id);
+      const artifactPath = commissionArtifactPath(integrationPath, id);
       const raw = await fs.readFile(artifactPath, "utf-8");
 
       expect(raw).toContain("  maxTurns: 150");
@@ -515,7 +626,7 @@ describe("createCommissionSession", () => {
       );
 
       const id = asCommissionId(result.commissionId);
-      const artifactPath = commissionArtifactPath(projectPath, id);
+      const artifactPath = commissionArtifactPath(integrationPath, id);
       const raw = await fs.readFile(artifactPath, "utf-8");
 
       expect(raw).toContain("dependencies: []");
@@ -536,7 +647,7 @@ describe("createCommissionSession", () => {
         prompt: "Updated prompt text",
       });
 
-      const artifactPath = commissionArtifactPath(projectPath, commissionId);
+      const artifactPath = commissionArtifactPath(integrationPath, commissionId);
       const raw = await fs.readFile(artifactPath, "utf-8");
 
       expect(raw).toContain('prompt: "Updated prompt text"');
@@ -553,7 +664,7 @@ describe("createCommissionSession", () => {
         dependencies: ["new-dep1.md", "new-dep2.md"],
       });
 
-      const artifactPath = commissionArtifactPath(projectPath, commissionId);
+      const artifactPath = commissionArtifactPath(integrationPath, commissionId);
       const raw = await fs.readFile(artifactPath, "utf-8");
 
       expect(raw).toContain("  - new-dep1.md");
@@ -571,7 +682,7 @@ describe("createCommissionSession", () => {
         resourceOverrides: { maxTurns: 300, maxBudgetUsd: 5.0 },
       });
 
-      const artifactPath = commissionArtifactPath(projectPath, commissionId);
+      const artifactPath = commissionArtifactPath(integrationPath, commissionId);
       const raw = await fs.readFile(artifactPath, "utf-8");
 
       expect(raw).toContain("  maxTurns: 300");
@@ -610,11 +721,13 @@ describe("createCommissionSession", () => {
     test("transitions pending -> dispatched -> in_progress and records in Map", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -623,12 +736,13 @@ describe("createCommissionSession", () => {
       expect(result).toEqual({ status: "accepted" });
       expect(session.getActiveCommissions()).toBe(1);
 
-      // The artifact should now be in_progress
-      const status = await readCommissionStatus(projectPath, commissionId);
+      // The artifact in the activity worktree should now be in_progress
+      const activityDir = commissionWorktreePath(ghHome, "test-project", commissionId as string);
+      const status = await readCommissionStatus(activityDir, commissionId);
       expect(status).toBe("in_progress");
 
       // Timeline should have: created, dispatched, in_progress
-      const timeline = await readActivityTimeline(projectPath, commissionId);
+      const timeline = await readActivityTimeline(activityDir, commissionId);
       expect(timeline).toHaveLength(3);
       expect(timeline[1].event).toBe("status_dispatched");
       expect(timeline[2].event).toBe("status_in_progress");
@@ -667,13 +781,13 @@ describe("createCommissionSession", () => {
     test("writes state file with commission details", async () => {
       await writeCommissionArtifact("pending");
 
-      const ghHome = path.join(tmpDir, "guild-hall-home");
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          guildHallHome: ghHome,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -692,6 +806,10 @@ describe("createCommissionSession", () => {
       expect(state.projectName).toBe("test-project");
       expect(state.workerName).toBe("researcher");
       expect(state.pid).toBe(mockSpawn.pid);
+      expect(state.branchName).toBe(commissionBranchName(commissionId as string));
+      expect(state.worktreeDir).toBe(
+        commissionWorktreePath(ghHome, "test-project", commissionId as string),
+      );
 
       mockSpawn.resolveExit(0);
     });
@@ -703,11 +821,13 @@ describe("createCommissionSession", () => {
     test("clean exit (code 0) with submit_result transitions to completed", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -737,11 +857,13 @@ describe("createCommissionSession", () => {
     test("clean exit (code 0) without submit_result transitions to failed", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -765,11 +887,13 @@ describe("createCommissionSession", () => {
     test("crash exit (non-zero) with submit_result transitions to completed (anomaly)", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -794,11 +918,13 @@ describe("createCommissionSession", () => {
     test("crash exit (non-zero) without submit_result transitions to failed", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -826,11 +952,13 @@ describe("createCommissionSession", () => {
     test("kills process and transitions to cancelled", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -868,11 +996,13 @@ describe("createCommissionSession", () => {
     test("resets to pending and dispatches fresh", async () => {
       await writeCommissionArtifact("failed");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -881,8 +1011,9 @@ describe("createCommissionSession", () => {
       expect(result).toEqual({ status: "accepted" });
       expect(session.getActiveCommissions()).toBe(1);
 
-      // Status should be in_progress after redispatch
-      const status = await readCommissionStatus(projectPath, commissionId);
+      // Status should be in_progress in the activity worktree after redispatch
+      const activityDir = commissionWorktreePath(ghHome, "test-project", commissionId as string);
+      const status = await readCommissionStatus(activityDir, commissionId);
       expect(status).toBe("in_progress");
 
       mockSpawn.resolveExit(0);
@@ -891,11 +1022,13 @@ describe("createCommissionSession", () => {
     test("works for cancelled commissions", async () => {
       await writeCommissionArtifact("cancelled");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -928,6 +1061,148 @@ describe("createCommissionSession", () => {
         session.redispatchCommission(commissionId),
       ).rejects.toThrow('must be "failed" or "cancelled"');
     });
+
+    // -- Redispatch git branch naming --
+
+    test("redispatch creates branch with attempt suffix after first failure", async () => {
+      // Simulate a commission that was dispatched once and failed.
+      // The integration worktree has the terminal status_failed entry
+      // that syncStatusToIntegration would have written.
+      await writeCommissionArtifactWithTimeline("failed", [
+        { event: "created", reason: "Commission created" },
+        { event: "status_failed", reason: "Worker crashed with exit code 1" },
+      ]);
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.redispatchCommission(commissionId);
+
+      // The createBranch call should use the attempt-2 suffixed branch name
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 2));
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("multiple redispatches increment the attempt suffix", async () => {
+      // Simulate a commission that failed twice (two terminal entries).
+      // First dispatch failed, first redispatch also failed.
+      await writeCommissionArtifactWithTimeline("failed", [
+        { event: "created", reason: "Commission created" },
+        { event: "status_failed", reason: "Worker crashed with exit code 1" },
+        { event: "status_pending", reason: "Commission reset for redispatch" },
+        { event: "status_failed", reason: "Worker crashed again" },
+      ]);
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.redispatchCommission(commissionId);
+
+      // Two previous failures, so this is attempt 3
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 3));
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("redispatch from cancelled status uses correct attempt suffix", async () => {
+      // Simulate a commission that was dispatched and cancelled.
+      await writeCommissionArtifactWithTimeline("cancelled", [
+        { event: "created", reason: "Commission created" },
+        { event: "status_cancelled", reason: "Commission cancelled by user" },
+      ]);
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.redispatchCommission(commissionId);
+
+      // One previous cancellation, so attempt 2
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 2));
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("mixed failed and cancelled attempts count correctly", async () => {
+      // One failure + one cancellation = 2 previous attempts, next is attempt 3
+      await writeCommissionArtifactWithTimeline("cancelled", [
+        { event: "created", reason: "Commission created" },
+        { event: "status_failed", reason: "Worker crashed" },
+        { event: "status_pending", reason: "Commission reset for redispatch" },
+        { event: "status_cancelled", reason: "Commission cancelled by user" },
+      ]);
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.redispatchCommission(commissionId);
+
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 3));
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("first dispatch (no previous failures) uses unsuffixed branch name", async () => {
+      // Fresh commission with no terminal entries. This tests the default
+      // dispatch path (no attempt parameter).
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      // No attempt suffix for first dispatch
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string));
+      expect(branchCall!.args[1]).toBe(`claude/commission/${commissionId}`);
+
+      mockSpawn.resolveExit(0);
+    });
   });
 
   // -- reportProgress --
@@ -936,11 +1211,13 @@ describe("createCommissionSession", () => {
     test("updates lastHeartbeat and emits event", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -985,11 +1262,13 @@ describe("createCommissionSession", () => {
     test("sets resultSubmitted flag and emits event", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -1034,11 +1313,13 @@ describe("createCommissionSession", () => {
     test("emits commission_question event", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -1078,7 +1359,7 @@ describe("createCommissionSession", () => {
 
       await session.addUserNote(commissionId, "Focus on PKCE flow");
 
-      const timeline = await readActivityTimeline(projectPath, commissionId);
+      const timeline = await readActivityTimeline(integrationPath, commissionId);
       expect(timeline).toHaveLength(2);
 
       const noteEntry = timeline[1];
@@ -1113,11 +1394,13 @@ describe("createCommissionSession", () => {
     test("increments when commission is dispatched", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -1130,11 +1413,13 @@ describe("createCommissionSession", () => {
     test("decrements when commission exits", async () => {
       await writeCommissionArtifact("pending");
 
+      const mockGitOps = createMockGitOps();
       const mockSpawn = createMockSpawn();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
         }),
       );
 
@@ -1158,6 +1443,395 @@ describe("createCommissionSession", () => {
 
       // Should not throw
       session.shutdown();
+    });
+  });
+
+  // -- Git integration --
+
+  describe("git integration", () => {
+    test("dispatchCommission calls createBranch with correct branch name", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      expect(branchCall!.args[0]).toBe(projectPath); // repo path
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string));
+      expect(branchCall!.args[2]).toBe("claude/main"); // base ref
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("dispatchCommission calls createWorktree with correct path", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const worktreeCall = mockGitOps.calls.find((c) => c.method === "createWorktree");
+      expect(worktreeCall).toBeDefined();
+      expect(worktreeCall!.args[0]).toBe(projectPath); // repo path
+      expect(worktreeCall!.args[1]).toBe(
+        commissionWorktreePath(ghHome, "test-project", commissionId as string),
+      );
+      expect(worktreeCall!.args[2]).toBe(commissionBranchName(commissionId as string));
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("dispatchCommission configures sparse checkout for sparse-scope workers", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      // Default worker package has checkoutScope: "sparse"
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const sparseCall = mockGitOps.calls.find((c) => c.method === "configureSparseCheckout");
+      expect(sparseCall).toBeDefined();
+      const expectedWorktree = commissionWorktreePath(ghHome, "test-project", commissionId as string);
+      expect(sparseCall!.args[0]).toBe(expectedWorktree);
+      expect(sparseCall!.args[1]).toEqual([".lore/"]);
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("dispatchCommission does not configure sparse checkout for full-scope workers", async () => {
+      await writeCommissionArtifact("pending");
+
+      // Create a worker with checkoutScope: "full" (no sparse checkout)
+      const fullScopeWorker: DiscoveredPackage = {
+        name: "guild-hall-sample-assistant",
+        path: "/tmp/fake-packages/sample-assistant",
+        metadata: {
+          type: "worker" as const,
+          identity: {
+            name: "researcher",
+            description: "Research specialist",
+            displayTitle: "Research Specialist",
+          },
+          posture: "You are a research specialist.",
+          domainToolboxes: [],
+          builtInTools: [],
+          checkoutScope: "full" as const,
+          resourceDefaults: {
+            maxTurns: 150,
+            maxBudgetUsd: 1.0,
+          },
+        },
+      };
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          packages: [fullScopeWorker],
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const sparseCall = mockGitOps.calls.find((c) => c.method === "configureSparseCheckout");
+      expect(sparseCall).toBeUndefined();
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("createCommission writes artifact to integration worktree", async () => {
+      session = createCommissionSession(
+        createTestDeps({ eventBus }),
+      );
+
+      const result = await session.createCommission(
+        "test-project",
+        "Test Commission",
+        "guild-hall-sample-assistant",
+        "Test prompt",
+      );
+
+      const id = asCommissionId(result.commissionId);
+
+      // Artifact should exist in integration worktree
+      const iArtifactPath = commissionArtifactPath(integrationPath, id);
+      const raw = await fs.readFile(iArtifactPath, "utf-8");
+      expect(raw).toContain("status: pending");
+
+      // Artifact should NOT exist in the real project path
+      const pArtifactPath = commissionArtifactPath(projectPath, id);
+      await expect(fs.access(pArtifactPath)).rejects.toThrow();
+    });
+
+    test("worker config receives worktreeDir as workingDirectory", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      let capturedConfigPath = "";
+      const capturingSpawn = (configPath: string): SpawnedCommission => {
+        capturedConfigPath = configPath;
+        return mockSpawn.spawnFn(configPath);
+      };
+
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: capturingSpawn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      // Read the worker config to verify workingDirectory
+      const configRaw = await fs.readFile(capturedConfigPath, "utf-8");
+      const config = JSON.parse(configRaw) as Record<string, unknown>;
+      const expectedWorktree = commissionWorktreePath(ghHome, "test-project", commissionId as string);
+      expect(config.workingDirectory).toBe(expectedWorktree);
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("state file contains worktreeDir and branchName", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const stateFilePath = path.join(
+        ghHome,
+        "state",
+        "commissions",
+        `${commissionId}.json`,
+      );
+      const stateRaw = await fs.readFile(stateFilePath, "utf-8");
+      const state = JSON.parse(stateRaw) as Record<string, unknown>;
+
+      expect(state.worktreeDir).toBe(
+        commissionWorktreePath(ghHome, "test-project", commissionId as string),
+      );
+      expect(state.branchName).toBe(commissionBranchName(commissionId as string));
+
+      mockSpawn.resolveExit(0);
+    });
+
+    // -- Exit/cleanup git operations --
+
+    test("completion calls commitAll, squashMerge, removeWorktree, deleteBranch in order", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      // Clear calls from dispatch to isolate exit-path calls
+      const dispatchCallCount = mockGitOps.calls.length;
+
+      // Report result so exit classifies as completed
+      session.reportResult(commissionId, "Research complete", ["report.md"]);
+      mockSpawn.resolveExit(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
+      const exitMethods = exitCalls.map((c) => c.method);
+
+      expect(exitMethods).toContain("commitAll");
+      expect(exitMethods).toContain("squashMerge");
+      expect(exitMethods).toContain("removeWorktree");
+      expect(exitMethods).toContain("deleteBranch");
+
+      // Verify ordering: commitAll before squashMerge before removeWorktree before deleteBranch
+      const commitIdx = exitMethods.indexOf("commitAll");
+      const squashIdx = exitMethods.indexOf("squashMerge");
+      const removeIdx = exitMethods.indexOf("removeWorktree");
+      const deleteIdx = exitMethods.indexOf("deleteBranch");
+
+      expect(commitIdx).toBeLessThan(squashIdx);
+      expect(squashIdx).toBeLessThan(removeIdx);
+      expect(removeIdx).toBeLessThan(deleteIdx);
+
+      // Verify squashMerge targets integration worktree with the activity branch
+      const squashCall = exitCalls.find((c) => c.method === "squashMerge");
+      expect(squashCall!.args[0]).toBe(integrationWorktreePath(ghHome, "test-project"));
+      expect(squashCall!.args[1]).toBe(commissionBranchName(commissionId as string));
+
+      // Verify deleteBranch targets the activity branch
+      const deleteCall = exitCalls.find((c) => c.method === "deleteBranch");
+      expect(deleteCall!.args[0]).toBe(projectPath);
+      expect(deleteCall!.args[1]).toBe(commissionBranchName(commissionId as string));
+    });
+
+    test("failure preserves branch (commitAll + removeWorktree, no deleteBranch)", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const dispatchCallCount = mockGitOps.calls.length;
+
+      // Exit without result -> failure
+      mockSpawn.resolveExit(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
+      const exitMethods = exitCalls.map((c) => c.method);
+
+      expect(exitMethods).toContain("commitAll");
+      expect(exitMethods).toContain("removeWorktree");
+      expect(exitMethods).not.toContain("squashMerge");
+      expect(exitMethods).not.toContain("deleteBranch");
+    });
+
+    test("cancellation preserves branch (commitAll + removeWorktree, no deleteBranch)", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const dispatchCallCount = mockGitOps.calls.length;
+
+      await session.cancelCommission(commissionId);
+
+      const cancelCalls = mockGitOps.calls.slice(dispatchCallCount);
+      const cancelMethods = cancelCalls.map((c) => c.method);
+
+      expect(cancelMethods).toContain("commitAll");
+      expect(cancelMethods).toContain("removeWorktree");
+      expect(cancelMethods).not.toContain("squashMerge");
+      expect(cancelMethods).not.toContain("deleteBranch");
+    });
+
+    test("git cleanup failure does not prevent commission from completing", async () => {
+      await writeCommissionArtifact("pending");
+
+      // Create a mock that throws on squashMerge
+      const mockGitOps = createMockGitOps();
+      const originalSquashMerge = mockGitOps.squashMerge.bind(mockGitOps);
+      void originalSquashMerge; // suppress unused
+      mockGitOps.squashMerge = () => {
+        return Promise.reject(new Error("Merge conflict"));
+      };
+
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      // Report result so exit classifies as completed
+      session.reportResult(commissionId, "Research complete");
+      mockSpawn.resolveExit(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Commission should still have been removed from active map
+      expect(session.getActiveCommissions()).toBe(0);
+
+      // Status event should still have been emitted as completed
+      const statusEvents = emittedEvents.filter(
+        (e) =>
+          e.type === "commission_status" &&
+          "status" in e &&
+          e.status === "completed",
+      );
+      expect(statusEvents.length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("commitAll returning false (nothing to commit) continues normally", async () => {
+      await writeCommissionArtifact("pending");
+
+      // Default mock commitAll already returns false. Verify the flow
+      // completes without error for the failure path.
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      // Exit without result -> failure path, commitAll returns false
+      mockSpawn.resolveExit(1);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(session.getActiveCommissions()).toBe(0);
+
+      // removeWorktree should still be called even when nothing to commit
+      const exitCalls = mockGitOps.calls.filter((c) => c.method === "removeWorktree");
+      expect(exitCalls.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

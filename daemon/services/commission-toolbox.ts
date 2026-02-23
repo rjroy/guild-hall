@@ -124,18 +124,30 @@ export function makeSubmitResultHandler(
       };
     }
 
-    // Set flag immediately to prevent retry duplicates. appendTimelineEntry
-    // is not idempotent, so a failed-then-retried submit would create
-    // duplicate entries. A failed submit_result cannot be retried.
-    resultSubmitted = true;
+    try {
+      await updateResultSummary(projectPath, cid, args.summary, args.artifacts);
+      await appendTimelineEntry(
+        projectPath,
+        cid,
+        "result_submitted",
+        args.summary,
+      );
+    } catch (err: unknown) {
+      // File write failed (e.g. ENOENT). Don't set the flag so
+      // the model can retry after the path issue is resolved.
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to write result: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
 
-    await updateResultSummary(projectPath, cid, args.summary, args.artifacts);
-    await appendTimelineEntry(
-      projectPath,
-      cid,
-      "result_submitted",
-      args.summary,
-    );
+    // Only mark as submitted after successful file write
+    resultSubmitted = true;
 
     await notifyDaemon(
       daemonSocketPath,
@@ -190,9 +202,14 @@ export function makeLogQuestionHandler(
  * The resultSubmitted flag is scoped to the closure created by this call,
  * so each createCommissionToolbox() invocation gets its own independent flag.
  */
+export interface CommissionToolboxResult {
+  server: McpSdkServerConfigWithInstance;
+  wasResultSubmitted: () => boolean;
+}
+
 export function createCommissionToolbox(
   deps: CommissionToolboxDeps,
-): McpSdkServerConfigWithInstance {
+): CommissionToolboxResult {
   const reportProgress = makeReportProgressHandler(
     deps.projectPath,
     deps.commissionId,
@@ -209,7 +226,11 @@ export function createCommissionToolbox(
     deps.daemonSocketPath,
   );
 
-  return createSdkMcpServer({
+  // Track whether submit_result was called so the worker can detect
+  // sessions that finished without submitting.
+  let resultSubmitted = false;
+
+  const server = createSdkMcpServer({
     name: "guild-hall-commission",
     version: "0.1.0",
     tools: [
@@ -228,7 +249,11 @@ export function createCommissionToolbox(
           summary: z.string(),
           artifacts: z.array(z.string()).optional(),
         },
-        (args) => submitResult(args),
+        async (args) => {
+          const result = await submitResult(args);
+          if (!result.isError) resultSubmitted = true;
+          return result;
+        },
       ),
       tool(
         "log_question",
@@ -240,4 +265,6 @@ export function createCommissionToolbox(
       ),
     ],
   });
+
+  return { server, wasResultSubmitted: () => resultSubmitted };
 }

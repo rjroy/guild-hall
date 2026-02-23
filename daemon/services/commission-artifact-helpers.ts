@@ -14,6 +14,34 @@ import { parseActivityTimeline, type TimelineEntry } from "@/lib/commissions";
 export { parseActivityTimeline } from "@/lib/commissions";
 export type { TimelineEntry } from "@/lib/commissions";
 
+// -- YAML helpers --
+
+/**
+ * Escapes a string for use as a YAML double-quoted value.
+ * Handles backslashes, double quotes, and newlines so the value
+ * stays on a single line. YAML parsers (including gray-matter's
+ * js-yaml) interpret \n back to newlines on read.
+ */
+function escapeYamlValue(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n");
+}
+
+/**
+ * Replaces a top-level YAML frontmatter field that may span multiple lines.
+ * Matches from "fieldName: " through all continuation lines (lines that don't
+ * start a new top-level key) up to the next top-level field or closing ---.
+ */
+function replaceYamlField(raw: string, fieldName: string, newValue: string): string {
+  const pattern = new RegExp(
+    `^${fieldName}: .*$(?:\\n(?![a-z_]|---).*)*`,
+    "m",
+  );
+  return raw.replace(pattern, `${fieldName}: ${newValue}`);
+}
+
 // -- Path resolution --
 
 /**
@@ -77,11 +105,11 @@ export async function appendTimelineEntry(
   const raw = await fs.readFile(artifactPath, "utf-8");
 
   const now = new Date();
-  let logEntry = `  - timestamp: ${now.toISOString()}\n    event: ${event}\n    reason: "${reason.replace(/"/g, '\\"')}"`;
+  let logEntry = `  - timestamp: ${now.toISOString()}\n    event: ${event}\n    reason: "${escapeYamlValue(reason)}"`;
 
   if (extra) {
     for (const [key, value] of Object.entries(extra)) {
-      logEntry += `\n    ${key}: "${value.replace(/"/g, '\\"')}"`;
+      logEntry += `\n    ${key}: "${escapeYamlValue(value)}"`;
     }
   }
 
@@ -137,11 +165,7 @@ export async function updateCurrentProgress(
 ): Promise<void> {
   const artifactPath = commissionArtifactPath(projectPath, commissionId);
   const raw = await fs.readFile(artifactPath, "utf-8");
-  const escaped = summary.replace(/"/g, '\\"');
-  const updated = raw.replace(
-    /^current_progress: .*$/m,
-    `current_progress: "${escaped}"`,
-  );
+  const updated = replaceYamlField(raw, "current_progress", `"${escapeYamlValue(summary)}"`);
   await fs.writeFile(artifactPath, updated, "utf-8");
 }
 
@@ -159,11 +183,7 @@ export async function updateResultSummary(
 ): Promise<void> {
   const artifactPath = commissionArtifactPath(projectPath, commissionId);
   let raw = await fs.readFile(artifactPath, "utf-8");
-  const escaped = summary.replace(/"/g, '\\"');
-  raw = raw.replace(
-    /^result_summary: .*$/m,
-    `result_summary: "${escaped}"`,
-  );
+  raw = replaceYamlField(raw, "result_summary", `"${escapeYamlValue(summary)}"`);
   await fs.writeFile(artifactPath, raw, "utf-8");
 
   if (artifacts && artifacts.length > 0) {

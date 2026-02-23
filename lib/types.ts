@@ -6,6 +6,7 @@ export interface ProjectConfig {
   description?: string;
   repoUrl?: string;
   meetingCap?: number;
+  defaultBranch?: string;
 }
 
 export interface AppConfig {
@@ -96,6 +97,8 @@ export interface DiscoveredPackage {
 export interface ResolvedToolSet {
   mcpServers: McpSdkServerConfigWithInstance[];
   allowedTools: string[];
+  /** Returns true if submit_result was called. Only set for commission contexts. */
+  wasResultSubmitted?: () => boolean;
 }
 
 /**

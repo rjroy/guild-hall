@@ -1,3 +1,4 @@
+import * as fs from "node:fs/promises";
 import { Hono } from "hono";
 import { createHealthRoutes, type HealthDeps } from "./routes/health";
 import {
@@ -11,6 +12,7 @@ import type { DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting-session";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { EventBus } from "@/daemon/services/event-bus";
+import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 
 export interface AppDeps {
   health: HealthDeps;
@@ -65,10 +67,11 @@ export function createApp(deps: AppDeps): Hono {
  */
 export async function createProductionApp(options?: {
   packagesDir?: string;
+  gitOps?: GitOps;
 }): Promise<Hono> {
   const { readConfig } = await import("@/lib/config");
   const { discoverPackages } = await import("@/lib/packages");
-  const { getGuildHallHome } = await import("@/lib/paths");
+  const { getGuildHallHome, integrationWorktreePath } = await import("@/lib/paths");
   const { createMeetingSession } = await import(
     "@/daemon/services/meeting-session"
   );
@@ -81,10 +84,45 @@ export async function createProductionApp(options?: {
   const config = await readConfig();
   const guildHallHome = getGuildHallHome();
   const eventBus = createEventBus();
+  const git = options?.gitOps ?? createGitOps();
+
+  // Verify integration worktrees for all registered projects.
+  // If a worktree is missing (manual cleanup, failed registration), recreate it.
+  // Failures log a warning but don't crash the daemon.
+  const nodePath = await import("node:path");
+  for (const project of config.projects) {
+    const iPath = integrationWorktreePath(guildHallHome, project.name);
+    try {
+      await fs.access(iPath);
+    } catch {
+      console.log(`[daemon] Recreating integration worktree for "${project.name}"`);
+      try {
+        await fs.mkdir(nodePath.dirname(iPath), { recursive: true });
+        await git.initClaudeBranch(project.path);
+        await git.createWorktree(project.path, iPath, CLAUDE_BRANCH);
+      } catch (err: unknown) {
+        console.warn(
+          `[daemon] Failed to recreate worktree for "${project.name}":`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+  }
+
+  // Rebase claude onto the project's default branch for projects with no active activities.
+  // Failures log a warning but don't crash the daemon.
+  const { rebaseProject } = await import("@/cli/rebase");
+  for (const project of config.projects) {
+    try {
+      await rebaseProject(project.path, project.name, guildHallHome, git, project.defaultBranch);
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.warn(`[daemon] Rebase failed for "${project.name}": ${reason}`);
+    }
+  }
 
   // Scan paths: CLI flag overrides the default, otherwise scan
   // ~/.guild-hall/packages/ where workers are installed.
-  const nodePath = await import("node:path");
   const defaultPackagesDir = nodePath.join(guildHallHome, "packages");
   const scanPaths: string[] = [options?.packagesDir ?? defaultPackagesDir];
 
@@ -111,6 +149,7 @@ export async function createProductionApp(options?: {
     guildHallHome,
     queryFn,
     notesQueryFn: queryFn,
+    gitOps: git,
   });
 
   // Recover open meetings from persisted state files so users can resume
@@ -127,6 +166,7 @@ export async function createProductionApp(options?: {
     guildHallHome,
     eventBus,
     packagesDir,
+    gitOps: git,
   });
 
   const startTime = Date.now();

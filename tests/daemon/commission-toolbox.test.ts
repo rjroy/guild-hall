@@ -344,14 +344,17 @@ describe("per-closure resultSubmitted flag", () => {
     });
 
     // Both should be independent instances
-    expect(toolbox1.type).toBe("sdk");
-    expect(toolbox2.type).toBe("sdk");
-    expect(toolbox1.name).toBe("guild-hall-commission");
-    expect(toolbox2.name).toBe("guild-hall-commission");
-    expect(toolbox1.instance).toBeDefined();
-    expect(toolbox2.instance).toBeDefined();
+    expect(toolbox1.server.type).toBe("sdk");
+    expect(toolbox2.server.type).toBe("sdk");
+    expect(toolbox1.server.name).toBe("guild-hall-commission");
+    expect(toolbox2.server.name).toBe("guild-hall-commission");
+    expect(toolbox1.server.instance).toBeDefined();
+    expect(toolbox2.server.instance).toBeDefined();
     // They should be different instances
-    expect(toolbox1.instance).not.toBe(toolbox2.instance);
+    expect(toolbox1.server.instance).not.toBe(toolbox2.server.instance);
+    // Each has its own wasResultSubmitted callback
+    expect(toolbox1.wasResultSubmitted()).toBe(false);
+    expect(toolbox2.wasResultSubmitted()).toBe(false);
   });
 
   test("separate handler instances have independent resultSubmitted flags", async () => {
@@ -385,15 +388,17 @@ describe("per-closure resultSubmitted flag", () => {
 // -- createCommissionToolbox --
 
 describe("createCommissionToolbox", () => {
-  test("returns an MCP server config with type sdk", () => {
+  test("returns server config and wasResultSubmitted callback", () => {
     const result = createCommissionToolbox({
       projectPath,
       commissionId,
       daemonSocketPath: fakeDaemonSocket,
     });
 
-    expect(result.type).toBe("sdk");
-    expect(result.name).toBe("guild-hall-commission");
-    expect(result.instance).toBeDefined();
+    expect(result.server.type).toBe("sdk");
+    expect(result.server.name).toBe("guild-hall-commission");
+    expect(result.server.instance).toBeDefined();
+    expect(result.wasResultSubmitted).toBeFunction();
+    expect(result.wasResultSubmitted()).toBe(false);
   });
 });

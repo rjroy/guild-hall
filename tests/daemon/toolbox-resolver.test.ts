@@ -18,7 +18,7 @@ beforeEach(async () => {
   projectPath = path.join(tmpDir, "test-project");
   guildHallHome = path.join(tmpDir, ".guild-hall");
 
-  // Create project .lore directory so artifact tools don't fail on init
+  // Create project .lore directory for context-specific toolboxes
   await fs.mkdir(path.join(projectPath, ".lore"), { recursive: true });
 });
 
@@ -91,20 +91,27 @@ describe("resolveToolSet", () => {
     expect(result.mcpServers[0].instance).toBeDefined();
   });
 
-  test("built-in tools assembled from worker metadata", () => {
+  test("built-in tools and MCP wildcards assembled from worker metadata", () => {
     const worker = makeWorker({
       builtInTools: ["Read", "Glob", "Grep", "Bash", "Edit"],
     });
     const result = resolveToolSet(worker, [], testContext());
 
-    expect(result.allowedTools).toEqual(["Read", "Glob", "Grep", "Bash", "Edit"]);
+    // Built-in tools + MCP server wildcards (base only, no workerName = no meeting toolbox)
+    expect(result.allowedTools).toContain("Read");
+    expect(result.allowedTools).toContain("Glob");
+    expect(result.allowedTools).toContain("Grep");
+    expect(result.allowedTools).toContain("Bash");
+    expect(result.allowedTools).toContain("Edit");
+    expect(result.allowedTools).toContain("mcp__guild-hall-base__*");
   });
 
-  test("empty builtInTools results in empty allowedTools", () => {
+  test("empty builtInTools still includes MCP wildcards", () => {
     const worker = makeWorker({ builtInTools: [] });
     const result = resolveToolSet(worker, [], testContext());
 
-    expect(result.allowedTools).toEqual([]);
+    // No built-in tools, but MCP wildcards are always present
+    expect(result.allowedTools).toContain("mcp__guild-hall-base__*");
   });
 
   test("worker with domain toolbox resolves without error when package exists", () => {
@@ -182,6 +189,7 @@ describe("resolveToolSet", () => {
     // Mutating the result should not affect the worker's original array
     result.allowedTools.push("Bash");
     expect(worker.builtInTools).toEqual(["Read"]);
+    expect(worker.builtInTools).not.toContain("mcp__guild-hall-base__*");
   });
 
   test("meeting context with workerName produces base + meeting MCP servers", () => {
@@ -236,6 +244,8 @@ describe("resolveToolSet", () => {
     expect(result.mcpServers[1].name).toBe("guild-hall-commission");
     expect(result.mcpServers[1].type).toBe("sdk");
     expect(result.mcpServers[1].instance).toBeDefined();
+    expect(result.wasResultSubmitted).toBeFunction();
+    expect(result.wasResultSubmitted!()).toBe(false);
   });
 
   test("commission context without daemonSocketPath throws", () => {

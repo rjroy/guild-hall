@@ -40,8 +40,45 @@
   font-size: 0.9rem;
   color: var(--color-text);
   line-height: 1.6;
-  white-space: pre-wrap;
   margin: 0 0 var(--space-lg);
+}
+
+.notes h1,
+.notes h2,
+.notes h3 {
+  color: var(--color-brass);
+  margin: var(--space-md) 0 var(--space-xs);
+  font-weight: 600;
+}
+
+.notes h1 { font-size: 1.1rem; }
+.notes h2 { font-size: 1rem; }
+.notes h3 { font-size: 0.95rem; }
+
+.notes p {
+  margin: 0 0 var(--space-sm);
+}
+
+.notes ul,
+.notes ol {
+  margin: 0 0 var(--space-sm);
+  padding-left: var(--space-lg);
+}
+
+.notes li {
+  margin-bottom: var(--space-xs);
+}
+
+.notes strong {
+  color: var(--color-text-bright, #e8e0d0);
+}
+
+.notes code {
+  font-family: var(--font-code);
+  font-size: 0.85em;
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
 }
 
 .noNotes {

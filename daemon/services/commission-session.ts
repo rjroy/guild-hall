@@ -21,14 +21,19 @@
  */
 
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import { asCommissionId } from "@/daemon/types";
 import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
-import { getGuildHallHome } from "@/lib/paths";
+import {
+  getGuildHallHome,
+  integrationWorktreePath,
+  commissionWorktreePath,
+  commissionBranchName,
+} from "@/lib/paths";
 import { getWorkerByName } from "@/lib/packages";
 import { getSocketPath } from "@/daemon/lib/socket";
+import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import type { EventBus } from "./event-bus";
 import type { CommissionWorkerConfig } from "./commission-worker-config";
 import {
@@ -109,6 +114,7 @@ export interface CommissionSessionDeps {
   eventBus: EventBus;
   packagesDir: string;
   spawnFn?: (configPath: string) => SpawnedCommission;
+  gitOps?: GitOps;
 }
 
 type ActiveCommission = {
@@ -122,7 +128,8 @@ type ActiveCommission = {
   resultSubmitted: boolean;
   resultSummary?: string;
   resultArtifacts?: string[];
-  tempDir: string;
+  worktreeDir: string;
+  branchName: string;
   configPath: string;
   graceTimerId?: ReturnType<typeof setTimeout>;
 };
@@ -203,6 +210,7 @@ export function createCommissionSession(
 ): CommissionSessionForRoutes {
   const activeCommissions = new Map<string, ActiveCommission>();
   const ghHome = deps.guildHallHome ?? getGuildHallHome();
+  const git = deps.gitOps ?? createGitOps();
   const spawnFn = deps.spawnFn ?? defaultSpawnFn;
 
   // Store active kill timers so they can be cleared on shutdown
@@ -276,22 +284,89 @@ export function createCommissionSession(
   }
 
   /**
-   * Finds the project path for a commission by searching all registered
-   * projects for the artifact file.
+   * Counts the number of previous dispatch attempts by scanning the
+   * integration worktree's timeline for terminal status entries
+   * (status_failed, status_cancelled). Each previous attempt that ended
+   * in failure or cancellation syncs a terminal entry to the integration
+   * worktree via syncStatusToIntegration. The count of these entries
+   * gives the number of completed attempts, so the next attempt is
+   * count + 1 (attempt 2 produces branch suffix "-2", etc.).
+   *
+   * Note: status_dispatched entries are written to the activity worktree
+   * (not the integration worktree), so we count terminal entries instead.
+   */
+  async function getDispatchAttempt(
+    basePath: string,
+    id: CommissionId,
+  ): Promise<number> {
+    const artifactPath = commissionArtifactPath(basePath, id);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    const failed = raw.match(/event: status_failed/g);
+    const cancelled = raw.match(/event: status_cancelled/g);
+    return (failed?.length ?? 0) + (cancelled?.length ?? 0);
+  }
+
+  /**
+   * Finds the project for a commission by searching integration worktrees
+   * for the artifact file. Returns the project's real path (for config
+   * lookups), the project name, and the integration worktree path (for
+   * artifact operations).
    */
   async function findProjectPathForCommission(
     commissionId: CommissionId,
-  ): Promise<{ projectPath: string; projectName: string } | null> {
+  ): Promise<{ projectPath: string; projectName: string; integrationPath: string } | null> {
     for (const project of deps.config.projects) {
-      const artifactPath = commissionArtifactPath(project.path, commissionId);
+      const iPath = integrationWorktreePath(ghHome, project.name);
+      const artifactPath = commissionArtifactPath(iPath, commissionId);
       try {
         await fs.access(artifactPath);
-        return { projectPath: project.path, projectName: project.name };
+        return { projectPath: project.path, projectName: project.name, integrationPath: iPath };
       } catch {
         continue;
       }
     }
     return null;
+  }
+
+  /**
+   * Resolves the base path for artifact reads/writes. When a commission is
+   * active (dispatched/in_progress), artifacts live in the activity worktree.
+   * Otherwise they live in the integration worktree.
+   */
+  function resolveArtifactBasePath(commissionId: CommissionId, projectName: string): string {
+    const active = activeCommissions.get(commissionId as string);
+    if (active) {
+      return active.worktreeDir;
+    }
+    return integrationWorktreePath(ghHome, projectName);
+  }
+
+  /**
+   * Syncs a terminal status back to the integration worktree so that the
+   * artifact is findable (and has the correct status) after the activity
+   * worktree is cleaned up. Without this, redispatch and status reads
+   * would see stale "pending" status in the integration copy.
+   */
+  async function syncStatusToIntegration(
+    commission: ActiveCommission,
+    status: CommissionStatus,
+    reason: string,
+  ): Promise<void> {
+    const iPath = integrationWorktreePath(ghHome, commission.projectName);
+    try {
+      await updateCommissionStatus(iPath, commission.commissionId, status);
+      await appendTimelineEntry(
+        iPath,
+        commission.commissionId,
+        `status_${status}`,
+        reason,
+      );
+    } catch (err: unknown) {
+      console.warn(
+        `[commission-session] Failed to sync status "${status}" to integration worktree for ${commission.commissionId}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
   }
 
   /**
@@ -303,28 +378,21 @@ export function createCommissionSession(
     commission: ActiveCommission,
     reason: string,
   ): Promise<void> {
-    const project = findProject(commission.projectName);
-    if (!project) {
-      console.error(
-        `[commission-session] Cannot find project "${commission.projectName}" for commission "${id}". Artifact status will not be updated.`,
+    // Commission is always active when handleFailure is called, so the
+    // artifact lives in the activity worktree.
+    try {
+      await transitionCommission(
+        commission.worktreeDir,
+        commission.commissionId,
+        commission.status,
+        "failed",
+        reason,
       );
-    }
-
-    if (project) {
-      try {
-        await transitionCommission(
-          project.path,
-          commission.commissionId,
-          commission.status,
-          "failed",
-          reason,
-        );
-      } catch (err: unknown) {
-        console.error(
-          `[commission-session] Failed to transition ${id} to failed:`,
-          err instanceof Error ? err.message : String(err),
-        );
-      }
+    } catch (err: unknown) {
+      console.error(
+        `[commission-session] Failed to transition ${id} to failed:`,
+        err instanceof Error ? err.message : String(err),
+      );
     }
 
     deps.eventBus.emit({
@@ -336,15 +404,39 @@ export function createCommissionSession(
 
     commission.status = "failed";
 
-    // Clean up temp directory
-    fs.rm(commission.tempDir, { recursive: true, force: true }).catch(
-      (err: unknown) => {
+    // Sync terminal status to integration worktree before cleanup
+    await syncStatusToIntegration(commission, "failed", reason);
+
+    // Git: preserve partial results on branch for inspection
+    try {
+      const hadChanges = await git.commitAll(
+        commission.worktreeDir,
+        `Partial work preserved: ${id}`,
+      );
+      if (hadChanges) {
+        console.log(
+          `[commission] "${id}" partial results committed to ${commission.branchName}`,
+        );
+      }
+    } catch (err: unknown) {
+      console.warn(
+        `[commission] Failed to commit partial results for "${id}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    const project = findProject(commission.projectName);
+    if (project) {
+      try {
+        await git.removeWorktree(project.path, commission.worktreeDir);
+      } catch (err: unknown) {
         console.warn(
-          `[commission-session] Failed to clean up temp directory ${commission.tempDir}:`,
+          `[commission] Failed to remove worktree for "${id}":`,
           err instanceof Error ? err.message : String(err),
         );
-      },
-    );
+      }
+    }
+    // Branch is NOT deleted - preserved for inspection
 
     activeCommissions.delete(id);
 
@@ -394,8 +486,9 @@ export function createCommissionSession(
       new Date(),
     );
 
-    // 4. Ensure commissions directory exists
-    const commissionsDir = path.join(project.path, ".lore", "commissions");
+    // 4. Ensure commissions directory exists in the integration worktree
+    const iPath = integrationWorktreePath(ghHome, projectName);
+    const commissionsDir = path.join(iPath, ".lore", "commissions");
     await fs.mkdir(commissionsDir, { recursive: true });
 
     // 5. Write the commission artifact
@@ -449,7 +542,7 @@ projectName: ${projectName}
 ---
 `;
 
-    const artifactPath = commissionArtifactPath(project.path, commissionId);
+    const artifactPath = commissionArtifactPath(iPath, commissionId);
     await fs.writeFile(artifactPath, content, "utf-8");
 
     console.log(
@@ -475,8 +568,9 @@ projectName: ${projectName}
       );
     }
 
-    // Verify status is pending
-    const status = await readCommissionStatus(found.projectPath, commissionId);
+    // Verify status is pending (artifact is in integration worktree for pending commissions)
+    const basePath = resolveArtifactBasePath(commissionId, found.projectName);
+    const status = await readCommissionStatus(basePath, commissionId);
     if (status === null) {
       throw new Error(
         `Cannot read status from commission "${commissionId}" artifact. The file may be corrupted.`,
@@ -489,7 +583,7 @@ projectName: ${projectName}
     }
 
     const artifactPath = commissionArtifactPath(
-      found.projectPath,
+      basePath,
       commissionId,
     );
     let raw = await fs.readFile(artifactPath, "utf-8");
@@ -536,6 +630,7 @@ projectName: ${projectName}
 
   async function dispatchCommission(
     commissionId: CommissionId,
+    attempt?: number,
   ): Promise<{ status: "accepted" }> {
     // 1. Find the project
     const found = await findProjectPathForCommission(commissionId);
@@ -545,9 +640,9 @@ projectName: ${projectName}
       );
     }
 
-    // 2. Verify status is pending
+    // 2. Verify status is pending (artifact is in integration worktree)
     const currentStatus = await readCommissionStatus(
-      found.projectPath,
+      found.integrationPath,
       commissionId,
     );
     if (currentStatus === null) {
@@ -561,23 +656,34 @@ projectName: ${projectName}
       );
     }
 
-    // 3. Transition to dispatched
+    // 3. Commit the pending artifact to the integration worktree so
+    //    the activity branch (forked from claude/main) includes it.
+    await git.commitAll(found.integrationPath, `Add commission: ${commissionId}`);
+
+    // 4. Create activity branch and worktree from the claude branch.
+    //    The worktree gets the committed state of the claude branch (pending).
+    //    All subsequent artifact mutations happen in the activity worktree.
+    //    On re-dispatch, the attempt number produces a suffixed branch name
+    //    (e.g., claude/commission/<id>-2) while preserving the old branch.
+    const branchName = commissionBranchName(commissionId as string, attempt);
+    const worktreeDir = commissionWorktreePath(ghHome, found.projectName, commissionId as string);
+
+    await git.createBranch(found.projectPath, branchName, CLAUDE_BRANCH);
+    await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
+    await git.createWorktree(found.projectPath, worktreeDir, branchName);
+
+    // 5. Transition to dispatched (in activity worktree)
     await transitionCommission(
-      found.projectPath,
+      worktreeDir,
       commissionId,
       "pending",
       "dispatched",
       "Commission dispatched to worker",
     );
 
-    // 4. Create temp directory
-    const tempDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), "gh-commission-"),
-    );
-
-    // 5. Read the artifact to get prompt, worker, dependencies, resource overrides
+    // 6. Read the artifact to get prompt, worker, dependencies, resource overrides
     const artifactPath = commissionArtifactPath(
-      found.projectPath,
+      worktreeDir,
       commissionId,
     );
     const raw = await fs.readFile(artifactPath, "utf-8");
@@ -621,7 +727,15 @@ projectName: ${projectName}
     });
     const workerPackageName = workerPkg?.name ?? workerName;
 
-    // 6. Write worker config JSON
+    // Configure sparse checkout if the worker's checkoutScope is "sparse"
+    if (workerPkg && "checkoutScope" in workerPkg.metadata) {
+      const scope = (workerPkg.metadata as { checkoutScope: string }).checkoutScope;
+      if (scope === "sparse") {
+        await git.configureSparseCheckout(worktreeDir, [".lore/"]);
+      }
+    }
+
+    // 7. Write worker config JSON
     const socketPath = getSocketPath(ghHome);
     const workerConfig: CommissionWorkerConfig = {
       commissionId: commissionId as string,
@@ -630,7 +744,7 @@ projectName: ${projectName}
       workerPackageName,
       prompt,
       dependencies: commissionDeps,
-      workingDirectory: tempDir,
+      workingDirectory: worktreeDir,
       daemonSocketPath: socketPath,
       packagesDir: deps.packagesDir,
       guildHallHome: ghHome,
@@ -640,30 +754,33 @@ projectName: ${projectName}
           : undefined,
     };
 
-    const configPath = path.join(tempDir, "commission-config.json");
+    const stateDir = path.join(ghHome, "state", "commissions");
+    await fs.mkdir(stateDir, { recursive: true });
+    const configPath = path.join(stateDir, `${commissionId as string}.config.json`);
     await fs.writeFile(
       configPath,
       JSON.stringify(workerConfig, null, 2),
       "utf-8",
     );
 
-    // 7. Write machine-local state file
+    // 8. Write machine-local state file
     await writeStateFile(commissionId, {
       commissionId: commissionId as string,
       projectName: found.projectName,
       workerName,
       status: "dispatched",
-      tempDir,
+      worktreeDir,
+      branchName,
       configPath,
     });
 
-    // 8. Spawn the worker process
+    // 9. Spawn the worker process
     console.log(
       `[commission] dispatching "${commissionId}" -> worker="${workerName}", config="${configPath}"`,
     );
     const spawned = spawnFn(configPath);
 
-    // 9. Record in active Map
+    // 10. Record in active Map
     const now = new Date();
     const active: ActiveCommission = {
       commissionId,
@@ -674,7 +791,8 @@ projectName: ${projectName}
       lastHeartbeat: now,
       status: "dispatched",
       resultSubmitted: false,
-      tempDir,
+      worktreeDir,
+      branchName,
       configPath,
     };
 
@@ -684,20 +802,21 @@ projectName: ${projectName}
       `[commission] spawned "${commissionId}" pid=${spawned.pid}`,
     );
 
-    // 10. Update PID in state file
+    // 11. Update PID in state file
     await writeStateFile(commissionId, {
       commissionId: commissionId as string,
       projectName: found.projectName,
       workerName,
       pid: spawned.pid,
       status: "dispatched",
-      tempDir,
+      worktreeDir,
+      branchName,
       configPath,
     });
 
-    // 11. Transition to in_progress
+    // 12. Transition to in_progress (in the activity worktree)
     await transitionCommission(
-      found.projectPath,
+      worktreeDir,
       commissionId,
       "dispatched",
       "in_progress",
@@ -705,7 +824,7 @@ projectName: ${projectName}
     );
     active.status = "in_progress";
 
-    // 12. Emit event
+    // 13. Emit event
     deps.eventBus.emit({
       type: "commission_status",
       commissionId: commissionId as string,
@@ -713,7 +832,7 @@ projectName: ${projectName}
       reason: "Worker process started",
     });
 
-    // 13. Attach exit handler
+    // 14. Attach exit handler
     void spawned.exitPromise.then(async (result) => {
       await handleExit(commissionId, result.exitCode);
     }).catch(async (err: unknown) => {
@@ -753,13 +872,6 @@ projectName: ${projectName}
       return;
     }
 
-    const project = findProject(commission.projectName);
-    if (!project) {
-      console.error(
-        `[commission-session] Cannot find project "${commission.projectName}" for commission "${commissionId}". Artifact status will not be updated.`,
-      );
-    }
-
     // Determine final status and reason from the exit code / result matrix.
     // Result submitted -> completed (even if process crashed).
     // No result -> failed (even if process exited cleanly).
@@ -788,36 +900,35 @@ projectName: ${projectName}
 
     commission.status = finalStatus;
 
-    if (project) {
+    // Artifact lives in the activity worktree (commission is active)
+    try {
+      await transitionCommission(
+        commission.worktreeDir,
+        commissionId,
+        "in_progress",
+        finalStatus,
+        reason,
+      );
+    } catch (err: unknown) {
+      console.error(
+        `[commission-session] Failed to transition ${commissionId} to ${finalStatus}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    if (finalStatus === "completed" && commission.resultSummary) {
       try {
-        await transitionCommission(
-          project.path,
+        await updateResultSummary(
+          commission.worktreeDir,
           commissionId,
-          "in_progress",
-          finalStatus,
-          reason,
+          commission.resultSummary,
+          commission.resultArtifacts,
         );
       } catch (err: unknown) {
         console.error(
-          `[commission-session] Failed to transition ${commissionId} to ${finalStatus}:`,
+          `[commission-session] Failed to update result summary:`,
           err instanceof Error ? err.message : String(err),
         );
-      }
-
-      if (finalStatus === "completed" && commission.resultSummary) {
-        try {
-          await updateResultSummary(
-            project.path,
-            commissionId,
-            commission.resultSummary,
-            commission.resultArtifacts,
-          );
-        } catch (err: unknown) {
-          console.error(
-            `[commission-session] Failed to update result summary:`,
-            err instanceof Error ? err.message : String(err),
-          );
-        }
       }
     }
 
@@ -828,15 +939,62 @@ projectName: ${projectName}
       reason,
     });
 
-    // Clean up temp directory
-    fs.rm(commission.tempDir, { recursive: true, force: true }).catch(
-      (err: unknown) => {
+    // Git cleanup: behavior depends on final status
+    const project = findProject(commission.projectName);
+    if (finalStatus === "completed" && project) {
+      // Squash-merge activity branch into claude, then clean up both.
+      // No syncStatusToIntegration here: the merge brings the activity
+      // branch's artifact (which already has status=completed and the
+      // full timeline). Syncing before merge would leave uncommitted
+      // changes in the integration worktree, blocking the merge.
+      const iPath = integrationWorktreePath(ghHome, commission.projectName);
+      try {
+        await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
+        await git.squashMerge(iPath, commission.branchName, `Commission: ${commissionId}`);
+        await git.removeWorktree(project.path, commission.worktreeDir);
+        await git.deleteBranch(project.path, commission.branchName);
+        console.log(`[commission] "${commissionId}" squash-merged to claude and cleaned up`);
+      } catch (err: unknown) {
         console.warn(
-          `[commission-session] Failed to clean up temp directory ${commission.tempDir}:`,
+          `[commission] Git cleanup failed for completed "${commissionId}":`,
           err instanceof Error ? err.message : String(err),
         );
-      },
-    );
+      }
+    } else {
+      // Sync terminal status to integration worktree. For failed/cancelled,
+      // there's no squash-merge, so the integration copy needs a direct update.
+      await syncStatusToIntegration(commission, finalStatus, reason);
+
+      // Failure: preserve partial results on branch for inspection
+      try {
+        const hadChanges = await git.commitAll(
+          commission.worktreeDir,
+          `Partial work preserved: ${commissionId}`,
+        );
+        if (hadChanges) {
+          console.log(
+            `[commission] "${commissionId}" partial results committed to ${commission.branchName}`,
+          );
+        }
+      } catch (err: unknown) {
+        console.warn(
+          `[commission] Failed to commit partial results for "${commissionId}":`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+
+      if (project) {
+        try {
+          await git.removeWorktree(project.path, commission.worktreeDir);
+        } catch (err: unknown) {
+          console.warn(
+            `[commission] Failed to remove worktree for "${commissionId}":`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      }
+      // Branch is NOT deleted - preserved for inspection
+    }
 
     // Remove from active Map
     activeCommissions.delete(commissionId as string);
@@ -889,17 +1047,14 @@ projectName: ${projectName}
     killTimers.add(graceTimer);
     commission.graceTimerId = graceTimer;
 
-    // Transition to cancelled
-    const project = findProject(commission.projectName);
-    if (project) {
-      await transitionCommission(
-        project.path,
-        commissionId,
-        commission.status,
-        "cancelled",
-        "Commission cancelled by user",
-      );
-    }
+    // Transition to cancelled (artifact is in activity worktree)
+    await transitionCommission(
+      commission.worktreeDir,
+      commissionId,
+      commission.status,
+      "cancelled",
+      "Commission cancelled by user",
+    );
 
     commission.status = "cancelled";
 
@@ -910,15 +1065,34 @@ projectName: ${projectName}
       reason: "Commission cancelled by user",
     });
 
-    // Clean up temp directory
-    await fs.rm(commission.tempDir, { recursive: true, force: true }).catch(
-      (err: unknown) => {
+    // Sync terminal status to integration worktree before cleanup
+    await syncStatusToIntegration(commission, "cancelled", "Commission cancelled by user");
+
+    // Git: preserve partial results on branch (same as failure)
+    try {
+      await git.commitAll(
+        commission.worktreeDir,
+        `Partial work preserved on cancellation: ${commissionId}`,
+      );
+    } catch (err: unknown) {
+      console.warn(
+        `[commission] Failed to commit partial results for cancelled "${commissionId}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    const project = findProject(commission.projectName);
+    if (project) {
+      try {
+        await git.removeWorktree(project.path, commission.worktreeDir);
+      } catch (err: unknown) {
         console.warn(
-          `[commission-session] Failed to clean up temp directory ${commission.tempDir}:`,
+          `[commission] Failed to remove worktree for cancelled "${commissionId}":`,
           err instanceof Error ? err.message : String(err),
         );
-      },
-    );
+      }
+    }
+    // Branch is NOT deleted - preserved for inspection
 
     // Remove from active Map
     activeCommissions.delete(commissionId as string);
@@ -948,9 +1122,9 @@ projectName: ${projectName}
       );
     }
 
-    // 2. Verify status is failed or cancelled
+    // 2. Verify status is failed or cancelled (artifact is in integration worktree)
     const currentStatus = await readCommissionStatus(
-      found.projectPath,
+      found.integrationPath,
       commissionId,
     );
     if (currentStatus === null) {
@@ -964,23 +1138,34 @@ projectName: ${projectName}
       );
     }
 
-    console.log(`[commission] redispatching "${commissionId}" (was ${currentStatus})`);
+    // 3. Count previous dispatch attempts to determine the branch suffix.
+    //    Each dispatch appends a status_dispatched timeline entry, so the count
+    //    gives us the previous attempts. The new attempt is count + 1.
+    const previousDispatches = await getDispatchAttempt(
+      found.integrationPath,
+      commissionId,
+    );
+    const attempt = previousDispatches + 1;
 
-    // 3. Transition back to pending
+    console.log(
+      `[commission] redispatching "${commissionId}" (was ${currentStatus}, attempt ${attempt})`,
+    );
+
+    // 4. Transition back to pending
     // The state machine allows failed -> (nothing) and cancelled -> (nothing)
     // as terminal states. For redispatch, we do a direct status update
     // bypassing the normal transition graph since this is a reset operation.
-    await updateCommissionStatus(found.projectPath, commissionId, "pending");
+    await updateCommissionStatus(found.integrationPath, commissionId, "pending");
     await appendTimelineEntry(
-      found.projectPath,
+      found.integrationPath,
       commissionId,
       "status_pending",
       "Commission reset for redispatch",
       { from: currentStatus, to: "pending" },
     );
 
-    // 4. Dispatch
-    return dispatchCommission(commissionId);
+    // 5. Dispatch with the attempt number so the new branch gets the suffix
+    return dispatchCommission(commissionId, attempt);
   }
 
   function reportProgress(
@@ -998,18 +1183,15 @@ projectName: ${projectName}
     commission.lastHeartbeat = new Date();
     console.log(`[commission] "${commissionId}" progress: ${summary.slice(0, 120)}`);
 
-    // Update progress in artifact (fire-and-forget)
-    const project = findProject(commission.projectName);
-    if (project) {
-      updateCurrentProgress(project.path, commissionId, summary).catch(
-        (err: unknown) => {
-          console.error(
-            `[commission-session] Failed to update progress:`,
-            err instanceof Error ? err.message : String(err),
-          );
-        },
-      );
-    }
+    // Update progress in artifact (fire-and-forget, uses activity worktree)
+    updateCurrentProgress(commission.worktreeDir, commissionId, summary).catch(
+      (err: unknown) => {
+        console.error(
+          `[commission-session] Failed to update progress:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      },
+    );
 
     deps.eventBus.emit({
       type: "commission_progress",
@@ -1080,8 +1262,9 @@ projectName: ${projectName}
       );
     }
 
+    const basePath = resolveArtifactBasePath(commissionId, found.projectName);
     await appendTimelineEntry(
-      found.projectPath,
+      basePath,
       commissionId,
       "user_note",
       content,

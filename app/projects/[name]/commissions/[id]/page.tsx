@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { redirect } from "next/navigation";
 import { getProject } from "@/lib/config";
-import { projectLorePath } from "@/lib/paths";
+import { projectLorePath, getGuildHallHome, resolveCommissionBasePath } from "@/lib/paths";
 import {
   readCommissionMeta,
   parseActivityTimeline,
@@ -58,7 +58,9 @@ export default async function CommissionPage({
     redirect("/");
   }
 
-  const lorePath = projectLorePath(project.path);
+  const ghHome = getGuildHallHome();
+  const basePath = await resolveCommissionBasePath(ghHome, projectName, id);
+  const lorePath = projectLorePath(basePath);
   const commissionFile = path.join(lorePath, "commissions", `${id}.md`);
 
   let commission;

@@ -6,6 +6,7 @@ import {
   scanMeetings,
   scanMeetingRequests,
   readMeetingMeta,
+  getActiveMeetingWorktrees,
   parseTranscriptToMessages,
 } from "@/lib/meetings";
 
@@ -345,6 +346,123 @@ describe("scanMeetingRequests", () => {
     expect(requests.every((r) => r.status === "requested")).toBe(true);
     const ids = requests.map((r) => r.meetingId).sort();
     expect(ids).toEqual(["meeting-a", "meeting-b", "meeting-c", "meeting-d"]);
+  });
+});
+
+// -- getActiveMeetingWorktrees tests --
+
+describe("getActiveMeetingWorktrees", () => {
+  let ghHome: string;
+
+  beforeEach(async () => {
+    ghHome = path.join(tmpRoot, "gh-home");
+    await fs.mkdir(path.join(ghHome, "state", "meetings"), { recursive: true });
+  });
+
+  test("returns worktree paths for open meetings of matching project", async () => {
+    await fs.writeFile(
+      path.join(ghHome, "state", "meetings", "meeting-1.json"),
+      JSON.stringify({
+        projectName: "my-project",
+        status: "open",
+        worktreeDir: "/tmp/worktrees/my-project/meeting-1",
+      }),
+    );
+    await fs.writeFile(
+      path.join(ghHome, "state", "meetings", "meeting-2.json"),
+      JSON.stringify({
+        projectName: "my-project",
+        status: "open",
+        worktreeDir: "/tmp/worktrees/my-project/meeting-2",
+      }),
+    );
+
+    const result = await getActiveMeetingWorktrees(ghHome, "my-project");
+    expect(result.sort()).toEqual([
+      "/tmp/worktrees/my-project/meeting-1",
+      "/tmp/worktrees/my-project/meeting-2",
+    ]);
+  });
+
+  test("excludes meetings from other projects", async () => {
+    await fs.writeFile(
+      path.join(ghHome, "state", "meetings", "meeting-1.json"),
+      JSON.stringify({
+        projectName: "my-project",
+        status: "open",
+        worktreeDir: "/tmp/worktrees/my-project/meeting-1",
+      }),
+    );
+    await fs.writeFile(
+      path.join(ghHome, "state", "meetings", "meeting-2.json"),
+      JSON.stringify({
+        projectName: "other-project",
+        status: "open",
+        worktreeDir: "/tmp/worktrees/other-project/meeting-2",
+      }),
+    );
+
+    const result = await getActiveMeetingWorktrees(ghHome, "my-project");
+    expect(result).toEqual(["/tmp/worktrees/my-project/meeting-1"]);
+  });
+
+  test("excludes non-open meetings", async () => {
+    await fs.writeFile(
+      path.join(ghHome, "state", "meetings", "meeting-1.json"),
+      JSON.stringify({
+        projectName: "my-project",
+        status: "open",
+        worktreeDir: "/tmp/worktrees/my-project/meeting-1",
+      }),
+    );
+    await fs.writeFile(
+      path.join(ghHome, "state", "meetings", "meeting-2.json"),
+      JSON.stringify({
+        projectName: "my-project",
+        status: "closed",
+        worktreeDir: "/tmp/worktrees/my-project/meeting-2",
+      }),
+    );
+
+    const result = await getActiveMeetingWorktrees(ghHome, "my-project");
+    expect(result).toEqual(["/tmp/worktrees/my-project/meeting-1"]);
+  });
+
+  test("returns empty array when state directory does not exist", async () => {
+    const noStateHome = path.join(tmpRoot, "no-state-home");
+    const result = await getActiveMeetingWorktrees(noStateHome, "my-project");
+    expect(result).toEqual([]);
+  });
+
+  test("skips malformed state files", async () => {
+    await fs.writeFile(
+      path.join(ghHome, "state", "meetings", "good.json"),
+      JSON.stringify({
+        projectName: "my-project",
+        status: "open",
+        worktreeDir: "/tmp/worktrees/my-project/good",
+      }),
+    );
+    await fs.writeFile(
+      path.join(ghHome, "state", "meetings", "bad.json"),
+      "not json at all",
+    );
+
+    const result = await getActiveMeetingWorktrees(ghHome, "my-project");
+    expect(result).toEqual(["/tmp/worktrees/my-project/good"]);
+  });
+
+  test("excludes entries without worktreeDir", async () => {
+    await fs.writeFile(
+      path.join(ghHome, "state", "meetings", "meeting-1.json"),
+      JSON.stringify({
+        projectName: "my-project",
+        status: "open",
+      }),
+    );
+
+    const result = await getActiveMeetingWorktrees(ghHome, "my-project");
+    expect(result).toEqual([]);
   });
 });
 

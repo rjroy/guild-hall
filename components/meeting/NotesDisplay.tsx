@@ -1,3 +1,5 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import styles from "./NotesDisplay.module.css";
 
 interface NotesDisplayProps {
@@ -30,7 +32,9 @@ export default function NotesDisplay({
         </h2>
 
         {hasNotes ? (
-          <p className={styles.notes}>{notes}</p>
+          <div className={styles.notes}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{notes}</ReactMarkdown>
+          </div>
         ) : (
           <p className={styles.noNotes}>This audience has ended.</p>
         )}

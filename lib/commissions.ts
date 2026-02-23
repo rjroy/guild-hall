@@ -174,6 +174,24 @@ export async function scanCommissions(
     }
   }
 
+  // Active/pending first, then by date descending (newest first)
+  const statusPriority: Record<string, number> = {
+    in_progress: 0,
+    dispatched: 1,
+    pending: 2,
+    blocked: 3,
+    failed: 4,
+    cancelled: 5,
+    completed: 6,
+  };
+
+  commissions.sort((a, b) => {
+    const pa = statusPriority[a.status] ?? 9;
+    const pb = statusPriority[b.status] ?? 9;
+    if (pa !== pb) return pa - pb;
+    return b.date.localeCompare(a.date);
+  });
+
   return commissions;
 }
 
