@@ -93,6 +93,14 @@ export function meetingBranchName(meetingId: string): string {
 }
 
 /**
+ * Returns the file path for a project's cached briefing.
+ * Stored at `<ghHome>/state/briefings/<projectName>.json`.
+ */
+export function briefingCachePath(ghHome: string, projectName: string): string {
+  return path.join(ghHome, "state", "briefings", `${projectName}.json`);
+}
+
+/**
  * Resolves the base path for reading a commission's artifacts.
  *
  * Active commissions (dispatched/in_progress) have their own activity worktree

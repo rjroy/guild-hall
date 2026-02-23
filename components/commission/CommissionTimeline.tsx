@@ -1,45 +1,89 @@
 "use client";
 
+import { useState } from "react";
 import GemIndicator from "@/components/ui/GemIndicator";
 import { statusToGem } from "@/lib/types";
 import type { TimelineEntry } from "@/lib/commissions";
 import styles from "./CommissionTimeline.module.css";
+
+export type TimelineTab = "all" | "worker" | "user" | "manager";
+
+const TABS: { key: TimelineTab; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "worker", label: "Worker Notes" },
+  { key: "user", label: "User Notes" },
+  { key: "manager", label: "Manager Notes" },
+];
+
+export const WORKER_EVENTS = new Set(["progress_report", "result_submitted", "question"]);
+export const USER_EVENTS = new Set(["user_note"]);
+export const MANAGER_EVENTS = new Set(["manager_note", "manager_dispatched"]);
+
+export function filterTimeline(timeline: TimelineEntry[], tab: TimelineTab): TimelineEntry[] {
+  if (tab === "all") return timeline;
+  if (tab === "worker") return timeline.filter((e) => WORKER_EVENTS.has(e.event));
+  if (tab === "user") return timeline.filter((e) => USER_EVENTS.has(e.event));
+  if (tab === "manager") return timeline.filter((e) => MANAGER_EVENTS.has(e.event));
+  return timeline;
+}
 
 interface CommissionTimelineProps {
   timeline: TimelineEntry[];
 }
 
 /**
- * Chronological list of commission activity events. Each entry is rendered
- * with event-type-specific styling: status transitions show from/to gems,
- * progress reports show summary text, questions have visual distinction,
- * and results show a summary.
+ * Chronological list of commission activity events with tab filtering.
+ *
+ * Each entry is rendered with event-type-specific styling: status transitions
+ * show from/to gems, progress reports show summary text, questions have visual
+ * distinction, results show a summary, and manager notes have a distinct accent.
+ *
+ * Tabs filter the same timeline data without separate fetching:
+ * - All: every event (default)
+ * - Worker Notes: progress_report, result_submitted, question
+ * - User Notes: user_note
+ * - Manager Notes: manager_note, manager_dispatched
  *
  * The parent CommissionView manages live SSE updates and passes the
- * accumulated timeline as props. This component is purely presentational.
+ * accumulated timeline as props.
  */
 export default function CommissionTimeline({
   timeline,
 }: CommissionTimelineProps) {
-  if (timeline.length === 0) {
-    return (
-      <div className={styles.container}>
-        <h3 className={styles.label}>Activity</h3>
-        <p className={styles.empty}>No activity yet.</p>
-      </div>
-    );
-  }
+  const [activeTab, setActiveTab] = useState<TimelineTab>("all");
+  const filtered = filterTimeline(timeline, activeTab);
 
   return (
     <div className={styles.container}>
       <h3 className={styles.label}>Activity</h3>
-      <ul className={styles.list}>
-        {timeline.map((entry, index) => (
-          <li key={`${entry.timestamp}-${index}`} className={styles.item}>
-            <TimelineEntryRow entry={entry} />
-          </li>
+
+      <div className={styles.tabBar} role="tablist" aria-label="Timeline filter">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            role="tab"
+            aria-selected={activeTab === tab.key}
+            className={`${styles.tab} ${activeTab === tab.key ? styles.tabActive : ""}`}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            {tab.label}
+          </button>
         ))}
-      </ul>
+      </div>
+
+      {timeline.length === 0 ? (
+        <p className={styles.empty}>No activity yet.</p>
+      ) : filtered.length === 0 ? (
+        <p className={styles.empty}>No matching entries.</p>
+      ) : (
+        <ul className={styles.list}>
+          {filtered.map((entry, index) => (
+            <li key={`${entry.timestamp}-${index}`} className={styles.item}>
+              <TimelineEntryRow entry={entry} />
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -143,6 +187,32 @@ function TimelineEntryRow({ entry }: { entry: TimelineEntry }) {
           </span>
           <span className={styles.eventContent}>
             {str(entry.reason) || str(entry.content)}
+          </span>
+        </div>
+      );
+
+    case "manager_note":
+      return (
+        <div className={styles.managerNote}>
+          <span className={styles.time}>{time}</span>
+          <span className={styles.managerNoteIcon} aria-hidden="true">
+            &#9733;
+          </span>
+          <span className={styles.eventContent}>
+            {str(entry.reason) || str(entry.content)}
+          </span>
+        </div>
+      );
+
+    case "manager_dispatched":
+      return (
+        <div className={styles.managerNote}>
+          <span className={styles.time}>{time}</span>
+          <span className={styles.managerNoteIcon} aria-hidden="true">
+            &#9733;
+          </span>
+          <span className={styles.eventContent}>
+            Dispatched{entry.reason ? `: ${String(entry.reason)}` : ""}
           </span>
         </div>
       );

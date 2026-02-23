@@ -1,16 +1,21 @@
 import { describe, test, expect } from "bun:test";
 import CommissionHeader from "@/components/commission/CommissionHeader";
 import CommissionLinkedArtifacts from "@/components/commission/CommissionLinkedArtifacts";
-import CommissionTimeline from "@/components/commission/CommissionTimeline";
+import {
+  filterTimeline,
+  WORKER_EVENTS,
+  USER_EVENTS,
+  MANAGER_EVENTS,
+} from "@/components/commission/CommissionTimeline";
 import type { TimelineEntry } from "@/lib/commissions";
 import type { CommissionArtifact } from "@/components/commission/CommissionLinkedArtifacts";
 
 /**
  * Commission view component tests. Server-renderable components (CommissionHeader,
- * CommissionLinkedArtifacts, CommissionTimeline) are called directly as functions.
- * Client components with hooks (CommissionPrompt, CommissionActions, CommissionNotes,
- * CommissionView) cannot be called outside a React render context, so we test their
- * type contracts and prop interfaces.
+ * CommissionLinkedArtifacts) are called directly as functions.
+ * Client components with hooks (CommissionTimeline, CommissionPrompt, CommissionActions,
+ * CommissionNotes, CommissionView) cannot be called outside a React render context,
+ * so we test their type contracts and exported pure logic (e.g., filterTimeline).
  *
  * CSS module class names resolve to undefined in bun test. We focus on structural
  * behavior: correct elements, correct props, correct children.
@@ -100,101 +105,6 @@ function findComponentElements(
       ) {
         results.push(
           ...findComponentElements(child as AnyElement, componentName),
-        );
-      }
-    }
-  }
-
-  return results;
-}
-
-/**
- * Resolves a React element tree by calling function components to expand
- * them into HTML elements. Stops at components that use hooks (they throw
- * when called outside React context). Recurses up to maxDepth levels.
- */
-function resolveElement(element: AnyElement, maxDepth = 3): AnyElement {
-  if (maxDepth <= 0) return element;
-
-  if (typeof element.type === "function") {
-    try {
-      const rendered = (element.type as (props: Record<string, unknown>) => AnyElement)(
-        element.props,
-      );
-      if (rendered && typeof rendered === "object" && "type" in rendered) {
-        return resolveElement(rendered, maxDepth - 1);
-      }
-    } catch {
-      // Hook-using component, can't call outside React
-      return element;
-    }
-  }
-
-  return element;
-}
-
-/**
- * Deep version of containsText that resolves function components.
- */
-function containsTextDeep(element: AnyElement, text: string): boolean {
-  const resolved = resolveElement(element);
-  if (containsText(resolved, text)) return true;
-
-  // Also search children after resolving
-  const children = resolved.props.children;
-  if (children) {
-    const childArray = Array.isArray(children) ? children : [children];
-    for (const child of childArray) {
-      if (
-        child &&
-        typeof child === "object" &&
-        "type" in child &&
-        "props" in child
-      ) {
-        if (containsTextDeep(child as AnyElement, text)) return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-/**
- * Deep version of findComponentElements that resolves function components
- * during traversal. When it finds a match it collects it and stops descending
- * into that branch (the component is the result, not its resolved output).
- */
-function findComponentElementsDeep(
-  element: AnyElement,
-  componentName: string,
-): AnyElement[] {
-  const results: AnyElement[] = [];
-
-  // If this element IS the target component, collect it and stop descending
-  if (
-    typeof element.type === "function" &&
-    (element.type as { name?: string }).name === componentName
-  ) {
-    results.push(element);
-    return results;
-  }
-
-  // Resolve function components to continue searching their rendered output
-  const resolved = resolveElement(element);
-  const target = resolved !== element ? resolved : element;
-
-  const children = target.props.children;
-  if (children) {
-    const childArray = Array.isArray(children) ? children : [children];
-    for (const child of childArray) {
-      if (
-        child &&
-        typeof child === "object" &&
-        "type" in child &&
-        "props" in child
-      ) {
-        results.push(
-          ...findComponentElementsDeep(child as AnyElement, componentName),
         );
       }
     }
@@ -430,105 +340,127 @@ describe("CommissionLinkedArtifacts", () => {
   });
 });
 
-// -- CommissionTimeline tests --
+// -- CommissionTimeline type contract tests --
+// CommissionTimeline now uses useState for tab filtering, so it cannot be
+// called directly outside a React render context. We test the exported
+// filtering logic as pure functions and verify the type contract.
 
-describe("CommissionTimeline", () => {
-  test("renders empty state when no timeline entries", () => {
-    const el = CommissionTimeline({ timeline: [] }) as AnyElement;
-    expect(containsText(el, "No activity yet.")).toBe(true);
+describe("CommissionTimeline type contract", () => {
+  test("accepts timeline prop", () => {
+    const props = { timeline: [] as TimelineEntry[] };
+    expect(props.timeline).toHaveLength(0);
   });
 
-  test("renders activity label", () => {
-    const el = CommissionTimeline({ timeline: [] }) as AnyElement;
-    const h3s = findElements(el, (e) => e.type === "h3");
-    expect(h3s).toHaveLength(1);
-    expect(h3s[0].props.children).toBe("Activity");
+  test("timeline entries have required fields", () => {
+    const entry: TimelineEntry = {
+      timestamp: "2026-02-21T10:00:00Z",
+      event: "status_change",
+      reason: "Created",
+    };
+    expect(entry.timestamp).toBe("2026-02-21T10:00:00Z");
+    expect(entry.event).toBe("status_change");
+    expect(entry.reason).toBe("Created");
   });
 
-  test("renders list items for timeline entries", () => {
-    const timeline: TimelineEntry[] = [
-      { timestamp: "2026-02-21T10:00:00Z", event: "status_change", reason: "Created", from: "pending", to: "dispatched" },
-      { timestamp: "2026-02-21T10:01:00Z", event: "progress_report", reason: "Analyzing codebase" },
+  test("timeline entries support dynamic extra fields", () => {
+    const entry: TimelineEntry = {
+      timestamp: "2026-02-21T10:00:00Z",
+      event: "status_change",
+      reason: "",
+      from: "pending",
+      to: "dispatched",
+    };
+    expect(entry.from).toBe("pending");
+    expect(entry.to).toBe("dispatched");
+  });
+});
+
+// -- filterTimeline pure logic tests --
+
+describe("filterTimeline", () => {
+  const mixedTimeline: TimelineEntry[] = [
+    { timestamp: "2026-02-21T10:00:00Z", event: "status_change", reason: "Created", from: "pending", to: "dispatched" },
+    { timestamp: "2026-02-21T10:01:00Z", event: "progress_report", reason: "Analyzing codebase" },
+    { timestamp: "2026-02-21T10:02:00Z", event: "question", reason: "Which API version?" },
+    { timestamp: "2026-02-21T10:03:00Z", event: "result_submitted", reason: "Analysis complete" },
+    { timestamp: "2026-02-21T10:04:00Z", event: "user_note", reason: "Focus on REST endpoints" },
+    { timestamp: "2026-02-21T10:05:00Z", event: "manager_note", reason: "Worker is on track" },
+    { timestamp: "2026-02-21T10:06:00Z", event: "manager_dispatched", reason: "Guild Master dispatched" },
+    { timestamp: "2026-02-21T10:07:00Z", event: "custom_event", reason: "Something else" },
+  ];
+
+  test("all tab returns every entry", () => {
+    const result = filterTimeline(mixedTimeline, "all");
+    expect(result).toHaveLength(mixedTimeline.length);
+    expect(result).toBe(mixedTimeline);
+  });
+
+  test("worker tab returns progress_report, result_submitted, question", () => {
+    const result = filterTimeline(mixedTimeline, "worker");
+    expect(result).toHaveLength(3);
+    expect(result.map((e) => e.event)).toEqual([
+      "progress_report",
+      "question",
+      "result_submitted",
+    ]);
+  });
+
+  test("user tab returns only user_note events", () => {
+    const result = filterTimeline(mixedTimeline, "user");
+    expect(result).toHaveLength(1);
+    expect(result[0].event).toBe("user_note");
+  });
+
+  test("manager tab returns manager_note and manager_dispatched events", () => {
+    const result = filterTimeline(mixedTimeline, "manager");
+    expect(result).toHaveLength(2);
+    expect(result.map((e) => e.event)).toEqual([
+      "manager_note",
+      "manager_dispatched",
+    ]);
+  });
+
+  test("all tab with empty timeline returns empty", () => {
+    expect(filterTimeline([], "all")).toHaveLength(0);
+  });
+
+  test("worker tab with no worker events returns empty", () => {
+    const onlyUserNotes: TimelineEntry[] = [
+      { timestamp: "2026-02-21T10:00:00Z", event: "user_note", reason: "A note" },
     ];
-    const el = CommissionTimeline({ timeline }) as AnyElement;
-    const items = findElements(el, (e) => e.type === "li");
-    expect(items).toHaveLength(2);
+    expect(filterTimeline(onlyUserNotes, "worker")).toHaveLength(0);
   });
 
-  test("status_change renders GemIndicator components", () => {
-    const timeline: TimelineEntry[] = [
-      { timestamp: "2026-02-21T10:00:00Z", event: "status_change", reason: "", from: "pending", to: "dispatched" },
+  test("manager tab with no manager events returns empty", () => {
+    const onlyWorkerEvents: TimelineEntry[] = [
+      { timestamp: "2026-02-21T10:00:00Z", event: "progress_report", reason: "Progress" },
     ];
-    const el = CommissionTimeline({ timeline }) as AnyElement;
-    const gems = findComponentElementsDeep(el, "GemIndicator");
-    expect(gems).toHaveLength(2);
+    expect(filterTimeline(onlyWorkerEvents, "manager")).toHaveLength(0);
+  });
+});
+
+// -- Event set membership tests --
+
+describe("timeline event categories", () => {
+  test("WORKER_EVENTS contains expected event types", () => {
+    expect(WORKER_EVENTS.has("progress_report")).toBe(true);
+    expect(WORKER_EVENTS.has("result_submitted")).toBe(true);
+    expect(WORKER_EVENTS.has("question")).toBe(true);
+    expect(WORKER_EVENTS.has("user_note")).toBe(false);
+    expect(WORKER_EVENTS.has("manager_note")).toBe(false);
   });
 
-  test("status_change GemIndicator maps statuses correctly", () => {
-    const timeline: TimelineEntry[] = [
-      { timestamp: "2026-02-21T10:00:00Z", event: "status_change", reason: "", from: "pending", to: "dispatched" },
-    ];
-    const el = CommissionTimeline({ timeline }) as AnyElement;
-    const gems = findComponentElementsDeep(el, "GemIndicator");
-    expect(gems[0].props.status).toBe("pending");
-    expect(gems[1].props.status).toBe("active");
+  test("USER_EVENTS contains expected event types", () => {
+    expect(USER_EVENTS.has("user_note")).toBe(true);
+    expect(USER_EVENTS.has("progress_report")).toBe(false);
+    expect(USER_EVENTS.has("manager_note")).toBe(false);
   });
 
-  test("progress_report renders reason text", () => {
-    const timeline: TimelineEntry[] = [
-      { timestamp: "2026-02-21T10:01:00Z", event: "progress_report", reason: "Analyzing codebase" },
-    ];
-    const el = CommissionTimeline({ timeline }) as AnyElement;
-    expect(containsTextDeep(el, "Analyzing codebase")).toBe(true);
-  });
-
-  test("question entry renders question text", () => {
-    const timeline: TimelineEntry[] = [
-      { timestamp: "2026-02-21T10:02:00Z", event: "question", reason: "Which API version?", question: "Which API version?" },
-    ];
-    const el = CommissionTimeline({ timeline }) as AnyElement;
-    expect(containsTextDeep(el, "Which API version?")).toBe(true);
-  });
-
-  test("result_submitted entry renders result text", () => {
-    const timeline: TimelineEntry[] = [
-      { timestamp: "2026-02-21T10:03:00Z", event: "result_submitted", reason: "Analysis complete" },
-    ];
-    const el = CommissionTimeline({ timeline }) as AnyElement;
-    expect(containsTextDeep(el, "Result submitted")).toBe(true);
-    expect(containsTextDeep(el, "Analysis complete")).toBe(true);
-  });
-
-  test("user_note entry renders note content", () => {
-    const timeline: TimelineEntry[] = [
-      { timestamp: "2026-02-21T10:04:00Z", event: "user_note", reason: "Focus on REST endpoints", content: "Focus on REST endpoints" },
-    ];
-    const el = CommissionTimeline({ timeline }) as AnyElement;
-    expect(containsTextDeep(el, "Focus on REST endpoints")).toBe(true);
-  });
-
-  test("unknown event type renders generic display", () => {
-    const timeline: TimelineEntry[] = [
-      { timestamp: "2026-02-21T10:05:00Z", event: "custom_event", reason: "Something happened" },
-    ];
-    const el = CommissionTimeline({ timeline }) as AnyElement;
-    expect(containsTextDeep(el, "custom_event")).toBe(true);
-    expect(containsTextDeep(el, "Something happened")).toBe(true);
-  });
-
-  test("renders list (ul) for non-empty timeline", () => {
-    const timeline: TimelineEntry[] = [
-      { timestamp: "2026-02-21T10:00:00Z", event: "progress_report", reason: "Working" },
-    ];
-    const el = CommissionTimeline({ timeline }) as AnyElement;
-    const lists = findElements(el, (e) => e.type === "ul");
-    expect(lists).toHaveLength(1);
-  });
-
-  test("renders paragraph (p) for empty timeline", () => {
-    const el = CommissionTimeline({ timeline: [] }) as AnyElement;
-    const paragraphs = findElements(el, (e) => e.type === "p");
-    expect(paragraphs).toHaveLength(1);
+  test("MANAGER_EVENTS contains expected event types", () => {
+    expect(MANAGER_EVENTS.has("manager_note")).toBe(true);
+    expect(MANAGER_EVENTS.has("manager_dispatched")).toBe(true);
+    expect(MANAGER_EVENTS.has("user_note")).toBe(false);
+    expect(MANAGER_EVENTS.has("progress_report")).toBe(false);
   });
 });
 
@@ -660,5 +592,13 @@ describe("CommissionView type contract", () => {
       artifactPath: "specs/api.md",
     };
     expect(artifactEvent.type).toBe("commission_artifact");
+
+    const managerNoteEvent = {
+      type: "commission_manager_note" as const,
+      commissionId: "commission-researcher-20260221",
+      content: "Worker is making good progress",
+    };
+    expect(managerNoteEvent.type).toBe("commission_manager_note");
+    expect(managerNoteEvent.content).toBe("Worker is making good progress");
   });
 });

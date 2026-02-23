@@ -453,6 +453,183 @@ describe("detectDefaultBranch", () => {
   });
 });
 
+describe("fetch", () => {
+  test("fetches from a remote", async () => {
+    // Create a "remote" repo and a "local" clone
+    const remoteRepo = await initTestRepo();
+    const localRepo = makeTmpDir();
+
+    // Clone creates the remote relationship
+    await git(localRepo, ["clone", remoteRepo, "."]);
+    await git(localRepo, ["config", "user.email", "test@test.com"]);
+    await git(localRepo, ["config", "user.name", "Test"]);
+
+    // Add a commit to the remote
+    fs.writeFileSync(path.join(remoteRepo, "remote-file.txt"), "remote\n");
+    await git(remoteRepo, ["add", "-A"]);
+    await git(remoteRepo, ["commit", "-m", "Remote commit"]);
+
+    // Fetch should succeed
+    await ops.fetch(localRepo, "origin");
+
+    // The fetched commit should be visible
+    const log = await git(localRepo, ["log", "--oneline", "origin/master"]);
+    expect(log).toContain("Remote commit");
+  });
+
+  test("throws when remote does not exist", async () => {
+    const repoPath = await initTestRepo();
+
+    await expect(ops.fetch(repoPath, "nonexistent")).rejects.toThrow(
+      /git fetch failed/
+    );
+  });
+});
+
+describe("push", () => {
+  test("pushes branch to a remote", async () => {
+    // Create a bare "remote" repo
+    const bareRepo = makeTmpDir();
+    await git(bareRepo, ["init", "--bare"]);
+
+    // Create a local repo with the remote
+    const localRepo = await initTestRepo();
+    await git(localRepo, ["remote", "add", "origin", bareRepo]);
+
+    // Push master to origin
+    await ops.push(localRepo, "master", "origin");
+
+    // Verify the bare repo now has the commit
+    const log = await git(bareRepo, ["log", "--oneline"]);
+    expect(log).toContain("Initial commit");
+  });
+});
+
+describe("resetHard", () => {
+  test("resets working tree and branch to a ref", async () => {
+    const repoPath = await initTestRepo();
+
+    // Add a commit, then reset back to the parent
+    fs.writeFileSync(path.join(repoPath, "extra.txt"), "extra\n");
+    await git(repoPath, ["add", "-A"]);
+    await git(repoPath, ["commit", "-m", "Extra commit"]);
+
+    const headBefore = await git(repoPath, ["rev-parse", "HEAD"]);
+    const parentSha = await git(repoPath, ["rev-parse", "HEAD~1"]);
+
+    await ops.resetHard(repoPath, "HEAD~1");
+
+    const headAfter = await git(repoPath, ["rev-parse", "HEAD"]);
+    expect(headAfter).toBe(parentSha);
+    expect(headAfter).not.toBe(headBefore);
+    expect(fs.existsSync(path.join(repoPath, "extra.txt"))).toBe(false);
+  });
+});
+
+describe("isAncestor", () => {
+  test("returns true when ref is ancestor", async () => {
+    const repoPath = await initTestRepo();
+    const parentSha = await git(repoPath, ["rev-parse", "HEAD"]);
+
+    // Add a commit so HEAD is ahead
+    fs.writeFileSync(path.join(repoPath, "new.txt"), "new\n");
+    await git(repoPath, ["add", "-A"]);
+    await git(repoPath, ["commit", "-m", "New commit"]);
+
+    const result = await ops.isAncestor(repoPath, parentSha, "HEAD");
+    expect(result).toBe(true);
+  });
+
+  test("returns false when ref is not ancestor", async () => {
+    const repoPath = await initTestRepo();
+
+    // Create two diverged branches
+    await git(repoPath, ["checkout", "-b", "branch-a"]);
+    fs.writeFileSync(path.join(repoPath, "a.txt"), "a\n");
+    await git(repoPath, ["add", "-A"]);
+    await git(repoPath, ["commit", "-m", "Branch A"]);
+    const shaA = await git(repoPath, ["rev-parse", "HEAD"]);
+
+    await git(repoPath, ["checkout", "master"]);
+    await git(repoPath, ["checkout", "-b", "branch-b"]);
+    fs.writeFileSync(path.join(repoPath, "b.txt"), "b\n");
+    await git(repoPath, ["add", "-A"]);
+    await git(repoPath, ["commit", "-m", "Branch B"]);
+    const shaB = await git(repoPath, ["rev-parse", "HEAD"]);
+
+    // Neither is ancestor of the other
+    const result1 = await ops.isAncestor(repoPath, shaA, shaB);
+    expect(result1).toBe(false);
+    const result2 = await ops.isAncestor(repoPath, shaB, shaA);
+    expect(result2).toBe(false);
+  });
+});
+
+describe("treesEqual", () => {
+  test("returns true when trees match", async () => {
+    const repoPath = await initTestRepo();
+
+    // Create a branch at the same point
+    await git(repoPath, ["branch", "same-content", "HEAD"]);
+
+    const result = await ops.treesEqual(repoPath, "master", "same-content");
+    expect(result).toBe(true);
+  });
+
+  test("returns false when trees differ", async () => {
+    const repoPath = await initTestRepo();
+    await git(repoPath, ["branch", "diff-content", "HEAD"]);
+
+    // Add a file on master only
+    fs.writeFileSync(path.join(repoPath, "new.txt"), "new\n");
+    await git(repoPath, ["add", "-A"]);
+    await git(repoPath, ["commit", "-m", "Master advance"]);
+
+    const result = await ops.treesEqual(repoPath, "master", "diff-content");
+    expect(result).toBe(false);
+  });
+});
+
+describe("revParse", () => {
+  test("resolves HEAD to a full SHA", async () => {
+    const repoPath = await initTestRepo();
+
+    const sha = await ops.revParse(repoPath, "HEAD");
+    // Full SHA is 40 hex characters
+    expect(sha).toMatch(/^[a-f0-9]{40}$/);
+  });
+
+  test("resolves branch name to a SHA", async () => {
+    const repoPath = await initTestRepo();
+    await git(repoPath, ["branch", "test-ref", "HEAD"]);
+
+    const sha = await ops.revParse(repoPath, "test-ref");
+    const headSha = await git(repoPath, ["rev-parse", "HEAD"]);
+    expect(sha).toBe(headSha);
+  });
+});
+
+describe("createPullRequest", () => {
+  test("throws clear error when gh is not installed", async () => {
+    const repoPath = await initTestRepo();
+
+    // Override PATH to exclude gh
+    const originalPath = process.env.PATH;
+    try {
+      process.env.PATH = "/nonexistent";
+      await expect(
+        ops.createPullRequest(repoPath, "main", "feature", "Test PR", "Body")
+      ).rejects.toThrow(/GitHub CLI.*not installed/);
+    } finally {
+      process.env.PATH = originalPath;
+    }
+  });
+
+  // Note: testing successful PR creation requires an authenticated gh CLI
+  // and a real GitHub repo, which is not appropriate for unit tests.
+  // Integration-level coverage of the full flow would go in a separate suite.
+});
+
 describe("runGit error handling", () => {
   test("throws with stderr on failure", async () => {
     const repoPath = await initTestRepo();

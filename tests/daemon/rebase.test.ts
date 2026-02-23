@@ -1,9 +1,10 @@
 /**
- * Tests for daemon startup rebase behavior.
+ * Tests for daemon startup sync behavior.
  *
- * Verifies that createProductionApp calls rebase for projects during
+ * Verifies that createProductionApp calls syncProject for projects during
  * startup, skips projects with active activities, and handles failures
- * without crashing.
+ * without crashing. The startup sequence now uses smart sync (fetch + detect
+ * merged PR + reset or rebase) instead of unconditional rebase.
  *
  * Uses the same test infrastructure as app.test.ts: GUILD_HALL_HOME override,
  * temp directories, mock gitOps.
@@ -82,6 +83,47 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "detectDefaultBranch", args });
       return Promise.resolve("main");
     },
+    fetch: (...args) => {
+      calls.push({ method: "fetch", args });
+      return Promise.resolve();
+    },
+    push: (...args) => {
+      calls.push({ method: "push", args });
+      return Promise.resolve();
+    },
+    resetHard: (...args) => {
+      calls.push({ method: "resetHard", args });
+      return Promise.resolve();
+    },
+    resetSoft: (...args) => {
+      calls.push({ method: "resetSoft", args });
+      return Promise.resolve();
+    },
+    createPullRequest: (...args) => {
+      calls.push({ method: "createPullRequest", args });
+      return Promise.resolve({ url: "https://github.com/test/repo/pull/1" });
+    },
+    isAncestor: (...args) => {
+      calls.push({ method: "isAncestor", args });
+      // Default: not ancestor (will fall through to diverged case, attempt merge)
+      return Promise.resolve(false);
+    },
+    treesEqual: (...args) => {
+      calls.push({ method: "treesEqual", args });
+      return Promise.resolve(false);
+    },
+    revParse: (...args) => {
+      calls.push({ method: "revParse", args });
+      return Promise.resolve("aaa111bbb222ccc333ddd444eee555fff666aaa1");
+    },
+    rebaseOnto: (...args) => {
+      calls.push({ method: "rebaseOnto", args });
+      return Promise.resolve();
+    },
+    merge: (...args) => {
+      calls.push({ method: "merge", args });
+      return Promise.resolve();
+    },
   };
 }
 
@@ -111,8 +153,8 @@ afterEach(async () => {
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
-describe("createProductionApp startup rebase", () => {
-  test("calls rebase for projects with no active activities", async () => {
+describe("createProductionApp startup sync", () => {
+  test("calls sync for projects with no active activities", async () => {
     const configPath = path.join(ghHome, "config.yaml");
     await writeConfig(
       { projects: [{ name: "test-project", path: "/fake/path" }] },
@@ -126,13 +168,19 @@ describe("createProductionApp startup rebase", () => {
     const mockGit = createMockGitOps();
     await createProductionApp({ packagesDir, gitOps: mockGit });
 
-    const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
-    expect(rebaseCalls).toHaveLength(1);
-    // No defaultBranch in config, so detection is used (mock returns "main")
-    expect(rebaseCalls[0].args).toEqual([iPath, "main"]);
+    // syncProject fetches from origin first
+    const fetchCalls = mockGit.calls.filter((c) => c.method === "fetch");
+    expect(fetchCalls).toHaveLength(1);
+
+    // Default mock: isAncestor returns false for both checks, so it
+    // falls through to the diverged case and merges (not rebase, which
+    // conflicts after squash-merge).
+    const mergeCalls = mockGit.calls.filter((c) => c.method === "merge");
+    expect(mergeCalls).toHaveLength(1);
+    expect(mergeCalls[0].args[0]).toBe(iPath);
   });
 
-  test("skips rebase for projects with active activities", async () => {
+  test("skips sync for projects with active activities", async () => {
     const configPath = path.join(ghHome, "config.yaml");
     await writeConfig(
       { projects: [{ name: "busy-project", path: "/fake/path" }] },
@@ -156,9 +204,11 @@ describe("createProductionApp startup rebase", () => {
 
     const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
     expect(rebaseCalls).toHaveLength(0);
+    const resetCalls = mockGit.calls.filter((c) => c.method === "resetHard");
+    expect(resetCalls).toHaveLength(0);
   });
 
-  test("rebase failure at startup does not crash daemon", async () => {
+  test("sync failure at startup does not crash daemon", async () => {
     const configPath = path.join(ghHome, "config.yaml");
     await writeConfig(
       { projects: [{ name: "conflict-project", path: "/fake/path" }] },
@@ -170,7 +220,7 @@ describe("createProductionApp startup rebase", () => {
     await fs.mkdir(iPath, { recursive: true });
 
     const mockGit = createMockGitOps();
-    mockGit.rebase = () => Promise.reject(new Error("rebase conflict"));
+    mockGit.merge = () => Promise.reject(new Error("merge conflict"));
 
     // Capture warnings
     const warnings: string[] = [];
@@ -183,17 +233,17 @@ describe("createProductionApp startup rebase", () => {
       const app = await createProductionApp({ packagesDir, gitOps: mockGit });
       expect(app).toBeDefined();
 
-      const rebaseWarning = warnings.find(
+      const syncWarning = warnings.find(
         (w) =>
-          w.includes("Rebase failed") && w.includes("conflict-project"),
+          w.includes("Sync failed") && w.includes("conflict-project"),
       );
-      expect(rebaseWarning).toBeDefined();
+      expect(syncWarning).toBeDefined();
     } finally {
       console.warn = originalWarn;
     }
   });
 
-  test("rebases multiple projects at startup", async () => {
+  test("syncs multiple projects at startup", async () => {
     const configPath = path.join(ghHome, "config.yaml");
     await writeConfig(
       {
@@ -214,7 +264,8 @@ describe("createProductionApp startup rebase", () => {
     const mockGit = createMockGitOps();
     await createProductionApp({ packagesDir, gitOps: mockGit });
 
-    const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
-    expect(rebaseCalls).toHaveLength(2);
+    // fetch should be called for each project
+    const fetchCalls = mockGit.calls.filter((c) => c.method === "fetch");
+    expect(fetchCalls).toHaveLength(2);
   });
 });

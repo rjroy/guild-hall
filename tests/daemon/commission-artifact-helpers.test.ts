@@ -185,6 +185,23 @@ activity_timeline:
     ).rejects.toThrow(/no "current_progress:" field or closing "---" delimiter found/);
   });
 
+  test("adds manager_note entry with correct format", async () => {
+    await writeCommissionArtifact();
+
+    await appendTimelineEntry(
+      projectPath,
+      commissionId,
+      "manager_note",
+      "Worker seems stalled, consider re-dispatching",
+    );
+
+    const timeline = await readActivityTimeline(projectPath, commissionId);
+    expect(timeline).toHaveLength(2);
+    expect(timeline[1].event).toBe("manager_note");
+    expect(timeline[1].reason).toBe("Worker seems stalled, consider re-dispatching");
+    expect(timeline[1].timestamp).toBeDefined();
+  });
+
   test("includes extra fields when provided", async () => {
     await writeCommissionArtifact();
 
@@ -243,6 +260,22 @@ status: pending
 `;
     const entries = parseActivityTimeline(raw);
     expect(entries).toEqual([]);
+  });
+
+  test("recognizes manager_note event type", () => {
+    const raw = `activity_timeline:
+  - timestamp: 2026-02-23T10:00:00.000Z
+    event: created
+    reason: "Commission created"
+  - timestamp: 2026-02-23T11:00:00.000Z
+    event: manager_note
+    reason: "Worker seems stalled, consider re-dispatching"
+current_progress: ""
+`;
+    const entries = parseActivityTimeline(raw);
+    expect(entries).toHaveLength(2);
+    expect(entries[1].event).toBe("manager_note");
+    expect(entries[1].reason).toBe("Worker seems stalled, consider re-dispatching");
   });
 
   test("handles entries with extra fields", () => {

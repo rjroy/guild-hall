@@ -12,6 +12,7 @@ export type SystemEvent =
   | { type: "commission_question"; commissionId: string; question: string }
   | { type: "commission_result"; commissionId: string; summary: string; artifacts?: string[] }
   | { type: "commission_artifact"; commissionId: string; artifactPath: string }
+  | { type: "commission_manager_note"; commissionId: string; content: string }
   | { type: "meeting_started"; meetingId: string; worker: string }
   | { type: "meeting_ended"; meetingId: string };
 

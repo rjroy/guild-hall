@@ -17,6 +17,7 @@ import { readLinkedArtifacts } from "@/daemon/services/meeting-artifact-helpers"
 import type { MeetingId } from "@/daemon/types";
 import type { QueryOptions } from "@/daemon/services/meeting-session";
 import { isNodeError } from "@/lib/types";
+import { collectSdkText } from "@/daemon/lib/sdk-text";
 
 // -- Types --
 
@@ -88,44 +89,6 @@ async function readDecisions(
   });
 
   return formatted.join("\n");
-}
-
-/**
- * Collects text from an SDK async generator for a single-turn, no-tool
- * invocation. Iterates all messages and extracts text content from assistant
- * messages only.
- *
- * Notes generation does not use includePartialMessages, so the SDK emits a
- * single assistant message. We extract text blocks from it. See
- * event-translator.ts lines 8-10 for why we never mix streaming deltas with
- * assistant message text blocks.
- */
-async function collectNotesText(
-  generator: AsyncGenerator<SDKMessage>,
-): Promise<string> {
-  const textParts: string[] = [];
-
-  for await (const message of generator) {
-    const msg = message as unknown as { type: string };
-
-    if (msg.type === "assistant") {
-      const assistantMsg = message as unknown as {
-        type: "assistant";
-        message?: { content?: unknown[] };
-      };
-      const content = assistantMsg.message?.content;
-      if (Array.isArray(content)) {
-        for (const block of content) {
-          const typed = block as Record<string, unknown>;
-          if (typed.type === "text" && typeof typed.text === "string") {
-            textParts.push(typed.text);
-          }
-        }
-      }
-    }
-  }
-
-  return textParts.join("");
 }
 
 // -- Public API --
@@ -212,7 +175,7 @@ Use plain text, no markdown headers. Be factual, not conversational.`;
       },
     });
 
-    const notes = await collectNotesText(generator);
+    const notes = await collectSdkText(generator);
     return { success: true, notes: notes || "No content generated." };
   } catch (err: unknown) {
     const reason = err instanceof Error ? err.message : String(err);

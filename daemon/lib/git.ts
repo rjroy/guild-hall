@@ -38,8 +38,9 @@ export function cleanGitEnv(): Record<string, string | undefined> {
  */
 async function runGit(
   cwd: string,
-  args: string[]
-): Promise<{ stdout: string; stderr: string }> {
+  args: string[],
+  opts?: { allowNonZero?: boolean },
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const proc = Bun.spawn(["git", ...args], {
     cwd,
     stdout: "pipe",
@@ -54,11 +55,47 @@ async function runGit(
 
   const exitCode = await proc.exited;
 
-  if (exitCode !== 0) {
+  if (exitCode !== 0 && !opts?.allowNonZero) {
     throw new Error(`git ${args[0]} failed (exit ${exitCode}): ${stderr.trim()}`);
   }
 
-  return { stdout: stdout.trim(), stderr: stderr.trim() };
+  return { stdout: stdout.trim(), stderr: stderr.trim(), exitCode };
+}
+
+/**
+ * Runs a non-git command (e.g., gh) in the given directory with a clean
+ * git environment. Same buffer-drain pattern as runGit.
+ *
+ * Throws if the executable is not found (Bun.spawn throws synchronously
+ * when the binary doesn't exist in PATH).
+ */
+async function runCmd(
+  cwd: string,
+  cmd: string[],
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  let proc;
+  try {
+    proc = Bun.spawn(cmd, {
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: cleanGitEnv(),
+    });
+  } catch (err) {
+    // Bun.spawn throws synchronously when the executable is not found
+    throw new Error(
+      `Executable not found: ${cmd[0]} (${err instanceof Error ? err.message : String(err)})`,
+    );
+  }
+
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+
+  const exitCode = await proc.exited;
+
+  return { stdout: stdout.trim(), stderr: stderr.trim(), exitCode };
 }
 
 export interface GitOps {
@@ -76,6 +113,53 @@ export interface GitOps {
   listWorktrees(repoPath: string): Promise<string[]>;
   initClaudeBranch(repoPath: string): Promise<void>;
   detectDefaultBranch(repoPath: string): Promise<string>;
+
+  /** Fetch from a remote. Defaults to "origin". */
+  fetch(repoPath: string, remote?: string): Promise<void>;
+
+  /** Push a branch to a remote. Defaults to "origin". */
+  push(repoPath: string, branchName: string, remote?: string): Promise<void>;
+
+  /** Hard-reset the current branch in a worktree to a ref. */
+  resetHard(worktreePath: string, ref: string): Promise<void>;
+
+  /** Soft-reset the current branch to a ref (moves HEAD, keeps index and working tree). */
+  resetSoft(worktreePath: string, ref: string): Promise<void>;
+
+  /**
+   * Create a PR using gh CLI. Returns the PR URL.
+   * Throws with a clear message if gh is not installed.
+   */
+  createPullRequest(
+    repoPath: string,
+    baseBranch: string,
+    headBranch: string,
+    title: string,
+    body: string,
+  ): Promise<{ url: string }>;
+
+  /** Returns true if potentialAncestor is an ancestor of ref. */
+  isAncestor(repoPath: string, potentialAncestor: string, ref: string): Promise<boolean>;
+
+  /** Returns true if two refs have identical tree content. */
+  treesEqual(repoPath: string, ref1: string, ref2: string): Promise<boolean>;
+
+  /** Resolves a ref to its full SHA. */
+  revParse(repoPath: string, ref: string): Promise<string>;
+
+  /**
+   * Rebase commits after `afterRef` onto `ontoRef`.
+   * Equivalent to: git rebase --onto <ontoRef> <afterRef>
+   * Used after squash-merge to replay only post-PR commits.
+   */
+  rebaseOnto(worktreePath: string, ontoRef: string, afterRef: string): Promise<void>;
+
+  /**
+   * Merge a ref into the current branch. Used instead of rebase when
+   * branches have diverged after a squash-merge (rebase would try to
+   * replay already-applied commits and conflict).
+   */
+  merge(worktreePath: string, ref: string, message: string): Promise<void>;
 }
 
 export function createGitOps(): GitOps {
@@ -157,6 +241,37 @@ export function createGitOps(): GitOps {
       }
     },
 
+    async rebaseOnto(worktreePath, ontoRef, afterRef) {
+      try {
+        await runGit(worktreePath, ["rebase", "--onto", ontoRef, afterRef]);
+      } catch (err) {
+        try {
+          await runGit(worktreePath, ["rebase", "--abort"]);
+        } catch {
+          // Abort itself may fail if rebase wasn't actually in progress
+        }
+        throw new Error(
+          `Rebase --onto ${ontoRef} ${afterRef} failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    },
+
+    async merge(worktreePath, ref, message) {
+      try {
+        await runGit(worktreePath, ["merge", ref, "-m", message]);
+      } catch (err) {
+        // Abort the failed merge to leave the repo clean
+        try {
+          await runGit(worktreePath, ["merge", "--abort"]);
+        } catch {
+          // Abort may fail if merge wasn't actually in progress
+        }
+        throw new Error(
+          `Merge of ${ref} failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    },
+
     async currentBranch(worktreePath) {
       const { stdout } = await runGit(worktreePath, ["rev-parse", "--abbrev-ref", "HEAD"]);
       return stdout;
@@ -210,6 +325,78 @@ export function createGitOps(): GitOps {
       const { stdout } = await runGit(repoPath, [
         "rev-parse", "--abbrev-ref", "HEAD",
       ]);
+      return stdout;
+    },
+
+    async fetch(repoPath, remote = "origin") {
+      await runGit(repoPath, ["fetch", remote]);
+    },
+
+    async push(repoPath, branchName, remote = "origin") {
+      await runGit(repoPath, ["push", remote, branchName]);
+    },
+
+    async resetHard(worktreePath, ref) {
+      await runGit(worktreePath, ["reset", "--hard", ref]);
+    },
+
+    async resetSoft(worktreePath, ref) {
+      await runGit(worktreePath, ["reset", "--soft", ref]);
+    },
+
+    async createPullRequest(repoPath, baseBranch, headBranch, title, body) {
+      // Check if gh is available before attempting. Uses gh --version
+      // rather than `which` because `which` may not exist on all systems.
+      try {
+        await runCmd(repoPath, ["gh", "--version"]);
+      } catch {
+        throw new Error(
+          "GitHub CLI (gh) is not installed or not in PATH. " +
+          "Install it from https://cli.github.com/ and run 'gh auth login' to authenticate.",
+        );
+      }
+
+      const result = await runCmd(repoPath, [
+        "gh", "pr", "create",
+        "--base", baseBranch,
+        "--head", headBranch,
+        "--title", title,
+        "--body", body,
+      ]);
+
+      if (result.exitCode !== 0) {
+        throw new Error(`gh pr create failed (exit ${result.exitCode}): ${result.stderr}`);
+      }
+
+      // gh pr create prints the PR URL to stdout
+      const url = result.stdout.trim();
+      if (!url) {
+        throw new Error("gh pr create succeeded but returned no URL");
+      }
+
+      return { url };
+    },
+
+    async isAncestor(repoPath, potentialAncestor, ref) {
+      const { exitCode } = await runGit(
+        repoPath,
+        ["merge-base", "--is-ancestor", potentialAncestor, ref],
+        { allowNonZero: true },
+      );
+      return exitCode === 0;
+    },
+
+    async treesEqual(repoPath, ref1, ref2) {
+      const { exitCode } = await runGit(
+        repoPath,
+        ["diff", "--quiet", ref1, ref2],
+        { allowNonZero: true },
+      );
+      return exitCode === 0;
+    },
+
+    async revParse(repoPath, ref) {
+      const { stdout } = await runGit(repoPath, ["rev-parse", ref]);
       return stdout;
     },
   };

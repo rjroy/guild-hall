@@ -23,6 +23,13 @@ import type {
 } from "@/lib/types";
 import { getWorkerByName } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { EventBus } from "@/daemon/services/event-bus";
+import {
+  MANAGER_PACKAGE_NAME,
+  activateManager,
+} from "@/daemon/services/manager-worker";
+import { buildManagerContext } from "@/daemon/services/manager-context";
 import {
   translateSdkMessage,
   type TranslatorContext,
@@ -151,6 +158,18 @@ export type MeetingSessionDeps = {
    * If omitted, the real createGitOps() is used.
    */
   gitOps?: GitOps;
+  /**
+   * Commission session reference. Required for the manager worker's toolbox,
+   * which needs to create and dispatch commissions. Optional because regular
+   * workers don't use it.
+   */
+  commissionSession?: CommissionSessionForRoutes;
+  /**
+   * Event bus reference. Required for the manager worker's toolbox to emit
+   * commission_manager_note events. Optional because regular workers don't
+   * use it.
+   */
+  eventBus?: EventBus;
 };
 
 // -- Factory --
@@ -188,7 +207,12 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     // Append sequence number only when needed to avoid collisions within
     // the same second. Sequence 0 is omitted for clean default IDs.
     const suffix = seq > 0 ? `-${seq}` : "";
-    return asMeetingId(`audience-${workerName}-${ts}${suffix}`);
+    // Sanitize worker name for use in git branch names (no spaces, colons, etc.)
+    const safeName = workerName
+      .replace(/[^a-zA-Z0-9-]/g, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-|-$/g, "");
+    return asMeetingId(`audience-${safeName}-${ts}${suffix}`);
   }
 
   function statePath(meetingId: MeetingId): string {
@@ -253,6 +277,17 @@ notes_summary: ""
     if (deps.activateFn) {
       return deps.activateFn(workerPkg, context);
     }
+
+    // Built-in workers have path === "". Route to the correct activator.
+    if (workerPkg.path === "") {
+      if (workerPkg.name === MANAGER_PACKAGE_NAME) {
+        return activateManager(context);
+      }
+      throw new Error(
+        `Unknown built-in worker "${workerPkg.name}". Only "${MANAGER_PACKAGE_NAME}" is a recognized built-in.`,
+      );
+    }
+
     // Dynamic import for production use. path.resolve() ensures an absolute
     // path even when the package was discovered from a relative scan path
     // (e.g., --packages-dir ./packages).
@@ -430,16 +465,30 @@ notes_summary: ""
     }
 
     const workerMeta = workerPkg.metadata as WorkerMetadata;
+    const isManager = workerPkg.name === MANAGER_PACKAGE_NAME;
 
     // Resolve tools and activate worker
     let activation: ActivationResult;
     try {
+      const project = findProject(meeting.projectName);
+
       const resolvedTools = resolveToolSet(workerMeta, deps.packages, {
         projectPath,
         meetingId: meeting.meetingId as string,
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,
         integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
+        isManager,
+        managerToolboxDeps: isManager && deps.commissionSession && deps.eventBus ? {
+          integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
+          projectName: meeting.projectName,
+          guildHallHome: ghHome,
+          commissionSession: deps.commissionSession,
+          eventBus: deps.eventBus,
+          gitOps: git,
+          projectRepoPath: project?.path ?? projectPath,
+          defaultBranch: project?.defaultBranch ?? "master",
+        } : undefined,
       });
 
       const activationContext: ActivationContext = {
@@ -458,6 +507,16 @@ notes_summary: ""
         projectPath,
         workingDirectory: meeting.worktreeDir,
       };
+
+      // Inject system state context for the Guild Master
+      if (isManager) {
+        activationContext.managerContext = await buildManagerContext({
+          packages: deps.packages,
+          projectName: meeting.projectName,
+          integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
+          guildHallHome: ghHome,
+        });
+      }
 
       activation = await activateWorker(workerPkg, activationContext);
     } catch (err: unknown) {

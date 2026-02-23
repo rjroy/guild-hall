@@ -8,7 +8,7 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 ## Status
 
-Phase 5 complete. 1115 tests pass. Phase 1 delivered three views (Dashboard, Project, Artifact), CLI tools (register, validate), config/artifact libraries, and API route for artifact editing. Phase 2 added the daemon process (Hono on Unix socket), meeting sessions via Claude Agent SDK, worker packages, toolbox resolution, SSE streaming, and meeting chat UI. Phase 3 added meeting lifecycle (four states: requested/open/closed/declined), transcript storage, notes generation on close, session persistence across daemon restarts, session renewal on SDK expiry, meeting requests via propose_followup tool, and pending audiences UI on the Dashboard. Phase 4 added async commissions: seven-state lifecycle (pending/blocked/dispatched/in_progress/completed/failed/cancelled), commission worker processes (separate OS processes via Bun.spawn), commission toolbox (report_progress/submit_result/log_question with dual-channel IPC), system-wide SSE event bus, heartbeat monitoring, cancellation with SIGTERM/SIGKILL grace, re-dispatch, commission creation form, commission view with live SSE updates, and DependencyMap on the Dashboard. Phase 5 added git integration: three-tier branch strategy (master/claude/activity), integration worktrees per project, activity worktrees per commission/meeting, squash-merge on completion, rebase utility, and Next.js read path migration to integration worktrees. Implementation follows vertical slices defined in `.lore/plans/implementation-phases.md`.
+Phase 6 complete. 1291 tests pass. Phase 1 delivered three views (Dashboard, Project, Artifact), CLI tools (register, validate), config/artifact libraries, and API route for artifact editing. Phase 2 added the daemon process (Hono on Unix socket), meeting sessions via Claude Agent SDK, worker packages, toolbox resolution, SSE streaming, and meeting chat UI. Phase 3 added meeting lifecycle (four states: requested/open/closed/declined), transcript storage, notes generation on close, session persistence across daemon restarts, session renewal on SDK expiry, meeting requests via propose_followup tool, and pending audiences UI on the Dashboard. Phase 4 added async commissions: seven-state lifecycle (pending/blocked/dispatched/in_progress/completed/failed/cancelled), commission worker processes (separate OS processes via Bun.spawn), commission toolbox (report_progress/submit_result/log_question with dual-channel IPC), system-wide SSE event bus, heartbeat monitoring, cancellation with SIGTERM/SIGKILL grace, re-dispatch, commission creation form, commission view with live SSE updates, and DependencyMap on the Dashboard. Phase 5 added git integration: three-tier branch strategy (master/claude/activity), integration worktrees per project, activity worktrees per commission/meeting, squash-merge on completion, rebase utility, and Next.js read path migration to integration worktrees. Phase 6 added the Guild Master: manager as built-in worker with coordination posture and deference rules, manager-exclusive toolbox (5 tools: create/dispatch commission, create PR, initiate meeting, add commission note), manager context injection (workers, commissions, meetings, requests), on-demand briefing generator with 1-hour cache, dependency graph library (Sugiyama layout) with SVG rendering, Quick Comment compound action, PR creation with push and post-merge sync, per-project mutex for concurrent git operations, and timeline comment tabs (Worker/User/Manager Notes). Implementation follows vertical slices defined in `.lore/plans/implementation-phases.md`.
 
 ## Architecture
 
@@ -20,14 +20,16 @@ Phase 5 complete. 1115 tests pass. Phase 1 delivered three views (Dashboard, Pro
 
 **Phase 4: Commissions.** Async work items dispatched to AI worker processes. Seven states: pending, blocked, dispatched, in_progress, completed, failed, cancelled. Commission artifacts live in `<project>/.lore/commissions/`. Each commission runs as a separate OS process (`Bun.spawn`), self-bootstrapping from a JSON config file. The daemon owns lifecycle (spawn, monitor, terminate); the worker owns the SDK session. Communication uses dual channels: file writes (durable) and HTTP callbacks to daemon (real-time, best-effort). System-wide SSE via EventBus broadcasts lifecycle events to all browser subscribers. Heartbeat monitoring (30s interval, 180s threshold) detects stale workers. Four-way exit classification: clean+result=completed, clean+no-result=failed, crash+result=completed, crash+no-result=failed. Cancellation sends SIGTERM with 30s grace, then SIGKILL.
 
-**Phase 5 (current): Git integration.** Three-tier branch strategy: `master` (user's branch, untouched by Guild Hall), `claude` (integration branch with a worktree per project at `~/.guild-hall/projects/<name>/`), activity branches (`claude/commission/<id>`, `claude/meeting/<id>`) with worktrees at `~/.guild-hall/worktrees/<project>/<type>-<id>/`. On project registration, `initClaudeBranch` creates the `claude` branch from HEAD and sets up the integration worktree. Dispatching a commission or creating/accepting a meeting creates an activity branch from `claude` with its own worktree and sparse checkout (`.lore/` only). On successful close, activity worktrees are squash-merged back to `claude`, then the branch and worktree are cleaned up. Failed/cancelled commissions preserve their branch for inspection. The daemon rebases `claude` onto `master` at startup for projects with no active activities. All Next.js pages read from integration worktrees; active commission/meeting detail views resolve to the activity worktree via state file lookup. Artifact editing writes to the integration worktree with auto-commit. `daemon/lib/git.ts` provides the `GitOps` interface with `cleanGitEnv()` to strip inherited git environment variables.
+**Phase 5: Git integration.** Three-tier branch strategy: `master` (user's branch, untouched by Guild Hall), `claude` (integration branch with a worktree per project at `~/.guild-hall/projects/<name>/`), activity branches (`claude/commission/<id>`, `claude/meeting/<id>`) with worktrees at `~/.guild-hall/worktrees/<project>/<type>-<id>/`. On project registration, `initClaudeBranch` creates the `claude` branch from HEAD and sets up the integration worktree. Dispatching a commission or creating/accepting a meeting creates an activity branch from `claude` with its own worktree and sparse checkout (`.lore/` only). On successful close, activity worktrees are squash-merged back to `claude`, then the branch and worktree are cleaned up. Failed/cancelled commissions preserve their branch for inspection. The daemon rebases `claude` onto `master` at startup for projects with no active activities. All Next.js pages read from integration worktrees; active commission/meeting detail views resolve to the activity worktree via state file lookup. Artifact editing writes to the integration worktree with auto-commit. `daemon/lib/git.ts` provides the `GitOps` interface with `cleanGitEnv()` to strip inherited git environment variables.
+
+**Phase 6 (current): The Guild Master.** The manager is a built-in worker (not a package) with `path: ""` signaling built-in status. It has a coordination posture with deference rules encoded in its system prompt. The manager-exclusive toolbox provides 5 MCP tools: `create_commission`, `dispatch_commission`, `create_pr`, `initiate_meeting`, `add_commission_note`. The toolbox resolver gates access via `isManager` flag, set only when `workerPkg.name === MANAGER_PACKAGE_NAME`. Manager context injection assembles system state (workers, commissions, meetings, requests) into markdown with 8000 char truncation. The briefing generator uses SDK sessions with 1-hour cache and template fallback. The dependency graph library (`lib/dependency-graph.ts`) provides pure TypeScript Sugiyama-style layout with Kahn's topological sort and barycentric ordering. CommissionGraph renders SVG DAGs with status-colored nodes; NeighborhoodGraph shows focal-node subgraphs. Quick Comment is a compound action (create commission + decline meeting) with atomicity guarantees. PR creation pushes `claude/main` to origin and calls `gh pr create`. Post-merge sync detects merged PRs via PR marker files (primary) and tree comparison (fallback), resetting `claude/main` to master when safe. Per-project mutex (`withProjectLock`) serializes concurrent git operations. Commission timelines have four tabs (All, Worker Notes, User Notes, Manager Notes) filtering the same data. See `.lore/design/pr-strategy.md` for the PR/sync design.
 
 **Daemon process model:**
 - Entry point: `daemon/index.ts`. Parses `--packages-dir` flag, cleans stale sockets, starts `Bun.serve({ unix, fetch })`, writes PID file, registers SIGINT/SIGTERM handlers.
 - PID file at `<socket-path>.pid` enables crash recovery. On boot, if a PID file exists and the process is dead, both socket and PID file are cleaned up. If the process is alive, startup is rejected.
 - Routes use DI factory pattern: `createHealthRoutes(deps)` receives injected dependencies. The app factory `createApp(deps)` wires route groups. Production wiring lives in `daemon/app.ts` via `createProductionApp()`.
 - Meeting sessions manage Claude Agent SDK lifecycle, translate SDK messages to GuildHallEvents, and stream them via SSE.
-- Toolbox resolver assembles base tools (3 built-in via MCP server: read_memory, write_memory, record_decision), context-specific tools (meeting or commission), domain-specific tools from worker packages, and built-in tool configurations. Workers access `.lore/` artifacts directly via filesystem (activity worktrees have `.lore/` via sparse checkout). Base toolbox uses `contextId`/`contextType` (not `meetingId`) to support both meeting and commission contexts.
+- Toolbox resolver assembles base tools (3 built-in via MCP server: read_memory, write_memory, record_decision), context-specific tools (meeting or commission), domain-specific tools from worker packages, built-in tool configurations, and the manager-exclusive toolbox (gated by `isManager` flag). Workers access `.lore/` artifacts directly via filesystem (activity worktrees have `.lore/` via sparse checkout). Base toolbox uses `contextId`/`contextType` (not `meetingId`) to support both meeting and commission contexts.
 - Commission sessions manage worker process lifecycle: spawn, monitor heartbeats, handle exits, and emit events to the EventBus. The EventBus (Set-based pub/sub) broadcasts SystemEvents to SSE subscribers via `GET /events`.
 
 ## Tech Stack
@@ -58,6 +60,7 @@ bun test tests/lib/config.test.ts  # run a single test file
 bun run guild-hall register <name> <path>  # register a project
 bun run guild-hall validate                # validate config
 bun run guild-hall rebase [project-name]   # rebase claude onto master
+bun run guild-hall sync [project-name]    # post-merge sync (detect merged PRs, reset claude)
 ```
 
 ## Key Paths
@@ -116,6 +119,13 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 - `components/commission/CommissionNotes.tsx` user notes text input.
 - `components/dashboard/DependencyMap.tsx` commission status cards sorted by priority (replaced stub).
 
+**Phase 6 components:**
+- `components/dashboard/CommissionGraph.tsx` SVG DAG rendering with status-colored nodes, arrowhead edges, click navigation, compact mode, focal node highlighting.
+- `components/commission/NeighborhoodGraph.tsx` mini dependency graph centered on a single commission's neighborhood (one hop in each direction).
+- `components/dashboard/ManagerBriefing.tsx` client component fetching on-demand briefing from daemon with loading/error states.
+- `components/dashboard/MeetingRequestCard.tsx` updated with Quick Comment button and inline prompt form.
+- `components/commission/CommissionTimeline.tsx` updated with four-tab filtering (All, Worker Notes, User Notes, Manager Notes) and manager_note rendering.
+
 ## API Routes
 
 `PUT /api/artifacts` updates artifact body content (Phase 1 exception to "daemon owns writes"). Accepts `{ projectName, artifactPath, content }`. Guards against path traversal. Writes only the markdown body, preserving raw frontmatter bytes to avoid git diff noise from gray-matter reformatting.
@@ -142,6 +152,10 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 - `POST /api/commissions/[commissionId]/note` adds a user note.
 - `GET /api/events` system-wide SSE stream for lifecycle events (commissions and meetings).
 
+**Phase 6 routes:**
+- `GET /api/briefing/[projectName]` proxies to daemon briefing endpoint (on-demand manager briefing).
+- `POST /api/meetings/[meetingId]/quick-comment` compound action: creates commission from meeting artifacts then declines meeting.
+
 ## Core Library Modules
 
 | Module | Responsibility |
@@ -156,6 +170,7 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 | `lib/meetings.ts` | `scanMeetings()`, `scanMeetingRequests()`, `readMeetingMeta()`, `parseTranscriptToMessages()` |
 | `lib/sse-helpers.ts` | Shared SSE consumption: `consumeFirstTurnSSE()`, `storeFirstTurnMessages()`, `parseSSEBuffer()` |
 | `lib/commissions.ts` | `scanCommissions()`, `readCommissionMeta()`, `parseActivityTimeline()` for Next.js server components |
+| `lib/dependency-graph.ts` | `buildDependencyGraph()`, `getNeighborhood()`, `layoutGraph()` for commission DAG visualization |
 
 ## Daemon Modules
 
@@ -185,7 +200,14 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 | `daemon/commission-worker.ts` | Worker process entry point (spawned by daemon, runs SDK session) |
 | `daemon/routes/commissions.ts` | 9 commission endpoints (CRUD, dispatch, IPC, notes) |
 | `daemon/routes/events.ts` | `GET /events` system-wide SSE endpoint |
-| `cli/rebase.ts` | `hasActiveActivities()`, `rebaseProject()`, `rebase()` CLI for claude branch maintenance |
+| `daemon/services/manager-worker.ts` | Built-in manager worker definition: `createManagerPackage()`, `activateManager()`, coordination posture |
+| `daemon/services/manager-toolbox.ts` | Manager-exclusive MCP server with 5 tools (create/dispatch commission, create PR, initiate meeting, add note) |
+| `daemon/services/manager-context.ts` | `buildManagerContext()` assembles system state markdown for manager activation |
+| `daemon/services/briefing-generator.ts` | On-demand briefing via SDK session with 1-hour cache and template fallback |
+| `daemon/routes/briefing.ts` | `GET /briefing/:projectName` daemon endpoint for manager briefing |
+| `daemon/lib/sdk-text.ts` | Shared `collectSdkText()` for extracting text from SDK message streams |
+| `daemon/lib/project-lock.ts` | `withProjectLock()` per-project mutex for serializing concurrent git operations |
+| `cli/rebase.ts` | `hasActiveActivities()`, `rebaseProject()`, `syncProject()`, `rebase()` CLI for claude branch maintenance |
 
 **Type boundaries:** Daemon-specific types live in `daemon/` (e.g., `GuildHallEvent`, `MeetingId`, `SdkSessionId`, `CommissionId`, `CommissionStatus`, `SystemEvent`, `MeetingStatus`, `AppDeps`). Shared types used by both daemon and Next.js live in `lib/types.ts`. The daemon imports from `lib/` via `@/lib/` path alias; `lib/` never imports from `daemon/`.
 

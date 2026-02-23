@@ -8,10 +8,12 @@ import {
 import { createCommissionRoutes } from "./routes/commissions";
 import { createEventRoutes } from "./routes/events";
 import { createWorkerRoutes } from "./routes/workers";
+import { createBriefingRoutes } from "./routes/briefing";
 import type { DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting-session";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { EventBus } from "@/daemon/services/event-bus";
+import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 
 export interface AppDeps {
@@ -20,6 +22,7 @@ export interface AppDeps {
   commissionSession?: CommissionSessionForRoutes;
   packages?: DiscoveredPackage[];
   eventBus?: EventBus;
+  briefingGenerator?: ReturnType<typeof createBriefingGenerator>;
 }
 
 /**
@@ -52,6 +55,10 @@ export function createApp(deps: AppDeps): Hono {
 
   if (deps.eventBus) {
     app.route("/", createEventRoutes({ eventBus: deps.eventBus }));
+  }
+
+  if (deps.briefingGenerator) {
+    app.route("/", createBriefingRoutes({ briefingGenerator: deps.briefingGenerator }));
   }
 
   return app;
@@ -109,15 +116,16 @@ export async function createProductionApp(options?: {
     }
   }
 
-  // Rebase claude onto the project's default branch for projects with no active activities.
+  // Smart sync: fetch from origin, detect merged PRs (reset), or rebase
+  // onto the default branch. Replaces the unconditional rebase from Phase 5.
   // Failures log a warning but don't crash the daemon.
-  const { rebaseProject } = await import("@/cli/rebase");
+  const { syncProject } = await import("@/cli/rebase");
   for (const project of config.projects) {
     try {
-      await rebaseProject(project.path, project.name, guildHallHome, git, project.defaultBranch);
+      await syncProject(project.path, project.name, guildHallHome, git, project.defaultBranch);
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
-      console.warn(`[daemon] Rebase failed for "${project.name}": ${reason}`);
+      console.warn(`[daemon] Sync failed for "${project.name}": ${reason}`);
     }
   }
 
@@ -126,7 +134,15 @@ export async function createProductionApp(options?: {
   const defaultPackagesDir = nodePath.join(guildHallHome, "packages");
   const scanPaths: string[] = [options?.packagesDir ?? defaultPackagesDir];
 
-  const packages = await discoverPackages(scanPaths);
+  const discoveredPackages = await discoverPackages(scanPaths);
+
+  // Prepend the built-in Guild Master worker package to the packages list
+  // so it appears in worker listings and can be selected for meetings.
+  const { createManagerPackage } = await import(
+    "@/daemon/services/manager-worker"
+  );
+  const managerPkg = createManagerPackage();
+  const allPackages = [managerPkg, ...discoveredPackages];
 
   // The real SDK query function. Dynamic import so the module isn't loaded
   // during testing when it isn't needed.
@@ -143,13 +159,28 @@ export async function createProductionApp(options?: {
     );
   }
 
+  // Commission session is created before meeting session because the
+  // manager worker's toolbox needs a reference to the commission session
+  // for creating and dispatching commissions.
+  const packagesDir = options?.packagesDir ?? defaultPackagesDir;
+  const commissionSession = createCommissionSession({
+    packages: allPackages,
+    config,
+    guildHallHome,
+    eventBus,
+    packagesDir,
+    gitOps: git,
+  });
+
   const meetingSession = createMeetingSession({
-    packages,
+    packages: allPackages,
     config,
     guildHallHome,
     queryFn,
     notesQueryFn: queryFn,
     gitOps: git,
+    commissionSession,
+    eventBus,
   });
 
   // Recover open meetings from persisted state files so users can resume
@@ -159,14 +190,17 @@ export async function createProductionApp(options?: {
     console.log(`[daemon] Recovered ${recovered} open meeting(s) from state files.`);
   }
 
-  const packagesDir = options?.packagesDir ?? defaultPackagesDir;
-  const commissionSession = createCommissionSession({
-    packages,
+  // Briefing generator: uses the same SDK query function as meetings/notes
+  // for single-turn project status summaries. Falls back to template when
+  // the SDK is not available.
+  const { createBriefingGenerator: makeBriefingGenerator } = await import(
+    "@/daemon/services/briefing-generator"
+  );
+  const briefingGenerator = makeBriefingGenerator({
+    queryFn,
+    packages: allPackages,
     config,
     guildHallHome,
-    eventBus,
-    packagesDir,
-    gitOps: git,
   });
 
   const startTime = Date.now();
@@ -179,8 +213,9 @@ export async function createProductionApp(options?: {
     },
     meetingSession,
     commissionSession,
-    packages,
+    packages: allPackages,
     eventBus,
+    briefingGenerator,
   });
 }
 
