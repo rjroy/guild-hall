@@ -284,6 +284,29 @@ export function createCommissionSession(
   }
 
   /**
+   * Counts the number of previous dispatch attempts by scanning the
+   * integration worktree's timeline for terminal status entries
+   * (status_failed, status_cancelled). Each previous attempt that ended
+   * in failure or cancellation syncs a terminal entry to the integration
+   * worktree via syncStatusToIntegration. The count of these entries
+   * gives the number of completed attempts, so the next attempt is
+   * count + 1 (attempt 2 produces branch suffix "-2", etc.).
+   *
+   * Note: status_dispatched entries are written to the activity worktree
+   * (not the integration worktree), so we count terminal entries instead.
+   */
+  async function getDispatchAttempt(
+    basePath: string,
+    id: CommissionId,
+  ): Promise<number> {
+    const artifactPath = commissionArtifactPath(basePath, id);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    const failed = raw.match(/event: status_failed/g);
+    const cancelled = raw.match(/event: status_cancelled/g);
+    return (failed?.length ?? 0) + (cancelled?.length ?? 0);
+  }
+
+  /**
    * Finds the project for a commission by searching integration worktrees
    * for the artifact file. Returns the project's real path (for config
    * lookups), the project name, and the integration worktree path (for
@@ -384,15 +407,36 @@ export function createCommissionSession(
     // Sync terminal status to integration worktree before cleanup
     await syncStatusToIntegration(commission, "failed", reason);
 
-    // Clean up activity worktree directory
-    fs.rm(commission.worktreeDir, { recursive: true, force: true }).catch(
-      (err: unknown) => {
+    // Git: preserve partial results on branch for inspection
+    try {
+      const hadChanges = await git.commitAll(
+        commission.worktreeDir,
+        `Partial work preserved: ${id}`,
+      );
+      if (hadChanges) {
+        console.log(
+          `[commission] "${id}" partial results committed to ${commission.branchName}`,
+        );
+      }
+    } catch (err: unknown) {
+      console.warn(
+        `[commission] Failed to commit partial results for "${id}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    const project = findProject(commission.projectName);
+    if (project) {
+      try {
+        await git.removeWorktree(project.path, commission.worktreeDir);
+      } catch (err: unknown) {
         console.warn(
-          `[commission-session] Failed to clean up worktree ${commission.worktreeDir}:`,
+          `[commission] Failed to remove worktree for "${id}":`,
           err instanceof Error ? err.message : String(err),
         );
-      },
-    );
+      }
+    }
+    // Branch is NOT deleted - preserved for inspection
 
     activeCommissions.delete(id);
 
@@ -586,6 +630,7 @@ projectName: ${projectName}
 
   async function dispatchCommission(
     commissionId: CommissionId,
+    attempt?: number,
   ): Promise<{ status: "accepted" }> {
     // 1. Find the project
     const found = await findProjectPathForCommission(commissionId);
@@ -614,7 +659,9 @@ projectName: ${projectName}
     // 3. Create activity branch and worktree from the claude branch.
     //    The worktree gets the committed state of the claude branch (pending).
     //    All subsequent artifact mutations happen in the activity worktree.
-    const branchName = commissionBranchName(commissionId as string);
+    //    On re-dispatch, the attempt number produces a suffixed branch name
+    //    (e.g., claude/commission/<id>-2) while preserving the old branch.
+    const branchName = commissionBranchName(commissionId as string, attempt);
     const worktreeDir = commissionWorktreePath(ghHome, found.projectName, commissionId as string);
 
     await git.createBranch(found.projectPath, branchName, "claude");
@@ -889,15 +936,54 @@ projectName: ${projectName}
     // Sync terminal status to integration worktree before cleanup
     await syncStatusToIntegration(commission, finalStatus, reason);
 
-    // Clean up activity worktree directory
-    fs.rm(commission.worktreeDir, { recursive: true, force: true }).catch(
-      (err: unknown) => {
+    // Git cleanup: behavior depends on final status
+    const project = findProject(commission.projectName);
+    if (finalStatus === "completed" && project) {
+      // Squash-merge activity branch into claude, then clean up both
+      const iPath = integrationWorktreePath(ghHome, commission.projectName);
+      try {
+        await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
+        await git.squashMerge(iPath, commission.branchName, `Commission: ${commissionId}`);
+        await git.removeWorktree(project.path, commission.worktreeDir);
+        await git.deleteBranch(project.path, commission.branchName);
+        console.log(`[commission] "${commissionId}" squash-merged to claude and cleaned up`);
+      } catch (err: unknown) {
         console.warn(
-          `[commission-session] Failed to clean up worktree ${commission.worktreeDir}:`,
+          `[commission] Git cleanup failed for completed "${commissionId}":`,
           err instanceof Error ? err.message : String(err),
         );
-      },
-    );
+      }
+    } else {
+      // Failure: preserve partial results on branch for inspection
+      try {
+        const hadChanges = await git.commitAll(
+          commission.worktreeDir,
+          `Partial work preserved: ${commissionId}`,
+        );
+        if (hadChanges) {
+          console.log(
+            `[commission] "${commissionId}" partial results committed to ${commission.branchName}`,
+          );
+        }
+      } catch (err: unknown) {
+        console.warn(
+          `[commission] Failed to commit partial results for "${commissionId}":`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+
+      if (project) {
+        try {
+          await git.removeWorktree(project.path, commission.worktreeDir);
+        } catch (err: unknown) {
+          console.warn(
+            `[commission] Failed to remove worktree for "${commissionId}":`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      }
+      // Branch is NOT deleted - preserved for inspection
+    }
 
     // Remove from active Map
     activeCommissions.delete(commissionId as string);
@@ -971,15 +1057,31 @@ projectName: ${projectName}
     // Sync terminal status to integration worktree before cleanup
     await syncStatusToIntegration(commission, "cancelled", "Commission cancelled by user");
 
-    // Clean up activity worktree directory
-    await fs.rm(commission.worktreeDir, { recursive: true, force: true }).catch(
-      (err: unknown) => {
+    // Git: preserve partial results on branch (same as failure)
+    try {
+      await git.commitAll(
+        commission.worktreeDir,
+        `Partial work preserved on cancellation: ${commissionId}`,
+      );
+    } catch (err: unknown) {
+      console.warn(
+        `[commission] Failed to commit partial results for cancelled "${commissionId}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    const project = findProject(commission.projectName);
+    if (project) {
+      try {
+        await git.removeWorktree(project.path, commission.worktreeDir);
+      } catch (err: unknown) {
         console.warn(
-          `[commission-session] Failed to clean up worktree ${commission.worktreeDir}:`,
+          `[commission] Failed to remove worktree for cancelled "${commissionId}":`,
           err instanceof Error ? err.message : String(err),
         );
-      },
-    );
+      }
+    }
+    // Branch is NOT deleted - preserved for inspection
 
     // Remove from active Map
     activeCommissions.delete(commissionId as string);
@@ -1025,9 +1127,20 @@ projectName: ${projectName}
       );
     }
 
-    console.log(`[commission] redispatching "${commissionId}" (was ${currentStatus})`);
+    // 3. Count previous dispatch attempts to determine the branch suffix.
+    //    Each dispatch appends a status_dispatched timeline entry, so the count
+    //    gives us the previous attempts. The new attempt is count + 1.
+    const previousDispatches = await getDispatchAttempt(
+      found.integrationPath,
+      commissionId,
+    );
+    const attempt = previousDispatches + 1;
 
-    // 3. Transition back to pending
+    console.log(
+      `[commission] redispatching "${commissionId}" (was ${currentStatus}, attempt ${attempt})`,
+    );
+
+    // 4. Transition back to pending
     // The state machine allows failed -> (nothing) and cancelled -> (nothing)
     // as terminal states. For redispatch, we do a direct status update
     // bypassing the normal transition graph since this is a reset operation.
@@ -1040,8 +1153,8 @@ projectName: ${projectName}
       { from: currentStatus, to: "pending" },
     );
 
-    // 4. Dispatch
-    return dispatchCommission(commissionId);
+    // 5. Dispatch with the attempt number so the new branch gets the suffix
+    return dispatchCommission(commissionId, attempt);
   }
 
   function reportProgress(

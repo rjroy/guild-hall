@@ -1,7 +1,7 @@
 ---
 title: "Commission re-dispatch creates new branch preserving old"
 date: 2026-02-22
-status: pending
+status: complete
 tags: [task, commission, redispatch, branch-naming]
 source: .lore/plans/phase-5-git-integration.md
 related:

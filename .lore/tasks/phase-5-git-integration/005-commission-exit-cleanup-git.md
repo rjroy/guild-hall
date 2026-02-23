@@ -1,7 +1,7 @@
 ---
 title: "Commission exit replaces temp dir cleanup with git operations"
 date: 2026-02-22
-status: pending
+status: complete
 tags: [task, commission, exit, squash-merge, cleanup]
 source: .lore/plans/phase-5-git-integration.md
 related:

@@ -90,6 +90,47 @@ projectName: test-project
   await fs.writeFile(artifactPath, content, "utf-8");
 }
 
+/**
+ * Writes a test commission artifact with a custom timeline.
+ * Used to simulate post-dispatch/failure states where the integration
+ * worktree has accumulated timeline entries from syncStatusToIntegration.
+ */
+async function writeCommissionArtifactWithTimeline(
+  status: CommissionStatus,
+  timeline: Array<{ event: string; reason: string }>,
+): Promise<void> {
+  const timelineYaml = timeline
+    .map(
+      (entry) =>
+        `  - timestamp: 2026-02-21T14:30:00.000Z\n    event: ${entry.event}\n    reason: "${entry.reason}"`,
+    )
+    .join("\n");
+
+  const content = `---
+title: "Commission: Research OAuth patterns"
+date: 2026-02-21
+status: ${status}
+tags: [commission]
+worker: researcher
+workerDisplayTitle: "Research Specialist"
+prompt: "Research OAuth 2.0 patterns for CLI tools..."
+dependencies: []
+linked_artifacts: []
+resource_overrides:
+  maxTurns: 150
+  maxBudgetUsd: 1.00
+activity_timeline:
+${timelineYaml}
+current_progress: ""
+result_summary: ""
+projectName: test-project
+---
+`;
+
+  const artifactPath = commissionArtifactPath(integrationPath, commissionId);
+  await fs.writeFile(artifactPath, content, "utf-8");
+}
+
 // -- validateTransition --
 
 describe("validateTransition", () => {
@@ -1019,6 +1060,148 @@ describe("createCommissionSession", () => {
         session.redispatchCommission(commissionId),
       ).rejects.toThrow('must be "failed" or "cancelled"');
     });
+
+    // -- Redispatch git branch naming --
+
+    test("redispatch creates branch with attempt suffix after first failure", async () => {
+      // Simulate a commission that was dispatched once and failed.
+      // The integration worktree has the terminal status_failed entry
+      // that syncStatusToIntegration would have written.
+      await writeCommissionArtifactWithTimeline("failed", [
+        { event: "created", reason: "Commission created" },
+        { event: "status_failed", reason: "Worker crashed with exit code 1" },
+      ]);
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.redispatchCommission(commissionId);
+
+      // The createBranch call should use the attempt-2 suffixed branch name
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 2));
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("multiple redispatches increment the attempt suffix", async () => {
+      // Simulate a commission that failed twice (two terminal entries).
+      // First dispatch failed, first redispatch also failed.
+      await writeCommissionArtifactWithTimeline("failed", [
+        { event: "created", reason: "Commission created" },
+        { event: "status_failed", reason: "Worker crashed with exit code 1" },
+        { event: "status_pending", reason: "Commission reset for redispatch" },
+        { event: "status_failed", reason: "Worker crashed again" },
+      ]);
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.redispatchCommission(commissionId);
+
+      // Two previous failures, so this is attempt 3
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 3));
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("redispatch from cancelled status uses correct attempt suffix", async () => {
+      // Simulate a commission that was dispatched and cancelled.
+      await writeCommissionArtifactWithTimeline("cancelled", [
+        { event: "created", reason: "Commission created" },
+        { event: "status_cancelled", reason: "Commission cancelled by user" },
+      ]);
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.redispatchCommission(commissionId);
+
+      // One previous cancellation, so attempt 2
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 2));
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("mixed failed and cancelled attempts count correctly", async () => {
+      // One failure + one cancellation = 2 previous attempts, next is attempt 3
+      await writeCommissionArtifactWithTimeline("cancelled", [
+        { event: "created", reason: "Commission created" },
+        { event: "status_failed", reason: "Worker crashed" },
+        { event: "status_pending", reason: "Commission reset for redispatch" },
+        { event: "status_cancelled", reason: "Commission cancelled by user" },
+      ]);
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.redispatchCommission(commissionId);
+
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 3));
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("first dispatch (no previous failures) uses unsuffixed branch name", async () => {
+      // Fresh commission with no terminal entries. This tests the default
+      // dispatch path (no attempt parameter).
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const branchCall = mockGitOps.calls.find((c) => c.method === "createBranch");
+      expect(branchCall).toBeDefined();
+      // No attempt suffix for first dispatch
+      expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string));
+      expect(branchCall!.args[1]).toBe(`claude/commission/${commissionId}`);
+
+      mockSpawn.resolveExit(0);
+    });
   });
 
   // -- reportProgress --
@@ -1468,6 +1651,186 @@ describe("createCommissionSession", () => {
       expect(state.branchName).toBe(commissionBranchName(commissionId as string));
 
       mockSpawn.resolveExit(0);
+    });
+
+    // -- Exit/cleanup git operations --
+
+    test("completion calls commitAll, squashMerge, removeWorktree, deleteBranch in order", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      // Clear calls from dispatch to isolate exit-path calls
+      const dispatchCallCount = mockGitOps.calls.length;
+
+      // Report result so exit classifies as completed
+      session.reportResult(commissionId, "Research complete", ["report.md"]);
+      mockSpawn.resolveExit(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
+      const exitMethods = exitCalls.map((c) => c.method);
+
+      expect(exitMethods).toContain("commitAll");
+      expect(exitMethods).toContain("squashMerge");
+      expect(exitMethods).toContain("removeWorktree");
+      expect(exitMethods).toContain("deleteBranch");
+
+      // Verify ordering: commitAll before squashMerge before removeWorktree before deleteBranch
+      const commitIdx = exitMethods.indexOf("commitAll");
+      const squashIdx = exitMethods.indexOf("squashMerge");
+      const removeIdx = exitMethods.indexOf("removeWorktree");
+      const deleteIdx = exitMethods.indexOf("deleteBranch");
+
+      expect(commitIdx).toBeLessThan(squashIdx);
+      expect(squashIdx).toBeLessThan(removeIdx);
+      expect(removeIdx).toBeLessThan(deleteIdx);
+
+      // Verify squashMerge targets integration worktree with the activity branch
+      const squashCall = exitCalls.find((c) => c.method === "squashMerge");
+      expect(squashCall!.args[0]).toBe(integrationWorktreePath(ghHome, "test-project"));
+      expect(squashCall!.args[1]).toBe(commissionBranchName(commissionId as string));
+
+      // Verify deleteBranch targets the activity branch
+      const deleteCall = exitCalls.find((c) => c.method === "deleteBranch");
+      expect(deleteCall!.args[0]).toBe(projectPath);
+      expect(deleteCall!.args[1]).toBe(commissionBranchName(commissionId as string));
+    });
+
+    test("failure preserves branch (commitAll + removeWorktree, no deleteBranch)", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const dispatchCallCount = mockGitOps.calls.length;
+
+      // Exit without result -> failure
+      mockSpawn.resolveExit(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
+      const exitMethods = exitCalls.map((c) => c.method);
+
+      expect(exitMethods).toContain("commitAll");
+      expect(exitMethods).toContain("removeWorktree");
+      expect(exitMethods).not.toContain("squashMerge");
+      expect(exitMethods).not.toContain("deleteBranch");
+    });
+
+    test("cancellation preserves branch (commitAll + removeWorktree, no deleteBranch)", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const dispatchCallCount = mockGitOps.calls.length;
+
+      await session.cancelCommission(commissionId);
+
+      const cancelCalls = mockGitOps.calls.slice(dispatchCallCount);
+      const cancelMethods = cancelCalls.map((c) => c.method);
+
+      expect(cancelMethods).toContain("commitAll");
+      expect(cancelMethods).toContain("removeWorktree");
+      expect(cancelMethods).not.toContain("squashMerge");
+      expect(cancelMethods).not.toContain("deleteBranch");
+    });
+
+    test("git cleanup failure does not prevent commission from completing", async () => {
+      await writeCommissionArtifact("pending");
+
+      // Create a mock that throws on squashMerge
+      const mockGitOps = createMockGitOps();
+      const originalSquashMerge = mockGitOps.squashMerge.bind(mockGitOps);
+      void originalSquashMerge; // suppress unused
+      mockGitOps.squashMerge = () => {
+        return Promise.reject(new Error("Merge conflict"));
+      };
+
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      // Report result so exit classifies as completed
+      session.reportResult(commissionId, "Research complete");
+      mockSpawn.resolveExit(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Commission should still have been removed from active map
+      expect(session.getActiveCommissions()).toBe(0);
+
+      // Status event should still have been emitted as completed
+      const statusEvents = emittedEvents.filter(
+        (e) =>
+          e.type === "commission_status" &&
+          "status" in e &&
+          e.status === "completed",
+      );
+      expect(statusEvents.length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("commitAll returning false (nothing to commit) continues normally", async () => {
+      await writeCommissionArtifact("pending");
+
+      // Default mock commitAll already returns false. Verify the flow
+      // completes without error for the failure path.
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      // Exit without result -> failure path, commitAll returns false
+      mockSpawn.resolveExit(1);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(session.getActiveCommissions()).toBe(0);
+
+      // removeWorktree should still be called even when nothing to commit
+      const exitCalls = mockGitOps.calls.filter((c) => c.method === "removeWorktree");
+      expect(exitCalls.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

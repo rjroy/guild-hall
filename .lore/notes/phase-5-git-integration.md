@@ -16,8 +16,8 @@ Re-implementation after data loss (see `.lore/retros/phase-5-git-integration-dat
 - [x] Phase 2: Path helpers and type updates
 - [x] Phase 3: Project registration git setup
 - [x] Phase 4: Commission dispatch git integration
-- [ ] Phase 5: Commission exit + cleanup git integration
-- [ ] Phase 6: Commission re-dispatch git integration
+- [x] Phase 5: Commission exit + cleanup git integration
+- [x] Phase 6: Commission re-dispatch git integration
 - [ ] Phase 7: Meeting session git integration
 - [ ] Phase 8: Next.js read path migration
 - [ ] Phase 9: Claude branch maintenance
@@ -55,3 +55,13 @@ Re-implementation after data loss (see `.lore/retros/phase-5-git-integration-dat
 - Dispatched: Replace fs.mkdtemp with git worktree in dispatch. Update createCommission to write to integration worktree. Add resolveArtifactBasePath and syncStatusToIntegration helpers. Cascading path changes through all commission operations.
 - Result: dispatchCommission creates branch + worktree + sparse checkout. createCommission writes to integration worktree. findProjectPathForCommission searches integration worktrees. resolveArtifactBasePath routes active to worktree, inactive to integration. State files include branchName.
 - Tests: 1075 pass (7 new git integration tests, no regressions)
+
+### Phase 5: Commission Exit + Cleanup Git Integration
+- Dispatched: Replace fs.rm cleanup with git operations in handleExit, handleFailure, cancelCommission. Four exit outcomes with different git behavior.
+- Result: Completion: commitAll + squashMerge + removeWorktree + deleteBranch. Failure/cancel: commitAll + removeWorktree (branch preserved). All wrapped in try/catch, failures logged but don't crash lifecycle.
+- Tests: 1080 pass (5 new exit git tests)
+
+### Phase 6: Commission Re-dispatch Git Integration
+- Dispatched: Add getDispatchAttempt() to count previous failures/cancellations. Pass attempt to dispatchCommission for branch suffix. Old branches preserved.
+- Result: Re-dispatch counts terminal timeline entries (status_failed, status_cancelled) to derive attempt number. commissionBranchName(id, attempt) produces suffixed names for attempt > 1.
+- Tests: 1085 pass (5 new redispatch git tests)
