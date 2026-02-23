@@ -1,7 +1,7 @@
 ---
 title: "Implementation notes: phase-5-git-integration"
 date: 2026-02-22
-status: active
+status: complete
 tags: [implementation, notes]
 source: .lore/plans/phase-5-git-integration.md
 modules: [guild-hall-core, guild-hall-ui]
@@ -21,7 +21,7 @@ Re-implementation after data loss (see `.lore/retros/phase-5-git-integration-dat
 - [x] Phase 7: Meeting session git integration
 - [x] Phase 8: Next.js read path migration
 - [x] Phase 9: Claude branch maintenance
-- [ ] Phase 10: Spec validation
+- [x] Phase 10: Spec validation
 
 ## Key Lessons from Prior Attempt
 
@@ -80,3 +80,12 @@ Re-implementation after data loss (see `.lore/retros/phase-5-git-integration-dat
 - Dispatched: Create cli/rebase.ts with rebaseProject + hasActiveActivities. Add rebase CLI command. Wire startup rebase in daemon/app.ts.
 - Result: cli/rebase.ts exports hasActiveActivities (scans state files), rebaseProject (rebases integration worktree onto master, skips if active), rebase (CLI entry, one or all projects). daemon/app.ts calls rebaseProject after worktree verification. cli/index.ts has rebase subcommand.
 - Tests: 1115 pass (22 new: 18 cli/rebase, 4 daemon/rebase)
+
+### Phase 10: Spec Validation
+- Dispatched: Fresh-context review agent with full spec checklist (22 items)
+- Result: 21/22 PASS. One FAIL: CLAUDE.md not updated for Phase 5. Fixed by updating Status, Architecture (added Phase 5 section), Key Paths (integration/activity worktrees), Core Library Modules (path helpers), Daemon Modules (git.ts, rebase.ts), Commands (rebase), and state file descriptions.
+- Minor deviation noted: `additionalDirectories` in meeting-session.ts `startSession()` passes project.path for SDK read context instead of worktree path. Non-blocking since it's read-only context for the SDK.
+
+## Summary
+
+Phase 5 Git Integration complete. 10 phases, 1115 tests (83 new), 0 regressions. Built three-tier branch strategy (master/claude/activity), integration worktrees as UI read source, activity worktrees for commission/meeting isolation, squash-merge on completion, and rebase utility for branch maintenance. Re-implementation after data loss; notes from prior attempt informed all phases.
