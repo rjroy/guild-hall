@@ -9,6 +9,30 @@ import {
   type NotesResult,
 } from "@/daemon/services/notes-generator";
 import type { QueryOptions } from "@/daemon/services/meeting-session";
+import type { GitOps } from "@/daemon/lib/git";
+import { integrationWorktreePath } from "@/lib/paths";
+
+// -- Mock GitOps --
+
+function createMockGitOps(): GitOps {
+  return {
+    createBranch: () => Promise.resolve(),
+    branchExists: () => Promise.resolve(false),
+    deleteBranch: () => Promise.resolve(),
+    createWorktree: async (_repoPath, worktreePath) => {
+      await fs.mkdir(worktreePath, { recursive: true });
+    },
+    removeWorktree: () => Promise.resolve(),
+    configureSparseCheckout: () => Promise.resolve(),
+    commitAll: () => Promise.resolve(false),
+    squashMerge: () => Promise.resolve(),
+    hasUncommittedChanges: () => Promise.resolve(false),
+    rebase: () => Promise.resolve(),
+    currentBranch: () => Promise.resolve("main"),
+    listWorktrees: () => Promise.resolve([]),
+    initClaudeBranch: () => Promise.resolve(),
+  };
+}
 
 // -- Test state --
 
@@ -22,6 +46,9 @@ beforeEach(async () => {
   ghHomeDir = path.join(tmpRoot, "guild-hall-home");
   await fs.mkdir(projectDir, { recursive: true });
   await fs.mkdir(ghHomeDir, { recursive: true });
+  // Create integration worktree directory (needed by meeting session)
+  const iDir = integrationWorktreePath(ghHomeDir, "test-project");
+  await fs.mkdir(iDir, { recursive: true });
 });
 
 afterEach(async () => {
@@ -518,6 +545,7 @@ describe("closeMeeting with notes generation", () => {
       queryFn: sessionQuery,
       notesQueryFn: notesQueryMock.queryFn,
       activateFn: mockActivate,
+      gitOps: createMockGitOps(),
     });
 
     // Create meeting
@@ -536,8 +564,12 @@ describe("closeMeeting with notes generation", () => {
     const result = await session.closeMeeting(asMeetingId(meetingId));
     expect(result.notes).toBe("These are the generated meeting notes.\nWith multiple lines.");
 
-    // Verify notes were written to artifact
-    const artifactPath = path.join(projectDir, ".lore", "meetings", `${meetingId}.md`);
+    // Read worktreeDir from state file to find the artifact
+    const stateContent = await fs.readFile(
+      path.join(ghHomeDir, "state", "meetings", `${meetingId}.json`), "utf-8",
+    );
+    const state = JSON.parse(stateContent) as { worktreeDir: string };
+    const artifactPath = path.join(state.worktreeDir, ".lore", "meetings", `${meetingId}.md`);
     const artifactContent = await fs.readFile(artifactPath, "utf-8");
     expect(artifactContent).toContain("notes_summary: |");
     expect(artifactContent).toContain("  These are the generated meeting notes.");
@@ -575,6 +607,7 @@ describe("closeMeeting with notes generation", () => {
       queryFn: sessionQuery,
       notesQueryFn: makeFailingQueryFn(),
       activateFn: mockActivate,
+      gitOps: createMockGitOps(),
     });
 
     // Create meeting
@@ -631,6 +664,7 @@ describe("closeMeeting with notes generation", () => {
       queryFn: sessionQuery,
       notesQueryFn: notesQueryMock.queryFn,
       activateFn: mockActivate,
+      gitOps: createMockGitOps(),
     });
 
     // Create meeting

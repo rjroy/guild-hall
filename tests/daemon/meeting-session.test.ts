@@ -17,6 +17,12 @@ import type {
   DiscoveredPackage,
   WorkerMetadata,
 } from "@/lib/types";
+import type { GitOps } from "@/daemon/lib/git";
+import {
+  meetingWorktreePath,
+  meetingBranchName,
+  integrationWorktreePath,
+} from "@/lib/paths";
 
 // -- Test fixtures --
 
@@ -165,6 +171,70 @@ function makeMockActivateFn(result?: ActivationResult) {
   return { activateFn: mockActivate, calls };
 }
 
+// -- Mock GitOps --
+
+/**
+ * Creates a mock GitOps that tracks calls for assertion. createWorktree
+ * creates the directory on disk so the rest of the code (artifact writes,
+ * etc.) works without a real git repo.
+ */
+/**
+ * Creates a mock GitOps that tracks calls for assertion. createWorktree
+ * creates the directory on disk so the rest of the code (artifact writes,
+ * etc.) works without a real git repo.
+ *
+ * When copyFromDir is set, createWorktree will recursively copy its
+ * contents into the new worktree directory. This simulates the real
+ * git behavior where createWorktree checks out a branch that already
+ * has content (e.g., from the claude branch via integration worktree).
+ */
+function createMockGitOps(options?: {
+  copyFromDir?: string;
+}): GitOps & { calls: string[] } {
+  const calls: string[] = [];
+  return {
+    calls,
+    createBranch: () => { calls.push("createBranch"); return Promise.resolve(); },
+    branchExists: () => { calls.push("branchExists"); return Promise.resolve(false); },
+    deleteBranch: () => { calls.push("deleteBranch"); return Promise.resolve(); },
+    createWorktree: async (_repoPath, worktreePath) => {
+      calls.push("createWorktree");
+      const nodeFs = await import("node:fs/promises");
+      await nodeFs.mkdir(worktreePath, { recursive: true });
+      // If a source directory is provided, copy its content into the
+      // new worktree. This simulates checking out a branch that already
+      // has files (e.g., acceptMeetingRequest branching from claude).
+      if (options?.copyFromDir) {
+        await copyDir(options.copyFromDir, worktreePath);
+      }
+    },
+    removeWorktree: () => { calls.push("removeWorktree"); return Promise.resolve(); },
+    configureSparseCheckout: () => { calls.push("configureSparseCheckout"); return Promise.resolve(); },
+    commitAll: () => { calls.push("commitAll"); return Promise.resolve(false); },
+    squashMerge: () => { calls.push("squashMerge"); return Promise.resolve(); },
+    hasUncommittedChanges: () => { calls.push("hasUncommittedChanges"); return Promise.resolve(false); },
+    rebase: () => { calls.push("rebase"); return Promise.resolve(); },
+    currentBranch: () => { calls.push("currentBranch"); return Promise.resolve("main"); },
+    listWorktrees: () => { calls.push("listWorktrees"); return Promise.resolve([]); },
+    initClaudeBranch: () => { calls.push("initClaudeBranch"); return Promise.resolve(); },
+  };
+}
+
+/** Recursively copies a directory tree. */
+async function copyDir(src: string, dest: string): Promise<void> {
+  const entries = await fs.readdir(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      await fs.mkdir(destPath, { recursive: true });
+      await copyDir(srcPath, destPath);
+    } else {
+      await fs.copyFile(srcPath, destPath);
+    }
+  }
+}
+
 // -- Helpers --
 
 async function collectEvents(
@@ -182,13 +252,18 @@ async function collectEvents(
 let tmpRoot: string;
 let projectDir: string;
 let ghHomeDir: string;
+/** Integration worktree path for test-project (ghHome/projects/test-project) */
+let integrationDir: string;
 
 beforeEach(async () => {
   tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "meeting-test-"));
   projectDir = path.join(tmpRoot, "project");
   ghHomeDir = path.join(tmpRoot, "guild-hall-home");
+  integrationDir = integrationWorktreePath(ghHomeDir, "test-project");
   await fs.mkdir(projectDir, { recursive: true });
   await fs.mkdir(ghHomeDir, { recursive: true });
+  // Create the integration worktree directory (simulates what daemon boot does)
+  await fs.mkdir(integrationDir, { recursive: true });
 });
 
 afterEach(async () => {
@@ -201,6 +276,7 @@ function makeDeps(overrides: Partial<MeetingSessionDeps> = {}): MeetingSessionDe
 
   const mock = makeMockQueryFn();
   const activateMock = makeMockActivateFn();
+  const mockGit = createMockGitOps();
 
   return {
     packages: [WORKER_PKG],
@@ -208,8 +284,21 @@ function makeDeps(overrides: Partial<MeetingSessionDeps> = {}): MeetingSessionDe
     guildHallHome: ghHomeDir,
     queryFn: mock.queryFn,
     activateFn: activateMock.activateFn,
+    gitOps: mockGit,
     ...overrides,
   };
+}
+
+/**
+ * Reads the worktreeDir from the state file for a given meetingId.
+ * Since meeting artifacts are now written to the worktreeDir (not project.path),
+ * tests that verify artifact content need this to find the right location.
+ */
+async function getWorktreeDirFromState(meetingId: string): Promise<string> {
+  const stateDir = path.join(ghHomeDir, "state", "meetings");
+  const content = await fs.readFile(path.join(stateDir, `${meetingId}.json`), "utf-8");
+  const state = JSON.parse(content) as { worktreeDir: string };
+  return state.worktreeDir;
 }
 
 // -- Tests --
@@ -244,12 +333,18 @@ describe("createMeetingSession", () => {
 
     test("creates meeting artifact with correct frontmatter", async () => {
       const session = createMeetingSession(makeDeps());
-      await collectEvents(
+      const events = await collectEvents(
         session.createMeeting("test-project", "guild-hall-sample-assistant", "Review the code"),
       );
 
-      // Find the meeting artifact
-      const meetingsDir = path.join(projectDir, ".lore", "meetings");
+      // Get the meetingId to find the worktreeDir
+      const sessionEvent = events.find((e) => e.type === "session");
+      expect(sessionEvent).toBeDefined();
+      let meetingId = "";
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      const worktreeDir = await getWorktreeDirFromState(meetingId);
+      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
       const files = await fs.readdir(meetingsDir);
       expect(files).toHaveLength(1);
       expect(files[0]).toMatch(/^audience-Assistant-\d{8}-\d{6}(-\d+)?\.md$/);
@@ -379,6 +474,7 @@ describe("createMeetingSession", () => {
         guildHallHome: ghHomeDir,
         queryFn: mock.queryFn,
         activateFn: activateMock.activateFn,
+        gitOps: createMockGitOps(),
       });
 
       // First meeting should succeed
@@ -450,6 +546,7 @@ describe("createMeetingSession", () => {
         config,
         guildHallHome: ghHomeDir,
         activateFn: activateMock.activateFn,
+        gitOps: createMockGitOps(),
         // No queryFn
       });
 
@@ -480,6 +577,7 @@ describe("createMeetingSession", () => {
         guildHallHome: ghHomeDir,
         queryFn: () => failingQuery(),
         activateFn: activateMock.activateFn,
+        gitOps: createMockGitOps(),
       });
 
       const events = await collectEvents(
@@ -507,6 +605,7 @@ describe("createMeetingSession", () => {
         guildHallHome: ghHomeDir,
         queryFn: mock.queryFn,
         activateFn: activateMock.activateFn,
+        gitOps: createMockGitOps(),
       });
 
       // Create a meeting first
@@ -592,10 +691,12 @@ describe("createMeetingSession", () => {
         meetingId = sessionEvent.meetingId;
       }
 
+      const worktreeDir = await getWorktreeDirFromState(meetingId);
+
       await session.closeMeeting(asMeetingId(meetingId));
 
-      // Read the artifact and verify status
-      const meetingsDir = path.join(projectDir, ".lore", "meetings");
+      // Read the artifact from the worktree and verify status
+      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
       const files = await fs.readdir(meetingsDir);
       const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
       expect(content).toContain("status: closed");
@@ -613,17 +714,20 @@ describe("createMeetingSession", () => {
         meetingId = sessionEvent.meetingId;
       }
 
+      const worktreeDir = await getWorktreeDirFromState(meetingId);
+
       await session.closeMeeting(asMeetingId(meetingId));
 
-      const meetingsDir = path.join(projectDir, ".lore", "meetings");
+      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
       const files = await fs.readdir(meetingsDir);
       const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
       expect(content).toContain("event: closed");
       expect(content).toContain('reason: "User closed audience"');
     });
 
-    test("cleans up temp directory", async () => {
-      const session = createMeetingSession(makeDeps());
+    test("calls git cleanup on close (commitAll, squashMerge, removeWorktree, deleteBranch)", async () => {
+      const mockGit = createMockGitOps();
+      const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
       const createEvents = await collectEvents(
         session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
       );
@@ -634,25 +738,16 @@ describe("createMeetingSession", () => {
         meetingId = sessionEvent.meetingId;
       }
 
-      // Read the state file to find the temp dir path
-      const stateDir = path.join(ghHomeDir, "state", "meetings");
-      const stateFiles = await fs.readdir(stateDir);
-      const stateContent = await fs.readFile(
-        path.join(stateDir, stateFiles[0]),
-        "utf-8",
-      );
-      const state = JSON.parse(stateContent);
-      const worktreeDir = state.worktreeDir;
-
-      // Verify temp dir exists before close
-      const existsBefore = await fs.stat(worktreeDir).then(() => true).catch(() => false);
-      expect(existsBefore).toBe(true);
+      // Clear calls from creation to isolate close calls
+      mockGit.calls.length = 0;
 
       await session.closeMeeting(asMeetingId(meetingId));
 
-      // Verify temp dir is cleaned up
-      const existsAfter = await fs.stat(worktreeDir).then(() => true).catch(() => false);
-      expect(existsAfter).toBe(false);
+      // Verify git cleanup was called
+      expect(mockGit.calls).toContain("commitAll");
+      expect(mockGit.calls).toContain("squashMerge");
+      expect(mockGit.calls).toContain("removeWorktree");
+      expect(mockGit.calls).toContain("deleteBranch");
     });
 
     test("removes meeting from active map", async () => {
@@ -733,6 +828,7 @@ describe("createMeetingSession", () => {
         guildHallHome: ghHomeDir,
         queryFn: slowQuery,
         activateFn: activateMock.activateFn,
+        gitOps: createMockGitOps(),
       });
 
       // Create a meeting
@@ -834,6 +930,7 @@ describe("createMeetingSession", () => {
         guildHallHome: ghHomeDir,
         queryFn: mock.queryFn,
         activateFn: activateMock.activateFn,
+        gitOps: createMockGitOps(),
       });
 
       await collectEvents(
@@ -856,11 +953,16 @@ describe("createMeetingSession", () => {
   describe("meeting artifact validation", () => {
     test("artifact frontmatter is valid YAML", async () => {
       const session = createMeetingSession(makeDeps());
-      await collectEvents(
+      const events = await collectEvents(
         session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
       );
 
-      const meetingsDir = path.join(projectDir, ".lore", "meetings");
+      let meetingId = "";
+      const sessionEvent = events.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      const worktreeDir = await getWorktreeDirFromState(meetingId);
+      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
       const files = await fs.readdir(meetingsDir);
       const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
 
@@ -884,7 +986,7 @@ describe("createMeetingSession", () => {
 
     test("escapes double quotes in agenda", async () => {
       const session = createMeetingSession(makeDeps());
-      await collectEvents(
+      const events = await collectEvents(
         session.createMeeting(
           "test-project",
           "guild-hall-sample-assistant",
@@ -892,7 +994,12 @@ describe("createMeetingSession", () => {
         ),
       );
 
-      const meetingsDir = path.join(projectDir, ".lore", "meetings");
+      let meetingId = "";
+      const sessionEvent = events.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      const worktreeDir = await getWorktreeDirFromState(meetingId);
+      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
       const files = await fs.readdir(meetingsDir);
       const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
 
@@ -953,6 +1060,7 @@ describe("createMeetingSession", () => {
         guildHallHome: ghHomeDir,
         queryFn: mock.queryFn,
         activateFn: activateMock.activateFn,
+        gitOps: createMockGitOps(),
       });
 
       await collectEvents(
@@ -983,6 +1091,7 @@ describe("createMeetingSession", () => {
         guildHallHome: ghHomeDir,
         queryFn: mock.queryFn,
         activateFn: failingActivate,
+        gitOps: createMockGitOps(),
       });
 
       const events = await collectEvents(
@@ -999,12 +1108,12 @@ describe("createMeetingSession", () => {
   });
 
   describe("meeting status transitions", () => {
-    // Helper to write a meeting artifact with a given status directly
+    // Helper to write a meeting artifact to the integration worktree
     async function writeMeetingArtifactWithStatus(
       meetingId: string,
       status: MeetingStatus,
     ): Promise<void> {
-      const meetingsDir = path.join(projectDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       const content = `---
@@ -1036,7 +1145,7 @@ notes_summary: ""
         await session.declineMeeting(asMeetingId(meetingId), "test-project");
 
         const content = await fs.readFile(
-          path.join(projectDir, ".lore", "meetings", `${meetingId}.md`),
+          path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
           "utf-8",
         );
         expect(content).toContain("status: declined");
@@ -1048,11 +1157,16 @@ notes_summary: ""
         // by the accept flow in Step 6. Here we verify that the artifact
         // written by createMeeting has status: open.
         const session = createMeetingSession(makeDeps());
-        await collectEvents(
+        const events = await collectEvents(
           session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
         );
 
-        const meetingsDir = path.join(projectDir, ".lore", "meetings");
+        let meetingId = "";
+        const sessionEvent = events.find((e) => e.type === "session");
+        if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+        const worktreeDir = await getWorktreeDirFromState(meetingId);
+        const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
         const files = await fs.readdir(meetingsDir);
         const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
         expect(content).toContain("status: open");
@@ -1070,9 +1184,11 @@ notes_summary: ""
           meetingId = sessionEvent.meetingId;
         }
 
+        const worktreeDir = await getWorktreeDirFromState(meetingId);
+
         await session.closeMeeting(asMeetingId(meetingId));
 
-        const meetingsDir = path.join(projectDir, ".lore", "meetings");
+        const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
         const files = await fs.readdir(meetingsDir);
         const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
         expect(content).toContain("status: closed");
@@ -1124,7 +1240,7 @@ notes_summary: ""
         await session.declineMeeting(asMeetingId(meetingId), "test-project");
 
         const content = await fs.readFile(
-          path.join(projectDir, ".lore", "meetings", `${meetingId}.md`),
+          path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
           "utf-8",
         );
         expect(content).toContain("status: declined");
@@ -1141,7 +1257,7 @@ notes_summary: ""
         await session.declineMeeting(asMeetingId(meetingId), "test-project");
 
         const content = await fs.readFile(
-          path.join(projectDir, ".lore", "meetings", `${meetingId}.md`),
+          path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
           "utf-8",
         );
         expect(content).toContain("event: declined");
@@ -1156,7 +1272,7 @@ notes_summary: ""
         await session.deferMeeting(asMeetingId(meetingId), "test-project", "2026-03-01");
 
         const content = await fs.readFile(
-          path.join(projectDir, ".lore", "meetings", `${meetingId}.md`),
+          path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
           "utf-8",
         );
         expect(content).toContain("event: deferred");
@@ -1170,7 +1286,7 @@ notes_summary: ""
       meetingId: string,
       status: MeetingStatus,
     ): Promise<void> {
-      const meetingsDir = path.join(projectDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       const content = `---
@@ -1201,7 +1317,7 @@ notes_summary: ""
       await session.declineMeeting(asMeetingId(meetingId), "test-project");
 
       const content = await fs.readFile(
-        path.join(projectDir, ".lore", "meetings", `${meetingId}.md`),
+        path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
         "utf-8",
       );
       expect(content).toContain("status: declined");
@@ -1233,7 +1349,7 @@ notes_summary: ""
       meetingId: string,
       status: MeetingStatus,
     ): Promise<void> {
-      const meetingsDir = path.join(projectDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       const content = `---
@@ -1264,7 +1380,7 @@ notes_summary: ""
       await session.deferMeeting(asMeetingId(meetingId), "test-project", "2026-03-15");
 
       const content = await fs.readFile(
-        path.join(projectDir, ".lore", "meetings", `${meetingId}.md`),
+        path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
         "utf-8",
       );
       expect(content).toContain("status: requested");
@@ -1279,7 +1395,7 @@ notes_summary: ""
       await session.deferMeeting(asMeetingId(meetingId), "test-project", "2026-04-01");
 
       const content = await fs.readFile(
-        path.join(projectDir, ".lore", "meetings", `${meetingId}.md`),
+        path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
         "utf-8",
       );
       expect(content).toContain("event: deferred");
@@ -1323,7 +1439,7 @@ notes_summary: ""
       status: MeetingStatus,
       overrides: Record<string, string> = {},
     ): Promise<void> {
-      const meetingsDir = path.join(projectDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       const content = `---
@@ -1352,7 +1468,10 @@ notes_summary: ""
         agenda: "Review the code",
       });
 
-      const session = createMeetingSession(makeDeps());
+      // Use copyFromDir so the worktree gets the artifact from integrationDir
+      const session = createMeetingSession(
+        makeDeps({ gitOps: createMockGitOps({ copyFromDir: integrationDir }) }),
+      );
       const events = await collectEvents(
         session.acceptMeetingRequest(asMeetingId(meetingId), "test-project"),
       );
@@ -1364,9 +1483,10 @@ notes_summary: ""
       // Verify meeting is now active
       expect(session.getActiveMeetings()).toBe(1);
 
-      // Verify artifact status was updated to "open"
+      // Verify artifact status was updated to "open" (on the activity worktree)
+      const worktreeDir = await getWorktreeDirFromState(meetingId);
       const content = await fs.readFile(
-        path.join(projectDir, ".lore", "meetings", `${meetingId}.md`),
+        path.join(worktreeDir, ".lore", "meetings", `${meetingId}.md`),
         "utf-8",
       );
       expect(content).toContain("status: open");
@@ -1384,12 +1504,14 @@ notes_summary: ""
 
       const mock = makeMockQueryFn();
       const activateMock = makeMockActivateFn();
+      const mockGit = createMockGitOps();
       const session = createMeetingSession({
         packages: [WORKER_PKG],
         config,
         guildHallHome: ghHomeDir,
         queryFn: mock.queryFn,
         activateFn: activateMock.activateFn,
+        gitOps: mockGit,
       });
 
       // Create one meeting to fill the cap
@@ -1451,7 +1573,11 @@ notes_summary: ""
       const mock = makeMockQueryFn();
       const activateMock = makeMockActivateFn();
       const session = createMeetingSession(
-        makeDeps({ queryFn: mock.queryFn, activateFn: activateMock.activateFn }),
+        makeDeps({
+          queryFn: mock.queryFn,
+          activateFn: activateMock.activateFn,
+          gitOps: createMockGitOps({ copyFromDir: integrationDir }),
+        }),
       );
 
       await collectEvents(
@@ -1471,7 +1597,9 @@ notes_summary: ""
       const meetingId = "audience-Assistant-20260221-160005";
       await writeMeetingArtifactWithStatus(meetingId, "requested");
 
-      const session = createMeetingSession(makeDeps());
+      const session = createMeetingSession(
+        makeDeps({ gitOps: createMockGitOps({ copyFromDir: integrationDir }) }),
+      );
       await collectEvents(
         session.acceptMeetingRequest(asMeetingId(meetingId), "test-project"),
       );
@@ -1493,11 +1621,16 @@ notes_summary: ""
   describe("writeMeetingArtifact with deferred_until field", () => {
     test("meeting artifact includes deferred_until field", async () => {
       const session = createMeetingSession(makeDeps());
-      await collectEvents(
+      const events = await collectEvents(
         session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
       );
 
-      const meetingsDir = path.join(projectDir, ".lore", "meetings");
+      let meetingId = "";
+      const sessionEvent = events.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      const worktreeDir = await getWorktreeDirFromState(meetingId);
+      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
       const files = await fs.readdir(meetingsDir);
       const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
       expect(content).toContain('deferred_until: ""');
@@ -1524,13 +1657,18 @@ notes_summary: ""
 
     test("recovers open meetings from state files", async () => {
       const meetingId = "audience-Assistant-20260221-100000";
+      // Create the worktreeDir on disk so recovery doesn't close the meeting
+      const worktreeDir = path.join(tmpRoot, "worktree-recovered");
+      await fs.mkdir(worktreeDir, { recursive: true });
+
       await writeStateFile(meetingId, {
         meetingId,
         projectName: "test-project",
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-old-session",
-        worktreeDir: "/tmp/guild-hall-recovered",
+        worktreeDir,
+        branchName: "claude/meeting/audience-Assistant-20260221-100000",
         status: "open",
       });
 
@@ -1585,13 +1723,17 @@ notes_summary: ""
 
     test("recovered meeting can receive sendMessage", async () => {
       const meetingId = "audience-Assistant-20260221-100003";
+      const worktreeDir = path.join(tmpRoot, "worktree-resume");
+      await fs.mkdir(worktreeDir, { recursive: true });
+
       await writeStateFile(meetingId, {
         meetingId,
         projectName: "test-project",
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-session-to-resume",
-        worktreeDir: "/tmp/guild-hall-resume",
+        worktreeDir,
+        branchName: "claude/meeting/audience-Assistant-20260221-100003",
         status: "open",
       });
 
@@ -1624,55 +1766,53 @@ notes_summary: ""
       expect(recovered).toBe(0);
     });
 
-    test("creates fresh worktreeDir when stored worktreeDir no longer exists (post-reboot)", async () => {
+    test("closes meeting when worktreeDir no longer exists (post-reboot)", async () => {
       const meetingId = "audience-Assistant-20260221-100020";
-      // Use a path that doesn't exist (simulates a temp dir from a previous boot)
-      const nonExistentTempDir = path.join(tmpRoot, "does-not-exist-after-reboot");
+      // Use a path that doesn't exist (simulates a worktree lost after reboot)
+      const nonExistentDir = path.join(tmpRoot, "does-not-exist-after-reboot");
       await writeStateFile(meetingId, {
         meetingId,
         projectName: "test-project",
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-after-reboot",
-        worktreeDir: nonExistentTempDir,
+        worktreeDir: nonExistentDir,
+        branchName: "claude/meeting/audience-Assistant-20260221-100020",
         status: "open",
       });
 
       const session = createMeetingSession(makeDeps());
       const recovered = await session.recoverMeetings();
-      expect(recovered).toBe(1);
 
-      // The recovered meeting should have a worktreeDir that actually exists
-      const openMeetings = session.getOpenMeetingsForProject("test-project");
-      expect(openMeetings).toHaveLength(1);
-      const meeting = openMeetings[0];
-      expect(meeting.worktreeDir).not.toBe(nonExistentTempDir);
+      // Meeting should NOT be recovered (closed instead)
+      expect(recovered).toBe(0);
+      expect(session.getActiveMeetings()).toBe(0);
 
-      const worktreeDirExists = await fs.stat(meeting.worktreeDir).then(() => true).catch(() => false);
-      expect(worktreeDirExists).toBe(true);
-
-      // State file should have been updated with the new worktreeDir
+      // State file should show closed
       const stateDir = path.join(ghHomeDir, "state", "meetings");
       const stateContent = await fs.readFile(
         path.join(stateDir, `${meetingId}.json`),
         "utf-8",
       );
       const state = JSON.parse(stateContent);
-      expect(state.worktreeDir).toBe(meeting.worktreeDir);
-      expect(state.worktreeDir).not.toBe(nonExistentTempDir);
-
-      // Clean up the created temp dir
-      await fs.rm(meeting.worktreeDir, { recursive: true, force: true });
+      expect(state.status).toBe("closed");
     });
 
     test("recovers multiple open meetings, skipping closed ones", async () => {
+      // Create worktree dirs on disk for open meetings
+      const wt1 = path.join(tmpRoot, "wt-multi-1");
+      const wt3 = path.join(tmpRoot, "wt-multi-3");
+      await fs.mkdir(wt1, { recursive: true });
+      await fs.mkdir(wt3, { recursive: true });
+
       await writeStateFile("audience-Assistant-20260221-100010", {
         meetingId: "audience-Assistant-20260221-100010",
         projectName: "test-project",
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-1",
-        worktreeDir: "/tmp/gh-1",
+        worktreeDir: wt1,
+        branchName: "claude/meeting/audience-Assistant-20260221-100010",
         status: "open",
       });
       await writeStateFile("audience-Assistant-20260221-100011", {
@@ -1690,7 +1830,8 @@ notes_summary: ""
         workerName: "Assistant",
         packageName: "guild-hall-sample-assistant",
         sdkSessionId: "sdk-3",
-        worktreeDir: "/tmp/gh-3",
+        worktreeDir: wt3,
+        branchName: "claude/meeting/audience-Assistant-20260221-100012",
         status: "open",
       });
 
@@ -1745,6 +1886,7 @@ notes_summary: ""
     test("session expiry triggers renewal with fresh session", async () => {
       const expiringMock = makeExpiringQueryFn();
       const activateMock = makeMockActivateFn();
+      const mockGit = createMockGitOps();
       const config = makeConfig();
       config.projects[0].path = projectDir;
 
@@ -1756,6 +1898,7 @@ notes_summary: ""
         guildHallHome: ghHomeDir,
         queryFn: createMock.queryFn,
         activateFn: activateMock.activateFn,
+        gitOps: mockGit,
       });
 
       const createEvents = await collectEvents(
@@ -1771,9 +1914,8 @@ notes_summary: ""
 
       // Now create a session with the expiring queryFn and recover the meeting
       const stateDir = path.join(ghHomeDir, "state", "meetings");
-      const stateFiles = await fs.readdir(stateDir);
       const stateContent = await fs.readFile(
-        path.join(stateDir, stateFiles[0]),
+        path.join(stateDir, `${meetingId}.json`),
         "utf-8",
       );
       const state = JSON.parse(stateContent);
@@ -1795,9 +1937,10 @@ notes_summary: ""
         guildHallHome: ghHomeDir,
         queryFn: expiringMock.queryFn,
         activateFn: activateMock.activateFn,
+        gitOps: mockGit,
       });
 
-      // Write a state file for recovery
+      // Write a state file for recovery (worktreeDir from state already exists)
       await fs.writeFile(
         path.join(stateDir, `${meetingId}.json`),
         JSON.stringify({
@@ -1839,11 +1982,14 @@ notes_summary: ""
     test("meeting log records session renewal", async () => {
       const expiringMock = makeExpiringQueryFn();
       const activateMock = makeMockActivateFn();
+      const mockGit = createMockGitOps();
       const config = makeConfig();
       config.projects[0].path = projectDir;
 
       // Set up a meeting via state file recovery
       const meetingId = "audience-Assistant-20260221-110000";
+      const worktreeDir = path.join(tmpRoot, "wt-renewal-log");
+      await fs.mkdir(worktreeDir, { recursive: true });
       const stateDir = path.join(ghHomeDir, "state", "meetings");
       await fs.mkdir(stateDir, { recursive: true });
       await fs.writeFile(
@@ -1854,14 +2000,15 @@ notes_summary: ""
           workerName: "Assistant",
           packageName: "guild-hall-sample-assistant",
           sdkSessionId: "sdk-old-session-for-log",
-          worktreeDir: "/tmp/guild-hall-log-test",
+          worktreeDir,
+          branchName: "claude/meeting/audience-Assistant-20260221-110000",
           status: "open",
         }),
         "utf-8",
       );
 
-      // Write meeting artifact so appendMeetingLog can find it
-      const meetingsArtifactDir = path.join(projectDir, ".lore", "meetings");
+      // Write meeting artifact to the worktreeDir so appendMeetingLog can find it
+      const meetingsArtifactDir = path.join(worktreeDir, ".lore", "meetings");
       await fs.mkdir(meetingsArtifactDir, { recursive: true });
       const now = new Date();
       await fs.writeFile(
@@ -1892,6 +2039,7 @@ notes_summary: ""
         guildHallHome: ghHomeDir,
         queryFn: expiringMock.queryFn,
         activateFn: activateMock.activateFn,
+        gitOps: mockGit,
       });
 
       await session.recoverMeetings();
@@ -1899,7 +2047,7 @@ notes_summary: ""
         session.sendMessage(asMeetingId(meetingId), "Trigger renewal"),
       );
 
-      // Read the meeting artifact to check the log
+      // Read the meeting artifact from worktreeDir to check the log
       const artifactContent = await fs.readFile(
         path.join(meetingsArtifactDir, `${meetingId}.md`),
         "utf-8",
@@ -1913,10 +2061,13 @@ notes_summary: ""
     test("state file is updated with new session ID after renewal", async () => {
       const expiringMock = makeExpiringQueryFn();
       const activateMock = makeMockActivateFn();
+      const mockGit = createMockGitOps();
       const config = makeConfig();
       config.projects[0].path = projectDir;
 
       const meetingId = "audience-Assistant-20260221-110001";
+      const worktreeDir = path.join(tmpRoot, "wt-renewal-state");
+      await fs.mkdir(worktreeDir, { recursive: true });
       const stateDir = path.join(ghHomeDir, "state", "meetings");
       await fs.mkdir(stateDir, { recursive: true });
       await fs.writeFile(
@@ -1927,14 +2078,15 @@ notes_summary: ""
           workerName: "Assistant",
           packageName: "guild-hall-sample-assistant",
           sdkSessionId: "sdk-before-renewal",
-          worktreeDir: "/tmp/guild-hall-state-test",
+          worktreeDir,
+          branchName: "claude/meeting/audience-Assistant-20260221-110001",
           status: "open",
         }),
         "utf-8",
       );
 
-      // Write meeting artifact for appendMeetingLog
-      const meetingsArtifactDir = path.join(projectDir, ".lore", "meetings");
+      // Write meeting artifact to worktreeDir for appendMeetingLog
+      const meetingsArtifactDir = path.join(worktreeDir, ".lore", "meetings");
       await fs.mkdir(meetingsArtifactDir, { recursive: true });
       const now = new Date();
       await fs.writeFile(
@@ -1965,6 +2117,7 @@ notes_summary: ""
         guildHallHome: ghHomeDir,
         queryFn: expiringMock.queryFn,
         activateFn: activateMock.activateFn,
+        gitOps: mockGit,
       });
 
       await session.recoverMeetings();
@@ -2005,10 +2158,13 @@ notes_summary: ""
       }
 
       const activateMock = makeMockActivateFn();
+      const mockGit = createMockGitOps();
       const config = makeConfig();
       config.projects[0].path = projectDir;
 
       const meetingId = "audience-Assistant-20260221-110002";
+      const worktreeDir = path.join(tmpRoot, "wt-throw-test");
+      await fs.mkdir(worktreeDir, { recursive: true });
       const stateDir = path.join(ghHomeDir, "state", "meetings");
       await fs.mkdir(stateDir, { recursive: true });
       await fs.writeFile(
@@ -2019,14 +2175,15 @@ notes_summary: ""
           workerName: "Assistant",
           packageName: "guild-hall-sample-assistant",
           sdkSessionId: "sdk-will-throw",
-          worktreeDir: "/tmp/guild-hall-throw-test",
+          worktreeDir,
+          branchName: "claude/meeting/audience-Assistant-20260221-110002",
           status: "open",
         }),
         "utf-8",
       );
 
-      // Write meeting artifact for appendMeetingLog
-      const meetingsArtifactDir = path.join(projectDir, ".lore", "meetings");
+      // Write meeting artifact to worktreeDir for appendMeetingLog
+      const meetingsArtifactDir = path.join(worktreeDir, ".lore", "meetings");
       await fs.mkdir(meetingsArtifactDir, { recursive: true });
       const now = new Date();
       await fs.writeFile(
@@ -2057,6 +2214,7 @@ notes_summary: ""
         guildHallHome: ghHomeDir,
         queryFn: throwingExpiryQuery,
         activateFn: activateMock.activateFn,
+        gitOps: mockGit,
       });
 
       await session.recoverMeetings();
@@ -2099,10 +2257,13 @@ notes_summary: ""
       }
 
       const activateMock = makeMockActivateFn();
+      const mockGit = createMockGitOps();
       const config = makeConfig();
       config.projects[0].path = projectDir;
 
       const meetingId = "audience-Assistant-20260221-110003";
+      const worktreeDir = path.join(tmpRoot, "wt-regular-error");
+      await fs.mkdir(worktreeDir, { recursive: true });
       const stateDir = path.join(ghHomeDir, "state", "meetings");
       await fs.mkdir(stateDir, { recursive: true });
       await fs.writeFile(
@@ -2113,7 +2274,8 @@ notes_summary: ""
           workerName: "Assistant",
           packageName: "guild-hall-sample-assistant",
           sdkSessionId: "sdk-regular-error",
-          worktreeDir: "/tmp/guild-hall-regular-error",
+          worktreeDir,
+          branchName: "claude/meeting/audience-Assistant-20260221-110003",
           status: "open",
         }),
         "utf-8",
@@ -2125,6 +2287,7 @@ notes_summary: ""
         guildHallHome: ghHomeDir,
         queryFn: regularErrorQuery,
         activateFn: activateMock.activateFn,
+        gitOps: mockGit,
       });
 
       await session.recoverMeetings();
@@ -2158,6 +2321,326 @@ notes_summary: ""
       const state = JSON.parse(stateContent);
       expect(state.packageName).toBe("guild-hall-sample-assistant");
       expect(state.workerName).toBe("Assistant");
+    });
+  });
+
+  describe("meeting git integration", () => {
+    test("createMeeting calls createBranch, createWorktree, configureSparseCheckout", async () => {
+      const mockGit = createMockGitOps();
+      const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
+      const events = await collectEvents(
+        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+      );
+
+      // Verify session established successfully
+      const sessionEvent = events.find((e) => e.type === "session");
+      expect(sessionEvent).toBeDefined();
+
+      // Verify git operations were called in order
+      expect(mockGit.calls).toContain("createBranch");
+      expect(mockGit.calls).toContain("createWorktree");
+      expect(mockGit.calls).toContain("configureSparseCheckout");
+
+      // Order: createBranch before createWorktree before configureSparseCheckout
+      const branchIdx = mockGit.calls.indexOf("createBranch");
+      const worktreeIdx = mockGit.calls.indexOf("createWorktree");
+      const sparseIdx = mockGit.calls.indexOf("configureSparseCheckout");
+      expect(branchIdx).toBeLessThan(worktreeIdx);
+      expect(worktreeIdx).toBeLessThan(sparseIdx);
+    });
+
+    test("closeMeeting calls commitAll, squashMerge, removeWorktree, deleteBranch in order", async () => {
+      const mockGit = createMockGitOps();
+      const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
+      const events = await collectEvents(
+        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+      );
+
+      let meetingId = "";
+      const sessionEvent = events.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      // Clear calls from creation to isolate close calls
+      mockGit.calls.length = 0;
+
+      await session.closeMeeting(asMeetingId(meetingId));
+
+      // Verify git cleanup operations in order
+      const commitIdx = mockGit.calls.indexOf("commitAll");
+      const squashIdx = mockGit.calls.indexOf("squashMerge");
+      const removeIdx = mockGit.calls.indexOf("removeWorktree");
+      const deleteIdx = mockGit.calls.indexOf("deleteBranch");
+
+      expect(commitIdx).toBeGreaterThanOrEqual(0);
+      expect(squashIdx).toBeGreaterThanOrEqual(0);
+      expect(removeIdx).toBeGreaterThanOrEqual(0);
+      expect(deleteIdx).toBeGreaterThanOrEqual(0);
+
+      expect(commitIdx).toBeLessThan(squashIdx);
+      expect(squashIdx).toBeLessThan(removeIdx);
+      expect(removeIdx).toBeLessThan(deleteIdx);
+    });
+
+    test("state file includes branchName after createMeeting", async () => {
+      const session = createMeetingSession(makeDeps());
+      const events = await collectEvents(
+        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+      );
+
+      let meetingId = "";
+      const sessionEvent = events.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      const stateDir = path.join(ghHomeDir, "state", "meetings");
+      const stateContent = await fs.readFile(
+        path.join(stateDir, `${meetingId}.json`),
+        "utf-8",
+      );
+      const state = JSON.parse(stateContent);
+      expect(state.branchName).toBe(meetingBranchName(meetingId));
+      expect(state.branchName).toMatch(/^claude\/meeting\//);
+    });
+
+    test("worktreeDir uses meetingWorktreePath convention", async () => {
+      const session = createMeetingSession(makeDeps());
+      const events = await collectEvents(
+        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+      );
+
+      let meetingId = "";
+      const sessionEvent = events.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      const expectedDir = meetingWorktreePath(ghHomeDir, "test-project", meetingId);
+      const worktreeDir = await getWorktreeDirFromState(meetingId);
+      expect(worktreeDir).toBe(expectedDir);
+    });
+
+    test("declineMeeting operates on integration worktree, not project.path", async () => {
+      // Write artifact to the integration worktree
+      const meetingId = "audience-Assistant-20260221-200000";
+      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      await fs.mkdir(meetingsDir, { recursive: true });
+      const now = new Date();
+      await fs.writeFile(
+        path.join(meetingsDir, `${meetingId}.md`),
+        `---
+title: "Audience with Guild Assistant"
+date: ${now.toISOString().split("T")[0]}
+status: requested
+tags: [meeting]
+worker: Assistant
+workerDisplayTitle: "Guild Assistant"
+agenda: "Test agenda"
+deferred_until: ""
+linked_artifacts: []
+meeting_log:
+  - timestamp: ${now.toISOString()}
+    event: requested
+    reason: "Test setup"
+notes_summary: ""
+---
+`,
+        "utf-8",
+      );
+
+      const session = createMeetingSession(makeDeps());
+      await session.declineMeeting(asMeetingId(meetingId), "test-project");
+
+      // Verify the artifact was updated in the integration worktree
+      const content = await fs.readFile(
+        path.join(meetingsDir, `${meetingId}.md`),
+        "utf-8",
+      );
+      expect(content).toContain("status: declined");
+
+      // Verify nothing was written to project.path/.lore/meetings/
+      const projectMeetingsDir = path.join(projectDir, ".lore", "meetings");
+      let projectHasMeetings = false;
+      try {
+        await fs.access(projectMeetingsDir);
+        projectHasMeetings = true;
+      } catch {
+        projectHasMeetings = false;
+      }
+      expect(projectHasMeetings).toBe(false);
+    });
+
+    test("deferMeeting operates on integration worktree, not project.path", async () => {
+      const meetingId = "audience-Assistant-20260221-200001";
+      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      await fs.mkdir(meetingsDir, { recursive: true });
+      const now = new Date();
+      await fs.writeFile(
+        path.join(meetingsDir, `${meetingId}.md`),
+        `---
+title: "Audience with Guild Assistant"
+date: ${now.toISOString().split("T")[0]}
+status: requested
+tags: [meeting]
+worker: Assistant
+workerDisplayTitle: "Guild Assistant"
+agenda: "Test agenda"
+deferred_until: ""
+linked_artifacts: []
+meeting_log:
+  - timestamp: ${now.toISOString()}
+    event: requested
+    reason: "Test setup"
+notes_summary: ""
+---
+`,
+        "utf-8",
+      );
+
+      const session = createMeetingSession(makeDeps());
+      await session.deferMeeting(asMeetingId(meetingId), "test-project", "2026-04-01");
+
+      // Verify update happened in integration worktree
+      const content = await fs.readFile(
+        path.join(meetingsDir, `${meetingId}.md`),
+        "utf-8",
+      );
+      expect(content).toContain("event: deferred");
+      expect(content).toContain('deferred_until: "2026-04-01"');
+
+      // Verify nothing was written to project.path/.lore/meetings/
+      const projectMeetingsDir = path.join(projectDir, ".lore", "meetings");
+      let projectHasMeetings = false;
+      try {
+        await fs.access(projectMeetingsDir);
+        projectHasMeetings = true;
+      } catch {
+        projectHasMeetings = false;
+      }
+      expect(projectHasMeetings).toBe(false);
+    });
+
+    test("acceptMeetingRequest reads from integration, writes to activity worktree", async () => {
+      const meetingId = "audience-Assistant-20260221-200002";
+
+      // Write artifact to integration worktree
+      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      await fs.mkdir(meetingsDir, { recursive: true });
+      const now = new Date();
+      await fs.writeFile(
+        path.join(meetingsDir, `${meetingId}.md`),
+        `---
+title: "Audience with Guild Assistant"
+date: ${now.toISOString().split("T")[0]}
+status: requested
+tags: [meeting]
+worker: Assistant
+workerDisplayTitle: "Guild Assistant"
+agenda: "Accept test"
+deferred_until: ""
+linked_artifacts: []
+meeting_log:
+  - timestamp: ${now.toISOString()}
+    event: requested
+    reason: "Test setup"
+notes_summary: ""
+---
+`,
+        "utf-8",
+      );
+
+      // Use copy-from mock so the worktree gets the artifact
+      const mockGit = createMockGitOps({ copyFromDir: integrationDir });
+      const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
+
+      const events = await collectEvents(
+        session.acceptMeetingRequest(asMeetingId(meetingId), "test-project"),
+      );
+
+      // Verify session was established
+      const types = events.map((e) => e.type);
+      expect(types).toContain("session");
+
+      // Verify git operations
+      expect(mockGit.calls).toContain("createBranch");
+      expect(mockGit.calls).toContain("createWorktree");
+
+      // Verify the activity worktree has the updated artifact
+      const worktreeDir = await getWorktreeDirFromState(meetingId);
+      const content = await fs.readFile(
+        path.join(worktreeDir, ".lore", "meetings", `${meetingId}.md`),
+        "utf-8",
+      );
+      expect(content).toContain("status: open");
+      expect(content).toContain("event: opened");
+    });
+
+    test("recovery closes meetings with missing worktrees and updates integration artifact", async () => {
+      const meetingId = "audience-Assistant-20260221-200003";
+      const nonExistentDir = path.join(tmpRoot, "gone-after-reboot");
+
+      // Write a state file for an open meeting with a missing worktree
+      const stateDir = path.join(ghHomeDir, "state", "meetings");
+      await fs.mkdir(stateDir, { recursive: true });
+      await fs.writeFile(
+        path.join(stateDir, `${meetingId}.json`),
+        JSON.stringify({
+          meetingId,
+          projectName: "test-project",
+          workerName: "Assistant",
+          packageName: "guild-hall-sample-assistant",
+          sdkSessionId: "sdk-gone",
+          worktreeDir: nonExistentDir,
+          branchName: "claude/meeting/" + meetingId,
+          status: "open",
+        }),
+        "utf-8",
+      );
+
+      // Write the artifact to the integration worktree so recovery can update it
+      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      await fs.mkdir(meetingsDir, { recursive: true });
+      const now = new Date();
+      await fs.writeFile(
+        path.join(meetingsDir, `${meetingId}.md`),
+        `---
+title: "Audience with Guild Assistant"
+date: ${now.toISOString().split("T")[0]}
+status: open
+tags: [meeting]
+worker: Assistant
+workerDisplayTitle: "Guild Assistant"
+agenda: "Test recovery"
+deferred_until: ""
+linked_artifacts: []
+meeting_log:
+  - timestamp: ${now.toISOString()}
+    event: opened
+    reason: "Test setup"
+notes_summary: ""
+---
+`,
+        "utf-8",
+      );
+
+      const session = createMeetingSession(makeDeps());
+      const recovered = await session.recoverMeetings();
+
+      // Meeting should NOT be recovered (closed instead)
+      expect(recovered).toBe(0);
+      expect(session.getActiveMeetings()).toBe(0);
+
+      // State file should show closed
+      const stateContent = await fs.readFile(
+        path.join(stateDir, `${meetingId}.json`),
+        "utf-8",
+      );
+      const state = JSON.parse(stateContent);
+      expect(state.status).toBe("closed");
+
+      // Integration worktree artifact should be updated to closed
+      const artifactContent = await fs.readFile(
+        path.join(meetingsDir, `${meetingId}.md`),
+        "utf-8",
+      );
+      expect(artifactContent).toContain("status: closed");
+      expect(artifactContent).toContain("Worktree lost during daemon restart");
     });
   });
 });

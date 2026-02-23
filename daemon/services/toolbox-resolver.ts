@@ -17,6 +17,8 @@ export interface ToolboxResolverContext {
   workerName?: string;
   guildHallHome?: string;
   daemonSocketPath?: string;
+  /** Integration worktree path, used by meeting toolbox for propose_followup. */
+  integrationPath?: string;
 }
 
 // -- Resolver --
@@ -61,6 +63,7 @@ export function resolveToolSet(
     mcpServers.push(
       createMeetingToolbox({
         projectPath: context.projectPath,
+        integrationPath: context.integrationPath,
         meetingId: context.meetingId,
         workerName: context.workerName,
         guildHallHome: context.guildHallHome,

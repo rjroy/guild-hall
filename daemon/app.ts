@@ -137,6 +137,7 @@ export async function createProductionApp(options?: {
     guildHallHome,
     queryFn,
     notesQueryFn: queryFn,
+    gitOps: git,
   });
 
   // Recover open meetings from persisted state files so users can resume

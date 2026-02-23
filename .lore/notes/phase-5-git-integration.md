@@ -18,7 +18,7 @@ Re-implementation after data loss (see `.lore/retros/phase-5-git-integration-dat
 - [x] Phase 4: Commission dispatch git integration
 - [x] Phase 5: Commission exit + cleanup git integration
 - [x] Phase 6: Commission re-dispatch git integration
-- [ ] Phase 7: Meeting session git integration
+- [x] Phase 7: Meeting session git integration
 - [ ] Phase 8: Next.js read path migration
 - [ ] Phase 9: Claude branch maintenance
 - [ ] Phase 10: Spec validation
@@ -65,3 +65,8 @@ Re-implementation after data loss (see `.lore/retros/phase-5-git-integration-dat
 - Dispatched: Add getDispatchAttempt() to count previous failures/cancellations. Pass attempt to dispatchCommission for branch suffix. Old branches preserved.
 - Result: Re-dispatch counts terminal timeline entries (status_failed, status_cancelled) to derive attempt number. commissionBranchName(id, attempt) produces suffixed names for attempt > 1.
 - Tests: 1085 pass (5 new redispatch git tests)
+
+### Phase 7: Meeting Session Git Integration
+- Dispatched: Add git worktree lifecycle to meetings. Replace fs.mkdtemp with git branch+worktree in createMeeting/acceptMeetingRequest. Replace fs.rm with commitAll+squashMerge+removeWorktree+deleteBranch in closeMeeting. Update recovery to close meetings with missing worktrees. Thread integrationPath to propose_followup. Wire gitOps in daemon/app.ts.
+- Result: meeting-session.ts uses git worktree pattern matching commissions. createMeeting/acceptMeetingRequest create branch from claude, worktree, sparse checkout. closeMeeting does commit+squash-merge+cleanup+branch-delete. declineMeeting/deferMeeting operate on integration worktree. recoverMeetings closes meetings with missing worktrees. branchName tracked in state files. meeting-toolbox.ts gets integrationPath for propose_followup. toolbox-resolver.ts threads integrationPath. app.ts passes gitOps to meeting session.
+- Tests: 1093 pass (8 new git integration tests, updated 30+ existing tests for git DI, also fixed 2 integration.test.ts and 3 notes-generator.test.ts for gitOps DI)

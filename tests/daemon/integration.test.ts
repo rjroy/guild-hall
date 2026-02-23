@@ -30,6 +30,8 @@ import {
   type QueryOptions,
 } from "@/daemon/services/meeting-session";
 import type { GuildHallEvent } from "@/daemon/types";
+import type { GitOps } from "@/daemon/lib/git";
+import { integrationWorktreePath } from "@/lib/paths";
 import type {
   ActivationContext,
   ActivationResult,
@@ -177,6 +179,28 @@ function makeMockActivateFn() {
   return { activateFn: mockActivate, calls };
 }
 
+// -- Mock GitOps --
+
+function createMockGitOps(): GitOps {
+  return {
+    createBranch: () => Promise.resolve(),
+    branchExists: () => Promise.resolve(false),
+    deleteBranch: () => Promise.resolve(),
+    createWorktree: async (_repoPath, worktreePath) => {
+      await fs.mkdir(worktreePath, { recursive: true });
+    },
+    removeWorktree: () => Promise.resolve(),
+    configureSparseCheckout: () => Promise.resolve(),
+    commitAll: () => Promise.resolve(false),
+    squashMerge: () => Promise.resolve(),
+    hasUncommittedChanges: () => Promise.resolve(false),
+    rebase: () => Promise.resolve(),
+    currentBranch: () => Promise.resolve("main"),
+    listWorktrees: () => Promise.resolve([]),
+    initClaudeBranch: () => Promise.resolve(),
+  };
+}
+
 // -- SSE parsing --
 
 /**
@@ -219,6 +243,9 @@ beforeEach(async () => {
     recursive: true,
   });
   await fs.mkdir(ghHomeDir, { recursive: true });
+  // Create integration worktree directory (simulates daemon boot setup)
+  const iDir = integrationWorktreePath(ghHomeDir, "test-project");
+  await fs.mkdir(iDir, { recursive: true });
 });
 
 afterEach(async () => {
@@ -244,6 +271,7 @@ function makeFullApp(overrides: Partial<MeetingSessionDeps> = {}) {
     guildHallHome: ghHomeDir,
     queryFn: mock.queryFn,
     activateFn: activateMock.activateFn,
+    gitOps: createMockGitOps(),
     ...overrides,
   };
 
@@ -275,6 +303,17 @@ async function postCreateMeeting(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+/**
+ * Reads the worktreeDir from the state file for a given meetingId.
+ * Artifacts are now written to the worktreeDir (not project.path).
+ */
+async function getWorktreeDirFromState(meetingId: string): Promise<string> {
+  const stateDir = path.join(ghHomeDir, "state", "meetings");
+  const content = await fs.readFile(path.join(stateDir, `${meetingId}.json`), "utf-8");
+  const state = JSON.parse(content) as { worktreeDir: string };
+  return state.worktreeDir;
 }
 
 // -- Tests --
@@ -317,7 +356,7 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
     }
   });
 
-  test("creates meeting artifact in the project's .lore/meetings/", async () => {
+  test("creates meeting artifact in the activity worktree's .lore/meetings/", async () => {
     const { app } = makeFullApp();
 
     // Must consume SSE response body so the meeting session's async generator
@@ -325,7 +364,14 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
     const res = await postCreateMeeting(app);
     const events = await parseSSEResponse(res);
 
-    const meetingsDir = path.join(projectDir, ".lore", "meetings");
+    // Get meetingId from session event
+    const sessionEvent = events.find((e) => e.type === "session");
+    let meetingId = "";
+    if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+    // Artifacts are written to the worktreeDir, not project.path
+    const worktreeDir = await getWorktreeDirFromState(meetingId);
+    const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
     const files = await fs.readdir(meetingsDir);
     expect(files.length).toBeGreaterThanOrEqual(1);
 
@@ -343,11 +389,6 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
     expect(content).toContain("Analyze the codebase");
 
     // Verify transcript file was created and the initial user turn was appended
-    const sessionEvent = events.find((e) => e.type === "session");
-    let meetingId = "";
-    if (sessionEvent?.type === "session") {
-      meetingId = sessionEvent.meetingId;
-    }
     const transcriptFile = path.join(ghHomeDir, "meetings", `${meetingId}.md`);
     const transcriptContent = await fs.readFile(transcriptFile, "utf-8");
     expect(transcriptContent).toContain("meetingId:");
@@ -571,8 +612,9 @@ describe("integration: DELETE /meetings/:id closes meeting", () => {
     // Close meeting
     await app.request(`/meetings/${meetingId}`, { method: "DELETE" });
 
-    // Read the artifact and verify status change
-    const meetingsDir = path.join(projectDir, ".lore", "meetings");
+    // Read the artifact from the worktreeDir and verify status change
+    const worktreeDir = await getWorktreeDirFromState(meetingId);
+    const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
     const artifactPath = path.join(meetingsDir, `${meetingId}.md`);
     const content = await fs.readFile(artifactPath, "utf-8");
     expect(content).toContain("status: closed");
@@ -920,9 +962,10 @@ describe("integration: full lifecycle (create, message, close)", () => {
     healthBody = await healthRes.json();
     expect(healthBody.meetings).toBe(0);
 
-    // 4. Verify final artifact state
+    // 4. Verify final artifact state (artifacts live in the activity worktree)
+    const worktreeDir = await getWorktreeDirFromState(meetingId);
     const artifactPath = path.join(
-      projectDir,
+      worktreeDir,
       ".lore",
       "meetings",
       `${meetingId}.md`,
@@ -971,6 +1014,7 @@ describe("integration: meeting cap enforcement through HTTP", () => {
       guildHallHome: ghHomeDir,
       queryFn: mock.queryFn,
       activateFn: activateMock.activateFn,
+      gitOps: createMockGitOps(),
     });
 
     const app = createApp({
@@ -1014,6 +1058,7 @@ describe("integration: SDK error propagation", () => {
       guildHallHome: ghHomeDir,
       queryFn: () => failingQuery(),
       activateFn: activateMock.activateFn,
+      gitOps: createMockGitOps(),
     });
 
     const app = createApp({
@@ -1070,6 +1115,7 @@ describe("integration: SDK error propagation", () => {
       guildHallHome: ghHomeDir,
       queryFn: mock.queryFn,
       activateFn: activateMock.activateFn,
+      gitOps: createMockGitOps(),
     });
 
     const app = createApp({

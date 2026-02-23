@@ -12,7 +12,6 @@
  */
 
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
@@ -30,7 +29,13 @@ import {
 } from "@/daemon/services/event-translator";
 import type { GuildHallEvent, MeetingId, MeetingStatus, SdkSessionId } from "@/daemon/types";
 import { asMeetingId, asSdkSessionId } from "@/daemon/types";
-import { getGuildHallHome } from "@/lib/paths";
+import {
+  getGuildHallHome,
+  meetingWorktreePath,
+  meetingBranchName,
+  integrationWorktreePath,
+} from "@/lib/paths";
+import { createGitOps, type GitOps } from "@/daemon/lib/git";
 import {
   meetingArtifactPath,
   appendMeetingLog,
@@ -141,6 +146,11 @@ export type MeetingSessionDeps = {
     workerPkg: DiscoveredPackage,
     context: ActivationContext,
   ) => Promise<ActivationResult>;
+  /**
+   * DI seam for git operations. Tests pass a mock to avoid real git calls.
+   * If omitted, the real createGitOps() is used.
+   */
+  gitOps?: GitOps;
 };
 
 // -- Factory --
@@ -148,6 +158,7 @@ export type MeetingSessionDeps = {
 export function createMeetingSession(deps: MeetingSessionDeps) {
   const meetings = new Map<string, ActiveMeeting>();
   const ghHome = deps.guildHallHome ?? getGuildHallHome();
+  const git = deps.gitOps ?? createGitOps();
   let meetingSeq = 0;
 
   // -- Helpers --
@@ -259,15 +270,17 @@ notes_summary: ""
     if (!project) {
       throw new Error(`Project "${projectName}" not found`);
     }
-    const projectPath = project.path;
+    // Meeting requests live on the integration worktree (claude branch),
+    // not in the user's working directory.
+    const iPath = integrationWorktreePath(ghHome, projectName);
 
-    const currentStatus = await readArtifactStatus(projectPath, meetingId);
+    const currentStatus = await readArtifactStatus(iPath, meetingId);
     if (!currentStatus) {
       throw new Error(`Could not read status for meeting "${meetingId}"`);
     }
     validateTransition(currentStatus, "declined");
-    await updateArtifactStatus(projectPath, meetingId, "declined");
-    await appendMeetingLog(projectPath, meetingId, "declined", "User declined meeting request");
+    await updateArtifactStatus(iPath, meetingId, "declined");
+    await appendMeetingLog(iPath, meetingId, "declined", "User declined meeting request");
   }
 
   async function deferMeeting(
@@ -279,9 +292,11 @@ notes_summary: ""
     if (!project) {
       throw new Error(`Project "${projectName}" not found`);
     }
-    const projectPath = project.path;
+    // Meeting requests live on the integration worktree (claude branch),
+    // not in the user's working directory.
+    const iPath = integrationWorktreePath(ghHome, projectName);
 
-    const currentStatus = await readArtifactStatus(projectPath, meetingId);
+    const currentStatus = await readArtifactStatus(iPath, meetingId);
     if (!currentStatus) {
       throw new Error(`Could not read status for meeting "${meetingId}"`);
     }
@@ -290,14 +305,14 @@ notes_summary: ""
     }
 
     // Replace the deferred_until value in the artifact frontmatter
-    const artifactPath = meetingArtifactPath(projectPath, meetingId);
-    const raw = await fs.readFile(artifactPath, "utf-8");
+    const artifactFilePath = meetingArtifactPath(iPath, meetingId);
+    const raw = await fs.readFile(artifactFilePath, "utf-8");
     // Sanitize the value to strip newlines that could corrupt YAML frontmatter
     const sanitized = deferredUntil.replace(/[\r\n]/g, "");
     const updated = raw.replace(/^deferred_until: ".*"$/m, `deferred_until: "${sanitized}"`);
-    await fs.writeFile(artifactPath, updated, "utf-8");
+    await fs.writeFile(artifactFilePath, updated, "utf-8");
 
-    await appendMeetingLog(projectPath, meetingId, "deferred", `Deferred until ${deferredUntil}`);
+    await appendMeetingLog(iPath, meetingId, "deferred", `Deferred until ${deferredUntil}`);
   }
 
   // -- Async generator: iterate SDK messages and yield Guild Hall events --
@@ -424,6 +439,7 @@ notes_summary: ""
         meetingId: meeting.meetingId as string,
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,
+        integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
       });
 
       const activationContext: ActivationContext = {
@@ -495,6 +511,7 @@ notes_summary: ""
         packageName: meeting.packageName,
         sdkSessionId: meeting.sdkSessionId,
         worktreeDir: meeting.worktreeDir,
+        branchName: meeting.branchName,
         status: "open",
       });
     } catch {
@@ -573,10 +590,11 @@ notes_summary: ""
       return;
     }
 
-    // c. Read the meeting artifact and verify status is "requested"
+    // c. Read the meeting artifact from integration worktree and verify status
+    const iPath = integrationWorktreePath(ghHome, projectName);
     let currentStatus: MeetingStatus | null;
     try {
-      currentStatus = await readArtifactStatus(project.path, meetingId);
+      currentStatus = await readArtifactStatus(iPath, meetingId);
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
       yield { type: "error", reason: `Failed to read meeting artifact: ${reason}` };
@@ -597,44 +615,26 @@ notes_summary: ""
       return;
     }
 
-    // e. Update artifact status to "open"
-    try {
-      await updateArtifactStatus(project.path, meetingId, "open");
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to update artifact status: ${reason}` };
-      return;
-    }
-
-    // f. Append meeting log
-    try {
-      await appendMeetingLog(project.path, meetingId, "opened", "User accepted meeting request");
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to append meeting log: ${reason}` };
-      return;
-    }
-
-    // g. Read the agenda and worker info from the meeting artifact
+    // e. Read the agenda and worker info from the meeting artifact (before branching)
     let agenda: string;
     let workerName: string;
     let linkedArtifacts: string[];
     try {
-      const artifactPath = meetingArtifactPath(project.path, meetingId);
-      const raw = await fs.readFile(artifactPath, "utf-8");
+      const artifactFilePath = meetingArtifactPath(iPath, meetingId);
+      const raw = await fs.readFile(artifactFilePath, "utf-8");
       const matter = await import("gray-matter");
       const parsed = matter.default(raw);
       const data = parsed.data as Record<string, unknown>;
       agenda = typeof data.agenda === "string" ? data.agenda : "";
       workerName = typeof data.worker === "string" ? data.worker : "";
-      linkedArtifacts = await readLinkedArtifacts(project.path, meetingId);
+      linkedArtifacts = await readLinkedArtifacts(iPath, meetingId);
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
       yield { type: "error", reason: `Failed to read meeting artifact data: ${reason}` };
       return;
     }
 
-    // h. Find the worker package by worker name (identity name)
+    // f. Find the worker package by worker name (identity name)
     // Workers are registered by package name, but the artifact stores the
     // identity name. Search packages by identity name.
     const workerPkg = deps.packages.find((p) => {
@@ -646,17 +646,44 @@ notes_summary: ""
       return;
     }
 
-    // i. Create temp directory
-    let worktreeDir: string;
+    // g. Create git branch and worktree (activity branch inherits artifact from claude)
+    const branchName = meetingBranchName(meetingId as string);
+    const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId as string);
     try {
-      worktreeDir = await fs.mkdtemp(path.join(os.tmpdir(), "guild-hall-"));
+      await git.createBranch(project.path, branchName, "claude");
+      await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
+      await git.createWorktree(project.path, worktreeDir, branchName);
+
+      // Configure sparse checkout if the worker requests it
+      const workerMeta = workerPkg.metadata as WorkerMetadata;
+      if (workerMeta.checkoutScope === "sparse") {
+        await git.configureSparseCheckout(worktreeDir, [".lore/"]);
+      }
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to create temp directory: ${reason}` };
+      yield { type: "error", reason: `Failed to create git worktree: ${reason}` };
       return;
     }
 
-    // j. Write machine-local state file
+    // h. Update artifact status to "open" on the activity worktree
+    try {
+      await updateArtifactStatus(worktreeDir, meetingId, "open");
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : String(err);
+      yield { type: "error", reason: `Failed to update artifact status: ${reason}` };
+      return;
+    }
+
+    // h2. Append meeting log on the activity worktree
+    try {
+      await appendMeetingLog(worktreeDir, meetingId, "opened", "User accepted meeting request");
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : String(err);
+      yield { type: "error", reason: `Failed to append meeting log: ${reason}` };
+      return;
+    }
+
+    // i. Write machine-local state file
     try {
       await writeStateFile(meetingId, {
         meetingId,
@@ -665,6 +692,7 @@ notes_summary: ""
         packageName: workerPkg.name,
         sdkSessionId: null,
         worktreeDir,
+        branchName,
         status: "open",
         createdAt: new Date().toISOString(),
       });
@@ -674,7 +702,7 @@ notes_summary: ""
       return;
     }
 
-    // k. Build initial prompt from agenda + optional user message + linked artifacts context
+    // j. Build initial prompt from agenda + optional user message + linked artifacts context
     let prompt = agenda;
     if (linkedArtifacts.length > 0) {
       prompt += `\n\nReferenced artifacts: ${linkedArtifacts.join(", ")}`;
@@ -708,7 +736,7 @@ notes_summary: ""
       packageName: workerPkg.name,
       sdkSessionId: null,
       worktreeDir,
-      branchName: "",
+      branchName,
       abortController,
       status: "open",
     };
@@ -756,20 +784,28 @@ notes_summary: ""
     // c. Generate meeting ID
     const meetingId = formatMeetingId(workerMeta.identity.name, new Date());
 
-    // d. Create temp directory
-    let worktreeDir: string;
+    // d. Create git branch and worktree
+    const branchName = meetingBranchName(meetingId as string);
+    const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId as string);
     try {
-      worktreeDir = await fs.mkdtemp(path.join(os.tmpdir(), "guild-hall-"));
+      await git.createBranch(project.path, branchName, "claude");
+      await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
+      await git.createWorktree(project.path, worktreeDir, branchName);
+
+      // Configure sparse checkout if the worker requests it
+      if (workerMeta.checkoutScope === "sparse") {
+        await git.configureSparseCheckout(worktreeDir, [".lore/"]);
+      }
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to create temp directory: ${reason}` };
+      yield { type: "error", reason: `Failed to create git worktree: ${reason}` };
       return;
     }
 
-    // e. Create meeting artifact
+    // e. Create meeting artifact (written to activity worktree)
     try {
       await writeMeetingArtifact(
-        project.path,
+        worktreeDir,
         meetingId,
         workerMeta.identity.displayTitle,
         prompt,
@@ -805,6 +841,7 @@ notes_summary: ""
         packageName: workerName,
         sdkSessionId: null,
         worktreeDir,
+        branchName,
         status: "open",
         createdAt: new Date().toISOString(),
       });
@@ -824,7 +861,7 @@ notes_summary: ""
       packageName: workerName,
       sdkSessionId: null,
       worktreeDir,
-      branchName: "",
+      branchName,
       abortController,
       status: "open",
     };
@@ -927,6 +964,7 @@ notes_summary: ""
           packageName: meeting.packageName,
           sdkSessionId: meeting.sdkSessionId,
           worktreeDir: meeting.worktreeDir,
+          branchName: meeting.branchName,
           status: "open",
         });
       } catch {
@@ -963,10 +1001,10 @@ notes_summary: ""
 
     yield* startSession(meeting, renewalPrompt, project.path);
 
-    // Record the renewal in the meeting log
+    // Record the renewal in the meeting log (artifact is in activity worktree)
     try {
       await appendMeetingLog(
-        project.path,
+        meeting.worktreeDir,
         meetingId,
         "session_renewed",
         `SDK session expired. Old: ${oldSessionId as string}, New: ${String(meeting.sdkSessionId)}`,
@@ -1005,6 +1043,7 @@ notes_summary: ""
         packageName?: string;
         sdkSessionId: string | null;
         worktreeDir: string;
+        branchName?: string;
         status: string;
       };
 
@@ -1032,28 +1071,32 @@ notes_summary: ""
       // won't match getWorkerByName (which uses package name), so renewal
       // will fail for those meetings, but at least they'll be visible.
       const packageName = state.packageName ?? state.workerName;
+      const branchName = typeof state.branchName === "string" ? state.branchName : "";
 
-      // After an OS reboot, temp directories no longer exist. Create a fresh
-      // one if the stored path is gone so the SDK's cwd doesn't fail.
-      let worktreeDir = state.worktreeDir;
+      // With git integration, worktrees are not temp dirs. If the worktree
+      // is gone (reboot, manual cleanup), close the meeting rather than
+      // recreating a temp dir that won't have the git state.
+      const worktreeDir = state.worktreeDir;
       try {
         await fs.access(worktreeDir);
       } catch {
-        worktreeDir = await fs.mkdtemp(path.join(os.tmpdir(), "guild-hall-"));
-        // Persist the new path so subsequent reads are consistent
+        console.warn(`[recoverMeetings] Worktree missing for meeting ${state.meetingId}, closing`);
+        try {
+          const iPath = integrationWorktreePath(ghHome, state.projectName);
+          await updateArtifactStatus(iPath, asMeetingId(state.meetingId), "closed");
+          await appendMeetingLog(iPath, asMeetingId(state.meetingId), "closed", "Worktree lost during daemon restart");
+        } catch {
+          // Best-effort artifact update
+        }
         try {
           await writeStateFile(asMeetingId(state.meetingId), {
-            meetingId: state.meetingId,
-            projectName: state.projectName,
-            workerName: state.workerName,
-            packageName,
-            sdkSessionId: state.sdkSessionId,
-            worktreeDir,
-            status: "open",
+            ...state,
+            status: "closed",
           });
         } catch {
-          // Non-fatal; the meeting is still usable with the new worktreeDir
+          // Best-effort state update
         }
+        continue;
       }
 
       const meeting: ActiveMeeting = {
@@ -1065,7 +1108,7 @@ notes_summary: ""
           ? asSdkSessionId(state.sdkSessionId)
           : null,
         worktreeDir,
-        branchName: "",
+        branchName,
         abortController: new AbortController(),
         status: "open",
       };
@@ -1094,7 +1137,7 @@ notes_summary: ""
       try {
         result = await generateMeetingNotes(
           meetingId as string,
-          project.path,
+          meeting.worktreeDir,
           meeting.workerName,
           {
             guildHallHome: ghHome,
@@ -1113,28 +1156,28 @@ notes_summary: ""
     const notesGenerationFailed = !result.success;
     const notes = result.success ? result.notes : result.reason;
 
-    // Update meeting artifact: status, notes_summary, and meeting log
+    // Update meeting artifact in the activity worktree: status, notes_summary, and meeting log
     if (project) {
       try {
-        const currentStatus = await readArtifactStatus(project.path, meetingId);
+        const currentStatus = await readArtifactStatus(meeting.worktreeDir, meetingId);
         if (currentStatus) {
           validateTransition(currentStatus, "closed");
         }
-        await updateArtifactStatus(project.path, meetingId, "closed");
+        await updateArtifactStatus(meeting.worktreeDir, meetingId, "closed");
       } catch (err: unknown) {
         const reason = err instanceof Error ? err.message : String(err);
         console.error(`[closeMeeting] Failed to update artifact status for ${meetingId}: ${reason}`);
       }
 
       try {
-        await writeNotesToArtifact(project.path, meetingId, notes);
+        await writeNotesToArtifact(meeting.worktreeDir, meetingId, notes);
       } catch (err: unknown) {
         const reason = err instanceof Error ? err.message : String(err);
         console.error(`[closeMeeting] Failed to write notes to artifact for ${meetingId}: ${reason}`);
       }
 
       try {
-        await appendMeetingLog(project.path, meetingId, "closed", "User closed audience");
+        await appendMeetingLog(meeting.worktreeDir, meetingId, "closed", "User closed audience");
       } catch (err: unknown) {
         const reason = err instanceof Error ? err.message : String(err);
         console.error(`[closeMeeting] Failed to append meeting log for ${meetingId}: ${reason}`);
@@ -1150,6 +1193,7 @@ notes_summary: ""
         packageName: meeting.packageName,
         sdkSessionId: meeting.sdkSessionId,
         worktreeDir: meeting.worktreeDir,
+        branchName: meeting.branchName,
         status: "closed",
         closedAt: new Date().toISOString(),
       });
@@ -1157,11 +1201,18 @@ notes_summary: ""
       // Non-fatal
     }
 
-    // Clean up temp directory
-    try {
-      await fs.rm(meeting.worktreeDir, { recursive: true, force: true });
-    } catch {
-      // Non-fatal; temp dirs are cleaned on reboot anyway
+    // Git cleanup: commit changes, squash-merge to integration, remove worktree and branch
+    if (project) {
+      try {
+        await git.commitAll(meeting.worktreeDir, `Meeting closed: ${meeting.meetingId}`);
+        const iPath = integrationWorktreePath(ghHome, meeting.projectName);
+        await git.squashMerge(iPath, meeting.branchName, `Meeting: ${meeting.meetingId}`);
+        await git.removeWorktree(project.path, meeting.worktreeDir);
+        await git.deleteBranch(project.path, meeting.branchName);
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        console.warn(`[closeMeeting] Git cleanup failed for ${meeting.meetingId}: ${reason}`);
+      }
     }
 
     // Only remove transcript if notes generated successfully.
