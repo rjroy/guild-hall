@@ -109,12 +109,12 @@ export async function createProductionApp(options?: {
     }
   }
 
-  // Rebase claude onto master for projects with no active activities.
+  // Rebase claude onto the project's default branch for projects with no active activities.
   // Failures log a warning but don't crash the daemon.
   const { rebaseProject } = await import("@/cli/rebase");
   for (const project of config.projects) {
     try {
-      await rebaseProject(project.path, project.name, guildHallHome, git);
+      await rebaseProject(project.path, project.name, guildHallHome, git, project.defaultBranch);
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
       console.warn(`[daemon] Rebase failed for "${project.name}": ${reason}`);

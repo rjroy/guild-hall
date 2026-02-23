@@ -75,6 +75,7 @@ export interface GitOps {
   currentBranch(worktreePath: string): Promise<string>;
   listWorktrees(repoPath: string): Promise<string[]>;
   initClaudeBranch(repoPath: string): Promise<void>;
+  detectDefaultBranch(repoPath: string): Promise<string>;
 }
 
 export function createGitOps(): GitOps {
@@ -181,6 +182,35 @@ export function createGitOps(): GitOps {
       if (!exists) {
         await runGit(repoPath, ["branch", CLAUDE_BRANCH, "HEAD"]);
       }
+    },
+
+    async detectDefaultBranch(repoPath) {
+      // 1. Try remote HEAD (most reliable for repos with a remote)
+      try {
+        const { stdout } = await runGit(repoPath, [
+          "symbolic-ref", "refs/remotes/origin/HEAD",
+        ]);
+        // Output: "refs/remotes/origin/main" → extract "main"
+        const parts = stdout.split("/");
+        if (parts.length > 0) {
+          return parts[parts.length - 1];
+        }
+      } catch {
+        // No remote or remote HEAD not set
+      }
+
+      // 2. Check common branch names
+      for (const candidate of ["main", "master"]) {
+        if (await this.branchExists(repoPath, candidate)) {
+          return candidate;
+        }
+      }
+
+      // 3. Fall back to current HEAD branch
+      const { stdout } = await runGit(repoPath, [
+        "rev-parse", "--abbrev-ref", "HEAD",
+      ]);
+      return stdout;
     },
   };
 }

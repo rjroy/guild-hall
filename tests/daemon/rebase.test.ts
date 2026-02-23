@@ -78,6 +78,10 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "initClaudeBranch", args });
       return Promise.resolve();
     },
+    detectDefaultBranch: (...args) => {
+      calls.push({ method: "detectDefaultBranch", args });
+      return Promise.resolve("main");
+    },
   };
 }
 
@@ -124,7 +128,8 @@ describe("createProductionApp startup rebase", () => {
 
     const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
     expect(rebaseCalls).toHaveLength(1);
-    expect(rebaseCalls[0].args).toEqual([iPath, "master"]);
+    // No defaultBranch in config, so detection is used (mock returns "main")
+    expect(rebaseCalls[0].args).toEqual([iPath, "main"]);
   });
 
   test("skips rebase for projects with active activities", async () => {

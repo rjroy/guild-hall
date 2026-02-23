@@ -409,6 +409,50 @@ describe("initClaudeBranch", () => {
   });
 });
 
+describe("detectDefaultBranch", () => {
+  test("detects 'main' when that is the current branch", async () => {
+    const repoPath = await initTestRepo();
+    // git init defaults to "main" or "master" depending on config.
+    // The test repo's current branch is whatever init created.
+    const currentBranch = await git(repoPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
+
+    const detected = await ops.detectDefaultBranch(repoPath);
+    // Should find the branch that exists (either main or master)
+    expect(["main", "master"]).toContain(detected);
+    // And it should match what the repo actually has
+    expect(detected).toBe(currentBranch);
+  });
+
+  test("detects 'master' when repo has master branch", async () => {
+    const repoPath = await initTestRepo();
+    const currentBranch = await git(repoPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
+
+    // If the current branch is already master, this is a direct check
+    if (currentBranch === "master") {
+      const detected = await ops.detectDefaultBranch(repoPath);
+      expect(detected).toBe("master");
+    }
+    // If current branch is main, create master and verify main is preferred
+    if (currentBranch === "main") {
+      await git(repoPath, ["branch", "master"]);
+      const detected = await ops.detectDefaultBranch(repoPath);
+      // "main" comes first in the candidate list, so it wins
+      expect(detected).toBe("main");
+    }
+  });
+
+  test("falls back to HEAD when no standard branch names exist", async () => {
+    const repoPath = await initTestRepo();
+    const currentBranch = await git(repoPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
+
+    // Rename the default branch to something non-standard
+    await git(repoPath, ["branch", "-m", currentBranch, "develop"]);
+
+    const detected = await ops.detectDefaultBranch(repoPath);
+    expect(detected).toBe("develop");
+  });
+});
+
 describe("runGit error handling", () => {
   test("throws with stderr on failure", async () => {
     const repoPath = await initTestRepo();

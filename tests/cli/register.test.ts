@@ -24,6 +24,7 @@ function createMockGitOps(): GitOps & { calls: string[] } {
     currentBranch: () => { calls.push("currentBranch"); return Promise.resolve("main"); },
     listWorktrees: () => { calls.push("listWorktrees"); return Promise.resolve([]); },
     initClaudeBranch: () => { calls.push("initClaudeBranch"); return Promise.resolve(); },
+    detectDefaultBranch: () => { calls.push("detectDefaultBranch"); return Promise.resolve("main"); },
   };
 }
 
@@ -137,15 +138,25 @@ describe("register", () => {
 });
 
 describe("register git integration", () => {
-  test("calls initClaudeBranch and createWorktree", async () => {
+  test("calls detectDefaultBranch, initClaudeBranch, and createWorktree", async () => {
     await register("git-project", projectDir, fakeHome, mockGit);
 
+    expect(mockGit.calls).toContain("detectDefaultBranch");
     expect(mockGit.calls).toContain("initClaudeBranch");
     expect(mockGit.calls).toContain("createWorktree");
-    // initClaudeBranch should come before createWorktree
+    // detectDefaultBranch should come before initClaudeBranch
+    const detectIdx = mockGit.calls.indexOf("detectDefaultBranch");
     const initIdx = mockGit.calls.indexOf("initClaudeBranch");
     const worktreeIdx = mockGit.calls.indexOf("createWorktree");
+    expect(detectIdx).toBeLessThan(initIdx);
     expect(initIdx).toBeLessThan(worktreeIdx);
+  });
+
+  test("stores detected defaultBranch in config", async () => {
+    await register("branch-project", projectDir, fakeHome, mockGit);
+
+    const config = await readConfig(getConfigPath(fakeHome));
+    expect(config.projects[0].defaultBranch).toBe("main");
   });
 
   test("creates integration worktree and activity worktree directories", async () => {

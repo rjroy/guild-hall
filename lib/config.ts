@@ -14,6 +14,7 @@ export const projectConfigSchema = z.object({
   description: z.string().optional(),
   repoUrl: z.string().optional(),
   meetingCap: z.number().optional(),
+  defaultBranch: z.string().optional(),
 });
 
 export const appConfigSchema = z.object({

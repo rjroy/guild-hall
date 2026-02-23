@@ -754,7 +754,9 @@ projectName: ${projectName}
           : undefined,
     };
 
-    const configPath = path.join(worktreeDir, "commission-config.json");
+    const stateDir = path.join(ghHome, "state", "commissions");
+    await fs.mkdir(stateDir, { recursive: true });
+    const configPath = path.join(stateDir, `${commissionId as string}.config.json`);
     await fs.writeFile(
       configPath,
       JSON.stringify(workerConfig, null, 2),
@@ -937,13 +939,14 @@ projectName: ${projectName}
       reason,
     });
 
-    // Sync terminal status to integration worktree before cleanup
-    await syncStatusToIntegration(commission, finalStatus, reason);
-
     // Git cleanup: behavior depends on final status
     const project = findProject(commission.projectName);
     if (finalStatus === "completed" && project) {
-      // Squash-merge activity branch into claude, then clean up both
+      // Squash-merge activity branch into claude, then clean up both.
+      // No syncStatusToIntegration here: the merge brings the activity
+      // branch's artifact (which already has status=completed and the
+      // full timeline). Syncing before merge would leave uncommitted
+      // changes in the integration worktree, blocking the merge.
       const iPath = integrationWorktreePath(ghHome, commission.projectName);
       try {
         await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
@@ -958,6 +961,10 @@ projectName: ${projectName}
         );
       }
     } else {
+      // Sync terminal status to integration worktree. For failed/cancelled,
+      // there's no squash-merge, so the integration copy needs a direct update.
+      await syncStatusToIntegration(commission, finalStatus, reason);
+
       // Failure: preserve partial results on branch for inspection
       try {
         const hadChanges = await git.commitAll(

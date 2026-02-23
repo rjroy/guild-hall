@@ -62,6 +62,9 @@ export async function register(
   const git = gitOps ?? createGitOps();
   const ghHome = getGuildHallHome(homeOverride);
 
+  // Detect the project's default branch before any modifications
+  const defaultBranch = await git.detectDefaultBranch(resolved);
+
   // Create claude branch from HEAD if it doesn't exist
   await git.initClaudeBranch(resolved);
 
@@ -74,7 +77,7 @@ export async function register(
   const worktreeRoot = activityWorktreeRoot(ghHome, name);
   await fs.mkdir(worktreeRoot, { recursive: true });
 
-  config.projects.push({ name, path: resolved });
+  config.projects.push({ name, path: resolved, defaultBranch });
   await writeConfig(config, configFilePath);
 
   console.log(`Registered project '${name}' at ${resolved}`);

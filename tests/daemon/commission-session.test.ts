@@ -407,6 +407,7 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
     async currentBranch(...args) { calls.push({ method: "currentBranch", args }); return "claude/main"; },
     async listWorktrees(...args) { calls.push({ method: "listWorktrees", args }); return []; },
     async initClaudeBranch(...args) { calls.push({ method: "initClaudeBranch", args }); },
+    async detectDefaultBranch(...args) { calls.push({ method: "detectDefaultBranch", args }); return "main"; },
   };
   /* eslint-enable @typescript-eslint/require-await */
 }

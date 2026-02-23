@@ -71,16 +71,20 @@ export async function hasActiveActivities(
 }
 
 /**
- * Rebases the claude branch onto master for a single project.
+ * Rebases the claude branch onto the project's default branch.
  * Skips if the project has active activities.
  * Returns true if rebase was performed, false if skipped.
  * Throws on rebase conflict (caller decides how to handle).
+ *
+ * The defaultBranch parameter comes from the project config. If not set
+ * (pre-existing registrations), falls back to detecting it from the repo.
  */
 export async function rebaseProject(
   projectPath: string,
   projectName: string,
   ghHome?: string,
   gitOps?: GitOps,
+  defaultBranch?: string,
 ): Promise<boolean> {
   const home = ghHome ?? getGuildHallHome();
   const git = gitOps ?? createGitOps();
@@ -92,9 +96,10 @@ export async function rebaseProject(
     return false;
   }
 
+  const targetBranch = defaultBranch ?? await git.detectDefaultBranch(projectPath);
   const iPath = integrationWorktreePath(home, projectName);
-  await git.rebase(iPath, "master");
-  console.log(`[rebase] Rebased claude onto master for "${projectName}"`);
+  await git.rebase(iPath, targetBranch);
+  console.log(`[rebase] Rebased claude onto ${targetBranch} for "${projectName}"`);
   return true;
 }
 
@@ -115,11 +120,11 @@ export async function rebase(
     if (!project) {
       throw new Error(`Project "${projectName}" not found in config`);
     }
-    await rebaseProject(project.path, projectName, home, git);
+    await rebaseProject(project.path, projectName, home, git, project.defaultBranch);
   } else {
     for (const project of config.projects) {
       try {
-        await rebaseProject(project.path, project.name, home, git);
+        await rebaseProject(project.path, project.name, home, git, project.defaultBranch);
       } catch (err: unknown) {
         const reason = err instanceof Error ? err.message : String(err);
         console.warn(

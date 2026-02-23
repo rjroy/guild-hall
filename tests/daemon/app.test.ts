@@ -35,6 +35,7 @@ function createMockGitOps(): GitOps & { calls: string[] } {
     currentBranch: () => { calls.push("currentBranch"); return Promise.resolve("main"); },
     listWorktrees: () => { calls.push("listWorktrees"); return Promise.resolve([]); },
     initClaudeBranch: () => { calls.push("initClaudeBranch"); return Promise.resolve(); },
+    detectDefaultBranch: () => { calls.push("detectDefaultBranch"); return Promise.resolve("main"); },
   };
 }
 

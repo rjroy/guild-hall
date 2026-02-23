@@ -80,6 +80,10 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "initClaudeBranch", args });
       return Promise.resolve();
     },
+    detectDefaultBranch: (...args) => {
+      calls.push({ method: "detectDefaultBranch", args });
+      return Promise.resolve("main");
+    },
   };
 }
 
@@ -207,7 +211,24 @@ describe("hasActiveActivities", () => {
 });
 
 describe("rebaseProject", () => {
-  test("calls git.rebase with integration worktree path and 'master'", async () => {
+  test("calls git.rebase with integration worktree path and provided defaultBranch", async () => {
+    const result = await rebaseProject(
+      "/fake/project",
+      "my-project",
+      ghHome,
+      mockGit,
+      "main",
+    );
+
+    expect(result).toBe(true);
+    const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
+    expect(rebaseCalls).toHaveLength(1);
+
+    const expectedPath = integrationWorktreePath(ghHome, "my-project");
+    expect(rebaseCalls[0].args).toEqual([expectedPath, "main"]);
+  });
+
+  test("detects default branch when not provided", async () => {
     const result = await rebaseProject(
       "/fake/project",
       "my-project",
@@ -216,11 +237,16 @@ describe("rebaseProject", () => {
     );
 
     expect(result).toBe(true);
+    // Should call detectDefaultBranch since no defaultBranch was passed
+    const detectCalls = mockGit.calls.filter((c) => c.method === "detectDefaultBranch");
+    expect(detectCalls).toHaveLength(1);
+    expect(detectCalls[0].args).toEqual(["/fake/project"]);
+
+    // Rebase should use the detected branch ("main" from mock)
     const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
     expect(rebaseCalls).toHaveLength(1);
-
     const expectedPath = integrationWorktreePath(ghHome, "my-project");
-    expect(rebaseCalls[0].args).toEqual([expectedPath, "master"]);
+    expect(rebaseCalls[0].args).toEqual([expectedPath, "main"]);
   });
 
   test("skips when active commission exists", async () => {

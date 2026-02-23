@@ -6,6 +6,7 @@ export interface ProjectConfig {
   description?: string;
   repoUrl?: string;
   meetingCap?: number;
+  defaultBranch?: string;
 }
 
 export interface AppConfig {
