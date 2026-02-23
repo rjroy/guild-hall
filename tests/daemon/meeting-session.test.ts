@@ -402,6 +402,35 @@ describe("createMeetingSession", () => {
       }
     });
 
+    test("meeting ID sanitizes spaces in worker name for git branch compatibility", async () => {
+      const spacedWorkerMeta: WorkerMetadata = {
+        ...WORKER_META,
+        identity: {
+          ...WORKER_META.identity,
+          name: "Guild Master",
+          displayTitle: "Guild Master",
+        },
+      };
+      const spacedPkg: DiscoveredPackage = {
+        name: "guild-hall-manager",
+        path: "",
+        metadata: spacedWorkerMeta,
+      };
+      const session = createMeetingSession(
+        makeDeps({ packages: [WORKER_PKG, spacedPkg] }),
+      );
+      const events = await collectEvents(
+        session.createMeeting("test-project", "guild-hall-manager", "Hello"),
+      );
+
+      const sessionEvent = events.find((e) => e.type === "session");
+      expect(sessionEvent).toBeDefined();
+      if (sessionEvent!.type === "session") {
+        // Space replaced with hyphen, no invalid git branch characters
+        expect(sessionEvent!.meetingId).toMatch(/^audience-Guild-Master-\d{8}-\d{6}(-\d+)?$/);
+      }
+    });
+
     test("captures SDK session ID from init message", async () => {
       const mock = makeMockQueryFn([
         makeInitMessage("custom-sdk-session-456"),

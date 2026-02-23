@@ -207,7 +207,12 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     // Append sequence number only when needed to avoid collisions within
     // the same second. Sequence 0 is omitted for clean default IDs.
     const suffix = seq > 0 ? `-${seq}` : "";
-    return asMeetingId(`audience-${workerName}-${ts}${suffix}`);
+    // Sanitize worker name for use in git branch names (no spaces, colons, etc.)
+    const safeName = workerName
+      .replace(/[^a-zA-Z0-9-]/g, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-|-$/g, "");
+    return asMeetingId(`audience-${safeName}-${ts}${suffix}`);
   }
 
   function statePath(meetingId: MeetingId): string {
