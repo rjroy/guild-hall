@@ -106,6 +106,10 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "resetHard", args });
       return Promise.resolve();
     },
+    resetSoft: (...args) => {
+      calls.push({ method: "resetSoft", args });
+      return Promise.resolve();
+    },
     createPullRequest: (...args) => {
       calls.push({ method: "createPullRequest", args });
       return Promise.resolve({ url: "https://github.com/test/repo/pull/1" });
@@ -827,7 +831,7 @@ describe("syncProject", () => {
     expect(resetCalls).toHaveLength(1);
   });
 
-  test("diverged: merges when no marker and trees differ (post-squash-merge fallback)", async () => {
+  test("diverged: merge + compact when no marker and trees differ (post-squash-merge fallback)", async () => {
     // Both isAncestor calls return false (diverged after squash-merge)
     mockGit.isAncestor = (...args) => {
       mockGit.calls.push({ method: "isAncestor", args });
@@ -838,14 +842,24 @@ describe("syncProject", () => {
       mockGit.calls.push({ method: "treesEqual", args });
       return Promise.resolve(false);
     };
+    // commitAll returns true (there are staged changes after soft reset)
+    mockGit.commitAll = (...args) => {
+      mockGit.calls.push({ method: "commitAll", args });
+      return Promise.resolve(true);
+    };
     // No PR marker file exists
 
     const result = await syncProject("/fake/project", "my-project", ghHome, mockGit, "main");
 
     expect(result.action).toBe("merge");
-    expect(result.reason).toContain("diverged");
+    expect(result.reason).toContain("compacted");
+    // Merge, then soft reset, then commit
     const mergeCalls = mockGit.calls.filter((c) => c.method === "merge");
     expect(mergeCalls).toHaveLength(1);
+    const resetSoftCalls = mockGit.calls.filter((c) => c.method === "resetSoft");
+    expect(resetSoftCalls).toHaveLength(1);
+    const commitCalls = mockGit.calls.filter((c) => c.method === "commitAll");
+    expect(commitCalls).toHaveLength(1);
     // Should not have attempted rebase
     const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
     expect(rebaseCalls).toHaveLength(0);

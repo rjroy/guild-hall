@@ -221,6 +221,7 @@ function createMockGitOps(options?: {
     fetch: () => { calls.push("fetch"); return Promise.resolve(); },
     push: () => { calls.push("push"); return Promise.resolve(); },
     resetHard: () => { calls.push("resetHard"); return Promise.resolve(); },
+    resetSoft: () => { calls.push("resetSoft"); return Promise.resolve(); },
     createPullRequest: () => { calls.push("createPullRequest"); return Promise.resolve({ url: "" }); },
     isAncestor: () => { calls.push("isAncestor"); return Promise.resolve(false); },
     treesEqual: () => { calls.push("treesEqual"); return Promise.resolve(false); },

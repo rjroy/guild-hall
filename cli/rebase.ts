@@ -331,15 +331,22 @@ export async function syncProject(
       return { action: "reset" as const, reason: "trees equal (diverged)" };
     }
 
-    // Neither marker nor tree match. Merge origin into claude/main.
-    // Rebase would try to replay already-squash-merged commits and conflict.
-    // Merge brings in the remote changes while keeping claude/main's history.
-    // claude/main's history is noise anyway (squash-merged activity commits);
-    // PRs to master are squash-merged, so master stays clean regardless.
+    // Neither marker nor tree match. Merge + compact: merge origin into
+    // claude/main, then soft-reset to origin/main and recommit. This
+    // produces a single clean commit on top of origin/main containing all
+    // of claude/main's unique work. Rebase would try to replay already-
+    // squash-merged commits and conflict. The merge resolves content
+    // correctly, and the compact keeps claude/main linear and minimal.
     try {
       await git.merge(iPath, remoteRef, `Merge ${remoteRef} into ${CLAUDE_BRANCH}`);
-      console.log(`[sync] Merged ${remoteRef} into ${CLAUDE_BRANCH} for "${projectName}" (diverged)`);
-      return { action: "merge" as const, reason: "diverged, merged" };
+      await git.resetSoft(iPath, remoteRef);
+      const hadChanges = await git.commitAll(iPath, `Sync ${CLAUDE_BRANCH} with ${remoteRef}`);
+      if (hadChanges) {
+        console.log(`[sync] Merged and compacted ${CLAUDE_BRANCH} onto ${remoteRef} for "${projectName}"`);
+      } else {
+        console.log(`[sync] Merged ${remoteRef} into ${CLAUDE_BRANCH} for "${projectName}" (no unique work remaining)`);
+      }
+      return { action: "merge" as const, reason: "diverged, merged and compacted" };
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
       throw new Error(

@@ -316,6 +316,7 @@ function makeMockGitOps(): GitOps {
     async fetch() {},
     async push() {},
     async resetHard() {},
+    async resetSoft() {},
     async createPullRequest() { return { url: "" }; },
     async isAncestor() { return false; },
     async treesEqual() { return false; },

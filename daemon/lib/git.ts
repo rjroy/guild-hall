@@ -123,6 +123,9 @@ export interface GitOps {
   /** Hard-reset the current branch in a worktree to a ref. */
   resetHard(worktreePath: string, ref: string): Promise<void>;
 
+  /** Soft-reset the current branch to a ref (moves HEAD, keeps index and working tree). */
+  resetSoft(worktreePath: string, ref: string): Promise<void>;
+
   /**
    * Create a PR using gh CLI. Returns the PR URL.
    * Throws with a clear message if gh is not installed.
@@ -335,6 +338,10 @@ export function createGitOps(): GitOps {
 
     async resetHard(worktreePath, ref) {
       await runGit(worktreePath, ["reset", "--hard", ref]);
+    },
+
+    async resetSoft(worktreePath, ref) {
+      await runGit(worktreePath, ["reset", "--soft", ref]);
     },
 
     async createPullRequest(repoPath, baseBranch, headBranch, title, body) {

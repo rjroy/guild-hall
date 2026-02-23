@@ -114,6 +114,7 @@ function makeMockGitOps(overrides?: Partial<GitOps>): GitOps {
     async fetch() {},
     async push() {},
     async resetHard() {},
+    async resetSoft() {},
     async createPullRequest() { return { url: "https://github.com/test/repo/pull/42" }; },
     async isAncestor() { return false; },
     async treesEqual() { return false; },

@@ -411,6 +411,7 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
     async fetch(...args) { calls.push({ method: "fetch", args }); },
     async push(...args) { calls.push({ method: "push", args }); },
     async resetHard(...args) { calls.push({ method: "resetHard", args }); },
+    async resetSoft(...args) { calls.push({ method: "resetSoft", args }); },
     async createPullRequest(...args) { calls.push({ method: "createPullRequest", args }); return { url: "" }; },
     async isAncestor(...args) { calls.push({ method: "isAncestor", args }); return false; },
     async treesEqual(...args) { calls.push({ method: "treesEqual", args }); return false; },

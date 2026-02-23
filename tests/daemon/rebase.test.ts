@@ -95,6 +95,10 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "resetHard", args });
       return Promise.resolve();
     },
+    resetSoft: (...args) => {
+      calls.push({ method: "resetSoft", args });
+      return Promise.resolve();
+    },
     createPullRequest: (...args) => {
       calls.push({ method: "createPullRequest", args });
       return Promise.resolve({ url: "https://github.com/test/repo/pull/1" });

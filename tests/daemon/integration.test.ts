@@ -202,6 +202,7 @@ function createMockGitOps(): GitOps {
     fetch: () => Promise.resolve(),
     push: () => Promise.resolve(),
     resetHard: () => Promise.resolve(),
+    resetSoft: () => Promise.resolve(),
     createPullRequest: () => Promise.resolve({ url: "" }),
     isAncestor: () => Promise.resolve(false),
     treesEqual: () => Promise.resolve(false),
