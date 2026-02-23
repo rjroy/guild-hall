@@ -49,7 +49,13 @@ export default async function ProjectPage({
   const meetingArtifacts = [
     ...integrationMeetings,
     ...activeMeetings.filter((m) => !seenIds.has(m.relativePath)),
-  ];
+  ].sort((a, b) => {
+    // Open meetings first, then by date descending
+    const aOpen = a.meta.status === "open" ? 0 : 1;
+    const bOpen = b.meta.status === "open" ? 0 : 1;
+    if (aOpen !== bOpen) return aOpen - bOpen;
+    return (b.meta.date || "").localeCompare(a.meta.date || "");
+  });
 
   const commissions = await scanCommissions(lorePath, projectName);
 
