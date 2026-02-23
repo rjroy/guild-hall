@@ -9,6 +9,7 @@ import { NextRequest } from "next/server";
 let tmpDir: string;
 let configDir: string;
 let projectDir: string;
+let integrationDir: string;
 let loreDir: string;
 let savedGuildHallHome: string | undefined;
 
@@ -29,9 +30,12 @@ beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-api-test-"));
   configDir = path.join(tmpDir, ".guild-hall");
   projectDir = path.join(tmpDir, "project");
-  loreDir = path.join(projectDir, ".lore");
+  // Integration worktree is at <ghHome>/projects/<projectName>/
+  integrationDir = path.join(configDir, "projects", "test-project");
+  loreDir = path.join(integrationDir, ".lore");
 
   await fs.mkdir(configDir, { recursive: true });
+  await fs.mkdir(projectDir, { recursive: true });
   await fs.mkdir(loreDir, { recursive: true });
 
   // Point getGuildHallHome() at our temp config directory

@@ -2,7 +2,7 @@ import * as path from "node:path";
 import { getProject } from "@/lib/config";
 import { scanArtifacts } from "@/lib/artifacts";
 import { scanCommissions } from "@/lib/commissions";
-import { projectLorePath } from "@/lib/paths";
+import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { notFound } from "next/navigation";
 import ProjectHeader from "@/components/project/ProjectHeader";
 import ProjectTabs from "@/components/project/ProjectTabs";
@@ -26,7 +26,9 @@ export default async function ProjectPage({
   const project = await getProject(projectName);
   if (!project) notFound();
 
-  const lorePath = projectLorePath(project.path);
+  const ghHome = getGuildHallHome();
+  const integrationPath = integrationWorktreePath(ghHome, projectName);
+  const lorePath = projectLorePath(integrationPath);
   const artifacts = await scanArtifacts(lorePath);
 
   const meetingsPath = path.join(lorePath, "meetings");

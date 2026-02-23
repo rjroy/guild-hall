@@ -1,6 +1,6 @@
 import { readConfig } from "@/lib/config";
 import { recentArtifacts } from "@/lib/artifacts";
-import { projectLorePath } from "@/lib/paths";
+import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { scanMeetingRequests } from "@/lib/meetings";
 import { scanCommissions } from "@/lib/commissions";
 import type { Artifact } from "@/lib/types";
@@ -20,6 +20,7 @@ export default async function DashboardPage({
 }) {
   const { project: selectedProject } = await searchParams;
   const config = await readConfig();
+  const ghHome = getGuildHallHome();
 
   const selectedConfig = selectedProject
     ? config.projects.find((p) => p.name === selectedProject)
@@ -27,21 +28,24 @@ export default async function DashboardPage({
 
   let artifacts: Artifact[] = [];
   if (selectedConfig) {
-    const lorePath = projectLorePath(selectedConfig.path);
+    const integrationPath = integrationWorktreePath(ghHome, selectedConfig.name);
+    const lorePath = projectLorePath(integrationPath);
     artifacts = await recentArtifacts(lorePath, 10);
   }
 
   const commissionsByProject = await Promise.all(
-    config.projects.map((project) =>
-      scanCommissions(projectLorePath(project.path), project.name),
-    ),
+    config.projects.map((project) => {
+      const integrationPath = integrationWorktreePath(ghHome, project.name);
+      return scanCommissions(projectLorePath(integrationPath), project.name);
+    }),
   );
   const allCommissions: CommissionMeta[] = commissionsByProject.flat();
 
   const requestsByProject = await Promise.all(
-    config.projects.map((project) =>
-      scanMeetingRequests(projectLorePath(project.path), project.name),
-    ),
+    config.projects.map((project) => {
+      const integrationPath = integrationWorktreePath(ghHome, project.name);
+      return scanMeetingRequests(projectLorePath(integrationPath), project.name);
+    }),
   );
   const allRequests: MeetingMeta[] = requestsByProject.flat();
 

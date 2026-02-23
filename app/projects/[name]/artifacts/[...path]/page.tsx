@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProject } from "@/lib/config";
 import { readArtifact } from "@/lib/artifacts";
-import { projectLorePath } from "@/lib/paths";
+import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import ArtifactProvenance from "@/components/artifact/ArtifactProvenance";
 import ArtifactContent from "@/components/artifact/ArtifactContent";
 import MetadataSidebar from "@/components/artifact/MetadataSidebar";
@@ -20,7 +20,9 @@ export default async function ArtifactPage({
   const project = await getProject(projectName);
   if (!project) notFound();
 
-  const lorePath = projectLorePath(project.path);
+  const ghHome = getGuildHallHome();
+  const integrationPath = integrationWorktreePath(ghHome, projectName);
+  const lorePath = projectLorePath(integrationPath);
   let artifact;
   try {
     artifact = await readArtifact(lorePath, relativePath);

@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { redirect } from "next/navigation";
 import { getProject } from "@/lib/config";
 import { readArtifact } from "@/lib/artifacts";
-import { projectLorePath, getGuildHallHome } from "@/lib/paths";
+import { projectLorePath, getGuildHallHome, resolveMeetingBasePath } from "@/lib/paths";
 import { parseTranscriptToMessages } from "@/lib/meetings";
 import MeetingHeader from "@/components/meeting/MeetingHeader";
 import MeetingView from "@/components/meeting/MeetingView";
@@ -76,7 +76,9 @@ export default async function MeetingPage({
     redirect(`/`);
   }
 
-  const lorePath = projectLorePath(project.path);
+  const ghHome = getGuildHallHome();
+  const basePath = await resolveMeetingBasePath(ghHome, projectName, id);
+  const lorePath = projectLorePath(basePath);
   const meetingPath = `meetings/${id}.md`;
 
   let artifact;

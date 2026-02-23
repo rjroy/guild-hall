@@ -19,7 +19,7 @@ Re-implementation after data loss (see `.lore/retros/phase-5-git-integration-dat
 - [x] Phase 5: Commission exit + cleanup git integration
 - [x] Phase 6: Commission re-dispatch git integration
 - [x] Phase 7: Meeting session git integration
-- [ ] Phase 8: Next.js read path migration
+- [x] Phase 8: Next.js read path migration
 - [ ] Phase 9: Claude branch maintenance
 - [ ] Phase 10: Spec validation
 
@@ -70,3 +70,8 @@ Re-implementation after data loss (see `.lore/retros/phase-5-git-integration-dat
 - Dispatched: Add git worktree lifecycle to meetings. Replace fs.mkdtemp with git branch+worktree in createMeeting/acceptMeetingRequest. Replace fs.rm with commitAll+squashMerge+removeWorktree+deleteBranch in closeMeeting. Update recovery to close meetings with missing worktrees. Thread integrationPath to propose_followup. Wire gitOps in daemon/app.ts.
 - Result: meeting-session.ts uses git worktree pattern matching commissions. createMeeting/acceptMeetingRequest create branch from claude, worktree, sparse checkout. closeMeeting does commit+squash-merge+cleanup+branch-delete. declineMeeting/deferMeeting operate on integration worktree. recoverMeetings closes meetings with missing worktrees. branchName tracked in state files. meeting-toolbox.ts gets integrationPath for propose_followup. toolbox-resolver.ts threads integrationPath. app.ts passes gitOps to meeting session.
 - Tests: 1093 pass (8 new git integration tests, updated 30+ existing tests for git DI, also fixed 2 integration.test.ts and 3 notes-generator.test.ts for gitOps DI)
+
+### Phase 8: Next.js Read Path Migration
+- Dispatched: Update all Next.js server components to read from integration worktree. Add resolveCommissionBasePath and resolveMeetingBasePath helpers. Auto-commit artifact edits.
+- Result: All 6 page files + 1 API route updated. Dashboard, project view, artifact view use integrationWorktreePath. Commission/meeting detail views resolve to activity worktree for active entities. Artifact editing writes to integration worktree with auto-commit. Added resolveCommissionBasePath and resolveMeetingBasePath to lib/paths.ts.
+- Tests: 1093 pass (1 test updated for integration worktree paths)

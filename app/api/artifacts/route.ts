@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProject } from "@/lib/config";
 import { writeArtifactContent } from "@/lib/artifacts";
-import { projectLorePath } from "@/lib/paths";
+import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
+import { createGitOps } from "@/daemon/lib/git";
 
 export async function PUT(request: NextRequest) {
   let body: unknown;
@@ -35,14 +36,26 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  const lorePath = projectLorePath(project.path);
+  const ghHome = getGuildHallHome();
+  const integrationPath = integrationWorktreePath(ghHome, projectName);
+  const lorePath = projectLorePath(integrationPath);
 
   try {
     await writeArtifactContent(lorePath, artifactPath, content);
-    return NextResponse.json({ success: true });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to save";
     return NextResponse.json({ error: message }, { status: 400 });
   }
+
+  // Auto-commit the edit to the claude branch. Non-fatal if commit fails
+  // (e.g., no actual changes after write, or integration worktree not set up).
+  try {
+    const git = createGitOps();
+    await git.commitAll(integrationPath, `Edit artifact: ${artifactPath}`);
+  } catch {
+    // Commit failure is non-fatal
+  }
+
+  return NextResponse.json({ success: true });
 }
