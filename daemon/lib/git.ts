@@ -143,6 +143,13 @@ export interface GitOps {
 
   /** Resolves a ref to its full SHA. */
   revParse(repoPath: string, ref: string): Promise<string>;
+
+  /**
+   * Rebase commits after `afterRef` onto `ontoRef`.
+   * Equivalent to: git rebase --onto <ontoRef> <afterRef>
+   * Used after squash-merge to replay only post-PR commits.
+   */
+  rebaseOnto(worktreePath: string, ontoRef: string, afterRef: string): Promise<void>;
 }
 
 export function createGitOps(): GitOps {
@@ -220,6 +227,21 @@ export function createGitOps(): GitOps {
         }
         throw new Error(
           `Rebase onto ${ontoRef} failed with conflicts: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    },
+
+    async rebaseOnto(worktreePath, ontoRef, afterRef) {
+      try {
+        await runGit(worktreePath, ["rebase", "--onto", ontoRef, afterRef]);
+      } catch (err) {
+        try {
+          await runGit(worktreePath, ["rebase", "--abort"]);
+        } catch {
+          // Abort itself may fail if rebase wasn't actually in progress
+        }
+        throw new Error(
+          `Rebase --onto ${ontoRef} ${afterRef} failed: ${err instanceof Error ? err.message : String(err)}`
         );
       }
     },

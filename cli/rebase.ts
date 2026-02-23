@@ -288,14 +288,36 @@ export async function syncProject(
     // Diverged: neither is ancestor of the other. This is the typical
     // post-squash-merge state (squash creates a new commit, breaking the
     // ancestry chain between claude/main and origin/<default>).
-    // Check for PR marker or tree equality before attempting rebase.
     const claudeTipDiverged = await git.revParse(iPath, CLAUDE_BRANCH);
     const markerDiverged = await readPrMarker(home, projectName);
-    if (markerDiverged && markerDiverged.claudeMainTip === claudeTipDiverged) {
-      await git.resetHard(iPath, remoteRef);
-      await removePrMarker(home, projectName);
-      console.log(`[sync] Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge (via marker, diverged)`);
-      return { action: "reset" as const, reason: "PR marker matched (diverged)" };
+
+    if (markerDiverged) {
+      if (markerDiverged.claudeMainTip === claudeTipDiverged) {
+        // Exact match: claude/main hasn't moved since the PR was created.
+        // Safe to hard reset.
+        await git.resetHard(iPath, remoteRef);
+        await removePrMarker(home, projectName);
+        console.log(`[sync] Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge (via marker, diverged)`);
+        return { action: "reset" as const, reason: "PR marker matched (diverged)" };
+      }
+
+      // Marker exists but tip advanced (e.g., meeting closed after PR was
+      // created). Rebase only the new commits onto the merged origin.
+      // git rebase --onto origin/main <marker-tip> claude/main
+      try {
+        await git.rebaseOnto(iPath, remoteRef, markerDiverged.claudeMainTip);
+        await removePrMarker(home, projectName);
+        console.log(
+          `[sync] Rebased post-PR commits onto ${remoteRef} for "${projectName}" ` +
+          `(marker tip: ${markerDiverged.claudeMainTip.slice(0, 8)}, current: ${claudeTipDiverged.slice(0, 8)})`,
+        );
+        return { action: "rebase" as const, reason: "PR marker + new commits, rebaseOnto" };
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        throw new Error(
+          `Post-PR rebase --onto failed for "${projectName}": ${reason}. Manual resolution required.`,
+        );
+      }
     }
 
     if (await git.treesEqual(iPath, CLAUDE_BRANCH, remoteRef)) {

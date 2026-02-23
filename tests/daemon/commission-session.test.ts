@@ -415,6 +415,7 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
     async isAncestor(...args) { calls.push({ method: "isAncestor", args }); return false; },
     async treesEqual(...args) { calls.push({ method: "treesEqual", args }); return false; },
     async revParse(...args) { calls.push({ method: "revParse", args }); return "abc"; },
+    async rebaseOnto(...args) { calls.push({ method: "rebaseOnto", args }); },
   };
   /* eslint-enable @typescript-eslint/require-await */
 }

@@ -206,6 +206,7 @@ function createMockGitOps(): GitOps {
     isAncestor: () => Promise.resolve(false),
     treesEqual: () => Promise.resolve(false),
     revParse: () => Promise.resolve("abc"),
+    rebaseOnto: () => Promise.resolve(),
   };
 }
 

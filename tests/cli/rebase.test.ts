@@ -74,6 +74,10 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "rebase", args });
       return Promise.resolve();
     },
+    rebaseOnto: (...args) => {
+      calls.push({ method: "rebaseOnto", args });
+      return Promise.resolve();
+    },
     currentBranch: (...args) => {
       calls.push({ method: "currentBranch", args });
       return Promise.resolve("claude/main");
@@ -752,6 +756,45 @@ describe("syncProject", () => {
     const resetCalls = mockGit.calls.filter((c) => c.method === "resetHard");
     expect(resetCalls).toHaveLength(1);
     // Marker should be removed
+    const markerAfter = await readPrMarker(ghHome, "my-project");
+    expect(markerAfter).toBeNull();
+  });
+
+  test("diverged: rebaseOnto when marker exists but tip advanced (post-PR meeting close)", async () => {
+    // claude/main advanced after PR was created (e.g., meeting closed)
+    mockGit.isAncestor = (...args) => {
+      mockGit.calls.push({ method: "isAncestor", args });
+      return Promise.resolve(false);
+    };
+    const markerTip = "aaa111bbb222ccc333ddd444eee555fff666aaa1";
+    const currentTip = "fff999eee888ddd777ccc666bbb555aaa444333";
+    mockGit.revParse = (...args) => {
+      mockGit.calls.push({ method: "revParse", args });
+      return Promise.resolve(currentTip); // Different from marker
+    };
+    mockGit.rebaseOnto = (...args) => {
+      mockGit.calls.push({ method: "rebaseOnto", args });
+      return Promise.resolve();
+    };
+
+    // Write PR marker with the OLD tip
+    const markerDir = path.join(ghHome, "state", "pr-pending");
+    await fs.mkdir(markerDir, { recursive: true });
+    await fs.writeFile(
+      path.join(markerDir, "my-project.json"),
+      JSON.stringify({ claudeMainTip: markerTip, prUrl: "https://github.com/test/pr/1", createdAt: new Date().toISOString() }),
+    );
+
+    const result = await syncProject("/fake/project", "my-project", ghHome, mockGit, "main");
+
+    expect(result.action).toBe("rebase");
+    expect(result.reason).toContain("rebaseOnto");
+    const rebaseOntoCalls = mockGit.calls.filter((c) => c.method === "rebaseOnto");
+    expect(rebaseOntoCalls).toHaveLength(1);
+    // Should rebase --onto origin/main <marker-tip>
+    expect(rebaseOntoCalls[0].args[1]).toBe("origin/main");
+    expect(rebaseOntoCalls[0].args[2]).toBe(markerTip);
+    // Marker should be removed after successful rebase
     const markerAfter = await readPrMarker(ghHome, "my-project");
     expect(markerAfter).toBeNull();
   });

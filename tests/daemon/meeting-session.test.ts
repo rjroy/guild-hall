@@ -225,6 +225,7 @@ function createMockGitOps(options?: {
     isAncestor: () => { calls.push("isAncestor"); return Promise.resolve(false); },
     treesEqual: () => { calls.push("treesEqual"); return Promise.resolve(false); },
     revParse: () => { calls.push("revParse"); return Promise.resolve("abc"); },
+    rebaseOnto: () => { calls.push("rebaseOnto"); return Promise.resolve(); },
   };
 }
 

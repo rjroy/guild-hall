@@ -320,6 +320,7 @@ function makeMockGitOps(): GitOps {
     async isAncestor() { return false; },
     async treesEqual() { return false; },
     async revParse() { return "abc"; },
+    async rebaseOnto() {},
   };
 }
 

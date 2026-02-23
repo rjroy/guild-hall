@@ -112,6 +112,10 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "revParse", args });
       return Promise.resolve("aaa111bbb222ccc333ddd444eee555fff666aaa1");
     },
+    rebaseOnto: (...args) => {
+      calls.push({ method: "rebaseOnto", args });
+      return Promise.resolve();
+    },
   };
 }
 
