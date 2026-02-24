@@ -6,12 +6,14 @@ export interface ProjectConfig {
   description?: string;
   repoUrl?: string;
   meetingCap?: number;
+  commissionCap?: number;
   defaultBranch?: string;
 }
 
 export interface AppConfig {
   projects: ProjectConfig[];
   settings?: Record<string, unknown>;
+  maxConcurrentCommissions?: number;
 }
 
 export interface ArtifactMeta {

@@ -48,6 +48,11 @@ import {
   updateResultSummary,
 } from "./commission-artifact-helpers";
 
+// -- Capacity limit defaults --
+
+const DEFAULT_COMMISSION_CAP = 3;
+const DEFAULT_MAX_CONCURRENT = 10;
+
 // -- Status machine constants --
 
 const VALID_TRANSITIONS: Record<CommissionStatus, CommissionStatus[]> = {
@@ -161,11 +166,11 @@ export interface CommissionSessionForRoutes {
   ): Promise<void>;
   dispatchCommission(
     commissionId: CommissionId,
-  ): Promise<{ status: "accepted" }>;
+  ): Promise<{ status: "accepted" | "queued" }>;
   cancelCommission(commissionId: CommissionId): Promise<void>;
   redispatchCommission(
     commissionId: CommissionId,
-  ): Promise<{ status: "accepted" }>;
+  ): Promise<{ status: "accepted" | "queued" }>;
   reportProgress(commissionId: CommissionId, summary: string): void;
   reportResult(
     commissionId: CommissionId,
@@ -232,6 +237,167 @@ export function createCommissionSession(
 
   // Store active kill timers so they can be cleared on shutdown
   const killTimers = new Set<ReturnType<typeof setTimeout>>();
+
+  // -- Capacity limits --
+
+  /**
+   * Serialization lock for auto-dispatch. When two commissions complete
+   * simultaneously, both call tryAutoDispatch. Without serialization,
+   * both could scan the same pending commission and attempt to dispatch
+   * it. The promise chain ensures only one auto-dispatch runs at a time.
+   */
+  let autoDispatchChain: Promise<void> = Promise.resolve();
+
+  function getGlobalLimit(): number {
+    return deps.config.maxConcurrentCommissions ?? DEFAULT_MAX_CONCURRENT;
+  }
+
+  function getProjectLimit(projectName: string): number {
+    const project = findProject(projectName);
+    return project?.commissionCap ?? DEFAULT_COMMISSION_CAP;
+  }
+
+  function countActiveForProject(projectName: string): number {
+    let count = 0;
+    for (const commission of activeCommissions.values()) {
+      if (commission.projectName === projectName) count++;
+    }
+    return count;
+  }
+
+  function isAtCapacity(projectName: string): { atLimit: boolean; reason: string } {
+    const globalCount = activeCommissions.size;
+    const globalLimit = getGlobalLimit();
+    if (globalCount >= globalLimit) {
+      return {
+        atLimit: true,
+        reason: `Global concurrent limit reached (${globalCount}/${globalLimit})`,
+      };
+    }
+
+    const projectCount = countActiveForProject(projectName);
+    const projectLimit = getProjectLimit(projectName);
+    if (projectCount >= projectLimit) {
+      return {
+        atLimit: true,
+        reason: `Project "${projectName}" concurrent limit reached (${projectCount}/${projectLimit})`,
+      };
+    }
+
+    return { atLimit: false, reason: "" };
+  }
+
+  /**
+   * Scans pending commissions across all projects and returns them sorted
+   * by creation date (oldest first). The "queue" is not a data structure;
+   * it's readdir + sort by creation date, as specified in process-architecture.md.
+   */
+  async function scanPendingCommissions(): Promise<
+    Array<{ commissionId: CommissionId; projectName: string; createdAt: string }>
+  > {
+    const pending: Array<{
+      commissionId: CommissionId;
+      projectName: string;
+      createdAt: string;
+    }> = [];
+
+    for (const project of deps.config.projects) {
+      const iPath = integrationWorktreePath(ghHome, project.name);
+      const commissionsDir = path.join(iPath, ".lore", "commissions");
+
+      let entries: string[];
+      try {
+        entries = await fs.readdir(commissionsDir);
+      } catch {
+        continue;
+      }
+
+      for (const filename of entries) {
+        if (!filename.endsWith(".md")) continue;
+        const cId = asCommissionId(filename.replace(/\.md$/, ""));
+
+        // Skip commissions that are already active (dispatched/in_progress)
+        if (activeCommissions.has(cId as string)) continue;
+
+        try {
+          const status = await readCommissionStatus(iPath, cId);
+          if (status !== "pending") continue;
+
+          // Extract creation timestamp from the artifact for FIFO ordering.
+          // The first timeline entry is the "created" event with a timestamp.
+          const artifactPath = commissionArtifactPath(iPath, cId);
+          const raw = await fs.readFile(artifactPath, "utf-8");
+          const timestampMatch = raw.match(
+            /activity_timeline:\n  - timestamp: ([^\n]+)/,
+          );
+          const createdAt = timestampMatch
+            ? timestampMatch[1].trim()
+            : "9999-12-31T23:59:59.999Z";
+
+          pending.push({ commissionId: cId, projectName: project.name, createdAt });
+        } catch {
+          // Skip unreadable artifacts
+          continue;
+        }
+      }
+    }
+
+    // Sort oldest first (FIFO)
+    pending.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return pending;
+  }
+
+  /**
+   * Attempts to auto-dispatch pending commissions when capacity opens up.
+   * Called after a commission reaches a terminal state (completed/failed/cancelled).
+   * Dispatches as many pending commissions as capacity allows, respecting both
+   * global and per-project limits. FIFO: oldest creation date first.
+   */
+  async function tryAutoDispatch(): Promise<void> {
+    const pending = await scanPendingCommissions();
+    if (pending.length === 0) return;
+
+    for (const candidate of pending) {
+      // Re-check capacity for each candidate (previous dispatch may have filled a slot)
+      const { atLimit } = isAtCapacity(candidate.projectName);
+      if (atLimit) continue;
+
+      // Also check global limit explicitly since isAtCapacity checks both
+      const globalCount = activeCommissions.size;
+      const globalLimit = getGlobalLimit();
+      if (globalCount >= globalLimit) break;
+
+      try {
+        console.log(
+          `[commission] auto-dispatching "${candidate.commissionId}" from queue (FIFO)`,
+        );
+        deps.eventBus.emit({
+          type: "commission_dequeued",
+          commissionId: candidate.commissionId as string,
+          reason: "Capacity available, dispatching from queue",
+        });
+        await dispatchCommission(candidate.commissionId);
+      } catch (err: unknown) {
+        console.warn(
+          `[commission] auto-dispatch failed for "${candidate.commissionId}":`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+  }
+
+  /**
+   * Enqueues an auto-dispatch attempt on the serialization chain.
+   * Ensures only one auto-dispatch scan runs at a time.
+   */
+  function enqueueAutoDispatch(): void {
+    autoDispatchChain = autoDispatchChain.then(() => tryAutoDispatch()).catch((err: unknown) => {
+      console.error(
+        "[commission] auto-dispatch chain error:",
+        err instanceof Error ? err.message : String(err),
+      );
+    });
+  }
 
   // -- Heartbeat monitoring --
   const heartbeatInterval = setInterval(() => {
@@ -464,6 +630,9 @@ export function createCommissionSession(
         err instanceof Error ? err.message : String(err),
       );
     });
+
+    // Capacity freed: check if pending commissions can now dispatch
+    enqueueAutoDispatch();
   }
 
   // -- Public API --
@@ -642,7 +811,7 @@ projectName: ${projectName}
   async function dispatchCommission(
     commissionId: CommissionId,
     attempt?: number,
-  ): Promise<{ status: "accepted" }> {
+  ): Promise<{ status: "accepted" | "queued" }> {
     // 1. Find the project
     const found = await findProjectPathForCommission(commissionId);
     if (!found) {
@@ -667,11 +836,25 @@ projectName: ${projectName}
       );
     }
 
-    // 3. Commit the pending artifact to the integration worktree so
+    // 3. Check capacity limits before spawning
+    const capacityCheck = isAtCapacity(found.projectName);
+    if (capacityCheck.atLimit) {
+      console.log(
+        `[commission] queuing "${commissionId}": ${capacityCheck.reason}`,
+      );
+      deps.eventBus.emit({
+        type: "commission_queued",
+        commissionId: commissionId as string,
+        reason: capacityCheck.reason,
+      });
+      return { status: "queued" };
+    }
+
+    // 4. Commit the pending artifact to the integration worktree so
     //    the activity branch (forked from claude/main) includes it.
     await git.commitAll(found.integrationPath, `Add commission: ${commissionId}`);
 
-    // 4. Create activity branch and worktree from the claude branch.
+    // 5. Create activity branch and worktree from the claude branch.
     //    The worktree gets the committed state of the claude branch (pending).
     //    All subsequent artifact mutations happen in the activity worktree.
     //    On re-dispatch, the attempt number produces a suffixed branch name
@@ -683,7 +866,7 @@ projectName: ${projectName}
     await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
     await git.createWorktree(found.projectPath, worktreeDir, branchName);
 
-    // 5. Transition to dispatched (in activity worktree)
+    // 6. Transition to dispatched (in activity worktree)
     await transitionCommission(
       worktreeDir,
       commissionId,
@@ -692,7 +875,7 @@ projectName: ${projectName}
       "Commission dispatched to worker",
     );
 
-    // 6. Read the artifact to get prompt, worker, dependencies, resource overrides
+    // 7. Read the artifact to get prompt, worker, dependencies, resource overrides
     const artifactPath = commissionArtifactPath(
       worktreeDir,
       commissionId,
@@ -746,7 +929,7 @@ projectName: ${projectName}
       }
     }
 
-    // 7. Write worker config JSON
+    // 8. Write worker config JSON
     const socketPath = getSocketPath(ghHome);
     const workerConfig: CommissionWorkerConfig = {
       commissionId: commissionId as string,
@@ -774,7 +957,7 @@ projectName: ${projectName}
       "utf-8",
     );
 
-    // 8. Write machine-local state file
+    // 9. Write machine-local state file
     await writeStateFile(commissionId, {
       commissionId: commissionId as string,
       projectName: found.projectName,
@@ -785,13 +968,13 @@ projectName: ${projectName}
       configPath,
     });
 
-    // 9. Spawn the worker process
+    // 10. Spawn the worker process
     console.log(
       `[commission] dispatching "${commissionId}" -> worker="${workerName}", config="${configPath}"`,
     );
     const spawned = spawnFn(configPath);
 
-    // 10. Record in active Map
+    // 11. Record in active Map
     const now = new Date();
     const active: ActiveCommission = {
       commissionId,
@@ -813,7 +996,7 @@ projectName: ${projectName}
       `[commission] spawned "${commissionId}" pid=${spawned.pid}`,
     );
 
-    // 11. Update PID in state file
+    // 12. Update PID in state file
     await writeStateFile(commissionId, {
       commissionId: commissionId as string,
       projectName: found.projectName,
@@ -825,7 +1008,7 @@ projectName: ${projectName}
       configPath,
     });
 
-    // 12. Transition to in_progress (in the activity worktree)
+    // 13. Transition to in_progress (in the activity worktree)
     await transitionCommission(
       worktreeDir,
       commissionId,
@@ -835,7 +1018,7 @@ projectName: ${projectName}
     );
     active.status = "in_progress";
 
-    // 13. Emit event
+    // 14. Emit event
     deps.eventBus.emit({
       type: "commission_status",
       commissionId: commissionId as string,
@@ -843,7 +1026,7 @@ projectName: ${projectName}
       reason: "Worker process started",
     });
 
-    // 14. Attach exit handler
+    // 15. Attach exit handler
     void spawned.exitPromise.then(async (result) => {
       await handleExit(commissionId, result.exitCode);
     }).catch(async (err: unknown) => {
@@ -954,16 +1137,18 @@ projectName: ${projectName}
     const project = findProject(commission.projectName);
     if (finalStatus === "completed" && project) {
       // Squash-merge activity branch into claude, then clean up both.
-      // No syncStatusToIntegration here: the merge brings the activity
-      // branch's artifact (which already has status=completed and the
-      // full timeline). Syncing before merge would leave uncommitted
-      // changes in the integration worktree, blocking the merge.
+      // The merge brings the activity branch's artifact (status=completed
+      // with full timeline). We sync status to the integration worktree
+      // after the merge as a safety net: the merge should have brought it,
+      // but an explicit sync ensures auto-dispatch scanning sees the
+      // correct status even if the merge was a no-op.
       const iPath = integrationWorktreePath(ghHome, commission.projectName);
       try {
         await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
         await withProjectLock(commission.projectName, async () => {
           await git.squashMerge(iPath, commission.branchName, `Commission: ${commissionId}`);
         });
+        await syncStatusToIntegration(commission, finalStatus, reason);
         await git.removeWorktree(project.path, commission.worktreeDir);
         await git.deleteBranch(project.path, commission.branchName);
         console.log(`[commission] "${commissionId}" squash-merged to claude and cleaned up`);
@@ -972,6 +1157,8 @@ projectName: ${projectName}
           `[commission] Git cleanup failed for completed "${commissionId}":`,
           err instanceof Error ? err.message : String(err),
         );
+        // Even if git cleanup fails, ensure status is synced for auto-dispatch
+        await syncStatusToIntegration(commission, finalStatus, reason);
       }
     } else {
       // Sync terminal status to integration worktree. For failed/cancelled,
@@ -1026,6 +1213,9 @@ projectName: ${projectName}
         err instanceof Error ? err.message : String(err),
       );
     });
+
+    // Capacity freed: check if pending commissions can now dispatch
+    enqueueAutoDispatch();
   }
 
   async function cancelCommission(
@@ -1122,11 +1312,14 @@ projectName: ${projectName}
         err instanceof Error ? err.message : String(err),
       );
     });
+
+    // Capacity freed: check if pending commissions can now dispatch
+    enqueueAutoDispatch();
   }
 
   async function redispatchCommission(
     commissionId: CommissionId,
-  ): Promise<{ status: "accepted" }> {
+  ): Promise<{ status: "accepted" | "queued" }> {
     // 1. Find the project
     const found = await findProjectPathForCommission(commissionId);
     if (!found) {

@@ -14,12 +14,14 @@ export const projectConfigSchema = z.object({
   description: z.string().optional(),
   repoUrl: z.string().optional(),
   meetingCap: z.number().optional(),
+  commissionCap: z.number().optional(),
   defaultBranch: z.string().optional(),
 });
 
 export const appConfigSchema = z.object({
   projects: z.array(projectConfigSchema),
   settings: z.record(z.string(), z.unknown()).optional(),
+  maxConcurrentCommissions: z.number().optional(),
 });
 
 // -- Functions --

@@ -11,7 +11,7 @@ modules: [guild-hall-core, guild-hall-ui]
 
 ## Progress
 - [x] Phase 1: Commission Crash Recovery (task 001)
-- [ ] Phase 2: Commission Concurrent Limits and FIFO Queue (task 002)
+- [x] Phase 2: Commission Concurrent Limits and FIFO Queue (task 002)
 - [ ] Phase 3: Queued Commission UI (task 003)
 - [ ] Phase 4: Dependency Auto-Transitions (task 004)
 - [ ] Phase 5: Memory Access Control (task 005)
@@ -42,3 +42,9 @@ Prior work surfaced these critical warnings for Phase 7:
 - Result: Implemented two-phase recovery. Phase 1 scans state files (dead/live PID handling). Phase 2 scans for orphaned worktrees. Added `isProcessAlive` DI seam to `CommissionSessionDeps`. Wired into `createProductionApp()` after meeting recovery.
 - Tests: 24 new tests, 1321 total pass. Covers all three recovery cases, terminal state skipping, corrupt files, error resilience.
 - Review: No issues. All git ops go through GitOps (cleanGitEnv applied). Logging on all paths. DI pattern matches recoverMeetings().
+
+### Phase 2: Commission Concurrent Limits and FIFO Queue
+- Dispatched: Add config fields (commissionCap, maxConcurrentCommissions), capacity checks in dispatch, auto-dispatch on completion/failure/cancellation, FIFO ordering across all projects.
+- Result: Added capacity helpers (isAtCapacity, countActiveForProject), scanPendingCommissions() for FIFO ordering by creation date, tryAutoDispatch() with promise-chain serialization to prevent race conditions. Dispatch returns `{ status: "queued" }` when at limit. Added commission_queued/commission_dequeued SystemEvent types. Post-merge syncStatusToIntegration added as safety net for auto-dispatch scanner.
+- Tests: 14 new tests, 1335 total pass. Covers per-project caps, global caps, FIFO ordering, auto-dispatch on all terminal states, cross-project ordering, limit changes.
+- Review: No issues. Race condition handled via autoDispatchChain promise serialization. All requirements met (COM-21, COM-22, COM-23).

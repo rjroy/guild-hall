@@ -13,6 +13,8 @@ export type SystemEvent =
   | { type: "commission_result"; commissionId: string; summary: string; artifacts?: string[] }
   | { type: "commission_artifact"; commissionId: string; artifactPath: string }
   | { type: "commission_manager_note"; commissionId: string; content: string }
+  | { type: "commission_queued"; commissionId: string; reason: string }
+  | { type: "commission_dequeued"; commissionId: string; reason: string }
   | { type: "meeting_started"; meetingId: string; worker: string }
   | { type: "meeting_ended"; meetingId: string };
 
