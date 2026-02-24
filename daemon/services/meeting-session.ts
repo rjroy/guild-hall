@@ -1261,16 +1261,31 @@ notes_summary: ""
     }
 
     // Git cleanup: commit changes, squash-merge to integration, remove worktree and branch
+    let squashMergeSucceeded = false;
     if (project) {
       try {
         await git.commitAll(meeting.worktreeDir, `Meeting closed: ${meeting.meetingId}`);
         const iPath = integrationWorktreePath(ghHome, meeting.projectName);
         await git.squashMerge(iPath, meeting.branchName, `Meeting: ${meeting.meetingId}`);
+        squashMergeSucceeded = true;
         await git.removeWorktree(project.path, meeting.worktreeDir);
         await git.deleteBranch(project.path, meeting.branchName);
       } catch (err: unknown) {
         const reason = err instanceof Error ? err.message : String(err);
         console.warn(`[closeMeeting] Git cleanup failed for ${meeting.meetingId}: ${reason}`);
+      }
+    }
+
+    // After squash-merge, new artifacts may have appeared on the integration
+    // worktree that satisfy blocked commission dependencies.
+    if (squashMergeSucceeded && deps.commissionSession) {
+      try {
+        await deps.commissionSession.checkDependencyTransitions(meeting.projectName);
+      } catch (err: unknown) {
+        console.warn(
+          `[closeMeeting] Dependency transition check failed:`,
+          err instanceof Error ? err.message : String(err),
+        );
       }
     }
 

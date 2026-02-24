@@ -44,6 +44,7 @@ import {
   appendTimelineEntry,
   commissionArtifactPath,
   readCommissionStatus,
+  readCommissionDependencies,
   updateCurrentProgress,
   updateResultSummary,
 } from "./commission-artifact-helpers";
@@ -128,6 +129,12 @@ export interface CommissionSessionDeps {
    * PIDs appear alive. Defaults to process.kill(pid, 0).
    */
   isProcessAlive?: (pid: number) => boolean;
+  /**
+   * DI seam for file existence checks. Tests pass a mock to control which
+   * paths appear to exist. Defaults to fs.access (synchronous-style check
+   * wrapped in a try/catch).
+   */
+  fileExists?: (filePath: string) => Promise<boolean>;
 }
 
 type ActiveCommission = {
@@ -179,6 +186,7 @@ export interface CommissionSessionForRoutes {
   ): void;
   reportQuestion(commissionId: CommissionId, question: string): void;
   addUserNote(commissionId: CommissionId, content: string): Promise<void>;
+  checkDependencyTransitions(projectName: string): Promise<void>;
   recoverCommissions(): Promise<number>;
   getActiveCommissions(): number;
   shutdown(): void;
@@ -229,6 +237,14 @@ export function createCommissionSession(
   const isProcessAlive = deps.isProcessAlive ?? ((pid: number): boolean => {
     try {
       process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  const fileExists = deps.fileExists ?? (async (filePath: string): Promise<boolean> => {
+    try {
+      await fs.access(filePath);
       return true;
     } catch {
       return false;
@@ -397,6 +413,131 @@ export function createCommissionSession(
         err instanceof Error ? err.message : String(err),
       );
     });
+  }
+
+  // -- Dependency auto-transitions --
+
+  /**
+   * Checks dependency satisfaction for blocked and pending commissions in a
+   * project and transitions them accordingly:
+   *   - blocked -> pending: all dependency artifact paths exist in integration worktree
+   *   - pending -> blocked: at least one dependency artifact path is missing
+   *
+   * Commissions with no dependencies are never transitioned to blocked.
+   * After any blocked -> pending transition, triggers the FIFO auto-dispatch
+   * check so newly-pending commissions can be dispatched if capacity allows.
+   *
+   * Uses the integration worktree for dependency path resolution, not
+   * activity worktrees (dependencies are checked against the shared branch).
+   */
+  async function checkDependencyTransitions(projectName: string): Promise<void> {
+    const iPath = integrationWorktreePath(ghHome, projectName);
+    const commissionsDir = path.join(iPath, ".lore", "commissions");
+
+    let entries: string[];
+    try {
+      entries = await fs.readdir(commissionsDir);
+    } catch {
+      return;
+    }
+
+    let anyUnblocked = false;
+
+    for (const filename of entries) {
+      if (!filename.endsWith(".md")) continue;
+      const cId = asCommissionId(filename.replace(/\.md$/, ""));
+
+      // Skip commissions that are currently active (dispatched/in_progress)
+      if (activeCommissions.has(cId as string)) continue;
+
+      let status: CommissionStatus | null;
+      try {
+        status = await readCommissionStatus(iPath, cId);
+      } catch {
+        continue;
+      }
+
+      if (status !== "blocked" && status !== "pending") continue;
+
+      let dependencies: string[];
+      try {
+        dependencies = await readCommissionDependencies(iPath, cId);
+      } catch {
+        continue;
+      }
+
+      // No dependencies: never transition to blocked, skip
+      if (dependencies.length === 0) continue;
+
+      // Check if all dependency paths exist in the integration worktree
+      let allSatisfied = true;
+      for (const dep of dependencies) {
+        const depPath = path.join(iPath, dep);
+        const exists = await fileExists(depPath);
+        if (!exists) {
+          allSatisfied = false;
+          break;
+        }
+      }
+
+      if (status === "blocked" && allSatisfied) {
+        // All dependencies satisfied: transition blocked -> pending
+        try {
+          await transitionCommission(
+            iPath,
+            cId,
+            "blocked",
+            "pending",
+            "All dependency artifacts now exist",
+          );
+          deps.eventBus.emit({
+            type: "commission_status",
+            commissionId: cId as string,
+            status: "pending",
+            reason: "All dependency artifacts now exist",
+          });
+          anyUnblocked = true;
+          console.log(
+            `[commission] dependency auto-transition: "${cId}" blocked -> pending (all deps satisfied)`,
+          );
+        } catch (err: unknown) {
+          console.warn(
+            `[commission] Failed to auto-transition "${cId}" blocked -> pending:`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      } else if (status === "pending" && !allSatisfied) {
+        // A dependency is missing: transition pending -> blocked
+        try {
+          await transitionCommission(
+            iPath,
+            cId,
+            "pending",
+            "blocked",
+            "Dependency artifact missing",
+          );
+          deps.eventBus.emit({
+            type: "commission_status",
+            commissionId: cId as string,
+            status: "blocked",
+            reason: "Dependency artifact missing",
+          });
+          console.log(
+            `[commission] dependency auto-transition: "${cId}" pending -> blocked (missing dep)`,
+          );
+        } catch (err: unknown) {
+          console.warn(
+            `[commission] Failed to auto-transition "${cId}" pending -> blocked:`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      }
+    }
+
+    // If any commission was unblocked, trigger FIFO auto-dispatch
+    if (anyUnblocked) {
+      enqueueAutoDispatch();
+    }
   }
 
   // -- Heartbeat monitoring --
@@ -630,6 +771,9 @@ export function createCommissionSession(
         err instanceof Error ? err.message : String(err),
       );
     });
+
+    // Failure may have changed which artifacts exist on the integration worktree.
+    await checkDependencyTransitions(commission.projectName);
 
     // Capacity freed: check if pending commissions can now dispatch
     enqueueAutoDispatch();
@@ -1214,6 +1358,11 @@ projectName: ${projectName}
       );
     });
 
+    // Artifacts may have changed on the integration worktree (squash-merge
+    // brought new files, or failure removed expected outputs). Check if any
+    // blocked commissions can now proceed, or pending ones lost a dependency.
+    await checkDependencyTransitions(commission.projectName);
+
     // Capacity freed: check if pending commissions can now dispatch
     enqueueAutoDispatch();
   }
@@ -1312,6 +1461,9 @@ projectName: ${projectName}
         err instanceof Error ? err.message : String(err),
       );
     });
+
+    // Cancellation may have removed artifacts that other commissions depend on.
+    await checkDependencyTransitions(commission.projectName);
 
     // Capacity freed: check if pending commissions can now dispatch
     enqueueAutoDispatch();
@@ -1816,6 +1968,7 @@ projectName: ${projectName}
     reportResult,
     reportQuestion,
     addUserNote,
+    checkDependencyTransitions,
     recoverCommissions,
     getActiveCommissions,
     shutdown,

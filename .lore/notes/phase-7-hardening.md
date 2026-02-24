@@ -13,7 +13,7 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 1: Commission Crash Recovery (task 001)
 - [x] Phase 2: Commission Concurrent Limits and FIFO Queue (task 002)
 - [x] Phase 3: Queued Commission UI (task 003)
-- [ ] Phase 4: Dependency Auto-Transitions (task 004)
+- [x] Phase 4: Dependency Auto-Transitions (task 004)
 - [ ] Phase 5: Memory Access Control (task 005)
 - [ ] Phase 6: Memory Injection (task 006)
 - [ ] Phase 7: Memory Compaction (task 007)
@@ -54,3 +54,9 @@ Prior work surfaced these critical warnings for Phase 7:
 - Result: Added "queued" to PENDING_STATUSES for amber gem mapping. Dispatch/redispatch handlers read response body and call onStatusChange("queued"). New CSS classes for queued indicator. CommissionView handles commission_queued/commission_dequeued SSE events. isLive includes "queued" to keep SSE connection open.
 - Tests: 28 new tests, 1363 total pass. Covers gem mapping, button visibility logic, SSE event handling, type contracts.
 - Review: No issues. REQ-VIEW-27 met. CSS Modules with design tokens, no Tailwind. No queue position numbers.
+
+### Phase 4: Dependency Auto-Transitions
+- Dispatched: Implement checkDependencyTransitions() for blocked<->pending auto-transitions based on artifact existence. Wire trigger points after squash-merge, artifact edit, and failure/cancellation.
+- Result: Added readCommissionDependencies() helper in commission-artifact-helpers.ts. checkDependencyTransitions() scans integration worktree, checks file existence via DI seam (fileExists). Triggers FIFO auto-dispatch after unblocking. Six trigger points: commission exit, failure, cancellation, meeting close, artifact edit API, and new POST /commissions/check-dependencies endpoint.
+- Tests: 15 new tests, 1378 total pass. Covers blocked->pending, pending->blocked, no-deps case, FIFO dispatch trigger, active commissions skipped.
+- Review: No issues. REQ-COM-7 met. All filesystem reads, no git operations needed. Logging on success and error paths.
