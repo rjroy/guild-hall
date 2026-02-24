@@ -88,6 +88,9 @@ function makeMockCommissionSession(
       calls.push({ method: "addUserNote", args: [commissionId, content] });
       return Promise.resolve();
     },
+    recoverCommissions() {
+      return Promise.resolve(0);
+    },
     getActiveCommissions() {
       return 0;
     },

@@ -2705,6 +2705,7 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     reportResult() {},
     reportQuestion() {},
     async addUserNote() {},
+    async recoverCommissions() { return 0; },
     getActiveCommissions() { return 0; },
     shutdown() {},
   };

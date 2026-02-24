@@ -25,9 +25,11 @@ import * as path from "node:path";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import { asCommissionId } from "@/daemon/types";
 import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import { isNodeError } from "@/lib/types";
 import {
   getGuildHallHome,
   integrationWorktreePath,
+  activityWorktreeRoot,
   commissionWorktreePath,
   commissionBranchName,
 } from "@/lib/paths";
@@ -116,6 +118,11 @@ export interface CommissionSessionDeps {
   packagesDir: string;
   spawnFn?: (configPath: string) => SpawnedCommission;
   gitOps?: GitOps;
+  /**
+   * DI seam for PID liveness checks. Tests pass a mock to control which
+   * PIDs appear alive. Defaults to process.kill(pid, 0).
+   */
+  isProcessAlive?: (pid: number) => boolean;
 }
 
 type ActiveCommission = {
@@ -167,6 +174,7 @@ export interface CommissionSessionForRoutes {
   ): void;
   reportQuestion(commissionId: CommissionId, question: string): void;
   addUserNote(commissionId: CommissionId, content: string): Promise<void>;
+  recoverCommissions(): Promise<number>;
   getActiveCommissions(): number;
   shutdown(): void;
 }
@@ -213,6 +221,14 @@ export function createCommissionSession(
   const ghHome = deps.guildHallHome ?? getGuildHallHome();
   const git = deps.gitOps ?? createGitOps();
   const spawnFn = deps.spawnFn ?? defaultSpawnFn;
+  const isProcessAlive = deps.isProcessAlive ?? ((pid: number): boolean => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 
   // Store active kill timers so they can be cleared on shutdown
   const killTimers = new Set<ReturnType<typeof setTimeout>>();
@@ -235,13 +251,7 @@ export function createCommissionSession(
       if (elapsed <= STALENESS_THRESHOLD_MS) continue;
 
       // Check if process is still alive
-      let alive = false;
-      try {
-        process.kill(commission.pid, 0);
-        alive = true;
-      } catch {
-        alive = false;
-      }
+      const alive = isProcessAlive(commission.pid);
 
       const reason = alive
         ? "Worker process unresponsive (heartbeat stale)"
@@ -1274,6 +1284,323 @@ projectName: ${projectName}
     );
   }
 
+  /**
+   * Recovers commissions from persisted state files on daemon startup.
+   *
+   * Scans ~/.guild-hall/state/commissions/ for .json state files and handles
+   * three cases:
+   *   1. State file exists, process dead: transition to failed, commit
+   *      partial work, clean up worktree, preserve branch.
+   *   2. State file exists, process alive: reattach to activeCommissions
+   *      Map, start heartbeat tracking.
+   *   3. Orphaned worktree (worktree exists with commission naming pattern
+   *      but no corresponding state file): commit partial work, transition
+   *      to failed via integration worktree, preserve branch.
+   *
+   * Returns the number of commissions recovered (reattached to live processes).
+   */
+  async function recoverCommissions(): Promise<number> {
+    const stateDir = path.join(ghHome, "state", "commissions");
+
+    // Track which commission IDs have state files (for orphan detection in Phase 2)
+    const stateFileCommissionIds = new Set<string>();
+    let recovered = 0;
+
+    // -- Phase 1: Scan state files --
+    let stateFiles: string[] = [];
+    try {
+      stateFiles = await fs.readdir(stateDir);
+    } catch (err: unknown) {
+      if (isNodeError(err) && err.code === "ENOENT") {
+        console.log("[commission-recovery] No commissions state directory found, scanning for orphaned worktrees.");
+      } else {
+        throw err;
+      }
+    }
+
+    // Filter to just .json state files (not .config.json worker configs)
+    const stateJsonFiles = stateFiles.filter(
+      (f) => f.endsWith(".json") && !f.endsWith(".config.json"),
+    );
+
+    for (const file of stateJsonFiles) {
+      let state: {
+        commissionId: string;
+        projectName: string;
+        workerName: string;
+        pid?: number;
+        status: string;
+        worktreeDir?: string;
+        branchName?: string;
+        configPath?: string;
+      };
+
+      try {
+        const raw = await fs.readFile(path.join(stateDir, file), "utf-8");
+        state = JSON.parse(raw) as typeof state;
+      } catch (err: unknown) {
+        console.warn(
+          `[commission-recovery] Corrupt state file "${file}", skipping:`,
+          err instanceof Error ? err.message : String(err),
+        );
+        continue;
+      }
+
+      stateFileCommissionIds.add(state.commissionId);
+
+      // Only recover active commissions (dispatched or in_progress)
+      if (state.status !== "dispatched" && state.status !== "in_progress") {
+        continue;
+      }
+
+      // Verify the project still exists in config
+      const project = findProject(state.projectName);
+      if (!project) {
+        console.warn(
+          `[commission-recovery] Commission "${state.commissionId}" references unknown project "${state.projectName}", skipping.`,
+        );
+        continue;
+      }
+
+      // Skip commissions already in the active Map (defensive guard)
+      if (activeCommissions.has(state.commissionId)) {
+        continue;
+      }
+
+      const cId = asCommissionId(state.commissionId);
+      const worktreeDir = state.worktreeDir ?? "";
+      const branchName = state.branchName ?? "";
+      const configPath = state.configPath ?? "";
+
+      if (!state.pid) {
+        // No PID recorded, treat as dead
+        console.log(
+          `[commission-recovery] Commission "${state.commissionId}" has no PID, transitioning to failed.`,
+        );
+        await recoverDeadCommission(cId, state.projectName, worktreeDir, branchName, project.path);
+        continue;
+      }
+
+      // Check if the process is still alive
+      const alive = isProcessAlive(state.pid);
+
+      if (alive) {
+        // Case 2: Reattach monitoring
+        const now = new Date();
+        const active: ActiveCommission = {
+          commissionId: cId,
+          projectName: state.projectName,
+          workerName: state.workerName,
+          pid: state.pid,
+          startTime: now,
+          lastHeartbeat: now,
+          status: state.status === "dispatched" ? "dispatched" : "in_progress" as CommissionStatus,
+          resultSubmitted: false,
+          worktreeDir,
+          branchName,
+          configPath,
+        };
+
+        activeCommissions.set(state.commissionId, active);
+
+        // If status was "dispatched", transition to "in_progress" since the
+        // process is still running. The original dispatch -> in_progress
+        // transition may have been lost if the daemon crashed mid-dispatch.
+        if (state.status === "dispatched") {
+          try {
+            await transitionCommission(
+              worktreeDir,
+              cId,
+              "dispatched",
+              "in_progress",
+              "Worker process still running after daemon restart",
+            );
+            active.status = "in_progress";
+          } catch (err: unknown) {
+            console.warn(
+              `[commission-recovery] Failed to transition "${state.commissionId}" dispatched -> in_progress:`,
+              err instanceof Error ? err.message : String(err),
+            );
+            // Keep as dispatched; heartbeat monitoring will handle it
+          }
+        }
+
+        console.log(
+          `[commission-recovery] Reattached commission "${state.commissionId}" pid=${state.pid} status=${active.status}.`,
+        );
+        recovered++;
+      } else {
+        // Case 1: Process is dead
+        console.log(
+          `[commission-recovery] Commission "${state.commissionId}" pid=${state.pid} is dead, transitioning to failed.`,
+        );
+        await recoverDeadCommission(cId, state.projectName, worktreeDir, branchName, project.path);
+      }
+    }
+
+    // -- Phase 2: Scan for orphaned worktrees --
+    // An orphaned worktree has a commission naming pattern but no state file.
+    for (const project of deps.config.projects) {
+      const worktreeRoot = activityWorktreeRoot(ghHome, project.name);
+      let entries: string[];
+      try {
+        entries = await fs.readdir(worktreeRoot);
+      } catch (err: unknown) {
+        if (isNodeError(err) && err.code === "ENOENT") continue;
+        console.warn(
+          `[commission-recovery] Failed to scan worktree root for "${project.name}":`,
+          err instanceof Error ? err.message : String(err),
+        );
+        continue;
+      }
+
+      for (const entry of entries) {
+        // Commission worktrees start with "commission-"
+        if (!entry.startsWith("commission-")) continue;
+
+        // The entry name IS the commission ID (commissionWorktreePath uses
+        // the raw commissionId which already has the "commission-" prefix).
+        const commissionId = entry;
+
+        // Skip if there's a state file (already handled above)
+        if (stateFileCommissionIds.has(commissionId)) continue;
+
+        // Skip if already in active Map
+        if (activeCommissions.has(commissionId)) continue;
+
+        const orphanWorktreeDir = path.join(worktreeRoot, entry);
+
+        // Verify it's a directory
+        try {
+          const stat = await fs.stat(orphanWorktreeDir);
+          if (!stat.isDirectory()) continue;
+        } catch {
+          continue;
+        }
+
+        console.log(
+          `[commission-recovery] Found orphaned worktree "${commissionId}" for project "${project.name}" (no state file), transitioning to failed.`,
+        );
+
+        const cId = asCommissionId(commissionId);
+        const branchName = commissionBranchName(commissionId);
+
+        await recoverDeadCommission(cId, project.name, orphanWorktreeDir, branchName, project.path, "state lost");
+      }
+    }
+
+    if (recovered > 0) {
+      console.log(`[commission-recovery] Reattached ${recovered} live commission(s).`);
+    } else if (stateJsonFiles.length === 0) {
+      console.log("[commission-recovery] No commissions to recover.");
+    }
+
+    return recovered;
+  }
+
+  /**
+   * Recovery helper for dead commissions (dead PID or orphaned worktree).
+   * Commits any uncommitted changes in the worktree, transitions the
+   * commission to failed in the integration worktree, cleans up the
+   * worktree, and preserves the branch.
+   */
+  async function recoverDeadCommission(
+    commissionId: CommissionId,
+    projectName: string,
+    worktreeDir: string,
+    branchName: string,
+    projectPath: string,
+    reason = "process lost on restart",
+  ): Promise<void> {
+    const iPath = integrationWorktreePath(ghHome, projectName);
+
+    // Commit any uncommitted changes to preserve partial results
+    if (worktreeDir) {
+      try {
+        const worktreeExists = await fs.access(worktreeDir).then(() => true, () => false);
+        if (worktreeExists) {
+          const hadChanges = await git.commitAll(
+            worktreeDir,
+            `Partial work preserved on recovery: ${commissionId}`,
+          );
+          if (hadChanges) {
+            console.log(
+              `[commission-recovery] Committed partial results for "${commissionId}" to branch "${branchName}".`,
+            );
+          } else {
+            console.log(
+              `[commission-recovery] No uncommitted changes for "${commissionId}".`,
+            );
+          }
+        }
+      } catch (err: unknown) {
+        console.warn(
+          `[commission-recovery] Failed to commit partial results for "${commissionId}":`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    // Transition to failed in the integration worktree
+    try {
+      await updateCommissionStatus(iPath, commissionId, "failed");
+      await appendTimelineEntry(
+        iPath,
+        commissionId,
+        "status_failed",
+        `Recovery: ${reason}`,
+      );
+      console.log(
+        `[commission-recovery] Transitioned "${commissionId}" to failed in integration worktree.`,
+      );
+    } catch (err: unknown) {
+      console.warn(
+        `[commission-recovery] Failed to update integration worktree for "${commissionId}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    // Remove the activity worktree (branch is preserved)
+    if (worktreeDir) {
+      try {
+        const worktreeExists = await fs.access(worktreeDir).then(() => true, () => false);
+        if (worktreeExists) {
+          await git.removeWorktree(projectPath, worktreeDir);
+          console.log(
+            `[commission-recovery] Removed worktree for "${commissionId}".`,
+          );
+        }
+      } catch (err: unknown) {
+        console.warn(
+          `[commission-recovery] Failed to remove worktree for "${commissionId}":`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    // Update state file to reflect the failed status
+    try {
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName,
+        status: "failed",
+        reason: `Recovery: ${reason}`,
+      });
+    } catch (err: unknown) {
+      console.warn(
+        `[commission-recovery] Failed to update state file for "${commissionId}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    deps.eventBus.emit({
+      type: "commission_status",
+      commissionId: commissionId as string,
+      status: "failed",
+      reason: `Recovery: ${reason}`,
+    });
+  }
+
   function getActiveCommissions(): number {
     return activeCommissions.size;
   }
@@ -1296,6 +1623,7 @@ projectName: ${projectName}
     reportResult,
     reportQuestion,
     addUserNote,
+    recoverCommissions,
     getActiveCommissions,
     shutdown,
   };
