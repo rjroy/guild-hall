@@ -1,7 +1,7 @@
 ---
 title: Implementation notes: phase-7-hardening
 date: 2026-02-23
-status: active
+status: complete
 tags: [implementation, notes]
 source: .lore/plans/phase-7-hardening.md
 modules: [guild-hall-core, guild-hall-ui]
@@ -22,7 +22,7 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 10: Daemon Connectivity Graceful Degradation (task 010)
 - [x] Phase 11: State Isolation Proof (task 011)
 - [x] Phase 12: Workspace Scoping Verification (task 012)
-- [ ] Phase 13: Validate Against Specs (task 013)
+- [x] Phase 13: Validate Against Specs (task 013)
 
 ## Research Context
 
@@ -106,3 +106,8 @@ Prior work surfaced these critical warnings for Phase 7:
 - Dispatched: Write four verification test groups confirming workspace scoping holds.
 - Result: Seven tests across four groups. Commission scoping (scanCommissions isolated per project), memory scoping (project and worker scope paths isolated), dependency scoping (integrationWorktreePath per project), manager cross-workspace awareness (context per project, workers global).
 - Tests: 7 new tests, 1497 total pass. Test-only task, no production code changes.
+
+### Phase 13: Validate Against Specs
+- Dispatched: Read all five specs and validate all 19 Phase 7 requirements against implementation.
+- Result: All 19 requirements MET. COM-7 (dependency transitions), COM-21/22/23 (capacity limits and FIFO), COM-27/28/29 (crash recovery), SYS-19/20/21 (memory scoping), WKR-22 (memory injection), WKR-23 (compaction), MTG-28 (concurrent cap), MTG-29 (no auto-close), MTG-30 (state isolation), VIEW-7/8 (offline degradation), VIEW-10 (cross-project aggregation), VIEW-27 (queued UI). No gaps found.
+- Review: Read-only validation task, no code changes.
