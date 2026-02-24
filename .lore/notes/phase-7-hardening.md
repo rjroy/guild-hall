@@ -12,7 +12,7 @@ modules: [guild-hall-core, guild-hall-ui]
 ## Progress
 - [x] Phase 1: Commission Crash Recovery (task 001)
 - [x] Phase 2: Commission Concurrent Limits and FIFO Queue (task 002)
-- [ ] Phase 3: Queued Commission UI (task 003)
+- [x] Phase 3: Queued Commission UI (task 003)
 - [ ] Phase 4: Dependency Auto-Transitions (task 004)
 - [ ] Phase 5: Memory Access Control (task 005)
 - [ ] Phase 6: Memory Injection (task 006)
@@ -48,3 +48,9 @@ Prior work surfaced these critical warnings for Phase 7:
 - Result: Added capacity helpers (isAtCapacity, countActiveForProject), scanPendingCommissions() for FIFO ordering by creation date, tryAutoDispatch() with promise-chain serialization to prevent race conditions. Dispatch returns `{ status: "queued" }` when at limit. Added commission_queued/commission_dequeued SystemEvent types. Post-merge syncStatusToIntegration added as safety net for auto-dispatch scanner.
 - Tests: 14 new tests, 1335 total pass. Covers per-project caps, global caps, FIFO ordering, auto-dispatch on all terminal states, cross-project ordering, limit changes.
 - Review: No issues. Race condition handled via autoDispatchChain promise serialization. All requirements met (COM-21, COM-22, COM-23).
+
+### Phase 3: Queued Commission UI
+- Dispatched: Update CommissionHeader (amber gem), CommissionActions (queued indicator), CommissionView (SSE events) for queued state.
+- Result: Added "queued" to PENDING_STATUSES for amber gem mapping. Dispatch/redispatch handlers read response body and call onStatusChange("queued"). New CSS classes for queued indicator. CommissionView handles commission_queued/commission_dequeued SSE events. isLive includes "queued" to keep SSE connection open.
+- Tests: 28 new tests, 1363 total pass. Covers gem mapping, button visibility logic, SSE event handling, type contracts.
+- Review: No issues. REQ-VIEW-27 met. CSS Modules with design tokens, no Tailwind. No queue position numbers.

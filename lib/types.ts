@@ -154,7 +154,7 @@ const ACTIVE_STATUSES = new Set([
   "dispatched",
 ]);
 
-const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested", "blocked"]);
+const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested", "blocked", "queued"]);
 
 const BLOCKED_STATUSES = new Set([
   "superseded",

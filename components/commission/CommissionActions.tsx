@@ -38,7 +38,8 @@ export default function CommissionActions({
         method: "POST",
       });
       if (res.ok) {
-        onStatusChange?.("dispatched");
+        const data = (await res.json()) as { status?: string };
+        onStatusChange?.(data.status === "queued" ? "queued" : "dispatched");
       } else {
         const data = (await res.json()) as { error?: string };
         setError(data.error || "Dispatch failed");
@@ -80,7 +81,8 @@ export default function CommissionActions({
         method: "POST",
       });
       if (res.ok) {
-        onStatusChange?.("dispatched");
+        const data = (await res.json()) as { status?: string };
+        onStatusChange?.(data.status === "queued" ? "queued" : "dispatched");
       } else {
         const data = (await res.json()) as { error?: string };
         setError(data.error || "Re-dispatch failed");
@@ -93,7 +95,8 @@ export default function CommissionActions({
   }, [encodedId, onStatusChange]);
 
   const showDispatch = status === "pending";
-  const showCancel = status === "dispatched" || status === "in_progress";
+  const showQueued = status === "queued";
+  const showCancel = status === "dispatched" || status === "in_progress" || status === "queued";
   const showRedispatch = status === "failed" || status === "cancelled";
 
   return (
@@ -107,6 +110,13 @@ export default function CommissionActions({
         >
           {loading ? "Dispatching..." : "Dispatch Commission"}
         </button>
+      )}
+
+      {showQueued && (
+        <div className={styles.queuedIndicator}>
+          <span className={styles.queuedLabel}>Queued</span>
+          <span className={styles.queuedText}>Waiting for capacity</span>
+        </div>
       )}
 
       {showCancel && (

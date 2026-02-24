@@ -43,8 +43,9 @@ export default function CommissionView({
   const [artifacts, setArtifacts] = useState<CommissionArtifact[]>(initialArtifacts);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Track whether the commission is in a live state (worth subscribing to SSE)
-  const isLive = status === "dispatched" || status === "in_progress";
+  // Track whether the commission is in a live state (worth subscribing to SSE).
+  // Queued commissions need SSE to receive commission_dequeued when capacity opens.
+  const isLive = status === "dispatched" || status === "in_progress" || status === "queued";
 
   useEffect(() => {
     if (!isLive) return;
@@ -136,6 +137,36 @@ export default function CommissionView({
                 timestamp: ts,
                 event: "manager_note",
                 reason: (typeof data.content === "string" ? data.content : "") || data.reason || "",
+              } as TimelineEntry,
+            ]);
+            break;
+          }
+
+          case "commission_queued": {
+            setStatus("queued");
+            setTimeline((prev) => [
+              ...prev,
+              {
+                timestamp: ts,
+                event: "status_change",
+                from: "pending",
+                to: "queued",
+                reason: data.reason || "Queued, waiting for capacity",
+              } as TimelineEntry,
+            ]);
+            break;
+          }
+
+          case "commission_dequeued": {
+            setStatus("dispatched");
+            setTimeline((prev) => [
+              ...prev,
+              {
+                timestamp: ts,
+                event: "status_change",
+                from: "queued",
+                to: "dispatched",
+                reason: data.reason || "Capacity available, dispatching",
               } as TimelineEntry,
             ]);
             break;
