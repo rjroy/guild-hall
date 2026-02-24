@@ -20,7 +20,7 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 8: Concurrency Hardening (task 008)
 - [x] Phase 9: Manager sync_project Tool (task 009)
 - [x] Phase 10: Daemon Connectivity Graceful Degradation (task 010)
-- [ ] Phase 11: State Isolation Proof (task 011)
+- [x] Phase 11: State Isolation Proof (task 011)
 - [ ] Phase 12: Workspace Scoping Verification (task 012)
 - [ ] Phase 13: Validate Against Specs (task 013)
 
@@ -96,3 +96,8 @@ Prior work surfaced these critical warnings for Phase 7:
 - Result: DaemonContext.tsx exports useDaemonStatus() hook. DaemonStatus.tsx converted to context provider wrapping children. App layout wrapped. All daemon-dependent buttons disabled when offline with "Daemon offline" tooltip: CommissionActions, MessageInput, MeetingView close, MeetingRequestCard actions.
 - Tests: 36 new tests, 1485 total pass. Covers context exports, state contracts, button disabling logic, tooltip consistency.
 - Review: Found 4 additional components missing offline disabling (CommissionNotes, CommissionPrompt, CommissionForm, StartAudienceButton). All fixed. StartAudienceButton migrated from one-shot health check to DaemonContext for auto-reconnect sync.
+
+### Phase 11: State Isolation Proof
+- Dispatched: Write five integration tests proving same-worker meeting+commission isolation.
+- Result: All five tests pass. Session isolation (distinct SDK session IDs), worktree isolation (different directories/branches), tool isolation (meeting tools vs commission tools, no cross-contamination), memory visibility (worker-scope write in commission readable from meeting), independent lifecycle (close meeting, commission continues; complete commission, meeting unaffected).
+- Tests: 5 new tests, 1490 total pass. Test-only task, no production code changes.
