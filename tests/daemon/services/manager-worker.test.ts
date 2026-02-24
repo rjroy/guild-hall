@@ -65,10 +65,10 @@ describe("createManagerPackage", () => {
     expect(meta.identity.description.length).toBeGreaterThan(0);
   });
 
-  test("has checkoutScope sparse", () => {
+  test("has checkoutScope full", () => {
     const pkg = createManagerPackage();
     const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.checkoutScope).toBe("sparse");
+    expect(meta.checkoutScope).toBe("full");
   });
 
   test("resourceDefaults has maxTurns 200", () => {

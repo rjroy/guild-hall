@@ -44,7 +44,7 @@ export function createManagerPackage(): DiscoveredPackage {
     posture: MANAGER_POSTURE,
     domainToolboxes: [],
     builtInTools: ["Read", "Glob", "Grep"],
-    checkoutScope: "sparse",
+    checkoutScope: "full",
     resourceDefaults: {
       maxTurns: 200,
     },
