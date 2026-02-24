@@ -130,6 +130,31 @@ function formatScope(
   return lines.join("\n");
 }
 
+// -- Scope directory resolution (shared with memory-compaction) --
+
+export type MemoryScope = "global" | "project" | "worker";
+
+/**
+ * Returns the filesystem path for a memory scope directory.
+ * Exported for use by memory-compaction.ts, which needs to read/write
+ * the same directories that loadMemories reads from.
+ */
+export function memoryScopeDir(
+  guildHallHome: string,
+  scope: MemoryScope,
+  scopeKey: string,
+): string {
+  const memoryRoot = path.join(guildHallHome, "memory");
+  switch (scope) {
+    case "global":
+      return path.join(memoryRoot, "global");
+    case "project":
+      return path.join(memoryRoot, "projects", scopeKey);
+    case "worker":
+      return path.join(memoryRoot, "workers", scopeKey);
+  }
+}
+
 // -- Public API --
 
 /**

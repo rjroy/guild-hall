@@ -16,7 +16,7 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 4: Dependency Auto-Transitions (task 004)
 - [x] Phase 5: Memory Access Control (task 005)
 - [x] Phase 6: Memory Injection (task 006)
-- [ ] Phase 7: Memory Compaction (task 007)
+- [x] Phase 7: Memory Compaction (task 007)
 - [ ] Phase 8: Concurrency Hardening (task 008)
 - [ ] Phase 9: Manager sync_project Tool (task 009)
 - [ ] Phase 10: Daemon Connectivity Graceful Degradation (task 010)
@@ -72,3 +72,9 @@ Prior work surfaced these critical warnings for Phase 7:
 - Result: loadMemories() reads three scopes (global, project, worker), sorts by mtime, soft-cap truncation, returns needsCompaction flag. Wired into all three activation paths. memoryLimit added to ProjectConfig (default 8000). Non-fatal error handling (log and continue without memory).
 - Tests: 19 new tests, 1412 total pass. Covers empty dirs, single/all scopes, mtime sorting, under/over limit, soft cap, budget allocation.
 - Review: Found commission worker not passing memoryLimit from project config. Fixed by adding memoryLimit to CommissionWorkerConfigSchema and passing through dispatch config. Budget accounting overhead in first scope noted as acceptable soft cap.
+
+### Phase 7: Memory Compaction
+- Dispatched: Create memory-compaction.ts with fire-and-forget compaction. Concurrent guard per worker+project pair, snapshot isolation, SDK invocation with maxTurns: 1.
+- Result: triggerCompaction() with concurrent guard (Map keyed by worker::project), snapshot isolation (only snapshot files processed/deleted), _compacted.md written per scope, fire-and-forget from callers. Wired into meeting-session and commission-worker.
+- Tests: 21 new tests, 1433 total pass. Covers basic flow, concurrent guard, snapshot isolation, error handling, prior summary preservation.
+- Review: Found two issues. (1) Prior _compacted.md content was lost on second compaction cycle (critical). Fixed by reading prior summary and including in SDK prompt. (2) SDK tools not explicitly disabled. Fixed by adding mcpServers: {}, allowedTools: []. Partial-state-on-failure documented as known limitation.

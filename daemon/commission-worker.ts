@@ -24,6 +24,7 @@ import type {
 } from "@/lib/types";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import { loadMemories } from "@/daemon/services/memory-injector";
+import { triggerCompaction } from "@/daemon/services/memory-compaction";
 
 // -- Config parsing --
 
@@ -225,6 +226,7 @@ async function main(): Promise<void> {
 
   // 5. Load memory files for this worker
   let injectedMemory = "";
+  let needsCompaction = false;
   try {
     const memoryResult = await loadMemories(
       workerMeta.identity.name,
@@ -235,8 +237,9 @@ async function main(): Promise<void> {
       },
     );
     injectedMemory = memoryResult.memoryBlock;
-    if (memoryResult.needsCompaction) {
-      log(`memory for worker "${workerMeta.identity.name}" exceeds limit, needs compaction`);
+    needsCompaction = memoryResult.needsCompaction;
+    if (needsCompaction) {
+      log(`memory for worker "${workerMeta.identity.name}" exceeds limit, will trigger compaction after SDK import`);
     }
   } catch (err: unknown) {
     log(`failed to load memories (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
@@ -279,6 +282,20 @@ async function main(): Promise<void> {
   } catch (err: unknown) {
     logErr(`SDK import failed: ${err instanceof Error ? err.message : String(err)}`);
     throw err;
+  }
+
+  // Fire-and-forget compaction: runs in background while the main session proceeds.
+  // Compaction improves the NEXT activation, not this one.
+  if (needsCompaction) {
+    log(`triggering memory compaction for "${workerMeta.identity.name}" / "${config.projectName}"`);
+    void triggerCompaction(
+      workerMeta.identity.name,
+      config.projectName,
+      {
+        guildHallHome: config.guildHallHome,
+        compactFn: query as Parameters<typeof triggerCompaction>[2]["compactFn"],
+      },
+    );
   }
 
   log("starting SDK session...");

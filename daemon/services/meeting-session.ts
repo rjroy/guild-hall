@@ -65,6 +65,7 @@ import {
 } from "@/daemon/services/notes-generator";
 import { isNodeError } from "@/lib/types";
 import { loadMemories } from "@/daemon/services/memory-injector";
+import { triggerCompaction } from "@/daemon/services/memory-compaction";
 
 // -- Constants --
 
@@ -505,9 +506,16 @@ notes_summary: ""
           },
         );
         injectedMemory = memoryResult.memoryBlock;
-        if (memoryResult.needsCompaction) {
+        if (memoryResult.needsCompaction && deps.queryFn) {
           console.log(
-            `[meeting-session] Memory for worker "${workerMeta.identity.name}" exceeds limit, needs compaction`,
+            `[meeting-session] Memory for worker "${workerMeta.identity.name}" exceeds limit, triggering compaction`,
+          );
+          // Fire-and-forget: compaction improves the NEXT activation, not this one.
+          // Current activation proceeds with truncated memories.
+          void triggerCompaction(
+            workerMeta.identity.name,
+            meeting.projectName,
+            { guildHallHome: ghHome, compactFn: deps.queryFn },
           );
         }
       } catch (err: unknown) {
