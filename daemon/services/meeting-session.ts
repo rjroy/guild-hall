@@ -474,6 +474,7 @@ notes_summary: ""
 
       const resolvedTools = resolveToolSet(workerMeta, deps.packages, {
         projectPath,
+        projectName: meeting.projectName,
         meetingId: meeting.meetingId as string,
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,

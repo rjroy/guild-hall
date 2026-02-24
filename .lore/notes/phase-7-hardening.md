@@ -14,7 +14,7 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 2: Commission Concurrent Limits and FIFO Queue (task 002)
 - [x] Phase 3: Queued Commission UI (task 003)
 - [x] Phase 4: Dependency Auto-Transitions (task 004)
-- [ ] Phase 5: Memory Access Control (task 005)
+- [x] Phase 5: Memory Access Control (task 005)
 - [ ] Phase 6: Memory Injection (task 006)
 - [ ] Phase 7: Memory Compaction (task 007)
 - [ ] Phase 8: Concurrency Hardening (task 008)
@@ -60,3 +60,9 @@ Prior work surfaced these critical warnings for Phase 7:
 - Result: Added readCommissionDependencies() helper in commission-artifact-helpers.ts. checkDependencyTransitions() scans integration worktree, checks file existence via DI seam (fileExists). Triggers FIFO auto-dispatch after unblocking. Six trigger points: commission exit, failure, cancellation, meeting close, artifact edit API, and new POST /commissions/check-dependencies endpoint.
 - Tests: 15 new tests, 1378 total pass. Covers blocked->pending, pending->blocked, no-deps case, FIFO dispatch trigger, active commissions skipped.
 - Review: No issues. REQ-COM-7 met. All filesystem reads, no git operations needed. Logging on success and error paths.
+
+### Phase 5: Memory Access Control
+- Dispatched: Add workerName/projectName to BaseToolboxDeps, propagate through toolbox-resolver, enforce worker scope ownership, remove workerName from tool input schema.
+- Result: BaseToolboxDeps now requires workerName and projectName. resolveToolSet() resolves identity from context with fallbacks (worker.identity.name, path.basename). Worker scope always uses deps.workerName. Project scope uses deps.projectName (eliminated "unknown" fallback). Tool descriptions updated. Production wiring in meeting-session.ts and commission-worker.ts.
+- Tests: 15 new tests, 1393 total pass. Covers worker isolation, project scope resolution, global scope, toolbox resolver propagation with fallbacks.
+- Review: Flagged missing isolation tests in base-toolbox.test.ts, but the dedicated memory-access-control.test.ts already covers this thoroughly (worker A can't read B's memory, different workers have isolated scopes). No action needed.

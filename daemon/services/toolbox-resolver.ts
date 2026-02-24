@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type {
   DiscoveredPackage,
@@ -13,6 +14,7 @@ import { createManagerToolbox, type ManagerToolboxDeps } from "./manager-toolbox
 
 export interface ToolboxResolverContext {
   projectPath: string;
+  projectName?: string;
   meetingId?: string;
   commissionId?: string;
   workerName?: string;
@@ -55,11 +57,19 @@ export function resolveToolSet(
   }
   const contextType: "meeting" | "commission" = context.meetingId ? "meeting" : "commission";
 
+  // Resolve worker and project identity for the base toolbox's memory
+  // access control. workerName comes from the activation context (identity
+  // name); projectName from explicit context or path.basename() fallback.
+  const resolvedWorkerName = context.workerName ?? worker.identity.name;
+  const resolvedProjectName = context.projectName ?? path.basename(context.projectPath);
+
   // 1. Base toolbox (always present: memory + decision tools)
   mcpServers.push(
     createBaseToolbox({
       contextId,
       contextType,
+      workerName: resolvedWorkerName,
+      projectName: resolvedProjectName,
       guildHallHome: context.guildHallHome,
     }),
   );

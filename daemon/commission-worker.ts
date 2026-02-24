@@ -212,7 +212,9 @@ async function main(): Promise<void> {
   log("resolving tools...");
   const resolvedTools = resolveToolSet(workerMeta, packages, {
     projectPath: config.projectPath,
+    projectName: config.projectName,
     commissionId: config.commissionId,
+    workerName: workerMeta.identity.name,
     daemonSocketPath: config.daemonSocketPath,
     guildHallHome: config.guildHallHome,
     workingDirectory: config.workingDirectory,

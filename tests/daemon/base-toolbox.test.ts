@@ -28,6 +28,8 @@ describe("createBaseToolbox", () => {
     const result = createBaseToolbox({
       contextId: "meeting-001",
       contextType: "meeting",
+      workerName: "test-worker",
+      projectName: "test-project",
       guildHallHome,
     });
 
@@ -40,9 +42,12 @@ describe("createBaseToolbox", () => {
 // -- read_memory / write_memory --
 
 describe("memory tools", () => {
+  const workerName = "test-worker";
+  const projectName = "test-project";
+
   test("write then read global scope", async () => {
-    const write = makeWriteMemoryHandler(guildHallHome);
-    const read = makeReadMemoryHandler(guildHallHome);
+    const write = makeWriteMemoryHandler(guildHallHome, workerName, projectName);
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName);
 
     await write({ scope: "global", path: "notes.md", content: "hello world" });
     const result = await read({ scope: "global", path: "notes.md" });
@@ -52,8 +57,8 @@ describe("memory tools", () => {
   });
 
   test("write then read project scope", async () => {
-    const write = makeWriteMemoryHandler(guildHallHome);
-    const read = makeReadMemoryHandler(guildHallHome);
+    const write = makeWriteMemoryHandler(guildHallHome, workerName, projectName);
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName);
 
     await write({ scope: "project", path: "context.txt", content: "project data" });
     const result = await read({ scope: "project", path: "context.txt" });
@@ -62,8 +67,8 @@ describe("memory tools", () => {
   });
 
   test("write then read worker scope", async () => {
-    const write = makeWriteMemoryHandler(guildHallHome);
-    const read = makeReadMemoryHandler(guildHallHome);
+    const write = makeWriteMemoryHandler(guildHallHome, workerName, projectName);
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName);
 
     await write({ scope: "worker", path: "prefs.json", content: '{"k":"v"}' });
     const result = await read({ scope: "worker", path: "prefs.json" });
@@ -72,8 +77,8 @@ describe("memory tools", () => {
   });
 
   test("write creates nested directories", async () => {
-    const write = makeWriteMemoryHandler(guildHallHome);
-    const read = makeReadMemoryHandler(guildHallHome);
+    const write = makeWriteMemoryHandler(guildHallHome, workerName, projectName);
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName);
 
     await write({ scope: "global", path: "deep/nested/file.txt", content: "deep" });
     const result = await read({ scope: "global", path: "deep/nested/file.txt" });
@@ -82,8 +87,8 @@ describe("memory tools", () => {
   });
 
   test("read directory lists contents", async () => {
-    const write = makeWriteMemoryHandler(guildHallHome);
-    const read = makeReadMemoryHandler(guildHallHome);
+    const write = makeWriteMemoryHandler(guildHallHome, workerName, projectName);
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName);
 
     await write({ scope: "global", path: "a.txt", content: "a" });
     await write({ scope: "global", path: "b.txt", content: "b" });
@@ -101,7 +106,7 @@ describe("memory tools", () => {
   });
 
   test("read nonexistent path returns error", async () => {
-    const read = makeReadMemoryHandler(guildHallHome);
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName);
     const result = await read({ scope: "global", path: "nope.txt" });
 
     expect(result.isError).toBe(true);
@@ -111,7 +116,7 @@ describe("memory tools", () => {
   });
 
   test("read scope root when empty returns error", async () => {
-    const read = makeReadMemoryHandler(guildHallHome);
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName);
     const result = await read({ scope: "global" });
 
     // The global directory doesn't exist yet, so ENOENT
@@ -119,14 +124,14 @@ describe("memory tools", () => {
   });
 
   test("path traversal in read_memory is rejected", async () => {
-    const read = makeReadMemoryHandler(guildHallHome);
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName);
     await expect(
       read({ scope: "global", path: "../../etc/passwd" }),
     ).rejects.toThrow("Path traversal detected");
   });
 
   test("path traversal in write_memory is rejected", async () => {
-    const write = makeWriteMemoryHandler(guildHallHome);
+    const write = makeWriteMemoryHandler(guildHallHome, workerName, projectName);
     await expect(
       write({ scope: "global", path: "../../../etc/evil", content: "bad" }),
     ).rejects.toThrow("Path traversal detected");

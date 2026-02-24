@@ -16,6 +16,8 @@ import { isNodeError } from "@/lib/types";
 export interface BaseToolboxDeps {
   contextId: string;                          // meetingId or commissionId
   contextType: "meeting" | "commission";      // determines storage path
+  workerName: string;                         // identity of the active worker (enforces worker scope)
+  projectName: string;                        // active project name (enforces project scope)
   guildHallHome?: string;                     // defaults to ~/.guild-hall
 }
 
@@ -39,17 +41,17 @@ function validateContainedPath(basePath: string, userPath: string): string {
 function resolveMemoryBase(
   guildHallHome: string,
   scope: "global" | "project" | "worker",
-  projectName?: string,
-  workerName?: string,
+  projectName: string,
+  workerName: string,
 ): string {
   const memoryRoot = path.join(guildHallHome, "memory");
   switch (scope) {
     case "global":
       return path.join(memoryRoot, "global");
     case "project":
-      return path.join(memoryRoot, "projects", projectName ?? "unknown");
+      return path.join(memoryRoot, "projects", projectName);
     case "worker":
-      return path.join(memoryRoot, "workers", workerName ?? "unknown");
+      return path.join(memoryRoot, "workers", workerName);
   }
 }
 
@@ -57,12 +59,16 @@ function resolveMemoryBase(
 // Each factory returns a tool handler function that can be tested independently
 // or registered with the MCP server.
 
-export function makeReadMemoryHandler(guildHallHome: string) {
+export function makeReadMemoryHandler(
+  guildHallHome: string,
+  workerName: string,
+  projectName: string,
+) {
   return async (args: {
     scope: "global" | "project" | "worker";
     path?: string | undefined;
   }): Promise<ToolResult> => {
-    const base = resolveMemoryBase(guildHallHome, args.scope);
+    const base = resolveMemoryBase(guildHallHome, args.scope, projectName, workerName);
     const targetPath = args.path
       ? validateContainedPath(base, args.path)
       : base;
@@ -92,13 +98,17 @@ export function makeReadMemoryHandler(guildHallHome: string) {
   };
 }
 
-export function makeWriteMemoryHandler(guildHallHome: string) {
+export function makeWriteMemoryHandler(
+  guildHallHome: string,
+  workerName: string,
+  projectName: string,
+) {
   return async (args: {
     scope: "global" | "project" | "worker";
     path: string;
     content: string;
   }): Promise<ToolResult> => {
-    const base = resolveMemoryBase(guildHallHome, args.scope);
+    const base = resolveMemoryBase(guildHallHome, args.scope, projectName, workerName);
     const targetPath = validateContainedPath(base, args.path);
 
     await fs.mkdir(path.dirname(targetPath), { recursive: true });
@@ -158,8 +168,8 @@ export function makeRecordDecisionHandler(
 export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWithInstance {
   const guildHallHome = deps.guildHallHome ?? defaultGuildHallHome();
 
-  const readMemory = makeReadMemoryHandler(guildHallHome);
-  const writeMemory = makeWriteMemoryHandler(guildHallHome);
+  const readMemory = makeReadMemoryHandler(guildHallHome, deps.workerName, deps.projectName);
+  const writeMemory = makeWriteMemoryHandler(guildHallHome, deps.workerName, deps.projectName);
   const recordDecision = makeRecordDecisionHandler(guildHallHome, deps.contextId, deps.contextType);
 
   return createSdkMcpServer({
@@ -168,7 +178,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
     tools: [
       tool(
         "read_memory",
-        "Read from the shared memory system. Scope: global (all workers, all projects), project (all workers, one project), worker (one worker, all projects). If path is a directory, lists contents. If path is a file, returns content. If path omitted, lists the scope root.",
+        "Read from the shared memory system. Scope: global (shared across all workers and projects), project (shared across all workers in the active project), worker (private to you, no other worker can access). Worker scope always reads YOUR memory; you cannot access another worker's memory. If path is a directory, lists contents. If path is a file, returns content. If path omitted, lists the scope root.",
         {
           scope: z.enum(["global", "project", "worker"]),
           path: z.string().optional(),
@@ -177,7 +187,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
       ),
       tool(
         "write_memory",
-        "Write to the shared memory system. Creates parent directories as needed. Scope: global, project, or worker.",
+        "Write to the shared memory system. Creates parent directories as needed. Scope: global (shared across all workers and projects), project (shared across all workers in the active project), worker (private to you, no other worker can access). Worker scope always writes to YOUR memory; you cannot write to another worker's memory.",
         {
           scope: z.enum(["global", "project", "worker"]),
           path: z.string(),
