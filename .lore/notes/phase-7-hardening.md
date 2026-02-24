@@ -21,7 +21,7 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 9: Manager sync_project Tool (task 009)
 - [x] Phase 10: Daemon Connectivity Graceful Degradation (task 010)
 - [x] Phase 11: State Isolation Proof (task 011)
-- [ ] Phase 12: Workspace Scoping Verification (task 012)
+- [x] Phase 12: Workspace Scoping Verification (task 012)
 - [ ] Phase 13: Validate Against Specs (task 013)
 
 ## Research Context
@@ -101,3 +101,8 @@ Prior work surfaced these critical warnings for Phase 7:
 - Dispatched: Write five integration tests proving same-worker meeting+commission isolation.
 - Result: All five tests pass. Session isolation (distinct SDK session IDs), worktree isolation (different directories/branches), tool isolation (meeting tools vs commission tools, no cross-contamination), memory visibility (worker-scope write in commission readable from meeting), independent lifecycle (close meeting, commission continues; complete commission, meeting unaffected).
 - Tests: 5 new tests, 1490 total pass. Test-only task, no production code changes.
+
+### Phase 12: Workspace Scoping Verification
+- Dispatched: Write four verification test groups confirming workspace scoping holds.
+- Result: Seven tests across four groups. Commission scoping (scanCommissions isolated per project), memory scoping (project and worker scope paths isolated), dependency scoping (integrationWorktreePath per project), manager cross-workspace awareness (context per project, workers global).
+- Tests: 7 new tests, 1497 total pass. Test-only task, no production code changes.
