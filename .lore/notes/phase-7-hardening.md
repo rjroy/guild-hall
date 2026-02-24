@@ -17,7 +17,7 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 5: Memory Access Control (task 005)
 - [x] Phase 6: Memory Injection (task 006)
 - [x] Phase 7: Memory Compaction (task 007)
-- [ ] Phase 8: Concurrency Hardening (task 008)
+- [x] Phase 8: Concurrency Hardening (task 008)
 - [ ] Phase 9: Manager sync_project Tool (task 009)
 - [ ] Phase 10: Daemon Connectivity Graceful Degradation (task 010)
 - [ ] Phase 11: State Isolation Proof (task 011)
@@ -78,3 +78,9 @@ Prior work surfaced these critical warnings for Phase 7:
 - Result: triggerCompaction() with concurrent guard (Map keyed by worker::project), snapshot isolation (only snapshot files processed/deleted), _compacted.md written per scope, fire-and-forget from callers. Wired into meeting-session and commission-worker.
 - Tests: 21 new tests, 1433 total pass. Covers basic flow, concurrent guard, snapshot isolation, error handling, prior summary preservation.
 - Review: Found two issues. (1) Prior _compacted.md content was lost on second compaction cycle (critical). Fixed by reading prior summary and including in SDK prompt. (2) SDK tools not explicitly disabled. Fixed by adding mcpServers: {}, allowedTools: []. Partial-state-on-failure documented as known limitation.
+
+### Phase 8: Concurrency Hardening
+- Dispatched: Wrap createMeeting/acceptMeetingRequest in withProjectLock (TOCTOU fix). Add squash-merge conflict detection and resolution in commission close path.
+- Result: Meeting creation/acceptance serialized via withProjectLock. New GitOps methods: squashMergeNoCommit, listConflictedFiles, resolveConflictsTheirs, abortMerge. resolveSquashMerge() handles .lore/ conflicts (auto-resolve with --theirs) and non-.lore/ conflicts (fail with "merge conflict"). Applied same conflict-aware pattern to meeting close.
+- Tests: 8 new tests, 1441 total pass. Covers concurrent cap enforcement, .lore/ auto-resolution, non-.lore/ failure, mixed conflicts, clean merge.
+- Review: Found three issues, all fixed. (1) closeMeeting() still used old squashMerge(), now conflict-aware. (2) completed->failed transition bypassed state machine via try/catch, now uses direct update with comment. (3) Added --theirs semantics comment for squash-merge context.

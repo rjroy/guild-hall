@@ -124,6 +124,22 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "merge", args });
       return Promise.resolve();
     },
+    squashMergeNoCommit: (...args) => {
+      calls.push({ method: "squashMergeNoCommit", args });
+      return Promise.resolve(true);
+    },
+    listConflictedFiles: (...args) => {
+      calls.push({ method: "listConflictedFiles", args });
+      return Promise.resolve([]);
+    },
+    resolveConflictsTheirs: (...args) => {
+      calls.push({ method: "resolveConflictsTheirs", args });
+      return Promise.resolve();
+    },
+    mergeAbort: (...args) => {
+      calls.push({ method: "mergeAbort", args });
+      return Promise.resolve();
+    },
   };
 }
 

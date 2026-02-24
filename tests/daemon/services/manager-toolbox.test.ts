@@ -123,6 +123,10 @@ function makeMockGitOps(overrides?: Partial<GitOps>): GitOps {
     async revParse() { return "abc123def456789012345678901234567890abcd"; },
     async rebaseOnto() {},
     async merge() {},
+    async squashMergeNoCommit() { return true; },
+    async listConflictedFiles() { return []; },
+    async resolveConflictsTheirs() {},
+    async mergeAbort() {},
     ...overrides,
   };
 }

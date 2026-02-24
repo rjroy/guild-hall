@@ -688,6 +688,70 @@ export function createCommissionSession(
   }
 
   /**
+   * Attempts a squash-merge with conflict resolution. Returns true if the
+   * merge succeeded (with or without auto-resolved .lore/ conflicts),
+   * false if non-.lore/ conflicts were detected (commission should fail).
+   *
+   * Conflict resolution strategy:
+   *   - .lore/-only conflicts: accept the incoming (commission's) version,
+   *     since each commission produces distinct artifacts. Log the resolution.
+   *   - Non-.lore/ conflicts (or mixed): abort the merge, return false.
+   *     The caller is responsible for failing the commission and preserving
+   *     the branch for manual resolution.
+   */
+  async function resolveSquashMerge(
+    integrationPath: string,
+    sourceBranch: string,
+    commissionId: CommissionId,
+  ): Promise<boolean> {
+    const clean = await git.squashMergeNoCommit(integrationPath, sourceBranch);
+
+    if (clean) {
+      // No conflicts, commit the squash result
+      await git.commitAll(integrationPath, `Commission: ${commissionId}`);
+      return true;
+    }
+
+    // Conflicts detected. Classify files.
+    const conflictedFiles = await git.listConflictedFiles(integrationPath);
+
+    if (conflictedFiles.length === 0) {
+      // squashMergeNoCommit returned false but no unmerged paths: unexpected.
+      // Abort and treat as failure.
+      console.warn(
+        `[commission] "${commissionId}" squash-merge reported conflict but no unmerged files found. Aborting.`,
+      );
+      await git.mergeAbort(integrationPath);
+      return false;
+    }
+
+    const loreFiles = conflictedFiles.filter((f) => f.startsWith(".lore/"));
+    const nonLoreFiles = conflictedFiles.filter((f) => !f.startsWith(".lore/"));
+
+    if (nonLoreFiles.length > 0) {
+      // Non-.lore/ conflicts present (possibly mixed with .lore/ conflicts).
+      // Cannot auto-resolve. Abort the merge.
+      console.warn(
+        `[commission] "${commissionId}" squash-merge has non-.lore/ conflicts: ${nonLoreFiles.join(", ")}. Aborting merge, commission will fail.`,
+      );
+      await git.mergeAbort(integrationPath);
+      return false;
+    }
+
+    // All conflicts are in .lore/. Accept the incoming (commission's) version.
+    console.log(
+      `[commission] "${commissionId}" auto-resolving ${loreFiles.length} .lore/ conflict(s): ${loreFiles.join(", ")}`,
+    );
+    await git.resolveConflictsTheirs(integrationPath, loreFiles);
+    await git.commitAll(
+      integrationPath,
+      `Commission: ${commissionId} (auto-resolved .lore/ conflicts)`,
+    );
+
+    return true;
+  }
+
+  /**
    * Handles a commission failure (crash, heartbeat timeout, etc.).
    * Transitions to failed, emits event, and cleans up.
    */
@@ -1289,22 +1353,91 @@ projectName: ${projectName}
       // but an explicit sync ensures auto-dispatch scanning sees the
       // correct status even if the merge was a no-op.
       const iPath = integrationWorktreePath(ghHome, commission.projectName);
+      let mergeSucceeded = false;
       try {
         await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
-        await withProjectLock(commission.projectName, async () => {
-          await git.squashMerge(iPath, commission.branchName, `Commission: ${commissionId}`);
+        mergeSucceeded = await withProjectLock(commission.projectName, async () => {
+          return await resolveSquashMerge(
+            iPath,
+            commission.branchName,
+            commissionId,
+          );
         });
-        await syncStatusToIntegration(commission, finalStatus, reason);
-        await git.removeWorktree(project.path, commission.worktreeDir);
-        await git.deleteBranch(project.path, commission.branchName);
-        console.log(`[commission] "${commissionId}" squash-merged to claude and cleaned up`);
       } catch (err: unknown) {
         console.warn(
           `[commission] Git cleanup failed for completed "${commissionId}":`,
           err instanceof Error ? err.message : String(err),
         );
-        // Even if git cleanup fails, ensure status is synced for auto-dispatch
+      }
+
+      if (mergeSucceeded) {
         await syncStatusToIntegration(commission, finalStatus, reason);
+        try {
+          await git.removeWorktree(project.path, commission.worktreeDir);
+          await git.deleteBranch(project.path, commission.branchName);
+        } catch (err: unknown) {
+          console.warn(
+            `[commission] Worktree/branch cleanup failed for "${commissionId}":`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+        console.log(`[commission] "${commissionId}" squash-merged to claude and cleaned up`);
+      } else {
+        // Merge failed due to non-.lore/ conflicts. Transition to failed,
+        // preserve branch for manual resolution.
+        const conflictReason = "Squash-merge conflict on non-.lore/ files";
+        commission.status = "failed";
+        finalStatus = "failed";
+        reason = conflictReason;
+
+        // completed -> failed is not in the state machine because completed
+        // is terminal. Squash-merge failure after completion is a special case
+        // handled directly.
+        try {
+          await updateCommissionStatus(commission.worktreeDir, commissionId, "failed");
+          await appendTimelineEntry(
+            commission.worktreeDir,
+            commissionId,
+            "status_failed",
+            conflictReason,
+          );
+        } catch (updateErr: unknown) {
+          console.error(
+            `[commission] Failed to update status after merge conflict for "${commissionId}":`,
+            updateErr instanceof Error ? updateErr.message : String(updateErr),
+          );
+        }
+
+        deps.eventBus.emit({
+          type: "commission_status",
+          commissionId: commissionId as string,
+          status: "failed",
+          reason: conflictReason,
+        });
+
+        await syncStatusToIntegration(commission, "failed", conflictReason);
+
+        // Preserve branch for manual resolution (commit any staged work)
+        try {
+          await git.commitAll(
+            commission.worktreeDir,
+            `Partial work preserved (merge conflict): ${commissionId}`,
+          );
+        } catch {
+          // Non-fatal
+        }
+
+        if (project) {
+          try {
+            await git.removeWorktree(project.path, commission.worktreeDir);
+          } catch (err: unknown) {
+            console.warn(
+              `[commission] Failed to remove worktree for "${commissionId}":`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        }
+        // Branch is NOT deleted - preserved for manual conflict resolution
       }
     } else {
       // Sync terminal status to integration worktree. For failed/cancelled,

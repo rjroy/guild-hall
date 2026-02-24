@@ -43,6 +43,7 @@ import {
   integrationWorktreePath,
 } from "@/lib/paths";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
+import { withProjectLock } from "@/daemon/lib/project-lock";
 import {
   meetingArtifactPath,
   appendMeetingLog,
@@ -666,120 +667,174 @@ notes_summary: ""
     projectName: string,
     message?: string,
   ): AsyncGenerator<GuildHallEvent> {
-    // a. Verify project exists
-    const project = findProject(projectName);
-    if (!project) {
-      yield { type: "error", reason: `Project "${projectName}" not found` };
-      return;
-    }
+    // The setup phase (cap check through map registration) runs under
+    // withProjectLock to prevent the TOCTOU race where two concurrent
+    // accepts both pass the cap check before either registers.
+    type SetupResult =
+      | { ok: true; meeting: ActiveMeeting; prompt: string; projectPath: string }
+      | { ok: false; errors: GuildHallEvent[] };
 
-    // b. Check concurrent meeting cap
-    const cap = project.meetingCap ?? DEFAULT_MEETING_CAP;
-    const openMeetings = getOpenMeetingsForProject(projectName);
-    if (openMeetings.length >= cap) {
-      yield {
-        type: "error",
-        reason: `Meeting cap reached for project "${projectName}" (${cap} concurrent meetings)`,
-      };
-      return;
-    }
+    const setup = await withProjectLock(projectName, async (): Promise<SetupResult> => {
+      const errors: GuildHallEvent[] = [];
 
-    // c. Read the meeting artifact from integration worktree and verify status
-    const iPath = integrationWorktreePath(ghHome, projectName);
-    let currentStatus: MeetingStatus | null;
-    try {
-      currentStatus = await readArtifactStatus(iPath, meetingId);
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to read meeting artifact: ${reason}` };
-      return;
-    }
-
-    if (!currentStatus) {
-      yield { type: "error", reason: `Could not read status for meeting "${meetingId}"` };
-      return;
-    }
-
-    // d. Validate transition: requested -> open
-    try {
-      validateTransition(currentStatus, "open");
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason };
-      return;
-    }
-
-    // e. Read the agenda and worker info from the meeting artifact (before branching)
-    let agenda: string;
-    let workerName: string;
-    let linkedArtifacts: string[];
-    try {
-      const artifactFilePath = meetingArtifactPath(iPath, meetingId);
-      const raw = await fs.readFile(artifactFilePath, "utf-8");
-      const matter = await import("gray-matter");
-      const parsed = matter.default(raw);
-      const data = parsed.data as Record<string, unknown>;
-      agenda = typeof data.agenda === "string" ? data.agenda : "";
-      workerName = typeof data.worker === "string" ? data.worker : "";
-      linkedArtifacts = await readLinkedArtifacts(iPath, meetingId);
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to read meeting artifact data: ${reason}` };
-      return;
-    }
-
-    // f. Find the worker package by worker name (identity name)
-    // Workers are registered by package name, but the artifact stores the
-    // identity name. Search packages by identity name.
-    const workerPkg = deps.packages.find((p) => {
-      if (!("identity" in p.metadata)) return false;
-      return p.metadata.identity.name === workerName;
-    });
-    if (!workerPkg) {
-      yield { type: "error", reason: `Worker "${workerName}" not found in discovered packages` };
-      return;
-    }
-
-    // g. Create git branch and worktree (activity branch inherits artifact from claude)
-    const branchName = meetingBranchName(meetingId as string);
-    const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId as string);
-    try {
-      await git.createBranch(project.path, branchName, CLAUDE_BRANCH);
-      await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
-      await git.createWorktree(project.path, worktreeDir, branchName);
-
-      // Configure sparse checkout if the worker requests it
-      const workerMeta = workerPkg.metadata as WorkerMetadata;
-      if (workerMeta.checkoutScope === "sparse") {
-        await git.configureSparseCheckout(worktreeDir, [".lore/"]);
+      // a. Verify project exists
+      const project = findProject(projectName);
+      if (!project) {
+        errors.push({ type: "error", reason: `Project "${projectName}" not found` });
+        return { ok: false, errors };
       }
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to create git worktree: ${reason}` };
-      return;
-    }
 
-    // h. Update artifact status to "open" on the activity worktree
-    try {
-      await updateArtifactStatus(worktreeDir, meetingId, "open");
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to update artifact status: ${reason}` };
-      return;
-    }
+      // b. Check concurrent meeting cap (atomic with registration under lock)
+      const cap = project.meetingCap ?? DEFAULT_MEETING_CAP;
+      const openMeetings = getOpenMeetingsForProject(projectName);
+      if (openMeetings.length >= cap) {
+        errors.push({
+          type: "error",
+          reason: `Meeting cap reached for project "${projectName}" (${cap} concurrent meetings)`,
+        });
+        return { ok: false, errors };
+      }
 
-    // h2. Append meeting log on the activity worktree
-    try {
-      await appendMeetingLog(worktreeDir, meetingId, "opened", "User accepted meeting request");
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to append meeting log: ${reason}` };
-      return;
-    }
+      // c. Read the meeting artifact from integration worktree and verify status
+      const iPath = integrationWorktreePath(ghHome, projectName);
+      let currentStatus: MeetingStatus | null;
+      try {
+        currentStatus = await readArtifactStatus(iPath, meetingId);
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to read meeting artifact: ${reason}` });
+        return { ok: false, errors };
+      }
 
-    // i. Write machine-local state file
-    try {
-      await writeStateFile(meetingId, {
+      if (!currentStatus) {
+        errors.push({ type: "error", reason: `Could not read status for meeting "${meetingId}"` });
+        return { ok: false, errors };
+      }
+
+      // d. Validate transition: requested -> open
+      try {
+        validateTransition(currentStatus, "open");
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason });
+        return { ok: false, errors };
+      }
+
+      // e. Read the agenda and worker info from the meeting artifact (before branching)
+      let agenda: string;
+      let workerName: string;
+      let linkedArtifacts: string[];
+      try {
+        const artifactFilePath = meetingArtifactPath(iPath, meetingId);
+        const raw = await fs.readFile(artifactFilePath, "utf-8");
+        const matter = await import("gray-matter");
+        const parsed = matter.default(raw);
+        const data = parsed.data as Record<string, unknown>;
+        agenda = typeof data.agenda === "string" ? data.agenda : "";
+        workerName = typeof data.worker === "string" ? data.worker : "";
+        linkedArtifacts = await readLinkedArtifacts(iPath, meetingId);
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to read meeting artifact data: ${reason}` });
+        return { ok: false, errors };
+      }
+
+      // f. Find the worker package by worker name (identity name)
+      // Workers are registered by package name, but the artifact stores the
+      // identity name. Search packages by identity name.
+      const workerPkg = deps.packages.find((p) => {
+        if (!("identity" in p.metadata)) return false;
+        return p.metadata.identity.name === workerName;
+      });
+      if (!workerPkg) {
+        errors.push({ type: "error", reason: `Worker "${workerName}" not found in discovered packages` });
+        return { ok: false, errors };
+      }
+
+      // g. Create git branch and worktree (activity branch inherits artifact from claude)
+      const branchName = meetingBranchName(meetingId as string);
+      const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId as string);
+      try {
+        await git.createBranch(project.path, branchName, CLAUDE_BRANCH);
+        await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
+        await git.createWorktree(project.path, worktreeDir, branchName);
+
+        // Configure sparse checkout if the worker requests it
+        const workerMeta = workerPkg.metadata as WorkerMetadata;
+        if (workerMeta.checkoutScope === "sparse") {
+          await git.configureSparseCheckout(worktreeDir, [".lore/"]);
+        }
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to create git worktree: ${reason}` });
+        return { ok: false, errors };
+      }
+
+      // h. Update artifact status to "open" on the activity worktree
+      try {
+        await updateArtifactStatus(worktreeDir, meetingId, "open");
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to update artifact status: ${reason}` });
+        return { ok: false, errors };
+      }
+
+      // h2. Append meeting log on the activity worktree
+      try {
+        await appendMeetingLog(worktreeDir, meetingId, "opened", "User accepted meeting request");
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to append meeting log: ${reason}` });
+        return { ok: false, errors };
+      }
+
+      // i. Write machine-local state file
+      try {
+        await writeStateFile(meetingId, {
+          meetingId,
+          projectName,
+          workerName,
+          packageName: workerPkg.name,
+          sdkSessionId: null,
+          worktreeDir,
+          branchName,
+          status: "open",
+          createdAt: new Date().toISOString(),
+        });
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to write state file: ${reason}` });
+        return { ok: false, errors };
+      }
+
+      // j. Build initial prompt from agenda + optional user message + linked artifacts context
+      let prompt = agenda;
+      if (linkedArtifacts.length > 0) {
+        prompt += `\n\nReferenced artifacts: ${linkedArtifacts.join(", ")}`;
+      }
+      if (message) {
+        prompt += `\n\n${message}`;
+      }
+
+      // l. Create transcript and record initial user turn
+      try {
+        await createTranscript(
+          meetingId as string,
+          workerName,
+          projectName,
+          ghHome,
+        );
+        await appendUserTurn(meetingId as string, prompt, ghHome);
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to create transcript: ${reason}` });
+        return { ok: false, errors };
+      }
+
+      // m. Create AbortController and register meeting in active map
+      const abortController = new AbortController();
+
+      const meeting: ActiveMeeting = {
         meetingId,
         projectName,
         workerName,
@@ -787,57 +842,24 @@ notes_summary: ""
         sdkSessionId: null,
         worktreeDir,
         branchName,
+        abortController,
         status: "open",
-        createdAt: new Date().toISOString(),
-      });
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to write state file: ${reason}` };
+      };
+      meetings.set(meetingId as string, meeting);
+
+      return { ok: true, meeting, prompt, projectPath: project.path };
+    });
+
+    // Yield errors from the setup phase, or start the SDK session
+    if (!setup.ok) {
+      for (const event of setup.errors) {
+        yield event;
+      }
       return;
     }
 
-    // j. Build initial prompt from agenda + optional user message + linked artifacts context
-    let prompt = agenda;
-    if (linkedArtifacts.length > 0) {
-      prompt += `\n\nReferenced artifacts: ${linkedArtifacts.join(", ")}`;
-    }
-    if (message) {
-      prompt += `\n\n${message}`;
-    }
-
-    // l. Create transcript and record initial user turn
-    try {
-      await createTranscript(
-        meetingId as string,
-        workerName,
-        projectName,
-        ghHome,
-      );
-      await appendUserTurn(meetingId as string, prompt, ghHome);
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to create transcript: ${reason}` };
-      return;
-    }
-
-    // m. Create AbortController and register meeting in active map
-    const abortController = new AbortController();
-
-    const meeting: ActiveMeeting = {
-      meetingId,
-      projectName,
-      workerName,
-      packageName: workerPkg.name,
-      sdkSessionId: null,
-      worktreeDir,
-      branchName,
-      abortController,
-      status: "open",
-    };
-    meetings.set(meetingId as string, meeting);
-
-    // n. Start the SDK session
-    yield* startSession(meeting, prompt, project.path);
+    // n. Start the SDK session (outside lock, streaming can take arbitrarily long)
+    yield* startSession(setup.meeting, setup.prompt, setup.projectPath);
   }
 
   async function* createMeeting(
@@ -845,90 +867,120 @@ notes_summary: ""
     workerName: string,
     prompt: string,
   ): AsyncGenerator<GuildHallEvent> {
-    // a. Verify project exists
-    const project = findProject(projectName);
-    if (!project) {
-      yield { type: "error", reason: `Project "${projectName}" not found` };
-      return;
-    }
+    // The setup phase (cap check through map registration) runs under
+    // withProjectLock to prevent the TOCTOU race where two concurrent
+    // creates both pass the cap check before either registers.
+    type SetupResult =
+      | { ok: true; meeting: ActiveMeeting; projectPath: string }
+      | { ok: false; errors: GuildHallEvent[] };
 
-    // b. Check concurrent meeting cap
-    const cap = project.meetingCap ?? DEFAULT_MEETING_CAP;
-    const openMeetings = getOpenMeetingsForProject(projectName);
-    if (openMeetings.length >= cap) {
-      yield {
-        type: "error",
-        reason: `Meeting cap reached for project "${projectName}" (${cap} concurrent meetings)`,
-      };
-      return;
-    }
+    const setup = await withProjectLock(projectName, async (): Promise<SetupResult> => {
+      const errors: GuildHallEvent[] = [];
 
-    // Find the worker package
-    const workerPkg = getWorkerByName(deps.packages, workerName);
-    if (!workerPkg) {
-      yield {
-        type: "error",
-        reason: `Worker "${workerName}" not found in discovered packages`,
-      };
-      return;
-    }
-
-    const workerMeta = workerPkg.metadata as WorkerMetadata;
-
-    // c. Generate meeting ID
-    const meetingId = formatMeetingId(workerMeta.identity.name, new Date());
-
-    // d. Create git branch and worktree
-    const branchName = meetingBranchName(meetingId as string);
-    const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId as string);
-    try {
-      await git.createBranch(project.path, branchName, CLAUDE_BRANCH);
-      await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
-      await git.createWorktree(project.path, worktreeDir, branchName);
-
-      // Configure sparse checkout if the worker requests it
-      if (workerMeta.checkoutScope === "sparse") {
-        await git.configureSparseCheckout(worktreeDir, [".lore/"]);
+      // a. Verify project exists
+      const project = findProject(projectName);
+      if (!project) {
+        errors.push({ type: "error", reason: `Project "${projectName}" not found` });
+        return { ok: false, errors };
       }
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to create git worktree: ${reason}` };
-      return;
-    }
 
-    // e. Create meeting artifact (written to activity worktree)
-    try {
-      await writeMeetingArtifact(
-        worktreeDir,
-        meetingId,
-        workerMeta.identity.displayTitle,
-        prompt,
-        workerMeta.identity.name,
-      );
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to create meeting artifact: ${reason}` };
-      return;
-    }
+      // b. Check concurrent meeting cap (atomic with registration under lock)
+      const cap = project.meetingCap ?? DEFAULT_MEETING_CAP;
+      const openMeetings = getOpenMeetingsForProject(projectName);
+      if (openMeetings.length >= cap) {
+        errors.push({
+          type: "error",
+          reason: `Meeting cap reached for project "${projectName}" (${cap} concurrent meetings)`,
+        });
+        return { ok: false, errors };
+      }
 
-    // e2. Create transcript and record initial user turn
-    try {
-      await createTranscript(
-        meetingId as string,
-        workerMeta.identity.name,
-        projectName,
-        ghHome,
-      );
-      await appendUserTurn(meetingId as string, prompt, ghHome);
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to create transcript: ${reason}` };
-      return;
-    }
+      // Find the worker package
+      const workerPkg = getWorkerByName(deps.packages, workerName);
+      if (!workerPkg) {
+        errors.push({
+          type: "error",
+          reason: `Worker "${workerName}" not found in discovered packages`,
+        });
+        return { ok: false, errors };
+      }
 
-    // f. Write initial machine-local state
-    try {
-      await writeStateFile(meetingId, {
+      const workerMeta = workerPkg.metadata as WorkerMetadata;
+
+      // c. Generate meeting ID
+      const meetingId = formatMeetingId(workerMeta.identity.name, new Date());
+
+      // d. Create git branch and worktree
+      const branchName = meetingBranchName(meetingId as string);
+      const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId as string);
+      try {
+        await git.createBranch(project.path, branchName, CLAUDE_BRANCH);
+        await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
+        await git.createWorktree(project.path, worktreeDir, branchName);
+
+        // Configure sparse checkout if the worker requests it
+        if (workerMeta.checkoutScope === "sparse") {
+          await git.configureSparseCheckout(worktreeDir, [".lore/"]);
+        }
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to create git worktree: ${reason}` });
+        return { ok: false, errors };
+      }
+
+      // e. Create meeting artifact (written to activity worktree)
+      try {
+        await writeMeetingArtifact(
+          worktreeDir,
+          meetingId,
+          workerMeta.identity.displayTitle,
+          prompt,
+          workerMeta.identity.name,
+        );
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to create meeting artifact: ${reason}` });
+        return { ok: false, errors };
+      }
+
+      // e2. Create transcript and record initial user turn
+      try {
+        await createTranscript(
+          meetingId as string,
+          workerMeta.identity.name,
+          projectName,
+          ghHome,
+        );
+        await appendUserTurn(meetingId as string, prompt, ghHome);
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to create transcript: ${reason}` });
+        return { ok: false, errors };
+      }
+
+      // f. Write initial machine-local state
+      try {
+        await writeStateFile(meetingId, {
+          meetingId,
+          projectName,
+          workerName: workerMeta.identity.name,
+          packageName: workerName,
+          sdkSessionId: null,
+          worktreeDir,
+          branchName,
+          status: "open",
+          createdAt: new Date().toISOString(),
+        });
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ type: "error", reason: `Failed to write state file: ${reason}` });
+        return { ok: false, errors };
+      }
+
+      // g. Create AbortController and register meeting in active map
+      const abortController = new AbortController();
+
+      const meeting: ActiveMeeting = {
         meetingId,
         projectName,
         workerName: workerMeta.identity.name,
@@ -936,33 +988,24 @@ notes_summary: ""
         sdkSessionId: null,
         worktreeDir,
         branchName,
+        abortController,
         status: "open",
-        createdAt: new Date().toISOString(),
-      });
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Failed to write state file: ${reason}` };
+      };
+      meetings.set(meetingId as string, meeting);
+
+      return { ok: true, meeting, projectPath: project.path };
+    });
+
+    // Yield errors from the setup phase, or start the SDK session
+    if (!setup.ok) {
+      for (const event of setup.errors) {
+        yield event;
+      }
       return;
     }
 
-    // g. Create AbortController and register meeting in active map
-    const abortController = new AbortController();
-
-    const meeting: ActiveMeeting = {
-      meetingId,
-      projectName,
-      workerName: workerMeta.identity.name,
-      packageName: workerName,
-      sdkSessionId: null,
-      worktreeDir,
-      branchName,
-      abortController,
-      status: "open",
-    };
-    meetings.set(meetingId as string, meeting);
-
-    // h. Start the SDK session via the shared helper
-    yield* startSession(meeting, prompt, project.path);
+    // h. Start the SDK session via the shared helper (outside lock)
+    yield* startSession(setup.meeting, prompt, setup.projectPath);
   }
 
   async function* sendMessage(
@@ -1295,16 +1338,79 @@ notes_summary: ""
       // Non-fatal
     }
 
-    // Git cleanup: commit changes, squash-merge to integration, remove worktree and branch
+    // Git cleanup: commit changes, squash-merge to integration, remove worktree and branch.
+    // Uses conflict-aware squash-merge: try squashMergeNoCommit first, then
+    // auto-resolve .lore/ conflicts with --theirs (the meeting's version).
+    // Non-.lore/ conflicts are logged but don't fail the meeting close
+    // (meetings should always close gracefully).
     let squashMergeSucceeded = false;
     if (project) {
       try {
         await git.commitAll(meeting.worktreeDir, `Meeting closed: ${meeting.meetingId}`);
         const iPath = integrationWorktreePath(ghHome, meeting.projectName);
-        await git.squashMerge(iPath, meeting.branchName, `Meeting: ${meeting.meetingId}`);
-        squashMergeSucceeded = true;
-        await git.removeWorktree(project.path, meeting.worktreeDir);
-        await git.deleteBranch(project.path, meeting.branchName);
+
+        const mergeSucceeded = await withProjectLock(meeting.projectName, async () => {
+          const clean = await git.squashMergeNoCommit(iPath, meeting.branchName);
+
+          if (clean) {
+            await git.commitAll(iPath, `Meeting: ${meeting.meetingId}`);
+            return true;
+          }
+
+          // Conflicts detected. Classify files.
+          const conflictedFiles = await git.listConflictedFiles(iPath);
+
+          if (conflictedFiles.length === 0) {
+            // squashMergeNoCommit returned false but no unmerged paths: unexpected.
+            console.warn(
+              `[closeMeeting] "${meeting.meetingId}" squash-merge reported conflict but no unmerged files found. Aborting.`,
+            );
+            await git.mergeAbort(iPath);
+            return false;
+          }
+
+          const loreFiles = conflictedFiles.filter((f) => f.startsWith(".lore/"));
+          const nonLoreFiles = conflictedFiles.filter((f) => !f.startsWith(".lore/"));
+
+          if (nonLoreFiles.length > 0) {
+            // Non-.lore/ conflicts present. Log but don't fail the meeting close.
+            // Meetings close gracefully; the branch is preserved for manual resolution.
+            console.warn(
+              `[closeMeeting] "${meeting.meetingId}" squash-merge has non-.lore/ conflicts: ${nonLoreFiles.join(", ")}. Aborting merge, branch preserved for manual resolution.`,
+            );
+            await git.mergeAbort(iPath);
+            return false;
+          }
+
+          // All conflicts are in .lore/. Accept the incoming (meeting's) version.
+          console.log(
+            `[closeMeeting] "${meeting.meetingId}" auto-resolving ${loreFiles.length} .lore/ conflict(s): ${loreFiles.join(", ")}`,
+          );
+          await git.resolveConflictsTheirs(iPath, loreFiles);
+          await git.commitAll(
+            iPath,
+            `Meeting: ${meeting.meetingId} (auto-resolved .lore/ conflicts)`,
+          );
+
+          return true;
+        });
+
+        squashMergeSucceeded = mergeSucceeded;
+
+        if (squashMergeSucceeded) {
+          await git.removeWorktree(project.path, meeting.worktreeDir);
+          await git.deleteBranch(project.path, meeting.branchName);
+        } else {
+          // Merge failed. Remove worktree but preserve branch for manual resolution.
+          try {
+            await git.removeWorktree(project.path, meeting.worktreeDir);
+          } catch (err: unknown) {
+            console.warn(
+              `[closeMeeting] Failed to remove worktree for "${meeting.meetingId}":`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        }
       } catch (err: unknown) {
         const reason = err instanceof Error ? err.message : String(err);
         console.warn(`[closeMeeting] Git cleanup failed for ${meeting.meetingId}: ${reason}`);

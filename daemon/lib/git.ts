@@ -160,6 +160,36 @@ export interface GitOps {
    * replay already-applied commits and conflict).
    */
   merge(worktreePath: string, ref: string, message: string): Promise<void>;
+
+  /**
+   * Performs `git merge --squash` without committing. Returns true if the
+   * merge completed cleanly, false if there were conflicts. Does NOT throw
+   * on conflict (unlike squashMerge), so the caller can inspect and resolve.
+   */
+  squashMergeNoCommit(worktreePath: string, sourceBranch: string): Promise<boolean>;
+
+  /**
+   * Lists files with unresolved merge conflicts (unmerged paths).
+   * Returns relative paths from the worktree root.
+   */
+  listConflictedFiles(worktreePath: string): Promise<string[]>;
+
+  /**
+   * Resolves merge conflicts for specified files by accepting the incoming
+   * (theirs) version, then stages the resolved files.
+   *
+   * In a squash-merge context (the primary use case), --theirs refers to the
+   * activity branch (the commission's or meeting's work), not the integration
+   * branch. This is because `git merge --squash <activity-branch>` runs in
+   * the integration worktree, making the integration branch "ours" and the
+   * activity branch "theirs".
+   */
+  resolveConflictsTheirs(worktreePath: string, files: string[]): Promise<void>;
+
+  /**
+   * Aborts a merge in progress, restoring the worktree to its pre-merge state.
+   */
+  mergeAbort(worktreePath: string): Promise<void>;
 }
 
 export function createGitOps(): GitOps {
@@ -398,6 +428,42 @@ export function createGitOps(): GitOps {
     async revParse(repoPath, ref) {
       const { stdout } = await runGit(repoPath, ["rev-parse", ref]);
       return stdout;
+    },
+
+    async squashMergeNoCommit(worktreePath, sourceBranch) {
+      const { exitCode } = await runGit(
+        worktreePath,
+        ["merge", "--squash", sourceBranch],
+        { allowNonZero: true },
+      );
+      return exitCode === 0;
+    },
+
+    async listConflictedFiles(worktreePath) {
+      // git diff --name-only --diff-filter=U lists files with unresolved
+      // merge conflicts (unmerged entries in the index).
+      const { stdout } = await runGit(
+        worktreePath,
+        ["diff", "--name-only", "--diff-filter=U"],
+      );
+      if (stdout === "") return [];
+      return stdout.split("\n").filter((line) => line.length > 0);
+    },
+
+    async resolveConflictsTheirs(worktreePath, files) {
+      if (files.length === 0) return;
+      // Accept the incoming (theirs) version for each conflicted file
+      await runGit(worktreePath, ["checkout", "--theirs", "--", ...files]);
+      // Stage the resolved files
+      await runGit(worktreePath, ["add", "--", ...files]);
+    },
+
+    async mergeAbort(worktreePath) {
+      try {
+        await runGit(worktreePath, ["merge", "--abort"]);
+      } catch {
+        // merge --abort may fail if no merge is in progress
+      }
     },
   };
 }

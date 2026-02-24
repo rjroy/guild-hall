@@ -228,6 +228,10 @@ function createMockGitOps(options?: {
     revParse: () => { calls.push("revParse"); return Promise.resolve("abc"); },
     rebaseOnto: () => { calls.push("rebaseOnto"); return Promise.resolve(); },
     merge: async () => {},
+    squashMergeNoCommit: () => { calls.push("squashMergeNoCommit"); return Promise.resolve(true); },
+    listConflictedFiles: () => { calls.push("listConflictedFiles"); return Promise.resolve([]); },
+    resolveConflictsTheirs: () => { calls.push("resolveConflictsTheirs"); return Promise.resolve(); },
+    mergeAbort: () => { calls.push("mergeAbort"); return Promise.resolve(); },
   };
 }
 
@@ -783,9 +787,9 @@ describe("createMeetingSession", () => {
 
       await session.closeMeeting(asMeetingId(meetingId));
 
-      // Verify git cleanup was called
+      // Verify git cleanup was called (conflict-aware: squashMergeNoCommit + commitAll)
       expect(mockGit.calls).toContain("commitAll");
-      expect(mockGit.calls).toContain("squashMerge");
+      expect(mockGit.calls).toContain("squashMergeNoCommit");
       expect(mockGit.calls).toContain("removeWorktree");
       expect(mockGit.calls).toContain("deleteBranch");
     });
@@ -2389,7 +2393,7 @@ notes_summary: ""
       expect(worktreeIdx).toBeLessThan(sparseIdx);
     });
 
-    test("closeMeeting calls commitAll, squashMerge, removeWorktree, deleteBranch in order", async () => {
+    test("closeMeeting calls commitAll, squashMergeNoCommit, commitAll, removeWorktree, deleteBranch in order", async () => {
       const mockGit = createMockGitOps();
       const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
       const events = await collectEvents(
@@ -2405,9 +2409,10 @@ notes_summary: ""
 
       await session.closeMeeting(asMeetingId(meetingId));
 
-      // Verify git cleanup operations in order
+      // Verify conflict-aware git cleanup operations in order:
+      // commitAll (activity worktree), squashMergeNoCommit, commitAll (integration), removeWorktree, deleteBranch
       const commitIdx = mockGit.calls.indexOf("commitAll");
-      const squashIdx = mockGit.calls.indexOf("squashMerge");
+      const squashIdx = mockGit.calls.indexOf("squashMergeNoCommit");
       const removeIdx = mockGit.calls.indexOf("removeWorktree");
       const deleteIdx = mockGit.calls.indexOf("deleteBranch");
 

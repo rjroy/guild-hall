@@ -120,6 +120,10 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
     async revParse(...args) { calls.push({ method: "revParse", args }); return "abc"; },
     async rebaseOnto(...args) { calls.push({ method: "rebaseOnto", args }); },
     async merge() {},
+    async squashMergeNoCommit(...args) { calls.push({ method: "squashMergeNoCommit", args }); return true; },
+    async listConflictedFiles(...args) { calls.push({ method: "listConflictedFiles", args }); return []; },
+    async resolveConflictsTheirs(...args) { calls.push({ method: "resolveConflictsTheirs", args }); },
+    async mergeAbort(...args) { calls.push({ method: "mergeAbort", args }); },
   };
   /* eslint-enable @typescript-eslint/require-await */
 }

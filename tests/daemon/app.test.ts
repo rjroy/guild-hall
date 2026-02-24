@@ -46,6 +46,10 @@ function createMockGitOps(): GitOps & { calls: string[] } {
     revParse: () => { calls.push("revParse"); return Promise.resolve("abc"); },
     rebaseOnto: () => { calls.push("rebaseOnto"); return Promise.resolve(); },
     merge: async () => {},
+    squashMergeNoCommit: () => { calls.push("squashMergeNoCommit"); return Promise.resolve(true); },
+    listConflictedFiles: () => { calls.push("listConflictedFiles"); return Promise.resolve([]); },
+    resolveConflictsTheirs: () => { calls.push("resolveConflictsTheirs"); return Promise.resolve(); },
+    mergeAbort: () => { calls.push("mergeAbort"); return Promise.resolve(); },
   };
 }
 

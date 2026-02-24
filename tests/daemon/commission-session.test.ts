@@ -418,6 +418,10 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
     async revParse(...args) { calls.push({ method: "revParse", args }); return "abc"; },
     async rebaseOnto(...args) { calls.push({ method: "rebaseOnto", args }); },
     async merge() {},
+    async squashMergeNoCommit(...args) { calls.push({ method: "squashMergeNoCommit", args }); return true; },
+    async listConflictedFiles(...args) { calls.push({ method: "listConflictedFiles", args }); return []; },
+    async resolveConflictsTheirs(...args) { calls.push({ method: "resolveConflictsTheirs", args }); },
+    async mergeAbort(...args) { calls.push({ method: "mergeAbort", args }); },
   };
   /* eslint-enable @typescript-eslint/require-await */
 }
@@ -1666,7 +1670,7 @@ describe("createCommissionSession", () => {
 
     // -- Exit/cleanup git operations --
 
-    test("completion calls commitAll, squashMerge, removeWorktree, deleteBranch in order", async () => {
+    test("completion calls commitAll, squashMergeNoCommit, commitAll, removeWorktree, deleteBranch in order", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
@@ -1692,14 +1696,15 @@ describe("createCommissionSession", () => {
       const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
       const exitMethods = exitCalls.map((c) => c.method);
 
+      // resolveSquashMerge uses squashMergeNoCommit + commitAll instead of squashMerge
       expect(exitMethods).toContain("commitAll");
-      expect(exitMethods).toContain("squashMerge");
+      expect(exitMethods).toContain("squashMergeNoCommit");
       expect(exitMethods).toContain("removeWorktree");
       expect(exitMethods).toContain("deleteBranch");
 
-      // Verify ordering: commitAll before squashMerge before removeWorktree before deleteBranch
+      // Verify ordering: commitAll before squashMergeNoCommit before removeWorktree before deleteBranch
       const commitIdx = exitMethods.indexOf("commitAll");
-      const squashIdx = exitMethods.indexOf("squashMerge");
+      const squashIdx = exitMethods.indexOf("squashMergeNoCommit");
       const removeIdx = exitMethods.indexOf("removeWorktree");
       const deleteIdx = exitMethods.indexOf("deleteBranch");
 
@@ -1707,8 +1712,8 @@ describe("createCommissionSession", () => {
       expect(squashIdx).toBeLessThan(removeIdx);
       expect(removeIdx).toBeLessThan(deleteIdx);
 
-      // Verify squashMerge targets integration worktree with the activity branch
-      const squashCall = exitCalls.find((c) => c.method === "squashMerge");
+      // Verify squashMergeNoCommit targets integration worktree with the activity branch
+      const squashCall = exitCalls.find((c) => c.method === "squashMergeNoCommit");
       expect(squashCall!.args[0]).toBe(integrationWorktreePath(ghHome, "test-project"));
       expect(squashCall!.args[1]).toBe(commissionBranchName(commissionId as string));
 

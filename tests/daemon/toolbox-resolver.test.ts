@@ -325,6 +325,10 @@ function makeMockGitOps(): GitOps {
     async revParse() { return "abc"; },
     async rebaseOnto() {},
     async merge() {},
+    async squashMergeNoCommit() { return true; },
+    async listConflictedFiles() { return []; },
+    async resolveConflictsTheirs() {},
+    async mergeAbort() {},
   };
 }
 
