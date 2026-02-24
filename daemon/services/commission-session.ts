@@ -1075,6 +1075,7 @@ projectName: ${projectName}
 
     // 8. Write worker config JSON
     const socketPath = getSocketPath(ghHome);
+    const project = findProject(found.projectName);
     const workerConfig: CommissionWorkerConfig = {
       commissionId: commissionId as string,
       projectName: found.projectName,
@@ -1090,6 +1091,7 @@ projectName: ${projectName}
         Object.keys(resourceOverrides).length > 0
           ? resourceOverrides
           : undefined,
+      memoryLimit: project?.memoryLimit,
     };
 
     const stateDir = path.join(ghHome, "state", "commissions");

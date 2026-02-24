@@ -8,6 +8,7 @@ export interface ProjectConfig {
   meetingCap?: number;
   commissionCap?: number;
   defaultBranch?: string;
+  memoryLimit?: number;
 }
 
 export interface AppConfig {

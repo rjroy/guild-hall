@@ -16,6 +16,7 @@ export const projectConfigSchema = z.object({
   meetingCap: z.number().optional(),
   commissionCap: z.number().optional(),
   defaultBranch: z.string().optional(),
+  memoryLimit: z.number().optional(),
 });
 
 export const appConfigSchema = z.object({

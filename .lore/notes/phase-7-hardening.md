@@ -15,7 +15,7 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 3: Queued Commission UI (task 003)
 - [x] Phase 4: Dependency Auto-Transitions (task 004)
 - [x] Phase 5: Memory Access Control (task 005)
-- [ ] Phase 6: Memory Injection (task 006)
+- [x] Phase 6: Memory Injection (task 006)
 - [ ] Phase 7: Memory Compaction (task 007)
 - [ ] Phase 8: Concurrency Hardening (task 008)
 - [ ] Phase 9: Manager sync_project Tool (task 009)
@@ -66,3 +66,9 @@ Prior work surfaced these critical warnings for Phase 7:
 - Result: BaseToolboxDeps now requires workerName and projectName. resolveToolSet() resolves identity from context with fallbacks (worker.identity.name, path.basename). Worker scope always uses deps.workerName. Project scope uses deps.projectName (eliminated "unknown" fallback). Tool descriptions updated. Production wiring in meeting-session.ts and commission-worker.ts.
 - Tests: 15 new tests, 1393 total pass. Covers worker isolation, project scope resolution, global scope, toolbox resolver propagation with fallbacks.
 - Review: Flagged missing isolation tests in base-toolbox.test.ts, but the dedicated memory-access-control.test.ts already covers this thoroughly (worker A can't read B's memory, different workers have isolated scopes). No action needed.
+
+### Phase 6: Memory Injection
+- Dispatched: Create memory-injector.ts with loadMemories(), wire into meeting-session, commission-worker, and manager-context. Add memoryLimit config field.
+- Result: loadMemories() reads three scopes (global, project, worker), sorts by mtime, soft-cap truncation, returns needsCompaction flag. Wired into all three activation paths. memoryLimit added to ProjectConfig (default 8000). Non-fatal error handling (log and continue without memory).
+- Tests: 19 new tests, 1412 total pass. Covers empty dirs, single/all scopes, mtime sorting, under/over limit, soft cap, budget allocation.
+- Review: Found commission worker not passing memoryLimit from project config. Fixed by adding memoryLimit to CommissionWorkerConfigSchema and passing through dispatch config. Budget accounting overhead in first scope noted as acceptable soft cap.

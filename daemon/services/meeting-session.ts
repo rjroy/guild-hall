@@ -64,6 +64,7 @@ import {
   type NotesResult,
 } from "@/daemon/services/notes-generator";
 import { isNodeError } from "@/lib/types";
+import { loadMemories } from "@/daemon/services/memory-injector";
 
 // -- Constants --
 
@@ -492,9 +493,33 @@ notes_summary: ""
         } : undefined,
       });
 
+      // Load memory files for this worker (non-fatal if memory dirs don't exist)
+      let injectedMemory = "";
+      try {
+        const memoryResult = await loadMemories(
+          workerMeta.identity.name,
+          meeting.projectName,
+          {
+            guildHallHome: ghHome,
+            memoryLimit: project?.memoryLimit,
+          },
+        );
+        injectedMemory = memoryResult.memoryBlock;
+        if (memoryResult.needsCompaction) {
+          console.log(
+            `[meeting-session] Memory for worker "${workerMeta.identity.name}" exceeds limit, needs compaction`,
+          );
+        }
+      } catch (err: unknown) {
+        console.warn(
+          `[meeting-session] Failed to load memories for "${workerMeta.identity.name}" (non-fatal):`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+
       const activationContext: ActivationContext = {
         posture: workerMeta.posture,
-        injectedMemory: "",
+        injectedMemory,
         resolvedTools,
         resourceDefaults: {
           maxTurns: workerMeta.resourceDefaults?.maxTurns,
@@ -516,6 +541,7 @@ notes_summary: ""
           projectName: meeting.projectName,
           integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
           guildHallHome: ghHome,
+          memoryLimit: project?.memoryLimit,
         });
       }
 

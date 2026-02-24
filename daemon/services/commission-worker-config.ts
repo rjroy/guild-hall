@@ -23,6 +23,7 @@ export const CommissionWorkerConfigSchema = z.object({
     maxTurns: z.number().optional(),
     maxBudgetUsd: z.number().optional(),
   }).optional(),
+  memoryLimit: z.number().optional(),
 });
 
 export type CommissionWorkerConfig = z.infer<typeof CommissionWorkerConfigSchema>;

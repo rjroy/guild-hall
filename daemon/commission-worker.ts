@@ -23,6 +23,7 @@ import type {
   WorkerMetadata,
 } from "@/lib/types";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
+import { loadMemories } from "@/daemon/services/memory-injector";
 
 // -- Config parsing --
 
@@ -59,10 +60,11 @@ export function buildActivationContext(
   config: CommissionWorkerConfig,
   workerMeta: WorkerMetadata,
   resolvedTools: ReturnType<typeof resolveToolSet>,
+  injectedMemory = "",
 ): ActivationContext {
   return {
     posture: workerMeta.posture,
-    injectedMemory: "",
+    injectedMemory,
     resolvedTools,
     resourceDefaults: {
       maxTurns: workerMeta.resourceDefaults?.maxTurns,
@@ -221,14 +223,34 @@ async function main(): Promise<void> {
   });
   log(`tools resolved: ${resolvedTools.mcpServers.length} MCP server(s), ${resolvedTools.allowedTools?.length ?? 0} allowed tool(s)`);
 
-  // 5. Build activation context
+  // 5. Load memory files for this worker
+  let injectedMemory = "";
+  try {
+    const memoryResult = await loadMemories(
+      workerMeta.identity.name,
+      config.projectName,
+      {
+        guildHallHome: config.guildHallHome,
+        memoryLimit: config.memoryLimit,
+      },
+    );
+    injectedMemory = memoryResult.memoryBlock;
+    if (memoryResult.needsCompaction) {
+      log(`memory for worker "${workerMeta.identity.name}" exceeds limit, needs compaction`);
+    }
+  } catch (err: unknown) {
+    log(`failed to load memories (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // 6. Build activation context
   const activationContext = buildActivationContext(
     config,
     workerMeta,
     resolvedTools,
+    injectedMemory,
   );
 
-  // 6. Activate the worker (dynamic import of worker package)
+  // 7. Activate the worker (dynamic import of worker package)
   log(`activating worker from ${workerPkg.path}/index.ts`);
   const workerModule = (await import(
     path.resolve(workerPkg.path, "index.ts")
@@ -238,11 +260,11 @@ async function main(): Promise<void> {
   const activation = workerModule.activate(activationContext);
   log(`worker activated. systemPrompt length=${activation.systemPrompt.length}`);
 
-  // 7. Build SDK query options
+  // 8. Build SDK query options
   const options = buildQueryOptions(config, activation);
   log(`SDK options: maxTurns=${options.maxTurns}, cwd="${options.cwd}"`);
 
-  // 8. Import and call SDK query()
+  // 9. Import and call SDK query()
   log("importing Claude Agent SDK...");
   let query: (params: {
     prompt: string;
@@ -265,7 +287,7 @@ async function main(): Promise<void> {
     options,
   });
 
-  // 9. Consume all messages to completion
+  // 10. Consume all messages to completion
   // Log each message so we can see what the model is doing.
   let messageCount = 0;
   for await (const msg of session) {
@@ -274,7 +296,7 @@ async function main(): Promise<void> {
   }
   log(`SDK session complete. ${messageCount} message(s) consumed.`);
 
-  // 10. If the session finished without calling submit_result, run a
+  // 11. If the session finished without calling submit_result, run a
   //     focused follow-up that forces the model to call it. Without this,
   //     the daemon classifies the commission as "failed (no result)".
   const wasSubmitted = resolvedTools.wasResultSubmitted?.();
