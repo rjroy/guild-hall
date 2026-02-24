@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useDaemonStatus } from "@/components/ui/DaemonContext";
 import {
   consumeFirstTurnSSE,
   storeFirstTurnMessages,
@@ -32,6 +33,7 @@ export default function MeetingRequestCard({
   request,
 }: MeetingRequestCardProps) {
   const router = useRouter();
+  const { isOnline } = useDaemonStatus();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -271,7 +273,8 @@ export default function MeetingRequestCard({
           <button
             type="button"
             className={styles.dateConfirmButton}
-            disabled={!deferDate}
+            disabled={!deferDate || !isOnline}
+            title={!isOnline ? "Daemon offline" : undefined}
             onClick={() => void handleDefer()}
           >
             Confirm
@@ -301,7 +304,8 @@ export default function MeetingRequestCard({
             <button
               type="button"
               className={styles.quickCommentSendButton}
-              disabled={!quickCommentPrompt.trim()}
+              disabled={!quickCommentPrompt.trim() || !isOnline}
+              title={!isOnline ? "Daemon offline" : undefined}
               onClick={() => void handleQuickComment()}
             >
               Send
@@ -323,6 +327,8 @@ export default function MeetingRequestCard({
           <button
             type="button"
             className={styles.openButton}
+            disabled={!isOnline}
+            title={!isOnline ? "Daemon offline" : undefined}
             onClick={() => void handleOpen()}
           >
             Open
@@ -330,6 +336,8 @@ export default function MeetingRequestCard({
           <button
             type="button"
             className={styles.quickCommentButton}
+            disabled={!isOnline}
+            title={!isOnline ? "Daemon offline" : undefined}
             onClick={() => setShowQuickComment(true)}
           >
             Quick Comment
@@ -337,6 +345,8 @@ export default function MeetingRequestCard({
           <button
             type="button"
             className={styles.deferButton}
+            disabled={!isOnline}
+            title={!isOnline ? "Daemon offline" : undefined}
             onClick={() => setShowDatePicker(true)}
           >
             Defer
@@ -344,6 +354,8 @@ export default function MeetingRequestCard({
           <button
             type="button"
             className={styles.ignoreButton}
+            disabled={!isOnline}
+            title={!isOnline ? "Daemon offline" : undefined}
             onClick={() => void handleIgnore()}
           >
             Ignore

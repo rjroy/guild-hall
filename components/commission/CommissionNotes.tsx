@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useDaemonStatus } from "@/components/ui/DaemonContext";
 import styles from "./CommissionNotes.module.css";
 
 interface CommissionNotesProps {
@@ -16,6 +17,7 @@ export default function CommissionNotes({
   commissionId,
   onNoteAdded,
 }: CommissionNotesProps) {
+  const { isOnline } = useDaemonStatus();
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -69,7 +71,8 @@ export default function CommissionNotes({
         <button
           className={styles.submitButton}
           onClick={() => void handleSubmit()}
-          disabled={submitting || !content.trim()}
+          disabled={submitting || !content.trim() || !isOnline}
+          title={!isOnline ? "Daemon offline" : undefined}
           type="button"
         >
           {submitting ? "Adding..." : "Add"}

@@ -19,7 +19,7 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 7: Memory Compaction (task 007)
 - [x] Phase 8: Concurrency Hardening (task 008)
 - [x] Phase 9: Manager sync_project Tool (task 009)
-- [ ] Phase 10: Daemon Connectivity Graceful Degradation (task 010)
+- [x] Phase 10: Daemon Connectivity Graceful Degradation (task 010)
 - [ ] Phase 11: State Isolation Proof (task 011)
 - [ ] Phase 12: Workspace Scoping Verification (task 012)
 - [ ] Phase 13: Validate Against Specs (task 013)
@@ -90,3 +90,9 @@ Prior work surfaced these critical warnings for Phase 7:
 - Result: Tool validates project exists via DI-injected getProjectConfig, delegates to syncProject() which already handles locking and cleanGitEnv(). describeSyncResult() translates all five SyncResult variants into human-readable summaries. No extraction needed since cli/rebase.ts was already DI-ready.
 - Tests: 8 new tests, 1449 total pass. Covers all SyncResult variants (reset, noop, skip, rebase, error), unregistered project, DI injection.
 - Review: No issues. All 10 checklist items pass.
+
+### Phase 10: Daemon Connectivity Graceful Degradation
+- Dispatched: Create DaemonContext with isOnline state, convert DaemonStatus to provider, disable action buttons when offline.
+- Result: DaemonContext.tsx exports useDaemonStatus() hook. DaemonStatus.tsx converted to context provider wrapping children. App layout wrapped. All daemon-dependent buttons disabled when offline with "Daemon offline" tooltip: CommissionActions, MessageInput, MeetingView close, MeetingRequestCard actions.
+- Tests: 36 new tests, 1485 total pass. Covers context exports, state contracts, button disabling logic, tooltip consistency.
+- Review: Found 4 additional components missing offline disabling (CommissionNotes, CommissionPrompt, CommissionForm, StartAudienceButton). All fixed. StartAudienceButton migrated from one-shot health check to DaemonContext for auto-reconnect sync.

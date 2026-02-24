@@ -1,13 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { DaemonContext } from "./DaemonContext";
 import styles from "./DaemonStatus.module.css";
 
+interface DaemonStatusProps {
+  children?: React.ReactNode;
+}
+
 /**
- * Fixed-position indicator that appears when the daemon is offline.
- * Polls /api/daemon/health every 5 seconds. Hidden when daemon is running.
+ * Polls /api/daemon/health every 5 seconds and provides daemon
+ * connectivity state to the component tree via DaemonContext.
+ *
+ * When the daemon is offline, renders a fixed-position indicator.
+ * Children always render regardless of daemon state (file-backed
+ * reads in server components are unaffected).
  */
-export default function DaemonStatus() {
+export default function DaemonStatus({ children }: DaemonStatusProps) {
   const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
@@ -26,12 +35,15 @@ export default function DaemonStatus() {
     return () => clearInterval(interval);
   }, []);
 
-  if (isOnline) return null;
-
   return (
-    <div className={styles.container}>
-      <span className={styles.gem} />
-      <span className={styles.text}>Daemon offline</span>
-    </div>
+    <DaemonContext.Provider value={{ isOnline }}>
+      {children}
+      {!isOnline && (
+        <div className={styles.container}>
+          <span className={styles.gem} />
+          <span className={styles.text}>Daemon offline</span>
+        </div>
+      )}
+    </DaemonContext.Provider>
   );
 }

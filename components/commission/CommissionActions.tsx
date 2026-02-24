@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useDaemonStatus } from "@/components/ui/DaemonContext";
 import styles from "./CommissionActions.module.css";
 
 interface CommissionActionsProps {
@@ -16,12 +17,15 @@ interface CommissionActionsProps {
  * - pending: Dispatch
  * - dispatched / in_progress: Cancel (with confirmation)
  * - failed / cancelled: Re-dispatch (with confirmation)
+ *
+ * All buttons are disabled when the daemon is offline.
  */
 export default function CommissionActions({
   status,
   commissionId,
   onStatusChange,
 }: CommissionActionsProps) {
+  const { isOnline } = useDaemonStatus();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [confirming, setConfirming] = useState<
@@ -98,6 +102,7 @@ export default function CommissionActions({
   const showQueued = status === "queued";
   const showCancel = status === "dispatched" || status === "in_progress" || status === "queued";
   const showRedispatch = status === "failed" || status === "cancelled";
+  const offlineTitle = !isOnline ? "Daemon offline" : undefined;
 
   return (
     <div className={styles.container}>
@@ -105,7 +110,8 @@ export default function CommissionActions({
         <button
           className={styles.dispatchButton}
           onClick={() => void handleDispatch()}
-          disabled={loading}
+          disabled={loading || !isOnline}
+          title={offlineTitle}
           type="button"
         >
           {loading ? "Dispatching..." : "Dispatch Commission"}
@@ -127,7 +133,8 @@ export default function CommissionActions({
               <button
                 className={styles.confirmYes}
                 onClick={() => void handleCancel()}
-                disabled={loading}
+                disabled={loading || !isOnline}
+                title={offlineTitle}
                 type="button"
               >
                 {loading ? "Cancelling..." : "Yes, Cancel"}
@@ -145,7 +152,8 @@ export default function CommissionActions({
             <button
               className={styles.cancelButton}
               onClick={() => setConfirming("cancel")}
-              disabled={loading}
+              disabled={loading || !isOnline}
+              title={offlineTitle}
               type="button"
             >
               Cancel Commission
@@ -162,7 +170,8 @@ export default function CommissionActions({
               <button
                 className={styles.confirmYes}
                 onClick={() => void handleRedispatch()}
-                disabled={loading}
+                disabled={loading || !isOnline}
+                title={offlineTitle}
                 type="button"
               >
                 {loading ? "Dispatching..." : "Yes, Re-dispatch"}
@@ -180,7 +189,8 @@ export default function CommissionActions({
             <button
               className={styles.redispatchButton}
               onClick={() => setConfirming("redispatch")}
-              disabled={loading}
+              disabled={loading || !isOnline}
+              title={offlineTitle}
               type="button"
             >
               Re-dispatch Commission

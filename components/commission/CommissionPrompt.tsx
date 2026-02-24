@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useDaemonStatus } from "@/components/ui/DaemonContext";
 import styles from "./CommissionPrompt.module.css";
 
 interface CommissionPromptProps {
@@ -21,6 +22,7 @@ export default function CommissionPrompt({
   status,
   commissionId,
 }: CommissionPromptProps) {
+  const { isOnline } = useDaemonStatus();
   const [value, setValue] = useState(prompt);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -71,7 +73,8 @@ export default function CommissionPrompt({
               <button
                 className={styles.saveButton}
                 onClick={() => void handleSave()}
-                disabled={saving}
+                disabled={saving || !isOnline}
+                title={!isOnline ? "Daemon offline" : undefined}
                 type="button"
               >
                 {saving ? "Saving..." : "Save Prompt"}

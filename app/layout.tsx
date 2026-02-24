@@ -19,8 +19,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div style={{ minHeight: "100vh" }}>{children}</div>
-        <DaemonStatus />
+        <DaemonStatus>
+          <div style={{ minHeight: "100vh" }}>{children}</div>
+        </DaemonStatus>
       </body>
     </html>
   );

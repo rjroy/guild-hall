@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useDaemonStatus } from "@/components/ui/DaemonContext";
 import ChatInterface from "./ChatInterface";
 import ArtifactsPanel from "./ArtifactsPanel";
 import NotesDisplay from "./NotesDisplay";
@@ -33,6 +34,7 @@ export default function MeetingView({
   initialArtifacts,
   initialMessages,
 }: MeetingViewProps) {
+  const { isOnline } = useDaemonStatus();
   const [artifacts, setArtifacts] = useState<LinkedArtifact[]>(initialArtifacts);
   const [artifactsPanelExpanded, setArtifactsPanelExpanded] = useState(true);
   const [closing, setClosing] = useState(false);
@@ -118,7 +120,8 @@ export default function MeetingView({
         <button
           className={styles.closeButton}
           onClick={() => void handleClose()}
-          disabled={closing}
+          disabled={closing || !isOnline}
+          title={!isOnline ? "Daemon offline" : undefined}
           type="button"
         >
           {closing ? "Closing..." : "Close Audience"}
