@@ -18,7 +18,7 @@ modules: [guild-hall-core, guild-hall-ui]
 - [x] Phase 6: Memory Injection (task 006)
 - [x] Phase 7: Memory Compaction (task 007)
 - [x] Phase 8: Concurrency Hardening (task 008)
-- [ ] Phase 9: Manager sync_project Tool (task 009)
+- [x] Phase 9: Manager sync_project Tool (task 009)
 - [ ] Phase 10: Daemon Connectivity Graceful Degradation (task 010)
 - [ ] Phase 11: State Isolation Proof (task 011)
 - [ ] Phase 12: Workspace Scoping Verification (task 012)
@@ -84,3 +84,9 @@ Prior work surfaced these critical warnings for Phase 7:
 - Result: Meeting creation/acceptance serialized via withProjectLock. New GitOps methods: squashMergeNoCommit, listConflictedFiles, resolveConflictsTheirs, abortMerge. resolveSquashMerge() handles .lore/ conflicts (auto-resolve with --theirs) and non-.lore/ conflicts (fail with "merge conflict"). Applied same conflict-aware pattern to meeting close.
 - Tests: 8 new tests, 1441 total pass. Covers concurrent cap enforcement, .lore/ auto-resolution, non-.lore/ failure, mixed conflicts, clean merge.
 - Review: Found three issues, all fixed. (1) closeMeeting() still used old squashMerge(), now conflict-aware. (2) completed->failed transition bypassed state machine via try/catch, now uses direct update with comment. (3) Added --theirs semantics comment for squash-merge context.
+
+### Phase 9: Manager sync_project Tool
+- Dispatched: Add sync_project as sixth manager-exclusive tool. Reuse syncProject() from cli/rebase.ts.
+- Result: Tool validates project exists via DI-injected getProjectConfig, delegates to syncProject() which already handles locking and cleanGitEnv(). describeSyncResult() translates all five SyncResult variants into human-readable summaries. No extraction needed since cli/rebase.ts was already DI-ready.
+- Tests: 8 new tests, 1449 total pass. Covers all SyncResult variants (reset, noop, skip, rebase, error), unregistered project, DI injection.
+- Review: No issues. All 10 checklist items pass.
