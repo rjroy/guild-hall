@@ -292,6 +292,8 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     reportResult() {},
     reportQuestion() {},
     async addUserNote() {},
+    async checkDependencyTransitions() {},
+    async recoverCommissions() { return 0; },
     getActiveCommissions() { return 0; },
     shutdown() {},
   };
@@ -323,6 +325,10 @@ function makeMockGitOps(): GitOps {
     async revParse() { return "abc"; },
     async rebaseOnto() {},
     async merge() {},
+    async squashMergeNoCommit() { return true; },
+    async listConflictedFiles() { return []; },
+    async resolveConflictsTheirs() {},
+    async mergeAbort() {},
   };
 }
 

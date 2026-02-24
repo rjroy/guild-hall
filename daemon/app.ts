@@ -185,9 +185,17 @@ export async function createProductionApp(options?: {
 
   // Recover open meetings from persisted state files so users can resume
   // sessions that survived a daemon restart.
-  const recovered = await meetingSession.recoverMeetings();
-  if (recovered > 0) {
-    console.log(`[daemon] Recovered ${recovered} open meeting(s) from state files.`);
+  const recoveredMeetings = await meetingSession.recoverMeetings();
+  if (recoveredMeetings > 0) {
+    console.log(`[daemon] Recovered ${recoveredMeetings} open meeting(s) from state files.`);
+  }
+
+  // Recover active commissions from persisted state files. Dead processes
+  // are transitioned to failed (with partial work committed); live processes
+  // are reattached to the monitoring Map.
+  const recoveredCommissions = await commissionSession.recoverCommissions();
+  if (recoveredCommissions > 0) {
+    console.log(`[daemon] Reattached ${recoveredCommissions} live commission(s) from state files.`);
   }
 
   // Briefing generator: uses the same SDK query function as meetings/notes

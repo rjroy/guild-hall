@@ -3,6 +3,7 @@ import { getProject } from "@/lib/config";
 import { writeArtifactContent } from "@/lib/artifacts";
 import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { createGitOps } from "@/daemon/lib/git";
+import { daemonFetch, isDaemonError } from "@/lib/daemon-client";
 
 export async function PUT(request: NextRequest) {
   let body: unknown;
@@ -55,6 +56,21 @@ export async function PUT(request: NextRequest) {
     await git.commitAll(integrationPath, `Edit artifact: ${artifactPath}`);
   } catch {
     // Commit failure is non-fatal
+  }
+
+  // Notify the daemon that artifacts changed so it can check if any blocked
+  // commissions now have their dependencies satisfied. Non-fatal: the daemon
+  // may be offline during development.
+  try {
+    const result = await daemonFetch("/commissions/check-dependencies", {
+      method: "POST",
+      body: JSON.stringify({ projectName }),
+    });
+    if (isDaemonError(result)) {
+      // Daemon offline, ignore
+    }
+  } catch {
+    // Non-fatal
   }
 
   return NextResponse.json({ success: true });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useDaemonStatus } from "@/components/ui/DaemonContext";
 import WorkerPicker from "@/components/ui/WorkerPicker";
 import styles from "./StartAudienceButton.module.css";
 
@@ -11,26 +12,10 @@ interface StartAudienceButtonProps {
 export default function StartAudienceButton({
   projectName,
 }: StartAudienceButtonProps) {
+  const { isOnline } = useDaemonStatus();
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [daemonOnline, setDaemonOnline] = useState<boolean | null>(null);
 
-  // Check daemon health on mount
-  useEffect(() => {
-    fetch("/api/daemon/health")
-      .then(async (res) => {
-        if (!res.ok) {
-          setDaemonOnline(false);
-          return;
-        }
-        const data = (await res.json()) as { status?: string };
-        setDaemonOnline(data.status !== "offline");
-      })
-      .catch(() => {
-        setDaemonOnline(false);
-      });
-  }, []);
-
-  const isDisabled = daemonOnline === false;
+  const isDisabled = !isOnline;
 
   return (
     <>

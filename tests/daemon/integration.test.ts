@@ -209,6 +209,10 @@ function createMockGitOps(): GitOps {
     revParse: () => Promise.resolve("abc"),
     rebaseOnto: () => Promise.resolve(),
     merge: async () => {},
+    squashMergeNoCommit: () => Promise.resolve(true),
+    listConflictedFiles: () => Promise.resolve([]),
+    resolveConflictsTheirs: () => Promise.resolve(),
+    mergeAbort: () => Promise.resolve(),
   };
 }
 

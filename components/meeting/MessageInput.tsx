@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useCallback } from "react";
+import { useDaemonStatus } from "@/components/ui/DaemonContext";
 import styles from "./MessageInput.module.css";
 
 interface MessageInputProps {
@@ -18,6 +19,7 @@ export default function MessageInput({
   value,
   onChange,
 }: MessageInputProps) {
+  const { isOnline } = useDaemonStatus();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const adjustHeight = useCallback(() => {
@@ -37,17 +39,19 @@ export default function MessageInput({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (value.trim() && !isStreaming) {
+      if (value.trim() && !isStreaming && isOnline) {
         onSend(value.trim());
       }
     }
   };
 
   const handleSend = () => {
-    if (value.trim() && !isStreaming) {
+    if (value.trim() && !isStreaming && isOnline) {
       onSend(value.trim());
     }
   };
+
+  const offlineTitle = !isOnline ? "Daemon offline" : undefined;
 
   return (
     <div className={styles.inputBar}>
@@ -57,8 +61,8 @@ export default function MessageInput({
         value={value}
         onChange={handleInput}
         onKeyDown={handleKeyDown}
-        placeholder="Speak to the guild worker..."
-        disabled={isStreaming}
+        placeholder={isOnline ? "Speak to the guild worker..." : "Daemon offline"}
+        disabled={isStreaming || !isOnline}
         rows={1}
       />
       {isStreaming ? (
@@ -75,7 +79,8 @@ export default function MessageInput({
           className={styles.sendButton}
           onClick={handleSend}
           type="button"
-          disabled={!value.trim()}
+          disabled={!value.trim() || !isOnline}
+          title={offlineTitle}
           aria-label="Send message"
         >
           Send

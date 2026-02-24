@@ -9,9 +9,10 @@ export interface CommissionRoutesDeps {
 /**
  * Creates commission management routes.
  *
- * POST   /commissions                 - Create commission
- * PUT    /commissions/:id             - Update pending commission
- * POST   /commissions/:id/dispatch    - Dispatch commission to worker
+ * POST   /commissions                       - Create commission
+ * POST   /commissions/check-dependencies   - Trigger dependency auto-transitions
+ * PUT    /commissions/:id                  - Update pending commission
+ * POST   /commissions/:id/dispatch         - Dispatch commission to worker
  * DELETE /commissions/:id             - Cancel commission
  * POST   /commissions/:id/redispatch  - Re-dispatch failed/cancelled commission
  * POST   /commissions/:id/progress    - Worker reports progress (IPC)
@@ -61,6 +62,30 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
         body.resourceOverrides,
       );
       return c.json(result, 201);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ error: message }, 500);
+    }
+  });
+
+  // POST /commissions/check-dependencies - Trigger dependency auto-transitions
+  // Must be registered before :id routes to avoid matching "check-dependencies" as an ID.
+  routes.post("/commissions/check-dependencies", async (c) => {
+    let body: { projectName?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    const { projectName } = body;
+    if (!projectName) {
+      return c.json({ error: "Missing required field: projectName" }, 400);
+    }
+
+    try {
+      await deps.commissionSession.checkDependencyTransitions(projectName);
+      return c.json({ status: "ok" });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ error: message }, 500);

@@ -66,6 +66,30 @@
   background-color: rgba(184, 134, 11, 0.25);
 }
 
+/* --- Queued indicator (amber, non-interactive) --- */
+
+.queuedIndicator {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-md);
+  background-color: rgba(184, 134, 11, 0.12);
+  border: 1px solid rgba(184, 134, 11, 0.35);
+  border-radius: 4px;
+}
+
+.queuedLabel {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-brass);
+}
+
+.queuedText {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
 /* --- Confirmation row --- */
 
 .confirmRow {

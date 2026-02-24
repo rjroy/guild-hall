@@ -13,8 +13,12 @@ import * as path from "node:path";
 import type { DiscoveredPackage, WorkerMetadata } from "@/lib/types";
 import type { CommissionMeta } from "@/lib/commissions";
 import type { MeetingMeta } from "@/lib/meetings";
-import { MANAGER_PACKAGE_NAME } from "@/daemon/services/manager-worker";
+import {
+  MANAGER_PACKAGE_NAME,
+  MANAGER_WORKER_NAME,
+} from "@/daemon/services/manager-worker";
 import { isNodeError } from "@/lib/types";
+import { loadMemories } from "@/daemon/services/memory-injector";
 
 // -- Constants --
 
@@ -28,6 +32,8 @@ export interface ManagerContextDeps {
   projectName: string;
   integrationPath: string;
   guildHallHome: string;
+  /** Override the memory character limit for the manager. */
+  memoryLimit?: number;
   /**
    * DI seam: scan commissions from the integration worktree's .lore/ directory.
    * Tests provide a stub; production uses the real scanCommissions().
@@ -38,6 +44,15 @@ export interface ManagerContextDeps {
    * Tests provide a stub; production uses the real scanMeetingRequests().
    */
   scanMeetingRequestsFn?: (lorePath: string, projectName: string) => Promise<MeetingMeta[]>;
+  /**
+   * DI seam: load memories for the manager worker. Tests provide a stub;
+   * production uses the real loadMemories().
+   */
+  loadMemoriesFn?: (
+    workerName: string,
+    projectName: string,
+    deps: { guildHallHome: string; memoryLimit?: number },
+  ) => Promise<{ memoryBlock: string; needsCompaction: boolean }>;
 }
 
 // -- Internal helpers --
@@ -300,17 +315,45 @@ export async function buildManagerContext(
     deps.projectName,
   );
 
+  // Load manager's memories (non-fatal if memory dirs don't exist)
+  let memorySection = "";
+  try {
+    const loadFn = deps.loadMemoriesFn ?? loadMemories;
+    const memoryResult = await loadFn(
+      MANAGER_WORKER_NAME,
+      deps.projectName,
+      {
+        guildHallHome: deps.guildHallHome,
+        memoryLimit: deps.memoryLimit,
+      },
+    );
+    memorySection = memoryResult.memoryBlock;
+    if (memoryResult.needsCompaction) {
+      console.log(
+        `[manager-context] Manager memory exceeds limit, needs compaction`,
+      );
+    }
+  } catch (err: unknown) {
+    console.warn(
+      `[manager-context] Failed to load manager memories (non-fatal):`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
   // Build sections in priority order
   const workerSection = buildWorkerSection(deps.packages);
   const commissionSection = buildCommissionSection(commissions);
   const activeMeetingsSection = buildActiveMeetingsSection(activeMeetings);
   const meetingRequestsSection = buildMeetingRequestsSection(meetingRequests);
 
-  // Assemble with truncation (priority: workers > commissions > active meetings > requests)
-  return truncateContext([
+  // Assemble with truncation
+  // Priority: workers > memories > commissions > active meetings > requests
+  const sections = [
     workerSection,
+    ...(memorySection ? [memorySection] : []),
     commissionSection,
     activeMeetingsSection,
     meetingRequestsSection,
-  ]);
+  ];
+  return truncateContext(sections);
 }

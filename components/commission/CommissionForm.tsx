@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useDaemonStatus } from "@/components/ui/DaemonContext";
 import styles from "./CommissionForm.module.css";
 
 interface WorkerInfo {
@@ -25,6 +26,7 @@ export default function CommissionForm({
   onCreated,
   onCancel,
 }: CommissionFormProps) {
+  const { isOnline } = useDaemonStatus();
   const [title, setTitle] = useState("");
   const [workerName, setWorkerName] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -145,7 +147,8 @@ export default function CommissionForm({
     title.trim().length > 0 &&
     workerName.length > 0 &&
     prompt.trim().length > 0 &&
-    !submitting;
+    !submitting &&
+    isOnline;
 
   return (
     <div className={styles.form} role="form" aria-label="Create Commission">
@@ -292,6 +295,7 @@ export default function CommissionForm({
           type="button"
           className={styles.submitButton}
           disabled={!canSubmit}
+          title={!isOnline ? "Daemon offline" : undefined}
           onClick={() => void handleSubmit()}
         >
           {submitting ? "Creating..." : "Create Commission"}

@@ -88,6 +88,13 @@ function makeMockCommissionSession(
       calls.push({ method: "addUserNote", args: [commissionId, content] });
       return Promise.resolve();
     },
+    checkDependencyTransitions(projectName: string) {
+      calls.push({ method: "checkDependencyTransitions", args: [projectName] });
+      return Promise.resolve();
+    },
+    recoverCommissions() {
+      return Promise.resolve(0);
+    },
     getActiveCommissions() {
       return 0;
     },

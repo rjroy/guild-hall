@@ -6,12 +6,15 @@ export interface ProjectConfig {
   description?: string;
   repoUrl?: string;
   meetingCap?: number;
+  commissionCap?: number;
   defaultBranch?: string;
+  memoryLimit?: number;
 }
 
 export interface AppConfig {
   projects: ProjectConfig[];
   settings?: Record<string, unknown>;
+  maxConcurrentCommissions?: number;
 }
 
 export interface ArtifactMeta {
@@ -152,7 +155,7 @@ const ACTIVE_STATUSES = new Set([
   "dispatched",
 ]);
 
-const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested", "blocked"]);
+const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested", "blocked", "queued"]);
 
 const BLOCKED_STATUSES = new Set([
   "superseded",

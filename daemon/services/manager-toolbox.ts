@@ -1,12 +1,13 @@
 /**
  * Manager toolbox: exclusive tools for the Guild Master worker.
  *
- * Provides five tools for project coordination:
+ * Provides six tools for project coordination:
  * - create_commission: create (and optionally dispatch) a new commission
  * - dispatch_commission: dispatch an existing pending commission
  * - create_pr: push claude/main and open a PR on the hosting platform
  * - initiate_meeting: create a meeting request artifact
  * - add_commission_note: annotate a commission with a manager note
+ * - sync_project: post-merge sync (detect merged PRs, reset claude branch)
  *
  * Follows the same MCP server factory pattern as commission-toolbox.ts and
  * meeting-toolbox.ts.
@@ -27,7 +28,10 @@ import type { CommissionSessionForRoutes } from "@/daemon/services/commission-se
 import type { EventBus } from "@/daemon/services/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
-import { hasActiveActivities } from "@/cli/rebase";
+import { hasActiveActivities, syncProject } from "@/cli/rebase";
+import type { SyncResult } from "@/cli/rebase";
+import { readConfig } from "@/lib/config";
+import type { ProjectConfig } from "@/lib/types";
 import { resolveCommissionBasePath } from "@/lib/paths";
 
 export interface ManagerToolboxDeps {
@@ -39,6 +43,17 @@ export interface ManagerToolboxDeps {
   gitOps: GitOps;
   projectRepoPath: string;
   defaultBranch: string;
+  /**
+   * Optional config path for readConfig(). Used by tests to inject
+   * a temporary config file. Production code omits this (uses default).
+   */
+  configPath?: string;
+  /**
+   * Optional override for project lookup. When provided, used instead
+   * of reading config from disk. Enables tests to inject project data
+   * without creating config files.
+   */
+  getProjectConfig?: (name: string) => Promise<ProjectConfig | undefined>;
 }
 
 // -- YAML helpers --
@@ -483,12 +498,100 @@ export function makeAddCommissionNoteHandler(
   };
 }
 
+// -- sync_project --
+
+/**
+ * Translates a SyncResult into a human-readable summary for the LLM.
+ */
+function describeSyncResult(result: SyncResult, projectName: string): string {
+  switch (result.action) {
+    case "reset":
+      return `Merged PR detected for "${projectName}". Claude branch has been reset to match the remote default branch. (${result.reason})`;
+    case "rebase":
+      return `Claude branch for "${projectName}" has been rebased onto the latest default branch. (${result.reason})`;
+    case "merge":
+      return `Claude branch for "${projectName}" has been merged and compacted onto the remote default branch. (${result.reason})`;
+    case "skip":
+      return `Sync skipped for "${projectName}": active commissions or meetings are in progress. Complete or cancel active work first.`;
+    case "noop":
+      return `No sync needed for "${projectName}": ${result.reason}.`;
+  }
+}
+
+export function makeSyncProjectHandler(
+  deps: ManagerToolboxDeps,
+) {
+  return async (args: { projectName: string }): Promise<ToolResult> => {
+    try {
+      // Look up the project config to validate it exists and get its path
+      let project: ProjectConfig | undefined;
+      if (deps.getProjectConfig) {
+        project = await deps.getProjectConfig(args.projectName);
+      } else {
+        const config = await readConfig(deps.configPath);
+        project = config.projects.find((p) => p.name === args.projectName);
+      }
+
+      if (!project) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Project "${args.projectName}" is not registered. Check the project name and try again.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // syncProject() already wraps itself in withProjectLock()
+      const result = await syncProject(
+        project.path,
+        args.projectName,
+        deps.guildHallHome,
+        deps.gitOps,
+        project.defaultBranch,
+      );
+
+      const summary = describeSyncResult(result, args.projectName);
+
+      console.log(
+        `[manager-toolbox] sync_project "${args.projectName}": ${result.action} (${result.reason})`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ action: result.action, summary }),
+          },
+        ],
+      };
+    } catch (err: unknown) {
+      console.error(
+        `[manager-toolbox] Failed to sync project "${args.projectName}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: err instanceof Error ? err.message : String(err),
+          },
+        ],
+        isError: true,
+      };
+    }
+  };
+}
+
 // -- MCP server factory --
 
 /**
  * Creates the manager toolbox MCP server. This toolbox is exclusive to
  * the Guild Master worker, providing tools for coordination: creating
- * commissions, dispatching work, creating PRs, and initiating meetings.
+ * commissions, dispatching work, creating PRs, syncing branches, and
+ * initiating meetings.
  */
 export function createManagerToolbox(
   deps: ManagerToolboxDeps,
@@ -498,6 +601,7 @@ export function createManagerToolbox(
   const createPr = makeCreatePrHandler(deps);
   const initiateMeeting = makeInitiateMeetingHandler(deps);
   const addCommissionNote = makeAddCommissionNoteHandler(deps);
+  const syncProjectTool = makeSyncProjectHandler(deps);
 
   return createSdkMcpServer({
     name: "guild-hall-manager",
@@ -554,6 +658,14 @@ export function createManagerToolbox(
           content: z.string().describe("The note content"),
         },
         (args) => addCommissionNote(args),
+      ),
+      tool(
+        "sync_project",
+        "Sync a project's claude branch after a PR has been merged. Detects merged PRs, resets the claude branch to match the remote default branch, or rebases if the default branch advanced independently. Use when the user says they merged a PR.",
+        {
+          projectName: z.string().describe("Name of the project to sync"),
+        },
+        (args) => syncProjectTool(args),
       ),
     ],
   });

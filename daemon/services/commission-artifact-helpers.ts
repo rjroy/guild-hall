@@ -84,6 +84,36 @@ export async function updateCommissionStatus(
   await fs.writeFile(artifactPath, updated, "utf-8");
 }
 
+// -- Dependency operations --
+
+/**
+ * Reads the dependencies array from a commission artifact's frontmatter.
+ * Returns an array of artifact paths, or an empty array if none are listed.
+ */
+export async function readCommissionDependencies(
+  projectPath: string,
+  commissionId: CommissionId,
+): Promise<string[]> {
+  const artifactPath = commissionArtifactPath(projectPath, commissionId);
+  const raw = await fs.readFile(artifactPath, "utf-8");
+
+  // Check for empty array form: `dependencies: []`
+  if (/^dependencies: \[\]$/m.test(raw)) {
+    return [];
+  }
+
+  // Parse list items under dependencies:
+  const match = raw.match(
+    /^dependencies:\n((?:  - .+\n)*)/m,
+  );
+  if (!match) return [];
+
+  return match[1]
+    .split("\n")
+    .filter((line) => line.startsWith("  - "))
+    .map((line) => line.replace(/^  - /, "").trim());
+}
+
 // -- Timeline operations --
 
 /**

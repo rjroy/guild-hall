@@ -89,6 +89,8 @@ function makeMockCommissionSession(
     reportResult() {},
     reportQuestion() {},
     async addUserNote() {},
+    async checkDependencyTransitions() {},
+    async recoverCommissions() { return 0; },
     getActiveCommissions() { return 0; },
     shutdown() {},
     ...overrides,
@@ -121,6 +123,10 @@ function makeMockGitOps(overrides?: Partial<GitOps>): GitOps {
     async revParse() { return "abc123def456789012345678901234567890abcd"; },
     async rebaseOnto() {},
     async merge() {},
+    async squashMergeNoCommit() { return true; },
+    async listConflictedFiles() { return []; },
+    async resolveConflictsTheirs() {},
+    async mergeAbort() {},
     ...overrides,
   };
 }
