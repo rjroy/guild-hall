@@ -202,10 +202,33 @@ describe("buildQueryOptions", () => {
     },
   };
 
+function assertPresetSystemPrompt(
+  value: unknown,
+): asserts value is { type: "preset"; preset: string; append: string } {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Expected systemPrompt to be an object");
+  }
+
+  if (!("type" in value) || (value as { type?: unknown }).type !== "preset") {
+    throw new Error("Expected systemPrompt.type to be 'preset'");
+  }
+
+  if (!("preset" in value) || typeof (value as { preset?: unknown }).preset !== "string") {
+    throw new Error("Expected systemPrompt.preset to be a string");
+  }
+
+  if (!("append" in value) || typeof (value as { append?: unknown }).append !== "string") {
+    throw new Error("Expected systemPrompt.append to be a string");
+  }
+}
+
   test("builds options with activation values as defaults", () => {
     const options = buildQueryOptions(validConfig, testActivation);
 
-    expect(options.systemPrompt).toBe("You are a research specialist.");
+    assertPresetSystemPrompt(options.systemPrompt);
+    expect(options.systemPrompt.type).toBe("preset");
+    expect(options.systemPrompt.preset).toBe("claude_code");
+    expect(options.systemPrompt.append).toBe("You are a research specialist.");
     expect(options.allowedTools).toEqual(["Read", "Write"]);
     expect(options.maxTurns).toBe(100);
     expect(options.maxBudgetUsd).toBe(1.0);
