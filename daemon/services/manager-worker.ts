@@ -76,6 +76,7 @@ export function activateManager(context: ActivationContext): ActivationResult {
 
   return {
     systemPrompt: parts.join("\n\n"),
+    model: "opus",
     tools: context.resolvedTools,
     resourceBounds: {
       maxTurns: context.resourceDefaults.maxTurns,

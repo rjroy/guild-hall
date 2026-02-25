@@ -387,7 +387,7 @@ The architecture follows a clean separation of concerns.
 
     expect(mock.calls).toHaveLength(1);
     const options = mock.calls[0].options;
-    expect(options.maxTurns).toBe(1);
+    expect(options.maxTurns).toBe(5);
     expect(options.permissionMode).toBe("bypassPermissions");
     expect(options.allowDangerouslySkipPermissions).toBe(true);
     expect(options.settingSources).toEqual([]);

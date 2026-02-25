@@ -211,7 +211,7 @@ describe("buildQueryOptions", () => {
     expect(options.maxBudgetUsd).toBe(1.0);
     expect(options.permissionMode).toBe("bypassPermissions");
     expect(options.allowDangerouslySkipPermissions).toBe(true);
-    expect(options.settingSources).toEqual([]);
+    expect(options.settingSources).toEqual(["local", "project", "user"]);
     expect(options.cwd).toBe("/tmp/guild-hall-abc123");
     expect(options.includePartialMessages).toBe(false);
   });

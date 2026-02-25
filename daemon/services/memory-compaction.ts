@@ -286,7 +286,8 @@ async function runCompaction(
       options: {
         systemPrompt:
           "You are a memory compaction system. Condense the provided memory entries into a single summary preserving all important information.",
-        maxTurns: 1,
+        maxTurns: 5,
+        model: "sonnet",
         maxBudgetUsd: 0.05,
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,

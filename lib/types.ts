@@ -138,6 +138,7 @@ export interface ActivationContext {
  */
 export interface ActivationResult {
   systemPrompt: string;
+  model?: string;
   tools: ResolvedToolSet;
   resourceBounds: {
     maxTurns?: number;

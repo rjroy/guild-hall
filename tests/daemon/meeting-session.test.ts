@@ -494,12 +494,16 @@ describe("createMeetingSession", () => {
       expect(mock.calls).toHaveLength(1);
       const call = mock.calls[0];
       expect(call.prompt).toBe("Hello");
-      expect(call.options.systemPrompt).toBe("You are a helpful assistant.");
+      expect(call.options.systemPrompt).toEqual({
+        type: "preset",
+        preset: "claude_code",
+        append: "You are a helpful assistant.",
+      });
       expect(call.options.includePartialMessages).toBe(true);
       expect(call.options.permissionMode).toBe("bypassPermissions");
       expect(call.options.allowDangerouslySkipPermissions).toBe(true);
-      expect(call.options.settingSources).toEqual([]);
-      expect(call.options.additionalDirectories).toEqual([projectDir]);
+      expect(call.options.settingSources).toEqual(["local", "project", "user"]);
+      expect(call.options.additionalDirectories).toBeUndefined();
       expect(call.options.maxTurns).toBe(30);
     });
   });
@@ -678,6 +682,13 @@ describe("createMeetingSession", () => {
       const resumeCall = mock.calls[1];
       expect(resumeCall.prompt).toBe("Follow up question");
       expect(resumeCall.options.resume).toBe("sdk-session-123");
+      expect(resumeCall.options.systemPrompt).toEqual({
+        type: "preset",
+        preset: "claude_code",
+        append: "You are a helpful assistant.",
+      });
+      expect(resumeCall.options.mcpServers).toEqual({});
+      expect(resumeCall.options.allowedTools).toEqual(["Read", "Glob"]);
     });
 
     test("returns error for unknown meeting ID", async () => {
@@ -2809,7 +2820,14 @@ describe("manager worker integration", () => {
     expect(mock.calls).toHaveLength(1);
 
     // The system prompt should contain the manager posture
-    expect(mock.calls[0].options.systemPrompt).toContain("coordination specialist");
+    const managerPrompt = mock.calls[0].options.systemPrompt;
+    expect(managerPrompt).toEqual(
+      expect.objectContaining({
+        type: "preset",
+        preset: "claude_code",
+      }),
+    );
+    expect((managerPrompt as { append?: string }).append).toContain("coordination specialist");
   });
 
   test("activateWorker throws for unknown built-in workers (path='' but not manager)", async () => {

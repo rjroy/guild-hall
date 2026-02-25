@@ -111,10 +111,11 @@ export function buildQueryOptions(
     mcpServers,
     allowedTools: activation.tools.allowedTools,
     maxTurns,
+    ...(activation.model ? { model: activation.model } : {}),
     ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
     permissionMode: "bypassPermissions" as const,
     allowDangerouslySkipPermissions: true,
-    settingSources: [] as string[],
+    settingSources: ["local", "project", "user"] as string[],
     cwd: config.workingDirectory,
     includePartialMessages: false,
   };
