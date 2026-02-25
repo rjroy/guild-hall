@@ -47,6 +47,7 @@ function buildSystemPrompt(context: ActivationContext): string {
 export function activate(context: ActivationContext): ActivationResult {
   return {
     systemPrompt: buildSystemPrompt(context),
+    model: "haiku",
     tools: context.resolvedTools,
     resourceBounds: {
       maxTurns: context.resourceDefaults.maxTurns,

@@ -167,7 +167,8 @@ Use plain text, no markdown headers. Be factual, not conversational.`;
       prompt,
       options: {
         systemPrompt: "You are a meeting notes generator. Produce clear, concise summaries.",
-        maxTurns: 1,
+        maxTurns: 5,
+        model: "sonnet",
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         settingSources: [],

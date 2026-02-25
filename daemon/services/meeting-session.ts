@@ -109,8 +109,14 @@ type ActiveMeeting = {
  * Minimal SDK query options that the meeting session passes to the queryFn.
  * The real SDK Options type has many more fields; this captures what we use.
  */
+export type PresetQueryPrompt = {
+  type: 'preset';
+  preset: 'claude_code';
+  append?: string;
+};
+
 export type QueryOptions = {
-  systemPrompt?: string;
+  systemPrompt?: string | PresetQueryPrompt;
   includePartialMessages?: boolean;
   permissionMode?: string;
   allowDangerouslySkipPermissions?: boolean;
@@ -122,6 +128,7 @@ export type QueryOptions = {
   maxTurns?: number;
   maxBudgetUsd?: number;
   abortController?: AbortController;
+  model?: string;
   resume?: string;
 };
 
@@ -447,30 +454,30 @@ notes_summary: ""
     }
   }
 
-  // -- Session creation helper --
-  //
-  // Shared by createMeeting (first turn) and sendMessage renewal (expired
-  // session recovery). Resolves tools, activates the worker, calls queryFn,
-  // captures the new session_id, updates the state file, and yields events.
+  type QueryRunOutcome = "ok" | "session_expired" | "failed";
 
-  async function* startSession(
+  type QueryOptionsResult =
+    | { ok: true; options: QueryOptions }
+    | { ok: false; reason: string };
+
+  async function buildActivatedQueryOptions(
     meeting: ActiveMeeting,
     prompt: string,
     projectPath: string,
-  ): AsyncGenerator<GuildHallEvent> {
+    abortController: AbortController,
+    resumeSessionId?: SdkSessionId,
+  ): Promise<QueryOptionsResult> {
     const workerPkg = getWorkerByName(deps.packages, meeting.packageName);
     if (!workerPkg) {
-      yield {
-        type: "error",
+      return {
+        ok: false,
         reason: `Worker "${meeting.packageName}" not found in discovered packages`,
       };
-      return;
     }
 
     const workerMeta = workerPkg.metadata as WorkerMetadata;
     const isManager = workerPkg.name === MANAGER_PACKAGE_NAME;
 
-    // Resolve tools and activate worker
     let activation: ActivationResult;
     try {
       const project = findProject(meeting.projectName);
@@ -483,19 +490,20 @@ notes_summary: ""
         guildHallHome: ghHome,
         integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
         isManager,
-        managerToolboxDeps: isManager && deps.commissionSession && deps.eventBus ? {
-          integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
-          projectName: meeting.projectName,
-          guildHallHome: ghHome,
-          commissionSession: deps.commissionSession,
-          eventBus: deps.eventBus,
-          gitOps: git,
-          projectRepoPath: project?.path ?? projectPath,
-          defaultBranch: project?.defaultBranch ?? "master",
-        } : undefined,
+        managerToolboxDeps: isManager && deps.commissionSession && deps.eventBus
+          ? {
+            integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
+            projectName: meeting.projectName,
+            guildHallHome: ghHome,
+            commissionSession: deps.commissionSession,
+            eventBus: deps.eventBus,
+            gitOps: git,
+            projectRepoPath: project?.path ?? projectPath,
+            defaultBranch: project?.defaultBranch ?? "master",
+          }
+          : undefined,
       });
 
-      // Load memory files for this worker (non-fatal if memory dirs don't exist)
       let injectedMemory = "";
       try {
         const memoryResult = await loadMemories(
@@ -511,8 +519,6 @@ notes_summary: ""
           console.log(
             `[meeting-session] Memory for worker "${workerMeta.identity.name}" exceeds limit, triggering compaction`,
           );
-          // Fire-and-forget: compaction improves the NEXT activation, not this one.
-          // Current activation proceeds with truncated memories.
           void triggerCompaction(
             workerMeta.identity.name,
             meeting.projectName,
@@ -543,7 +549,6 @@ notes_summary: ""
         workingDirectory: meeting.worktreeDir,
       };
 
-      // Inject system state context for the Guild Master
       if (isManager) {
         activationContext.managerContext = await buildManagerContext({
           packages: deps.packages,
@@ -557,45 +562,117 @@ notes_summary: ""
       activation = await activateWorker(workerPkg, activationContext);
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : String(err);
-      yield { type: "error", reason: `Worker activation failed: ${reason}` };
-      return;
+      return { ok: false, reason: `Worker activation failed: ${reason}` };
     }
 
-    if (!deps.queryFn) {
-      yield { type: "error", reason: "No queryFn provided" };
-      return;
-    }
-
-    // Build MCP servers as a Record for SDK compatibility
     const mcpServersRecord: Record<string, unknown> = {};
     for (const server of activation.tools.mcpServers) {
       mcpServersRecord[server.name] = server;
     }
 
-    const generator = deps.queryFn({
-      prompt,
+    return {
+      ok: true,
       options: {
-        systemPrompt: activation.systemPrompt,
+        ...(resumeSessionId ? { resume: resumeSessionId as string } : {}),
+        abortController,
         includePartialMessages: true,
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
+        settingSources: ["local", "project", "user"],
+        systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
+        ...(activation.model ? { model: activation.model } : {}),
         mcpServers: mcpServersRecord,
         allowedTools: activation.tools.allowedTools,
-        settingSources: [],
-        cwd: meeting.worktreeDir,
-        additionalDirectories: [projectPath],
         maxTurns: activation.resourceBounds.maxTurns,
         maxBudgetUsd: activation.resourceBounds.maxBudgetUsd,
-        abortController: meeting.abortController,
-      },
-    });
+        cwd: meeting.worktreeDir,
+      }
+    };
+  }
+
+  async function* runQueryAndTranslate(
+    meeting: ActiveMeeting,
+    prompt: string,
+    options: QueryOptions,
+    suppressSessionExpiryError = false,
+  ): AsyncGenerator<GuildHallEvent, QueryRunOutcome> {
+    if (!deps.queryFn) {
+      yield { type: "error", reason: "No queryFn provided" };
+      return "failed";
+    }
 
     const translatorContext: TranslatorContext = {
       meetingId: meeting.meetingId as string,
       workerName: meeting.workerName,
     };
 
-    yield* iterateAndTranslate(generator, translatorContext, meeting);
+    let generator: AsyncGenerator<SDKMessage>;
+    try {
+      generator = deps.queryFn({ prompt, options });
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : String(err);
+      if (isSessionExpiryError(reason)) {
+        if (!suppressSessionExpiryError) {
+          yield { type: "error", reason };
+        }
+        return "session_expired";
+      }
+      yield { type: "error", reason };
+      return "failed";
+    }
+
+    try {
+      for await (const event of iterateAndTranslate(generator, translatorContext, meeting)) {
+        if (event.type === "error" && isSessionExpiryError(event.reason)) {
+          if (!suppressSessionExpiryError) {
+            yield event;
+          }
+          return "session_expired";
+        }
+
+        yield event;
+      }
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : String(err);
+      if (isSessionExpiryError(reason)) {
+        if (!suppressSessionExpiryError) {
+          yield { type: "error", reason };
+        }
+        return "session_expired";
+      }
+      yield { type: "error", reason };
+      return "failed";
+    }
+
+    return "ok";
+  }
+
+  // -- Session creation helper --
+  //
+  // Shared by createMeeting (first turn) and sendMessage renewal (expired
+  // session recovery). Resolves tools, activates the worker, calls queryFn,
+  // captures the new session_id, updates the state file, and yields events.
+
+  async function* startSession(
+    meeting: ActiveMeeting,
+    prompt: string,
+    projectPath: string,
+  ): AsyncGenerator<GuildHallEvent> {
+    const queryOptionsResult = await buildActivatedQueryOptions(
+      meeting,
+      prompt,
+      projectPath,
+      meeting.abortController,
+    );
+    if (!queryOptionsResult.ok) {
+      yield { type: "error", reason: queryOptionsResult.reason };
+      return;
+    }
+
+    const outcome = yield* runQueryAndTranslate(meeting, prompt, queryOptionsResult.options);
+    if (outcome === "failed") {
+      return;
+    }
 
     // Update state file with captured session ID
     try {
@@ -1026,11 +1103,6 @@ notes_summary: ""
       return;
     }
 
-    if (!deps.queryFn) {
-      yield { type: "error", reason: "No queryFn provided" };
-      return;
-    }
-
     // Create new AbortController for this turn
     const abortController = new AbortController();
     meeting.abortController = abortController;
@@ -1048,47 +1120,30 @@ notes_summary: ""
       // Transcript append failure is non-fatal
     }
 
-    // Try to resume the existing SDK session. If the session has expired,
-    // fall back to creating a fresh session with transcript context.
-    let needsRenewal = false;
     const oldSessionId = meeting.sdkSessionId;
 
-    try {
-      const generator = deps.queryFn({
-        prompt: message,
-        options: {
-          resume: meeting.sdkSessionId as string,
-          includePartialMessages: true,
-          permissionMode: "bypassPermissions",
-          allowDangerouslySkipPermissions: true,
-          settingSources: [],
-          cwd: meeting.worktreeDir,
-          additionalDirectories: [project.path],
-          abortController,
-        },
-      });
+    const resumeOptionsResult = await buildActivatedQueryOptions(
+      meeting,
+      message,
+      project.path,
+      abortController,
+      meeting.sdkSessionId,
+    );
+    if (!resumeOptionsResult.ok) {
+      yield { type: "error", reason: resumeOptionsResult.reason };
+      return;
+    }
 
-      const translatorContext: TranslatorContext = {
-        meetingId: meetingId as string,
-        workerName: meeting.workerName,
-      };
+    const queryOutcome = yield* runQueryAndTranslate(
+      meeting,
+      message,
+      resumeOptionsResult.options,
+      true,
+    );
 
-      // Iterate events, checking for session expiry errors
-      for await (const event of iterateAndTranslate(generator, translatorContext, meeting)) {
-        if (event.type === "error" && isSessionExpiryError(event.reason)) {
-          needsRenewal = true;
-          break;
-        }
-        yield event;
-      }
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      if (isSessionExpiryError(reason)) {
-        needsRenewal = true;
-      } else {
-        yield { type: "error", reason };
-        return;
-      }
+    const needsRenewal = queryOutcome === "session_expired";
+    if (queryOutcome === "failed") {
+      return;
     }
 
     if (!needsRenewal) {

@@ -467,11 +467,15 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
     expect(queryMock.calls).toHaveLength(1);
     const call = queryMock.calls[0];
     expect(call.prompt).toBe("Explain the config");
-    expect(call.options.systemPrompt).toBe(WORKER_META.posture);
+    expect(call.options.systemPrompt).toEqual({
+      type: "preset",
+      preset: "claude_code",
+      append: WORKER_META.posture,
+    });
     expect(call.options.includePartialMessages).toBe(true);
     expect(call.options.permissionMode).toBe("bypassPermissions");
     expect(call.options.allowDangerouslySkipPermissions).toBe(true);
-    expect(call.options.additionalDirectories).toEqual([projectDir]);
+    expect(call.options.additionalDirectories).toBeUndefined();
     expect(call.options.maxTurns).toBe(30);
   });
 });
