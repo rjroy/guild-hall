@@ -107,7 +107,7 @@ export function buildQueryOptions(
   }
 
   return {
-    systemPrompt: activation.systemPrompt,
+    systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
     mcpServers,
     allowedTools: activation.tools.allowedTools,
     maxTurns,
