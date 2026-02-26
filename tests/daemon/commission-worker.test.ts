@@ -387,7 +387,6 @@ describe("main", () => {
         memoryBlock: "",
         needsCompaction: false,
       }),
-      // eslint-disable-next-line @typescript-eslint/require-await
       triggerCompaction: async () => {},
       // eslint-disable-next-line @typescript-eslint/require-await
       importWorkerModule: async () => ({

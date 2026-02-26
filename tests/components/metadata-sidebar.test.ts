@@ -217,7 +217,7 @@ describe("MetadataSidebar associated commissions", () => {
       el,
       (e) =>
         typeof e.props.href === "string" &&
-        (e.props.href as string).includes("/commissions/"),
+        e.props.href.includes("/commissions/"),
     );
     expect(links).toHaveLength(2);
   });
@@ -238,7 +238,7 @@ describe("MetadataSidebar associated commissions", () => {
       el,
       (e) =>
         typeof e.props.href === "string" &&
-        (e.props.href as string).includes("/commissions/"),
+        e.props.href.includes("/commissions/"),
     );
     expect(links).toHaveLength(1);
     expect(links[0].props.href).toBe(
@@ -263,7 +263,7 @@ describe("MetadataSidebar associated commissions", () => {
       el,
       (e) =>
         typeof e.props.href === "string" &&
-        (e.props.href as string).includes("/commissions/"),
+        e.props.href.includes("/commissions/"),
     );
     expect(commissionLinks.length).toBeGreaterThan(0);
 
@@ -300,7 +300,7 @@ describe("MetadataSidebar associated commissions", () => {
       el,
       (e) =>
         typeof e.props.href === "string" &&
-        (e.props.href as string).includes("newCommission=true"),
+        e.props.href.includes("newCommission=true"),
     );
     expect(createLinks).toHaveLength(1);
     expect(createLinks[0].props.href).toContain("dep=specs%2Fapi.md");
@@ -316,7 +316,7 @@ describe("MetadataSidebar associated commissions", () => {
       el,
       (e) =>
         typeof e.props.href === "string" &&
-        (e.props.href as string).includes("newCommission=true"),
+        e.props.href.includes("newCommission=true"),
     );
     expect(createLinks).toHaveLength(0);
   });
