@@ -80,6 +80,9 @@ activity_timeline:
     reason: "Worker completed successfully"
     from: "in_progress"
     to: "completed"
+  - timestamp: 2026-02-26T16:40:32.316Z
+    event: status_completed
+    reason: "Worker completed successfully"
 current_progress: "All source changes complete. Now writing tests for: commission matching logic, createCommissionHref link generation, query param pre-population in CreateCommissionButton/CommissionForm."
 result_summary: "Wired up the \"Create Commission from Artifact\" section in MetadataSidebar with both features:\n\n**1. Associated Commissions List:**\n- Artifact detail page (`app/projects/[name]/artifacts/[...path]/page.tsx`) now calls `scanCommissions()` and filters by `linked_artifacts.includes(relativePath)`, passing matches to MetadataSidebar\n- MetadataSidebar renders matched commissions as links with status gems (GemIndicator), falling back to EmptyState when none match\n- Each commission links to `/projects/<name>/commissions/<id>`\n\n**2. Create Commission from Artifact Button:**\n- Replaced the disabled stub button with a `Link` to the project page with query params: `?tab=commissions&newCommission=true&dep=<encoded-artifact-path>`\n- `CreateCommissionButton` accepts `defaultOpen` prop (read from `newCommission` search param by the project page) to auto-expand the form\n- `CommissionForm` accepts `initialDependencies` prop (passed through from `dep` search param) to pre-populate the dependencies field\n- Pure `createCommissionHref()` function exported for testability\n\n**Tests:** 1527 pass, 0 fail. New tests cover: `createCommissionHref` link generation (4 tests), MetadataSidebar commission rendering (7 tests), commission matching by linked_artifacts (4 tests), and updated type contracts for CreateCommissionButton/CommissionForm props.\n\n**Typecheck:** Clean pass."
 projectName: guild-hall
