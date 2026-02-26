@@ -52,6 +52,9 @@ activity_timeline:
     reason: "Worker completed successfully"
     from: "in_progress"
     to: "completed"
+  - timestamp: 2026-02-26T17:03:52.606Z
+    event: status_completed
+    reason: "Worker completed successfully"
 current_progress: "Typecheck and tests already pass. Only lint is failing: 5 unnecessary type assertions in metadata-sidebar.test.ts and 1 unused eslint-disable directive in commission-worker.test.ts. Fixing now."
 result_summary: "All three quality checks now pass cleanly:\n\n1. **typecheck** (`bun run typecheck`): Was already passing. No fixes needed.\n2. **lint** (`bun run lint`): Fixed 6 issues in 2 files:\n   - `tests/components/metadata-sidebar.test.ts`: Removed 5 unnecessary `as string` type assertions (lines 220, 241, 266, 303, 319). The `typeof e.props.href === \"string\"` check already narrows the type, making the casts redundant.\n   - `tests/daemon/commission-worker.test.ts`: Removed 1 unused `eslint-disable-next-line @typescript-eslint/require-await` directive (line 390).\n3. **tests** (`bun test`): Was already passing. 1527 tests, 0 failures.\n\nCommitted as f525ac2. Pre-commit hook confirmed all three checks pass."
 projectName: guild-hall
