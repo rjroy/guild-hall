@@ -1,9 +1,5 @@
 import type { ActivationContext, ActivationResult } from "@/lib/types";
 
-/**
- * Assembles a system prompt from the activation context. Concatenates the
- * worker's posture, any injected memory, and the meeting/commission context.
- */
 function buildSystemPrompt(context: ActivationContext): string {
   const parts: string[] = [context.posture];
 
@@ -22,7 +18,7 @@ function buildSystemPrompt(context: ActivationContext): string {
 
     if (context.commissionContext.dependencies.length > 0) {
       parts.push(
-        `Dependencies (artifacts to reference):\n${context.commissionContext.dependencies.map((d) => `- ${d}`).join("\n")}`,
+        `Dependencies (artifacts to reference):\n${context.commissionContext.dependencies.map((dependency) => `- ${dependency}`).join("\n")}`,
       );
     }
 
@@ -40,14 +36,12 @@ function buildSystemPrompt(context: ActivationContext): string {
   return parts.join("\n\n");
 }
 
-/**
- * Activates the sample assistant worker. Builds a system prompt from the
- * provided context and passes through the resolved tools and resource bounds.
- */
-export function activate(context: ActivationContext): ActivationResult {
+export function activateWorkerWithSharedPattern(
+  context: ActivationContext,
+): ActivationResult {
   return {
     systemPrompt: buildSystemPrompt(context),
-    model: "haiku",
+    model: "opus",
     tools: context.resolvedTools,
     resourceBounds: {
       maxTurns: context.resourceDefaults.maxTurns,

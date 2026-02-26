@@ -1,0 +1,62 @@
+[
+  {
+    "name": "implement representative",
+    "kind": "representative",
+    "intent": "Implement OAuth token refresh retry handling in commission session.",
+    "expectedRole": "developer"
+  },
+  {
+    "name": "review representative",
+    "kind": "representative",
+    "intent": "Review recent dependency auto-transition changes and list high-risk defects.",
+    "expectedRole": "reviewer"
+  },
+  {
+    "name": "research representative",
+    "kind": "representative",
+    "intent": "Research Bun.spawn signal handling on Linux and summarize tradeoffs.",
+    "expectedRole": "researcher"
+  },
+  {
+    "name": "document representative",
+    "kind": "representative",
+    "intent": "Document how dependency auto-transition works in the README.",
+    "expectedRole": "writer"
+  },
+  {
+    "name": "test representative",
+    "kind": "representative",
+    "intent": "Test cancellation flow, reproduce failures, and report regression status.",
+    "expectedRole": "test-engineer"
+  },
+  {
+    "name": "implement adversarial",
+    "kind": "adversarial",
+    "intent": "Implement fixes from the review findings without expanding scope.",
+    "expectedRole": "developer"
+  },
+  {
+    "name": "review adversarial",
+    "kind": "adversarial",
+    "intent": "Before implementation, analyze this patch for correctness risks and missing coverage.",
+    "expectedRole": "reviewer"
+  },
+  {
+    "name": "research adversarial",
+    "kind": "adversarial",
+    "intent": "Investigate flaky tests and compare likely root causes before proposing fixes.",
+    "expectedRole": "researcher"
+  },
+  {
+    "name": "document adversarial",
+    "kind": "adversarial",
+    "intent": "Write a concise operator guide for the test workflow using verified commands.",
+    "expectedRole": "writer"
+  },
+  {
+    "name": "test adversarial",
+    "kind": "adversarial",
+    "intent": "Verify the docs example commands pass in CI and capture pass/fail evidence.",
+    "expectedRole": "test-engineer"
+  }
+]
