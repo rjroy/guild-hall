@@ -15,6 +15,8 @@ interface CommissionFormProps {
   projectName: string;
   onCreated?: (commissionId: string) => void;
   onCancel?: () => void;
+  /** Pre-populated value for the dependencies field (e.g. from query param). */
+  initialDependencies?: string;
 }
 
 /**
@@ -25,12 +27,13 @@ export default function CommissionForm({
   projectName,
   onCreated,
   onCancel,
+  initialDependencies = "",
 }: CommissionFormProps) {
   const { isOnline } = useDaemonStatus();
   const [title, setTitle] = useState("");
   const [workerName, setWorkerName] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [dependencies, setDependencies] = useState("");
+  const [dependencies, setDependencies] = useState(initialDependencies);
   const [maxTurns, setMaxTurns] = useState("");
   const [maxBudgetUsd, setMaxBudgetUsd] = useState("");
   const [overridesOpen, setOverridesOpen] = useState(false);
