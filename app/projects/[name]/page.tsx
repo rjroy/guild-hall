@@ -20,10 +20,10 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; newCommission?: string; dep?: string }>;
 }) {
   const { name: rawName } = await params;
-  const { tab = "artifacts" } = await searchParams;
+  const { tab = "artifacts", newCommission, dep } = await searchParams;
 
   const projectName = decodeURIComponent(rawName);
   const project = await getProject(projectName);
@@ -73,7 +73,11 @@ export default async function ProjectPage({
         {tab === "commissions" && (
           <div className={styles.commissionTab}>
             <div className={styles.commissionActions}>
-              <CreateCommissionButton projectName={projectName} />
+              <CreateCommissionButton
+                projectName={projectName}
+                defaultOpen={newCommission === "true"}
+                initialDependencies={dep}
+              />
             </div>
             {commissionGraph.edges.length > 0 && (
               <CommissionGraph

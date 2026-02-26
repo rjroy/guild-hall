@@ -7,6 +7,10 @@ import styles from "./CreateCommissionButton.module.css";
 
 interface CreateCommissionButtonProps {
   projectName: string;
+  /** When true, the form is expanded on mount (e.g. from a query param link). */
+  defaultOpen?: boolean;
+  /** Pre-populated value for the dependencies field. */
+  initialDependencies?: string;
 }
 
 /**
@@ -15,9 +19,11 @@ interface CreateCommissionButtonProps {
  */
 export default function CreateCommissionButton({
   projectName,
+  defaultOpen = false,
+  initialDependencies,
 }: CreateCommissionButtonProps) {
   const router = useRouter();
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(defaultOpen);
 
   const handleCreated = useCallback(() => {
     setShowForm(false);
@@ -30,6 +36,7 @@ export default function CreateCommissionButton({
         projectName={projectName}
         onCreated={handleCreated}
         onCancel={() => setShowForm(false)}
+        initialDependencies={initialDependencies}
       />
     );
   }

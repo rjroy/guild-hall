@@ -149,6 +149,19 @@ describe("CommissionForm type contract", () => {
     const props = { projectName: "test-project" };
     expect(props.projectName).toBe("test-project");
   });
+
+  test("accepts initialDependencies prop", () => {
+    const props = {
+      projectName: "test-project",
+      initialDependencies: "specs/api.md",
+    };
+    expect(props.initialDependencies).toBe("specs/api.md");
+  });
+
+  test("initialDependencies is optional", () => {
+    const props = { projectName: "test-project" };
+    expect(props).not.toHaveProperty("initialDependencies");
+  });
 });
 
 // -- CreateCommissionButton type contract tests --
@@ -162,6 +175,22 @@ describe("CreateCommissionButton type contract", () => {
   test("accepts projectName prop", () => {
     const props = { projectName: "my-project" };
     expect(props.projectName).toBe("my-project");
+  });
+
+  test("accepts defaultOpen and initialDependencies props", () => {
+    const props = {
+      projectName: "my-project",
+      defaultOpen: true,
+      initialDependencies: "specs/api.md",
+    };
+    expect(props.defaultOpen).toBe(true);
+    expect(props.initialDependencies).toBe("specs/api.md");
+  });
+
+  test("defaultOpen and initialDependencies are optional", () => {
+    const props = { projectName: "my-project" };
+    expect(props).not.toHaveProperty("defaultOpen");
+    expect(props).not.toHaveProperty("initialDependencies");
   });
 });
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProject } from "@/lib/config";
 import { readArtifact } from "@/lib/artifacts";
+import { scanCommissions } from "@/lib/commissions";
 import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import ArtifactProvenance from "@/components/artifact/ArtifactProvenance";
 import ArtifactContent from "@/components/artifact/ArtifactContent";
@@ -31,6 +32,12 @@ export default async function ArtifactPage({
   }
 
   const displayTitle = artifact.meta.title || relativePath;
+
+  // Find commissions that reference this artifact
+  const allCommissions = await scanCommissions(lorePath, projectName);
+  const associatedCommissions = allCommissions.filter((c) =>
+    c.linked_artifacts.includes(relativePath),
+  );
 
   // For open meeting artifacts, show a link to the live meeting view
   const isMeeting = relativePath.startsWith("meetings/");
@@ -67,6 +74,8 @@ export default async function ArtifactPage({
         <MetadataSidebar
           meta={artifact.meta}
           projectName={projectName}
+          artifactPath={relativePath}
+          associatedCommissions={associatedCommissions}
         />
       </div>
     </div>

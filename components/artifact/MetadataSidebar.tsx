@@ -4,11 +4,16 @@ import GemIndicator from "@/components/ui/GemIndicator";
 import EmptyState from "@/components/ui/EmptyState";
 import type { ArtifactMeta } from "@/lib/types";
 import { statusToGem } from "@/lib/types";
+import type { CommissionMeta } from "@/lib/commissions";
 import styles from "./MetadataSidebar.module.css";
 
 interface MetadataSidebarProps {
   meta: ArtifactMeta;
   projectName: string;
+  /** .lore/-relative path for the current artifact (e.g. "specs/my-spec.md") */
+  artifactPath?: string;
+  /** Commissions whose linked_artifacts include this artifact */
+  associatedCommissions?: CommissionMeta[];
 }
 
 /**
@@ -27,9 +32,25 @@ export function relatedToHref(
   return `/projects/${encodedName}/artifacts/${encoded}`;
 }
 
+/**
+ * Builds the href for the "Create Commission from Artifact" link.
+ * Navigates to the project's commissions tab with query params that
+ * auto-open the form and pre-fill the dependencies field.
+ */
+export function createCommissionHref(
+  projectName: string,
+  artifactPath: string,
+): string {
+  const encodedName = encodeURIComponent(projectName);
+  const encodedPath = encodeURIComponent(artifactPath);
+  return `/projects/${encodedName}?tab=commissions&newCommission=true&dep=${encodedPath}`;
+}
+
 export default function MetadataSidebar({
   meta,
   projectName,
+  artifactPath,
+  associatedCommissions = [],
 }: MetadataSidebarProps) {
   const encodedName = encodeURIComponent(projectName);
   const gemStatus = meta.status ? statusToGem(meta.status) : "info";
@@ -95,13 +116,36 @@ export default function MetadataSidebar({
           </Link>
         </div>
 
-        {/* Associated Commissions (stubbed) */}
+        {/* Associated Commissions */}
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>Associated Commissions</h3>
-          <EmptyState message="No commissions reference this artifact." />
-          <button className={styles.disabledButton} disabled>
-            Create Commission from Artifact
-          </button>
+          {associatedCommissions.length > 0 ? (
+            <ul className={styles.commissionList}>
+              {associatedCommissions.map((c) => (
+                <li key={c.commissionId}>
+                  <Link
+                    href={`/projects/${encodedName}/commissions/${encodeURIComponent(c.commissionId)}`}
+                    className={styles.commissionLink}
+                  >
+                    <GemIndicator status={statusToGem(c.status)} size="sm" />
+                    <span className={styles.commissionTitle}>
+                      {c.title || c.commissionId}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="No commissions reference this artifact." />
+          )}
+          {artifactPath && (
+            <Link
+              href={createCommissionHref(projectName, artifactPath)}
+              className={styles.createCommissionLink}
+            >
+              Create Commission from Artifact
+            </Link>
+          )}
         </div>
 
         {/* Related artifacts */}
