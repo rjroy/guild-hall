@@ -1,7 +1,7 @@
 ---
 title: "Commission: Collapse Artifacts"
 date: 2026-02-26
-status: failed
+status: pending
 tags: [commission]
 worker: Writer
 workerDisplayTitle: "Guild Writer"
@@ -28,6 +28,11 @@ activity_timeline:
   - timestamp: 2026-02-26T06:20:56.688Z
     event: status_failed
     reason: "Worker completed without submitting result"
+  - timestamp: 2026-02-26T16:27:28.215Z
+    event: status_pending
+    reason: "Commission reset for redispatch"
+    from: "failed"
+    to: "pending"
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
