@@ -827,6 +827,64 @@ describe("createCommissionSession", () => {
 
       mockSpawn.resolveExit(0);
     });
+
+    test("preserves multi-line prompt in worker config", async () => {
+      // gray-matter wraps prompts longer than ~80 chars as multi-line YAML.
+      // The old regex parser silently dropped these, producing an empty prompt.
+      const longPrompt =
+        "Analyze the OAuth 2.0 PKCE flow for CLI tools and document the key " +
+        "security considerations, token storage strategies, and recommended " +
+        "libraries for TypeScript implementations. Include code examples.";
+
+      const content = `---
+title: "Commission: Research OAuth patterns"
+date: 2026-02-21
+status: pending
+tags: [commission]
+worker: researcher
+workerDisplayTitle: "Research Specialist"
+prompt: "${longPrompt}"
+dependencies: []
+linked_artifacts: []
+resource_overrides:
+  maxTurns: 150
+  maxBudgetUsd: 1.00
+activity_timeline:
+  - timestamp: 2026-02-21T14:30:00.000Z
+    event: created
+    reason: "User created commission"
+current_progress: ""
+result_summary: ""
+projectName: test-project
+---
+`;
+      const artifactPath = commissionArtifactPath(integrationPath, commissionId);
+      await fs.writeFile(artifactPath, content, "utf-8");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      let capturedConfigPath = "";
+      const capturingSpawn = (configPath: string): SpawnedCommission => {
+        capturedConfigPath = configPath;
+        return mockSpawn.spawnFn(configPath);
+      };
+
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: capturingSpawn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const configRaw = await fs.readFile(capturedConfigPath, "utf-8");
+      const config = JSON.parse(configRaw) as Record<string, unknown>;
+      expect(config.prompt).toBe(longPrompt);
+
+      mockSpawn.resolveExit(0);
+    });
   });
 
   // -- Exit handling --

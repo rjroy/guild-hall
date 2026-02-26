@@ -22,6 +22,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import matter from "gray-matter";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import { asCommissionId } from "@/daemon/types";
 import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
@@ -343,12 +344,16 @@ export function createCommissionSession(
           // The first timeline entry is the "created" event with a timestamp.
           const artifactPath = commissionArtifactPath(iPath, cId);
           const raw = await fs.readFile(artifactPath, "utf-8");
-          const timestampMatch = raw.match(
-            /activity_timeline:\n  - timestamp: ([^\n]+)/,
-          );
-          const createdAt = timestampMatch
-            ? timestampMatch[1].trim()
-            : "9999-12-31T23:59:59.999Z";
+          const { data } = matter(raw);
+          const firstEntry = (data.activity_timeline as Array<{ timestamp: unknown }> | undefined)?.[0];
+          const rawTs = firstEntry?.timestamp;
+          // js-yaml parses ISO timestamps as Date objects; convert to ISO string for comparison.
+          const createdAt =
+            rawTs instanceof Date
+              ? rawTs.toISOString()
+              : typeof rawTs === "string"
+                ? rawTs
+                : "9999-12-31T23:59:59.999Z";
 
           pending.push({ commissionId: cId, projectName: project.name, createdAt });
         } catch {
@@ -619,9 +624,9 @@ export function createCommissionSession(
   ): Promise<number> {
     const artifactPath = commissionArtifactPath(basePath, id);
     const raw = await fs.readFile(artifactPath, "utf-8");
-    const failed = raw.match(/event: status_failed/g);
-    const cancelled = raw.match(/event: status_cancelled/g);
-    return (failed?.length ?? 0) + (cancelled?.length ?? 0);
+    const { data } = matter(raw);
+    const timeline = (data.activity_timeline as Array<{ event: string }> | undefined) ?? [];
+    return timeline.filter((e) => e.event === "status_failed" || e.event === "status_cancelled").length;
   }
 
   /**
@@ -1089,37 +1094,18 @@ projectName: ${projectName}
       commissionId,
     );
     const raw = await fs.readFile(artifactPath, "utf-8");
+    const { data } = matter(raw);
 
-    const promptMatch = raw.match(/^prompt: "(.+)"$/m);
-    const prompt = promptMatch ? promptMatch[1].replace(/\\"/g, '"') : "";
-
-    const workerMatch = raw.match(/^worker: (.+)$/m);
-    const workerName = workerMatch ? workerMatch[1].trim() : "";
-
-    // Parse dependencies
-    const depsMatch = raw.match(/^dependencies: \[\]$/m);
-    let commissionDeps: string[] = [];
-    if (!depsMatch) {
-      const depsBlockMatch = raw.match(
-        /^dependencies:\n((?:  - .+\n)*)/m,
-      );
-      if (depsBlockMatch) {
-        commissionDeps = depsBlockMatch[1]
-          .split("\n")
-          .filter((line) => line.startsWith("  - "))
-          .map((line) => line.replace(/^  - /, "").trim());
-      }
-    }
-
-    // Parse resource overrides
-    const maxTurnsMatch = raw.match(/^  maxTurns: (.+)$/m);
-    const maxBudgetMatch = raw.match(/^  maxBudgetUsd: (.+)$/m);
+    const prompt = (data.prompt as string | undefined) ?? "";
+    const workerName = (data.worker as string | undefined) ?? "";
+    const commissionDeps = (data.dependencies as string[] | undefined) ?? [];
+    const overrides = data.resource_overrides as { maxTurns?: number; maxBudgetUsd?: number } | undefined;
     const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number } = {};
-    if (maxTurnsMatch) {
-      resourceOverrides.maxTurns = Number(maxTurnsMatch[1]);
+    if (overrides?.maxTurns) {
+      resourceOverrides.maxTurns = Number(overrides.maxTurns);
     }
-    if (maxBudgetMatch) {
-      resourceOverrides.maxBudgetUsd = Number(maxBudgetMatch[1]);
+    if (overrides?.maxBudgetUsd) {
+      resourceOverrides.maxBudgetUsd = Number(overrides.maxBudgetUsd);
     }
 
     // Find the worker package to get the package name
