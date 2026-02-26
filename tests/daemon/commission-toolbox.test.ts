@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
+import matter from "gray-matter";
 import { asCommissionId } from "@/daemon/types";
 import type { CommissionId } from "@/daemon/types";
 import {
@@ -116,7 +117,8 @@ describe("report_progress", () => {
     // Verify current_progress was updated
     const artifactPath = commissionArtifactPath(projectPath, commissionId);
     const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain('current_progress: "Analyzed 3 OAuth libraries"');
+    const parsed = matter(raw);
+    expect(parsed.data.current_progress).toBe("Analyzed 3 OAuth libraries");
   });
 
   test("multiple progress reports accumulate in timeline", async () => {
@@ -139,8 +141,8 @@ describe("report_progress", () => {
     // current_progress should show only the latest
     const artifactPath = commissionArtifactPath(projectPath, commissionId);
     const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain('current_progress: "Step 2 complete"');
-    expect(raw).not.toContain('current_progress: "Step 1 complete"');
+    const parsed = matter(raw);
+    expect(parsed.data.current_progress).toBe("Step 2 complete");
   });
 });
 
@@ -167,9 +169,8 @@ describe("submit_result", () => {
     // Verify result_summary was set
     const artifactPath = commissionArtifactPath(projectPath, commissionId);
     const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain(
-      'result_summary: "Found 3 viable OAuth patterns"',
-    );
+    const parsed = matter(raw);
+    expect(parsed.data.result_summary).toBe("Found 3 viable OAuth patterns");
 
     // Verify timeline entry
     const timeline = await readActivityTimeline(projectPath, commissionId);

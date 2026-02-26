@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
+import matter from "gray-matter";
 import { asCommissionId } from "@/daemon/types";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import {
@@ -606,7 +607,7 @@ describe("createCommissionSession", () => {
       expect(result.commissionId).toBeTruthy();
     });
 
-    test("uses default resource overrides when none provided", async () => {
+    test("omits resource overrides when none provided", async () => {
       session = createCommissionSession(
         createTestDeps({ eventBus }),
       );
@@ -622,8 +623,7 @@ describe("createCommissionSession", () => {
       const artifactPath = commissionArtifactPath(integrationPath, id);
       const raw = await fs.readFile(artifactPath, "utf-8");
 
-      expect(raw).toContain("  maxTurns: 150");
-      expect(raw).toContain("  maxBudgetUsd: 1.00");
+      expect(raw).not.toContain("resource_overrides:");
     });
 
     test("writes empty dependencies as YAML empty array", async () => {
@@ -663,8 +663,9 @@ describe("createCommissionSession", () => {
 
       const artifactPath = commissionArtifactPath(integrationPath, commissionId);
       const raw = await fs.readFile(artifactPath, "utf-8");
+      const { data } = matter(raw);
 
-      expect(raw).toContain('prompt: "Updated prompt text"');
+      expect(data.prompt).toBe("Updated prompt text");
     });
 
     test("updates dependencies on pending commission", async () => {
@@ -680,9 +681,10 @@ describe("createCommissionSession", () => {
 
       const artifactPath = commissionArtifactPath(integrationPath, commissionId);
       const raw = await fs.readFile(artifactPath, "utf-8");
+      const { data } = matter(raw);
+      const dependencies = data.dependencies as string[];
 
-      expect(raw).toContain("  - new-dep1.md");
-      expect(raw).toContain("  - new-dep2.md");
+      expect(dependencies).toEqual(["new-dep1.md", "new-dep2.md"]);
     });
 
     test("updates resource overrides on pending commission", async () => {
@@ -698,9 +700,54 @@ describe("createCommissionSession", () => {
 
       const artifactPath = commissionArtifactPath(integrationPath, commissionId);
       const raw = await fs.readFile(artifactPath, "utf-8");
+      const { data } = matter(raw);
+      const resourceOverrides = data.resource_overrides as {
+        maxTurns?: number;
+        maxBudgetUsd?: number;
+      };
 
-      expect(raw).toContain("  maxTurns: 300");
-      expect(raw).toContain("  maxBudgetUsd: 5");
+      expect(resourceOverrides.maxTurns).toBe(300);
+      expect(resourceOverrides.maxBudgetUsd).toBe(5);
+    });
+
+    test("adds resource overrides block when missing", async () => {
+      const content = `---
+title: "Commission: Research OAuth patterns"
+date: 2026-02-21
+status: pending
+tags: [commission]
+worker: researcher
+workerDisplayTitle: "Research Specialist"
+prompt: "Research OAuth 2.0 patterns for CLI tools..."
+dependencies: []
+linked_artifacts: []
+activity_timeline:
+  - timestamp: 2026-02-21T14:30:00.000Z
+    event: created
+    reason: "User created commission"
+current_progress: ""
+result_summary: ""
+projectName: test-project
+---
+`;
+      const artifactPath = commissionArtifactPath(integrationPath, commissionId);
+      await fs.writeFile(artifactPath, content, "utf-8");
+
+      session = createCommissionSession(
+        createTestDeps({ eventBus }),
+      );
+
+      await session.updateCommission(commissionId, {
+        resourceOverrides: { maxBudgetUsd: 0 },
+      });
+
+      const raw = await fs.readFile(artifactPath, "utf-8");
+      const { data } = matter(raw);
+      const resourceOverrides = data.resource_overrides as {
+        maxTurns?: number;
+        maxBudgetUsd?: number;
+      };
+      expect(resourceOverrides.maxBudgetUsd).toBe(0);
     });
 
     test("rejects non-pending commission", async () => {
@@ -882,6 +929,60 @@ projectName: test-project
       const configRaw = await fs.readFile(capturedConfigPath, "utf-8");
       const config = JSON.parse(configRaw) as Record<string, unknown>;
       expect(config.prompt).toBe(longPrompt);
+
+      mockSpawn.resolveExit(0);
+    });
+
+    test("preserves zero-valued resource overrides in worker config", async () => {
+      const content = `---
+title: "Commission: Research OAuth patterns"
+date: 2026-02-21
+status: pending
+tags: [commission]
+worker: researcher
+workerDisplayTitle: "Research Specialist"
+prompt: "Research OAuth 2.0 patterns for CLI tools..."
+dependencies: []
+linked_artifacts: []
+resource_overrides:
+  maxTurns: 0
+  maxBudgetUsd: 0
+activity_timeline:
+  - timestamp: 2026-02-21T14:30:00.000Z
+    event: created
+    reason: "User created commission"
+current_progress: ""
+result_summary: ""
+projectName: test-project
+---
+`;
+      const artifactPath = commissionArtifactPath(integrationPath, commissionId);
+      await fs.writeFile(artifactPath, content, "utf-8");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      let capturedConfigPath = "";
+      const capturingSpawn = (configPath: string): SpawnedCommission => {
+        capturedConfigPath = configPath;
+        return mockSpawn.spawnFn(configPath);
+      };
+
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: capturingSpawn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const configRaw = await fs.readFile(capturedConfigPath, "utf-8");
+      const config = JSON.parse(configRaw) as {
+        resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+      };
+      expect(config.resourceOverrides?.maxTurns).toBe(0);
+      expect(config.resourceOverrides?.maxBudgetUsd).toBe(0);
 
       mockSpawn.resolveExit(0);
     });
