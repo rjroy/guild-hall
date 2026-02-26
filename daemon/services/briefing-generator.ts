@@ -214,7 +214,6 @@ Be factual and direct. No headers or bullet points. Plain prose.`;
               model: "sonnet",
               permissionMode: "dontAsk",
               settingSources: [],
-              maxBudgetUsd: 0.05,
             },
           });
 
