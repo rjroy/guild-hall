@@ -20,6 +20,14 @@ activity_timeline:
   - timestamp: 2026-02-26T05:14:41.841Z
     event: status_failed
     reason: "Worker crashed with exit code 1"
+  - timestamp: 2026-02-26T06:18:06.599Z
+    event: status_pending
+    reason: "Commission reset for redispatch"
+    from: "failed"
+    to: "pending"
+  - timestamp: 2026-02-26T06:20:56.688Z
+    event: status_failed
+    reason: "Worker completed without submitting result"
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
