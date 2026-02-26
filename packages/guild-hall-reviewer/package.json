@@ -13,8 +13,7 @@
     "builtInTools": ["Read", "Glob", "Grep"],
     "checkoutScope": "full",
     "resourceDefaults": {
-      "maxTurns": 60,
-      "maxBudgetUsd": 2.0
+      "maxTurns": 60
     }
   }
 }

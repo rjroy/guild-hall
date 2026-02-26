@@ -13,8 +13,7 @@
     "builtInTools": ["Read", "Glob", "Grep", "WebSearch", "WebFetch"],
     "checkoutScope": "sparse",
     "resourceDefaults": {
-      "maxTurns": 70,
-      "maxBudgetUsd": 2.5
+      "maxTurns": 70
     }
   }
 }

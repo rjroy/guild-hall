@@ -186,7 +186,7 @@ describe("triggerCompaction: basic flow", () => {
     expect(captured).toHaveLength(1);
     const opts = captured[0].options;
     expect(opts.maxTurns).toBe(1);
-    expect(opts.maxBudgetUsd).toBe(0.05);
+    expect(opts.maxBudgetUsd).toBeUndefined();
     expect(opts.permissionMode).toBe("dontAsk");
   });
 

@@ -390,7 +390,7 @@ The architecture follows a clean separation of concerns.
     expect(options.maxTurns).toBe(1);
     expect(options.permissionMode).toBe("dontAsk");
     expect(options.settingSources).toEqual([]);
-    expect(options.maxBudgetUsd).toBe(0.10);
+    expect(options.maxBudgetUsd).toBeUndefined();
     expect(options.systemPrompt).toContain("meeting notes generator");
   });
 

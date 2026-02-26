@@ -253,7 +253,7 @@ function assertPresetSystemPrompt(
     expect(options.maxBudgetUsd).toBe(5.0);
   });
 
-  test("falls back to 150 maxTurns when neither override nor worker default", () => {
+  test("falls back to undefined maxTurns when neither override nor worker default", () => {
     const activationNoDefaults: ActivationResult = {
       ...testActivation,
       resourceBounds: {},
@@ -261,7 +261,7 @@ function assertPresetSystemPrompt(
 
     const options = buildQueryOptions(validConfig, activationNoDefaults);
 
-    expect(options.maxTurns).toBe(150);
+    expect(options.maxTurns).toBeUndefined();
   });
 
   test("omits maxBudgetUsd when neither override nor worker default", () => {

@@ -570,6 +570,10 @@ notes_summary: ""
       mcpServersRecord[server.name] = server;
     }
 
+
+    const maxTurns = activation.resourceBounds.maxTurns;
+    const maxBudgetUsd = activation.resourceBounds.maxBudgetUsd;
+
     return {
       ok: true,
       options: {
@@ -582,8 +586,8 @@ notes_summary: ""
         systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
         ...(activation.model ? { model: activation.model } : {}),
         mcpServers: mcpServersRecord,
-        maxTurns: activation.resourceBounds.maxTurns,
-        maxBudgetUsd: activation.resourceBounds.maxBudgetUsd,
+        ...(maxTurns ? { maxTurns } : {}),
+        ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
         cwd: meeting.worktreeDir,
       }
     };
