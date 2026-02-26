@@ -1,7 +1,7 @@
 ---
 title: "Commission: Document commission dispatch empty prompt bug"
 date: 2026-02-26
-status: pending
+status: failed
 tags: [commission]
 worker: Writer
 workerDisplayTitle: "Guild Writer"
@@ -69,6 +69,12 @@ activity_timeline:
   - timestamp: 2026-02-26T05:18:14.734Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-26T05:18:14.770Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Document commission dispatch empty prompt bug\""
+  - timestamp: 2026-02-26T05:18:17.334Z
+    event: status_failed
+    reason: "Worker crashed with exit code 1"
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
