@@ -38,6 +38,9 @@ activity_timeline:
   - timestamp: 2026-02-26T16:34:57.323Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-26T16:34:57.361Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Wire up Create Commission from Artifact\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
