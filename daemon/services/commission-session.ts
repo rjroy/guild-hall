@@ -902,16 +902,19 @@ export function createCommissionSession(
         ? "\n" + dependencies.map((d) => `  - ${d}`).join("\n")
         : " []";
 
-    // Format resource overrides
-    const maxTurnsLine =
-      resourceOverrides?.maxTurns !== undefined
-        ? `  maxTurns: ${resourceOverrides.maxTurns}`
-        : "  maxTurns: 150";
-    const maxBudgetLine =
-      resourceOverrides?.maxBudgetUsd !== undefined
-        ? `  maxBudgetUsd: ${resourceOverrides.maxBudgetUsd}`
-        : "  maxBudgetUsd: 1.00";
-
+    const resourceLines =
+      resourceOverrides && (resourceOverrides.maxTurns !== undefined || resourceOverrides.maxBudgetUsd !== undefined)
+        ? `\nresource_overrides:\n${
+            resourceOverrides.maxTurns !== undefined
+              ? `  maxTurns: ${resourceOverrides.maxTurns}\n`
+              : ""
+          }${
+            resourceOverrides.maxBudgetUsd !== undefined
+              ? `  maxBudgetUsd: ${resourceOverrides.maxBudgetUsd}\n`
+              : ""
+          }`
+        : "";
+    
     const content = `---
 title: "Commission: ${escapedTitle}"
 date: ${dateStr}
@@ -922,9 +925,7 @@ workerDisplayTitle: "${escapedDisplayTitle}"
 prompt: "${escapedPrompt}"
 dependencies:${depsYaml}
 linked_artifacts: []
-resource_overrides:
-${maxTurnsLine}
-${maxBudgetLine}
+${resourceLines}
 activity_timeline:
   - timestamp: ${isoStr}
     event: created
@@ -979,46 +980,41 @@ projectName: ${projectName}
       basePath,
       commissionId,
     );
-    let raw = await fs.readFile(artifactPath, "utf-8");
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    const parsed = matter(raw);
+    const frontmatter = parsed.data as Record<string, unknown>;
 
     if (updates.prompt !== undefined) {
-      const escaped = updates.prompt.replace(/"/g, '\\"');
-      raw = raw.replace(/^prompt: ".*"$/m, `prompt: "${escaped}"`);
+      frontmatter.prompt = updates.prompt;
     }
 
     if (updates.dependencies !== undefined) {
-      const depsYaml =
-        updates.dependencies.length > 0
-          ? "\n" + updates.dependencies.map((d) => `  - ${d}`).join("\n")
-          : " []";
-      // Replace the dependencies section. Handle both empty array and list forms.
-      if (/^dependencies: \[\]$/m.test(raw)) {
-        raw = raw.replace(/^dependencies: \[\]$/m, `dependencies:${depsYaml}`);
-      } else {
-        // Replace the dependencies: line and all following "  - " lines
-        raw = raw.replace(
-          /^dependencies:\n(?:  - .+\n)*/m,
-          `dependencies:${depsYaml}\n`,
-        );
-      }
+      frontmatter.dependencies = updates.dependencies;
     }
 
     if (updates.resourceOverrides !== undefined) {
+      const currentOverridesValue = frontmatter.resource_overrides;
+      const existingOverrides =
+        typeof currentOverridesValue === "object" &&
+        currentOverridesValue !== null
+          ? { ...(currentOverridesValue as Record<string, unknown>) }
+          : {};
+
       if (updates.resourceOverrides.maxTurns !== undefined) {
-        raw = raw.replace(
-          /^  maxTurns: .+$/m,
-          `  maxTurns: ${updates.resourceOverrides.maxTurns}`,
-        );
+        existingOverrides.maxTurns = updates.resourceOverrides.maxTurns;
       }
+
       if (updates.resourceOverrides.maxBudgetUsd !== undefined) {
-        raw = raw.replace(
-          /^  maxBudgetUsd: .+$/m,
-          `  maxBudgetUsd: ${updates.resourceOverrides.maxBudgetUsd}`,
-        );
+        existingOverrides.maxBudgetUsd = updates.resourceOverrides.maxBudgetUsd;
+      }
+
+      if (Object.keys(existingOverrides).length > 0) {
+        frontmatter.resource_overrides = existingOverrides;
       }
     }
 
-    await fs.writeFile(artifactPath, raw, "utf-8");
+    const updated = matter.stringify(parsed.content, frontmatter);
+    await fs.writeFile(artifactPath, updated, "utf-8");
   }
 
   async function dispatchCommission(
@@ -1101,10 +1097,10 @@ projectName: ${projectName}
     const commissionDeps = (data.dependencies as string[] | undefined) ?? [];
     const overrides = data.resource_overrides as { maxTurns?: number; maxBudgetUsd?: number } | undefined;
     const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number } = {};
-    if (overrides?.maxTurns) {
+    if (overrides?.maxTurns !== undefined) {
       resourceOverrides.maxTurns = Number(overrides.maxTurns);
     }
-    if (overrides?.maxBudgetUsd) {
+    if (overrides?.maxBudgetUsd !== undefined) {
       resourceOverrides.maxBudgetUsd = Number(overrides.maxBudgetUsd);
     }
 
