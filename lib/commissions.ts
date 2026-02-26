@@ -197,48 +197,37 @@ export async function scanCommissions(
 
 /**
  * Pure function that parses the activity_timeline YAML array into typed
- * TimelineEntry objects. Works on raw file content (before gray-matter
- * parsing) for consistency with daemon-side parsing.
+ * TimelineEntry objects. Takes full file content (with --- frontmatter).
  *
  * Exported for use in Next.js server components that need to display
  * timeline entries without going through the daemon.
  */
 export function parseActivityTimeline(raw: string): TimelineEntry[] {
-  // Find the activity_timeline block
-  const timelineMatch = raw.match(
-    /^activity_timeline:\n((?:  - .+\n(?:    .+\n)*)*)/m,
-  );
-  if (!timelineMatch) return [];
+  const { data } = matter(raw);
+  const timeline = data.activity_timeline as unknown[] | undefined;
+  if (!Array.isArray(timeline)) return [];
 
-  const block = timelineMatch[1];
-  const entries: TimelineEntry[] = [];
-  let currentEntry: Record<string, unknown> | null = null;
+  return timeline
+    .filter((entry): entry is Record<string, unknown> =>
+      typeof entry === "object" && entry !== null,
+    )
+    .map((entry): TimelineEntry => {
+      // js-yaml parses ISO timestamps as Date objects; convert to ISO string.
+      const ts = entry.timestamp;
+      const timestamp =
+        ts instanceof Date
+          ? ts.toISOString()
+          : typeof ts === "string"
+            ? ts
+            : "";
 
-  for (const line of block.split("\n")) {
-    if (!line.trim()) continue;
-
-    // New entry starts with "  - key: value"
-    const entryStartMatch = line.match(/^  - (\w+): (.+)$/);
-    if (entryStartMatch) {
-      if (currentEntry) {
-        entries.push(currentEntry as TimelineEntry);
-      }
-      currentEntry = { [entryStartMatch[1]]: stripQuotes(entryStartMatch[2]) };
-      continue;
-    }
-
-    // Continuation line: "    key: value"
-    const continuationMatch = line.match(/^    (\w+): (.+)$/);
-    if (continuationMatch && currentEntry) {
-      currentEntry[continuationMatch[1]] = stripQuotes(continuationMatch[2]);
-    }
-  }
-
-  if (currentEntry) {
-    entries.push(currentEntry as TimelineEntry);
-  }
-
-  return entries;
+      return {
+        ...entry,
+        timestamp,
+        event: typeof entry.event === "string" ? entry.event : "",
+        reason: typeof entry.reason === "string" ? entry.reason : "",
+      };
+    });
 }
 
 // -- Helpers --
@@ -250,13 +239,3 @@ function formatDate(value: unknown): string {
   return "";
 }
 
-function stripQuotes(value: string): string {
-  const trimmed = value.trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
