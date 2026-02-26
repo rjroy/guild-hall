@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -331,6 +331,7 @@ function assertPresetSystemPrompt(
 describe("main", () => {
   /** Creates a mock query function that yields the given messages then returns. */
   function createMockQuery(messages: unknown[] = []): QueryFn {
+    // eslint-disable-next-line @typescript-eslint/require-await
     return async function* mockQuery() {
       for (const msg of messages) {
         yield msg;
@@ -347,6 +348,7 @@ describe("main", () => {
         { type: "assistant", message: { content: [{ type: "text", text: "Working on it..." }] } },
         { type: "result", stop_reason: "end_turn", message: { content: [] } },
       ]),
+      // eslint-disable-next-line @typescript-eslint/require-await
       discoverPackages: async () => [
         {
           name: "guild-hall-sample-assistant",
@@ -371,11 +373,14 @@ describe("main", () => {
         allowedTools: ["Read", "Write"],
         wasResultSubmitted: () => resultSubmitted.value,
       }),
+      // eslint-disable-next-line @typescript-eslint/require-await
       loadMemories: async () => ({
         memoryBlock: "",
         needsCompaction: false,
       }),
+      // eslint-disable-next-line @typescript-eslint/require-await
       triggerCompaction: async () => {},
+      // eslint-disable-next-line @typescript-eslint/require-await
       importWorkerModule: async () => ({
         activate: () => ({
           systemPrompt: "You are a test worker.",
@@ -435,6 +440,7 @@ describe("main", () => {
     const queryCalls: string[] = [];
     const callCount = { n: 0 };
 
+    // eslint-disable-next-line @typescript-eslint/require-await
     const mockQuery: QueryFn = async function* (params) {
       callCount.n++;
       queryCalls.push((params as { prompt: string }).prompt);
@@ -467,10 +473,12 @@ describe("main", () => {
     let compactionCalled = false;
 
     const deps = createMockDeps({
+      // eslint-disable-next-line @typescript-eslint/require-await
       loadMemories: async () => ({
         memoryBlock: "prior memories...",
         needsCompaction: true,
       }),
+      // eslint-disable-next-line @typescript-eslint/require-await
       triggerCompaction: async () => {
         compactionCalled = true;
       },
@@ -484,6 +492,7 @@ describe("main", () => {
   test("handles memory load failure gracefully", async () => {
     await writeConfigAndSetArgv(tmpDir);
     const deps = createMockDeps({
+      // eslint-disable-next-line @typescript-eslint/require-await
       loadMemories: async () => {
         throw new Error("filesystem exploded");
       },
@@ -501,6 +510,7 @@ describe("main", () => {
     await writeConfigAndSetArgv(tmpDir, customConfig);
 
     let capturedPrompt = "";
+    // eslint-disable-next-line @typescript-eslint/require-await
     const mockQuery: QueryFn = async function* (params) {
       capturedPrompt = (params as { prompt: string }).prompt;
       yield { type: "result", stop_reason: "end_turn", message: { content: [] } };
