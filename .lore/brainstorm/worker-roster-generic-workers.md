@@ -42,7 +42,7 @@ The implementation workhorse. Takes feature requests, bug reports, and improveme
 **Display title**: Developer
 **Checkout scope**: `full`
 **Built-in tools**: `Read, Glob, Grep, Write, Edit, Bash`
-**Resource defaults**: maxTurns 150, maxBudgetUsd $1.00
+**Resource defaults**: maxTurns 1000, maxBudgetUsd $3.00
 
 **Posture**:
 
@@ -82,7 +82,7 @@ Analyzes code for correctness, clarity, security, and maintainability. Read-only
 **Display title**: Code Reviewer
 **Checkout scope**: `full`
 **Built-in tools**: `Read, Glob, Grep`
-**Resource defaults**: maxTurns 50, maxBudgetUsd $0.50
+**Resource defaults**: maxTurns 1000, maxBudgetUsd $2.00
 
 **Posture**:
 
@@ -123,8 +123,8 @@ Investigates questions, explores options, and synthesizes findings. The only wor
 **Package**: `guild-hall-researcher`
 **Display title**: Researcher
 **Checkout scope**: `sparse`
-**Built-in tools**: `Read, Glob, Grep, WebSearch, WebFetch`
-**Resource defaults**: maxTurns 80, maxBudgetUsd $0.75
+**Built-in tools**: `Read, Glob, Grep, Write, Edit, WebSearch, WebFetch`
+**Resource defaults**: maxTurns 1000, maxBudgetUsd $3.00
 
 **Posture**:
 
@@ -151,7 +151,7 @@ Investigates questions, explores options, and synthesizes findings. The only wor
 > - Include a "Sources" section with links and references.
 > - If the question has no clear answer, say so and explain what further information would be needed to resolve it.
 
-**Design notes**: Sparse checkout is deliberate — the researcher operates on knowledge, not code. It reads .lore for project context and searches the web for external knowledge. It doesn't need Write because its output is the commission result itself, not files in the repo. If we later need researchers that produce .lore artifacts directly, we can add Write or create a variant.
+**Design notes**: Sparse checkout is deliberate — the researcher operates on knowledge, not production source code. It reads `.lore` for project context, searches the web for external knowledge, and can write research artifacts directly under `.lore/` when the commission calls for durable output.
 
 ---
 
@@ -163,7 +163,7 @@ Creates and maintains documentation. Needs full checkout because good docs requi
 **Display title**: Technical Writer
 **Checkout scope**: `full`
 **Built-in tools**: `Read, Glob, Grep, Write, Edit`
-**Resource defaults**: maxTurns 100, maxBudgetUsd $0.75
+**Resource defaults**: maxTurns 1000, maxBudgetUsd $2.00
 
 **Posture**:
 
@@ -203,7 +203,7 @@ Writes tests, improves coverage, and verifies software quality. Same tool set as
 **Display title**: Test Engineer
 **Checkout scope**: `full`
 **Built-in tools**: `Read, Glob, Grep, Write, Edit, Bash`
-**Resource defaults**: maxTurns 150, maxBudgetUsd $1.00
+**Resource defaults**: maxTurns 1000, maxBudgetUsd $3.00
 
 **Posture**:
 
@@ -245,21 +245,16 @@ The Guild Master sees each worker's `description` field when choosing who to dis
 | Technical Writer | Creates and maintains documentation verified against actual code. |
 | Test Engineer | Writes tests, improves test coverage, and verifies software quality. |
 
-The Guild Master matches task intent to worker description. Ambiguous cases (e.g., "add tests and fix the bug") should be split into two commissions dispatched to the appropriate workers, possibly with a dependency between them.
+The Guild Master matches task intent to worker description. Splitting a mixed request (e.g., "add tests and fix the bug") into dependent commissions is still useful, but the primary differentiator is posture, not tool differences.
 
-## Open Questions
+## Resolved Decisions
 
-- **Should Developer run tests automatically?** The posture says "run existing tests if a test command is apparent," but this assumes the developer can discover the test command. Should there be a project-level convention (e.g., a `.lore/project-config.md` or `package.json` script) that workers can read?
-
-- **Should Reviewer get Bash for static analysis?** Running linters or type-checkers would make reviews more thorough. But it expands the reviewer's scope from "read and analyze" to "read, run tools, and analyze." Is that a separate worker (Static Analyzer) or a reviewer upgrade?
-
-- **Researcher with Write access?** Currently the researcher reports findings as commission results. If research should produce `.lore/research/*.md` artifacts directly, the researcher needs Write. This changes its checkout scope to full and its role from "answer questions" to "produce research artifacts."
-
-- **Should we retire sample-assistant?** It's useful for testing and onboarding but could confuse the Guild Master during worker selection. Options: keep it but mark as development-only, remove it, or rename it to something the Guild Master won't accidentally select.
-
-- **Resource defaults calibration.** The turn counts and budgets are educated guesses. Should we instrument actual usage and adjust, or are these reasonable starting points?
-
-- **Developer + Test Engineer overlap.** Same tools, different posture. Should the Guild Master be coached (via its own posture) to prefer Developer for "implement and test" versus splitting into two commissions? Or is the split always better?
+- **Developer test execution and Bash access**: Keep project-driven discovery. Developers run tests when commands are discoverable in the target project. `Bash` remains enabled for Developer and Test Engineer because implementation and verification require command execution.
+- **Reviewer scope**: Keep reviewer read-only without `Bash`. Static analysis execution is not part of the default reviewer role.
+- **Researcher output model**: Researcher has write/edit access and can produce durable `.lore` research artifacts directly, while remaining sparse-checkout and research-focused.
+- **Sample worker lifecycle**: Retire `sample-assistant` after the five generic workers are in place and validated.
+- **Resource policy**: Use high turn ceilings as a practical default (near-infinite for normal commissions) and keep budget values expressed in dollars.
+- **Role overlap strategy**: Differentiate workers by posture first. Developer/Test Engineer sharing tools is intentional, and future nuanced workers should follow the same posture-driven pattern.
 
 ## Implementation Path
 
@@ -270,3 +265,4 @@ When this brainstorm is resolved, implementation is straightforward:
 3. Copy `index.ts` from `sample-assistant/` into each (identical activation logic)
 4. Verify discovery via daemon's `GET /workers` endpoint
 5. Test by dispatching a commission to each worker type
+6. Retire `sample-assistant` once replacement workers are confirmed working
