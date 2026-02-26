@@ -26,6 +26,49 @@ import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import { loadMemories } from "@/daemon/services/memory-injector";
 import { triggerCompaction } from "@/daemon/services/memory-compaction";
 
+// -- Dependency injection types --
+
+/** SDK query function signature. Matches @anthropic-ai/claude-agent-sdk's query(). */
+export type QueryFn = (params: {
+  prompt: string;
+  options: Record<string, unknown>;
+}) => AsyncGenerator<unknown>;
+
+/** Injectable dependencies for main(). Tests provide mocks; production uses real implementations. */
+export interface WorkerDeps {
+  query: QueryFn;
+  discoverPackages: typeof discoverPackages;
+  getWorkerByName: typeof getWorkerByName;
+  resolveToolSet: typeof resolveToolSet;
+  loadMemories: typeof loadMemories;
+  triggerCompaction: typeof triggerCompaction;
+  importWorkerModule: (modulePath: string) => Promise<{
+    activate: (ctx: ActivationContext) => ActivationResult;
+  }>;
+}
+
+/** Real implementations used in production. SDK is loaded lazily since it's a heavy import. */
+export function createProductionDeps(): Omit<WorkerDeps, "query"> & { loadQuery: () => Promise<QueryFn> } {
+  return {
+    discoverPackages,
+    getWorkerByName,
+    resolveToolSet,
+    loadMemories,
+    triggerCompaction,
+    importWorkerModule: async (modulePath: string) => {
+      return (await import(modulePath)) as {
+        activate: (ctx: ActivationContext) => ActivationResult;
+      };
+    },
+    loadQuery: async (): Promise<QueryFn> => {
+      const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as {
+        query: QueryFn;
+      };
+      return sdk.query;
+    },
+  };
+}
+
 // -- Config parsing --
 
 /**
@@ -185,7 +228,7 @@ function logSdkMessage(
 
 // -- Main --
 
-async function main(): Promise<void> {
+export async function main(injectedDeps?: WorkerDeps): Promise<void> {
   const log = (msg: string) => console.log(`[commission-worker] ${msg}`);
   const logErr = (msg: string) => console.error(`[commission-worker] ${msg}`);
 
@@ -194,13 +237,25 @@ async function main(): Promise<void> {
   const config = await loadConfig(Bun.argv.slice(2));
   log(`config loaded: commission="${config.commissionId}" worker="${config.workerPackageName}" project="${config.projectName}"`);
 
-  // 2. Discover packages
+  // 2. Resolve deps (injected or production defaults)
+  let deps: WorkerDeps;
+  if (injectedDeps) {
+    deps = injectedDeps;
+  } else {
+    const prodDeps = createProductionDeps();
+    log("importing Claude Agent SDK...");
+    const query = await prodDeps.loadQuery();
+    log("SDK imported successfully");
+    deps = { ...prodDeps, query };
+  }
+
+  // 3. Discover packages
   log(`discovering packages in ${config.packagesDir}`);
-  const packages = await discoverPackages([config.packagesDir]);
+  const packages = await deps.discoverPackages([config.packagesDir]);
   log(`found ${packages.length} package(s): ${packages.map((p) => p.name).join(", ") || "(none)"}`);
 
-  // 3. Find the worker package by name
-  const workerPkg = getWorkerByName(packages, config.workerPackageName);
+  // 4. Find the worker package by name
+  const workerPkg = deps.getWorkerByName(packages, config.workerPackageName);
   if (!workerPkg) {
     throw new Error(
       `Worker package "${config.workerPackageName}" not found in ${config.packagesDir}`,
@@ -210,9 +265,9 @@ async function main(): Promise<void> {
 
   const workerMeta = workerPkg.metadata as WorkerMetadata;
 
-  // 4. Resolve tools (base + commission + domain)
+  // 5. Resolve tools (base + commission + domain)
   log("resolving tools...");
-  const resolvedTools = resolveToolSet(workerMeta, packages, {
+  const resolvedTools = deps.resolveToolSet(workerMeta, packages, {
     projectPath: config.projectPath,
     projectName: config.projectName,
     commissionId: config.commissionId,
@@ -223,11 +278,11 @@ async function main(): Promise<void> {
   });
   log(`tools resolved: ${resolvedTools.mcpServers.length} MCP server(s), ${resolvedTools.allowedTools?.length ?? 0} allowed tool(s)`);
 
-  // 5. Load memory files for this worker
+  // 6. Load memory files for this worker
   let injectedMemory = "";
   let needsCompaction = false;
   try {
-    const memoryResult = await loadMemories(
+    const memoryResult = await deps.loadMemories(
       workerMeta.identity.name,
       config.projectName,
       {
@@ -244,7 +299,7 @@ async function main(): Promise<void> {
     log(`failed to load memories (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // 6. Build activation context
+  // 7. Build activation context
   const activationContext = buildActivationContext(
     config,
     workerMeta,
@@ -252,58 +307,39 @@ async function main(): Promise<void> {
     injectedMemory,
   );
 
-  // 7. Activate the worker (dynamic import of worker package)
+  // 8. Activate the worker (dynamic import of worker package)
   log(`activating worker from ${workerPkg.path}/index.ts`);
-  const workerModule = (await import(
-    path.resolve(workerPkg.path, "index.ts")
-  )) as {
-    activate: (ctx: ActivationContext) => ActivationResult;
-  };
+  const workerModule = await deps.importWorkerModule(
+    path.resolve(workerPkg.path, "index.ts"),
+  );
   const activation = workerModule.activate(activationContext);
   log(`worker activated. systemPrompt length=${activation.systemPrompt.length}`);
 
-  // 8. Build SDK query options
+  // 9. Build SDK query options
   const options = buildQueryOptions(config, activation);
   log(`SDK options: maxTurns=${options.maxTurns}, cwd="${options.cwd}"`);
-
-  // 9. Import and call SDK query()
-  log("importing Claude Agent SDK...");
-  let query: (params: {
-    prompt: string;
-    options: typeof options;
-  }) => AsyncGenerator<unknown>;
-  try {
-    const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as {
-      query: typeof query;
-    };
-    query = sdk.query;
-    log("SDK imported successfully");
-  } catch (err: unknown) {
-    logErr(`SDK import failed: ${err instanceof Error ? err.message : String(err)}`);
-    throw err;
-  }
 
   // Fire-and-forget compaction: runs in background while the main session proceeds.
   // Compaction improves the NEXT activation, not this one.
   if (needsCompaction) {
     log(`triggering memory compaction for "${workerMeta.identity.name}" / "${config.projectName}"`);
-    void triggerCompaction(
+    void deps.triggerCompaction(
       workerMeta.identity.name,
       config.projectName,
       {
         guildHallHome: config.guildHallHome,
-        compactFn: query as Parameters<typeof triggerCompaction>[2]["compactFn"],
+        compactFn: deps.query as Parameters<typeof triggerCompaction>[2]["compactFn"],
       },
     );
   }
 
   log("starting SDK session...");
-  const session = query({
+  const session = deps.query({
     prompt: config.prompt,
     options,
   });
 
-  // 10. Consume all messages to completion
+  // 10. Consume all messages to completion (step renumbered after DI refactor)
   // Log each message so we can see what the model is doing.
   let messageCount = 0;
   for await (const msg of session) {
@@ -318,7 +354,7 @@ async function main(): Promise<void> {
   const wasSubmitted = resolvedTools.wasResultSubmitted?.();
   if (!wasSubmitted) {
     log("no result submitted, running follow-up to force submit_result...");
-    const followUp = query({
+    const followUp = deps.query({
       prompt: [
         "Your previous session completed without calling submit_result.",
         "The commission WILL BE MARKED AS FAILED unless you call submit_result now.",
