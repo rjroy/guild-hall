@@ -2,13 +2,14 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   loadConfig,
   buildActivationContext,
   buildQueryOptions,
   main,
 } from "@/daemon/commission-worker";
-import type { WorkerDeps, QueryFn } from "@/daemon/commission-worker";
+import type { WorkerDeps, QueryFn, CommissionQueryOptions } from "@/daemon/commission-worker";
 import type { CommissionWorkerConfig } from "@/daemon/services/commission-worker-config";
 import type {
   ActivationResult,
@@ -330,7 +331,7 @@ function assertPresetSystemPrompt(
 
 describe("main", () => {
   /** Creates a mock query function that yields the given messages then returns. */
-  function createMockQuery(messages: unknown[] = []): QueryFn {
+  function createMockQuery(messages: SDKMessage[] = []): QueryFn {
     // eslint-disable-next-line @typescript-eslint/require-await
     return async function* mockQuery() {
       for (const msg of messages) {
@@ -339,14 +340,22 @@ describe("main", () => {
     };
   }
 
+  /** System/init message that provides a session_id for resume support. */
+  const initMessage = {
+    type: "system",
+    subtype: "init",
+    session_id: "test-session-001",
+  } as unknown as SDKMessage;
+
   /** Builds a full WorkerDeps with all mocks wired up. Callers can override individual deps. */
   function createMockDeps(overrides: Partial<WorkerDeps> = {}): WorkerDeps {
     const resultSubmitted = { value: true };
 
     return {
       query: createMockQuery([
-        { type: "assistant", message: { content: [{ type: "text", text: "Working on it..." }] } },
-        { type: "result", stop_reason: "end_turn", message: { content: [] } },
+        initMessage,
+        { type: "assistant", message: { content: [{ type: "text", text: "Working on it..." }] } } as unknown as SDKMessage,
+        { type: "result", stop_reason: "end_turn", message: { content: [] } } as unknown as SDKMessage,
       ]),
       // eslint-disable-next-line @typescript-eslint/require-await
       discoverPackages: async () => [
@@ -437,14 +446,18 @@ describe("main", () => {
 
   test("runs follow-up session when submit_result was not called", async () => {
     await writeConfigAndSetArgv(tmpDir);
-    const queryCalls: string[] = [];
+    const queryCalls: Array<{ prompt: string; options: CommissionQueryOptions }> = [];
     const callCount = { n: 0 };
 
     // eslint-disable-next-line @typescript-eslint/require-await
     const mockQuery: QueryFn = async function* (params) {
       callCount.n++;
-      queryCalls.push((params as { prompt: string }).prompt);
-      yield { type: "result", stop_reason: "end_turn", message: { content: [] } };
+      queryCalls.push(params);
+      // First call: emit init message with session_id so resume can work
+      if (callCount.n === 1) {
+        yield initMessage;
+      }
+      yield { type: "result", stop_reason: "end_turn", message: { content: [] } } as unknown as SDKMessage;
     };
 
     // wasResultSubmitted returns false on first check, true on second (after follow-up)
@@ -465,7 +478,8 @@ describe("main", () => {
 
     await main(deps);
     expect(callCount.n).toBe(2); // main session + follow-up
-    expect(queryCalls[1]).toContain("submit_result");
+    expect(queryCalls[1].prompt).toContain("submit_result");
+    expect(queryCalls[1].options.resume).toBe("test-session-001");
   });
 
   test("fires compaction when memory exceeds limit", async () => {
@@ -513,7 +527,7 @@ describe("main", () => {
     // eslint-disable-next-line @typescript-eslint/require-await
     const mockQuery: QueryFn = async function* (params) {
       capturedPrompt = (params as { prompt: string }).prompt;
-      yield { type: "result", stop_reason: "end_turn", message: { content: [] } };
+      yield { type: "result", stop_reason: "end_turn", message: { content: [] } } as unknown as SDKMessage;
     };
 
     const deps = createMockDeps({ query: mockQuery });

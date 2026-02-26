@@ -14,6 +14,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { CommissionWorkerConfigSchema } from "@/daemon/services/commission-worker-config";
 import type { CommissionWorkerConfig } from "@/daemon/services/commission-worker-config";
 import { discoverPackages, getWorkerByName } from "@/lib/packages";
@@ -28,11 +29,16 @@ import { triggerCompaction } from "@/daemon/services/memory-compaction";
 
 // -- Dependency injection types --
 
+/** SDK query options for commission worker sessions. */
+export type CommissionQueryOptions = Record<string, unknown> & {
+  resume?: string;
+};
+
 /** SDK query function signature. Matches @anthropic-ai/claude-agent-sdk's query(). */
 export type QueryFn = (params: {
   prompt: string;
-  options: Record<string, unknown>;
-}) => AsyncGenerator<unknown>;
+  options: CommissionQueryOptions;
+}) => AsyncGenerator<SDKMessage>;
 
 /** Injectable dependencies for main(). Tests provide mocks; production uses real implementations. */
 export interface WorkerDeps {
@@ -341,40 +347,54 @@ export async function main(injectedDeps?: WorkerDeps): Promise<void> {
 
   // 10. Consume all messages to completion (step renumbered after DI refactor)
   // Log each message so we can see what the model is doing.
+  // Capture session_id from the init system message for resume support.
   let messageCount = 0;
+  let sessionId: string | undefined;
   for await (const msg of session) {
     messageCount++;
     logSdkMessage(log, messageCount, msg);
+
+    // The SDK emits a system/init message containing session_id early in the stream.
+    const m = msg as Record<string, unknown>;
+    if (m.type === "system" && m.subtype === "init" && typeof m.session_id === "string") {
+      sessionId = m.session_id;
+      log(`captured session_id: ${sessionId}`);
+    }
   }
   log(`SDK session complete. ${messageCount} message(s) consumed.`);
 
-  // 11. If the session finished without calling submit_result, run a
-  //     focused follow-up that forces the model to call it. Without this,
-  //     the daemon classifies the commission as "failed (no result)".
+  // 11. If the session finished without calling submit_result, resume the
+  //     same session to force the model to call it. Without this, the
+  //     daemon classifies the commission as "failed (no result)".
   const wasSubmitted = resolvedTools.wasResultSubmitted?.();
   if (!wasSubmitted) {
-    log("no result submitted, running follow-up to force submit_result...");
-    const followUp = deps.query({
-      prompt: [
-        "Your previous session completed without calling submit_result.",
-        "The commission WILL BE MARKED AS FAILED unless you call submit_result now.",
-        "Summarize what you accomplished (or attempted) and call submit_result immediately.",
-        "Do NOT do any other work. Just call submit_result with a summary.",
-      ].join(" "),
-      options: {
-        ...options,
-        maxTurns: 3,
-      },
-    });
-    let followUpCount = 0;
-    for await (const msg of followUp) {
-      followUpCount++;
-      logSdkMessage(log, followUpCount, msg);
-    }
-    log(`follow-up session complete. ${followUpCount} message(s) consumed.`);
+    if (!sessionId) {
+      logErr("no result submitted and no session_id captured; cannot resume");
+    } else {
+      log(`no result submitted, resuming session ${sessionId} to force submit_result...`);
+      const followUp = deps.query({
+        prompt: [
+          "Your previous session completed without calling submit_result.",
+          "The commission WILL BE MARKED AS FAILED unless you call submit_result now.",
+          "Summarize what you accomplished (or attempted) and call submit_result immediately.",
+          "Do NOT do any other work. Just call submit_result with a summary.",
+        ].join(" "),
+        options: {
+          ...options,
+          resume: sessionId,
+          maxTurns: 3,
+        },
+      });
+      let followUpCount = 0;
+      for await (const msg of followUp) {
+        followUpCount++;
+        logSdkMessage(log, followUpCount, msg);
+      }
+      log(`follow-up session complete. ${followUpCount} message(s) consumed.`);
 
-    if (!resolvedTools.wasResultSubmitted?.()) {
-      logErr("follow-up session also failed to call submit_result");
+      if (!resolvedTools.wasResultSubmitted?.()) {
+        logErr("follow-up session also failed to call submit_result");
+      }
     }
   }
 }
