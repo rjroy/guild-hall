@@ -80,7 +80,7 @@ Phase 5 is complete (commit on `feat/phase-6-qtqkt` branch). 1115 tests pass. Th
 
 **Worker activation flow (meeting session):**
 
-`startSession()` calls `getWorkerByName(deps.packages, packageName)` to find the worker, then `resolveToolSet(workerMeta, deps.packages, context)` for tools, then `activateWorker(workerPkg, activationContext)` which either uses the injected `deps.activateFn` or dynamically imports the package's `index.ts`. The activation returns `{ systemPrompt, tools, resourceBounds }`. The query function receives this plus `cwd`, `additionalDirectories`, `permissionMode: "bypassPermissions"`, and an `abortController`.
+`startSession()` calls `getWorkerByName(deps.packages, packageName)` to find the worker, then `resolveToolSet(workerMeta, deps.packages, context)` for tools, then `activateWorker(workerPkg, activationContext)` which either uses the injected `deps.activateFn` or dynamically imports the package's `index.ts`. The activation returns `{ systemPrompt, tools, resourceBounds }`. The query function receives this plus `cwd`, `additionalDirectories`, `permissionMode: "dontAsk"`, and an `abortController`.
 
 **Worker package structure (`packages/sample-assistant/`):**
 

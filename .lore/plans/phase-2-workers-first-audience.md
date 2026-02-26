@@ -55,7 +55,7 @@ Requirements addressed:
 - REQ-WKR-14: Workers run as SDK sessions -> Step 5
 - REQ-WKR-15: Posture injected as system prompt -> Step 5
 - REQ-WKR-16: Resolved tools provided to SDK -> Step 5
-- REQ-WKR-17: Workers run with bypassPermissions -> Step 5
+- REQ-WKR-17: Workers run with dontAsk mode -> Step 5
 - REQ-WKR-18: Workers don't load filesystem settings -> Step 5
 - REQ-MTG-1: Meeting artifact in .lore/meetings/ -> Step 5
 - REQ-MTG-2: Meeting-specific frontmatter fields -> Step 5
@@ -134,7 +134,7 @@ Phase 1 is Next.js-only. Phase 2 introduces the daemon (Hono on Unix socket). Th
 - `Query.interrupt()` for stop button
 - `options.resume` with session_id for multi-turn
 - `options.systemPrompt` for worker posture
-- `options.permissionMode: "bypassPermissions"` with `allowDangerouslySkipPermissions: true`
+- `options.permissionMode: "dontAsk"`
 - `options.mcpServers` with `type: "sdk"` for in-process tools (base toolbox)
 - `options.includePartialMessages: true` for streaming
 - `options.settingSources: []` (default, no filesystem settings per WKR-18)
@@ -489,7 +489,7 @@ The `queryFn` parameter defaults to the SDK's `query` function. Tests pass a moc
 7. Call `query({ prompt, options })` with:
    - `systemPrompt`: from activation result
    - `includePartialMessages: true`
-   - `permissionMode: "bypassPermissions"` + `allowDangerouslySkipPermissions: true`
+  - `permissionMode: "dontAsk"`
    - `mcpServers`: base toolbox MCP server
    - `allowedTools`: from activation result (built-in tools)
    - `settingSources: []` (no filesystem settings, WKR-18)

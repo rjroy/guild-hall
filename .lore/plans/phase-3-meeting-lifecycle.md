@@ -401,7 +401,7 @@ Use plain text, no markdown headers. Be factual, not conversational.
 5. Call `queryFn` with a minimal configuration:
    - `systemPrompt`: "You are a meeting notes generator. Produce clear, concise summaries."
    - `maxTurns`: 1 (single response, no tool use)
-   - `permissionMode`: "bypassPermissions" + `allowDangerouslySkipPermissions`
+  - `permissionMode`: "dontAsk"
    - `settingSources`: []
    - No MCP servers, no allowedTools (notes generation doesn't use tools)
 6. Collect the text from the response (iterate generator, accumulate text_delta equivalents from SDKAssistantMessage)

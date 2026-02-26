@@ -210,10 +210,9 @@ Be factual and direct. No headers or bullet points. Plain prose.`;
             prompt,
             options: {
               systemPrompt: "You are a project status briefing generator. Produce clear, concise summaries in 3-5 sentences.",
-              maxTurns: 5,
+              maxTurns: 1,
               model: "sonnet",
-              permissionMode: "bypassPermissions",
-              allowDangerouslySkipPermissions: true,
+              permissionMode: "dontAsk",
               settingSources: [],
               maxBudgetUsd: 0.05,
             },
