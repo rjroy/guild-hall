@@ -1,7 +1,7 @@
 ---
 title: "Commission: Collapse Artifacts"
 date: 2026-02-26
-status: pending
+status: failed
 tags: [commission]
 worker: Writer
 workerDisplayTitle: "Guild Writer"
@@ -17,6 +17,9 @@ activity_timeline:
   - timestamp: 2026-02-26T05:14:30.333Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-26T05:14:41.841Z
+    event: status_failed
+    reason: "Worker crashed with exit code 1"
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
