@@ -2,11 +2,14 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   loadConfig,
   buildActivationContext,
   buildQueryOptions,
+  main,
 } from "@/daemon/commission-worker";
+import type { WorkerDeps, QueryFn, CommissionQueryOptions } from "@/daemon/commission-worker";
 import type { CommissionWorkerConfig } from "@/daemon/services/commission-worker-config";
 import type {
   ActivationResult,
@@ -321,5 +324,214 @@ function assertPresetSystemPrompt(
 
     expect(options.mcpServers).toHaveProperty("guild-hall-base");
     expect(options.mcpServers).toHaveProperty("guild-hall-commission");
+  });
+});
+
+// -- main() with injected deps --
+
+describe("main", () => {
+  /** Creates a mock query function that yields the given messages then returns. */
+  function createMockQuery(messages: SDKMessage[] = []): QueryFn {
+    // eslint-disable-next-line @typescript-eslint/require-await
+    return async function* mockQuery() {
+      for (const msg of messages) {
+        yield msg;
+      }
+    };
+  }
+
+  /** System/init message that provides a session_id for resume support. */
+  const initMessage = {
+    type: "system",
+    subtype: "init",
+    session_id: "test-session-001",
+  } as unknown as SDKMessage;
+
+  /** Builds a full WorkerDeps with all mocks wired up. Callers can override individual deps. */
+  function createMockDeps(overrides: Partial<WorkerDeps> = {}): WorkerDeps {
+    const resultSubmitted = { value: true };
+
+    return {
+      query: createMockQuery([
+        initMessage,
+        { type: "assistant", message: { content: [{ type: "text", text: "Working on it..." }] } } as unknown as SDKMessage,
+        { type: "result", stop_reason: "end_turn", message: { content: [] } } as unknown as SDKMessage,
+      ]),
+      // eslint-disable-next-line @typescript-eslint/require-await
+      discoverPackages: async () => [
+        {
+          name: "guild-hall-sample-assistant",
+          path: "/mock/packages/guild-hall-sample-assistant",
+          type: "worker" as const,
+          metadata: testWorkerMeta,
+        },
+      ],
+      getWorkerByName: (_packages, name) => {
+        if (name === "guild-hall-sample-assistant") {
+          return {
+            name: "guild-hall-sample-assistant",
+            path: "/mock/packages/guild-hall-sample-assistant",
+            type: "worker" as const,
+            metadata: testWorkerMeta,
+          };
+        }
+        return undefined;
+      },
+      resolveToolSet: () => ({
+        mcpServers: [],
+        allowedTools: ["Read", "Write"],
+        wasResultSubmitted: () => resultSubmitted.value,
+      }),
+      // eslint-disable-next-line @typescript-eslint/require-await
+      loadMemories: async () => ({
+        memoryBlock: "",
+        needsCompaction: false,
+      }),
+      // eslint-disable-next-line @typescript-eslint/require-await
+      triggerCompaction: async () => {},
+      // eslint-disable-next-line @typescript-eslint/require-await
+      importWorkerModule: async () => ({
+        activate: () => ({
+          systemPrompt: "You are a test worker.",
+          tools: { mcpServers: [], allowedTools: ["Read"] },
+          resourceBounds: { maxTurns: 10 },
+        }),
+      }),
+      ...overrides,
+    };
+  }
+
+  /** Writes a valid config to a temp file and sets Bun.argv so loadConfig() finds it. */
+  async function writeConfigAndSetArgv(
+    dir: string,
+    config: CommissionWorkerConfig = validConfig,
+  ): Promise<void> {
+    const configPath = path.join(dir, "config.json");
+    await fs.writeFile(configPath, JSON.stringify(config), "utf-8");
+    // main() calls loadConfig(Bun.argv.slice(2)), so set Bun.argv[2] and [3].
+    (Bun as unknown as { argv: string[] }).argv = [
+      "bun",
+      "commission-worker.ts",
+      "--config",
+      configPath,
+    ];
+  }
+
+  let savedArgv: string[];
+
+  beforeEach(() => {
+    savedArgv = [...Bun.argv];
+  });
+
+  afterEach(() => {
+    (Bun as unknown as { argv: string[] }).argv = savedArgv;
+  });
+
+  test("runs to completion with mock SDK (no real API calls)", async () => {
+    await writeConfigAndSetArgv(tmpDir);
+    const deps = createMockDeps();
+    await main(deps);
+    // If we get here without throwing, the happy path worked.
+  });
+
+  test("throws when worker package not found", async () => {
+    await writeConfigAndSetArgv(tmpDir);
+    const deps = createMockDeps({
+      getWorkerByName: () => undefined,
+    });
+    await expect(main(deps)).rejects.toThrow(
+      'Worker package "guild-hall-sample-assistant" not found',
+    );
+  });
+
+  test("runs follow-up session when submit_result was not called", async () => {
+    await writeConfigAndSetArgv(tmpDir);
+    const queryCalls: Array<{ prompt: string; options: CommissionQueryOptions }> = [];
+    const callCount = { n: 0 };
+
+    // eslint-disable-next-line @typescript-eslint/require-await
+    const mockQuery: QueryFn = async function* (params) {
+      callCount.n++;
+      queryCalls.push(params);
+      // First call: emit init message with session_id so resume can work
+      if (callCount.n === 1) {
+        yield initMessage;
+      }
+      yield { type: "result", stop_reason: "end_turn", message: { content: [] } } as unknown as SDKMessage;
+    };
+
+    // wasResultSubmitted returns false on first check, true on second (after follow-up)
+    let submitCheckCount = 0;
+    const deps = createMockDeps({
+      query: mockQuery,
+      resolveToolSet: () => ({
+        mcpServers: [],
+        allowedTools: [],
+        wasResultSubmitted: () => {
+          submitCheckCount++;
+          // First call (after main session): not submitted yet
+          // Second call (after follow-up): submitted
+          return submitCheckCount > 1;
+        },
+      }),
+    });
+
+    await main(deps);
+    expect(callCount.n).toBe(2); // main session + follow-up
+    expect(queryCalls[1].prompt).toContain("submit_result");
+    expect(queryCalls[1].options.resume).toBe("test-session-001");
+  });
+
+  test("fires compaction when memory exceeds limit", async () => {
+    await writeConfigAndSetArgv(tmpDir);
+    let compactionCalled = false;
+
+    const deps = createMockDeps({
+      // eslint-disable-next-line @typescript-eslint/require-await
+      loadMemories: async () => ({
+        memoryBlock: "prior memories...",
+        needsCompaction: true,
+      }),
+      // eslint-disable-next-line @typescript-eslint/require-await
+      triggerCompaction: async () => {
+        compactionCalled = true;
+      },
+    });
+
+    await main(deps);
+    // triggerCompaction is fire-and-forget (void), but our mock is synchronous
+    expect(compactionCalled).toBe(true);
+  });
+
+  test("handles memory load failure gracefully", async () => {
+    await writeConfigAndSetArgv(tmpDir);
+    const deps = createMockDeps({
+      // eslint-disable-next-line @typescript-eslint/require-await
+      loadMemories: async () => {
+        throw new Error("filesystem exploded");
+      },
+    });
+
+    // Should not throw; memory failure is non-fatal
+    await main(deps);
+  });
+
+  test("passes commission prompt to SDK query", async () => {
+    const customConfig: CommissionWorkerConfig = {
+      ...validConfig,
+      prompt: "Analyze the OAuth flow",
+    };
+    await writeConfigAndSetArgv(tmpDir, customConfig);
+
+    let capturedPrompt = "";
+    // eslint-disable-next-line @typescript-eslint/require-await
+    const mockQuery: QueryFn = async function* (params) {
+      capturedPrompt = (params as { prompt: string }).prompt;
+      yield { type: "result", stop_reason: "end_turn", message: { content: [] } } as unknown as SDKMessage;
+    };
+
+    const deps = createMockDeps({ query: mockQuery });
+    await main(deps);
+    expect(capturedPrompt).toBe("Analyze the OAuth flow");
   });
 });
