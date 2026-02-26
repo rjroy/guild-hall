@@ -236,7 +236,8 @@ describe("readActivityTimeline", () => {
 
 describe("parseActivityTimeline", () => {
   test("parses multiple entries", () => {
-    const raw = `activity_timeline:
+    const raw = `---
+activity_timeline:
   - timestamp: 2026-02-21T14:30:00.000Z
     event: created
     reason: "User created commission"
@@ -244,6 +245,7 @@ describe("parseActivityTimeline", () => {
     event: dispatched
     reason: "Worker started"
 current_progress: ""
+---
 `;
     const entries = parseActivityTimeline(raw);
     expect(entries).toHaveLength(2);
@@ -263,7 +265,8 @@ status: pending
   });
 
   test("recognizes manager_note event type", () => {
-    const raw = `activity_timeline:
+    const raw = `---
+activity_timeline:
   - timestamp: 2026-02-23T10:00:00.000Z
     event: created
     reason: "Commission created"
@@ -271,6 +274,7 @@ status: pending
     event: manager_note
     reason: "Worker seems stalled, consider re-dispatching"
 current_progress: ""
+---
 `;
     const entries = parseActivityTimeline(raw);
     expect(entries).toHaveLength(2);
@@ -279,12 +283,14 @@ current_progress: ""
   });
 
   test("handles entries with extra fields", () => {
-    const raw = `activity_timeline:
+    const raw = `---
+activity_timeline:
   - timestamp: 2026-02-21T14:30:00.000Z
     event: question
     reason: "Need clarification"
     detail: "What format?"
 current_progress: ""
+---
 `;
     const entries = parseActivityTimeline(raw);
     expect(entries).toHaveLength(1);

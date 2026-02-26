@@ -193,7 +193,8 @@ describe("scanCommissions", () => {
 
 describe("parseActivityTimeline", () => {
   test("parses entries correctly", () => {
-    const raw = `activity_timeline:
+    const raw = `---
+activity_timeline:
   - timestamp: 2026-02-21T14:30:00.000Z
     event: created
     reason: "User created commission"
@@ -201,6 +202,7 @@ describe("parseActivityTimeline", () => {
     event: dispatched
     reason: "Worker started"
 current_progress: ""
+---
 `;
     const entries = parseActivityTimeline(raw);
 
@@ -229,11 +231,13 @@ Some body content.
   });
 
   test("handles single entry", () => {
-    const raw = `activity_timeline:
+    const raw = `---
+activity_timeline:
   - timestamp: 2026-02-21T14:30:00.000Z
     event: created
     reason: "Initial creation"
 current_progress: ""
+---
 `;
     const entries = parseActivityTimeline(raw);
     expect(entries).toHaveLength(1);
@@ -241,23 +245,27 @@ current_progress: ""
   });
 
   test("strips quotes from values", () => {
-    const raw = `activity_timeline:
+    const raw = `---
+activity_timeline:
   - timestamp: 2026-02-21T14:30:00.000Z
     event: created
     reason: "Quoted reason"
 current_progress: ""
+---
 `;
     const entries = parseActivityTimeline(raw);
     expect(entries[0].reason).toBe("Quoted reason");
   });
 
   test("handles entries with extra fields", () => {
-    const raw = `activity_timeline:
+    const raw = `---
+activity_timeline:
   - timestamp: 2026-02-21T14:30:00.000Z
     event: question
     reason: "Need clarification"
     detail: "What format?"
 current_progress: ""
+---
 `;
     const entries = parseActivityTimeline(raw);
     expect(entries[0].detail).toBe("What format?");
