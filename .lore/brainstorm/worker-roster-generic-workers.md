@@ -1,7 +1,7 @@
 ---
 title: Worker roster - generic workers for common development tasks
 date: 2026-02-24
-status: open
+status: resolved
 tags: [workers, posture, developer, reviewer, researcher, writer, test-engineer, roster]
 modules: [guild-hall-workers]
 related:
