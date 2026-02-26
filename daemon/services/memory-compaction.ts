@@ -288,7 +288,6 @@ async function runCompaction(
           "You are a memory compaction system. Condense the provided memory entries into a single summary preserving all important information.",
         maxTurns: 1,
         model: "sonnet",
-        maxBudgetUsd: 0.05,
         permissionMode: "dontAsk",
         settingSources: [],
         mcpServers: {},

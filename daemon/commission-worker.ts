@@ -91,11 +91,10 @@ export function buildQueryOptions(
   config: CommissionWorkerConfig,
   activation: ActivationResult,
 ) {
-  // Commission overrides > worker defaults > fallback
+  // Commission overrides > worker defaults > undefined
   const maxTurns =
     config.resourceOverrides?.maxTurns ??
-    activation.resourceBounds.maxTurns ??
-    150;
+    activation.resourceBounds.maxTurns;
   const maxBudgetUsd =
     config.resourceOverrides?.maxBudgetUsd ??
     activation.resourceBounds.maxBudgetUsd;
@@ -108,14 +107,14 @@ export function buildQueryOptions(
 
   return {
     systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
+    cwd: config.workingDirectory,
     mcpServers,
     allowedTools: activation.tools.allowedTools,
-    maxTurns,
     ...(activation.model ? { model: activation.model } : {}),
-    ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
+    ...(maxTurns ? { maxTurns } : {}),
+    ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
     permissionMode: "dontAsk",
     settingSources: ["local", "project", "user"] as string[],
-    cwd: config.workingDirectory,
     includePartialMessages: false,
   };
 }

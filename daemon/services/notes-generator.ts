@@ -171,7 +171,6 @@ Use plain text, no markdown headers. Be factual, not conversational.`;
         model: "sonnet",
         permissionMode: "dontAsk",
         settingSources: [],
-        maxBudgetUsd: 0.10,
       },
     });
 
