@@ -70,7 +70,7 @@ Permissions are evaluated in a strict order:
 |------|----------|
 | `default` | No auto-approvals; unmatched tools trigger `canUseTool` |
 | `acceptEdits` | Auto-approves file edits and filesystem operations |
-| `bypassPermissions` | All tools run without prompts (dangerous, inherits to subagents) |
+| `dontAsk` | All tools run without prompts (dangerous, inherits to subagents) |
 | `plan` | No tool execution; Claude plans only |
 
 The `canUseTool` callback can modify tool inputs (e.g., redirect file paths to a sandbox), deny with messages, or interrupt execution entirely.

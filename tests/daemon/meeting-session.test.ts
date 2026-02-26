@@ -500,8 +500,7 @@ describe("createMeetingSession", () => {
         append: "You are a helpful assistant.",
       });
       expect(call.options.includePartialMessages).toBe(true);
-      expect(call.options.permissionMode).toBe("bypassPermissions");
-      expect(call.options.allowDangerouslySkipPermissions).toBe(true);
+      expect(call.options.permissionMode).toBe("dontAsk");
       expect(call.options.settingSources).toEqual(["local", "project", "user"]);
       expect(call.options.additionalDirectories).toBeUndefined();
       expect(call.options.maxTurns).toBe(30);

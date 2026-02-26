@@ -387,9 +387,8 @@ The architecture follows a clean separation of concerns.
 
     expect(mock.calls).toHaveLength(1);
     const options = mock.calls[0].options;
-    expect(options.maxTurns).toBe(5);
-    expect(options.permissionMode).toBe("bypassPermissions");
-    expect(options.allowDangerouslySkipPermissions).toBe(true);
+    expect(options.maxTurns).toBe(1);
+    expect(options.permissionMode).toBe("dontAsk");
     expect(options.settingSources).toEqual([]);
     expect(options.maxBudgetUsd).toBe(0.10);
     expect(options.systemPrompt).toContain("meeting notes generator");

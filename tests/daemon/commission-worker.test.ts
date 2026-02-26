@@ -232,8 +232,7 @@ function assertPresetSystemPrompt(
     expect(options.allowedTools).toEqual(["Read", "Write"]);
     expect(options.maxTurns).toBe(100);
     expect(options.maxBudgetUsd).toBe(1.0);
-    expect(options.permissionMode).toBe("bypassPermissions");
-    expect(options.allowDangerouslySkipPermissions).toBe(true);
+    expect(options.permissionMode).toBe("dontAsk");
     expect(options.settingSources).toEqual(["local", "project", "user"]);
     expect(options.cwd).toBe("/tmp/guild-hall-abc123");
     expect(options.includePartialMessages).toBe(false);

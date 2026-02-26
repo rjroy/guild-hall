@@ -96,7 +96,6 @@ Configuration object for the `query()` function.
 | `abortController` | `AbortController` | `new AbortController()` | Controller for cancelling operations |
 | `additionalDirectories` | `string[]` | `[]` | Additional directories Claude can access |
 | `agents` | `Record<string, [`AgentDefinition`](#agentdefinition)>` | `undefined` | Programmatically define subagents |
-| `allowDangerouslySkipPermissions` | `boolean` | `false` | Enable bypassing permissions. Required when using `permissionMode: 'bypassPermissions'` |
 | `allowedTools` | `string[]` | All tools | List of allowed tool names |
 | `betas` | [`SdkBeta`](#sdkbeta)`[]` | `[]` | Enable beta features (e.g., `['context-1m-2025-08-07']`) |
 | `canUseTool` | [`CanUseTool`](#canusetool) | `undefined` | Custom permission function for tool usage |
@@ -232,7 +231,7 @@ const result = query({
   prompt: "Run tests",
   options: {
     settingSources: ["project"], // Only team-shared settings
-    permissionMode: "bypassPermissions"
+    permissionMode: "dontAsk"
   }
 });
 ```
@@ -283,7 +282,7 @@ Programmatic options (like `agents`, `allowedTools`) always override filesystem 
 type PermissionMode =
   | "default" // Standard permission behavior
   | "acceptEdits" // Auto-accept file edits
-  | "bypassPermissions" // Bypass all permission checks
+  | "dontAsk" // Bypass all permission checks
   | "plan" // Planning mode - no execution
 ```
 
@@ -2166,7 +2165,7 @@ This pattern enables you to:
 <Warning>
 Commands running with `dangerouslyDisableSandbox: true` have full system access. Ensure your `canUseTool` handler validates these requests carefully.
 
-If `permissionMode` is set to `bypassPermissions` and `allowUnsandboxedCommands` is enabled, the model can autonomously execute commands outside the sandbox without any approval prompts. This combination effectively allows the model to escape sandbox isolation silently.
+If `permissionMode` is set to `dontAsk` and `allowUnsandboxedCommands` is enabled, the model can autonomously execute commands outside the sandbox without any approval prompts. This combination effectively allows the model to escape sandbox isolation silently.
 </Warning>
 
 ## See also

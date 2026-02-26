@@ -185,9 +185,9 @@ describe("triggerCompaction: basic flow", () => {
 
     expect(captured).toHaveLength(1);
     const opts = captured[0].options;
-    expect(opts.maxTurns).toBe(5);
+    expect(opts.maxTurns).toBe(1);
     expect(opts.maxBudgetUsd).toBe(0.05);
-    expect(opts.permissionMode).toBe("bypassPermissions");
+    expect(opts.permissionMode).toBe("dontAsk");
   });
 
   test("explicitly disables tools and MCP servers in SDK options", async () => {

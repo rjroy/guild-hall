@@ -565,7 +565,7 @@ Process:
    - `mcpServers` from resolved tools
    - `allowedTools` from resolved tools
    - `maxTurns` and `maxBudgetUsd` from resource bounds (commission overrides > worker defaults)
-   - `permissionMode: "bypassPermissions"` + `allowDangerouslySkipPermissions: true`
+  - `permissionMode: "dontAsk"`
    - `settingSources: []` (REQ-WKR-18: no external settings)
    - `cwd: config.workingDirectory`
    - `includePartialMessages: false` (no streaming to UI, worker runs autonomously)

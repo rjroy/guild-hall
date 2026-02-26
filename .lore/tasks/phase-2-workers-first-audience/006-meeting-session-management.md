@@ -43,7 +43,7 @@ type ActiveMeeting = {
 4. Create meeting artifact in project's `.lore/meetings/<meetingId>.md` with frontmatter (status: open, worker, agenda, meeting_log with opened event)
 5. Write machine-local state to `~/.guild-hall/state/meetings/<meetingId>.json`
 6. Load worker package, call activation function with context
-7. Call `queryFn({ prompt, options })` with: systemPrompt from activation, `includePartialMessages: true`, `permissionMode: "bypassPermissions"` + `allowDangerouslySkipPermissions: true`, mcpServers (base toolbox), allowedTools (from activation), `settingSources: []`, cwd (temp dir), additionalDirectories ([project path]), maxTurns
+7. Call `queryFn({ prompt, options })` with: systemPrompt from activation, `includePartialMessages: true`, `permissionMode: "dontAsk"`, mcpServers (base toolbox), allowedTools (from activation), `settingSources: []`, cwd (temp dir), additionalDirectories ([project path]), maxTurns
 8. Iterate async generator, translate each SDK message via event translator (Task 005), yield Guild Hall events
 9. Capture session_id from init message, store in ActiveMeeting and state file
 10. Store AbortController for potential interruption
@@ -87,7 +87,7 @@ From `.lore/specs/guild-hall-workers.md`:
 - REQ-WKR-14: Workers run as SDK sessions
 - REQ-WKR-15: Posture injected as system prompt
 - REQ-WKR-16: Resolved tools provided to SDK
-- REQ-WKR-17: Workers run with bypassPermissions
+- REQ-WKR-17: Workers run with dontAsk mode
 - REQ-WKR-18: Workers don't load filesystem settings
 
 From `.lore/specs/guild-hall-system.md`:
