@@ -1,7 +1,7 @@
 ---
 title: "Commission: Fix duplicate tool use indicators during meeting streaming"
 date: 2026-02-27
-status: pending
+status: failed
 tags: [commission]
 worker: Developer
 workerDisplayTitle: "Guild Developer"
@@ -32,6 +32,9 @@ activity_timeline:
   - timestamp: 2026-02-27T04:09:36.403Z
     event: manager_dispatched
     reason: "Guild Master dispatched commission \"Fix duplicate tool use indicators during meeting streaming\""
+  - timestamp: 2026-02-27T04:14:22.277Z
+    event: status_failed
+    reason: "Worker process unresponsive (heartbeat stale)"
 current_progress: ""
 result_summary: ""
 projectName: guild-hall

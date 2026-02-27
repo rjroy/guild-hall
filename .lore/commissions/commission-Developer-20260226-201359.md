@@ -26,6 +26,9 @@ activity_timeline:
   - timestamp: 2026-02-27T04:13:59.923Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T04:13:59.959Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Link closed meetings to their artifact view\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
