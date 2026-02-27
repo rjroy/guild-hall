@@ -201,6 +201,7 @@ export default function ChatInterface({
 
               case "tool_use": {
                 const entry: ToolUseEntry = {
+                  id: event.id as string | undefined,
                   name: event.name as string,
                   input: event.input,
                   status: "running",
@@ -212,15 +213,24 @@ export default function ChatInterface({
 
               case "tool_result": {
                 const toolName = event.name as string;
-                accumulatedTools = accumulatedTools.map((t) =>
-                  t.name === toolName && t.status === "running"
-                    ? {
-                        ...t,
-                        output: event.output as string,
-                        status: "complete" as const,
-                      }
-                    : t
-                );
+                const toolUseId = event.toolUseId as string | undefined;
+                let matched = false;
+                accumulatedTools = accumulatedTools.map((t) => {
+                  if (matched) return t;
+                  // ID-based matching when available, name+status fallback otherwise
+                  const isMatch = toolUseId
+                    ? t.id === toolUseId
+                    : t.name === toolName && t.status === "running";
+                  if (isMatch) {
+                    matched = true;
+                    return {
+                      ...t,
+                      output: event.output as string,
+                      status: "complete" as const,
+                    };
+                  }
+                  return t;
+                });
                 setStreamingTools(accumulatedTools);
 
                 // Notify parent when a link_artifact tool completes
