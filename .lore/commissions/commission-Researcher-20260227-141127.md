@@ -39,6 +39,9 @@ activity_timeline:
   - timestamp: 2026-02-27T22:11:27.692Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T22:11:27.764Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Audit: projectPath vs integrationPath usage across codebase\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
