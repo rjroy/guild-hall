@@ -654,4 +654,72 @@ meetingId: test
     expect(messages[0].toolUses![0].name).toBe("empty_tool");
     expect(messages[0].toolUses![0].output).toBeUndefined();
   });
+
+  test("multiline tool output is joined with newlines", () => {
+    const transcript = `---
+meetingId: test
+---
+
+## Assistant (2026-02-21T12:00:05.000Z)
+
+> Tool: readFile
+> line one
+> line two
+> line three
+`;
+
+    const messages = parseTranscriptToMessages(transcript);
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].toolUses).toHaveLength(1);
+    expect(messages[0].toolUses![0].name).toBe("readFile");
+    expect(messages[0].toolUses![0].output).toBe(
+      "line one\nline two\nline three",
+    );
+  });
+
+  test("multiple multiline tool blocks in one assistant turn parse independently", () => {
+    const transcript = `---
+meetingId: test
+---
+
+## Assistant (2026-02-21T12:00:05.000Z)
+
+> Tool: readFile
+> alpha
+> beta
+> gamma
+
+Some text in between.
+
+> Tool: listDir
+> entry one
+> entry two
+`;
+
+    const messages = parseTranscriptToMessages(transcript);
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].toolUses).toHaveLength(2);
+
+    expect(messages[0].toolUses![0].name).toBe("readFile");
+    expect(messages[0].toolUses![0].output).toBe("alpha\nbeta\ngamma");
+
+    expect(messages[0].toolUses![1].name).toBe("listDir");
+    expect(messages[0].toolUses![1].output).toBe("entry one\nentry two");
+  });
+
+  test("blank line inside tool output is preserved as empty string in join", () => {
+    // The empty blockquote line ""> "" ("> " with no following content) contributes
+    // an empty string to the result, producing a double newline in the output.
+    const transcript =
+      "---\nmeetingId: test\n---\n\n## Assistant (2026-02-21T12:00:05.000Z)\n\n> Tool: readFile\n> first line\n> \n> third line\n";
+
+    const messages = parseTranscriptToMessages(transcript);
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].toolUses).toHaveLength(1);
+    expect(messages[0].toolUses![0].name).toBe("readFile");
+    expect(messages[0].toolUses![0].output).toBe("first line\n\nthird line");
+  });
 });
