@@ -10,6 +10,7 @@ import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
 import {
   makeCreateCommissionHandler,
   makeDispatchCommissionHandler,
+  makeCancelCommissionHandler,
   makeCreatePrHandler,
   makeInitiateMeetingHandler,
   makeAddCommissionNoteHandler,
@@ -81,7 +82,9 @@ function makeMockCommissionSession(
       return { status: "accepted" as const };
     },
     async updateCommission() {},
-    async cancelCommission() {},
+    async cancelCommission(cid: CommissionId, reason?: string) {
+      calls.cancelCommission.push([cid, reason]);
+    },
     async redispatchCommission() {
       return { status: "accepted" as const };
     },
@@ -370,6 +373,98 @@ describe("dispatch_commission", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("not found");
+  });
+});
+
+// -- cancel_commission --
+
+describe("cancel_commission", () => {
+  test("cancels an active commission and returns success", async () => {
+    const mockSession = makeMockCommissionSession();
+    const deps = makeDeps({ commissionSession: mockSession });
+    const handler = makeCancelCommissionHandler(deps);
+
+    const result = await handler({
+      commissionId: "commission-researcher-20260223-140000",
+    });
+
+    expect(result.isError).toBeUndefined();
+
+    const parsed = JSON.parse(result.content[0].text) as {
+      commissionId?: string;
+      status?: string;
+    };
+    expect(parsed.commissionId).toBe("commission-researcher-20260223-140000");
+    expect(parsed.status).toBe("cancelled");
+
+    expect(mockSession.calls.cancelCommission).toHaveLength(1);
+  });
+
+  test("passes custom reason to cancelCommission", async () => {
+    const mockSession = makeMockCommissionSession();
+    const deps = makeDeps({ commissionSession: mockSession });
+    const handler = makeCancelCommissionHandler(deps);
+
+    await handler({
+      commissionId: "commission-researcher-20260223-140000",
+      reason: "Blocking PR creation, stale work",
+    });
+
+    expect(mockSession.calls.cancelCommission).toHaveLength(1);
+    expect(mockSession.calls.cancelCommission[0][1]).toBe(
+      "Blocking PR creation, stale work",
+    );
+  });
+
+  test("returns error when commission not found", async () => {
+    const mockSession = makeMockCommissionSession({
+      cancelCommission() {
+        return Promise.reject(
+          new Error('Commission "xyz" not found in active commissions'),
+        );
+      },
+    });
+    const deps = makeDeps({ commissionSession: mockSession });
+    const handler = makeCancelCommissionHandler(deps);
+
+    const result = await handler({ commissionId: "xyz" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not found");
+  });
+
+  test("returns error on invalid transition", async () => {
+    const mockSession = makeMockCommissionSession({
+      cancelCommission() {
+        return Promise.reject(
+          new Error('Invalid commission transition: "completed" -> "cancelled"'),
+        );
+      },
+    });
+    const deps = makeDeps({ commissionSession: mockSession });
+    const handler = makeCancelCommissionHandler(deps);
+
+    const result = await handler({
+      commissionId: "commission-done-20260223-140000",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Invalid commission transition");
+  });
+
+  test("uses default reason when none provided", async () => {
+    const mockSession = makeMockCommissionSession();
+    const deps = makeDeps({ commissionSession: mockSession });
+    const handler = makeCancelCommissionHandler(deps);
+
+    await handler({
+      commissionId: "commission-researcher-20260223-140000",
+    });
+
+    expect(mockSession.calls.cancelCommission).toHaveLength(1);
+    expect(mockSession.calls.cancelCommission[0][1]).toBe(
+      "Commission cancelled by manager",
+    );
   });
 });
 

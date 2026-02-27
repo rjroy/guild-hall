@@ -186,7 +186,7 @@ export interface CommissionSessionForRoutes {
   dispatchCommission(
     commissionId: CommissionId,
   ): Promise<{ status: "accepted" | "queued" }>;
-  cancelCommission(commissionId: CommissionId): Promise<void>;
+  cancelCommission(commissionId: CommissionId, reason?: string): Promise<void>;
   redispatchCommission(
     commissionId: CommissionId,
   ): Promise<{ status: "accepted" | "queued" }>;
@@ -1535,6 +1535,7 @@ projectName: ${projectName}
 
   async function cancelCommission(
     commissionId: CommissionId,
+    reason = "Commission cancelled by user",
   ): Promise<void> {
     const commission = activeCommissions.get(commissionId as string);
     if (!commission) {
@@ -1571,7 +1572,7 @@ projectName: ${projectName}
       commissionId,
       commission.status,
       "cancelled",
-      "Commission cancelled by user",
+      reason,
     );
 
     commission.status = "cancelled";
@@ -1580,11 +1581,11 @@ projectName: ${projectName}
       type: "commission_status",
       commissionId: commissionId as string,
       status: "cancelled",
-      reason: "Commission cancelled by user",
+      reason,
     });
 
     // Sync terminal status to integration worktree before cleanup
-    await syncStatusToIntegration(commission, "cancelled", "Commission cancelled by user");
+    await syncStatusToIntegration(commission, "cancelled", reason);
 
     // Git: preserve partial results on branch (same as failure)
     try {

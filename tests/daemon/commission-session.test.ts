@@ -1256,6 +1256,36 @@ projectName: test-project
         session.cancelCommission(commissionId),
       ).rejects.toThrow("not found in active commissions");
     });
+
+    test("custom reason flows through to emitted event", async () => {
+      await writeCommissionArtifact("pending");
+
+      const mockGitOps = createMockGitOps();
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      const customReason = "Blocking PR creation, stale work";
+      await session.cancelCommission(commissionId, customReason);
+
+      const cancelEvents = emittedEvents.filter(
+        (e) =>
+          e.type === "commission_status" &&
+          "status" in e &&
+          e.status === "cancelled",
+      );
+      expect(cancelEvents.length).toBeGreaterThanOrEqual(1);
+      expect("reason" in cancelEvents[0] && cancelEvents[0].reason).toBe(
+        customReason,
+      );
+    });
   });
 
   // -- redispatchCommission --
