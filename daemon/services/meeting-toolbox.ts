@@ -31,6 +31,11 @@ export interface MeetingToolboxDeps {
    *  Used by propose_followup so the dashboard can see requests before the
    *  parent meeting closes. Falls back to projectPath if not set. */
   integrationPath?: string;
+  /** Activity worktree path for this meeting. When set, link_artifact and
+   *  summarize_progress write to this directory instead of projectPath.
+   *  Must be the meeting's worktreeDir for open meetings so artifact writes
+   *  land in the activity worktree, not the user's project root. */
+  worktreeDir?: string;
   meetingId: string;
   workerName: string;
   guildHallHome?: string;
@@ -78,9 +83,13 @@ function formatTimestamp(now: Date): string {
 export function makeLinkArtifactHandler(
   projectPath: string,
   meetingId: string,
+  worktreeDir?: string,
 ) {
+  // Writes go to the activity worktree when the meeting is open so changes
+  // land in the correct branch, not the user's project root.
+  const writePath = worktreeDir ?? projectPath;
   const mid = asMeetingId(meetingId);
-  const lorePath = path.join(projectPath, ".lore");
+  const lorePath = path.join(writePath, ".lore");
 
   return async (args: { artifactPath: string }): Promise<ToolResult> => {
     // Validate path doesn't escape .lore/
@@ -115,7 +124,7 @@ export function makeLinkArtifactHandler(
     }
 
     // Add to linked_artifacts
-    const added = await addLinkedArtifact(projectPath, mid, args.artifactPath);
+    const added = await addLinkedArtifact(writePath, mid, args.artifactPath);
     if (!added) {
       return {
         content: [
@@ -202,12 +211,16 @@ notes_summary: ""
 export function makeSummarizeProgressHandler(
   projectPath: string,
   meetingId: string,
+  worktreeDir?: string,
 ) {
+  // Writes go to the activity worktree when the meeting is open so changes
+  // land in the correct branch, not the user's project root.
+  const writePath = worktreeDir ?? projectPath;
   const mid = asMeetingId(meetingId);
 
   return async (args: { summary: string }): Promise<ToolResult> => {
     await appendMeetingLog(
-      projectPath,
+      writePath,
       mid,
       "progress_summary",
       args.summary,
@@ -237,6 +250,7 @@ export function createMeetingToolbox(
   const linkArtifact = makeLinkArtifactHandler(
     deps.projectPath,
     deps.meetingId,
+    deps.worktreeDir,
   );
   // propose_followup writes to integration worktree so the dashboard can
   // see the request before the parent meeting closes and squash-merges.
@@ -248,6 +262,7 @@ export function createMeetingToolbox(
   const summarizeProgress = makeSummarizeProgressHandler(
     deps.projectPath,
     deps.meetingId,
+    deps.worktreeDir,
   );
 
   return createSdkMcpServer({

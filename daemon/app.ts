@@ -161,8 +161,12 @@ export async function createProductionApp(options?: {
 
   // Commission session is created before meeting session because the
   // manager worker's toolbox needs a reference to the commission session
-  // for creating and dispatching commissions.
+  // for creating and dispatching commissions. A lazy reference breaks the
+  // circular dependency: commissionSession holds a closure that reads
+  // meetingSession after both are fully constructed.
   const packagesDir = options?.packagesDir ?? defaultPackagesDir;
+  // eslint-disable-next-line prefer-const -- assigned after meetingSession is constructed; cannot be const
+  let meetingSessionRef: ReturnType<typeof createMeetingSession> | undefined;
   const commissionSession = createCommissionSession({
     packages: allPackages,
     config,
@@ -170,6 +174,11 @@ export async function createProductionApp(options?: {
     eventBus,
     packagesDir,
     gitOps: git,
+    createMeetingRequestFn: async (params) => {
+      if (meetingSessionRef) {
+        await meetingSessionRef.createMeetingRequest(params);
+      }
+    },
   });
 
   const meetingSession = createMeetingSession({
@@ -181,7 +190,13 @@ export async function createProductionApp(options?: {
     gitOps: git,
     commissionSession,
     eventBus,
+    createMeetingRequestFn: async (params) => {
+      if (meetingSessionRef) {
+        await meetingSessionRef.createMeetingRequest(params);
+      }
+    },
   });
+  meetingSessionRef = meetingSession;
 
   // Recover open meetings from persisted state files so users can resume
   // sessions that survived a daemon restart.

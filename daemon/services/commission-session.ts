@@ -136,6 +136,17 @@ export interface CommissionSessionDeps {
    * wrapped in a try/catch).
    */
   fileExists?: (filePath: string) => Promise<boolean>;
+  /**
+   * Optional callback invoked when a squash-merge fails due to non-.lore/
+   * conflicts. Creates a Guild Master meeting request to surface the conflict
+   * to the user. If absent, conflict handling still transitions the commission
+   * to "failed" but does not escalate to the Guild Master.
+   */
+  createMeetingRequestFn?: (params: {
+    projectName: string;
+    workerName: string;
+    reason: string;
+  }) => Promise<void>;
 }
 
 type ActiveCommission = {
@@ -655,6 +666,17 @@ export function createCommissionSession(
    * Resolves the base path for artifact reads/writes. When a commission is
    * active (dispatched/in_progress), artifacts live in the activity worktree.
    * Otherwise they live in the integration worktree.
+   *
+   * Routing logic (audit-verified correct):
+   * - dispatched/in_progress: returns active.worktreeDir (activity worktree on
+   *   the commission's branch). Writes here keep worker changes isolated until
+   *   squash-merge on completion.
+   * - all other states (pending, completed, failed, cancelled, blocked): returns
+   *   the integration worktree on the claude branch. The activity worktree has
+   *   already been cleaned up or was never created.
+   *
+   * The activeCommissions map is the source of truth for "is this commission
+   * currently running" — it is populated on dispatch and cleared on exit.
    */
   function resolveArtifactBasePath(commissionId: CommissionId, projectName: string): string {
     const active = activeCommissions.get(commissionId as string);
@@ -833,7 +855,6 @@ export function createCommissionSession(
       projectName: commission.projectName,
       workerName: commission.workerName,
       status: "failed",
-      reason,
     }).catch((err: unknown) => {
       console.error(
         `[commission-session] Failed to write state file for ${commission.commissionId}:`,
@@ -1327,6 +1348,7 @@ projectName: ${projectName}
 
     // Git cleanup: behavior depends on final status
     const project = findProject(commission.projectName);
+    let cleanMergeCompleted = false;
     if (finalStatus === "completed" && project) {
       // Squash-merge activity branch into claude, then clean up both.
       // The merge brings the activity branch's artifact (status=completed
@@ -1339,6 +1361,10 @@ projectName: ${projectName}
       try {
         await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
         mergeSucceeded = await withProjectLock(commission.projectName, async () => {
+          // Commit any uncommitted integration writes (e.g. syncStatusToIntegration
+          // from a prior commission) before the squash-merge. git.commitAll is a
+          // no-op when the tree is clean.
+          await git.commitAll(iPath, `Pre-merge sync: ${commissionId}`);
           return await resolveSquashMerge(
             iPath,
             commission.branchName,
@@ -1363,6 +1389,10 @@ projectName: ${projectName}
             err instanceof Error ? err.message : String(err),
           );
         }
+        // Remove the state file: the artifact on the integration worktree is now
+        // the source of truth. recoverCommissions() handles missing files gracefully.
+        await fs.unlink(commissionStatePath(commissionId)).catch(() => {});
+        cleanMergeCompleted = true;
         console.log(`[commission] "${commissionId}" squash-merged to claude and cleaned up`);
       } else {
         // Merge failed due to non-.lore/ conflicts. Transition to failed,
@@ -1420,6 +1450,25 @@ projectName: ${projectName}
           }
         }
         // Branch is NOT deleted - preserved for manual conflict resolution
+
+        // Escalate conflict to Guild Master as a meeting request so the user
+        // sees an actionable notification instead of a silent failure.
+        if (deps.createMeetingRequestFn) {
+          const escalationReason =
+            `Commission ${commissionId} failed to merge: non-.lore/ conflicts detected. ` +
+            `Branch ${commission.branchName} preserved. ` +
+            `Please resolve conflicts manually, then re-dispatch or clean up the branch.`;
+          deps.createMeetingRequestFn({
+            projectName: commission.projectName,
+            workerName: "guild-hall-manager",
+            reason: escalationReason,
+          }).catch((err: unknown) => {
+            console.warn(
+              `[commission] Failed to create Guild Master meeting request for "${commissionId}":`,
+              err instanceof Error ? err.message : String(err),
+            );
+          });
+        }
       }
     } else {
       // Sync terminal status to integration worktree. For failed/cancelled,
@@ -1460,20 +1509,23 @@ projectName: ${projectName}
     // Remove from active Map
     activeCommissions.delete(commissionId as string);
 
-    // Update state file with final status
-    writeStateFile(commissionId, {
-      commissionId: commissionId as string,
-      projectName: commission.projectName,
-      workerName: commission.workerName,
-      status: commission.status,
-      exitCode,
-      resultSubmitted: commission.resultSubmitted,
-    }).catch((err: unknown) => {
-      console.error(
-        `[commission-session] Failed to write state file for ${commissionId}:`,
-        err instanceof Error ? err.message : String(err),
-      );
-    });
+    // Update state file with final status. Skip when cleanMergeCompleted:
+    // the state file was already deleted above (artifact on the integration
+    // worktree is the source of truth for completed commissions).
+    if (!cleanMergeCompleted) {
+      writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: commission.projectName,
+        workerName: commission.workerName,
+        status: commission.status,
+        resultSubmitted: commission.resultSubmitted,
+      }).catch((err: unknown) => {
+        console.error(
+          `[commission-session] Failed to write state file for ${commissionId}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      });
+    }
 
     // Artifacts may have changed on the integration worktree (squash-merge
     // brought new files, or failure removed expected outputs). Check if any
@@ -2046,7 +2098,6 @@ projectName: ${projectName}
         commissionId: commissionId as string,
         projectName,
         status: "failed",
-        reason: `Recovery: ${reason}`,
       });
     } catch (err: unknown) {
       console.warn(

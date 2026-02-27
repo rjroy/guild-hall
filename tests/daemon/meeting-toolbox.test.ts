@@ -305,3 +305,127 @@ describe("summarize_progress", () => {
     expect(raw).toContain("Second checkpoint");
   });
 });
+
+// -- worktreeDir path routing tests --
+//
+// When worktreeDir is provided, link_artifact and summarize_progress must
+// write to the activity worktree, not the project root. This ensures that
+// open-meeting writes land in the correct git branch.
+
+describe("worktreeDir routing: link_artifact", () => {
+  let worktreeDir: string;
+
+  beforeEach(async () => {
+    worktreeDir = path.join(tmpDir, "activity-worktree");
+    await fs.mkdir(path.join(worktreeDir, ".lore", "meetings"), {
+      recursive: true,
+    });
+  });
+
+  test("uses worktreeDir as write path when provided", async () => {
+    // Meeting artifact and target artifact both live in the worktree.
+    await writeMeetingArtifact(worktreeDir, meetingId);
+    await writeTestArtifact(worktreeDir, "specs/api-design.md");
+
+    const handler = makeLinkArtifactHandler(projectPath, meetingId, worktreeDir);
+    const result = await handler({ artifactPath: "specs/api-design.md" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("Linked artifact: specs/api-design.md");
+
+    // The update must be in the worktree artifact, not the project root.
+    const worktreeRaw = await fs.readFile(
+      path.join(worktreeDir, ".lore", "meetings", `${meetingId}.md`),
+      "utf-8",
+    );
+    expect(worktreeRaw).toContain("linked_artifacts:\n  - specs/api-design.md");
+
+    // No artifact written at projectPath (directory was never populated).
+    const projectMeetingsDir = path.join(projectPath, ".lore", "meetings");
+    const projectFiles = await fs.readdir(projectMeetingsDir);
+    expect(projectFiles).toHaveLength(0);
+  });
+
+  test("falls back to projectPath when worktreeDir is undefined", async () => {
+    // Meeting artifact and target artifact both live in the project root.
+    await writeMeetingArtifact(projectPath, meetingId);
+    await writeTestArtifact(projectPath, "specs/api-design.md");
+
+    // No worktreeDir argument - falls back to projectPath.
+    const handler = makeLinkArtifactHandler(projectPath, meetingId);
+    const result = await handler({ artifactPath: "specs/api-design.md" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("Linked artifact: specs/api-design.md");
+
+    // The update must be in the project root artifact.
+    const projectRaw = await fs.readFile(
+      path.join(projectPath, ".lore", "meetings", `${meetingId}.md`),
+      "utf-8",
+    );
+    expect(projectRaw).toContain("linked_artifacts:\n  - specs/api-design.md");
+  });
+
+  test("path traversal check uses worktreeDir when provided", async () => {
+    await writeMeetingArtifact(worktreeDir, meetingId);
+
+    const handler = makeLinkArtifactHandler(projectPath, meetingId, worktreeDir);
+    const result = await handler({ artifactPath: "../../escape.md" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Path traversal rejected");
+  });
+});
+
+describe("worktreeDir routing: summarize_progress", () => {
+  let worktreeDir: string;
+
+  beforeEach(async () => {
+    worktreeDir = path.join(tmpDir, "activity-worktree");
+    await fs.mkdir(path.join(worktreeDir, ".lore", "meetings"), {
+      recursive: true,
+    });
+  });
+
+  test("uses worktreeDir as write path when provided", async () => {
+    // Meeting artifact lives in the worktree.
+    await writeMeetingArtifact(worktreeDir, meetingId);
+
+    const handler = makeSummarizeProgressHandler(projectPath, meetingId, worktreeDir);
+    const result = await handler({ summary: "Checkpoint from worktree" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("Progress summary recorded");
+
+    // The log entry must appear in the worktree artifact.
+    const worktreeRaw = await fs.readFile(
+      path.join(worktreeDir, ".lore", "meetings", `${meetingId}.md`),
+      "utf-8",
+    );
+    expect(worktreeRaw).toContain("event: progress_summary");
+    expect(worktreeRaw).toContain("Checkpoint from worktree");
+
+    // No artifact written at projectPath (directory was never populated).
+    const projectMeetingsDir = path.join(projectPath, ".lore", "meetings");
+    const projectFiles = await fs.readdir(projectMeetingsDir);
+    expect(projectFiles).toHaveLength(0);
+  });
+
+  test("falls back to projectPath when worktreeDir is undefined", async () => {
+    // Meeting artifact lives in the project root.
+    await writeMeetingArtifact(projectPath, meetingId);
+
+    // No worktreeDir argument - falls back to projectPath.
+    const handler = makeSummarizeProgressHandler(projectPath, meetingId);
+    const result = await handler({ summary: "Checkpoint from project root" });
+
+    expect(result.isError).toBeUndefined();
+
+    const projectRaw = await fs.readFile(
+      path.join(projectPath, ".lore", "meetings", `${meetingId}.md`),
+      "utf-8",
+    );
+    expect(projectRaw).toContain("event: progress_summary");
+    expect(projectRaw).toContain("Checkpoint from project root");
+  });
+});

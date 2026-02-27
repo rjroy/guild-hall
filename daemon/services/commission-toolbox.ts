@@ -29,6 +29,13 @@ import {
 } from "@/daemon/services/commission-artifact-helpers";
 
 export interface CommissionToolboxDeps {
+  /**
+   * MUST be the activity worktree path (= commission config.workingDirectory).
+   * Audit-verified: toolbox-resolver.ts passes `context.workingDirectory ??
+   * context.projectPath`, and commission-worker.ts sets workingDirectory to
+   * the spawned worktree. Writing to the project root instead of the activity
+   * worktree would put artifact changes on the wrong branch.
+   */
   projectPath: string;
   commissionId: string;
   daemonSocketPath: string;

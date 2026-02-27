@@ -821,8 +821,67 @@ describe("createMeetingSession", () => {
       expect(session.getActiveMeetings()).toBe(0);
     });
 
-    test("updates state file to closed status", async () => {
+    test("removes state file after successful squash-merge on close", async () => {
       const session = createMeetingSession(makeDeps());
+      const createEvents = await collectEvents(
+        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+      );
+
+      let meetingId = "";
+      const sessionEvent = createEvents.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") {
+        meetingId = sessionEvent.meetingId;
+      }
+
+      const stateFile = path.join(ghHomeDir, "state", "meetings", `${meetingId}.json`);
+
+      // Verify state file exists before close (readable as JSON)
+      const stateBefore = JSON.parse(await fs.readFile(stateFile, "utf-8"));
+      expect(stateBefore.status).toBe("open");
+
+      await session.closeMeeting(asMeetingId(meetingId));
+
+      // State file deleted: artifact on the integration worktree is the source of truth
+      await expect(fs.readFile(stateFile, "utf-8")).rejects.toMatchObject({ code: "ENOENT" });
+    });
+
+    test("throws for unknown meeting ID", async () => {
+      const session = createMeetingSession(makeDeps());
+
+      await expect(
+        session.closeMeeting(asMeetingId("nonexistent-meeting")),
+      ).rejects.toThrow("not found");
+    });
+
+    test("non-.lore/ squash-merge conflict calls createMeetingRequestFn with meeting ID and branch", async () => {
+      const conflictGit = createMockGitOps();
+      // Override squashMergeNoCommit to signal a conflict
+      conflictGit.squashMergeNoCommit = () => {
+        conflictGit.calls.push("squashMergeNoCommit");
+        return Promise.resolve(false);
+      };
+      // Override listConflictedFiles to return a non-.lore/ file
+      conflictGit.listConflictedFiles = () => {
+        conflictGit.calls.push("listConflictedFiles");
+        return Promise.resolve(["src/app.ts"]);
+      };
+
+      const meetingRequestCalls: Array<{
+        projectName: string;
+        workerName: string;
+        reason: string;
+      }> = [];
+
+      const session = createMeetingSession(
+        makeDeps({
+          gitOps: conflictGit,
+          createMeetingRequestFn: (params) => {
+            meetingRequestCalls.push(params);
+            return Promise.resolve();
+          },
+        }),
+      );
+
       const createEvents = await collectEvents(
         session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
       );
@@ -835,23 +894,49 @@ describe("createMeetingSession", () => {
 
       await session.closeMeeting(asMeetingId(meetingId));
 
-      const stateDir = path.join(ghHomeDir, "state", "meetings");
-      const stateFiles = await fs.readdir(stateDir);
-      const stateContent = await fs.readFile(
-        path.join(stateDir, stateFiles[0]),
-        "utf-8",
-      );
-      const state = JSON.parse(stateContent);
-      expect(state.status).toBe("closed");
-      expect(state.closedAt).toBeDefined();
+      // Meeting should still close (status "closed")
+      expect(session.getActiveMeetings()).toBe(0);
+
+      // Allow the fire-and-forget createMeetingRequestFn to settle
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // createMeetingRequestFn should have been called
+      expect(meetingRequestCalls).toHaveLength(1);
+      expect(meetingRequestCalls[0].projectName).toBe("test-project");
+      expect(meetingRequestCalls[0].workerName).toBe("guild-hall-manager");
+      expect(meetingRequestCalls[0].reason).toContain(meetingId);
     });
 
-    test("throws for unknown meeting ID", async () => {
-      const session = createMeetingSession(makeDeps());
+    test("non-.lore/ squash-merge conflict closes meeting gracefully when createMeetingRequestFn is absent", async () => {
+      const conflictGit = createMockGitOps();
+      conflictGit.squashMergeNoCommit = () => {
+        conflictGit.calls.push("squashMergeNoCommit");
+        return Promise.resolve(false);
+      };
+      conflictGit.listConflictedFiles = () => {
+        conflictGit.calls.push("listConflictedFiles");
+        return Promise.resolve(["src/app.ts"]);
+      };
 
+      // No createMeetingRequestFn provided
+      const session = createMeetingSession(makeDeps({ gitOps: conflictGit }));
+
+      const createEvents = await collectEvents(
+        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+      );
+
+      let meetingId = "";
+      const sessionEvent = createEvents.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") {
+        meetingId = sessionEvent.meetingId;
+      }
+
+      // Should close without throwing even though merge failed and no callback
       await expect(
-        session.closeMeeting(asMeetingId("nonexistent-meeting")),
-      ).rejects.toThrow("not found");
+        session.closeMeeting(asMeetingId(meetingId)),
+      ).resolves.toBeDefined();
+
+      expect(session.getActiveMeetings()).toBe(0);
     });
   });
 
@@ -2436,6 +2521,97 @@ notes_summary: ""
       expect(removeIdx).toBeLessThan(deleteIdx);
     });
 
+    // -- Pre-merge integration commit ordering --
+    //
+    // Before squashMergeNoCommit is called on the integration path, closeMeeting
+    // must call commitAll on the integration path (the "Pre-merge sync" commit).
+    // This prevents a race where a prior write to the integration worktree is
+    // still uncommitted when the squash-merge reads the tree.
+
+    test("pre-merge sync: commitAll on integration path is called before squashMergeNoCommit", async () => {
+      // Track call sequence with the path each git operation targets.
+      const callSequence: Array<{ method: string; path: string }> = [];
+      const iPath = integrationDir;
+
+      // Build a mock that records method + path for commitAll and squashMergeNoCommit.
+      const mockGit = createMockGitOps();
+      const origCommitAll = mockGit.commitAll.bind(mockGit);
+      mockGit.commitAll = async (targetPath: string, ...rest: [string]) => {
+        mockGit.calls.push("commitAll");
+        callSequence.push({ method: "commitAll", path: targetPath });
+        return origCommitAll(targetPath, ...rest);
+      };
+      const origSquash = mockGit.squashMergeNoCommit.bind(mockGit);
+      mockGit.squashMergeNoCommit = async (targetPath: string, ...rest: [string]) => {
+        mockGit.calls.push("squashMergeNoCommit");
+        callSequence.push({ method: "squashMergeNoCommit", path: targetPath });
+        return origSquash(targetPath, ...rest);
+      };
+
+      const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
+      const events = await collectEvents(
+        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+      );
+
+      let meetingId = "";
+      const sessionEvent = events.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      // Reset sequence to isolate close-path calls.
+      callSequence.length = 0;
+
+      await session.closeMeeting(asMeetingId(meetingId));
+
+      // The pre-merge sync commitAll targets the integration path.
+      const integrationCommitIdx = callSequence.findIndex(
+        (c) => c.method === "commitAll" && c.path === iPath,
+      );
+      const squashIdx = callSequence.findIndex(
+        (c) => c.method === "squashMergeNoCommit",
+      );
+
+      expect(integrationCommitIdx).toBeGreaterThanOrEqual(0);
+      expect(squashIdx).toBeGreaterThanOrEqual(0);
+      expect(integrationCommitIdx).toBeLessThan(squashIdx);
+    });
+
+    test("pre-merge sync: commitAll on integration path is called even when integration tree is clean", async () => {
+      // commitAll returning false means the tree is clean (nothing to commit).
+      // The call must still happen unconditionally.
+      const integrationCommitAllMessages: string[] = [];
+      const iPath = integrationDir;
+
+      const mockGit = createMockGitOps();
+      mockGit.commitAll = (targetPath: string, message: string) => {
+        mockGit.calls.push("commitAll");
+        if (targetPath === iPath) {
+          integrationCommitAllMessages.push(message);
+        }
+        return Promise.resolve(false); // clean tree
+      };
+
+      const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
+      const events = await collectEvents(
+        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+      );
+
+      let meetingId = "";
+      const sessionEvent = events.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      // Reset recorded messages to isolate close-path calls.
+      integrationCommitAllMessages.length = 0;
+
+      await session.closeMeeting(asMeetingId(meetingId));
+
+      // The integration-path commitAll must be called at least once during close.
+      expect(integrationCommitAllMessages.length).toBeGreaterThanOrEqual(1);
+      // One of those calls is the pre-merge sync.
+      expect(
+        integrationCommitAllMessages.some((msg) => msg.includes("Pre-merge sync")),
+      ).toBe(true);
+    });
+
     test("state file includes branchName after createMeeting", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
@@ -2910,5 +3086,58 @@ describe("manager worker integration", () => {
       (s) => s.name,
     );
     expect(mcpNames).not.toContain("guild-hall-manager");
+  });
+});
+
+// -- createMeetingRequest --
+
+describe("createMeetingRequest", () => {
+  test("writes a requested meeting artifact to the integration worktree", async () => {
+    const session = createMeetingSession(
+      makeDeps({ packages: [MANAGER_PKG, WORKER_PKG] }),
+    );
+
+    await session.createMeetingRequest({
+      projectName: "test-project",
+      workerName: MANAGER_PACKAGE_NAME,
+      reason: "Commission abc-123 failed to merge: non-.lore/ conflicts detected.",
+    });
+
+    // Verify the artifact was written to the integration worktree
+    const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+    const files = await fs.readdir(meetingsDir);
+    expect(files).toHaveLength(1);
+
+    const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
+    expect(content).toContain("status: requested");
+    expect(content).toContain("event: requested");
+    expect(content).toContain("worker: Guild Master");
+    expect(content).toContain("non-.lore/ conflicts detected");
+  });
+
+  test("throws if project is not found", async () => {
+    const session = createMeetingSession(
+      makeDeps({ packages: [MANAGER_PKG, WORKER_PKG] }),
+    );
+
+    await expect(
+      session.createMeetingRequest({
+        projectName: "nonexistent-project",
+        workerName: MANAGER_PACKAGE_NAME,
+        reason: "conflict",
+      }),
+    ).rejects.toThrow('Project "nonexistent-project" not found');
+  });
+
+  test("throws if worker is not found", async () => {
+    const session = createMeetingSession(makeDeps());
+
+    await expect(
+      session.createMeetingRequest({
+        projectName: "test-project",
+        workerName: "guild-hall-manager",
+        reason: "conflict",
+      }),
+    ).rejects.toThrow('Worker "guild-hall-manager" not found');
   });
 });

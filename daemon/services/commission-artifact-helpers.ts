@@ -5,6 +5,17 @@
  * {projectPath}/.lore/commissions/{commissionId}.md. All modifications use
  * regex/string operations on the raw file content to avoid reformatting
  * noise from gray-matter (same approach as meeting-artifact-helpers.ts).
+ *
+ * PATH OWNERSHIP (audit-verified):
+ * All functions in this module accept a `projectPath` parameter. Callers are
+ * responsible for providing the correct path:
+ * - Active commissions (dispatched/in_progress): pass the activity worktree
+ *   path (commission-session.ts resolveArtifactBasePath returns this)
+ * - All other states: pass the integration worktree path
+ * Writing to the wrong path silently corrupts the wrong branch. The routing
+ * logic lives in commission-session.ts (resolveArtifactBasePath for daemon
+ * reads/writes) and toolbox-resolver.ts (context.workingDirectory for the
+ * commission toolbox).
  */
 
 import * as fs from "node:fs/promises";

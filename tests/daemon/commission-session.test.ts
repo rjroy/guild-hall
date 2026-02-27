@@ -1117,6 +1117,101 @@ projectName: test-project
       );
       expect(statusEvents.length).toBeGreaterThanOrEqual(1);
     });
+
+    test("non-.lore/ squash-merge conflict calls createMeetingRequestFn with commission ID and branch", async () => {
+      await writeCommissionArtifact("pending");
+
+      // Configure git mock to report a non-.lore/ conflict
+      const mockGitOps = createMockGitOps();
+      mockGitOps.squashMergeNoCommit = (...args) => {
+        mockGitOps.calls.push({ method: "squashMergeNoCommit", args });
+        return Promise.resolve(false); // conflict detected
+      };
+      mockGitOps.listConflictedFiles = (...args) => {
+        mockGitOps.calls.push({ method: "listConflictedFiles", args });
+        return Promise.resolve(["src/app.ts"]); // non-.lore/ conflict
+      };
+
+      const meetingRequestCalls: Array<{
+        projectName: string;
+        workerName: string;
+        reason: string;
+      }> = [];
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+          createMeetingRequestFn: (params) => {
+            meetingRequestCalls.push(params);
+            return Promise.resolve();
+          },
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      // Complete the commission with a result so it attempts the squash-merge
+      session.reportResult(commissionId, "Research complete");
+      mockSpawn.resolveExit(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Commission should have transitioned to failed
+      const failedEvents = emittedEvents.filter(
+        (e) =>
+          e.type === "commission_status" &&
+          "status" in e &&
+          e.status === "failed",
+      );
+      expect(failedEvents.length).toBeGreaterThanOrEqual(1);
+
+      // createMeetingRequestFn should have been called once
+      expect(meetingRequestCalls).toHaveLength(1);
+      expect(meetingRequestCalls[0].projectName).toBe("test-project");
+      expect(meetingRequestCalls[0].workerName).toBe("guild-hall-manager");
+      expect(meetingRequestCalls[0].reason).toContain(commissionId as string);
+    });
+
+    test("non-.lore/ squash-merge conflict does not fail when createMeetingRequestFn is absent", async () => {
+      await writeCommissionArtifact("pending");
+
+      // Configure git mock to report a non-.lore/ conflict
+      const mockGitOps = createMockGitOps();
+      mockGitOps.squashMergeNoCommit = (...args) => {
+        mockGitOps.calls.push({ method: "squashMergeNoCommit", args });
+        return Promise.resolve(false);
+      };
+      mockGitOps.listConflictedFiles = (...args) => {
+        mockGitOps.calls.push({ method: "listConflictedFiles", args });
+        return Promise.resolve(["src/app.ts"]);
+      };
+
+      const mockSpawn = createMockSpawn();
+      // No createMeetingRequestFn provided
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+      session.reportResult(commissionId, "Research complete");
+      mockSpawn.resolveExit(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Commission should still transition to failed gracefully
+      const failedEvents = emittedEvents.filter(
+        (e) =>
+          e.type === "commission_status" &&
+          "status" in e &&
+          e.status === "failed",
+      );
+      expect(failedEvents.length).toBeGreaterThanOrEqual(1);
+      expect(session.getActiveCommissions()).toBe(0);
+    });
   });
 
   // -- cancelCommission --
@@ -2006,6 +2101,108 @@ projectName: test-project
       // removeWorktree should still be called even when nothing to commit
       const exitCalls = mockGitOps.calls.filter((c) => c.method === "removeWorktree");
       expect(exitCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // -- Pre-merge integration commit ordering --
+    //
+    // Before squashMergeNoCommit is called on the integration path, the code
+    // must call commitAll on the integration path (the "Pre-merge sync" commit).
+    // This ensures uncommitted integration writes from prior operations are
+    // committed before the squash-merge attempts to read the tree.
+
+    test("pre-merge sync: commitAll on integration path is called before squashMergeNoCommit", async () => {
+      await writeCommissionArtifact("pending");
+
+      // Track call sequence with args so we can distinguish which path each
+      // commitAll targets (activity worktree vs integration path).
+      const callSequence: Array<{ method: string; path: string }> = [];
+      const mockGitOps = createMockGitOps();
+      const iPath = integrationWorktreePath(ghHome, "test-project");
+
+      // Wrap commitAll and squashMergeNoCommit to capture call order with paths.
+      const origCommitAll = mockGitOps.commitAll.bind(mockGitOps);
+      mockGitOps.commitAll = async (...args) => {
+        callSequence.push({ method: "commitAll", path: args[0] });
+        return origCommitAll(...args);
+      };
+      const origSquash = mockGitOps.squashMergeNoCommit.bind(mockGitOps);
+      mockGitOps.squashMergeNoCommit = async (...args) => {
+        callSequence.push({ method: "squashMergeNoCommit", path: args[0] });
+        return origSquash(...args);
+      };
+
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+      const dispatchSequenceLength = callSequence.length;
+
+      // Complete the commission so the merge path executes.
+      session.reportResult(commissionId, "Research complete", ["report.md"]);
+      mockSpawn.resolveExit(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const exitSequence = callSequence.slice(dispatchSequenceLength);
+
+      // Locate the pre-merge sync commitAll: the commitAll that targets the
+      // integration path (not the activity worktree).
+      const integrationCommitIdx = exitSequence.findIndex(
+        (c) => c.method === "commitAll" && c.path === iPath,
+      );
+      const squashIdx = exitSequence.findIndex(
+        (c) => c.method === "squashMergeNoCommit",
+      );
+
+      expect(integrationCommitIdx).toBeGreaterThanOrEqual(0);
+      expect(squashIdx).toBeGreaterThanOrEqual(0);
+      expect(integrationCommitIdx).toBeLessThan(squashIdx);
+    });
+
+    test("pre-merge sync: commitAll on integration path is called even when integration tree is clean", async () => {
+      await writeCommissionArtifact("pending");
+
+      // commitAll returning false = clean tree (nothing to commit). The call
+      // must still happen; the code should not skip it based on a precondition.
+      const integrationCommitAllCalls: string[] = [];
+      const mockGitOps = createMockGitOps();
+      const iPath = integrationWorktreePath(ghHome, "test-project");
+
+      // Make commitAll return false (clean) and record calls by path.
+      mockGitOps.commitAll = (targetPath, message) => {
+        mockGitOps.calls.push({ method: "commitAll", args: [targetPath, message] });
+        if (targetPath === iPath) {
+          integrationCommitAllCalls.push(message);
+        }
+        return Promise.resolve(false); // clean tree
+      };
+
+      const mockSpawn = createMockSpawn();
+      session = createCommissionSession(
+        createTestDeps({
+          eventBus,
+          spawnFn: mockSpawn.spawnFn,
+          gitOps: mockGitOps,
+        }),
+      );
+
+      await session.dispatchCommission(commissionId);
+
+      session.reportResult(commissionId, "Research complete", ["report.md"]);
+      mockSpawn.resolveExit(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // At least one commitAll call targeted the integration path.
+      expect(integrationCommitAllCalls.length).toBeGreaterThanOrEqual(1);
+      // One of those calls is the pre-merge sync.
+      expect(
+        integrationCommitAllCalls.some((msg) => msg.includes("Pre-merge sync")),
+      ).toBe(true);
     });
   });
 });
