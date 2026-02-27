@@ -38,6 +38,9 @@ activity_timeline:
   - timestamp: 2026-02-27T04:17:46.961Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T04:17:46.998Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Improve commission list sorting and add timestamps\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
