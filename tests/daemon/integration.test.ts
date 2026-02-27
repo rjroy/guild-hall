@@ -627,11 +627,13 @@ describe("integration: DELETE /meetings/:id closes meeting", () => {
       meetingId = sessionEvent.meetingId;
     }
 
+    // Read worktreeDir from state file before closing (state file deleted on successful merge)
+    const worktreeDir = await getWorktreeDirFromState(meetingId);
+
     // Close meeting
     await app.request(`/meetings/${meetingId}`, { method: "DELETE" });
 
-    // Read the artifact from the worktreeDir and verify status change
-    const worktreeDir = await getWorktreeDirFromState(meetingId);
+    // Read the artifact from the worktreeDir (still present: mock removeWorktree is a no-op)
     const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
     const artifactPath = path.join(meetingsDir, `${meetingId}.md`);
     const content = await fs.readFile(artifactPath, "utf-8");
@@ -640,7 +642,7 @@ describe("integration: DELETE /meetings/:id closes meeting", () => {
     expect(content).toContain('reason: "User closed audience"');
   });
 
-  test("updates state file to closed status", async () => {
+  test("removes state file after successful squash-merge on close", async () => {
     const { app } = makeFullApp();
 
     // Create meeting
@@ -653,20 +655,22 @@ describe("integration: DELETE /meetings/:id closes meeting", () => {
       meetingId = sessionEvent.meetingId;
     }
 
-    // Close meeting
-    await app.request(`/meetings/${meetingId}`, { method: "DELETE" });
-
-    // Read state file
     const stateFile = path.join(
       ghHomeDir,
       "state",
       "meetings",
       `${meetingId}.json`,
     );
-    const stateContent = await fs.readFile(stateFile, "utf-8");
-    const state = JSON.parse(stateContent);
-    expect(state.status).toBe("closed");
-    expect(state.closedAt).toBeDefined();
+
+    // Verify state file exists before close (readable as JSON)
+    const stateBefore = JSON.parse(await fs.readFile(stateFile, "utf-8"));
+    expect(stateBefore.status).toBe("open");
+
+    // Close meeting
+    await app.request(`/meetings/${meetingId}`, { method: "DELETE" });
+
+    // State file deleted: artifact on the integration worktree is the source of truth
+    await expect(fs.readFile(stateFile, "utf-8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
 
@@ -969,6 +973,9 @@ describe("integration: full lifecycle (create, message, close)", () => {
     healthBody = await healthRes.json();
     expect(healthBody.meetings).toBe(1);
 
+    // Read worktreeDir from state file before closing (state file deleted on successful merge)
+    const worktreeDir = await getWorktreeDirFromState(meetingId);
+
     // 3. Close meeting
     const deleteRes = await app.request(`/meetings/${meetingId}`, {
       method: "DELETE",
@@ -980,8 +987,8 @@ describe("integration: full lifecycle (create, message, close)", () => {
     healthBody = await healthRes.json();
     expect(healthBody.meetings).toBe(0);
 
-    // 4. Verify final artifact state (artifacts live in the activity worktree)
-    const worktreeDir = await getWorktreeDirFromState(meetingId);
+    // 4. Verify final artifact state (artifacts live in the activity worktree;
+    // worktreeDir was read before close since state file is removed after successful merge)
     const artifactPath = path.join(
       worktreeDir,
       ".lore",
@@ -993,16 +1000,14 @@ describe("integration: full lifecycle (create, message, close)", () => {
     expect(artifactContent).toContain("event: opened");
     expect(artifactContent).toContain("event: closed");
 
-    // 5. Verify final state file
+    // 5. Verify state file deleted: artifact on the integration worktree is the source of truth
     const stateFile = path.join(
       ghHomeDir,
       "state",
       "meetings",
       `${meetingId}.json`,
     );
-    const stateContent = await fs.readFile(stateFile, "utf-8");
-    const state = JSON.parse(stateContent);
-    expect(state.status).toBe("closed");
+    await expect(fs.readFile(stateFile, "utf-8")).rejects.toMatchObject({ code: "ENOENT" });
 
     // 6. Verify subsequent operations on closed meeting fail correctly
     const postCloseRes = await app.request(

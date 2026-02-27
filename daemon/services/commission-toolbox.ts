@@ -29,6 +29,9 @@ import {
 } from "@/daemon/services/commission-artifact-helpers";
 
 export interface CommissionToolboxDeps {
+  /** Must be the activity worktree path (commission config.workingDirectory).
+   *  Writing to the project root instead of the activity worktree would put
+   *  artifact changes on the wrong branch. */
   projectPath: string;
   commissionId: string;
   daemonSocketPath: string;

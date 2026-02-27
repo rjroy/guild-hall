@@ -180,6 +180,17 @@ export type MeetingSessionDeps = {
    * use it.
    */
   eventBus?: EventBus;
+  /**
+   * Optional callback invoked when a squash-merge fails due to non-.lore/
+   * conflicts at meeting close. Creates a Guild Master meeting request to
+   * surface the unmerged branch to the user. If absent, the conflict is
+   * logged but not escalated. Meeting still closes with status "closed".
+   */
+  createMeetingRequestFn?: (params: {
+    projectName: string;
+    workerName: string;
+    reason: string;
+  }) => Promise<void>;
 };
 
 // -- Factory --
@@ -489,6 +500,7 @@ notes_summary: ""
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,
         integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
+        workingDirectory: meeting.worktreeDir,
         isManager,
         managerToolboxDeps: isManager && deps.commissionSession && deps.eventBus
           ? {
@@ -879,7 +891,6 @@ notes_summary: ""
           worktreeDir,
           branchName,
           status: "open",
-          createdAt: new Date().toISOString(),
         });
       } catch (err: unknown) {
         const reason = err instanceof Error ? err.message : String(err);
@@ -1049,7 +1060,6 @@ notes_summary: ""
           worktreeDir,
           branchName,
           status: "open",
-          createdAt: new Date().toISOString(),
         });
       } catch (err: unknown) {
         const reason = err instanceof Error ? err.message : String(err);
@@ -1390,7 +1400,6 @@ notes_summary: ""
         worktreeDir: meeting.worktreeDir,
         branchName: meeting.branchName,
         status: "closed",
-        closedAt: new Date().toISOString(),
       });
     } catch {
       // Non-fatal
@@ -1408,6 +1417,7 @@ notes_summary: ""
         const iPath = integrationWorktreePath(ghHome, meeting.projectName);
 
         const mergeSucceeded = await withProjectLock(meeting.projectName, async () => {
+          await git.commitAll(iPath, `Pre-merge sync: ${meeting.meetingId}`);
           const clean = await git.squashMergeNoCommit(iPath, meeting.branchName);
 
           if (clean) {
@@ -1458,6 +1468,9 @@ notes_summary: ""
         if (squashMergeSucceeded) {
           await git.removeWorktree(project.path, meeting.worktreeDir);
           await git.deleteBranch(project.path, meeting.branchName);
+          // Remove the state file: the artifact on the integration worktree is now
+          // the source of truth. recoverMeetings() handles missing files gracefully.
+          await fs.unlink(statePath(meetingId)).catch(() => {});
         } else {
           // Merge failed. Remove worktree but preserve branch for manual resolution.
           try {
@@ -1467,6 +1480,27 @@ notes_summary: ""
               `[closeMeeting] Failed to remove worktree for "${meeting.meetingId}":`,
               err instanceof Error ? err.message : String(err),
             );
+          }
+
+          // Escalate conflict to Guild Master as a meeting request so the user
+          // sees an actionable notification instead of a silent log line.
+          // Meeting still closes as "closed"; the request surfaces the unmerged branch.
+          if (deps.createMeetingRequestFn) {
+            const escalationReason =
+              `Meeting ${meeting.meetingId} (branch ${meeting.branchName}) completed but ` +
+              `could not merge: non-.lore/ conflicts detected. ` +
+              `The activity branch has been preserved. ` +
+              `Please resolve conflicts manually and merge ${meeting.branchName} into the integration branch.`;
+            deps.createMeetingRequestFn({
+              projectName: meeting.projectName,
+              workerName: "guild-hall-manager",
+              reason: escalationReason,
+            }).catch((err: unknown) => {
+              console.warn(
+                `[closeMeeting] Failed to create Guild Master meeting request for "${meeting.meetingId}":`,
+                err instanceof Error ? err.message : String(err),
+              );
+            });
           }
         }
       } catch (err: unknown) {
@@ -1541,9 +1575,47 @@ notes_summary: ""
     return getOpenMeetingsForProject(projectName);
   }
 
+  /**
+   * Creates a meeting request artifact (status: "requested") on the integration
+   * worktree without starting a session or creating a git branch/worktree.
+   * Used by production wiring to surface merge conflicts as actionable Guild
+   * Master meeting requests.
+   */
+  async function createMeetingRequest(params: {
+    projectName: string;
+    workerName: string;
+    reason: string;
+  }): Promise<void> {
+    const project = findProject(params.projectName);
+    if (!project) {
+      throw new Error(`Project "${params.projectName}" not found`);
+    }
+
+    const workerPkg = getWorkerByName(deps.packages, params.workerName);
+    if (!workerPkg) {
+      throw new Error(`Worker "${params.workerName}" not found in discovered packages`);
+    }
+
+    const workerMeta = workerPkg.metadata as WorkerMetadata;
+    const meetingId = formatMeetingId(workerMeta.identity.name, new Date());
+
+    // Write the meeting request artifact to the integration worktree so the
+    // dashboard can surface it immediately, consistent with propose_followup.
+    const iPath = integrationWorktreePath(ghHome, params.projectName);
+    await writeMeetingArtifact(
+      iPath,
+      meetingId,
+      workerMeta.identity.displayTitle,
+      params.reason,
+      workerMeta.identity.name,
+      "requested",
+    );
+  }
+
   return {
     acceptMeetingRequest,
     createMeeting,
+    createMeetingRequest,
     sendMessage,
     closeMeeting,
     recoverMeetings,

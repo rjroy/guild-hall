@@ -574,15 +574,18 @@ describe("closeMeeting with notes generation", () => {
       meetingId = sessionEvent.meetingId;
     }
 
-    // Close and verify notes are returned
-    const result = await session.closeMeeting(asMeetingId(meetingId));
-    expect(result.notes).toBe("These are the generated meeting notes.\nWith multiple lines.");
-
-    // Read worktreeDir from state file to find the artifact
+    // Read worktreeDir from state file before closing (state file deleted on successful merge)
     const stateContent = await fs.readFile(
       path.join(ghHomeDir, "state", "meetings", `${meetingId}.json`), "utf-8",
     );
     const state = JSON.parse(stateContent) as { worktreeDir: string };
+
+    // Close and verify notes are returned
+    const result = await session.closeMeeting(asMeetingId(meetingId));
+    expect(result.notes).toBe("These are the generated meeting notes.\nWith multiple lines.");
+
+    // Read artifact from worktreeDir captured before close
+    // (mock removeWorktree is a no-op so the directory still exists)
     const artifactPath = path.join(state.worktreeDir, ".lore", "meetings", `${meetingId}.md`);
     const artifactContent = await fs.readFile(artifactPath, "utf-8");
     expect(artifactContent).toContain("notes_summary: |");

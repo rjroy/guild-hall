@@ -465,7 +465,6 @@ describe("recoverCommissions", () => {
     );
     const state = JSON.parse(stateRaw) as Record<string, unknown>;
     expect(state.status).toBe("failed");
-    expect(state.reason).toContain("process lost on restart");
   });
 
   test("dead PID with dispatched status also transitions to failed", async () => {

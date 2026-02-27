@@ -6,6 +6,21 @@
  * All modifications use regex/string operations on the raw file content.
  *
  * Used by meeting-session.ts (lifecycle) and meeting-toolbox.ts (agent tools).
+ *
+ * PATH OWNERSHIP:
+ * All functions in this file accept a `projectPath` parameter and do not
+ * perform their own routing. Callers are responsible for passing the correct
+ * path:
+ *   - Open meetings: activity worktree path (meeting.worktreeDir)
+ *   - Requested/closed/declined: integration worktree path
+ *
+ * Routing is enforced at two callsites:
+ *   - meeting-session.ts passes worktreeDir directly for open-meeting writes
+ *     and integrationWorktreePath() for all other states.
+ *   - meeting-toolbox.ts (makeLinkArtifactHandler, makeSummarizeProgressHandler)
+ *     uses MeetingToolboxDeps.worktreeDir ?? projectPath, with worktreeDir set
+ *     to meeting.worktreeDir by toolbox-resolver.ts for active meetings.
+ *
  */
 
 import * as fs from "node:fs/promises";

@@ -82,6 +82,7 @@ export function resolveToolSet(
       createMeetingToolbox({
         projectPath: context.projectPath,
         integrationPath: context.integrationPath,
+        worktreeDir: context.workingDirectory,
         meetingId: context.meetingId,
         workerName: context.workerName,
         guildHallHome: context.guildHallHome,
