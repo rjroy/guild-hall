@@ -113,6 +113,7 @@ function makeCommission(
     result_summary: "",
     projectName: "test-project",
     date: "2026-02-21",
+    relevantDate: "",
     ...overrides,
   };
 }

@@ -34,6 +34,7 @@ function makeCommission(overrides: Partial<CommissionMeta> = {}): CommissionMeta
     result_summary: "",
     projectName: "my-project",
     date: "2026-02-21",
+    relevantDate: "",
     ...overrides,
   };
 }
