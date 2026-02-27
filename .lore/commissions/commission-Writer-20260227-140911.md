@@ -45,6 +45,9 @@ activity_timeline:
   - timestamp: 2026-02-27T22:09:11.414Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T22:09:11.531Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Plan: Move notes_summary and result_summary from frontmatter to markdown body\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
