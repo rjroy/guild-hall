@@ -22,7 +22,6 @@ import {
 import type {
   CommissionSessionDeps,
   CommissionSessionForRoutes,
-  SpawnedCommission,
 } from "@/daemon/services/commission-session";
 import {
   commissionArtifactPath,
@@ -31,7 +30,9 @@ import {
 } from "@/daemon/services/commission-artifact-helpers";
 import { createEventBus } from "@/daemon/services/event-bus";
 import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
-import type { AppConfig, DiscoveredPackage } from "@/lib/types";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { AppConfig, DiscoveredPackage, ResolvedToolSet, WorkerMetadata } from "@/lib/types";
+import type { ToolboxResolverContext } from "@/daemon/services/toolbox-resolver";
 import type { GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";
 
@@ -442,20 +443,28 @@ describe("dependency auto-transitions", () => {
       await fs.mkdir(depPath, { recursive: true });
       await fs.writeFile(path.join(depPath, "feature-spec.md"), "# Spec", "utf-8");
 
-      // Track spawns to verify auto-dispatch
-      const spawned: Array<{ configPath: string }> = [];
-      const spawnFn = (configPath: string): SpawnedCommission => {
-        spawned.push({ configPath });
-        return {
-          pid: 10000,
-          exitPromise: new Promise(() => {}), // Never resolves
-          kill: () => {},
-        };
+      // Track dispatches via queryFn to verify auto-dispatch
+      let queryCallCount = 0;
+      const queryFn = (_params: { prompt: string; options: Record<string, unknown> }) => {
+        queryCallCount++;
+        return (async function* (): AsyncGenerator<SDKMessage> {
+          yield { type: "system", subtype: "init", session_id: "test-session" } as unknown as SDKMessage;
+          await new Promise(() => {}); // Never resolves
+        })();
       };
+      // eslint-disable-next-line @typescript-eslint/require-await
+      const activateFn = async (_pkg: DiscoveredPackage, _ctx: unknown) => ({
+        systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
+      });
+      const resolveToolSetFn = (_w: WorkerMetadata, _p: DiscoveredPackage[], _ctx: ToolboxResolverContext): ResolvedToolSet => ({
+        mcpServers: [], allowedTools: [], wasResultSubmitted: () => false,
+      });
 
       session = createCommissionSession(createTestDeps({
         eventBus,
-        spawnFn,
+        queryFn,
+        activateFn,
+        resolveToolSetFn,
       }));
 
       await session.checkDependencyTransitions("test-project");
@@ -464,7 +473,7 @@ describe("dependency auto-transitions", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // The commission should have been auto-dispatched
-      expect(spawned.length).toBe(1);
+      expect(queryCallCount).toBe(1);
 
       // Verify the commission is now in an active state (dispatched or in_progress)
       const activeCount = session.getActiveCommissions();
@@ -533,19 +542,26 @@ describe("dependency auto-transitions", () => {
         "2026-02-21T09:00:00.000Z",
       );
 
-      // Also create another pending commission with no deps so the spawn
-      // function gets exercised for it (we need something to dispatch first
-      // to get the target commission into the active map).
-      // Instead, let's dispatch the target commission first so it becomes active.
-      const spawnFn = (): SpawnedCommission => ({
-        pid: 10000,
-        exitPromise: new Promise(() => {}),
-        kill: () => {},
+      // Dispatch the target commission first so it becomes active.
+      const queryFn = (_params: { prompt: string; options: Record<string, unknown> }) => {
+        return (async function* (): AsyncGenerator<SDKMessage> {
+          yield { type: "system", subtype: "init", session_id: "test-session" } as unknown as SDKMessage;
+          await new Promise(() => {}); // Never resolves
+        })();
+      };
+      // eslint-disable-next-line @typescript-eslint/require-await
+      const activateFn = async (_pkg: DiscoveredPackage, _ctx: unknown) => ({
+        systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
+      });
+      const resolveToolSetFn = (_w: WorkerMetadata, _p: DiscoveredPackage[], _ctx: ToolboxResolverContext): ResolvedToolSet => ({
+        mcpServers: [], allowedTools: [], wasResultSubmitted: () => false,
       });
 
       session = createCommissionSession(createTestDeps({
         eventBus,
-        spawnFn,
+        queryFn,
+        activateFn,
+        resolveToolSetFn,
       }));
 
       // Dispatch first to make it active

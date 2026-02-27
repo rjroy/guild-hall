@@ -1,7 +1,7 @@
 ---
 title: Migrate commission workers from subprocesses to in-process async sessions
 date: 2026-02-26
-status: draft
+status: executed
 tags: [architecture, commissions, refactor, daemon, sdk-session]
 modules: [commission-session, commission-toolbox, commission-worker, daemon-routes]
 related: [.lore/specs/guild-hall-commissions.md, .lore/design/process-architecture.md, .lore/retros/phase-4-commissions.md, .lore/retros/dispatch-hardening.md]

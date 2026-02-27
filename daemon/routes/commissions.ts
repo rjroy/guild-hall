@@ -15,9 +15,6 @@ export interface CommissionRoutesDeps {
  * POST   /commissions/:id/dispatch         - Dispatch commission to worker
  * DELETE /commissions/:id             - Cancel commission
  * POST   /commissions/:id/redispatch  - Re-dispatch failed/cancelled commission
- * POST   /commissions/:id/progress    - Worker reports progress (IPC)
- * POST   /commissions/:id/result      - Worker reports result (IPC)
- * POST   /commissions/:id/question    - Worker logs question (IPC)
  * POST   /commissions/:id/note        - User adds note
  */
 export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
@@ -179,88 +176,6 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       ) {
         return c.json({ error: message }, 409);
       }
-      return c.json({ error: message }, 500);
-    }
-  });
-
-  // POST /commissions/:id/progress - Worker reports progress (IPC)
-  routes.post("/commissions/:id/progress", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
-    let body: { summary?: string };
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
-    }
-
-    const { summary } = body;
-    if (!summary) {
-      return c.json({ error: "Missing required field: summary" }, 400);
-    }
-
-    try {
-      console.log(`[route] POST /commissions/${commissionId as string}/progress`);
-      deps.commissionSession.reportProgress(commissionId, summary);
-      return c.json({ status: "ok" });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return c.json({ error: message }, 500);
-    }
-  });
-
-  // POST /commissions/:id/result - Worker reports result (IPC)
-  routes.post("/commissions/:id/result", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
-    let body: { summary?: string; artifacts?: string[] };
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
-    }
-
-    const { summary } = body;
-    if (!summary) {
-      return c.json({ error: "Missing required field: summary" }, 400);
-    }
-
-    try {
-      console.log(`[route] POST /commissions/${commissionId as string}/result`);
-      deps.commissionSession.reportResult(
-        commissionId,
-        summary,
-        body.artifacts,
-      );
-      return c.json({ status: "ok" });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return c.json({ error: message }, 500);
-    }
-  });
-
-  // POST /commissions/:id/question - Worker logs question (IPC)
-  routes.post("/commissions/:id/question", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
-    let body: { question?: string };
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
-    }
-
-    const { question } = body;
-    if (!question) {
-      return c.json({ error: "Missing required field: question" }, 400);
-    }
-
-    try {
-      console.log(`[route] POST /commissions/${commissionId as string}/question`);
-      deps.commissionSession.reportQuestion(commissionId, question);
-      return c.json({ status: "ok" });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
       return c.json({ error: message }, 500);
     }
   });

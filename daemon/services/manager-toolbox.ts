@@ -677,7 +677,7 @@ export function createManagerToolbox(
       ),
       tool(
         "cancel_commission",
-        "Cancel an active or pending commission. For running commissions, sends SIGTERM with a 30-second grace period before SIGKILL. Valid from pending, blocked, or in_progress states.",
+        "Cancel an active or pending commission. For running commissions, signals the in-process session to stop immediately. Valid from pending, blocked, or in_progress states.",
         {
           commissionId: z.string().describe("The commission ID to cancel"),
           reason: z.string().optional().describe("Why the commission is being cancelled (default: 'Commission cancelled by manager')"),

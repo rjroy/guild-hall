@@ -6,9 +6,9 @@
  * - submit_result: record the final result (one-shot, cannot be called twice)
  * - log_question: record a question in the activity timeline
  *
- * Each tool writes to files for durability AND POSTs to the daemon socket for
- * real-time notification. The HTTP callback is best-effort: failures are logged
- * but don't fail the tool call. The file write already persisted the data.
+ * Each tool writes to files for durability, then invokes an injected callback
+ * for real-time notification. The caller (commission session) owns the callback
+ * implementation, which may emit events, update state, or do nothing.
  *
  * Follows the same MCP server factory pattern as base-toolbox.ts and
  * meeting-toolbox.ts.
@@ -34,41 +34,13 @@ export interface CommissionToolboxDeps {
    *  artifact changes on the wrong branch. */
   projectPath: string;
   commissionId: string;
-  daemonSocketPath: string;
   guildHallHome?: string;
-}
-
-// -- HTTP callback helper --
-
-/**
- * Best-effort notification to the daemon over Unix socket. If the POST fails
- * (daemon restarted, socket gone), the error is logged but NOT propagated.
- * The file write already persisted the data; real-time notification is a bonus.
- */
-async function notifyDaemon(
-  socketPath: string,
-  urlPath: string,
-  body: unknown,
-): Promise<void> {
-  try {
-    const resp = await fetch(`http://localhost${urlPath}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      unix: socketPath,
-    } as RequestInit);
-    if (!resp.ok) {
-      console.error(
-        `[commission-toolbox] Daemon rejected notification at ${urlPath}: ${resp.status} ${resp.statusText}`,
-      );
-    }
-  } catch (err) {
-    // Best-effort: log and continue
-    console.error(
-      `[commission-toolbox] Failed to notify daemon at ${urlPath}:`,
-      err instanceof Error ? err.message : String(err),
-    );
-  }
+  /** Called after a progress report is persisted to disk. */
+  onProgress: (summary: string) => void;
+  /** Called after the final result is persisted to disk. */
+  onResult: (summary: string, artifacts?: string[]) => void;
+  /** Called after a question is persisted to disk. */
+  onQuestion: (question: string) => void;
 }
 
 // -- Tool handler factories --
@@ -76,7 +48,7 @@ async function notifyDaemon(
 export function makeReportProgressHandler(
   projectPath: string,
   commissionId: string,
-  daemonSocketPath: string,
+  onProgress: (summary: string) => void,
 ) {
   const cid = asCommissionId(commissionId);
 
@@ -89,11 +61,7 @@ export function makeReportProgressHandler(
     );
     await updateCurrentProgress(projectPath, cid, args.summary);
 
-    await notifyDaemon(
-      daemonSocketPath,
-      `/commissions/${commissionId}/progress`,
-      { summary: args.summary },
-    );
+    onProgress(args.summary);
 
     return {
       content: [
@@ -106,7 +74,7 @@ export function makeReportProgressHandler(
 export function makeSubmitResultHandler(
   projectPath: string,
   commissionId: string,
-  daemonSocketPath: string,
+  onResult: (summary: string, artifacts?: string[]) => void,
 ) {
   const cid = asCommissionId(commissionId);
   let resultSubmitted = false;
@@ -152,11 +120,7 @@ export function makeSubmitResultHandler(
     // Only mark as submitted after successful file write
     resultSubmitted = true;
 
-    await notifyDaemon(
-      daemonSocketPath,
-      `/commissions/${commissionId}/result`,
-      { summary: args.summary, artifacts: args.artifacts },
-    );
+    onResult(args.summary, args.artifacts);
 
     return {
       content: [
@@ -169,7 +133,7 @@ export function makeSubmitResultHandler(
 export function makeLogQuestionHandler(
   projectPath: string,
   commissionId: string,
-  daemonSocketPath: string,
+  onQuestion: (question: string) => void,
 ) {
   const cid = asCommissionId(commissionId);
 
@@ -181,11 +145,7 @@ export function makeLogQuestionHandler(
       args.question,
     );
 
-    await notifyDaemon(
-      daemonSocketPath,
-      `/commissions/${commissionId}/question`,
-      { question: args.question },
-    );
+    onQuestion(args.question);
 
     return {
       content: [
@@ -216,17 +176,17 @@ export function createCommissionToolbox(
   const reportProgress = makeReportProgressHandler(
     deps.projectPath,
     deps.commissionId,
-    deps.daemonSocketPath,
+    deps.onProgress,
   );
   const submitResult = makeSubmitResultHandler(
     deps.projectPath,
     deps.commissionId,
-    deps.daemonSocketPath,
+    deps.onResult,
   );
   const logQuestion = makeLogQuestionHandler(
     deps.projectPath,
     deps.commissionId,
-    deps.daemonSocketPath,
+    deps.onQuestion,
   );
 
   // Track whether submit_result was called so the worker can detect

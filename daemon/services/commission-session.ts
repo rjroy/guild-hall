@@ -5,9 +5,9 @@
  * full transition graph. See the graph below.
  *
  * Part 2 (createCommissionSession factory): Manages the full lifecycle of
- * commissions: creation, dispatch, worker process spawning, exit handling,
- * heartbeat monitoring, cancellation, and re-dispatch. Integrates with the
- * event bus for cross-system notifications.
+ * commissions: creation, dispatch, in-process SDK session management,
+ * completion/error handling, cancellation, and re-dispatch. Integrates with
+ * the event bus for cross-system notifications.
  *
  * The full transition graph:
  *   pending -> dispatched, blocked, cancelled
@@ -23,9 +23,16 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import matter from "gray-matter";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import { asCommissionId } from "@/daemon/types";
-import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import type {
+  ActivationContext,
+  ActivationResult,
+  AppConfig,
+  DiscoveredPackage,
+  WorkerMetadata,
+} from "@/lib/types";
 import { isNodeError } from "@/lib/types";
 import {
   getGuildHallHome,
@@ -35,20 +42,25 @@ import {
   commissionBranchName,
 } from "@/lib/paths";
 import { getWorkerByName } from "@/lib/packages";
-import { getSocketPath } from "@/daemon/lib/socket";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import type { EventBus } from "./event-bus";
-import type { CommissionWorkerConfig } from "./commission-worker-config";
 import {
   updateCommissionStatus,
   appendTimelineEntry,
   commissionArtifactPath,
   readCommissionStatus,
   readCommissionDependencies,
-  updateCurrentProgress,
   updateResultSummary,
 } from "./commission-artifact-helpers";
+import { resolveToolSet } from "./toolbox-resolver";
+import { loadMemories } from "./memory-injector";
+import { triggerCompaction } from "./memory-compaction";
+import {
+  MANAGER_PACKAGE_NAME,
+  activateManager,
+} from "./manager-worker";
+import { buildManagerContext } from "./manager-context";
 
 // -- Capacity limit defaults --
 
@@ -105,31 +117,13 @@ export async function transitionCommission(
 
 // -- Session management types --
 
-/** Heartbeat monitoring constants */
-const HEARTBEAT_INTERVAL_MS = 30_000;
-const STALENESS_THRESHOLD_MS = 180_000;
-/** Grace period before SIGKILL on cancellation */
-const CANCEL_GRACE_MS = 30_000;
-
-export interface SpawnedCommission {
-  pid: number;
-  exitPromise: Promise<{ exitCode: number; signal?: string }>;
-  kill(signal?: string): void;
-}
-
 export interface CommissionSessionDeps {
   packages: DiscoveredPackage[];
   config: AppConfig;
   guildHallHome?: string;
   eventBus: EventBus;
   packagesDir: string;
-  spawnFn?: (configPath: string) => SpawnedCommission;
   gitOps?: GitOps;
-  /**
-   * DI seam for PID liveness checks. Tests pass a mock to control which
-   * PIDs appear alive. Defaults to process.kill(pid, 0).
-   */
-  isProcessAlive?: (pid: number) => boolean;
   /**
    * DI seam for file existence checks. Tests pass a mock to control which
    * paths appear to exist. Defaults to fs.access (synchronous-style check
@@ -147,23 +141,52 @@ export interface CommissionSessionDeps {
     workerName: string;
     reason: string;
   }) => Promise<void>;
+  /**
+   * DI seam for the SDK query function. Tests pass a mock async generator;
+   * production lazily imports the SDK and calls query(). Used by
+   * runCommissionSession() for in-process SDK sessions.
+   */
+  queryFn?: (params: {
+    prompt: string;
+    options: Record<string, unknown>;
+  }) => AsyncGenerator<SDKMessage>;
+  /**
+   * DI seam for worker activation. Tests provide a mock that returns a
+   * canned ActivationResult without touching the filesystem.
+   * If omitted, built-in workers use activateManager() and regular workers
+   * use dynamic import of the worker's index.ts.
+   */
+  activateFn?: (
+    workerPkg: DiscoveredPackage,
+    context: ActivationContext,
+  ) => Promise<ActivationResult>;
+  /**
+   * Commission session reference. Required for the manager worker's toolbox,
+   * which needs to create and dispatch commissions. Passed as a late-bound
+   * reference since the commission session creates this interface.
+   */
+  commissionSessionRef?: { current: CommissionSessionForRoutes | null };
+  /**
+   * DI seam for tool resolution. Tests provide a mock that returns controlled
+   * tools with a `wasResultSubmitted()` under test control. Production uses
+   * the real resolveToolSet from toolbox-resolver.ts.
+   */
+  resolveToolSetFn?: typeof resolveToolSet;
 }
 
 type ActiveCommission = {
   commissionId: CommissionId;
   projectName: string;
   workerName: string;
-  pid: number;
   startTime: Date;
-  lastHeartbeat: Date;
+  lastActivity: Date;
   status: CommissionStatus;
   resultSubmitted: boolean;
   resultSummary?: string;
   resultArtifacts?: string[];
   worktreeDir: string;
   branchName: string;
-  configPath: string;
-  graceTimerId?: ReturnType<typeof setTimeout>;
+  abortController: AbortController;
 };
 
 export interface CommissionSessionForRoutes {
@@ -190,13 +213,6 @@ export interface CommissionSessionForRoutes {
   redispatchCommission(
     commissionId: CommissionId,
   ): Promise<{ status: "accepted" | "queued" }>;
-  reportProgress(commissionId: CommissionId, summary: string): void;
-  reportResult(
-    commissionId: CommissionId,
-    summary: string,
-    artifacts?: string[],
-  ): void;
-  reportQuestion(commissionId: CommissionId, question: string): void;
   addUserNote(commissionId: CommissionId, content: string): Promise<void>;
   checkDependencyTransitions(projectName: string): Promise<void>;
   recoverCommissions(): Promise<number>;
@@ -204,36 +220,141 @@ export interface CommissionSessionForRoutes {
   shutdown(): void;
 }
 
-// -- Default spawn function --
+// -- SDK message logging helpers (moved from commission-worker.ts) --
 
-function defaultSpawnFn(configPath: string): SpawnedCommission {
-  const workerScript = path.join(import.meta.dir, "..", "commission-worker.ts");
-  const proc = Bun.spawn(["bun", "run", workerScript, "--config", configPath], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+function truncateSdkStr(s: string, max = 300): string {
+  return s.length > max ? s.slice(0, max) + "..." : s;
+}
 
-  // Read stdout/stderr in the background so we can log on exit.
-  const stderrReader = new Response(proc.stderr).text().catch(() => "");
-  const stdoutReader = new Response(proc.stdout).text().catch(() => "");
+/** Safely extract a string property from an unknown record. */
+function sdkStr(obj: Record<string, unknown>, key: string, fallback = ""): string {
+  const val = obj[key];
+  return typeof val === "string" ? val : (typeof val === "number" ? String(val) : fallback);
+}
+
+/**
+ * Extracts content blocks from an SDK message's nested `message` property
+ * and logs text, tool_use (with inputs), and tool_result blocks.
+ */
+function logSdkMessage(
+  log: (msg: string) => void,
+  index: number,
+  msg: unknown,
+): void {
+  const m = msg as Record<string, unknown>;
+  const prefix = `[msg ${index}]`;
+  const type = sdkStr(m, "type", "unknown");
+
+  if (type === "system" || type === "rate_limit_event") {
+    log(`${prefix} ${type}`);
+    return;
+  }
+
+  // The SDK wraps messages: { type: "assistant"|"user"|"result", message: { content: [...] } }
+  const inner = (m.message ?? m) as Record<string, unknown>;
+  const content = inner.content as Array<Record<string, unknown>> | undefined;
+
+  if (type === "result") {
+    const stop = sdkStr(m, "stop_reason") || sdkStr(inner, "stop_reason") || "?";
+    const costVal = sdkStr(m, "total_cost_usd");
+    const cost = costVal ? ` cost=$${costVal}` : "";
+    log(`${prefix} result (stop=${stop}${cost})`);
+  }
+
+  if (!Array.isArray(content)) {
+    log(`${prefix} ${type} (no content blocks)`);
+    return;
+  }
+
+  for (const block of content) {
+    const bType = sdkStr(block, "type", "unknown");
+    if (bType === "text") {
+      log(`${prefix} ${type}/text: ${truncateSdkStr(sdkStr(block, "text"))}`);
+    } else if (bType === "tool_use") {
+      const input = JSON.stringify(block.input ?? {});
+      log(`${prefix} ${type}/tool_use: ${sdkStr(block, "name", "?")}(${truncateSdkStr(input, 200)})`);
+    } else if (bType === "tool_result") {
+      const resultContent = Array.isArray(block.content)
+        ? (block.content as Array<Record<string, unknown>>).map((c) => truncateSdkStr(sdkStr(c, "text"), 150)).join("; ")
+        : truncateSdkStr(sdkStr(block, "content"), 150);
+      log(`${prefix} tool_result [${block.is_error === true ? "ERROR" : "ok"}]: ${resultContent}`);
+    } else {
+      log(`${prefix} ${type}/${bType}`);
+    }
+  }
+}
+
+// -- Activation context assembly (moved from commission-worker.ts) --
+
+/**
+ * Builds the ActivationContext for a commission worker. Pure function: takes
+ * config values and resolved tools, returns the context object.
+ */
+function buildCommissionActivationContext(
+  commissionId: string,
+  prompt: string,
+  dependencies: string[],
+  workerMeta: WorkerMetadata,
+  resolvedTools: ReturnType<typeof resolveToolSet>,
+  projectPath: string,
+  workingDirectory: string,
+  injectedMemory = "",
+): ActivationContext {
+  return {
+    posture: workerMeta.posture,
+    injectedMemory,
+    resolvedTools,
+    resourceDefaults: {
+      maxTurns: workerMeta.resourceDefaults?.maxTurns,
+      maxBudgetUsd: workerMeta.resourceDefaults?.maxBudgetUsd,
+    },
+    commissionContext: {
+      commissionId,
+      prompt,
+      dependencies,
+    },
+    projectPath,
+    workingDirectory,
+  };
+}
+
+// -- SDK query options assembly (moved from commission-worker.ts) --
+
+/**
+ * Builds the SDK query options from the activation result and commission
+ * overrides. Commission overrides take priority over worker defaults.
+ */
+function buildCommissionQueryOptions(
+  activation: ActivationResult,
+  workingDirectory: string,
+  resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+  abortController?: AbortController,
+): Record<string, unknown> {
+  const maxTurns =
+    resourceOverrides?.maxTurns ??
+    activation.resourceBounds.maxTurns;
+  const maxBudgetUsd =
+    resourceOverrides?.maxBudgetUsd ??
+    activation.resourceBounds.maxBudgetUsd;
+
+  // Build MCP servers as a Record for SDK compatibility
+  const mcpServers: Record<string, unknown> = {};
+  for (const server of activation.tools.mcpServers) {
+    mcpServers[server.name] = server;
+  }
 
   return {
-    pid: proc.pid,
-    exitPromise: proc.exited.then(async (exitCode) => {
-      const [stderr, stdout] = await Promise.all([stderrReader, stdoutReader]);
-      const code = exitCode ?? 1;
-      if (stderr.trim()) {
-        console.error(`[commission-worker] pid=${proc.pid} exit=${code} stderr:\n${stderr.trim()}`);
-      }
-      if (stdout.trim()) {
-        console.log(`[commission-worker] pid=${proc.pid} exit=${code} stdout:\n${stdout.trim()}`);
-      }
-      if (!stderr.trim() && !stdout.trim()) {
-        console.log(`[commission-worker] pid=${proc.pid} exit=${code} (no output)`);
-      }
-      return { exitCode: code };
-    }),
-    kill: (signal) => proc.kill(signal === "SIGKILL" ? 9 : 15),
+    systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
+    cwd: workingDirectory,
+    mcpServers,
+    allowedTools: activation.tools.allowedTools,
+    ...(activation.model ? { model: activation.model } : {}),
+    ...(maxTurns ? { maxTurns } : {}),
+    ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
+    permissionMode: "dontAsk",
+    settingSources: ["local", "project", "user"] as string[],
+    includePartialMessages: false,
+    ...(abortController ? { abortController } : {}),
   };
 }
 
@@ -245,15 +366,6 @@ export function createCommissionSession(
   const activeCommissions = new Map<string, ActiveCommission>();
   const ghHome = deps.guildHallHome ?? getGuildHallHome();
   const git = deps.gitOps ?? createGitOps();
-  const spawnFn = deps.spawnFn ?? defaultSpawnFn;
-  const isProcessAlive = deps.isProcessAlive ?? ((pid: number): boolean => {
-    try {
-      process.kill(pid, 0);
-      return true;
-    } catch {
-      return false;
-    }
-  });
   const fileExists = deps.fileExists ?? (async (filePath: string): Promise<boolean> => {
     try {
       await fs.access(filePath);
@@ -262,9 +374,6 @@ export function createCommissionSession(
       return false;
     }
   });
-
-  // Store active kill timers so they can be cleared on shutdown
-  const killTimers = new Set<ReturnType<typeof setTimeout>>();
 
   // -- Capacity limits --
 
@@ -556,34 +665,6 @@ export function createCommissionSession(
     }
   }
 
-  // -- Heartbeat monitoring --
-  const heartbeatInterval = setInterval(() => {
-    void checkHeartbeats();
-  }, HEARTBEAT_INTERVAL_MS);
-
-  async function checkHeartbeats(): Promise<void> {
-    const now = Date.now();
-    for (const [id, commission] of activeCommissions) {
-      if (
-        commission.status !== "in_progress" &&
-        commission.status !== "dispatched"
-      ) {
-        continue;
-      }
-      const elapsed = now - commission.lastHeartbeat.getTime();
-      if (elapsed <= STALENESS_THRESHOLD_MS) continue;
-
-      // Check if process is still alive
-      const alive = isProcessAlive(commission.pid);
-
-      const reason = alive
-        ? "Worker process unresponsive (heartbeat stale)"
-        : "Worker process lost (no longer running)";
-
-      await handleFailure(id, commission, reason);
-    }
-  }
-
   // -- Helpers --
 
   function findProject(projectName: string) {
@@ -779,14 +860,25 @@ export function createCommissionSession(
   }
 
   /**
-   * Handles a commission failure (crash, heartbeat timeout, etc.).
-   * Transitions to failed, emits event, and cleans up.
+   * Handles a commission failure. Transitions to failed, emits event,
+   * and cleans up. Preserves the branch for inspection.
    */
   async function handleFailure(
     id: string,
     commission: ActiveCommission,
     reason: string,
   ): Promise<void> {
+    // Terminal state guard: another path (e.g., cancelCommission) may have
+    // already resolved this commission.
+    if (
+      commission.status === "completed" ||
+      commission.status === "failed" ||
+      commission.status === "cancelled"
+    ) {
+      activeCommissions.delete(id);
+      return;
+    }
+
     // Commission is always active when handleFailure is called, so the
     // artifact lives in the activity worktree.
     try {
@@ -867,6 +959,300 @@ export function createCommissionSession(
 
     // Capacity freed: check if pending commissions can now dispatch
     enqueueAutoDispatch();
+  }
+
+  // -- In-process SDK session runner --
+  //
+  // Runs an SDK session for a commission directly in the daemon process,
+  // replacing the subprocess model. Called as fire-and-forget from
+  // dispatchCommission().
+
+  async function activateWorker(
+    workerPkg: DiscoveredPackage,
+    context: ActivationContext,
+  ): Promise<ActivationResult> {
+    if (deps.activateFn) {
+      return deps.activateFn(workerPkg, context);
+    }
+
+    // Built-in workers have path === "". Route to the correct activator.
+    if (workerPkg.path === "") {
+      if (workerPkg.name === MANAGER_PACKAGE_NAME) {
+        return activateManager(context);
+      }
+      throw new Error(
+        `Unknown built-in worker "${workerPkg.name}". Only "${MANAGER_PACKAGE_NAME}" is a recognized built-in.`,
+      );
+    }
+
+    // Dynamic import for production use. path.resolve() ensures an absolute
+    // path even when the package was discovered from a relative scan path.
+    const workerModule = (await import(path.resolve(workerPkg.path, "index.ts"))) as {
+      activate: (ctx: ActivationContext) => ActivationResult;
+    };
+    return workerModule.activate(context);
+  }
+
+  /**
+   * Runs an SDK session in-process for a commission. Handles the full
+   * lifecycle: tool resolution, memory injection, worker activation,
+   * SDK session consumption, and follow-up session for missing submit_result.
+   *
+   * Returns true if the worker called submit_result (commission should be
+   * marked completed), false otherwise (commission should be marked failed).
+   */
+  async function runCommissionSession(
+    commissionId: CommissionId,
+    commission: ActiveCommission,
+    abortController: AbortController,
+    projectPath: string,
+    prompt: string,
+    commissionDeps: string[],
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+  ): Promise<boolean> {
+    const log = (msg: string) =>
+      console.log(`[commission-session] [${commissionId}] ${msg}`);
+    const logErr = (msg: string) =>
+      console.error(`[commission-session] [${commissionId}] ${msg}`);
+
+    if (!deps.queryFn) {
+      logErr("no queryFn provided, cannot run in-process session");
+      return false;
+    }
+
+    // 1. Find the worker package
+    const workerPkg = deps.packages.find((p) => {
+      if (!("identity" in p.metadata)) return false;
+      return p.metadata.identity.name === commission.workerName;
+    });
+    if (!workerPkg) {
+      logErr(`worker package for "${commission.workerName}" not found`);
+      return false;
+    }
+    const workerMeta = workerPkg.metadata as WorkerMetadata;
+    const isManager = workerPkg.name === MANAGER_PACKAGE_NAME;
+
+    // 2. Resolve tools with commission callbacks
+    log("resolving tools...");
+    const resolve = deps.resolveToolSetFn ?? resolveToolSet;
+    const resolvedTools = resolve(workerMeta, deps.packages, {
+      projectPath,
+      projectName: commission.projectName,
+      commissionId: commissionId as string,
+      workerName: workerMeta.identity.name,
+      guildHallHome: ghHome,
+      workingDirectory: commission.worktreeDir,
+      isManager,
+      managerToolboxDeps: isManager && deps.commissionSessionRef?.current && deps.eventBus
+        ? {
+          integrationPath: integrationWorktreePath(ghHome, commission.projectName),
+          projectName: commission.projectName,
+          guildHallHome: ghHome,
+          commissionSession: deps.commissionSessionRef.current,
+          eventBus: deps.eventBus,
+          gitOps: git,
+          projectRepoPath: projectPath,
+          defaultBranch: findProject(commission.projectName)?.defaultBranch ?? "master",
+        }
+        : undefined,
+      onProgress: (summary: string) => {
+        commission.lastActivity = new Date();
+        log(`progress: ${summary.slice(0, 120)}`);
+        // File write (updateCurrentProgress) is handled by the toolbox handler
+        // before this callback is invoked. Only state + EventBus here.
+        deps.eventBus.emit({
+          type: "commission_progress",
+          commissionId: commissionId as string,
+          summary,
+        });
+      },
+      onResult: (summary: string, artifacts?: string[]) => {
+        commission.lastActivity = new Date();
+        // Dual tracking: commission.resultSubmitted is visible to handleError
+        // (outside runCommissionSession); resolvedTools.wasResultSubmitted()
+        // is visible inside runCommissionSession. Both set from this callback.
+        commission.resultSubmitted = true;
+        commission.resultSummary = summary;
+        commission.resultArtifacts = artifacts;
+        log(`result submitted: ${summary.slice(0, 120)}${artifacts?.length ? ` (${artifacts.length} artifacts)` : ""}`);
+
+        deps.eventBus.emit({
+          type: "commission_result",
+          commissionId: commissionId as string,
+          summary,
+          artifacts,
+        });
+      },
+      onQuestion: (question: string) => {
+        commission.lastActivity = new Date();
+        log(`question: ${question.slice(0, 120)}`);
+
+        deps.eventBus.emit({
+          type: "commission_question",
+          commissionId: commissionId as string,
+          question,
+        });
+      },
+    });
+    log(`tools resolved: ${resolvedTools.mcpServers.length} MCP server(s), ${resolvedTools.allowedTools?.length ?? 0} allowed tool(s)`);
+
+    // 3. Load memory files
+    const project = findProject(commission.projectName);
+    let injectedMemory = "";
+    let needsCompaction = false;
+    try {
+      const memoryResult = await loadMemories(
+        workerMeta.identity.name,
+        commission.projectName,
+        {
+          guildHallHome: ghHome,
+          memoryLimit: project?.memoryLimit,
+        },
+      );
+      injectedMemory = memoryResult.memoryBlock;
+      needsCompaction = memoryResult.needsCompaction;
+      if (needsCompaction) {
+        log(`memory exceeds limit, will trigger compaction`);
+      }
+    } catch (err: unknown) {
+      log(`failed to load memories (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // 4. Build activation context
+    const activationContext = buildCommissionActivationContext(
+      commissionId as string,
+      prompt,
+      commissionDeps,
+      workerMeta,
+      resolvedTools,
+      projectPath,
+      commission.worktreeDir,
+      injectedMemory,
+    );
+
+    // Inject manager context if this is the Guild Master
+    if (isManager) {
+      try {
+        activationContext.managerContext = await buildManagerContext({
+          packages: deps.packages,
+          projectName: commission.projectName,
+          integrationPath: integrationWorktreePath(ghHome, commission.projectName),
+          guildHallHome: ghHome,
+          memoryLimit: project?.memoryLimit,
+        });
+      } catch (err: unknown) {
+        log(`failed to build manager context (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    // 5. Activate the worker
+    log(`activating worker "${workerMeta.identity.name}"...`);
+    let activation: ActivationResult;
+    try {
+      activation = await activateWorker(workerPkg, activationContext);
+    } catch (err: unknown) {
+      logErr(`worker activation failed: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
+    log(`worker activated. systemPrompt length=${activation.systemPrompt.length}`);
+
+    // 6. Build SDK query options
+    const options = buildCommissionQueryOptions(
+      activation,
+      commission.worktreeDir,
+      resourceOverrides,
+      abortController,
+    );
+    const maxTurnsLog = typeof options.maxTurns === "number" ? options.maxTurns : "unset";
+    log(`SDK options: maxTurns=${maxTurnsLog}, cwd="${String(options.cwd)}"`);
+
+    // 7. Fire-and-forget memory compaction
+    if (needsCompaction) {
+      log(`triggering memory compaction for "${workerMeta.identity.name}"`);
+      void triggerCompaction(
+        workerMeta.identity.name,
+        commission.projectName,
+        {
+          guildHallHome: ghHome,
+          compactFn: deps.queryFn as Parameters<typeof triggerCompaction>[2]["compactFn"],
+        },
+      );
+    }
+
+    // 8. Run the SDK session
+    log("starting SDK session...");
+    const session = deps.queryFn({ prompt, options });
+
+    let messageCount = 0;
+    let sessionId: string | undefined;
+    try {
+      for await (const msg of session) {
+        messageCount++;
+        commission.lastActivity = new Date();
+        logSdkMessage(log, messageCount, msg);
+
+        // Capture session_id from the init system message for resume support
+        const m = msg as Record<string, unknown>;
+        if (m.type === "system" && m.subtype === "init" && typeof m.session_id === "string") {
+          sessionId = m.session_id;
+          log(`captured session_id: ${sessionId}`);
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        log(`SDK session aborted after ${messageCount} message(s)`);
+        return resolvedTools.wasResultSubmitted?.() ?? false;
+      }
+      logErr(`SDK session error after ${messageCount} message(s): ${err instanceof Error ? err.message : String(err)}`);
+      return resolvedTools.wasResultSubmitted?.() ?? false;
+    }
+    log(`SDK session complete. ${messageCount} message(s) consumed.`);
+
+    // 9. Check if result was submitted
+    const wasSubmitted = resolvedTools.wasResultSubmitted?.() ?? false;
+    if (wasSubmitted) {
+      return true;
+    }
+
+    // 10. No result submitted: run follow-up session to force submit_result
+    if (!sessionId) {
+      logErr("no result submitted and no session_id captured; cannot resume");
+      return false;
+    }
+
+    log(`no result submitted, resuming session ${sessionId} to force submit_result...`);
+    const followUpOptions = {
+      ...options,
+      resume: sessionId,
+      maxTurns: 3,
+    };
+    const followUp = deps.queryFn({
+      prompt: [
+        "Your previous session completed without calling submit_result.",
+        "The commission WILL BE MARKED AS FAILED unless you call submit_result now.",
+        "Summarize what you accomplished (or attempted) and call submit_result immediately.",
+        "Do NOT do any other work. Just call submit_result with a summary.",
+      ].join(" "),
+      options: followUpOptions,
+    });
+
+    let followUpCount = 0;
+    try {
+      for await (const msg of followUp) {
+        followUpCount++;
+        commission.lastActivity = new Date();
+        logSdkMessage(log, followUpCount, msg);
+      }
+    } catch (err: unknown) {
+      logErr(`follow-up session error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    log(`follow-up session complete. ${followUpCount} message(s) consumed.`);
+
+    const submittedAfterFollowUp = resolvedTools.wasResultSubmitted?.() ?? false;
+    if (!submittedAfterFollowUp) {
+      logErr("follow-up session also failed to call submit_result");
+    }
+    return submittedAfterFollowUp;
   }
 
   // -- Public API --
@@ -1066,7 +1452,7 @@ projectName: ${projectName}
       );
     }
 
-    // 3. Check capacity limits before spawning
+    // 3. Check capacity limits before starting session
     const capacityCheck = isAtCapacity(found.projectName);
     if (capacityCheck.atLimit) {
       console.log(
@@ -1125,14 +1511,11 @@ projectName: ${projectName}
       resourceOverrides.maxBudgetUsd = Number(overrides.maxBudgetUsd);
     }
 
-    // Find the worker package to get the package name
+    // Configure sparse checkout if the worker's checkoutScope is "sparse"
     const workerPkg = deps.packages.find((p) => {
       if (!("identity" in p.metadata)) return false;
       return p.metadata.identity.name === workerName;
     });
-    const workerPackageName = workerPkg?.name ?? workerName;
-
-    // Configure sparse checkout if the worker's checkoutScope is "sparse"
     if (workerPkg && "checkoutScope" in workerPkg.metadata) {
       const scope = (workerPkg.metadata as { checkoutScope: string }).checkoutScope;
       if (scope === "sparse") {
@@ -1140,37 +1523,7 @@ projectName: ${projectName}
       }
     }
 
-    // 8. Write worker config JSON
-    const socketPath = getSocketPath(ghHome);
-    const project = findProject(found.projectName);
-    const workerConfig: CommissionWorkerConfig = {
-      commissionId: commissionId as string,
-      projectName: found.projectName,
-      projectPath: found.projectPath,
-      workerPackageName,
-      prompt,
-      dependencies: commissionDeps,
-      workingDirectory: worktreeDir,
-      daemonSocketPath: socketPath,
-      packagesDir: deps.packagesDir,
-      guildHallHome: ghHome,
-      resourceOverrides:
-        Object.keys(resourceOverrides).length > 0
-          ? resourceOverrides
-          : undefined,
-      memoryLimit: project?.memoryLimit,
-    };
-
-    const stateDir = path.join(ghHome, "state", "commissions");
-    await fs.mkdir(stateDir, { recursive: true });
-    const configPath = path.join(stateDir, `${commissionId as string}.config.json`);
-    await fs.writeFile(
-      configPath,
-      JSON.stringify(workerConfig, null, 2),
-      "utf-8",
-    );
-
-    // 9. Write machine-local state file
+    // 8. Write machine-local state file
     await writeStateFile(commissionId, {
       commissionId: commissionId as string,
       projectName: found.projectName,
@@ -1178,98 +1531,77 @@ projectName: ${projectName}
       status: "dispatched",
       worktreeDir,
       branchName,
-      configPath,
     });
 
-    // 10. Spawn the worker process
-    console.log(
-      `[commission] dispatching "${commissionId}" -> worker="${workerName}", config="${configPath}"`,
-    );
-    const spawned = spawnFn(configPath);
-
-    // 11. Record in active Map
+    // 9. Create AbortController and register in active Map
+    const abortController = new AbortController();
     const now = new Date();
     const active: ActiveCommission = {
       commissionId,
       projectName: found.projectName,
       workerName,
-      pid: spawned.pid,
       startTime: now,
-      lastHeartbeat: now,
+      lastActivity: now,
       status: "dispatched",
       resultSubmitted: false,
       worktreeDir,
       branchName,
-      configPath,
+      abortController,
     };
 
     activeCommissions.set(commissionId as string, active);
 
-    console.log(
-      `[commission] spawned "${commissionId}" pid=${spawned.pid}`,
-    );
-
-    // 12. Update PID in state file
-    await writeStateFile(commissionId, {
-      commissionId: commissionId as string,
-      projectName: found.projectName,
-      workerName,
-      pid: spawned.pid,
-      status: "dispatched",
-      worktreeDir,
-      branchName,
-      configPath,
-    });
-
-    // 13. Transition to in_progress (in the activity worktree)
+    // 10. Transition to in_progress (in the activity worktree)
     await transitionCommission(
       worktreeDir,
       commissionId,
       "dispatched",
       "in_progress",
-      "Worker process started",
+      "Commission session started",
     );
     active.status = "in_progress";
 
-    // 14. Emit event
+    // 11. Emit event
     deps.eventBus.emit({
       type: "commission_status",
       commissionId: commissionId as string,
       status: "in_progress",
-      reason: "Worker process started",
+      reason: "Commission session started",
     });
 
-    // 15. Attach exit handler
-    void spawned.exitPromise.then(async (result) => {
-      await handleExit(commissionId, result.exitCode);
+    console.log(
+      `[commission] dispatching "${commissionId}" -> worker="${workerName}" (in-process)`,
+    );
+
+    // 12. Fire-and-forget: run the SDK session in-process
+    void runCommissionSession(
+      commissionId,
+      active,
+      abortController,
+      found.projectPath,
+      prompt,
+      commissionDeps,
+      Object.keys(resourceOverrides).length > 0 ? resourceOverrides : undefined,
+    ).then(async (resultSubmitted) => {
+      await handleCompletion(commissionId, active, resultSubmitted);
     }).catch(async (err: unknown) => {
-      const reason = err instanceof Error ? err.message : String(err);
-      const commission = activeCommissions.get(commissionId as string);
-      if (commission) {
-        await handleFailure(commissionId as string, commission, `Exit promise rejected: ${reason}`);
-      }
+      await handleError(commissionId, active, err);
     });
 
     return { status: "accepted" };
   }
 
-  async function handleExit(commissionId: CommissionId, exitCode: number): Promise<void> {
-    const commission = activeCommissions.get(commissionId as string);
-    if (!commission) {
-      console.warn(
-        `[commission-session] handleExit called for unknown commission "${commissionId}" (exit code: ${exitCode}). May indicate race with cancellation.`,
-      );
-      return;
-    }
-
-    // Clear any pending grace timer for this commission
-    if (commission.graceTimerId) {
-      clearTimeout(commission.graceTimerId);
-      killTimers.delete(commission.graceTimerId);
-      commission.graceTimerId = undefined;
-    }
-
-    // If already in a terminal state (e.g., cancelled), skip
+  /**
+   * Handles a commission session that returned normally. If resultSubmitted
+   * is true, transitions to completed with squash-merge. If false,
+   * transitions to failed ("session completed without submitting result").
+   */
+  async function handleCompletion(
+    commissionId: CommissionId,
+    commission: ActiveCommission,
+    resultSubmitted: boolean,
+  ): Promise<void> {
+    // If already in a terminal state (e.g., cancelled during session), skip
     if (
       commission.status === "completed" ||
       commission.status === "failed" ||
@@ -1279,30 +1611,17 @@ projectName: ${projectName}
       return;
     }
 
-    // Determine final status and reason from the exit code / result matrix.
-    // Result submitted -> completed (even if process crashed).
-    // No result -> failed (even if process exited cleanly).
     let finalStatus: CommissionStatus;
     let reason: string;
 
-    if (commission.resultSubmitted) {
+    if (resultSubmitted) {
       finalStatus = "completed";
-      if (exitCode === 0) {
-        console.log(`[commission] "${commissionId}" completed (clean exit, result submitted)`);
-        reason = "Worker completed successfully";
-      } else {
-        console.warn(`[commission] "${commissionId}" completed with anomaly (exit code ${exitCode}, but result was submitted)`);
-        reason = `Worker crashed (exit code ${exitCode}) but result was submitted`;
-      }
+      console.log(`[commission] "${commissionId}" completed (result submitted)`);
+      reason = "Worker completed successfully";
     } else {
       finalStatus = "failed";
-      if (exitCode === 0) {
-        console.log(`[commission] "${commissionId}" failed (clean exit, no result submitted)`);
-        reason = "Worker completed without submitting result";
-      } else {
-        console.error(`[commission] "${commissionId}" failed (exit code ${exitCode}, no result submitted)`);
-        reason = `Worker crashed with exit code ${exitCode}`;
-      }
+      console.log(`[commission] "${commissionId}" failed (session completed without submitting result)`);
+      reason = "Session completed without submitting result";
     }
 
     commission.status = finalStatus;
@@ -1468,7 +1787,7 @@ projectName: ${projectName}
         }
       }
     } else {
-      // Sync terminal status to integration worktree. For failed/cancelled,
+      // Sync terminal status to integration worktree. For failed,
       // there's no squash-merge, so the integration copy needs a direct update.
       await syncStatusToIntegration(commission, finalStatus, reason);
 
@@ -1515,7 +1834,6 @@ projectName: ${projectName}
         projectName: commission.projectName,
         workerName: commission.workerName,
         status: commission.status,
-        resultSubmitted: commission.resultSubmitted,
       }).catch((err: unknown) => {
         console.error(
           `[commission-session] Failed to write state file for ${commissionId}:`,
@@ -1533,6 +1851,57 @@ projectName: ${projectName}
     enqueueAutoDispatch();
   }
 
+  /**
+   * Handles a commission session that threw an error. If the error is an
+   * AbortError, transitions to cancelled (preserving branch for inspection).
+   * Otherwise transitions to failed. Checks commission.resultSubmitted
+   * before classifying as failed (dispatch-hardening retro lesson: preserve
+   * results even on abnormal termination).
+   */
+  async function handleError(
+    commissionId: CommissionId,
+    commission: ActiveCommission,
+    error: unknown,
+  ): Promise<void> {
+    // If already in a terminal state, skip
+    if (
+      commission.status === "completed" ||
+      commission.status === "failed" ||
+      commission.status === "cancelled"
+    ) {
+      activeCommissions.delete(commissionId as string);
+      return;
+    }
+
+    const isAbort = error instanceof Error && error.name === "AbortError";
+
+    if (isAbort) {
+      // AbortError means the session was intentionally stopped, either by
+      // cancelCommission() or shutdown(). cancelCommission does its own
+      // transition + cleanup; shutdown relies on recovery on next start.
+      // In both cases, this handler should not race with the initiator.
+      console.log(`[commission] "${commissionId}" session aborted`);
+      return;
+    }
+
+    // Non-abort error. Check if a result was submitted before the error
+    // (dispatch-hardening lesson: preserve results even on abnormal exit).
+    if (commission.resultSubmitted) {
+      console.warn(
+        `[commission] "${commissionId}" session errored but result was submitted, treating as completed`,
+      );
+      await handleCompletion(commissionId, commission, true);
+      return;
+    }
+
+    const reason = error instanceof Error
+      ? `Session error: ${error.message}`
+      : `Session error: ${String(error)}`;
+
+    console.error(`[commission] "${commissionId}" ${reason}`);
+    await handleFailure(commissionId as string, commission, reason);
+  }
+
   async function cancelCommission(
     commissionId: CommissionId,
     reason = "Commission cancelled by user",
@@ -1544,38 +1913,31 @@ projectName: ${projectName}
       );
     }
 
-    console.log(`[commission] cancelling "${commissionId}" pid=${commission.pid} (SIGTERM, ${CANCEL_GRACE_MS / 1000}s grace)`);
+    console.log(`[commission] cancelling "${commissionId}" via abort`);
 
-    // Send SIGTERM
-    try {
-      process.kill(commission.pid, 15);
-    } catch {
-      // Process may already be dead, that's fine
-    }
-
-    // Start grace timer for SIGKILL
-    const graceTimer = setTimeout(() => {
-      try {
-        process.kill(commission.pid, 9);
-      } catch {
-        // Process already dead
-      }
-      killTimers.delete(graceTimer);
-      commission.graceTimerId = undefined;
-    }, CANCEL_GRACE_MS);
-    killTimers.add(graceTimer);
-    commission.graceTimerId = graceTimer;
-
-    // Transition to cancelled (artifact is in activity worktree)
-    await transitionCommission(
-      commission.worktreeDir,
-      commissionId,
-      commission.status,
-      "cancelled",
-      reason,
-    );
-
+    // Set status before any awaits so handleCompletion's terminal state
+    // guard fires if it races with us after the abort signal propagates.
+    const previousStatus = commission.status;
     commission.status = "cancelled";
+
+    // Signal the in-process SDK session to stop
+    commission.abortController.abort();
+
+    // Transition to cancelled (artifact is in activity worktree).
+    // Wrap in try/catch: handleCompletion may race and transition first.
+    try {
+      await transitionCommission(
+        commission.worktreeDir,
+        commissionId,
+        previousStatus,
+        "cancelled",
+        reason,
+      );
+    } catch (err: unknown) {
+      console.warn(
+        `[commission] transition to cancelled raced with completion handler for "${commissionId}": ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
 
     deps.eventBus.emit({
       type: "commission_status",
@@ -1693,89 +2055,6 @@ projectName: ${projectName}
     return dispatchCommission(commissionId, attempt);
   }
 
-  function reportProgress(
-    commissionId: CommissionId,
-    summary: string,
-  ): void {
-    const commission = activeCommissions.get(commissionId as string);
-    if (!commission) {
-      console.warn(
-        `[commission-session] reportProgress called for unknown commission "${commissionId}". Summary: ${summary}`,
-      );
-      return;
-    }
-
-    commission.lastHeartbeat = new Date();
-    console.log(`[commission] "${commissionId}" progress: ${summary.slice(0, 120)}`);
-
-    // Update progress in artifact (fire-and-forget, uses activity worktree)
-    updateCurrentProgress(commission.worktreeDir, commissionId, summary).catch(
-      (err: unknown) => {
-        console.error(
-          `[commission-session] Failed to update progress:`,
-          err instanceof Error ? err.message : String(err),
-        );
-      },
-    );
-
-    deps.eventBus.emit({
-      type: "commission_progress",
-      commissionId: commissionId as string,
-      summary,
-    });
-  }
-
-  function reportResult(
-    commissionId: CommissionId,
-    summary: string,
-    artifacts?: string[],
-  ): void {
-    const commission = activeCommissions.get(commissionId as string);
-    if (!commission) {
-      console.error(
-        `[commission-session] reportResult called for unknown commission "${commissionId}". Result lost: ${summary}`,
-      );
-      return;
-    }
-
-    commission.resultSubmitted = true;
-    commission.resultSummary = summary;
-    commission.resultArtifacts = artifacts;
-    commission.lastHeartbeat = new Date();
-    console.log(
-      `[commission] "${commissionId}" result submitted: ${summary.slice(0, 120)}${artifacts?.length ? ` (${artifacts.length} artifacts)` : ""}`,
-    );
-
-    deps.eventBus.emit({
-      type: "commission_result",
-      commissionId: commissionId as string,
-      summary,
-      artifacts,
-    });
-  }
-
-  function reportQuestion(
-    commissionId: CommissionId,
-    question: string,
-  ): void {
-    const commission = activeCommissions.get(commissionId as string);
-    if (!commission) {
-      console.warn(
-        `[commission-session] reportQuestion called for unknown commission "${commissionId}". Question: ${question}`,
-      );
-      return;
-    }
-
-    commission.lastHeartbeat = new Date();
-    console.log(`[commission] "${commissionId}" question: ${question.slice(0, 120)}`);
-
-    deps.eventBus.emit({
-      type: "commission_question",
-      commissionId: commissionId as string,
-      question,
-    });
-  }
-
   async function addUserNote(
     commissionId: CommissionId,
     content: string,
@@ -1800,25 +2079,24 @@ projectName: ${projectName}
    * Recovers commissions from persisted state files on daemon startup.
    *
    * Scans ~/.guild-hall/state/commissions/ for .json state files and handles
-   * three cases:
-   *   1. State file exists, process dead: transition to failed, commit
-   *      partial work, clean up worktree, preserve branch.
-   *   2. State file exists, process alive: reattach to activeCommissions
-   *      Map, start heartbeat tracking.
-   *   3. Orphaned worktree (worktree exists with commission naming pattern
+   * two cases:
+   *   1. State file exists, commission was active (dispatched/in_progress):
+   *      transition to failed, commit partial work, clean up worktree,
+   *      preserve branch.
+   *   2. Orphaned worktree (worktree exists with commission naming pattern
    *      but no corresponding state file): commit partial work, transition
    *      to failed via integration worktree, preserve branch.
    *
-   * Returns the number of commissions recovered (reattached to live processes).
+   * In-process sessions don't survive daemon restarts, so all active
+   * commissions are treated as dead on recovery.
    */
   async function recoverCommissions(): Promise<number> {
     const stateDir = path.join(ghHome, "state", "commissions");
 
-    // Track which commission IDs have state files (for orphan detection in Phase 2)
+    // Track commission IDs with state files for orphan worktree detection
     const stateFileCommissionIds = new Set<string>();
-    let recovered = 0;
 
-    // -- Phase 1: Scan state files --
+    // -- Scan state files --
     let stateFiles: string[] = [];
     try {
       stateFiles = await fs.readdir(stateDir);
@@ -1830,21 +2108,16 @@ projectName: ${projectName}
       }
     }
 
-    // Filter to just .json state files (not .config.json worker configs)
-    const stateJsonFiles = stateFiles.filter(
-      (f) => f.endsWith(".json") && !f.endsWith(".config.json"),
-    );
+    const stateJsonFiles = stateFiles.filter((f) => f.endsWith(".json"));
 
     for (const file of stateJsonFiles) {
       let state: {
         commissionId: string;
         projectName: string;
         workerName: string;
-        pid?: number;
         status: string;
         worktreeDir?: string;
         branchName?: string;
-        configPath?: string;
       };
 
       try {
@@ -1882,75 +2155,16 @@ projectName: ${projectName}
       const cId = asCommissionId(state.commissionId);
       const worktreeDir = state.worktreeDir ?? "";
       const branchName = state.branchName ?? "";
-      const configPath = state.configPath ?? "";
 
-      if (!state.pid) {
-        // No PID recorded, treat as dead
-        console.log(
-          `[commission-recovery] Commission "${state.commissionId}" has no PID, transitioning to failed.`,
-        );
-        await recoverDeadCommission(cId, state.projectName, worktreeDir, branchName, project.path);
-        continue;
-      }
-
-      // Check if the process is still alive
-      const alive = isProcessAlive(state.pid);
-
-      if (alive) {
-        // Case 2: Reattach monitoring
-        const now = new Date();
-        const active: ActiveCommission = {
-          commissionId: cId,
-          projectName: state.projectName,
-          workerName: state.workerName,
-          pid: state.pid,
-          startTime: now,
-          lastHeartbeat: now,
-          status: state.status === "dispatched" ? "dispatched" : "in_progress" as CommissionStatus,
-          resultSubmitted: false,
-          worktreeDir,
-          branchName,
-          configPath,
-        };
-
-        activeCommissions.set(state.commissionId, active);
-
-        // If status was "dispatched", transition to "in_progress" since the
-        // process is still running. The original dispatch -> in_progress
-        // transition may have been lost if the daemon crashed mid-dispatch.
-        if (state.status === "dispatched") {
-          try {
-            await transitionCommission(
-              worktreeDir,
-              cId,
-              "dispatched",
-              "in_progress",
-              "Worker process still running after daemon restart",
-            );
-            active.status = "in_progress";
-          } catch (err: unknown) {
-            console.warn(
-              `[commission-recovery] Failed to transition "${state.commissionId}" dispatched -> in_progress:`,
-              err instanceof Error ? err.message : String(err),
-            );
-            // Keep as dispatched; heartbeat monitoring will handle it
-          }
-        }
-
-        console.log(
-          `[commission-recovery] Reattached commission "${state.commissionId}" pid=${state.pid} status=${active.status}.`,
-        );
-        recovered++;
-      } else {
-        // Case 1: Process is dead
-        console.log(
-          `[commission-recovery] Commission "${state.commissionId}" pid=${state.pid} is dead, transitioning to failed.`,
-        );
-        await recoverDeadCommission(cId, state.projectName, worktreeDir, branchName, project.path);
-      }
+      // In-process sessions don't survive daemon restarts. Any commission
+      // that was dispatched or in_progress when the daemon stopped is dead.
+      console.log(
+        `[commission-recovery] Commission "${state.commissionId}" was ${state.status} when daemon stopped, transitioning to failed.`,
+      );
+      await recoverDeadCommission(cId, state.projectName, worktreeDir, branchName, project.path);
     }
 
-    // -- Phase 2: Scan for orphaned worktrees --
+    // -- Scan for orphaned worktrees --
     // An orphaned worktree has a commission naming pattern but no state file.
     for (const project of deps.config.projects) {
       const worktreeRoot = activityWorktreeRoot(ghHome, project.name);
@@ -2001,17 +2215,15 @@ projectName: ${projectName}
       }
     }
 
-    if (recovered > 0) {
-      console.log(`[commission-recovery] Reattached ${recovered} live commission(s).`);
-    } else if (stateJsonFiles.length === 0) {
+    if (stateJsonFiles.length === 0) {
       console.log("[commission-recovery] No commissions to recover.");
     }
 
-    return recovered;
+    return 0;
   }
 
   /**
-   * Recovery helper for dead commissions (dead PID or orphaned worktree).
+   * Recovery helper for dead commissions (lost on restart or orphaned worktree).
    * Commits any uncommitted changes in the worktree, transitions the
    * commission to failed in the integration worktree, cleans up the
    * worktree, and preserves the branch.
@@ -2117,11 +2329,10 @@ projectName: ${projectName}
   }
 
   function shutdown(): void {
-    clearInterval(heartbeatInterval);
-    for (const timer of killTimers) {
-      clearTimeout(timer);
+    // Abort all active commission sessions
+    for (const commission of activeCommissions.values()) {
+      commission.abortController.abort();
     }
-    killTimers.clear();
   }
 
   return {
@@ -2130,9 +2341,6 @@ projectName: ${projectName}
     dispatchCommission,
     cancelCommission,
     redispatchCommission,
-    reportProgress,
-    reportResult,
-    reportQuestion,
     addUserNote,
     checkDependencyTransitions,
     recoverCommissions,

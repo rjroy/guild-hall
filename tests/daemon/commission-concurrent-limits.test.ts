@@ -17,20 +17,21 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { asCommissionId } from "@/daemon/types";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   createCommissionSession,
 } from "@/daemon/services/commission-session";
 import type {
   CommissionSessionDeps,
   CommissionSessionForRoutes,
-  SpawnedCommission,
 } from "@/daemon/services/commission-session";
+import type { ToolboxResolverContext } from "@/daemon/services/toolbox-resolver";
+import type { AppConfig, DiscoveredPackage, ResolvedToolSet, WorkerMetadata } from "@/lib/types";
 import {
   commissionArtifactPath,
 } from "@/daemon/services/commission-artifact-helpers";
 import { createEventBus } from "@/daemon/services/event-bus";
 import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
-import type { AppConfig, DiscoveredPackage } from "@/lib/types";
 import type { GitOps } from "@/daemon/lib/git";
 import {
   integrationWorktreePath,
@@ -157,45 +158,80 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
 }
 
 /**
- * Creates a mock spawn function that tracks multiple spawned processes.
- * Each call to the spawnFn returns a new controllable mock process.
+ * Creates a mock session for in-process commission execution.
+ * Each instance provides queryFn/activateFn/resolveToolSetFn DI seams
+ * and controls (resolve, reject, submitResult) for test orchestration.
  */
-function createMultiSpawnTracker() {
-  const spawned: Array<{
-    configPath: string;
-    pid: number;
-    resolveExit: (exitCode?: number) => void;
-    killed: boolean;
-  }> = [];
+function createMockSession() {
+  let resolveSession!: () => void;
+  let rejectSession!: (err: Error) => void;
+  let resultSubmitted = false;
+  let capturedOnResult: ((summary: string, artifacts?: string[]) => void) | undefined;
 
-  let nextPid = 10000;
+  const sessionPromise = new Promise<void>((resolve, reject) => {
+    resolveSession = resolve;
+    rejectSession = reject;
+  });
 
-  const spawnFn = (configPath: string): SpawnedCommission => {
-    const pid = nextPid++;
-    let resolveExit!: (result: { exitCode: number }) => void;
-    const exitPromise = new Promise<{ exitCode: number }>((resolve) => {
-      resolveExit = resolve;
-    });
+  return {
+    queryFn: (params: { prompt: string; options: Record<string, unknown> }) => {
+      const ac = params.options.abortController as AbortController | undefined;
+      return (async function* (): AsyncGenerator<SDKMessage> {
+        yield { type: "system", subtype: "init", session_id: "test-session" } as unknown as SDKMessage;
+        await Promise.race([
+          sessionPromise,
+          ...(ac ? [new Promise<void>((_, reject) => {
+            if (ac.signal.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
+            ac.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+          })] : []),
+        ]);
+      })();
+    },
+    /* eslint-disable @typescript-eslint/require-await */
+    activateFn: async (_pkg: DiscoveredPackage, _ctx: unknown) => ({
+      systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
+    }),
+    /* eslint-enable @typescript-eslint/require-await */
+    resolveToolSetFn: (_w: WorkerMetadata, _p: DiscoveredPackage[], ctx: ToolboxResolverContext): ResolvedToolSet => {
+      capturedOnResult = ctx.onResult;
+      return { mcpServers: [], allowedTools: [], wasResultSubmitted: () => resultSubmitted };
+    },
+    submitResult: (summary: string, artifacts?: string[]) => { resultSubmitted = true; capturedOnResult?.(summary, artifacts); },
+    resolve: () => resolveSession(),
+    reject: (err: Error) => rejectSession(err),
+  };
+}
 
-    const entry = {
-      configPath,
-      pid,
-      resolveExit: (exitCode = 0) => resolveExit({ exitCode }),
-      killed: false,
-    };
-    spawned.push(entry);
+/**
+ * Creates a multi-mock tracker for tests that dispatch multiple commissions.
+ * Returns shared DI seams that delegate to per-call mock sessions, and an
+ * array of mock handles for controlling each dispatched commission.
+ */
+function createMultiMockTracker(count = 20) {
+  const mocks: ReturnType<typeof createMockSession>[] = [];
+  for (let i = 0; i < count; i++) {
+    mocks.push(createMockSession());
+  }
 
-    return {
-      pid,
-      exitPromise,
-      kill: () => {
-        entry.killed = true;
-        resolveExit({ exitCode: 1 });
-      },
-    };
+  let queryCallCount = 0;
+  let resolveCallCount = 0;
+
+  const queryFn = (params: { prompt: string; options: Record<string, unknown> }) => {
+    const idx = queryCallCount++;
+    return mocks[idx].queryFn(params);
   };
 
-  return { spawnFn, spawned };
+  // eslint-disable-next-line @typescript-eslint/require-await
+  const activateFn = async (_pkg: DiscoveredPackage, _ctx: unknown) => ({
+    systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
+  });
+
+  const resolveToolSetFn = (_w: WorkerMetadata, _p: DiscoveredPackage[], ctx: ToolboxResolverContext): ResolvedToolSet => {
+    const idx = resolveCallCount++;
+    return mocks[idx].resolveToolSetFn(_w, _p, ctx);
+  };
+
+  return { queryFn, activateFn, resolveToolSetFn, mocks };
 }
 
 /**
@@ -287,11 +323,13 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:00.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 3 },
@@ -325,11 +363,13 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:03.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 3 },
@@ -379,12 +419,14 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:03.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       // No commissionCap set, should default to 3
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
         }),
       );
 
@@ -418,11 +460,13 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:03.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: {
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 5 },
@@ -468,12 +512,14 @@ describe("commission concurrent limits", () => {
         );
       }
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       // Set per-project cap high so only global matters
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 20 },
@@ -516,11 +562,13 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:02.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -538,9 +586,9 @@ describe("commission concurrent limits", () => {
       const r2 = await session.dispatchCommission(id2);
       expect(r2.status).toBe("queued");
 
-      // Complete the first commission (report result + exit)
-      session.reportResult(id1, "Done");
-      tracker.spawned[0].resolveExit(0);
+      // Complete the first commission (submit result + resolve session)
+      tracker.mocks[0].submitResult("Done");
+      tracker.mocks[0].resolve();
 
       // Wait for async exit handler and auto-dispatch
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -573,11 +621,13 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:02.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -591,8 +641,8 @@ describe("commission concurrent limits", () => {
       const r2 = await session.dispatchCommission(id2);
       expect(r2.status).toBe("queued");
 
-      // Fail the first commission (exit without result)
-      tracker.spawned[0].resolveExit(1);
+      // Fail the first commission (reject to simulate error, skipping follow-up)
+      tracker.mocks[0].reject(new Error("Simulated session failure"));
 
       await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -619,11 +669,13 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:02.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -677,11 +729,13 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:05.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: {
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -703,8 +757,8 @@ describe("commission concurrent limits", () => {
       expect(r2.status).toBe("queued");
 
       // Complete the active commission
-      session.reportResult(idActive, "Done");
-      tracker.spawned[0].resolveExit(0);
+      tracker.mocks[0].submitResult("Done");
+      tracker.mocks[0].resolve();
 
       await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -734,12 +788,14 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:02.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       // Start with cap of 3
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 3 },
@@ -763,10 +819,6 @@ describe("commission concurrent limits", () => {
       //
       // The key point: 2 commissions are active and continuing.
       expect(session.getActiveCommissions()).toBe(2);
-
-      // Neither was killed
-      expect(tracker.spawned[0].killed).toBe(false);
-      expect(tracker.spawned[1].killed).toBe(false);
     });
   });
 
@@ -795,11 +847,13 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:03.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 2 },
@@ -815,8 +869,8 @@ describe("commission concurrent limits", () => {
       expect(r3.status).toBe("queued");
 
       // Complete id1
-      session.reportResult(id1, "Done");
-      tracker.spawned[0].resolveExit(0);
+      tracker.mocks[0].submitResult("Done");
+      tracker.mocks[0].resolve();
 
       await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -846,11 +900,13 @@ describe("commission concurrent limits", () => {
         );
       }
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           // No commissionCap or maxConcurrentCommissions configured
         }),
       );
@@ -877,11 +933,13 @@ describe("commission concurrent limits", () => {
         );
       }
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 20 },
@@ -934,11 +992,13 @@ describe("commission concurrent limits", () => {
         "2026-02-21T10:00:04.000Z",
       );
 
-      const tracker = createMultiSpawnTracker();
+      const tracker = createMultiMockTracker();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: tracker.spawnFn,
+          queryFn: tracker.queryFn,
+          activateFn: tracker.activateFn,
+          resolveToolSetFn: tracker.resolveToolSetFn,
           config: {
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -960,8 +1020,8 @@ describe("commission concurrent limits", () => {
       expect(r4.status).toBe("queued");
 
       // Complete project 2's active commission
-      session.reportResult(idP2Active, "Done");
-      tracker.spawned[1].resolveExit(0);
+      tracker.mocks[1].submitResult("Done");
+      tracker.mocks[1].resolve();
 
       await new Promise((resolve) => setTimeout(resolve, 200));
 

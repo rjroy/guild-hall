@@ -13,7 +13,6 @@ import {
 import type {
   CommissionSessionDeps,
   CommissionSessionForRoutes,
-  SpawnedCommission,
 } from "@/daemon/services/commission-session";
 import {
   commissionArtifactPath,
@@ -22,8 +21,15 @@ import {
 } from "@/daemon/services/commission-artifact-helpers";
 import { createEventBus } from "@/daemon/services/event-bus";
 import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
-import type { AppConfig, DiscoveredPackage } from "@/lib/types";
+import type {
+  AppConfig,
+  DiscoveredPackage,
+  ResolvedToolSet,
+  WorkerMetadata,
+} from "@/lib/types";
 import type { GitOps } from "@/daemon/lib/git";
+import type { ToolboxResolverContext } from "@/daemon/services/toolbox-resolver";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   integrationWorktreePath,
   commissionWorktreePath,
@@ -427,46 +433,87 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
   /* eslint-enable @typescript-eslint/require-await */
 }
 
-/** Creates a mock spawn function for testing without real processes */
-function createMockSpawn(options?: {
-  exitCode?: number;
-  exitDelay?: number;
-}) {
-  let resolveExit!: (result: { exitCode: number }) => void;
-  let killCalled = false;
-  let killSignal: string | undefined;
+/**
+ * Creates a mock in-process session that replaces the old createMockSpawn.
+ *
+ * Provides DI seams (queryFn, activateFn, resolveToolSetFn) that simulate
+ * an SDK session running inside the daemon. The test controls when the
+ * session completes via resolve/reject, and can simulate tool callbacks
+ * (submitResult, reportProgress, logQuestion) that would normally be
+ * invoked by the commission toolbox MCP handlers.
+ */
+function createMockSession() {
+  let resolveSession!: () => void;
+  let rejectSession!: (err: Error) => void;
+  let resultSubmitted = false;
+  let capturedOnResult: ((summary: string, artifacts?: string[]) => void) | undefined;
+  let capturedOnProgress: ((summary: string) => void) | undefined;
+  let capturedOnQuestion: ((question: string) => void) | undefined;
 
-  const exitPromise = new Promise<{ exitCode: number }>((resolve) => {
-    resolveExit = resolve;
+  const sessionPromise = new Promise<void>((resolve, reject) => {
+    resolveSession = resolve;
+    rejectSession = reject;
   });
-
-  if (options?.exitDelay) {
-    setTimeout(
-      () => resolveExit({ exitCode: options.exitCode ?? 0 }),
-      options.exitDelay,
-    );
-  }
-
-  const pid = Math.floor(Math.random() * 100000) + 1000;
+  // Suppress unhandled rejection warnings. The rejection still propagates
+  // through the await in the async generator; this just prevents bun from
+  // treating it as an unhandled rejection when the follow-up session sees
+  // the already-rejected promise.
+  sessionPromise.catch(() => {});
 
   return {
-    spawnFn: (_configPath: string): SpawnedCommission => ({
-      pid,
-      exitPromise,
-      kill: (signal?: string) => {
-        killCalled = true;
-        killSignal = signal;
-        resolveExit({ exitCode: options?.exitCode ?? 1 });
-      },
+    queryFn: (_params: { prompt: string; options: Record<string, unknown> }) => {
+      const ac = _params.options.abortController as AbortController | undefined;
+      return (async function* (): AsyncGenerator<SDKMessage> {
+        yield { type: "system", subtype: "init", session_id: "test-session" } as unknown as SDKMessage;
+        // Wait for test to resolve, or abort signal to fire
+        await Promise.race([
+          sessionPromise,
+          ...(ac ? [new Promise<void>((_, reject) => {
+            if (ac.signal.aborted) {
+              reject(new DOMException("Aborted", "AbortError"));
+              return;
+            }
+            ac.signal.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError")),
+            );
+          })] : []),
+        ]);
+      })();
+    },
+    /* eslint-disable @typescript-eslint/require-await */
+    activateFn: async (_pkg: DiscoveredPackage, _ctx: unknown) => ({
+      systemPrompt: "Test worker activated",
+      tools: { mcpServers: [] as never[], allowedTools: [] as string[] },
+      resourceBounds: {},
     }),
-    resolveExit: (exitCode = 0) => resolveExit({ exitCode }),
-    get killCalled() {
-      return killCalled;
+    /* eslint-enable @typescript-eslint/require-await */
+    resolveToolSetFn: (_worker: WorkerMetadata, _packages: DiscoveredPackage[], context: ToolboxResolverContext): ResolvedToolSet => {
+      capturedOnResult = context.onResult;
+      capturedOnProgress = context.onProgress;
+      capturedOnQuestion = context.onQuestion;
+      return {
+        mcpServers: [],
+        allowedTools: [],
+        wasResultSubmitted: () => resultSubmitted,
+      };
     },
-    get killSignal() {
-      return killSignal;
+    /** Simulate worker calling submit_result tool */
+    submitResult: (summary: string, artifacts?: string[]) => {
+      resultSubmitted = true;
+      capturedOnResult?.(summary, artifacts);
     },
-    pid,
+    /** Simulate worker calling report_progress tool */
+    reportProgress: (summary: string) => {
+      capturedOnProgress?.(summary);
+    },
+    /** Simulate worker calling log_question tool */
+    logQuestion: (question: string) => {
+      capturedOnQuestion?.(question);
+    },
+    /** Complete the SDK session (generator finishes normally) */
+    resolve: () => resolveSession(),
+    /** Fail the SDK session with an error */
+    reject: (err: Error) => rejectSession(err),
   };
 }
 
@@ -782,11 +829,13 @@ projectName: test-project
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -818,18 +867,20 @@ projectName: test-project
         status: "in_progress",
       });
 
-      // Clean up (exit the mock)
-      mockSpawn.resolveExit(0);
+      // Clean up (finish the mock session)
+      mock.resolve();
     });
 
     test("rejects non-pending commissions", async () => {
       await writeCommissionArtifact("in_progress");
 
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
         }),
       );
 
@@ -842,11 +893,13 @@ projectName: test-project
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -865,16 +918,15 @@ projectName: test-project
       expect(state.commissionId).toBe(commissionId as string);
       expect(state.projectName).toBe("test-project");
       expect(state.workerName).toBe("researcher");
-      expect(state.pid).toBe(mockSpawn.pid);
       expect(state.branchName).toBe(commissionBranchName(commissionId as string));
       expect(state.worktreeDir).toBe(
         commissionWorktreePath(ghHome, "test-project", commissionId as string),
       );
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
-    test("preserves multi-line prompt in worker config", async () => {
+    test("preserves multi-line prompt through dispatch", async () => {
       // gray-matter wraps prompts longer than ~80 chars as multi-line YAML.
       // The old regex parser silently dropped these, producing an empty prompt.
       const longPrompt =
@@ -908,31 +960,31 @@ projectName: test-project
       await fs.writeFile(artifactPath, content, "utf-8");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
-      let capturedConfigPath = "";
-      const capturingSpawn = (configPath: string): SpawnedCommission => {
-        capturedConfigPath = configPath;
-        return mockSpawn.spawnFn(configPath);
-      };
+      const mock = createMockSession();
 
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: capturingSpawn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
 
-      const configRaw = await fs.readFile(capturedConfigPath, "utf-8");
-      const config = JSON.parse(configRaw) as Record<string, unknown>;
-      expect(config.prompt).toBe(longPrompt);
+      // Verify the artifact in the activity worktree preserves the prompt
+      const activityDir = commissionWorktreePath(ghHome, "test-project", commissionId as string);
+      const activityArtifactPath = commissionArtifactPath(activityDir, commissionId);
+      const raw = await fs.readFile(activityArtifactPath, "utf-8");
+      const { data } = matter(raw);
+      expect(data.prompt).toBe(longPrompt);
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
-    test("preserves zero-valued resource overrides in worker config", async () => {
+    test("preserves zero-valued resource overrides through dispatch", async () => {
       const content = `---
 title: "Commission: Research OAuth patterns"
 date: 2026-02-21
@@ -959,46 +1011,50 @@ projectName: test-project
       await fs.writeFile(artifactPath, content, "utf-8");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
-      let capturedConfigPath = "";
-      const capturingSpawn = (configPath: string): SpawnedCommission => {
-        capturedConfigPath = configPath;
-        return mockSpawn.spawnFn(configPath);
-      };
+      const mock = createMockSession();
 
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: capturingSpawn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
 
-      const configRaw = await fs.readFile(capturedConfigPath, "utf-8");
-      const config = JSON.parse(configRaw) as {
-        resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+      // Verify the artifact in the activity worktree preserves zero-valued overrides
+      const activityDir = commissionWorktreePath(ghHome, "test-project", commissionId as string);
+      const activityArtifactPath = commissionArtifactPath(activityDir, commissionId);
+      const raw = await fs.readFile(activityArtifactPath, "utf-8");
+      const { data } = matter(raw);
+      const overrides = data.resource_overrides as {
+        maxTurns?: number;
+        maxBudgetUsd?: number;
       };
-      expect(config.resourceOverrides?.maxTurns).toBe(0);
-      expect(config.resourceOverrides?.maxBudgetUsd).toBe(0);
+      expect(overrides?.maxTurns).toBe(0);
+      expect(overrides?.maxBudgetUsd).toBe(0);
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
   });
 
-  // -- Exit handling --
+  // -- Session completion handling --
 
-  describe("exit handling", () => {
-    test("clean exit (code 0) with submit_result transitions to completed", async () => {
+  describe("session completion handling", () => {
+    test("session completes with submit_result transitions to completed", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1006,13 +1062,11 @@ projectName: test-project
       await session.dispatchCommission(commissionId);
       expect(session.getActiveCommissions()).toBe(1);
 
-      // Report result before exit
-      session.reportResult(commissionId, "Research complete", ["report.md"]);
+      // Simulate submit_result tool call before session completes
+      mock.submitResult("Research complete", ["report.md"]);
 
-      // Exit cleanly
-      mockSpawn.resolveExit(0);
-
-      // Wait for async exit handler to process
+      // Session finishes normally
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(session.getActiveCommissions()).toBe(0);
@@ -1026,23 +1080,25 @@ projectName: test-project
       expect(statusEvents.length).toBeGreaterThanOrEqual(1);
     });
 
-    test("clean exit (code 0) without submit_result transitions to failed", async () => {
+    test("session completes without submit_result transitions to failed", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
 
-      // Exit without reporting result
-      mockSpawn.resolveExit(0);
+      // Session completes without calling submit_result
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(session.getActiveCommissions()).toBe(0);
@@ -1056,24 +1112,26 @@ projectName: test-project
       expect(statusEvents.length).toBeGreaterThanOrEqual(1);
     });
 
-    test("crash exit (non-zero) with submit_result transitions to completed (anomaly)", async () => {
+    test("session error with submit_result transitions to completed", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
 
-      // Report result, then crash
-      session.reportResult(commissionId, "Partial result saved");
-      mockSpawn.resolveExit(1);
+      // Simulate submit_result before error
+      mock.submitResult("Partial result saved");
+      mock.reject(new Error("SDK session failed"));
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(session.getActiveCommissions()).toBe(0);
@@ -1087,23 +1145,25 @@ projectName: test-project
       expect(statusEvents.length).toBeGreaterThanOrEqual(1);
     });
 
-    test("crash exit (non-zero) without submit_result transitions to failed", async () => {
+    test("session error without submit_result transitions to failed", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
 
-      // Crash without result
-      mockSpawn.resolveExit(2);
+      // Session errors without result
+      mock.reject(new Error("SDK session crashed"));
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(session.getActiveCommissions()).toBe(0);
@@ -1136,11 +1196,13 @@ projectName: test-project
         workerName: string;
         reason: string;
       }> = [];
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
           createMeetingRequestFn: (params) => {
             meetingRequestCalls.push(params);
@@ -1152,8 +1214,8 @@ projectName: test-project
       await session.dispatchCommission(commissionId);
 
       // Complete the commission with a result so it attempts the squash-merge
-      session.reportResult(commissionId, "Research complete");
-      mockSpawn.resolveExit(0);
+      mock.submitResult("Research complete");
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Commission should have transitioned to failed
@@ -1186,19 +1248,21 @@ projectName: test-project
         return Promise.resolve(["src/app.ts"]);
       };
 
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       // No createMeetingRequestFn provided
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
-      session.reportResult(commissionId, "Research complete");
-      mockSpawn.resolveExit(0);
+      mock.submitResult("Research complete");
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Commission should still transition to failed gracefully
@@ -1216,15 +1280,17 @@ projectName: test-project
   // -- cancelCommission --
 
   describe("cancelCommission", () => {
-    test("kills process and transitions to cancelled", async () => {
+    test("aborts session and transitions to cancelled", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1233,6 +1299,8 @@ projectName: test-project
       expect(session.getActiveCommissions()).toBe(1);
 
       await session.cancelCommission(commissionId);
+      // Let abort signal propagate through the async generator
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(session.getActiveCommissions()).toBe(0);
 
@@ -1260,11 +1328,13 @@ projectName: test-project
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1273,6 +1343,7 @@ projectName: test-project
 
       const customReason = "Blocking PR creation, stale work";
       await session.cancelCommission(commissionId, customReason);
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const cancelEvents = emittedEvents.filter(
         (e) =>
@@ -1294,11 +1365,13 @@ projectName: test-project
       await writeCommissionArtifact("failed");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1313,18 +1386,20 @@ projectName: test-project
       const status = await readCommissionStatus(activityDir, commissionId);
       expect(status).toBe("in_progress");
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     test("works for cancelled commissions", async () => {
       await writeCommissionArtifact("cancelled");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1332,7 +1407,7 @@ projectName: test-project
       const result = await session.redispatchCommission(commissionId);
       expect(result).toEqual({ status: "accepted" });
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     test("rejects non-failed/cancelled commissions", async () => {
@@ -1371,11 +1446,13 @@ projectName: test-project
       ]);
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1387,7 +1464,7 @@ projectName: test-project
       expect(branchCall).toBeDefined();
       expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 2));
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     test("multiple redispatches increment the attempt suffix", async () => {
@@ -1401,11 +1478,13 @@ projectName: test-project
       ]);
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1417,7 +1496,7 @@ projectName: test-project
       expect(branchCall).toBeDefined();
       expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 3));
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     test("redispatch from cancelled status uses correct attempt suffix", async () => {
@@ -1428,11 +1507,13 @@ projectName: test-project
       ]);
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1444,7 +1525,7 @@ projectName: test-project
       expect(branchCall).toBeDefined();
       expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 2));
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     test("mixed failed and cancelled attempts count correctly", async () => {
@@ -1457,11 +1538,13 @@ projectName: test-project
       ]);
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1472,7 +1555,7 @@ projectName: test-project
       expect(branchCall).toBeDefined();
       expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string, 3));
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     test("first dispatch (no previous failures) uses unsuffixed branch name", async () => {
@@ -1481,11 +1564,13 @@ projectName: test-project
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1498,22 +1583,24 @@ projectName: test-project
       expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string));
       expect(branchCall!.args[1]).toBe(`claude/commission/${commissionId}`);
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
   });
 
-  // -- reportProgress --
+  // -- reportProgress (via toolbox callback) --
 
-  describe("reportProgress", () => {
-    test("updates lastHeartbeat and emits event", async () => {
+  describe("reportProgress (via toolbox callback)", () => {
+    test("emits commission_progress event", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1523,7 +1610,7 @@ projectName: test-project
       // Clear events from dispatch
       emittedEvents.length = 0;
 
-      session.reportProgress(commissionId, "50% complete");
+      mock.reportProgress("50% complete");
 
       const progressEvents = emittedEvents.filter(
         (e) => e.type === "commission_progress",
@@ -1535,36 +1622,24 @@ projectName: test-project
         summary: "50% complete",
       });
 
-      mockSpawn.resolveExit(0);
-    });
-
-    test("silently ignores unknown commission ID", () => {
-      session = createCommissionSession(
-        createTestDeps({ eventBus }),
-      );
-
-      // Should not throw
-      session.reportProgress(
-        asCommissionId("commission-unknown-20260101-000000"),
-        "progress",
-      );
-
-      expect(emittedEvents).toHaveLength(0);
+      mock.resolve();
     });
   });
 
-  // -- reportResult --
+  // -- reportResult (via toolbox callback) --
 
-  describe("reportResult", () => {
+  describe("reportResult (via toolbox callback)", () => {
     test("sets resultSubmitted flag and emits event", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1574,7 +1649,7 @@ projectName: test-project
       // Clear events from dispatch
       emittedEvents.length = 0;
 
-      session.reportResult(commissionId, "Research complete", [
+      mock.submitResult("Research complete", [
         "report.md",
         "findings.md",
       ]);
@@ -1590,8 +1665,8 @@ projectName: test-project
         artifacts: ["report.md", "findings.md"],
       });
 
-      // Verify it affects exit handling (exit 0 should complete, not fail)
-      mockSpawn.resolveExit(0);
+      // Verify it affects completion handling (session ends -> should complete, not fail)
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const statusEvents = emittedEvents.filter(
@@ -1604,18 +1679,20 @@ projectName: test-project
     });
   });
 
-  // -- reportQuestion --
+  // -- reportQuestion (via toolbox callback) --
 
-  describe("reportQuestion", () => {
+  describe("reportQuestion (via toolbox callback)", () => {
     test("emits commission_question event", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1625,8 +1702,7 @@ projectName: test-project
       // Clear events from dispatch
       emittedEvents.length = 0;
 
-      session.reportQuestion(
-        commissionId,
+      mock.logQuestion(
         "Which OAuth flow should I focus on?",
       );
 
@@ -1640,7 +1716,7 @@ projectName: test-project
         question: "Which OAuth flow should I focus on?",
       });
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
   });
 
@@ -1692,11 +1768,13 @@ projectName: test-project
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1704,18 +1782,20 @@ projectName: test-project
       await session.dispatchCommission(commissionId);
       expect(session.getActiveCommissions()).toBe(1);
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
-    test("decrements when commission exits", async () => {
+    test("decrements when session completes", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1723,7 +1803,7 @@ projectName: test-project
       await session.dispatchCommission(commissionId);
       expect(session.getActiveCommissions()).toBe(1);
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(session.getActiveCommissions()).toBe(0);
@@ -1750,11 +1830,13 @@ projectName: test-project
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1767,18 +1849,20 @@ projectName: test-project
       expect(branchCall!.args[1]).toBe(commissionBranchName(commissionId as string));
       expect(branchCall!.args[2]).toBe("claude/main"); // base ref
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     test("dispatchCommission calls createWorktree with correct path", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1793,19 +1877,21 @@ projectName: test-project
       );
       expect(worktreeCall!.args[2]).toBe(commissionBranchName(commissionId as string));
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     test("dispatchCommission configures sparse checkout for sparse-scope workers", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       // Default worker package has checkoutScope: "sparse"
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1818,7 +1904,7 @@ projectName: test-project
       expect(sparseCall!.args[0]).toBe(expectedWorktree);
       expect(sparseCall!.args[1]).toEqual([".lore/"]);
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     test("dispatchCommission does not configure sparse checkout for full-scope workers", async () => {
@@ -1847,12 +1933,14 @@ projectName: test-project
       };
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
           packages: [fullScopeWorker],
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1862,7 +1950,7 @@ projectName: test-project
       const sparseCall = mockGitOps.calls.find((c) => c.method === "configureSparseCheckout");
       expect(sparseCall).toBeUndefined();
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     test("createCommission writes artifact to integration worktree", async () => {
@@ -1889,45 +1977,17 @@ projectName: test-project
       await expect(fs.access(pArtifactPath)).rejects.toThrow();
     });
 
-    test("worker config receives worktreeDir as workingDirectory", async () => {
-      await writeCommissionArtifact("pending");
-
-      const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
-      let capturedConfigPath = "";
-      const capturingSpawn = (configPath: string): SpawnedCommission => {
-        capturedConfigPath = configPath;
-        return mockSpawn.spawnFn(configPath);
-      };
-
-      session = createCommissionSession(
-        createTestDeps({
-          eventBus,
-          spawnFn: capturingSpawn,
-          gitOps: mockGitOps,
-        }),
-      );
-
-      await session.dispatchCommission(commissionId);
-
-      // Read the worker config to verify workingDirectory
-      const configRaw = await fs.readFile(capturedConfigPath, "utf-8");
-      const config = JSON.parse(configRaw) as Record<string, unknown>;
-      const expectedWorktree = commissionWorktreePath(ghHome, "test-project", commissionId as string);
-      expect(config.workingDirectory).toBe(expectedWorktree);
-
-      mockSpawn.resolveExit(0);
-    });
-
     test("state file contains worktreeDir and branchName", async () => {
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1948,7 +2008,7 @@ projectName: test-project
       );
       expect(state.branchName).toBe(commissionBranchName(commissionId as string));
 
-      mockSpawn.resolveExit(0);
+      mock.resolve();
     });
 
     // -- Exit/cleanup git operations --
@@ -1957,11 +2017,13 @@ projectName: test-project
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -1971,9 +2033,9 @@ projectName: test-project
       // Clear calls from dispatch to isolate exit-path calls
       const dispatchCallCount = mockGitOps.calls.length;
 
-      // Report result so exit classifies as completed
-      session.reportResult(commissionId, "Research complete", ["report.md"]);
-      mockSpawn.resolveExit(0);
+      // Submit result so completion classifies as completed
+      mock.submitResult("Research complete", ["report.md"]);
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
@@ -2010,11 +2072,13 @@ projectName: test-project
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -2023,8 +2087,8 @@ projectName: test-project
 
       const dispatchCallCount = mockGitOps.calls.length;
 
-      // Exit without result -> failure
-      mockSpawn.resolveExit(0);
+      // Session completes without result -> failure
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
@@ -2040,11 +2104,13 @@ projectName: test-project
       await writeCommissionArtifact("pending");
 
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -2054,6 +2120,8 @@ projectName: test-project
       const dispatchCallCount = mockGitOps.calls.length;
 
       await session.cancelCommission(commissionId);
+      // Let abort signal propagate
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const cancelCalls = mockGitOps.calls.slice(dispatchCallCount);
       const cancelMethods = cancelCalls.map((c) => c.method);
@@ -2075,20 +2143,22 @@ projectName: test-project
         return Promise.reject(new Error("Merge conflict"));
       };
 
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
 
-      // Report result so exit classifies as completed
-      session.reportResult(commissionId, "Research complete");
-      mockSpawn.resolveExit(0);
+      // Submit result so completion classifies as completed
+      mock.submitResult("Research complete");
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Commission should still have been removed from active map
@@ -2110,19 +2180,21 @@ projectName: test-project
       // Default mock commitAll already returns false. Verify the flow
       // completes without error for the failure path.
       const mockGitOps = createMockGitOps();
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
 
-      // Exit without result -> failure path, commitAll returns false
-      mockSpawn.resolveExit(1);
+      // Session completes without result -> failure path, commitAll returns false
+      mock.reject(new Error("SDK session crashed"));
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       expect(session.getActiveCommissions()).toBe(0);
@@ -2160,11 +2232,13 @@ projectName: test-project
         return origSquash(...args);
       };
 
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
@@ -2173,8 +2247,8 @@ projectName: test-project
       const dispatchSequenceLength = callSequence.length;
 
       // Complete the commission so the merge path executes.
-      session.reportResult(commissionId, "Research complete", ["report.md"]);
-      mockSpawn.resolveExit(0);
+      mock.submitResult("Research complete", ["report.md"]);
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const exitSequence = callSequence.slice(dispatchSequenceLength);
@@ -2211,19 +2285,21 @@ projectName: test-project
         return Promise.resolve(false); // clean tree
       };
 
-      const mockSpawn = createMockSpawn();
+      const mock = createMockSession();
       session = createCommissionSession(
         createTestDeps({
           eventBus,
-          spawnFn: mockSpawn.spawnFn,
+          queryFn: mock.queryFn,
+          activateFn: mock.activateFn,
+          resolveToolSetFn: mock.resolveToolSetFn,
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
 
-      session.reportResult(commissionId, "Research complete", ["report.md"]);
-      mockSpawn.resolveExit(0);
+      mock.submitResult("Research complete", ["report.md"]);
+      mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // At least one commitAll call targeted the integration path.

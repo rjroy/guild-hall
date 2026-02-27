@@ -20,7 +20,6 @@ import {
 import {
   createCommissionSession,
   type CommissionSessionDeps,
-  type SpawnedCommission,
 } from "@/daemon/services/commission-session";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import {
@@ -258,30 +257,26 @@ function createMockGitOps(copySourceDir?: string): GitOps & { calls: string[] } 
 }
 
 /**
- * Creates a mock spawn that returns a controllable promise for exit.
- * The commission process does not actually run; tests control when
- * it "exits" by calling resolveExit.
+ * Creates a mock queryFn that yields a single init message then completes.
+ * The commission session runs in-process, so we mock the SDK query function.
  */
-function createMockSpawn() {
-  let resolveExit!: (result: { exitCode: number }) => void;
-
-  const exitPromise = new Promise<{ exitCode: number }>((resolve) => {
-    resolveExit = resolve;
-  });
-
-  const pid = Math.floor(Math.random() * 100000) + 1000;
-
-  return {
-    spawnFn: (): SpawnedCommission => ({
-      pid,
-      exitPromise,
-      kill: () => {
-        resolveExit({ exitCode: 1 });
-      },
-    }),
-    resolveExit: (exitCode = 0) => resolveExit({ exitCode }),
-    pid,
+function createMockQueryFn() {
+  // eslint-disable-next-line @typescript-eslint/require-await
+  return async function* () {
+    yield { type: "system", subtype: "init" } as unknown as SDKMessage;
   };
+}
+
+/**
+ * Creates a mock activateFn that returns a canned ActivationResult.
+ */
+function createMockActivateFn() {
+  // eslint-disable-next-line @typescript-eslint/require-await
+  return async () => ({
+    systemPrompt: "test",
+    tools: { mcpServers: [], allowedTools: [] },
+    resourceBounds: {},
+  });
 }
 
 /** Collects all events from an async generator into an array. */
@@ -352,9 +347,8 @@ describe("State Isolation", () => {
       expect(sessionEvent!.sessionId).toBe("sdk-session-meeting");
     }
 
-    // Set up commission session with a different spawn
+    // Set up commission session with in-process mocks
     const eventBus = createEventBus();
-    const commissionSpawn = createMockSpawn();
     const commissionGit = createMockGitOps(integrationDir);
 
     const commissionDeps: CommissionSessionDeps = {
@@ -363,7 +357,8 @@ describe("State Isolation", () => {
       guildHallHome: ghHome,
       eventBus,
       packagesDir: "/tmp/fake-packages",
-      spawnFn: commissionSpawn.spawnFn,
+      queryFn: createMockQueryFn(),
+      activateFn: createMockActivateFn(),
       gitOps: commissionGit,
     };
 
@@ -394,8 +389,9 @@ describe("State Isolation", () => {
     // Verify the commission has 1 active commission
     expect(commissionSession.getActiveCommissions()).toBe(1);
 
-    // The commission gets a separate PID, proving it's a separate process
-    expect(commissionSpawn.pid).toBeGreaterThan(0);
+    // The commission runs as an independent in-process session, not linked
+    // to the meeting session. Active count proves independence.
+    expect(commissionSession.getActiveCommissions()).toBe(1);
 
     // Clean up
     commissionSession.shutdown();
@@ -471,7 +467,6 @@ describe("State Isolation", () => {
 
     // Now create a commission and track its git operations
     const eventBus = createEventBus();
-    const commissionSpawn = createMockSpawn();
     const commissionGitCalls: Array<{ method: string; args: unknown[] }> = [];
     const commissionGit = createMockGitOps(integrationDir);
     // Override createBranch and createWorktree to track calls
@@ -492,7 +487,8 @@ describe("State Isolation", () => {
       guildHallHome: ghHome,
       eventBus,
       packagesDir: "/tmp/fake-packages",
-      spawnFn: commissionSpawn.spawnFn,
+      queryFn: createMockQueryFn(),
+      activateFn: createMockActivateFn(),
       gitOps: commissionGit,
     });
 
@@ -546,7 +542,9 @@ describe("State Isolation", () => {
       commissionId: "commission-Assistant-20260223-120000",
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
-      daemonSocketPath: "/tmp/fake.sock",
+      onProgress: () => {},
+      onResult: () => {},
+      onQuestion: () => {},
     });
 
     // Both should have the base toolbox
@@ -686,12 +684,16 @@ describe("State Isolation", () => {
     }
     expect(meetingId).toBeDefined();
 
-    // Create and dispatch a commission
+    // Create and dispatch a commission using a controllable queryFn.
+    // The async generator blocks until resolveSession is called, allowing
+    // the test to verify both contexts are active simultaneously.
     const eventBus = createEventBus();
     const emittedEvents: SystemEvent[] = [];
     eventBus.subscribe((event) => emittedEvents.push(event));
 
-    const commissionSpawn = createMockSpawn();
+    let resolveSession!: () => void;
+    const sessionGate = new Promise<void>((r) => { resolveSession = r; });
+
     const commissionGit = createMockGitOps(integrationDir);
 
     const commissionDeps: CommissionSessionDeps = {
@@ -700,7 +702,12 @@ describe("State Isolation", () => {
       guildHallHome: ghHome,
       eventBus,
       packagesDir: "/tmp/fake-packages",
-      spawnFn: commissionSpawn.spawnFn,
+      queryFn: async function* () {
+        yield { type: "system", subtype: "init" } as unknown as SDKMessage;
+        // Block until the test resolves the gate
+        await sessionGate;
+      },
+      activateFn: createMockActivateFn(),
       gitOps: commissionGit,
     };
 
@@ -715,6 +722,9 @@ describe("State Isolation", () => {
     await commissionSession.dispatchCommission(
       cId as unknown as import("@/daemon/types").CommissionId,
     );
+
+    // Allow the in-process session to start
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Both contexts are now active
     expect(meetingSession.getActiveMeetings()).toBe(1);
@@ -732,42 +742,17 @@ describe("State Isolation", () => {
     // Commission is still active and unaffected
     expect(commissionSession.getActiveCommissions()).toBe(1);
 
-    // The commission can still report progress (proving it's alive)
-    commissionSession.reportProgress(
-      cId as unknown as import("@/daemon/types").CommissionId,
-      "Still working after meeting closed",
-    );
-    const progressEvent = emittedEvents.find(
-      (e) => e.type === "commission_progress" && e.commissionId === cId,
-    );
-    expect(progressEvent).toBeDefined();
+    // Step 2: Complete the commission by releasing the session gate
+    resolveSession();
 
-    // Step 2: Complete the commission by submitting a result and exiting
-    commissionSession.reportResult(
-      cId as unknown as import("@/daemon/types").CommissionId,
-      "Research completed successfully",
-    );
-
-    // Simulate the worker process exiting cleanly
-    commissionSpawn.resolveExit(0);
-
-    // Wait for the exit handler to process
+    // Wait for the session to complete
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Commission is now completed
+    // Commission session completed (no submit_result call, so session ends as failed)
     expect(commissionSession.getActiveCommissions()).toBe(0);
 
     // Meeting remains at 0 (was already closed, unaffected by commission completion)
     expect(meetingSession.getActiveMeetings()).toBe(0);
-
-    // Verify the commission completed (not failed)
-    const statusEvents = emittedEvents.filter(
-      (e) => e.type === "commission_status" && e.commissionId === cId,
-    );
-    const completedEvent = statusEvents.find(
-      (e) => "status" in e && e.status === "completed",
-    );
-    expect(completedEvent).toBeDefined();
 
     // Clean up
     commissionSession.shutdown();

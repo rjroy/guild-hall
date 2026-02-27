@@ -28,8 +28,10 @@ import type {
   ActivationResult,
   AppConfig,
   DiscoveredPackage,
+  ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
+import type { ToolboxResolverContext } from "@/daemon/services/toolbox-resolver";
 import type { GitOps } from "@/daemon/lib/git";
 import {
   integrationWorktreePath,
@@ -38,7 +40,6 @@ import { clearProjectLocks } from "@/daemon/lib/project-lock";
 import {
   createCommissionSession,
   type CommissionSessionDeps,
-  type SpawnedCommission,
 } from "@/daemon/services/commission-session";
 import { asCommissionId } from "@/daemon/types";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
@@ -559,24 +560,45 @@ projectName: test-project
     /* eslint-enable @typescript-eslint/require-await */
   }
 
-  function createMockSpawn(): {
-    spawnFn: (configPath: string) => SpawnedCommission;
-    resolveExit: (code: number) => void;
-  } {
-    let resolveExit: ((code: number) => void) | undefined;
-    const exitPromise = new Promise<{ exitCode: number; signal?: string }>(
-      (resolve) => {
-        resolveExit = (code: number) => resolve({ exitCode: code });
-      },
-    );
+  /**
+   * Creates a mock session for in-process commission execution.
+   */
+  function createMockCommissionSession() {
+    let resolveSession!: () => void;
+    let _rejectSession!: (err: Error) => void;
+    let resultSubmitted = false;
+    let capturedOnResult: ((summary: string, artifacts?: string[]) => void) | undefined;
+
+    const sessionPromise = new Promise<void>((resolve, reject) => {
+      resolveSession = resolve;
+      _rejectSession = reject;
+    });
 
     return {
-      spawnFn: () => ({
-        pid: 99999,
-        exitPromise,
-        kill: () => {},
+      queryFn: (params: { prompt: string; options: Record<string, unknown> }) => {
+        const ac = params.options.abortController as AbortController | undefined;
+        return (async function* (): AsyncGenerator<SDKMessage> {
+          yield { type: "system", subtype: "init", session_id: "test-session" } as unknown as SDKMessage;
+          await Promise.race([
+            sessionPromise,
+            ...(ac ? [new Promise<void>((_, reject) => {
+              if (ac.signal.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
+              ac.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+            })] : []),
+          ]);
+        })();
+      },
+      /* eslint-disable @typescript-eslint/require-await */
+      activateFn: async (_pkg: DiscoveredPackage, _ctx: unknown) => ({
+        systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
       }),
-      resolveExit: (code: number) => resolveExit?.(code),
+      /* eslint-enable @typescript-eslint/require-await */
+      resolveToolSetFn: (_w: WorkerMetadata, _p: DiscoveredPackage[], ctx: ToolboxResolverContext): ResolvedToolSet => {
+        capturedOnResult = ctx.onResult;
+        return { mcpServers: [], allowedTools: [], wasResultSubmitted: () => resultSubmitted };
+      },
+      submitResult: (summary: string, artifacts?: string[]) => { resultSubmitted = true; capturedOnResult?.(summary, artifacts); },
+      resolve: () => resolveSession(),
     };
   }
 
@@ -592,7 +614,6 @@ projectName: test-project
       guildHallHome: ghHome,
       eventBus,
       packagesDir: "/packages",
-      isProcessAlive: () => true,
       fileExists: () => Promise.resolve(true),
       ...overrides,
     };
@@ -602,10 +623,12 @@ projectName: test-project
     await writeCommissionArtifact("pending");
 
     const mockGitOps = createMockGitOps({ squashMergeResult: true });
-    const mockSpawn = createMockSpawn();
+    const mock = createMockCommissionSession();
     const session = createCommissionSession(
       createTestDeps({
-        spawnFn: mockSpawn.spawnFn,
+        queryFn: mock.queryFn,
+        activateFn: mock.activateFn,
+        resolveToolSetFn: mock.resolveToolSetFn,
         gitOps: mockGitOps,
       }),
     );
@@ -613,8 +636,8 @@ projectName: test-project
     await session.dispatchCommission(commissionId);
     const dispatchCallCount = mockGitOps.calls.length;
 
-    session.reportResult(commissionId, "Research complete");
-    mockSpawn.resolveExit(0);
+    mock.submitResult("Research complete");
+    mock.resolve();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
@@ -652,10 +675,12 @@ projectName: test-project
       squashMergeResult: false,
       conflictedFiles: loreConflicts,
     });
-    const mockSpawn = createMockSpawn();
+    const mock = createMockCommissionSession();
     const session = createCommissionSession(
       createTestDeps({
-        spawnFn: mockSpawn.spawnFn,
+        queryFn: mock.queryFn,
+        activateFn: mock.activateFn,
+        resolveToolSetFn: mock.resolveToolSetFn,
         gitOps: mockGitOps,
       }),
     );
@@ -663,8 +688,8 @@ projectName: test-project
     await session.dispatchCommission(commissionId);
     const dispatchCallCount = mockGitOps.calls.length;
 
-    session.reportResult(commissionId, "Research complete");
-    mockSpawn.resolveExit(0);
+    mock.submitResult("Research complete");
+    mock.resolve();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
@@ -705,10 +730,12 @@ projectName: test-project
       squashMergeResult: false,
       conflictedFiles: nonLoreConflicts,
     });
-    const mockSpawn = createMockSpawn();
+    const mock = createMockCommissionSession();
     const session = createCommissionSession(
       createTestDeps({
-        spawnFn: mockSpawn.spawnFn,
+        queryFn: mock.queryFn,
+        activateFn: mock.activateFn,
+        resolveToolSetFn: mock.resolveToolSetFn,
         gitOps: mockGitOps,
       }),
     );
@@ -716,8 +743,8 @@ projectName: test-project
     await session.dispatchCommission(commissionId);
     const dispatchCallCount = mockGitOps.calls.length;
 
-    session.reportResult(commissionId, "Research complete");
-    mockSpawn.resolveExit(0);
+    mock.submitResult("Research complete");
+    mock.resolve();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
@@ -756,10 +783,12 @@ projectName: test-project
       squashMergeResult: false,
       conflictedFiles: mixedConflicts,
     });
-    const mockSpawn = createMockSpawn();
+    const mock = createMockCommissionSession();
     const session = createCommissionSession(
       createTestDeps({
-        spawnFn: mockSpawn.spawnFn,
+        queryFn: mock.queryFn,
+        activateFn: mock.activateFn,
+        resolveToolSetFn: mock.resolveToolSetFn,
         gitOps: mockGitOps,
       }),
     );
@@ -767,8 +796,8 @@ projectName: test-project
     await session.dispatchCommission(commissionId);
     const dispatchCallCount = mockGitOps.calls.length;
 
-    session.reportResult(commissionId, "Research complete");
-    mockSpawn.resolveExit(0);
+    mock.submitResult("Research complete");
+    mock.resolve();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
@@ -798,10 +827,12 @@ projectName: test-project
       squashMergeResult: false,
       conflictedFiles: [],
     });
-    const mockSpawn = createMockSpawn();
+    const mock = createMockCommissionSession();
     const session = createCommissionSession(
       createTestDeps({
-        spawnFn: mockSpawn.spawnFn,
+        queryFn: mock.queryFn,
+        activateFn: mock.activateFn,
+        resolveToolSetFn: mock.resolveToolSetFn,
         gitOps: mockGitOps,
       }),
     );
@@ -809,8 +840,8 @@ projectName: test-project
     await session.dispatchCommission(commissionId);
     const dispatchCallCount = mockGitOps.calls.length;
 
-    session.reportResult(commissionId, "Research complete");
-    mockSpawn.resolveExit(0);
+    mock.submitResult("Research complete");
+    mock.resolve();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const exitCalls = mockGitOps.calls.slice(dispatchCallCount);
