@@ -1,7 +1,7 @@
 ---
 title: "Commission: Plan: fix duplicate tool indicators during meeting streaming"
 date: 2026-02-27
-status: failed
+status: completed
 tags: [commission]
 worker: Writer
 workerDisplayTitle: "Guild Writer"
