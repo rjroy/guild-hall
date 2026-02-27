@@ -1,7 +1,7 @@
 ---
 title: "PR Creation and Post-Merge Sync Strategy"
 date: 2026-02-23
-status: draft
+status: implemented
 tags: [design, git, pr, squash-merge, branch-recovery]
 modules: [daemon-lib-git, cli]
 related:

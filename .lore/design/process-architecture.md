@@ -1,7 +1,7 @@
 ---
 title: Process Architecture
 date: 2026-02-20
-status: draft
+status: implemented
 tags: [architecture, daemon, process-model, ipc, next-js, commission, meeting]
 modules: [guild-hall-core]
 related:
