@@ -1,7 +1,7 @@
 ---
 title: Spec vs plan gap analysis
 date: 2026-02-23
-status: implemented
+status: executed
 tags: [gap-analysis, quality, specs, plans]
 modules: [guild-hall-core, guild-hall-ui]
 related:

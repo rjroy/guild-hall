@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Workers
 date: 2026-02-20
-status: draft
+status: implemented
 tags: [architecture, workers, toolboxes, agent-sdk, manager, packages]
 modules: [guild-hall-core]
 related:

@@ -1,7 +1,7 @@
 ---
 title: Commission and meeting artifact state has no clear ownership rules
 date: 2026-02-26
-status: open
+status: resolved
 tags: [architecture, git, commissions, meetings, state-management, worktrees]
 modules: [commission-session, commission-artifact-helpers, meeting-session, daemon-routes, git]
 related: [.lore/design/process-architecture.md]

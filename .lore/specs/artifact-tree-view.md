@@ -1,7 +1,7 @@
 ---
 title: Collapsible tree view for Artifacts tab
 date: 2026-02-26
-status: draft
+status: implemented
 tags: [ui, artifacts, navigation, tree-view]
 modules: [artifact-list, artifact-grouping]
 related: [.lore/specs/guild-hall-views.md]

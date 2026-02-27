@@ -1,7 +1,7 @@
 ---
 title: Agentic work UX - artifacts, workers, meetings, and workspaces
 date: 2026-02-19
-status: complete
+status: resolved
 tags: [ux, architecture, artifacts, workers, meetings, workspaces, interaction-model]
 modules: [guild-hall-core]
 related:

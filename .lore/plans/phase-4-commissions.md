@@ -1,7 +1,7 @@
 ---
 title: "Phase 4: Commissions"
 date: 2026-02-21
-status: implemented
+status: executed
 tags: [plan, phase-4, commissions, dispatch, process-lifecycle, async-work, toolbox, sse]
 modules: [guild-hall-core, guild-hall-ui]
 related:

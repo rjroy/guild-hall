@@ -1,7 +1,7 @@
 ---
 title: Guild Hall System
 date: 2026-02-20
-status: draft
+status: implemented
 tags: [architecture, primitives, memory, git, storage, plugins, configuration]
 modules: [guild-hall-core]
 related:

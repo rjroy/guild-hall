@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Views
 date: 2026-02-20
-status: draft
+status: implemented
 tags: [architecture, views, ui, navigation, dashboard, streaming, design-language]
 modules: [guild-hall-ui]
 related:
