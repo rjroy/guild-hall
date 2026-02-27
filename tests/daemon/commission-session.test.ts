@@ -653,6 +653,31 @@ describe("createCommissionSession", () => {
       expect(result.commissionId).toBeTruthy();
     });
 
+    test("sanitizes spaces in worker name for commission ID", async () => {
+      const spacedWorker = createMockWorkerPackage("guild-hall-manager");
+      (spacedWorker.metadata as WorkerMetadata).identity.name = "Guild Master";
+      (spacedWorker.metadata as WorkerMetadata).identity.displayTitle = "The Guild Master";
+
+      session = createCommissionSession(
+        createTestDeps({ eventBus, packages: [spacedWorker] }),
+      );
+
+      const result = await session.createCommission(
+        "test-project",
+        "Coordinate tasks",
+        "guild-hall-manager",
+        "prompt",
+      );
+
+      // ID should have hyphens instead of spaces
+      expect(result.commissionId).toMatch(/^commission-Guild-Master-\d{8}-\d{6}$/);
+      // Verify the file was written with the sanitized ID
+      const id = asCommissionId(result.commissionId);
+      const artifactPath = commissionArtifactPath(integrationPath, id);
+      const raw = await fs.readFile(artifactPath, "utf-8");
+      expect(raw).toContain("worker: Guild Master");
+    });
+
     test("omits resource overrides when none provided", async () => {
       session = createCommissionSession(
         createTestDeps({ eventBus }),

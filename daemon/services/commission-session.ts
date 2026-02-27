@@ -672,6 +672,13 @@ export function createCommissionSession(
   }
 
   function formatCommissionId(workerName: string, now: Date): CommissionId {
+    // Sanitize worker name: replace spaces and characters invalid in git refs
+    // with hyphens, then collapse consecutive hyphens. Git branch names cannot
+    // contain spaces, and commission IDs are used as branch name segments.
+    const safeName = workerName
+      .replace(/[\s~^:?*[\]\\]/g, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-|-$/g, "");
     const pad = (n: number, len = 2) => String(n).padStart(len, "0");
     const ts = [
       now.getFullYear(),
@@ -682,7 +689,7 @@ export function createCommissionSession(
       pad(now.getMinutes()),
       pad(now.getSeconds()),
     ].join("");
-    return asCommissionId(`commission-${workerName}-${ts}`);
+    return asCommissionId(`commission-${safeName}-${ts}`);
   }
 
   function commissionStatePath(commissionId: CommissionId): string {
