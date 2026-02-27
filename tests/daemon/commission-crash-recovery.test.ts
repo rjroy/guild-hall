@@ -1,10 +1,10 @@
 /**
  * Tests for commission crash recovery on daemon startup.
  *
- * Covers three recovery cases:
- *   1. State file exists, process dead -> transition to failed
- *   2. State file exists, process alive -> reattach monitoring
- *   3. Orphaned worktree (no state file) -> transition to failed
+ * Since commissions run as in-process async sessions, all active commissions
+ * are dead on daemon restart (no subprocess to reattach to). Recovery:
+ *   1. State file exists (dispatched/in_progress) -> transition to failed
+ *   2. Orphaned worktree (no state file) -> transition to failed
  * Plus the "nothing to recover" happy path.
  */
 
@@ -318,9 +318,9 @@ describe("recoverCommissions", () => {
     expect(recovered).toBe(0);
   });
 
-  // -- Case 1: Dead PID --
+  // -- Case 1: Active commission on restart --
 
-  test("dead PID transitions commission to failed", async () => {
+  test("in_progress commission transitions to failed on restart", async () => {
     const id = "commission-researcher-20260221-143000";
     const cId = asCommissionId(id);
     const worktreeDir = await createWorktreeDir(id);
@@ -330,7 +330,6 @@ describe("recoverCommissions", () => {
       commissionId: id,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 99999,
       status: "in_progress",
       worktreeDir,
       branchName: `claude/commission/${id}`,
@@ -341,8 +340,6 @@ describe("recoverCommissions", () => {
       createTestDeps({
         eventBus,
         gitOps: mockGitOps,
-        // PID 99999 is always dead
-        isProcessAlive: () => false,
       }),
     );
 
@@ -367,7 +364,7 @@ describe("recoverCommissions", () => {
     expect(failedEvents.length).toBe(1);
   });
 
-  test("dead PID commits partial work before cleanup", async () => {
+  test("recovery commits partial work before cleanup", async () => {
     const id = "commission-researcher-20260221-143000";
     const worktreeDir = await createWorktreeDir(id);
 
@@ -376,7 +373,6 @@ describe("recoverCommissions", () => {
       commissionId: id,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 99999,
       status: "in_progress",
       worktreeDir,
       branchName: `claude/commission/${id}`,
@@ -387,7 +383,6 @@ describe("recoverCommissions", () => {
       createTestDeps({
         eventBus,
         gitOps: mockGitOps,
-        isProcessAlive: () => false,
       }),
     );
 
@@ -399,7 +394,7 @@ describe("recoverCommissions", () => {
     expect(commitCalls[0].args[0]).toBe(worktreeDir);
   });
 
-  test("dead PID removes worktree but preserves branch", async () => {
+  test("recovery removes worktree but preserves branch", async () => {
     const id = "commission-researcher-20260221-143000";
     const worktreeDir = await createWorktreeDir(id);
 
@@ -408,7 +403,6 @@ describe("recoverCommissions", () => {
       commissionId: id,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 99999,
       status: "in_progress",
       worktreeDir,
       branchName: `claude/commission/${id}`,
@@ -419,7 +413,6 @@ describe("recoverCommissions", () => {
       createTestDeps({
         eventBus,
         gitOps: mockGitOps,
-        isProcessAlive: () => false,
       }),
     );
 
@@ -434,7 +427,7 @@ describe("recoverCommissions", () => {
     expect(deleteCalls.length).toBe(0);
   });
 
-  test("dead PID updates state file to failed", async () => {
+  test("recovery updates state file to failed", async () => {
     const id = "commission-researcher-20260221-143000";
     const worktreeDir = await createWorktreeDir(id);
 
@@ -443,17 +436,13 @@ describe("recoverCommissions", () => {
       commissionId: id,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 99999,
       status: "in_progress",
       worktreeDir,
       branchName: `claude/commission/${id}`,
     });
 
     session = createCommissionSession(
-      createTestDeps({
-        eventBus,
-        isProcessAlive: () => false,
-      }),
+      createTestDeps({ eventBus }),
     );
 
     await session.recoverCommissions();
@@ -467,7 +456,7 @@ describe("recoverCommissions", () => {
     expect(state.status).toBe("failed");
   });
 
-  test("dead PID with dispatched status also transitions to failed", async () => {
+  test("dispatched commission also transitions to failed on restart", async () => {
     const id = "commission-researcher-20260221-143000";
     const worktreeDir = await createWorktreeDir(id);
 
@@ -476,37 +465,9 @@ describe("recoverCommissions", () => {
       commissionId: id,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 99999,
       status: "dispatched",
       worktreeDir,
       branchName: `claude/commission/${id}`,
-    });
-
-    session = createCommissionSession(
-      createTestDeps({
-        eventBus,
-        isProcessAlive: () => false,
-      }),
-    );
-
-    const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(0);
-
-    const cId = asCommissionId(id);
-    const status = await readCommissionStatus(integrationPath, cId);
-    expect(status).toBe("failed");
-  });
-
-  test("state file with no PID transitions to failed", async () => {
-    const id = "commission-researcher-20260221-143000";
-
-    await writeCommissionArtifact(id, "in_progress");
-    await writeStateFile(id, {
-      commissionId: id,
-      projectName: "test-project",
-      workerName: "researcher",
-      status: "in_progress",
-      // No pid field
     });
 
     session = createCommissionSession(
@@ -521,142 +482,30 @@ describe("recoverCommissions", () => {
     expect(status).toBe("failed");
   });
 
-  // -- Case 2: Live PID --
-
-  test("live PID reattaches commission to active Map", async () => {
+  test("state file with no worktree still transitions to failed", async () => {
     const id = "commission-researcher-20260221-143000";
-    const worktreeDir = await createWorktreeDir(id);
 
-    // Write artifact to both integration and activity worktrees
     await writeCommissionArtifact(id, "in_progress");
-
-    // Also create the artifact in the activity worktree for transition reads
-    const activityArtifactPath = commissionArtifactPath(
-      worktreeDir,
-      asCommissionId(id),
-    );
-    const artifactContent = await fs.readFile(
-      commissionArtifactPath(integrationPath, asCommissionId(id)),
-      "utf-8",
-    );
-    await fs.writeFile(activityArtifactPath, artifactContent, "utf-8");
-
     await writeStateFile(id, {
       commissionId: id,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 12345,
       status: "in_progress",
-      worktreeDir,
-      branchName: `claude/commission/${id}`,
-      configPath: path.join(ghHome, "state", "commissions", `${id}.config.json`),
     });
 
     session = createCommissionSession(
-      createTestDeps({
-        eventBus,
-        isProcessAlive: (pid) => pid === 12345,
-      }),
+      createTestDeps({ eventBus }),
     );
 
     const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(1);
-    expect(session.getActiveCommissions()).toBe(1);
+    expect(recovered).toBe(0);
+
+    const cId = asCommissionId(id);
+    const status = await readCommissionStatus(integrationPath, cId);
+    expect(status).toBe("failed");
   });
 
-  test("live PID with dispatched status transitions to in_progress", async () => {
-    const id = "commission-researcher-20260221-143000";
-    const worktreeDir = await createWorktreeDir(id);
-
-    // Write artifact as dispatched in both worktrees
-    await writeCommissionArtifact(id, "dispatched");
-
-    const activityArtifactPath = commissionArtifactPath(
-      worktreeDir,
-      asCommissionId(id),
-    );
-    const artifactContent = await fs.readFile(
-      commissionArtifactPath(integrationPath, asCommissionId(id)),
-      "utf-8",
-    );
-    await fs.writeFile(activityArtifactPath, artifactContent, "utf-8");
-
-    await writeStateFile(id, {
-      commissionId: id,
-      projectName: "test-project",
-      workerName: "researcher",
-      pid: 12345,
-      status: "dispatched",
-      worktreeDir,
-      branchName: `claude/commission/${id}`,
-    });
-
-    session = createCommissionSession(
-      createTestDeps({
-        eventBus,
-        isProcessAlive: (pid) => pid === 12345,
-      }),
-    );
-
-    const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(1);
-
-    // The artifact in the activity worktree should now be in_progress
-    const status = await readCommissionStatus(worktreeDir, asCommissionId(id));
-    expect(status).toBe("in_progress");
-
-    // Timeline should have the dispatched -> in_progress transition
-    const timeline = await readActivityTimeline(worktreeDir, asCommissionId(id));
-    const progressEntry = timeline.find((e) => e.event === "status_in_progress");
-    expect(progressEntry).toBeDefined();
-    expect(progressEntry!.reason).toContain("daemon restart");
-  });
-
-  test("live PID does not call removeWorktree or deleteBranch", async () => {
-    const id = "commission-researcher-20260221-143000";
-    const worktreeDir = await createWorktreeDir(id);
-
-    await writeCommissionArtifact(id, "in_progress");
-
-    const activityArtifactPath = commissionArtifactPath(
-      worktreeDir,
-      asCommissionId(id),
-    );
-    const artifactContent = await fs.readFile(
-      commissionArtifactPath(integrationPath, asCommissionId(id)),
-      "utf-8",
-    );
-    await fs.writeFile(activityArtifactPath, artifactContent, "utf-8");
-
-    await writeStateFile(id, {
-      commissionId: id,
-      projectName: "test-project",
-      workerName: "researcher",
-      pid: 12345,
-      status: "in_progress",
-      worktreeDir,
-      branchName: `claude/commission/${id}`,
-    });
-
-    const mockGitOps = createMockGitOps();
-    session = createCommissionSession(
-      createTestDeps({
-        eventBus,
-        gitOps: mockGitOps,
-        isProcessAlive: (pid) => pid === 12345,
-      }),
-    );
-
-    await session.recoverCommissions();
-
-    const removeCalls = mockGitOps.calls.filter((c) => c.method === "removeWorktree");
-    expect(removeCalls.length).toBe(0);
-
-    const deleteCalls = mockGitOps.calls.filter((c) => c.method === "deleteBranch");
-    expect(deleteCalls.length).toBe(0);
-  });
-
-  // -- Case 3: Orphaned worktree --
+  // -- Case 2: Orphaned worktree --
 
   test("orphaned worktree (no state file) transitions to failed", async () => {
     const id = "commission-researcher-20260221-143000";
@@ -797,17 +646,13 @@ describe("recoverCommissions", () => {
       commissionId: id,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 99999,
       status: "in_progress",
       worktreeDir: path.join(activityWorktreeRoot(ghHome, "test-project"), id),
       branchName: `claude/commission/${id}`,
     });
 
     session = createCommissionSession(
-      createTestDeps({
-        eventBus,
-        isProcessAlive: () => false,
-      }),
+      createTestDeps({ eventBus }),
     );
 
     await session.recoverCommissions();
@@ -825,70 +670,60 @@ describe("recoverCommissions", () => {
 
   // -- Mixed scenarios --
 
-  test("handles mix of dead and live PIDs", async () => {
-    const deadId = "commission-researcher-20260221-143000";
-    const liveId = "commission-researcher-20260221-144000";
+  test("handles multiple active commissions on restart", async () => {
+    const firstId = "commission-researcher-20260221-143000";
+    const secondId = "commission-researcher-20260221-144000";
 
-    // Dead commission
-    const deadWorktreeDir = await createWorktreeDir(deadId);
-    await writeCommissionArtifact(deadId, "in_progress");
-    await writeStateFile(deadId, {
-      commissionId: deadId,
+    // First commission
+    const firstWorktreeDir = await createWorktreeDir(firstId);
+    await writeCommissionArtifact(firstId, "in_progress");
+    await writeStateFile(firstId, {
+      commissionId: firstId,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 99999,
       status: "in_progress",
-      worktreeDir: deadWorktreeDir,
-      branchName: `claude/commission/${deadId}`,
+      worktreeDir: firstWorktreeDir,
+      branchName: `claude/commission/${firstId}`,
     });
 
-    // Live commission
-    const liveWorktreeDir = await createWorktreeDir(liveId);
-    await writeCommissionArtifact(liveId, "in_progress");
-    // Copy artifact to activity worktree for live commission
-    const liveActivityArtifact = commissionArtifactPath(
-      liveWorktreeDir,
-      asCommissionId(liveId),
-    );
-    const liveArtifactContent = await fs.readFile(
-      commissionArtifactPath(integrationPath, asCommissionId(liveId)),
-      "utf-8",
-    );
-    await fs.writeFile(liveActivityArtifact, liveArtifactContent, "utf-8");
-
-    await writeStateFile(liveId, {
-      commissionId: liveId,
+    // Second commission
+    const secondWorktreeDir = await createWorktreeDir(secondId);
+    await writeCommissionArtifact(secondId, "in_progress");
+    await writeStateFile(secondId, {
+      commissionId: secondId,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 12345,
       status: "in_progress",
-      worktreeDir: liveWorktreeDir,
-      branchName: `claude/commission/${liveId}`,
+      worktreeDir: secondWorktreeDir,
+      branchName: `claude/commission/${secondId}`,
     });
 
     session = createCommissionSession(
-      createTestDeps({
-        eventBus,
-        isProcessAlive: (pid) => pid === 12345,
-      }),
+      createTestDeps({ eventBus }),
     );
 
     const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(1); // Only the live one counts as recovered
-    expect(session.getActiveCommissions()).toBe(1);
+    expect(recovered).toBe(0);
+    expect(session.getActiveCommissions()).toBe(0);
 
-    // Dead commission should be failed
-    const deadStatus = await readCommissionStatus(
+    // Both commissions should be failed
+    const firstStatus = await readCommissionStatus(
       integrationPath,
-      asCommissionId(deadId),
+      asCommissionId(firstId),
     );
-    expect(deadStatus).toBe("failed");
+    expect(firstStatus).toBe("failed");
 
-    // Failed event emitted for dead commission
+    const secondStatus = await readCommissionStatus(
+      integrationPath,
+      asCommissionId(secondId),
+    );
+    expect(secondStatus).toBe("failed");
+
+    // Failed events emitted for both commissions
     const failedEvents = emittedEvents.filter(
       (e) => e.type === "commission_status" && "status" in e && e.status === "failed",
     );
-    expect(failedEvents.length).toBe(1);
+    expect(failedEvents.length).toBe(2);
   });
 
   test("skips .config.json files (worker config, not state)", async () => {
@@ -921,7 +756,6 @@ describe("recoverCommissions", () => {
       commissionId: id,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 99999,
       status: "in_progress",
       worktreeDir,
       branchName: `claude/commission/${id}`,
@@ -934,7 +768,6 @@ describe("recoverCommissions", () => {
       createTestDeps({
         eventBus,
         gitOps: mockGitOps,
-        isProcessAlive: () => false,
       }),
     );
 
@@ -959,7 +792,6 @@ describe("recoverCommissions", () => {
       commissionId: id,
       projectName: "test-project",
       workerName: "researcher",
-      pid: 99999,
       status: "in_progress",
       worktreeDir,
       branchName: `claude/commission/${id}`,
@@ -972,7 +804,6 @@ describe("recoverCommissions", () => {
       createTestDeps({
         eventBus,
         gitOps: mockGitOps,
-        isProcessAlive: () => false,
       }),
     );
 

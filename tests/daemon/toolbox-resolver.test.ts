@@ -232,13 +232,15 @@ describe("resolveToolSet", () => {
     expect(meetingServer.instance).toBeDefined();
   });
 
-  test("commission context with daemonSocketPath produces base + commission MCP servers", () => {
+  test("commission context with callbacks produces base + commission MCP servers", () => {
     const worker = makeWorker();
     const context = {
       projectPath,
       commissionId: "commission-test",
       guildHallHome,
-      daemonSocketPath: "/tmp/fake.sock",
+      onProgress: () => {},
+      onResult: () => {},
+      onQuestion: () => {},
     };
     const result = resolveToolSet(worker, [], context);
 
@@ -251,7 +253,7 @@ describe("resolveToolSet", () => {
     expect(result.wasResultSubmitted!()).toBe(false);
   });
 
-  test("commission context without daemonSocketPath throws", () => {
+  test("commission context without callbacks throws", () => {
     const worker = makeWorker();
     const context = {
       projectPath,
@@ -260,7 +262,7 @@ describe("resolveToolSet", () => {
     };
 
     expect(() => resolveToolSet(worker, [], context)).toThrow(
-      /Commission context requires daemonSocketPath/,
+      /Commission context requires onProgress, onResult, and onQuestion callbacks/,
     );
   });
 
@@ -288,9 +290,6 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     async dispatchCommission() { return { status: "accepted" as const }; },
     async cancelCommission() {},
     async redispatchCommission() { return { status: "accepted" as const }; },
-    reportProgress() {},
-    reportResult() {},
-    reportQuestion() {},
     async addUserNote() {},
     async checkDependencyTransitions() {},
     async recoverCommissions() { return 0; },

@@ -20,15 +20,16 @@ import {
 let tmpDir: string;
 let projectPath: string;
 let commissionId: CommissionId;
-// Points at a socket that doesn't exist, so daemon notification will fail
-// silently (testing best-effort behavior).
-let fakeDaemonSocket: string;
+
+// No-op callbacks matching the new CommissionToolboxDeps interface
+const noopOnProgress = (_summary: string) => {};
+const noopOnResult = (_summary: string, _artifacts?: string[]) => {};
+const noopOnQuestion = (_question: string) => {};
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-comm-toolbox-"));
   projectPath = path.join(tmpDir, "test-project");
   commissionId = asCommissionId("commission-researcher-20260221-143000");
-  fakeDaemonSocket = path.join(tmpDir, "nonexistent.sock");
 
   // Create commissions directory
   await fs.mkdir(
@@ -97,7 +98,7 @@ describe("report_progress", () => {
     const handler = makeReportProgressHandler(
       projectPath,
       commissionId,
-      fakeDaemonSocket,
+      noopOnProgress,
     );
     const result = await handler({ summary: "Analyzed 3 OAuth libraries" });
 
@@ -127,7 +128,7 @@ describe("report_progress", () => {
     const handler = makeReportProgressHandler(
       projectPath,
       commissionId,
-      fakeDaemonSocket,
+      noopOnProgress,
     );
     await handler({ summary: "Step 1 complete" });
     await handler({ summary: "Step 2 complete" });
@@ -155,7 +156,7 @@ describe("submit_result", () => {
     const handler = makeSubmitResultHandler(
       projectPath,
       commissionId,
-      fakeDaemonSocket,
+      noopOnResult,
     );
     const result = await handler({
       summary: "Found 3 viable OAuth patterns",
@@ -187,7 +188,7 @@ describe("submit_result", () => {
     const handler = makeSubmitResultHandler(
       projectPath,
       commissionId,
-      fakeDaemonSocket,
+      noopOnResult,
     );
     await handler({
       summary: "Research complete",
@@ -205,7 +206,7 @@ describe("submit_result", () => {
     const handler = makeSubmitResultHandler(
       projectPath,
       commissionId,
-      fakeDaemonSocket,
+      noopOnResult,
     );
 
     // First call succeeds
@@ -224,7 +225,7 @@ describe("submit_result", () => {
     const handler = makeSubmitResultHandler(
       projectPath,
       commissionId,
-      fakeDaemonSocket,
+      noopOnResult,
     );
     const result = await handler({ summary: "Minimal result" });
 
@@ -245,7 +246,7 @@ describe("log_question", () => {
     const handler = makeLogQuestionHandler(
       projectPath,
       commissionId,
-      fakeDaemonSocket,
+      noopOnQuestion,
     );
     const result = await handler({
       question: "Should I include deprecated patterns?",
@@ -270,7 +271,7 @@ describe("log_question", () => {
     const handler = makeLogQuestionHandler(
       projectPath,
       commissionId,
-      fakeDaemonSocket,
+      noopOnQuestion,
     );
     await handler({ question: "First question?" });
     await handler({ question: "Second question?" });
@@ -281,50 +282,63 @@ describe("log_question", () => {
   });
 });
 
-// -- HTTP callback failure resilience --
+// -- Callback invocation --
 
-describe("HTTP callback failure", () => {
-  test("report_progress succeeds even when daemon is unreachable", async () => {
+describe("callback invocation", () => {
+  test("report_progress invokes onProgress callback with summary", async () => {
     await writeCommissionArtifact();
 
+    let calledWith = "";
     const handler = makeReportProgressHandler(
       projectPath,
       commissionId,
-      "/tmp/this-socket-does-not-exist-ever.sock",
+      (summary: string) => { calledWith = summary; },
     );
-    const result = await handler({ summary: "Progress despite no daemon" });
+    const result = await handler({ summary: "Progress update" });
 
-    // Tool call should succeed (file write happened)
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toContain("Progress reported");
+    expect(calledWith).toBe("Progress update");
   });
 
-  test("submit_result succeeds even when daemon is unreachable", async () => {
+  test("submit_result invokes onResult callback with summary and artifacts", async () => {
     await writeCommissionArtifact();
 
+    let calledSummary = "";
+    let calledArtifacts: string[] | undefined;
     const handler = makeSubmitResultHandler(
       projectPath,
       commissionId,
-      "/tmp/this-socket-does-not-exist-ever.sock",
+      (summary: string, artifacts?: string[]) => {
+        calledSummary = summary;
+        calledArtifacts = artifacts;
+      },
     );
-    const result = await handler({ summary: "Result despite no daemon" });
+    const result = await handler({
+      summary: "Result with artifacts",
+      artifacts: ["notes/finding.md"],
+    });
 
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toContain("Result submitted");
+    expect(calledSummary).toBe("Result with artifacts");
+    expect(calledArtifacts).toEqual(["notes/finding.md"]);
   });
 
-  test("log_question succeeds even when daemon is unreachable", async () => {
+  test("log_question invokes onQuestion callback with question", async () => {
     await writeCommissionArtifact();
 
+    let calledWith = "";
     const handler = makeLogQuestionHandler(
       projectPath,
       commissionId,
-      "/tmp/this-socket-does-not-exist-ever.sock",
+      (question: string) => { calledWith = question; },
     );
-    const result = await handler({ question: "Question despite no daemon?" });
+    const result = await handler({ question: "A question?" });
 
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toContain("Question logged");
+    expect(calledWith).toBe("A question?");
   });
 });
 
@@ -336,12 +350,16 @@ describe("per-closure resultSubmitted flag", () => {
     const toolbox1 = createCommissionToolbox({
       projectPath,
       commissionId,
-      daemonSocketPath: fakeDaemonSocket,
+      onProgress: noopOnProgress,
+      onResult: noopOnResult,
+      onQuestion: noopOnQuestion,
     });
     const toolbox2 = createCommissionToolbox({
       projectPath,
       commissionId,
-      daemonSocketPath: fakeDaemonSocket,
+      onProgress: noopOnProgress,
+      onResult: noopOnResult,
+      onQuestion: noopOnQuestion,
     });
 
     // Both should be independent instances
@@ -364,12 +382,12 @@ describe("per-closure resultSubmitted flag", () => {
     const handler1 = makeSubmitResultHandler(
       projectPath,
       commissionId,
-      fakeDaemonSocket,
+      noopOnResult,
     );
     const handler2 = makeSubmitResultHandler(
       projectPath,
       commissionId,
-      fakeDaemonSocket,
+      noopOnResult,
     );
 
     // First handler submits successfully
@@ -393,7 +411,9 @@ describe("createCommissionToolbox", () => {
     const result = createCommissionToolbox({
       projectPath,
       commissionId,
-      daemonSocketPath: fakeDaemonSocket,
+      onProgress: noopOnProgress,
+      onResult: noopOnResult,
+      onQuestion: noopOnQuestion,
     });
 
     expect(result.server.type).toBe("sdk");

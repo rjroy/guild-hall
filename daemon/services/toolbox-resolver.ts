@@ -19,7 +19,6 @@ export interface ToolboxResolverContext {
   commissionId?: string;
   workerName?: string;
   guildHallHome?: string;
-  daemonSocketPath?: string;
   /** Integration worktree path, used by meeting toolbox for propose_followup. */
   integrationPath?: string;
   /** Activity worktree path. Commission/meeting toolbox writes go here. */
@@ -28,6 +27,10 @@ export interface ToolboxResolverContext {
   isManager?: boolean;
   /** Dependencies for the manager toolbox. Required when isManager is true. */
   managerToolboxDeps?: ManagerToolboxDeps;
+  /** Commission callbacks. Required when commissionId is set. */
+  onProgress?: (summary: string) => void;
+  onResult?: (summary: string, artifacts?: string[]) => void;
+  onQuestion?: (question: string) => void;
 }
 
 // -- Resolver --
@@ -89,16 +92,19 @@ export function resolveToolSet(
       }),
     );
   } else if (context.commissionId) {
-    if (!context.daemonSocketPath) {
+    if (!context.onProgress || !context.onResult || !context.onQuestion) {
       throw new Error(
-        `Commission context requires daemonSocketPath. CommissionId "${context.commissionId}" was provided without a socket path.`,
+        `Commission context requires onProgress, onResult, and onQuestion callbacks. ` +
+        `CommissionId "${context.commissionId}" was provided without callbacks.`,
       );
     }
     const commissionToolbox = createCommissionToolbox({
       projectPath: context.workingDirectory ?? context.projectPath,
       commissionId: context.commissionId,
-      daemonSocketPath: context.daemonSocketPath,
       guildHallHome: context.guildHallHome,
+      onProgress: context.onProgress,
+      onResult: context.onResult,
+      onQuestion: context.onQuestion,
     });
     mcpServers.push(commissionToolbox.server);
     wasResultSubmitted = commissionToolbox.wasResultSubmitted;

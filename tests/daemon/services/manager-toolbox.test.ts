@@ -88,9 +88,6 @@ function makeMockCommissionSession(
     async redispatchCommission() {
       return { status: "accepted" as const };
     },
-    reportProgress() {},
-    reportResult() {},
-    reportQuestion() {},
     async addUserNote() {},
     async checkDependencyTransitions() {},
     async recoverCommissions() { return 0; },

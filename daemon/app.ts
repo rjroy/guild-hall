@@ -174,6 +174,8 @@ export async function createProductionApp(options?: {
       }
     };
 
+  const commissionSessionRef: { current: ReturnType<typeof createCommissionSession> | null } = { current: null };
+
   const commissionSession = createCommissionSession({
     packages: allPackages,
     config,
@@ -182,7 +184,11 @@ export async function createProductionApp(options?: {
     packagesDir,
     gitOps: git,
     createMeetingRequestFn,
+    queryFn: queryFn as CommissionSessionDeps["queryFn"],
+    commissionSessionRef,
   });
+
+  commissionSessionRef.current = commissionSession;
 
   const meetingSession = createMeetingSession({
     packages: allPackages,
@@ -204,13 +210,10 @@ export async function createProductionApp(options?: {
     console.log(`[daemon] Recovered ${recoveredMeetings} open meeting(s) from state files.`);
   }
 
-  // Recover active commissions from persisted state files. Dead processes
-  // are transitioned to failed (with partial work committed); live processes
-  // are reattached to the monitoring Map.
-  const recoveredCommissions = await commissionSession.recoverCommissions();
-  if (recoveredCommissions > 0) {
-    console.log(`[daemon] Reattached ${recoveredCommissions} live commission(s) from state files.`);
-  }
+  // Recover active commissions from persisted state files. All in-process
+  // sessions are dead on daemon restart; they are transitioned to failed
+  // with partial work committed.
+  await commissionSession.recoverCommissions();
 
   // Briefing generator: uses the same SDK query function as meetings/notes
   // for single-turn project status summaries. Falls back to template when
