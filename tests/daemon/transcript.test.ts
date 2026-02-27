@@ -195,28 +195,25 @@ describe("transcript service", () => {
       await appendAssistantTurn("test-meeting", "Here is the content:", tools, ghHome);
 
       const raw = await readTranscript("test-meeting", ghHome);
+
+      // Collect the contiguous blockquote region starting at the tool header.
+      // Using toEqual ensures no unprefixed lines escape the block.
       const lines = raw.split("\n");
+      const toolStart = lines.findIndex((l) => l === "> Tool: Read");
+      expect(toolStart).toBeGreaterThanOrEqual(0);
 
-      // Find the "> Tool: Read" line
-      const toolLineIndex = lines.findIndex((l) => l === "> Tool: Read");
-      expect(toolLineIndex).toBeGreaterThan(-1);
-
-      // Collect all lines after "> Tool: Read" until a blank line or non-blockquote line
-      const blockLines: string[] = [];
-      for (let i = toolLineIndex + 1; i < lines.length; i++) {
-        const line = lines[i];
-        // Stop at blank line or a new section heading
-        if (line === "" || line.startsWith("##")) break;
-        blockLines.push(line);
+      const blockquoteLines: string[] = [];
+      for (let i = toolStart; i < lines.length; i++) {
+        if (!lines[i].startsWith("> ")) break;
+        blockquoteLines.push(lines[i]);
       }
 
-      // Every collected line must start with "> " — no bare continuation lines
-      expect(blockLines.length).toBeGreaterThan(0);
-      for (const line of blockLines) {
-        expect(line).toMatch(/^> /);
-      }
-      // Confirm all three result lines are present
-      expect(blockLines).toEqual(["> Line1", "> Line2", "> Line3"]);
+      expect(blockquoteLines).toEqual([
+        "> Tool: Read",
+        "> Line1",
+        "> Line2",
+        "> Line3",
+      ]);
     });
   });
 
