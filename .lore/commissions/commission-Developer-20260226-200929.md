@@ -56,6 +56,9 @@ activity_timeline:
     reason: "Worker completed successfully"
     from: "in_progress"
     to: "completed"
+  - timestamp: 2026-02-27T04:12:45.462Z
+    event: status_completed
+    reason: "Worker completed successfully"
 current_progress: "Implementation complete for steps 1-2. cancelCommission() now accepts an optional reason parameter, and the cancel_commission tool is registered in the manager toolbox. Now adding tests."
 result_summary: "Implemented the `cancel_commission` manager tool as specified in the plan.\n\n**Changes made (3 files):**\n\n1. **`daemon/services/commission-session.ts`**: Added optional `reason` parameter (default: `\"Commission cancelled by user\"`) to `cancelCommission()` and threaded it through the `transitionCommission()` call, `eventBus.emit()` call, and `syncStatusToIntegration()` call. Updated the `CommissionSessionForRoutes` interface to match.\n\n2. **`daemon/services/manager-toolbox.ts`**: Added `makeCancelCommissionHandler(deps)` factory following the established pattern. Parameters: `commissionId` (string, required), `reason` (string, optional, defaults to \"Commission cancelled by manager\"). Registered the tool in the MCP server factory with a description noting valid cancel states and SIGTERM/SIGKILL behavior. Updated module doc comment from 6 to 7 tools.\n\n3. **`tests/daemon/services/manager-toolbox.test.ts`**: Added `describe(\"cancel_commission\")` block with 5 tests: success case, custom reason passthrough, not found error, invalid transition error, and default reason verification. Updated mock `cancelCommission` to record arguments.\n\n4. **`tests/daemon/commission-session.test.ts`**: Added test verifying custom reason flows through to the emitted `commission_status` event.\n\n**Verification:**\n- `bun run typecheck`: clean (0 errors)\n- `bun test`: 1577 pass, 0 fail across 73 files (up from 1571, 6 new tests added)"
 projectName: guild-hall
