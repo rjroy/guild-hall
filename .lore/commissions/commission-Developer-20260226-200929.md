@@ -25,6 +25,9 @@ activity_timeline:
   - timestamp: 2026-02-27T04:09:29.841Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T04:09:29.878Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Add cancel_commission tool to manager toolbox\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
