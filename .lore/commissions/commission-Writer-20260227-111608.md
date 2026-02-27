@@ -23,6 +23,9 @@ activity_timeline:
   - timestamp: 2026-02-27T19:16:08.409Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T19:16:08.525Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Close duplicate-tool-notifications issue\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
