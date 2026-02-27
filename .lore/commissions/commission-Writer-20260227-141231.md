@@ -32,6 +32,9 @@ activity_timeline:
   - timestamp: 2026-02-27T22:12:31.644Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T22:12:31.684Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Plan: Responsive layout for dashboard and project pages\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
