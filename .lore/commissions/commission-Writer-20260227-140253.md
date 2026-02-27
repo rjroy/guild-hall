@@ -76,6 +76,9 @@ activity_timeline:
     reason: "Worker completed successfully"
     from: "in_progress"
     to: "completed"
+  - timestamp: 2026-02-27T22:06:56.942Z
+    event: status_completed
+    reason: "Worker completed successfully"
 current_progress: "Research complete. Writing the implementation plan now. I've identified all 12+ files that need changes across daemon types, session lifecycle, routes, proxy routes, UI components, manager toolbox, gem mapping, and tests."
 result_summary: "Implementation plan written to `.lore/plans/abandoned-commission-state.md`. The plan covers 8 implementation steps across 9 files (1 new), with a comprehensive test strategy. Key design decisions: reason is required (not optional), no git operations needed (abandon only applies to commissions not in activeCommissions), confirmation dialog includes a textarea for the reason, and `abandoned` maps to the red gem set alongside `failed` and `cancelled`. The plan identifies the exact files, line numbers, and patterns to follow for each change."
 projectName: guild-hall
