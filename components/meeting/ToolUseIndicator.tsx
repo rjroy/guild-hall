@@ -5,6 +5,7 @@ import GemIndicator from "@/components/ui/GemIndicator";
 import styles from "./ToolUseIndicator.module.css";
 
 export interface ToolUseEntry {
+  id?: string;
   name: string;
   input?: unknown;
   output?: string;
