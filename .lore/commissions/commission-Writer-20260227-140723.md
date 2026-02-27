@@ -38,6 +38,9 @@ activity_timeline:
   - timestamp: 2026-02-27T22:07:23.738Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T22:07:23.778Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Plan: Artifact editor shows full file content including frontmatter\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
