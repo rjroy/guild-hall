@@ -63,3 +63,146 @@ export function groupArtifacts(artifacts: Artifact[]): ArtifactGroup[] {
     })
     .map(([group, items]) => ({ group, items }));
 }
+
+export interface TreeNode {
+  name: string; // directory segment or filename
+  label: string; // capitalize(name) for dirs, displayTitle() for leaves
+  path: string; // full relative path from .lore/ root
+  depth: number; // 0 = top-level, 1 = second level, etc.
+  children: TreeNode[]; // subdirectories and artifacts (empty for leaves)
+  artifact?: Artifact; // present only on leaf nodes
+  defaultExpanded: boolean; // true for depth-0 directory nodes only
+}
+// Invariant: a node is a leaf when artifact is defined AND children is empty.
+// A node is a directory when artifact is undefined AND children is non-empty.
+// No node should have both artifact and children populated.
+
+/**
+ * Inserts an artifact into the tree at the level described by `nodeMap`.
+ * `segments` is the remaining path segments to consume.
+ * `parentArray` is the children array that new nodes should be appended to.
+ * `depth` is the current tree depth (0 = top-level directory).
+ * `parentPath` is the accumulated path prefix for building node paths.
+ */
+function insertArtifact(
+  nodeMap: Map<string, TreeNode>,
+  parentArray: TreeNode[],
+  segments: string[],
+  depth: number,
+  parentPath: string,
+  artifact: Artifact
+): void {
+  const segment = segments[0];
+  const currentPath = parentPath ? `${parentPath}/${segment}` : segment;
+
+  if (segments.length === 1) {
+    // Leaf node: carries the artifact reference
+    const leaf: TreeNode = {
+      name: segment,
+      label: displayTitle(artifact),
+      path: artifact.relativePath,
+      depth,
+      children: [],
+      artifact,
+      defaultExpanded: false,
+    };
+    nodeMap.set(segment, leaf);
+    parentArray.push(leaf);
+    return;
+  }
+
+  // Directory node: find or create, then recurse into its children
+  let dirNode = nodeMap.get(segment);
+  if (!dirNode) {
+    dirNode = {
+      name: segment,
+      label: capitalize(segment),
+      path: currentPath,
+      depth,
+      children: [],
+      defaultExpanded: depth === 0,
+    };
+    nodeMap.set(segment, dirNode);
+    parentArray.push(dirNode);
+  }
+
+  // Build a child map from the dir's existing directory children for the next level
+  const childMap = new Map<string, TreeNode>();
+  for (const child of dirNode.children) {
+    if (!child.artifact) {
+      childMap.set(child.name, child);
+    }
+  }
+
+  insertArtifact(
+    childMap,
+    dirNode.children,
+    segments.slice(1),
+    depth + 1,
+    currentPath,
+    artifact
+  );
+}
+
+/**
+ * Sorts nodes in-place: alphabetical by name, with "root" always last.
+ * Recurses into children.
+ */
+function sortTreeLevel(nodes: TreeNode[]): void {
+  nodes.sort((a, b) => {
+    if (a.name === "root") return 1;
+    if (b.name === "root") return -1;
+    return a.name.localeCompare(b.name);
+  });
+  for (const node of nodes) {
+    if (node.children.length > 0) {
+      sortTreeLevel(node.children);
+    }
+  }
+}
+
+/**
+ * Builds a tree of TreeNodes from a flat list of artifacts.
+ * Directory nodes group artifacts by path segments; leaves hold artifact refs.
+ * Root-level files (no directory) are placed under a synthetic "root" node
+ * that is always rendered without a collapsible wrapper.
+ * Depth-0 directory nodes have defaultExpanded: true; deeper nodes do not.
+ */
+export function buildArtifactTree(artifacts: Artifact[]): TreeNode[] {
+  const topLevelMap = new Map<string, TreeNode>();
+  const topLevelArray: TreeNode[] = [];
+
+  for (const artifact of artifacts) {
+    const segments = artifact.relativePath.split("/");
+
+    if (segments.length === 1) {
+      // Root-level file: nest under a synthetic "root" container node.
+      // The root node itself is never collapsible; it just groups top-level files.
+      let rootNode = topLevelMap.get("root");
+      if (!rootNode) {
+        rootNode = {
+          name: "root",
+          label: "Root",
+          path: "root",
+          depth: 0,
+          children: [],
+          defaultExpanded: false,
+        };
+        topLevelMap.set("root", rootNode);
+        topLevelArray.push(rootNode);
+      }
+
+      const rootChildMap = new Map<string, TreeNode>();
+      for (const child of rootNode.children) {
+        rootChildMap.set(child.name, child);
+      }
+
+      insertArtifact(rootChildMap, rootNode.children, segments, 1, "", artifact);
+    } else {
+      insertArtifact(topLevelMap, topLevelArray, segments, 0, "", artifact);
+    }
+  }
+
+  sortTreeLevel(topLevelArray);
+  return topLevelArray;
+}

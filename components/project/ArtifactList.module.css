@@ -91,3 +91,56 @@
   border-radius: 3px;
   white-space: nowrap;
 }
+
+.directoryRow {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  user-select: none;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+
+.directoryRowDepth0 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-brass);
+  margin-bottom: var(--space-xs);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid rgba(184, 134, 11, 0.2);
+}
+
+.directoryRowDeep {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.chevron {
+  display: inline-block;
+  font-size: 0.65rem;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.chevronExpanded {
+  transform: rotate(90deg);
+}
+
+.children {
+  display: flex;
+  flex-direction: column;
+}
+
+.treeSection {
+  margin-bottom: var(--space-lg);
+}
+
+.treeSection:last-child {
+  margin-bottom: 0;
+}
