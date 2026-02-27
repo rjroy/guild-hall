@@ -637,6 +637,87 @@ Third
     expect(messages[2].id).toBe("transcript-3");
   });
 
+  test("parses multiline tool output correctly", () => {
+    const transcript = `---
+meetingId: test
+---
+
+## Assistant (2026-02-21T12:00:05.000Z)
+
+Reading the file...
+
+> Tool: Read
+> Line1
+> Line2
+> Line3
+
+Here are my findings.
+`;
+
+    const messages = parseTranscriptToMessages(transcript);
+
+    expect(messages).toHaveLength(1);
+    const assistant = messages[0];
+    expect(assistant.toolUses).toHaveLength(1);
+    expect(assistant.toolUses![0].name).toBe("Read");
+    expect(assistant.toolUses![0].output).toBe("Line1\nLine2\nLine3");
+    expect(assistant.content).toContain("Reading the file...");
+    expect(assistant.content).toContain("Here are my findings.");
+  });
+
+  test("preserves empty lines within multiline tool output", () => {
+    const transcript = `---
+meetingId: test
+---
+
+## Assistant (2026-02-21T12:00:05.000Z)
+
+> Tool: Read
+> Line1
+> ${""/* empty blockquote line */}
+> Line3
+`;
+
+    const messages = parseTranscriptToMessages(transcript);
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].toolUses).toHaveLength(1);
+    expect(messages[0].toolUses![0].output).toBe("Line1\n\nLine3");
+  });
+
+  test("parses multiple multiline tools without bleed-through", () => {
+    const transcript = `---
+meetingId: test
+---
+
+## Assistant (2026-02-21T12:00:05.000Z)
+
+Some text.
+
+> Tool: Glob
+> file1.ts
+> file2.ts
+
+> Tool: Read
+> contents line 1
+> contents line 2
+
+More text.
+`;
+
+    const messages = parseTranscriptToMessages(transcript);
+
+    expect(messages).toHaveLength(1);
+    const assistant = messages[0];
+    expect(assistant.toolUses).toHaveLength(2);
+    expect(assistant.toolUses![0].name).toBe("Glob");
+    expect(assistant.toolUses![0].output).toBe("file1.ts\nfile2.ts");
+    expect(assistant.toolUses![1].name).toBe("Read");
+    expect(assistant.toolUses![1].output).toBe("contents line 1\ncontents line 2");
+    expect(assistant.content).toContain("Some text.");
+    expect(assistant.content).toContain("More text.");
+  });
+
   test("tool use with no result lines has undefined output", () => {
     const transcript = `---
 meetingId: test
