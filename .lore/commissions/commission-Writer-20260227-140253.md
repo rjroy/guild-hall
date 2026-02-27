@@ -45,6 +45,9 @@ activity_timeline:
   - timestamp: 2026-02-27T22:02:53.880Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T22:02:53.919Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Plan: Add \"abandoned\" commission status with workflow enforcement\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
