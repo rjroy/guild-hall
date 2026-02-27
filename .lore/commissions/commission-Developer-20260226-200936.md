@@ -29,6 +29,9 @@ activity_timeline:
   - timestamp: 2026-02-27T04:09:36.365Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T04:09:36.403Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Fix duplicate tool use indicators during meeting streaming\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
