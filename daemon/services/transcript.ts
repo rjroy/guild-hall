@@ -134,7 +134,11 @@ export async function appendAssistantTurn(
 
   if (toolUses && toolUses.length > 0) {
     for (const tool of toolUses) {
-      section += `\n> Tool: ${tool.toolName}\n> ${tool.result}\n`;
+      section += `\n> Tool: ${tool.toolName}\n`;
+      const resultLines = tool.result.split("\n");
+      for (const line of resultLines) {
+        section += `> ${line}\n`;
+      }
     }
   }
 

@@ -186,6 +186,38 @@ describe("transcript service", () => {
         appendAssistantTurn("foo\\bar", "content", undefined, ghHome),
       ).rejects.toThrow("must not contain");
     });
+
+    test("prefixes every line of a multiline tool result with '> '", async () => {
+      await createTranscript("test-meeting", "worker", "project", ghHome);
+      const tools: ToolUseEntry[] = [
+        { toolName: "Read", result: "Line1\nLine2\nLine3" },
+      ];
+      await appendAssistantTurn("test-meeting", "Here is the content:", tools, ghHome);
+
+      const raw = await readTranscript("test-meeting", ghHome);
+      const lines = raw.split("\n");
+
+      // Find the "> Tool: Read" line
+      const toolLineIndex = lines.findIndex((l) => l === "> Tool: Read");
+      expect(toolLineIndex).toBeGreaterThan(-1);
+
+      // Collect all lines after "> Tool: Read" until a blank line or non-blockquote line
+      const blockLines: string[] = [];
+      for (let i = toolLineIndex + 1; i < lines.length; i++) {
+        const line = lines[i];
+        // Stop at blank line or a new section heading
+        if (line === "" || line.startsWith("##")) break;
+        blockLines.push(line);
+      }
+
+      // Every collected line must start with "> " — no bare continuation lines
+      expect(blockLines.length).toBeGreaterThan(0);
+      for (const line of blockLines) {
+        expect(line).toMatch(/^> /);
+      }
+      // Confirm all three result lines are present
+      expect(blockLines).toEqual(["> Line1", "> Line2", "> Line3"]);
+    });
   });
 
   describe("readTranscript", () => {
@@ -386,6 +418,77 @@ Just plain text here.
       const messages = parseTranscriptMessages(raw);
       expect(messages).toHaveLength(1);
       expect(messages[0].toolUses).toBeUndefined();
+    });
+
+    test("multiline round-trip: blockquote lines rejoin into newline-separated result", () => {
+      const raw = `---
+meetingId: test
+---
+
+## Assistant (2026-02-21T14:30:12Z)
+
+Examining the file.
+
+> Tool: testTool
+> Line1
+> Line2
+> Line3
+
+Done.
+`;
+
+      const messages = parseTranscriptMessages(raw);
+      expect(messages).toHaveLength(1);
+      expect(messages[0].toolUses).toHaveLength(1);
+      expect(messages[0].toolUses![0].toolName).toBe("testTool");
+      expect(messages[0].toolUses![0].result).toBe("Line1\nLine2\nLine3");
+    });
+
+    test("empty line preservation: '> ' blockquote empty line round-trips as empty string", () => {
+      // The serializer produces "> " (with trailing space) for an empty result line.
+      // The parser checks startsWith("> "), so "> " satisfies it and strips to "".
+      const raw =
+        "---\nmeetingId: test\n---\n\n## Assistant (2026-02-21T14:30:12Z)\n\nReading file.\n\n> Tool: testTool\n> Line1\n> \n> Line3\n\nDone.\n";
+
+      const messages = parseTranscriptMessages(raw);
+      expect(messages).toHaveLength(1);
+      expect(messages[0].toolUses).toHaveLength(1);
+      expect(messages[0].toolUses![0].toolName).toBe("testTool");
+      expect(messages[0].toolUses![0].result).toBe("Line1\n\nLine3");
+    });
+
+    test("multiple multiline tools parse into separate entries without bleeding", () => {
+      const raw = `---
+meetingId: test
+---
+
+## Assistant (2026-02-21T14:30:12Z)
+
+Checking things.
+
+> Tool: firstTool
+> Alpha
+> Beta
+
+> Tool: secondTool
+> Gamma
+> Delta
+> Epsilon
+
+All done.
+`;
+
+      const messages = parseTranscriptMessages(raw);
+      expect(messages).toHaveLength(1);
+      expect(messages[0].toolUses).toHaveLength(2);
+
+      const first = messages[0].toolUses![0];
+      expect(first.toolName).toBe("firstTool");
+      expect(first.result).toBe("Alpha\nBeta");
+
+      const second = messages[0].toolUses![1];
+      expect(second.toolName).toBe("secondTool");
+      expect(second.result).toBe("Gamma\nDelta\nEpsilon");
     });
   });
 
