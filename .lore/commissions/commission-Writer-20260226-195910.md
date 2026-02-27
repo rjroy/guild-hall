@@ -18,6 +18,9 @@ activity_timeline:
   - timestamp: 2026-02-27T03:59:10.808Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T03:59:10.846Z
+    event: manager_dispatched
+    reason: "Guild Master dispatched commission \"Update design doc status to implemented\""
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
