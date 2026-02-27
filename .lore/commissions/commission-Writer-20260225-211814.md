@@ -1,7 +1,7 @@
 ---
 title: "Commission: Document commission dispatch empty prompt bug"
 date: 2026-02-26
-status: failed
+status: completed
 tags: [commission]
 worker: Writer
 workerDisplayTitle: "Guild Writer"

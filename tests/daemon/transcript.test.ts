@@ -181,6 +181,56 @@ describe("transcript service", () => {
       expect(content).not.toContain("> Tool:");
     });
 
+    test("serializes multiline tool results with blockquote prefix on every line", async () => {
+      await createTranscript("test-meeting", "worker", "project", ghHome);
+      const tools: ToolUseEntry[] = [
+        { toolName: "Read", result: "Line1\nLine2\nLine3" },
+      ];
+      await appendAssistantTurn("test-meeting", "Reading file...", tools, ghHome);
+
+      const content = await readTranscript("test-meeting", ghHome);
+      // Extract lines between "> Tool: Read" and the next heading or EOF
+      const lines = content.split("\n");
+      const toolIdx = lines.findIndex((l) => l === "> Tool: Read");
+      expect(toolIdx).toBeGreaterThan(-1);
+
+      // All result lines after the Tool header should start with "> "
+      const resultLines: string[] = [];
+      for (let i = toolIdx + 1; i < lines.length; i++) {
+        if (lines[i] === "" || lines[i].startsWith("## ")) break;
+        resultLines.push(lines[i]);
+      }
+      expect(resultLines).toHaveLength(3);
+      expect(resultLines.every((l) => l.startsWith("> "))).toBe(true);
+      expect(resultLines[0]).toBe("> Line1");
+      expect(resultLines[1]).toBe("> Line2");
+      expect(resultLines[2]).toBe("> Line3");
+    });
+
+    test("serializes tool results with empty lines preserving blockquote prefix", async () => {
+      await createTranscript("test-meeting", "worker", "project", ghHome);
+      const tools: ToolUseEntry[] = [
+        { toolName: "Read", result: "Line1\n\nLine3" },
+      ];
+      await appendAssistantTurn("test-meeting", "Reading...", tools, ghHome);
+
+      const content = await readTranscript("test-meeting", ghHome);
+      const lines = content.split("\n");
+      const toolIdx = lines.findIndex((l) => l === "> Tool: Read");
+      expect(toolIdx).toBeGreaterThan(-1);
+
+      // Empty line should serialize as "> " (prefix only)
+      const resultLines: string[] = [];
+      for (let i = toolIdx + 1; i < lines.length; i++) {
+        if (lines[i] === "" || lines[i].startsWith("## ")) break;
+        resultLines.push(lines[i]);
+      }
+      expect(resultLines).toHaveLength(3);
+      expect(resultLines[0]).toBe("> Line1");
+      expect(resultLines[1]).toBe("> ");
+      expect(resultLines[2]).toBe("> Line3");
+    });
+
     test("rejects path traversal in meetingId", async () => {
       await expect(
         appendAssistantTurn("foo\\bar", "content", undefined, ghHome),
@@ -402,6 +452,82 @@ meetingId: test
       expect(parseTranscriptMessages(raw)).toEqual([]);
     });
 
+    test("parses multiline tool result from blockquote lines", () => {
+      const raw = `---
+meetingId: test
+---
+
+## Assistant (2026-02-21T14:30:12Z)
+
+Reading the file...
+
+> Tool: Read
+> Line1
+> Line2
+> Line3
+
+Done.
+`;
+
+      const messages = parseTranscriptMessages(raw);
+      expect(messages).toHaveLength(1);
+      expect(messages[0].toolUses).toHaveLength(1);
+      expect(messages[0].toolUses![0].toolName).toBe("Read");
+      expect(messages[0].toolUses![0].result).toBe("Line1\nLine2\nLine3");
+    });
+
+    test("preserves empty lines within multiline tool result", () => {
+      const raw = `---
+meetingId: test
+---
+
+## Assistant (2026-02-21T14:30:12Z)
+
+> Tool: Read
+> Line1
+> ${""/* empty blockquote line */}
+> Line3
+`;
+
+      const messages = parseTranscriptMessages(raw);
+      expect(messages).toHaveLength(1);
+      expect(messages[0].toolUses).toHaveLength(1);
+      expect(messages[0].toolUses![0].result).toBe("Line1\n\nLine3");
+    });
+
+    test("parses multiple multiline tools without bleed-through", () => {
+      const raw = `---
+meetingId: test
+---
+
+## Assistant (2026-02-21T14:30:12Z)
+
+Some text.
+
+> Tool: Glob
+> file1.ts
+> file2.ts
+
+> Tool: Read
+> contents line 1
+> contents line 2
+> contents line 3
+
+More text.
+`;
+
+      const messages = parseTranscriptMessages(raw);
+      expect(messages).toHaveLength(1);
+      const msg = messages[0];
+      expect(msg.toolUses).toHaveLength(2);
+      expect(msg.toolUses![0].toolName).toBe("Glob");
+      expect(msg.toolUses![0].result).toBe("file1.ts\nfile2.ts");
+      expect(msg.toolUses![1].toolName).toBe("Read");
+      expect(msg.toolUses![1].result).toBe("contents line 1\ncontents line 2\ncontents line 3");
+      expect(msg.content).toContain("Some text.");
+      expect(msg.content).toContain("More text.");
+    });
+
     test("assistant turn with no tool uses has no toolUses property", () => {
       const raw = `---
 meetingId: test
@@ -558,6 +684,32 @@ All done.
   });
 
   describe("full round-trip", () => {
+    test("multiline tool results survive serialize-parse round-trip", async () => {
+      const meetingId = "roundtrip-multiline";
+      await createTranscript(meetingId, "worker", "project", ghHome);
+      await appendUserTurn(meetingId, "Read the file", ghHome);
+      await appendAssistantTurn(
+        meetingId,
+        "Here are the contents:",
+        [
+          { toolName: "Read", result: "first line\nsecond line\nthird line" },
+          { toolName: "Glob", result: "a.ts\n\nc.ts" },
+        ],
+        ghHome,
+      );
+
+      const messages = await readTranscriptMessages(meetingId, ghHome);
+      expect(messages).toHaveLength(2);
+
+      const assistant = messages[1];
+      expect(assistant.content).toBe("Here are the contents:");
+      expect(assistant.toolUses).toHaveLength(2);
+      expect(assistant.toolUses![0].toolName).toBe("Read");
+      expect(assistant.toolUses![0].result).toBe("first line\nsecond line\nthird line");
+      expect(assistant.toolUses![1].toolName).toBe("Glob");
+      expect(assistant.toolUses![1].result).toBe("a.ts\n\nc.ts");
+    });
+
     test("create, append turns, read back, and remove", async () => {
       const meetingId = "audience-assistant-20260221-143000";
 

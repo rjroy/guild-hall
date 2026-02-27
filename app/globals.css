@@ -64,7 +64,7 @@
 
   /* Gem status filters (applied to the blue base gem.webp) */
   --gem-active: hue-rotate(100deg) saturate(1.5) brightness(0.9);
-  --gem-pending: hue-rotate(-40deg) saturate(2) brightness(1.1);
+  --gem-pending: hue-rotate(-70deg) saturate(2) brightness(1.1);
   --gem-blocked: hue-rotate(-140deg) saturate(2) brightness(0.85);
   --gem-info: none;
 
