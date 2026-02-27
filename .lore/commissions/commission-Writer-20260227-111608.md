@@ -1,7 +1,7 @@
 ---
 title: "Commission: Close duplicate-tool-notifications issue"
 date: 2026-02-27
-status: pending
+status: completed
 tags: [commission]
 worker: Writer
 workerDisplayTitle: "Guild Writer"
@@ -17,16 +17,35 @@ Add a \"## Resolution\" section at the bottom explaining:
 
 Keep the existing content intact. Only change the status and add the resolution section."
 dependencies: []
-linked_artifacts: []
+linked_artifacts:
+  - .lore/issues/duplicate-tool-notifications.md
 
 activity_timeline:
   - timestamp: 2026-02-27T19:16:08.409Z
     event: created
     reason: "Commission created"
-  - timestamp: 2026-02-27T19:16:08.525Z
-    event: manager_dispatched
-    reason: "Guild Master dispatched commission \"Close duplicate-tool-notifications issue\""
-current_progress: ""
-result_summary: ""
+  - timestamp: 2026-02-27T19:16:08.522Z
+    event: status_dispatched
+    reason: "Commission dispatched to worker"
+    from: "pending"
+    to: "dispatched"
+  - timestamp: 2026-02-27T19:16:08.523Z
+    event: status_in_progress
+    reason: "Commission session started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-02-27T19:16:15.561Z
+    event: progress_report
+    reason: "Reading the issue file to understand its current content before making changes."
+  - timestamp: 2026-02-27T19:16:36.041Z
+    event: result_submitted
+    reason: "Updated `.lore/issues/duplicate-tool-notifications.md`: changed frontmatter status from `open` to `resolved` and added a \"## Resolution\" section explaining the fix implementation, worktree loss, preserved diff location, root cause (duplicate content blocks from `includePartialMessages`), and verification status."
+  - timestamp: 2026-02-27T19:16:40.883Z
+    event: status_completed
+    reason: "Worker completed successfully"
+    from: "in_progress"
+    to: "completed"
+current_progress: "Reading the issue file to understand its current content before making changes."
+result_summary: "Updated `.lore/issues/duplicate-tool-notifications.md`: changed frontmatter status from `open` to `resolved` and added a \"## Resolution\" section explaining the fix implementation, worktree loss, preserved diff location, root cause (duplicate content blocks from `includePartialMessages`), and verification status."
 projectName: guild-hall
 ---
