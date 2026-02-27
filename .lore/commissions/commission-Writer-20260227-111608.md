@@ -45,6 +45,9 @@ activity_timeline:
     reason: "Worker completed successfully"
     from: "in_progress"
     to: "completed"
+  - timestamp: 2026-02-27T19:16:40.940Z
+    event: status_completed
+    reason: "Worker completed successfully"
 current_progress: "Reading the issue file to understand its current content before making changes."
 result_summary: "Updated `.lore/issues/duplicate-tool-notifications.md`: changed frontmatter status from `open` to `resolved` and added a \"## Resolution\" section explaining the fix implementation, worktree loss, preserved diff location, root cause (duplicate content blocks from `includePartialMessages`), and verification status."
 projectName: guild-hall
