@@ -1,7 +1,7 @@
 ---
 title: "Commission: Plan: Add \"abandoned\" commission status with workflow enforcement"
 date: 2026-02-27
-status: pending
+status: completed
 tags: [commission]
 worker: Writer
 workerDisplayTitle: "Guild Writer"
@@ -39,16 +39,44 @@ NOT from `dispatched` or `in_progress` (cancel first, then abandon). This is del
 
 The plan should identify every file that needs changes, what changes are needed, and the order of implementation. Group into logical steps. Include the test strategy."
 dependencies: []
-linked_artifacts: []
+linked_artifacts:
+  - .lore/plans/abandoned-commission-state.md
 
 activity_timeline:
   - timestamp: 2026-02-27T22:02:53.880Z
     event: created
     reason: "Commission created"
-  - timestamp: 2026-02-27T22:02:53.919Z
-    event: manager_dispatched
-    reason: "Guild Master dispatched commission \"Plan: Add \"abandoned\" commission status with workflow enforcement\""
-current_progress: ""
-result_summary: ""
+  - timestamp: 2026-02-27T22:02:53.916Z
+    event: status_dispatched
+    reason: "Commission dispatched to worker"
+    from: "pending"
+    to: "dispatched"
+  - timestamp: 2026-02-27T22:02:53.917Z
+    event: status_in_progress
+    reason: "Commission session started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-02-27T22:03:01.140Z
+    event: progress_report
+    reason: "Starting codebase research to understand current commission lifecycle implementation before writing the plan."
+  - timestamp: 2026-02-27T22:03:38.346Z
+    event: progress_report
+    reason: "Research complete: Thoroughly mapped the commission lifecycle implementation across daemon types, routes, helpers, UI components, and manager toolbox. Ready to document all required changes for adding the \"abandoned\" terminal state."
+  - timestamp: 2026-02-27T22:04:16.623Z
+    event: progress_report
+    reason: "Codebase research complete. Now reading a few key files directly to verify specific patterns before writing the plan."
+  - timestamp: 2026-02-27T22:04:54.134Z
+    event: progress_report
+    reason: "Research complete. Writing the implementation plan now. I've identified all 12+ files that need changes across daemon types, session lifecycle, routes, proxy routes, UI components, manager toolbox, gem mapping, and tests."
+  - timestamp: 2026-02-27T22:06:47.239Z
+    event: result_submitted
+    reason: "Implementation plan written to `.lore/plans/abandoned-commission-state.md`. The plan covers 8 implementation steps across 9 files (1 new), with a comprehensive test strategy. Key design decisions: reason is required (not optional), no git operations needed (abandon only applies to commissions not in activeCommissions), confirmation dialog includes a textarea for the reason, and `abandoned` maps to the red gem set alongside `failed` and `cancelled`. The plan identifies the exact files, line numbers, and patterns to follow for each change."
+  - timestamp: 2026-02-27T22:06:56.875Z
+    event: status_completed
+    reason: "Worker completed successfully"
+    from: "in_progress"
+    to: "completed"
+current_progress: "Research complete. Writing the implementation plan now. I've identified all 12+ files that need changes across daemon types, session lifecycle, routes, proxy routes, UI components, manager toolbox, gem mapping, and tests."
+result_summary: "Implementation plan written to `.lore/plans/abandoned-commission-state.md`. The plan covers 8 implementation steps across 9 files (1 new), with a comprehensive test strategy. Key design decisions: reason is required (not optional), no git operations needed (abandon only applies to commissions not in activeCommissions), confirmation dialog includes a textarea for the reason, and `abandoned` maps to the red gem set alongside `failed` and `cancelled`. The plan identifies the exact files, line numbers, and patterns to follow for each change."
 projectName: guild-hall
 ---
