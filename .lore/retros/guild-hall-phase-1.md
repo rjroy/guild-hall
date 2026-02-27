@@ -5,9 +5,8 @@ status: complete
 tags: [phase-1, implementation, autonomous-implementation, sse, testing, frontend, agent-sdk]
 modules: [guild-hall, workshop, board, roster]
 related:
-  - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/plans/phase-1/guild-hall-phase-1.md
-  - .lore/notes/phase-1/guild-hall-phase-1.md
+  - .lore/_abandoned/phase-1/brainstorm/guild-hall-phase-1.md
+  - .lore/_abandoned/phase-1/notes/guild-hall-phase-1.md
 ---
 
 # Retro: Guild Hall Phase I

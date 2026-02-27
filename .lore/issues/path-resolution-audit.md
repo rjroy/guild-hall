@@ -2,7 +2,7 @@
 title: Audit projectPath vs integrationPath usage across codebase
 date: 2026-02-25
 status: open
-tags: [bug, paths, worktree, data-integrity]
+tags: [bug, paths, worktrees, data-integrity]
 modules: [lib-paths, daemon, next-app]
 ---
 

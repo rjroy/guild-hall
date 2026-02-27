@@ -5,8 +5,6 @@ status: complete
 tags: [turbopack, process-management, bundler-sandboxing, boot-cleanup, pid-files, race-condition]
 modules: [mcp-manager, server-context, pid-file-manager, http-mcp-factory]
 related:
-  - .lore/specs/phase-1/mcp-pid-files.md
-  - .lore/plans/phase-1/unified-jingling-scone.md
   - .lore/retros/coverage-di-factories.md
 ---
 

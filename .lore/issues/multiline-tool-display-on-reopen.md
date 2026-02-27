@@ -2,7 +2,7 @@
 title: Multiline tool results render as code blocks when reopening meetings
 date: 2026-02-25
 status: resolved
-tags: [bug, ui, meetings, transcript, markdown]
+tags: [bug, ui, meetings, transcripts, markdown]
 modules: [meeting-chat, transcript, message-bubble]
 ---
 

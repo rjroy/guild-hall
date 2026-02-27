@@ -2,7 +2,7 @@
 title: Process Architecture
 date: 2026-02-20
 status: implemented
-tags: [architecture, daemon, process-model, ipc, next-js, commission, meeting]
+tags: [architecture, daemon, process-model, ipc, next-js, commissions, meetings]
 modules: [guild-hall-core]
 related:
   - .lore/specs/guild-hall-system.md

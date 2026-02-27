@@ -2,7 +2,7 @@
 title: "Next.js CSS property order matters for backdrop-filter"
 status: complete
 created: 2026-02-14
-tags: [css, next.js, build-quirks, glassmorphism, visual-design]
+tags: [css, next-js, build-quirks, glassmorphism, visual-design]
 modules: [components/workshop/MessageBubble]
 ---
 
