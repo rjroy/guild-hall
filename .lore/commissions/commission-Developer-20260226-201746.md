@@ -1,7 +1,7 @@
 ---
 title: "Commission: Improve commission list sorting and add timestamps"
 date: 2026-02-27
-status: pending
+status: failed
 tags: [commission]
 worker: Developer
 workerDisplayTitle: "Guild Developer"
@@ -41,6 +41,9 @@ activity_timeline:
   - timestamp: 2026-02-27T04:17:46.998Z
     event: manager_dispatched
     reason: "Guild Master dispatched commission \"Improve commission list sorting and add timestamps\""
+  - timestamp: 2026-02-27T04:22:52.291Z
+    event: status_failed
+    reason: "Worker process unresponsive (heartbeat stale)"
 current_progress: ""
 result_summary: ""
 projectName: guild-hall
