@@ -46,6 +46,33 @@ function meetingIdFromPath(relativePath: string): string {
   return filename.replace(/\.md$/, "");
 }
 
+/**
+ * Returns the href for a meeting based on its status.
+ *
+ * - "open": live meeting view (/projects/<name>/meetings/<id>)
+ * - "closed": artifact view of the meeting notes (/projects/<name>/artifacts/<relativePath>)
+ * - other statuses: null (not linkable)
+ */
+export function meetingHref(
+  status: string,
+  projectName: string,
+  relativePath: string,
+): string | null {
+  const normalized = status.toLowerCase().trim();
+  const encodedName = encodeURIComponent(projectName);
+
+  if (normalized === "open") {
+    const meetingId = meetingIdFromPath(relativePath);
+    return `/projects/${encodedName}/meetings/${encodeURIComponent(meetingId)}`;
+  }
+
+  if (normalized === "closed") {
+    return `/projects/${encodedName}/artifacts/${relativePath}`;
+  }
+
+  return null;
+}
+
 export default function MeetingList({
   meetings,
   projectName,
@@ -58,8 +85,6 @@ export default function MeetingList({
     );
   }
 
-  const encodedName = encodeURIComponent(projectName);
-
   return (
     <Panel size="lg">
       <ul className={styles.list}>
@@ -67,7 +92,6 @@ export default function MeetingList({
           const status = (meeting.meta.status || "open").toLowerCase().trim();
           const gem = meetingStatusToGem(status);
           const title = meetingTitle(meeting);
-          const meetingId = meetingIdFromPath(meeting.relativePath);
           const rawWorker = meeting.meta.extras?.worker;
           const workerName = typeof rawWorker === "string" ? rawWorker : undefined;
 
@@ -76,7 +100,7 @@ export default function MeetingList({
             return (
               <li key={meeting.relativePath} className={styles.item}>
                 <Link
-                  href={`/projects/${encodedName}/meetings/${encodeURIComponent(meetingId)}`}
+                  href={meetingHref(status, projectName, meeting.relativePath)!}
                   className={styles.link}
                 >
                   <GemIndicator status={gem} size="sm" />
@@ -123,7 +147,32 @@ export default function MeetingList({
             );
           }
 
-          // Declined and closed meetings render as non-interactive entries
+          // Closed meetings link to the artifact view (read-only notes)
+          if (status === "closed") {
+            return (
+              <li key={meeting.relativePath} className={styles.item}>
+                <Link
+                  href={meetingHref(status, projectName, meeting.relativePath)!}
+                  className={`${styles.link} ${styles.closedLink}`}
+                >
+                  <GemIndicator status={gem} size="sm" />
+                  <div className={styles.info}>
+                    <p className={styles.title}>{title}</p>
+                    <div className={styles.meta}>
+                      {meeting.meta.date && (
+                        <span className={styles.date}>{meeting.meta.date}</span>
+                      )}
+                      {workerName && (
+                        <span className={styles.worker}>{workerName}</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            );
+          }
+
+          // Declined and other meetings render as non-interactive entries
           return (
             <li key={meeting.relativePath} className={styles.item}>
               <div className={styles.closedEntry}>
