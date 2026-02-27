@@ -77,13 +77,6 @@ export interface TreeNode {
 // A node is a directory when artifact is undefined AND children is non-empty.
 // No node should have both artifact and children populated.
 
-/**
- * Inserts an artifact into the tree at the level described by `nodeMap`.
- * `segments` is the remaining path segments to consume.
- * `parentArray` is the children array that new nodes should be appended to.
- * `depth` is the current tree depth (0 = top-level directory).
- * `parentPath` is the accumulated path prefix for building node paths.
- */
 function insertArtifact(
   nodeMap: Map<string, TreeNode>,
   parentArray: TreeNode[],
@@ -96,7 +89,6 @@ function insertArtifact(
   const currentPath = parentPath ? `${parentPath}/${segment}` : segment;
 
   if (segments.length === 1) {
-    // Leaf node: carries the artifact reference
     const leaf: TreeNode = {
       name: segment,
       label: displayTitle(artifact),
@@ -111,7 +103,6 @@ function insertArtifact(
     return;
   }
 
-  // Directory node: find or create, then recurse into its children
   let dirNode = nodeMap.get(segment);
   if (!dirNode) {
     dirNode = {
@@ -126,7 +117,6 @@ function insertArtifact(
     parentArray.push(dirNode);
   }
 
-  // Build a child map from the dir's existing directory children for the next level
   const childMap = new Map<string, TreeNode>();
   for (const child of dirNode.children) {
     if (!child.artifact) {
@@ -176,8 +166,6 @@ export function buildArtifactTree(artifacts: Artifact[]): TreeNode[] {
     const segments = artifact.relativePath.split("/");
 
     if (segments.length === 1) {
-      // Root-level file: nest under a synthetic "root" container node.
-      // The root node itself is never collapsible; it just groups top-level files.
       let rootNode = topLevelMap.get("root");
       if (!rootNode) {
         rootNode = {

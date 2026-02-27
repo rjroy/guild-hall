@@ -11,15 +11,13 @@ import { displayTitle, buildArtifactTree } from "@/lib/artifact-grouping";
 import type { TreeNode } from "@/lib/artifact-grouping";
 import styles from "./ArtifactList.module.css";
 
+const INDENT_PX_PER_DEPTH = 24;
+
 interface ArtifactListProps {
   artifacts: Artifact[];
   projectName: string;
 }
 
-/**
- * Collects all node paths where defaultExpanded is true.
- * Used to pre-populate expanded state on first render.
- */
 function collectDefaultExpanded(nodes: TreeNode[]): Set<string> {
   const expanded = new Set<string>();
   function walk(node: TreeNode): void {
@@ -36,10 +34,8 @@ function collectDefaultExpanded(nodes: TreeNode[]): Set<string> {
   return expanded;
 }
 
-// Fix 1: TreeNodeRow is a standalone module-level component with explicit props.
-// Previously defined inside ArtifactTree's function body, which caused remounts
-// on every expand/collapse because React treats inner function components as new
-// types on each render.
+// Module-level component (not inside ArtifactTree's render body) to prevent
+// React from treating it as a new component type on each render.
 interface TreeNodeRowProps {
   node: TreeNode;
   expanded: Set<string>;
@@ -54,15 +50,11 @@ function TreeNodeRow({
   encodedProjectName,
 }: TreeNodeRowProps) {
   if (node.artifact) {
-    // Leaf node: render the artifact link.
-    // Fix 3: use depth * 24 so leaves indent consistently under their parent
-    // directory. The previous (depth - 1) * 24 made depth-2 leaves align with
-    // depth-1 directories, producing a flat appearance at deeper levels.
     const gemStatus = statusToGem(node.artifact.meta.status);
     return (
       <li
         className={styles.item}
-        style={{ paddingLeft: `${node.depth * 24}px` }}
+        style={{ paddingLeft: `${node.depth * INDENT_PX_PER_DEPTH}px` }}
       >
         <Link
           href={`/projects/${encodedProjectName}/artifacts/${node.artifact.relativePath}`}
@@ -99,13 +91,13 @@ function TreeNodeRow({
     );
   }
 
-  // Directory node
   const isExpanded = expanded.has(node.path);
-  const isDepth0 = node.depth === 0;
-  const dirRowClass = `${styles.directoryRow} ${isDepth0 ? styles.directoryRowDepth0 : styles.directoryRowDeep}`;
+  const depthStyle = node.depth === 0 ? styles.directoryRowDepth0 : styles.directoryRowDeep;
+  const dirRowClass = `${styles.directoryRow} ${depthStyle}`;
 
+  const sectionClass = node.depth === 0 ? `${styles.item} ${styles.treeSection}` : styles.item;
   return (
-    <li className={styles.item} style={{ paddingLeft: `${node.depth * 24}px` }}>
+    <li className={sectionClass} style={{ paddingLeft: `${node.depth * INDENT_PX_PER_DEPTH}px` }}>
       <button
         type="button"
         className={dirRowClass}
@@ -142,11 +134,8 @@ interface ArtifactTreeProps {
   encodedProjectName: string;
 }
 
-/**
- * Inner client component that owns expand/collapse state.
- * Separated from ArtifactList so the empty-state early return above
- * does not violate the rules-of-hooks (hooks must not be called conditionally).
- */
+// Separated from ArtifactList so the empty-state early return does not
+// violate rules-of-hooks.
 function ArtifactTree({ tree, encodedProjectName }: ArtifactTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(
     () => collectDefaultExpanded(tree)
@@ -169,7 +158,6 @@ function ArtifactTree({ tree, encodedProjectName }: ArtifactTreeProps) {
       <ul className={styles.list}>
         {tree.map((node) => {
           if (node.name === "root") {
-            // Root group: render children directly, no collapsible wrapper
             return node.children.map((child) => (
               <TreeNodeRow
                 key={child.path}
@@ -180,18 +168,14 @@ function ArtifactTree({ tree, encodedProjectName }: ArtifactTreeProps) {
               />
             ));
           }
-          // Fix 2: was <div className={styles.treeSection}> wrapping a nested
-          // <ul>, making div a direct child of ul (invalid HTML). Now each
-          // top-level node renders as an <li> directly inside the outer <ul>.
-          return (
-            <li key={node.path} className={styles.treeSection}>
-              <TreeNodeRow
-                node={node}
-                expanded={expanded}
-                toggleNode={toggleNode}
-                encodedProjectName={encodedProjectName}
-              />
-            </li>
+            return (
+            <TreeNodeRow
+              key={node.path}
+              node={node}
+              expanded={expanded}
+              toggleNode={toggleNode}
+              encodedProjectName={encodedProjectName}
+            />
           );
         })}
       </ul>

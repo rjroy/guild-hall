@@ -6,12 +6,9 @@ import {
   groupArtifacts,
   buildArtifactTree,
 } from "@/lib/artifact-grouping";
+import type { TreeNode } from "@/lib/artifact-grouping";
 import type { Artifact } from "@/lib/types";
 
-/**
- * Helper: creates a minimal Artifact for testing.
- * Only populates the fields that the grouping functions inspect.
- */
 function makeArtifact(
   relativePath: string,
   title: string = "",
@@ -353,7 +350,7 @@ describe("buildArtifactTree", () => {
     ];
     const tree = buildArtifactTree(artifacts);
 
-    function assertNodeInvariants(node: ReturnType<typeof buildArtifactTree>[number]): void {
+    function assertNodeInvariants(node: TreeNode): void {
       if (node.artifact !== undefined) {
         // Leaf: must have no children
         expect(node.children).toHaveLength(0);
