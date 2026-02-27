@@ -231,14 +231,14 @@ describe("translateSdkMessage", () => {
       expect(events).toEqual([{ type: "text_delta", text: "Hello, world!" }]);
     });
 
-    test("tool_use content_block_start produces tool_use event", () => {
+    test("tool_use content_block_start produces tool_use event with id", () => {
       const events = translateSdkMessage(
         makeStreamEventToolUseStart("Read"),
         context,
       );
 
       expect(events).toEqual([
-        { type: "tool_use", name: "Read", input: {} },
+        { type: "tool_use", name: "Read", input: {}, id: "tool-1" },
       ]);
     });
 
@@ -282,7 +282,7 @@ describe("translateSdkMessage", () => {
       expect(events).toEqual([]);
     });
 
-    test("tool_use blocks produce tool_use events", () => {
+    test("tool_use blocks produce empty array (double-data prevention)", () => {
       const events = translateSdkMessage(
         makeAssistantMessage([
           {
@@ -295,16 +295,10 @@ describe("translateSdkMessage", () => {
         context,
       );
 
-      expect(events).toEqual([
-        {
-          type: "tool_use",
-          name: "Read",
-          input: { file_path: "/foo/bar.ts" },
-        },
-      ]);
+      expect(events).toEqual([]);
     });
 
-    test("mixed text + tool_use produces only tool_use events", () => {
+    test("mixed text + tool_use produces empty array (double-data prevention)", () => {
       const events = translateSdkMessage(
         makeAssistantMessage([
           { type: "text", text: "Let me check that file." },
@@ -325,9 +319,7 @@ describe("translateSdkMessage", () => {
         context,
       );
 
-      expect(events).toHaveLength(2);
-      expect(events[0]).toMatchObject({ type: "tool_use", name: "Glob" });
-      expect(events[1]).toMatchObject({ type: "tool_use", name: "Read" });
+      expect(events).toEqual([]);
     });
 
     test("empty content array produces empty array", () => {
@@ -341,7 +333,7 @@ describe("translateSdkMessage", () => {
   });
 
   describe("SDKUserMessage (tool results)", () => {
-    test("tool_result blocks produce tool_result events", () => {
+    test("tool_result blocks produce tool_result events with toolUseId", () => {
       const events = translateSdkMessage(
         makeUserMessageWithToolResults([
           {
@@ -354,7 +346,7 @@ describe("translateSdkMessage", () => {
       );
 
       expect(events).toEqual([
-        { type: "tool_result", name: "unknown", output: "File contents here" },
+        { type: "tool_result", name: "unknown", output: "File contents here", toolUseId: "tool-1" },
       ]);
     });
 
@@ -374,7 +366,7 @@ describe("translateSdkMessage", () => {
       );
 
       expect(events).toEqual([
-        { type: "tool_result", name: "unknown", output: "Line 1\nLine 2" },
+        { type: "tool_result", name: "unknown", output: "Line 1\nLine 2", toolUseId: "tool-2" },
       ]);
     });
 
@@ -392,7 +384,7 @@ describe("translateSdkMessage", () => {
       );
 
       expect(events).toEqual([
-        { type: "tool_result", name: "Bash", output: "exit code 0" },
+        { type: "tool_result", name: "Bash", output: "exit code 0", toolUseId: "tool-3" },
       ]);
     });
 
@@ -643,6 +635,55 @@ describe("translateSdkMessage", () => {
       expect(translateSdkMessage(msg, context)).toEqual([]);
     });
   });
+
+  describe("full tool invocation sequence (no duplicates)", () => {
+    test("stream_event emits tool_use, assistant message emits nothing, user message emits tool_result with matching ID", () => {
+      // Step 1: stream_event content_block_start
+      const streamEvents = translateSdkMessage(
+        makeStreamEventToolUseStart("Read"),
+        context,
+      );
+      expect(streamEvents).toEqual([
+        { type: "tool_use", name: "Read", input: {}, id: "tool-1" },
+      ]);
+
+      // Step 2: assistant message with the same tool_use block (finalized)
+      const assistantEvents = translateSdkMessage(
+        makeAssistantMessage([
+          {
+            type: "tool_use",
+            id: "tool-1",
+            name: "Read",
+            input: { file_path: "/foo/bar.ts" },
+          },
+        ]),
+        context,
+      );
+      expect(assistantEvents).toEqual([]);
+
+      // Step 3: user message with tool_result referencing tool-1
+      const userEvents = translateSdkMessage(
+        makeUserMessageWithToolResults([
+          {
+            type: "tool_result",
+            tool_use_id: "tool-1",
+            content: "File contents here",
+          },
+        ]),
+        context,
+      );
+      expect(userEvents).toEqual([
+        { type: "tool_result", name: "unknown", output: "File contents here", toolUseId: "tool-1" },
+      ]);
+
+      // Total: exactly 1 tool_use + 1 tool_result, no duplicates
+      const allEvents = [...streamEvents, ...assistantEvents, ...userEvents];
+      const toolUseEvents = allEvents.filter(e => e.type === "tool_use");
+      const toolResultEvents = allEvents.filter(e => e.type === "tool_result");
+      expect(toolUseEvents).toHaveLength(1);
+      expect(toolResultEvents).toHaveLength(1);
+    });
+  });
 });
 
 describe("branded types", () => {
@@ -684,13 +725,15 @@ describe("GuildHallEvent type coverage", () => {
       { type: "session", meetingId: "m", sessionId: "s", worker: "w" },
       { type: "text_delta", text: "hello" },
       { type: "tool_use", name: "Read", input: { path: "/foo" } },
+      { type: "tool_use", name: "Read", input: { path: "/foo" }, id: "tool-1" },
       { type: "tool_result", name: "Read", output: "contents" },
+      { type: "tool_result", name: "Read", output: "contents", toolUseId: "tool-1" },
       { type: "turn_end", cost: 0.01 },
       { type: "turn_end" }, // cost is optional
       { type: "error", reason: "something went wrong" },
     ];
 
-    expect(events).toHaveLength(7);
+    expect(events).toHaveLength(9);
     // Verify each has a type field
     for (const event of events) {
       expect(event.type).toBeDefined();

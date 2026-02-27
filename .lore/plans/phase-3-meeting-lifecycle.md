@@ -1,7 +1,7 @@
 ---
 title: "Phase 3: Meeting Lifecycle"
 date: 2026-02-21
-status: draft
+status: implemented
 tags: [plan, phase-3, meetings, toolbox, transcripts, requests, session-persistence]
 modules: [guild-hall-core, guild-hall-ui]
 related:

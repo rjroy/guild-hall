@@ -19,6 +19,41 @@ function truncate(text: string, maxLength: number): string {
   return text.slice(0, maxLength) + "...";
 }
 
+/** Formats an ISO timestamp or YYYY-MM-DD date into a compact display string. */
+function formatTimestamp(ts: string): string {
+  if (!ts) return "";
+  try {
+    const date = new Date(ts);
+    if (isNaN(date.getTime())) return ts;
+
+    const now = new Date();
+    const sameYear = date.getFullYear() === now.getFullYear();
+
+    // ISO timestamp with time component
+    if (ts.includes("T")) {
+      const dateStr = date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        ...(sameYear ? {} : { year: "numeric" }),
+      });
+      const timeStr = date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      return `${dateStr}, ${timeStr}`;
+    }
+
+    // Date-only string (YYYY-MM-DD)
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      ...(sameYear ? {} : { year: "numeric" }),
+    });
+  } catch {
+    return ts;
+  }
+}
+
 /**
  * Server component that renders a list of commissions for a project.
  * Each commission shows a status gem, title, worker name, and prompt preview.
@@ -45,6 +80,7 @@ export default function CommissionList({
           const gem = statusToGem(commission.status);
           const displayTitle = commission.title || commission.commissionId;
           const promptPreview = truncate(commission.prompt, 100);
+          const timestamp = formatTimestamp(commission.relevantDate);
 
           return (
             <li key={commission.commissionId} className={styles.item}>
@@ -60,6 +96,9 @@ export default function CommissionList({
                       <span className={styles.worker}>
                         {commission.workerDisplayTitle || commission.worker}
                       </span>
+                    )}
+                    {timestamp && (
+                      <span className={styles.timestamp}>{timestamp}</span>
                     )}
                     {commission.prompt && (
                       <span className={styles.promptPreview}>

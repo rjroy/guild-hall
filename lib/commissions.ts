@@ -30,6 +30,8 @@ export interface CommissionMeta {
   result_summary: string;
   projectName: string;
   date: string;
+  /** ISO timestamp most relevant for the commission's current status. */
+  relevantDate: string;
 }
 
 export interface TimelineEntry {
@@ -64,10 +66,16 @@ function parseCommissionData(
     ? data.resource_overrides as Record<string, unknown>
     : {};
 
+  const status = typeof data.status === "string" ? data.status : "";
+  const date = formatDate(data.date);
+  const timeline = Array.isArray(data.activity_timeline)
+    ? data.activity_timeline as unknown[]
+    : [];
+
   return {
     commissionId,
     title: typeof data.title === "string" ? data.title : "",
-    status: typeof data.status === "string" ? data.status : "",
+    status,
     worker: typeof data.worker === "string" ? data.worker : "",
     workerDisplayTitle: typeof data.workerDisplayTitle === "string"
       ? data.workerDisplayTitle
@@ -94,7 +102,8 @@ function parseCommissionData(
       ? data.result_summary
       : "",
     projectName,
-    date: formatDate(data.date),
+    date,
+    relevantDate: extractRelevantDate(status, date, timeline),
   };
 }
 
@@ -133,6 +142,7 @@ export async function readCommissionMeta(
       result_summary: "",
       projectName,
       date: "",
+      relevantDate: "",
     };
   }
 }
@@ -174,25 +184,7 @@ export async function scanCommissions(
     }
   }
 
-  // Active/pending first, then by date descending (newest first)
-  const statusPriority: Record<string, number> = {
-    in_progress: 0,
-    dispatched: 1,
-    pending: 2,
-    blocked: 3,
-    failed: 4,
-    cancelled: 5,
-    completed: 6,
-  };
-
-  commissions.sort((a, b) => {
-    const pa = statusPriority[a.status] ?? 9;
-    const pb = statusPriority[b.status] ?? 9;
-    if (pa !== pb) return pa - pb;
-    return b.date.localeCompare(a.date);
-  });
-
-  return commissions;
+  return sortCommissions(commissions);
 }
 
 /**
@@ -230,7 +222,90 @@ export function parseActivityTimeline(raw: string): TimelineEntry[] {
     });
 }
 
+// -- Sorting --
+
+/**
+ * Status group ordering: idle (0), active (1), failed (2), completed (3).
+ * Within idle/active/failed, oldest first. Within completed, newest first.
+ */
+const STATUS_GROUP: Record<string, number> = {
+  pending: 0,
+  blocked: 0,
+  dispatched: 1,
+  in_progress: 1,
+  failed: 2,
+  cancelled: 2,
+  completed: 3,
+};
+
+const COMPLETED_GROUP = 3;
+
+/**
+ * Sorts commissions by status group, then by date within each group.
+ * Group order: idle, active, failed, completed.
+ * Idle/active/failed sort oldest first; completed sorts newest first.
+ */
+export function sortCommissions(commissions: CommissionMeta[]): CommissionMeta[] {
+  return [...commissions].sort((a, b) => {
+    const ga = STATUS_GROUP[a.status] ?? 9;
+    const gb = STATUS_GROUP[b.status] ?? 9;
+    if (ga !== gb) return ga - gb;
+
+    const dateA = a.relevantDate || a.date;
+    const dateB = b.relevantDate || b.date;
+    if (ga === COMPLETED_GROUP) {
+      return dateB.localeCompare(dateA);
+    }
+    return dateA.localeCompare(dateB);
+  });
+}
+
 // -- Helpers --
+
+/**
+ * Finds the ISO timestamp for the timeline event matching a status.
+ * Falls back to the creation date if no matching event exists.
+ */
+function extractRelevantDate(
+  status: string,
+  date: string,
+  timeline: unknown[],
+): string {
+  const targetEvent: Record<string, string> = {
+    completed: "status_completed",
+    failed: "status_failed",
+    cancelled: "status_cancelled",
+    dispatched: "status_dispatched",
+    in_progress: "status_in_progress",
+  };
+
+  const eventName = targetEvent[status];
+  if (eventName) {
+    const ts = findTimelineTimestamp(timeline, eventName);
+    if (ts) return ts;
+  }
+
+  // For idle statuses (pending/blocked) or missing timeline events, use creation event
+  const createdTs = findTimelineTimestamp(timeline, "created");
+  if (createdTs) return createdTs;
+
+  return date;
+}
+
+/** Finds the last timeline entry with a given event name and returns its timestamp. */
+function findTimelineTimestamp(timeline: unknown[], eventName: string): string | null {
+  for (let i = timeline.length - 1; i >= 0; i--) {
+    const entry = timeline[i];
+    if (typeof entry !== "object" || entry === null) continue;
+    const rec = entry as Record<string, unknown>;
+    if (rec.event !== eventName) continue;
+
+    const ts = rec.timestamp;
+    if (ts instanceof Date) return ts.toISOString();
+    if (typeof ts === "string" && ts) return ts;
+  }
+  return null;
+}
 
 /** gray-matter parses dates as Date objects; coerce to YYYY-MM-DD string. */
 function formatDate(value: unknown): string {

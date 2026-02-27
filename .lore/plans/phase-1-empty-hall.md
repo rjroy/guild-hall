@@ -1,7 +1,7 @@
 ---
 title: "Phase 1: The Empty Hall"
 date: 2026-02-20
-status: approved
+status: implemented
 tags: [plan, phase-1, ui, navigation, artifacts, config, design-system]
 modules: [guild-hall-ui, guild-hall-core]
 related:

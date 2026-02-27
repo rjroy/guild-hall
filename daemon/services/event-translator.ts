@@ -147,11 +147,13 @@ function translateStreamEvent(
   if (eventType === "content_block_start") {
     const contentBlock = event.content_block as Record<string, unknown> | undefined;
     if (contentBlock?.type === "tool_use" && typeof contentBlock.name === "string") {
+      const id = typeof contentBlock.id === "string" ? contentBlock.id : undefined;
       return [
         {
           type: "tool_use",
           name: contentBlock.name,
           input: {},
+          id,
         },
       ];
     }
@@ -166,28 +168,15 @@ function translateStreamEvent(
 // -- Assistant messages (complete, non-streaming) --
 
 function translateAssistantMessage(
-  message: SdkAssistantMessage,
+  _message: SdkAssistantMessage,
 ): GuildHallEvent[] {
-  // CRITICAL: Do NOT extract text blocks here. The SDK emits text twice
-  // when includePartialMessages is enabled (once via stream_event deltas,
-  // once in the final assistant message). We only use the streaming path
-  // for text. Extract ONLY tool_use blocks.
-  const content = message.message?.content;
-  if (!Array.isArray(content)) return [];
-
-  const events: GuildHallEvent[] = [];
-  for (const block of content) {
-    const typed = block as Record<string, unknown>;
-    if (typed.type === "tool_use" && typeof typed.name === "string") {
-      events.push({
-        type: "tool_use",
-        name: typed.name,
-        input: typed.input ?? {},
-      });
-    }
-    // text blocks intentionally ignored (double-data prevention)
-  }
-  return events;
+  // The SDK emits all content blocks twice when includePartialMessages is
+  // enabled: once via stream_event (content_block_start for tool_use,
+  // content_block_delta for text) and once in the finalized assistant
+  // message. We use the streaming path for both text and tool_use events,
+  // so the assistant message is fully redundant. Return empty to prevent
+  // duplicate tool indicators in the UI.
+  return [];
 }
 
 // -- User messages (contain tool results) --
@@ -207,7 +196,8 @@ function translateUserMessage(
     if (typed.type === "tool_result") {
       const name = extractToolResultName(typed);
       const output = extractToolResultOutput(typed);
-      events.push({ type: "tool_result", name, output });
+      const toolUseId = typeof typed.tool_use_id === "string" ? typed.tool_use_id : undefined;
+      events.push({ type: "tool_result", name, output, toolUseId });
     }
   }
   return events;

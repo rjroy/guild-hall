@@ -27,6 +27,7 @@ function makeCommission(overrides: Partial<CommissionMeta> & { commissionId: str
     result_summary: overrides.result_summary ?? "",
     projectName: overrides.projectName ?? "test-project",
     date: overrides.date ?? "2026-02-21",
+    relevantDate: overrides.relevantDate ?? "",
     ...overrides,
   };
 }

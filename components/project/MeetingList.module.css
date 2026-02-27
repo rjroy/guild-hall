@@ -50,6 +50,10 @@
   background-color: rgba(184, 134, 11, 0.12);
 }
 
+.closedLink {
+  opacity: 0.6;
+}
+
 .closedEntry {
   display: flex;
   align-items: center;

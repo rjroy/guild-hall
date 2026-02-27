@@ -1,9 +1,10 @@
 /**
  * Manager toolbox: exclusive tools for the Guild Master worker.
  *
- * Provides six tools for project coordination:
+ * Provides seven tools for project coordination:
  * - create_commission: create (and optionally dispatch) a new commission
  * - dispatch_commission: dispatch an existing pending commission
+ * - cancel_commission: cancel an active or pending commission
  * - create_pr: push claude/main and open a PR on the hosting platform
  * - initiate_meeting: create a meeting request artifact
  * - add_commission_note: annotate a commission with a manager note
@@ -498,6 +499,48 @@ export function makeAddCommissionNoteHandler(
   };
 }
 
+export function makeCancelCommissionHandler(
+  deps: ManagerToolboxDeps,
+) {
+  return async (args: {
+    commissionId: string;
+    reason?: string;
+  }): Promise<ToolResult> => {
+    try {
+      const cid = asCommissionId(args.commissionId);
+      const reason = args.reason ?? "Commission cancelled by manager";
+      await deps.commissionSession.cancelCommission(cid, reason);
+
+      console.log(
+        `[manager-toolbox] Cancelled commission "${args.commissionId}"`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ commissionId: args.commissionId, status: "cancelled" }),
+          },
+        ],
+      };
+    } catch (err: unknown) {
+      console.error(
+        `[manager-toolbox] Failed to cancel commission "${args.commissionId}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: err instanceof Error ? err.message : String(err),
+          },
+        ],
+        isError: true,
+      };
+    }
+  };
+}
+
 // -- sync_project --
 
 /**
@@ -598,6 +641,7 @@ export function createManagerToolbox(
 ): McpSdkServerConfigWithInstance {
   const createCommission = makeCreateCommissionHandler(deps);
   const dispatchCommission = makeDispatchCommissionHandler(deps);
+  const cancelCommission = makeCancelCommissionHandler(deps);
   const createPr = makeCreatePrHandler(deps);
   const initiateMeeting = makeInitiateMeetingHandler(deps);
   const addCommissionNote = makeAddCommissionNoteHandler(deps);
@@ -630,6 +674,15 @@ export function createManagerToolbox(
           commissionId: z.string().describe("The commission ID to dispatch"),
         },
         (args) => dispatchCommission(args),
+      ),
+      tool(
+        "cancel_commission",
+        "Cancel an active or pending commission. For running commissions, sends SIGTERM with a 30-second grace period before SIGKILL. Valid from pending, blocked, or in_progress states.",
+        {
+          commissionId: z.string().describe("The commission ID to cancel"),
+          reason: z.string().optional().describe("Why the commission is being cancelled (default: 'Commission cancelled by manager')"),
+        },
+        (args) => cancelCommission(args),
       ),
       tool(
         "create_pr",

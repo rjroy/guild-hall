@@ -58,7 +58,7 @@ export type ToolResult = {
 export type GuildHallEvent =
   | { type: "session"; meetingId: string; sessionId: string; worker: string }
   | { type: "text_delta"; text: string }
-  | { type: "tool_use"; name: string; input: unknown }
-  | { type: "tool_result"; name: string; output: string }
+  | { type: "tool_use"; name: string; input: unknown; id?: string }
+  | { type: "tool_result"; name: string; output: string; toolUseId?: string }
   | { type: "turn_end"; cost?: number }
   | { type: "error"; reason: string };

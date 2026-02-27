@@ -1,7 +1,7 @@
 ---
 title: Plan for collapsible artifact tree view
 date: 2026-02-26
-status: draft
+status: implemented
 tags: [ui, artifacts, navigation, tree-view, plan]
 modules: [artifact-grouping, artifact-list]
 related: [.lore/specs/artifact-tree-view.md, .lore/specs/guild-hall-views.md]
