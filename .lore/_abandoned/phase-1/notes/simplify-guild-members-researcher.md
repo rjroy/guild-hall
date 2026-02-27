@@ -1,7 +1,7 @@
 ---
 title: Simplification notes: guild-members-researcher
 date: 2026-02-18
-status: complete
+status: superseded
 tags: [simplify, cleanup, code-quality]
 modules: [researcher]
 ---

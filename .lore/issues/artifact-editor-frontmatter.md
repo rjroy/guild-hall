@@ -4,6 +4,7 @@ date: 2026-02-27
 status: open
 tags: [bug, ui, artifacts, editor, frontmatter]
 modules: [artifact-content, api-artifacts]
+related: [.lore/plans/artifact-editor-full-content.md]
 ---
 
 ## Problem

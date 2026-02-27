@@ -1,7 +1,7 @@
 ---
 title: Simplification notes: tests-lib-ts
 date: 2026-02-19
-status: complete
+status: superseded
 tags: [simplify, cleanup, code-quality, tests]
 modules: [tests-lib]
 ---

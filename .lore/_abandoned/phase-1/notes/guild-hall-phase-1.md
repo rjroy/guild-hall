@@ -1,13 +1,13 @@
 ---
 title: Implementation notes: guild-hall-phase-1
 date: 2026-02-12
-status: complete
+status: superseded
 tags: [implementation, notes, phase-1, frontend, sessions, mcp, agent-sdk]
-source: .lore/_archive/phase-1/plans/guild-hall-phase-1.md
+source: .lore/_abandoned/phase-1/plans/guild-hall-phase-1.md
 modules: [guild-hall]
 related:
-  - .lore/_archive/phase-1/specs/guild-hall-phase-1.md
-  - .lore/_archive/phase-1/plans/guild-hall-phase-1.md
+  - .lore/_abandoned/phase-1/specs/guild-hall-phase-1.md
+  - .lore/_abandoned/phase-1/plans/guild-hall-phase-1.md
 ---
 
 # Implementation Notes: Guild Hall Phase I

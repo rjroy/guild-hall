@@ -54,7 +54,7 @@ Deferred items from prior phases:
 
 **Memory system**: `daemon/services/base-toolbox.ts` provides `read_memory`, `write_memory`, `record_decision`. Three scopes resolved by path. `validateContainedPath()` prevents traversal. No access control (any worker reads/writes any scope). No size tracking or compaction.
 
-**Memory compaction archive**: `.lore/_archive/phase-1/tasks/worker-dispatch/011-worker-memory-system.md` contains a complete design: `compactMemories()` via separate SDK invocation with `maxTurns: 1`, concurrent guard via `compactionInProgress` flag, snapshot-based cleanup.
+**Memory compaction archive** (originally `.lore/_abandoned/phase-1/tasks/worker-dispatch/011-worker-memory-system.md`, deleted during archive migration): Complete design: `compactMemories()` via separate SDK invocation with `maxTurns: 1`, concurrent guard via `compactionInProgress` flag, snapshot-based cleanup.
 
 **Daemon connectivity**: `components/ui/DaemonStatus.tsx` polls `/api/daemon/health` every 5 seconds, shows offline indicator. No action button disabling.
 

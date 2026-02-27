@@ -1,7 +1,7 @@
 ---
 title: Phase I known bugs from manual testing
 date: 2026-02-12
-status: active
+status: superseded
 tags: [bugs, phase-1, frontend, sse, navigation]
 source: .lore/retros/guild-hall-phase-1.md
 modules: [workshop, board]

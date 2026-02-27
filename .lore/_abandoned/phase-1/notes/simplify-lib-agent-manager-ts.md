@@ -1,7 +1,7 @@
 ---
 title: Simplification notes: lib-agent-manager-ts
 date: 2026-02-18
-status: complete
+status: superseded
 tags: [simplify, cleanup, code-quality]
 modules: [agent-manager]
 ---

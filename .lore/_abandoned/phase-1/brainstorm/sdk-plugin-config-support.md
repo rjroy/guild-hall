@@ -1,10 +1,10 @@
 ---
 title: Guild members providing SDK plugins (skills, commands, hooks) alongside MCP
 date: 2026-02-17
-status: open
+status: superseded
 tags: [plugins, sdk-plugin-config, guild-members, architecture, agent-sdk]
 modules: [plugin-discovery, agent, schemas]
-related: [.lore/_archive/phase-1/brainstorm/plugin-architecture-hybrid.md]
+related: [.lore/_abandoned/phase-1/brainstorm/plugin-architecture-hybrid.md]
 ---
 
 # Brainstorm: SDK Plugin Config Support for Guild Members

@@ -4,6 +4,7 @@ date: 2026-02-25
 status: resolved
 tags: [bug, ui, meetings, transcripts, markdown]
 modules: [meeting-chat, transcript, message-bubble]
+related: [.lore/plans/multiline-tool-display-on-reopen.md]
 ---
 
 # Multiline Tool Results Render as Code Blocks on Meeting Reopen

@@ -1,3 +1,10 @@
+---
+title: Phase 1 Coverage Gaps Analysis
+date: 2026-02-14
+status: superseded
+tags: [testing, coverage, phase-1]
+---
+
 # Coverage Gaps
 
 Target thresholds: **90% lines, 80% functions** (per-file).

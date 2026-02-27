@@ -1,15 +1,15 @@
 ---
 title: Phase I Research Summary - Ready for Specification
 date: 2026-02-11
-status: active
+status: superseded
 tags: [phase-1, research-summary, context-refresh, specification-prep]
 modules: [guild-hall]
-source: .lore/_archive/phase-1/brainstorm/guild-hall-phase-1.md
+source: .lore/_abandoned/phase-1/brainstorm/guild-hall-phase-1.md
 related:
   - .lore/research/claude-agent-sdk.md
   - .lore/research/agent-native-applications.md
   - .lore/research/typescript-plugin-systems.md
-  - .lore/_archive/phase-1/brainstorm/guild-hall-phase-1.md
+  - .lore/_abandoned/phase-1/brainstorm/guild-hall-phase-1.md
 ---
 
 # Phase I Research Summary
@@ -72,7 +72,7 @@ The recommended synthesis for Guild Hall:
 - **UI contributions**: React components in slots (Grafana model). Default card if plugin doesn't provide one.
 - **Two tiers**: "MCP-only" plugins (just a manifest, no build step) and "full" plugins (manifest + React components, build step required).
 
-### 4. Phase I Brainstorm (`.lore/_archive/phase-1/brainstorm/guild-hall-phase-1.md`)
+### 4. Phase I Brainstorm (`.lore/_abandoned/phase-1/brainstorm/guild-hall-phase-1.md`)
 
 The decisions that came out of interactive brainstorming. These are settled unless the spec surfaces a reason to revisit:
 

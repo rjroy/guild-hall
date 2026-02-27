@@ -4,6 +4,7 @@ date: 2026-02-25
 status: resolved
 tags: [bug, ui, meetings, streaming, sse]
 modules: [meeting-chat, tool-use-indicator, event-translator]
+related: [.lore/plans/fix-duplicate-tool-notifications.md]
 ---
 
 # Tool Use Indicators Duplicate During Streaming
