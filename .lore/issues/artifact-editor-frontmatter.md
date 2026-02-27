@@ -1,3 +1,11 @@
+---
+title: Artifact editor hides frontmatter content
+date: 2026-02-27
+status: open
+tags: [bug, ui, artifacts, editor, frontmatter]
+modules: [artifact-content, api-artifacts]
+---
+
 ## Problem
 
 The artifact editor at `/projects/[name]/artifacts/[...path]` only shows the markdown body after the frontmatter closing `---`. For frontmatter-heavy files like commission artifacts (which store all data in frontmatter and have no body), the editor shows an empty page.

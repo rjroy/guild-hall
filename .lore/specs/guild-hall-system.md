@@ -1,13 +1,13 @@
 ---
 title: Guild Hall System
 date: 2026-02-20
-status: draft
+status: implemented
 tags: [architecture, primitives, memory, git, storage, plugins, configuration]
 modules: [guild-hall-core]
 related:
   - .lore/brainstorm/agentic-work-ux.md
-  - .lore/specs/phase-1/guild-hall-phase-1.md
-  - .lore/specs/phase-1/worker-dispatch.md
+  - .lore/_abandoned/phase-1/brainstorm/guild-hall-phase-1.md
+  - .lore/_abandoned/phase-1/notes/worker-dispatch.md
   - .lore/research/agent-native-applications.md
 req-prefix: SYS
 ---

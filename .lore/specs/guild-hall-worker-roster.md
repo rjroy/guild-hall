@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Worker Roster
 date: 2026-02-25
-status: draft
+status: implemented
 tags: [workers, roster, posture, developer, reviewer, researcher, writer, test-engineer]
 modules: [guild-hall-workers]
 related:

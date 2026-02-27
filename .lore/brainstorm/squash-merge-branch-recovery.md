@@ -1,7 +1,7 @@
 ---
 title: Squash-merge branch recovery
 date: 2026-02-22
-status: complete
+status: resolved
 tags: [git, branching, squash-merge, lifecycle, meetings, commissions]
 modules: [guild-hall-core]
 related:

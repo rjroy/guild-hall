@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Meetings
 date: 2026-02-20
-status: draft
+status: implemented
 tags: [architecture, meetings, session-lifecycle, streaming, sync-interaction, toolbox]
 modules: [guild-hall-core]
 related:

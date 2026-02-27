@@ -5,9 +5,7 @@ status: complete
 tags: [integration, di-pattern, agent-behavior, production-wiring, worker-dispatch]
 modules: [researcher-plugin, worker-tools, worker-agent, server-context]
 related:
-  - .lore/specs/phase-1/worker-dispatch.md
-  - .lore/plans/phase-1/worker-dispatch.md
-  - .lore/notes/phase-1/worker-dispatch.md
+  - .lore/_abandoned/phase-1/notes/worker-dispatch.md
   - .lore/retros/coverage-di-factories.md
 ---
 

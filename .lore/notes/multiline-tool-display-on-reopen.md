@@ -2,7 +2,7 @@
 title: Implementation notes: multiline-tool-display-on-reopen
 date: 2026-02-26
 status: complete
-tags: [implementation, notes, bug-fix, transcript, serialization]
+tags: [implementation, notes, bug-fix, transcripts, serialization]
 source: .lore/plans/multiline-tool-display-on-reopen.md
 modules: [transcript, meeting-chat]
 related: [.lore/plans/multiline-tool-display-on-reopen.md, .lore/issues/multiline-tool-display-on-reopen.md]

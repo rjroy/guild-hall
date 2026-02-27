@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Commissions
 date: 2026-02-20
-status: draft
+status: implemented
 tags: [architecture, commissions, dispatch, process-lifecycle, async-work, crash-recovery]
 modules: [guild-hall-core]
 related:

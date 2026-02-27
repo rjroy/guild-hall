@@ -1,8 +1,8 @@
 ---
 title: "Fix multiline tool results rendering as code blocks on meeting reopen"
 date: 2026-02-26
-status: implemented
-tags: [bug-fix, transcript, serialization, meetings]
+status: executed
+tags: [bug-fix, transcripts, serialization, meetings]
 modules: [transcript, meeting-chat]
 related: [.lore/issues/multiline-tool-display-on-reopen.md]
 ---

@@ -1,13 +1,13 @@
 ---
 title: Agentic work UX - artifacts, workers, meetings, and workspaces
 date: 2026-02-19
-status: complete
+status: resolved
 tags: [ux, architecture, artifacts, workers, meetings, workspaces, interaction-model]
 modules: [guild-hall-core]
 related:
-  - .lore/brainstorm/phase-1/worker-agents.md
+  - .lore/_abandoned/phase-1/brainstorm/worker-agents.md
   - .lore/research/agent-native-applications.md
-  - .lore/specs/phase-1/guild-hall-phase-1.md
+  - .lore/_abandoned/phase-1/brainstorm/guild-hall-phase-1.md
   - .lore/retros/guild-hall-phase-1.md
 ---
 

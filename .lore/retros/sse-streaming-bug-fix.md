@@ -5,7 +5,7 @@ status: complete
 tags: [bug-fix, sse, race-condition, event-bus, id-mismatch, integration]
 modules: [agent, workshop, hooks]
 related:
-  - .lore/notes/phase-1/phase-1-known-bugs.md
+  - .lore/_abandoned/phase-1/notes/phase-1-known-bugs.md
   - .lore/retros/guild-hall-phase-1.md
 ---
 

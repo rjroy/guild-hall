@@ -5,7 +5,7 @@ status: complete
 tags: [bug-fix, sse, streaming, sdk, data-duplication]
 modules: [agent]
 related:
-  - .lore/notes/phase-1/phase-1-known-bugs.md
+  - .lore/_abandoned/phase-1/notes/phase-1-known-bugs.md
   - .lore/retros/sse-streaming-bug-fix.md
 ---
 
