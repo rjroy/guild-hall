@@ -7,7 +7,7 @@
  *
  * Used by meeting-session.ts (lifecycle) and meeting-toolbox.ts (agent tools).
  *
- * PATH OWNERSHIP (audit-verified 2026-02-26):
+ * PATH OWNERSHIP:
  * All functions in this file accept a `projectPath` parameter and do not
  * perform their own routing. Callers are responsible for passing the correct
  * path:
@@ -21,10 +21,6 @@
  *     uses MeetingToolboxDeps.worktreeDir ?? projectPath, with worktreeDir set
  *     to meeting.worktreeDir by toolbox-resolver.ts for active meetings.
  *
- * Audit finding: write paths were correct for meeting-session.ts. Two handlers
- * in meeting-toolbox.ts (link_artifact, summarize_progress) used projectPath
- * (user's repo root) instead of worktreeDir — fixed by adding the worktreeDir
- * field to MeetingToolboxDeps and threading it through the handlers.
  */
 
 import * as fs from "node:fs/promises";

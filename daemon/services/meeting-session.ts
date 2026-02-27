@@ -500,8 +500,6 @@ notes_summary: ""
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,
         integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
-        // Activity worktree: routes meeting toolbox writes (link_artifact,
-        // summarize_progress) to the correct branch instead of project root.
         workingDirectory: meeting.worktreeDir,
         isManager,
         managerToolboxDeps: isManager && deps.commissionSession && deps.eventBus
@@ -1419,8 +1417,6 @@ notes_summary: ""
         const iPath = integrationWorktreePath(ghHome, meeting.projectName);
 
         const mergeSucceeded = await withProjectLock(meeting.projectName, async () => {
-          // Commit any uncommitted integration writes before the squash-merge.
-          // git.commitAll is a no-op when the tree is clean.
           await git.commitAll(iPath, `Pre-merge sync: ${meeting.meetingId}`);
           const clean = await git.squashMergeNoCommit(iPath, meeting.branchName);
 

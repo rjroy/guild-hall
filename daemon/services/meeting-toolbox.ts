@@ -85,8 +85,6 @@ export function makeLinkArtifactHandler(
   meetingId: string,
   worktreeDir?: string,
 ) {
-  // Writes go to the activity worktree when the meeting is open so changes
-  // land in the correct branch, not the user's project root.
   const writePath = worktreeDir ?? projectPath;
   const mid = asMeetingId(meetingId);
   const lorePath = path.join(writePath, ".lore");
@@ -213,8 +211,6 @@ export function makeSummarizeProgressHandler(
   meetingId: string,
   worktreeDir?: string,
 ) {
-  // Writes go to the activity worktree when the meeting is open so changes
-  // land in the correct branch, not the user's project root.
   const writePath = worktreeDir ?? projectPath;
   const mid = asMeetingId(meetingId);
 

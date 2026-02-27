@@ -11,7 +11,7 @@ import { createWorkerRoutes } from "./routes/workers";
 import { createBriefingRoutes } from "./routes/briefing";
 import type { DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting-session";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { CommissionSessionDeps, CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { EventBus } from "@/daemon/services/event-bus";
 import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
@@ -159,14 +159,21 @@ export async function createProductionApp(options?: {
     );
   }
 
-  // Commission session is created before meeting session because the
-  // manager worker's toolbox needs a reference to the commission session
-  // for creating and dispatching commissions. A lazy reference breaks the
-  // circular dependency: commissionSession holds a closure that reads
-  // meetingSession after both are fully constructed.
+  // Commission session is created before meeting session (manager toolbox
+  // needs it). Both sessions need createMeetingRequestFn for merge conflict
+  // escalation, but meetingSession doesn't exist yet. The lazy ref breaks
+  // the circular dependency: the closure captures meetingSessionRef, which
+  // is assigned after both sessions are fully constructed.
   const packagesDir = options?.packagesDir ?? defaultPackagesDir;
   // eslint-disable-next-line prefer-const -- assigned after meetingSession is constructed; cannot be const
   let meetingSessionRef: ReturnType<typeof createMeetingSession> | undefined;
+  const createMeetingRequestFn: NonNullable<CommissionSessionDeps["createMeetingRequestFn"]> =
+    async (params) => {
+      if (meetingSessionRef) {
+        await meetingSessionRef.createMeetingRequest(params);
+      }
+    };
+
   const commissionSession = createCommissionSession({
     packages: allPackages,
     config,
@@ -174,11 +181,7 @@ export async function createProductionApp(options?: {
     eventBus,
     packagesDir,
     gitOps: git,
-    createMeetingRequestFn: async (params) => {
-      if (meetingSessionRef) {
-        await meetingSessionRef.createMeetingRequest(params);
-      }
-    },
+    createMeetingRequestFn,
   });
 
   const meetingSession = createMeetingSession({
@@ -190,11 +193,7 @@ export async function createProductionApp(options?: {
     gitOps: git,
     commissionSession,
     eventBus,
-    createMeetingRequestFn: async (params) => {
-      if (meetingSessionRef) {
-        await meetingSessionRef.createMeetingRequest(params);
-      }
-    },
+    createMeetingRequestFn,
   });
   meetingSessionRef = meetingSession;
 

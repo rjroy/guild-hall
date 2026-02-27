@@ -6,7 +6,7 @@
  * regex/string operations on the raw file content to avoid reformatting
  * noise from gray-matter (same approach as meeting-artifact-helpers.ts).
  *
- * PATH OWNERSHIP (audit-verified):
+ * PATH OWNERSHIP:
  * All functions in this module accept a `projectPath` parameter. Callers are
  * responsible for providing the correct path:
  * - Active commissions (dispatched/in_progress): pass the activity worktree

@@ -667,7 +667,7 @@ export function createCommissionSession(
    * active (dispatched/in_progress), artifacts live in the activity worktree.
    * Otherwise they live in the integration worktree.
    *
-   * Routing logic (audit-verified correct):
+   * Routing logic:
    * - dispatched/in_progress: returns active.worktreeDir (activity worktree on
    *   the commission's branch). Writes here keep worker changes isolated until
    *   squash-merge on completion.
@@ -1361,9 +1361,6 @@ projectName: ${projectName}
       try {
         await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
         mergeSucceeded = await withProjectLock(commission.projectName, async () => {
-          // Commit any uncommitted integration writes (e.g. syncStatusToIntegration
-          // from a prior commission) before the squash-merge. git.commitAll is a
-          // no-op when the tree is clean.
           await git.commitAll(iPath, `Pre-merge sync: ${commissionId}`);
           return await resolveSquashMerge(
             iPath,

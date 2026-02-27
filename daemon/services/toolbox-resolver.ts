@@ -82,9 +82,6 @@ export function resolveToolSet(
       createMeetingToolbox({
         projectPath: context.projectPath,
         integrationPath: context.integrationPath,
-        // worktreeDir routes link_artifact and summarize_progress writes to the
-        // activity worktree for open meetings. Callers (meeting-session.ts) must
-        // pass context.workingDirectory = meeting.worktreeDir for this to work.
         worktreeDir: context.workingDirectory,
         meetingId: context.meetingId,
         workerName: context.workerName,
