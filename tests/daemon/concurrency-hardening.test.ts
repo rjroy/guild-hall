@@ -216,7 +216,6 @@ describe("meeting cap enforcement via withProjectLock", () => {
    * controls how long to wait (in ms) before yielding the first message.
    */
   function makeMockQueryFn(delay = 0) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async function* queryFn(_: {
       prompt: string;
       options: QueryOptions;

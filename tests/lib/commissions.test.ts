@@ -6,9 +6,7 @@ import {
   readCommissionMeta,
   scanCommissions,
   parseActivityTimeline,
-  sortCommissions,
 } from "@/lib/commissions";
-import type { CommissionMeta } from "@/lib/commissions";
 
 let tmpDir: string;
 let lorePath: string;

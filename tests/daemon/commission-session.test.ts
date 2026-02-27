@@ -450,7 +450,6 @@ function createMockSpawn(options?: {
   const pid = Math.floor(Math.random() * 100000) + 1000;
 
   return {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     spawnFn: (_configPath: string): SpawnedCommission => ({
       pid,
       exitPromise,

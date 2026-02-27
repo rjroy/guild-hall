@@ -8,6 +8,14 @@ const eslintConfig = defineConfig([
   ...nextTs,
   ...tseslint.configs.recommendedTypeChecked,
   {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
+  {
     languageOptions: {
       parserOptions: {
         projectService: {
