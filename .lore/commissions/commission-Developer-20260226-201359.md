@@ -55,6 +55,9 @@ activity_timeline:
     reason: "Worker completed successfully"
     from: "in_progress"
     to: "completed"
+  - timestamp: 2026-02-27T04:17:32.658Z
+    event: status_completed
+    reason: "Worker completed successfully"
 current_progress: "Implementation complete. All changes verified: typecheck clean, 1591/1591 tests pass (14 new). Committing changes."
 result_summary: "Made closed meetings clickable in the MeetingList component. Closed meetings now link to their artifact view at `/projects/<name>/artifacts/meetings/<meetingId>.md`, where the existing artifact renderer displays the notes markdown with frontmatter.\n\nChanges:\n- `components/project/MeetingList.tsx`: Added a \"closed\" branch that renders a `<Link>` to the artifact view. Extracted `meetingHref()` as a testable pure function that returns the correct URL for open (live view) and closed (artifact view) meetings, or null for non-linkable statuses. Refactored open meeting branch to use the same function.\n- `components/project/MeetingList.module.css`: Added `.closedLink` class with `opacity: 0.6` to maintain visual distinction from open meetings while being clickable.\n- `tests/components/meeting-list.test.ts`: 14 new tests covering `meetingStatusToGem` (6 tests) and `meetingHref` (8 tests) including status normalization, special character encoding, and null returns for non-linkable statuses.\n\nVerification: typecheck clean, 1591 tests pass (0 failures), all pre-commit hooks pass."
 projectName: guild-hall
