@@ -452,6 +452,7 @@ describe("workspace scoping", () => {
           result_summary: "",
           projectName: "project-alpha",
           date: "2026-02-23",
+          relevantDate: "",
         },
       ];
 
@@ -471,6 +472,7 @@ describe("workspace scoping", () => {
           result_summary: "",
           projectName: "project-beta",
           date: "2026-02-23",
+          relevantDate: "",
         },
       ];
 
