@@ -1,7 +1,7 @@
 ---
 title: "Commission: Update implemented plan statuses"
 date: 2026-02-27
-status: pending
+status: completed
 tags: [commission]
 worker: Writer
 workerDisplayTitle: "Guild Writer"
@@ -25,16 +25,59 @@ Do NOT change these two files (they remain as-is):
 - `cancel-commission-tool.md`
 - `fix-duplicate-tool-notifications.md`"
 dependencies: []
-linked_artifacts: []
+linked_artifacts:
+  - .lore/plans/phase-1-empty-hall.md
 
+  - .lore/plans/phase-2-workers-first-audience.md
+  - .lore/plans/phase-3-meeting-lifecycle.md
+  - .lore/plans/phase-4-commissions.md
+  - .lore/plans/phase-5-git-integration.md
+  - .lore/plans/phase-6-guild-master.md
+  - .lore/plans/phase-7-hardening.md
+  - .lore/plans/spec-gap-analysis.md
+  - .lore/plans/implementation-phases.md
+  - .lore/plans/guild-hall-worker-roster.md
+  - .lore/plans/commission-meeting-state-ownership.md
+  - .lore/plans/artifact-tree-view.md
+  - .lore/plans/multiline-tool-display-on-reopen.md
+  - .lore/plans/phase-2-workers-first-audience.md
+  - .lore/plans/phase-3-meeting-lifecycle.md
+  - .lore/plans/phase-4-commissions.md
+  - .lore/plans/phase-5-git-integration.md
+  - .lore/plans/phase-6-guild-master.md
+  - .lore/plans/phase-7-hardening.md
+  - .lore/plans/spec-gap-analysis.md
+  - .lore/plans/implementation-phases.md
+  - .lore/plans/guild-hall-worker-roster.md
+  - .lore/plans/commission-meeting-state-ownership.md
+  - .lore/plans/artifact-tree-view.md
+  - .lore/plans/multiline-tool-display-on-reopen.md
 activity_timeline:
   - timestamp: 2026-02-27T04:05:04.528Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-02-27T04:05:04.563Z
+    event: status_dispatched
+    reason: "Commission dispatched to worker"
+    from: "pending"
+    to: "dispatched"
   - timestamp: 2026-02-27T04:05:04.565Z
-    event: manager_dispatched
-    reason: "Guild Master dispatched commission \"Update implemented plan statuses\""
-current_progress: ""
-result_summary: ""
+    event: status_in_progress
+    reason: "Worker process started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-02-27T04:05:11.736Z
+    event: progress_report
+    reason: "Starting: reading all 13 plan files to verify current status values before editing."
+  - timestamp: 2026-02-27T04:06:01.723Z
+    event: result_submitted
+    reason: "Updated the `status` frontmatter field to `implemented` in all 13 specified plan files. The two excluded files (`cancel-commission-tool.md` and `fix-duplicate-tool-notifications.md`) were not modified and remain at `status: draft`."
+  - timestamp: 2026-02-27T04:06:10.058Z
+    event: status_completed
+    reason: "Worker completed successfully"
+    from: "in_progress"
+    to: "completed"
+current_progress: "Starting: reading all 13 plan files to verify current status values before editing."
+result_summary: "Updated the `status` frontmatter field to `implemented` in all 13 specified plan files. The two excluded files (`cancel-commission-tool.md` and `fix-duplicate-tool-notifications.md`) were not modified and remain at `status: draft`."
 projectName: guild-hall
 ---

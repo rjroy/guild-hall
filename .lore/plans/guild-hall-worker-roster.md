@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Worker Roster Implementation Plan
 date: 2026-02-25
-status: draft
+status: implemented
 tags: [plan, workers, roster, migration, validation]
 modules: [guild-hall-workers, guild-hall-core, guild-hall-ui]
 related:

@@ -1,7 +1,7 @@
 ---
 title: "Plan: Commission and Meeting Artifact State Ownership"
 date: 2026-02-26
-status: draft
+status: implemented
 tags: [architecture, git, commissions, meetings, state-management, worktrees, refactor]
 modules: [commission-session, commission-artifact-helpers, meeting-session, meeting-artifact-helpers, daemon-routes, git]
 related:

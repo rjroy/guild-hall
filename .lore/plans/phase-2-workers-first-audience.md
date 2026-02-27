@@ -1,7 +1,7 @@
 ---
 title: "Phase 2: Workers + First Audience"
 date: 2026-02-21
-status: draft
+status: implemented
 tags: [plan, phase-2, daemon, workers, meetings, streaming, agent-sdk]
 modules: [guild-hall-core, guild-hall-ui]
 related:
