@@ -15,7 +15,7 @@ modules: [guild-hall-core]
 
 Create `daemon/services/memory-compaction.ts` implementing fire-and-forget memory compaction triggered when `loadMemories()` (task 006) detects size exceeds the limit.
 
-Follow the Phase 1 design (originally `.lore/_abandoned/phase-1/tasks/worker-dispatch/011-worker-memory-system.md`, deleted during archive migration):
+Follow the Phase 1 design (originally `.lore/_abandoned/poc/tasks/worker-dispatch/011-worker-memory-system.md`, deleted during archive migration):
 
 1. **Concurrent guard**: Track `compactionInProgress` per worker+project pair. If compaction is already running for this pair, skip. Clear the flag in a `finally` block.
 2. **Snapshot**: Record the list of memory files at the start of compaction. Only process files from this snapshot. Files written during compaction are left alone.

@@ -12,7 +12,7 @@ req-prefix: TREE
 
 ## Overview
 
-The Artifacts tab on the project page displays artifacts as a flat list grouped by top-level directory. Projects with deep nesting (3+ levels like `_abandoned/phase-1/brainstorm/`) present all items under a single heading with no visible structure. This makes navigation slow for projects with many artifacts.
+The Artifacts tab on the project page displays artifacts as a flat list grouped by top-level directory. Projects with deep nesting (3+ levels like `_abandoned/poc/brainstorm/`) present all items under a single heading with no visible structure. This makes navigation slow for projects with many artifacts.
 
 Replace the flat grouped list with a collapsible tree that mirrors the actual directory structure of `.lore/`.
 
@@ -73,6 +73,6 @@ Replace the flat grouped list with a collapsible tree that mirrors the actual di
 The current implementation groups by first path segment only (`lib/artifact-grouping.ts:groupKey()`). REQ-VIEW-16 in the views spec defines the Artifacts tab content but does not prescribe flat vs tree layout. This spec extends the existing requirement with a navigation improvement.
 
 Real `.lore/` directories in this project have 3+ levels of nesting:
-- `_abandoned/phase-1/brainstorm/` and `_abandoned/phase-1/notes/` (18 files under one flat heading today)
+- `_abandoned/poc/brainstorm/` and `_abandoned/poc/notes/` (18 files under one flat heading today)
 - `tasks/phase-2-workers-first-audience/` and `tasks/phase-5-git-integration/` (25+ files under one heading)
 - `specs/`, `plans/`, `retros/` (single level, 5-15 files each)

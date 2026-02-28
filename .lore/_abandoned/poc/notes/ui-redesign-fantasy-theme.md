@@ -3,7 +3,7 @@ title: Implementation notes: UI Redesign Fantasy Theme
 date: 2026-02-14
 status: superseded
 tags: [implementation, notes, ui, redesign, css]
-source: .lore/_abandoned/phase-1/plans/ui-redesign-fantasy-theme.md
+source: .lore/_abandoned/poc/plans/ui-redesign-fantasy-theme.md
 modules: [dashboard, workshop, roster, session-board, conversation, fonts, assets]
 ---
 
@@ -28,7 +28,7 @@ modules: [dashboard, workshop, roster, session-board, conversation, fonts, asset
 
 ## Summary
 
-Successfully implemented Guild Hall UI redesign with fantasy theme across 15 phases. All 54 requirements from `.lore/_abandoned/phase-1/specs/ui-redesign-fantasy-theme.md` verified and met.
+Successfully implemented Guild Hall UI redesign with fantasy theme across 15 phases. All 54 requirements from `.lore/_abandoned/poc/specs/ui-redesign-fantasy-theme.md` verified and met.
 
 **Key accomplishments**:
 - Migrated background image and variable fonts to public/ directory

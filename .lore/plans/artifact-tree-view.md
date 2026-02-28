@@ -31,7 +31,7 @@ Requirements addressed:
 **Current data flow:**
 1. `app/projects/[name]/page.tsx` calls `scanArtifacts(lorePath)` which returns `Artifact[]` sorted by `lastModified` descending.
 2. Passes `artifacts` and `projectName` to `ArtifactList`.
-3. `ArtifactList` calls `groupArtifacts()` from `lib/artifact-grouping.ts`, which groups by first path segment only. Deep paths like `_abandoned/phase-1/brainstorm/idea.md` all land under the `_abandoned` heading with no sub-structure.
+3. `ArtifactList` calls `groupArtifacts()` from `lib/artifact-grouping.ts`, which groups by first path segment only. Deep paths like `_abandoned/poc/brainstorm/idea.md` all land under the `_abandoned` heading with no sub-structure.
 4. Each group renders as a heading + flat list of artifact links.
 
 **Files that change:**

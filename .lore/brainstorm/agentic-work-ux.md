@@ -5,9 +5,9 @@ status: resolved
 tags: [ux, architecture, artifacts, workers, meetings, workspaces, interaction-model]
 modules: [guild-hall-core]
 related:
-  - .lore/_abandoned/phase-1/brainstorm/worker-agents.md
+  - .lore/_abandoned/poc/brainstorm/worker-agents.md
   - .lore/research/agent-native-applications.md
-  - .lore/_abandoned/phase-1/brainstorm/guild-hall-phase-1.md
+  - .lore/_abandoned/poc/brainstorm/guild-hall-phase-1.md
   - .lore/retros/guild-hall-phase-1.md
 ---
 
@@ -168,7 +168,7 @@ The project definition in `config.yaml` maps a project name to its repo path. Gu
 
 **Memory Loop's GCTR** solved a related problem: different cognitive postures need different interfaces, and transitions between them carry context. Ground orients, Capture grabs material, Think dialogs, Recall retrieves. The modes match how you move through work.
 
-**Worker dispatch brainstorm** (`.lore/_abandoned/phase-1/brainstorm/worker-agents.md`) sketched the async dispatch model: fire-and-forget jobs with file-based communication. The primitives here (artifacts, workers, meetings) refine that into a more complete interaction model.
+**Worker dispatch brainstorm** (`.lore/_abandoned/poc/brainstorm/worker-agents.md`) sketched the async dispatch model: fire-and-forget jobs with file-based communication. The primitives here (artifacts, workers, meetings) refine that into a more complete interaction model.
 
 ## Visual Direction
 
