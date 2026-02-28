@@ -27,7 +27,7 @@ import type { CommissionSessionForRoutes } from "@/daemon/services/commission-se
 import { noopEventBus, type EventBus } from "@/daemon/services/event-bus";
 import {
   MANAGER_PACKAGE_NAME,
-  activateManager,
+  activateWorker as activateWorkerShared,
 } from "@/daemon/services/manager-worker";
 import { buildManagerContext } from "@/daemon/services/manager-context";
 import {
@@ -42,7 +42,8 @@ import {
   meetingBranchName,
   integrationWorktreePath,
 } from "@/lib/paths";
-import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
+import { createGitOps, CLAUDE_BRANCH, resolveSquashMerge, type GitOps } from "@/daemon/lib/git";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import {
   meetingArtifactPath,
@@ -295,27 +296,7 @@ notes_summary: ""
     workerPkg: DiscoveredPackage,
     context: ActivationContext,
   ): Promise<ActivationResult> {
-    if (deps.activateFn) {
-      return deps.activateFn(workerPkg, context);
-    }
-
-    // Built-in workers have path === "". Route to the correct activator.
-    if (workerPkg.path === "") {
-      if (workerPkg.name === MANAGER_PACKAGE_NAME) {
-        return activateManager(context);
-      }
-      throw new Error(
-        `Unknown built-in worker "${workerPkg.name}". Only "${MANAGER_PACKAGE_NAME}" is a recognized built-in.`,
-      );
-    }
-
-    // Dynamic import for production use. path.resolve() ensures an absolute
-    // path even when the package was discovered from a relative scan path
-    // (e.g., --packages-dir ./packages).
-    const workerModule = (await import(path.resolve(workerPkg.path, "index.ts"))) as {
-      activate: (ctx: ActivationContext) => ActivationResult;
-    };
-    return workerModule.activate(context);
+    return activateWorkerShared(workerPkg, context, deps.activateFn);
   }
 
   async function declineMeeting(
@@ -430,7 +411,7 @@ notes_summary: ""
         return;
       }
       const reason =
-        err instanceof Error ? err.message : String(err);
+        errorMessage(err);
       yield { type: "error", reason };
       // Append partial content on error too
       await appendAssistantTurnSafe(meeting.meetingId, textParts, toolUses);
@@ -460,7 +441,7 @@ notes_summary: ""
         ghHome,
       );
     } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       console.warn(`[meeting-session] Transcript append failed for meeting ${meetingId} (non-fatal): ${reason}`);
     }
   }
@@ -530,7 +511,7 @@ notes_summary: ""
       } catch (err: unknown) {
         console.warn(
           `[meeting-session] Failed to load memories for "${workerMeta.identity.name}" (non-fatal):`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
 
@@ -563,7 +544,7 @@ notes_summary: ""
 
       activation = await activateWorker(workerPkg, activationContext);
     } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       return { ok: false, reason: `Worker activation failed: ${reason}` };
     }
 
@@ -615,7 +596,7 @@ notes_summary: ""
     try {
       generator = deps.queryFn({ prompt, options });
     } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       if (isSessionExpiryError(reason)) {
         if (!suppressSessionExpiryError) {
           yield { type: "error", reason };
@@ -638,7 +619,7 @@ notes_summary: ""
         yield event;
       }
     } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       if (isSessionExpiryError(reason)) {
         if (!suppressSessionExpiryError) {
           yield { type: "error", reason };
@@ -783,7 +764,7 @@ notes_summary: ""
       try {
         currentStatus = await readArtifactStatus(iPath, meetingId);
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to read meeting artifact: ${reason}` });
         return { ok: false, errors };
       }
@@ -797,7 +778,7 @@ notes_summary: ""
       try {
         validateTransition(currentStatus, "open");
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason });
         return { ok: false, errors };
       }
@@ -816,7 +797,7 @@ notes_summary: ""
         workerName = typeof data.worker === "string" ? data.worker : "";
         linkedArtifacts = await readLinkedArtifacts(iPath, meetingId);
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to read meeting artifact data: ${reason}` });
         return { ok: false, errors };
       }
@@ -847,7 +828,7 @@ notes_summary: ""
           await git.configureSparseCheckout(worktreeDir, [".lore/"]);
         }
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to create git worktree: ${reason}` });
         return { ok: false, errors };
       }
@@ -856,7 +837,7 @@ notes_summary: ""
       try {
         await updateArtifactStatus(worktreeDir, meetingId, "open");
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to update artifact status: ${reason}` });
         return { ok: false, errors };
       }
@@ -865,7 +846,7 @@ notes_summary: ""
       try {
         await appendMeetingLog(worktreeDir, meetingId, "opened", "User accepted meeting request");
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to append meeting log: ${reason}` });
         return { ok: false, errors };
       }
@@ -883,7 +864,7 @@ notes_summary: ""
           status: "open",
         });
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to write state file: ${reason}` });
         return { ok: false, errors };
       }
@@ -907,7 +888,7 @@ notes_summary: ""
         );
         await appendUserTurn(meetingId as string, prompt, ghHome);
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to create transcript: ${reason}` });
         return { ok: false, errors };
       }
@@ -1004,7 +985,7 @@ notes_summary: ""
           await git.configureSparseCheckout(worktreeDir, [".lore/"]);
         }
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to create git worktree: ${reason}` });
         return { ok: false, errors };
       }
@@ -1019,7 +1000,7 @@ notes_summary: ""
           workerMeta.identity.name,
         );
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to create meeting artifact: ${reason}` });
         return { ok: false, errors };
       }
@@ -1034,7 +1015,7 @@ notes_summary: ""
         );
         await appendUserTurn(meetingId as string, prompt, ghHome);
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to create transcript: ${reason}` });
         return { ok: false, errors };
       }
@@ -1052,7 +1033,7 @@ notes_summary: ""
           status: "open",
         });
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to write state file: ${reason}` });
         return { ok: false, errors };
       }
@@ -1340,7 +1321,7 @@ notes_summary: ""
           },
         );
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         console.error(`[closeMeeting] Notes generation threw for ${meetingId}: ${reason}`);
         result = { success: false, reason: `Notes generation failed: ${reason}` };
       }
@@ -1360,21 +1341,21 @@ notes_summary: ""
         }
         await updateArtifactStatus(meeting.worktreeDir, meetingId, "closed");
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         console.error(`[closeMeeting] Failed to update artifact status for ${meetingId}: ${reason}`);
       }
 
       try {
         await writeNotesToArtifact(meeting.worktreeDir, meetingId, notes);
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         console.error(`[closeMeeting] Failed to write notes to artifact for ${meetingId}: ${reason}`);
       }
 
       try {
         await appendMeetingLog(meeting.worktreeDir, meetingId, "closed", "User closed audience");
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         console.error(`[closeMeeting] Failed to append meeting log for ${meetingId}: ${reason}`);
       }
     }
@@ -1408,49 +1389,11 @@ notes_summary: ""
 
         const mergeSucceeded = await withProjectLock(meeting.projectName, async () => {
           await git.commitAll(iPath, `Pre-merge sync: ${meeting.meetingId}`);
-          const clean = await git.squashMergeNoCommit(iPath, meeting.branchName);
-
-          if (clean) {
-            await git.commitAll(iPath, `Meeting: ${meeting.meetingId}`);
-            return true;
-          }
-
-          // Conflicts detected. Classify files.
-          const conflictedFiles = await git.listConflictedFiles(iPath);
-
-          if (conflictedFiles.length === 0) {
-            // squashMergeNoCommit returned false but no unmerged paths: unexpected.
-            console.warn(
-              `[closeMeeting] "${meeting.meetingId}" squash-merge reported conflict but no unmerged files found. Aborting.`,
-            );
-            await git.mergeAbort(iPath);
-            return false;
-          }
-
-          const loreFiles = conflictedFiles.filter((f) => f.startsWith(".lore/"));
-          const nonLoreFiles = conflictedFiles.filter((f) => !f.startsWith(".lore/"));
-
-          if (nonLoreFiles.length > 0) {
-            // Non-.lore/ conflicts present. Log but don't fail the meeting close.
-            // Meetings close gracefully; the branch is preserved for manual resolution.
-            console.warn(
-              `[closeMeeting] "${meeting.meetingId}" squash-merge has non-.lore/ conflicts: ${nonLoreFiles.join(", ")}. Aborting merge, branch preserved for manual resolution.`,
-            );
-            await git.mergeAbort(iPath);
-            return false;
-          }
-
-          // All conflicts are in .lore/. Accept the incoming (meeting's) version.
-          console.log(
-            `[closeMeeting] "${meeting.meetingId}" auto-resolving ${loreFiles.length} .lore/ conflict(s): ${loreFiles.join(", ")}`,
-          );
-          await git.resolveConflictsTheirs(iPath, loreFiles);
-          await git.commitAll(
-            iPath,
-            `Meeting: ${meeting.meetingId} (auto-resolved .lore/ conflicts)`,
-          );
-
-          return true;
+          return await resolveSquashMerge(git, iPath, meeting.branchName, {
+            logPrefix: "closeMeeting",
+            commitLabel: "Meeting",
+            activityId: meeting.meetingId,
+          });
         });
 
         squashMergeSucceeded = mergeSucceeded;
@@ -1468,7 +1411,7 @@ notes_summary: ""
           } catch (err: unknown) {
             console.warn(
               `[closeMeeting] Failed to remove worktree for "${meeting.meetingId}":`,
-              err instanceof Error ? err.message : String(err),
+              errorMessage(err),
             );
           }
 
@@ -1483,18 +1426,18 @@ notes_summary: ""
               `Please resolve conflicts manually and merge ${meeting.branchName} into the integration branch.`;
             deps.createMeetingRequestFn({
               projectName: meeting.projectName,
-              workerName: "guild-hall-manager",
+              workerName: MANAGER_PACKAGE_NAME,
               reason: escalationReason,
             }).catch((err: unknown) => {
               console.warn(
                 `[closeMeeting] Failed to create Guild Master meeting request for "${meeting.meetingId}":`,
-                err instanceof Error ? err.message : String(err),
+                errorMessage(err),
               );
             });
           }
         }
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         console.warn(`[closeMeeting] Git cleanup failed for ${meeting.meetingId}: ${reason}`);
       }
     }
@@ -1507,7 +1450,7 @@ notes_summary: ""
       } catch (err: unknown) {
         console.warn(
           `[closeMeeting] Dependency transition check failed:`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
     }

@@ -18,6 +18,7 @@ import type { MeetingId } from "@/daemon/types";
 import type { QueryOptions } from "@/daemon/services/meeting-session";
 import { isNodeError } from "@/lib/types";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 
 // -- Types --
 
@@ -82,7 +83,7 @@ async function readDecisions(
       };
       return `- Question: ${entry.question}\n  Decision: ${entry.decision}\n  Reasoning: ${entry.reasoning}`;
     } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       console.error(`[notes-generator] Failed to parse JSONL line ${index} in decisions for meeting ${meetingId}: ${reason}`);
       return `- (unparseable entry)`;
     }
@@ -131,7 +132,7 @@ export async function generateMeetingNotes(
     if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "ENOENT") {
       linkedArtifacts = [];
     } else {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       console.error(`[notes-generator] Failed to read linked artifacts for meeting ${meetingId}: ${reason}`);
       linkedArtifacts = [];
     }
@@ -177,7 +178,7 @@ Use plain text, no markdown headers. Be factual, not conversational.`;
     const notes = await collectSdkText(generator);
     return { success: true, notes: notes || "No content generated." };
   } catch (err: unknown) {
-    const reason = err instanceof Error ? err.message : String(err);
+    const reason = errorMessage(err);
     console.error(`[notes-generator] SDK invocation failed for meeting ${meetingId}: ${reason}`);
     return { success: false, reason: `Notes generation failed: ${reason}` };
   }

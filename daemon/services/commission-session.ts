@@ -42,7 +42,8 @@ import {
   commissionBranchName,
 } from "@/lib/paths";
 import { getWorkerByName } from "@/lib/packages";
-import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
+import { createGitOps, CLAUDE_BRANCH, resolveSquashMerge, type GitOps } from "@/daemon/lib/git";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import type { EventBus } from "./event-bus";
 import {
@@ -58,7 +59,7 @@ import { loadMemories } from "./memory-injector";
 import { triggerCompaction } from "./memory-compaction";
 import {
   MANAGER_PACKAGE_NAME,
-  activateManager,
+  activateWorker as activateWorkerShared,
 } from "./manager-worker";
 import { buildManagerContext } from "./manager-context";
 
@@ -456,13 +457,14 @@ export function createCommissionSession(
         if (activeCommissions.has(cId as string)) continue;
 
         try {
-          const status = await readCommissionStatus(iPath, cId);
-          if (status !== "pending") continue;
+          // Single read: extract status and creation timestamp from the same file content.
+          const artifactPath = commissionArtifactPath(iPath, cId);
+          const raw = await fs.readFile(artifactPath, "utf-8");
+          const statusMatch = raw.match(/^status: (\S+)$/m);
+          if (!statusMatch || statusMatch[1] !== "pending") continue;
 
           // Extract creation timestamp from the artifact for FIFO ordering.
           // The first timeline entry is the "created" event with a timestamp.
-          const artifactPath = commissionArtifactPath(iPath, cId);
-          const raw = await fs.readFile(artifactPath, "utf-8");
           const { data } = matter(raw);
           const firstEntry = (data.activity_timeline as Array<{ timestamp: unknown }> | undefined)?.[0];
           const rawTs = firstEntry?.timestamp;
@@ -520,7 +522,7 @@ export function createCommissionSession(
       } catch (err: unknown) {
         console.warn(
           `[commission] auto-dispatch failed for "${candidate.commissionId}":`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
     }
@@ -534,7 +536,7 @@ export function createCommissionSession(
     autoDispatchChain = autoDispatchChain.then(() => tryAutoDispatch()).catch((err: unknown) => {
       console.error(
         "[commission] auto-dispatch chain error:",
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
     });
   }
@@ -627,7 +629,7 @@ export function createCommissionSession(
         } catch (err: unknown) {
           console.warn(
             `[commission] Failed to auto-transition "${cId}" blocked -> pending:`,
-            err instanceof Error ? err.message : String(err),
+            errorMessage(err),
           );
         }
       } else if (status === "pending" && !allSatisfied) {
@@ -652,7 +654,7 @@ export function createCommissionSession(
         } catch (err: unknown) {
           console.warn(
             `[commission] Failed to auto-transition "${cId}" pending -> blocked:`,
-            err instanceof Error ? err.message : String(err),
+            errorMessage(err),
           );
         }
       }
@@ -796,73 +798,9 @@ export function createCommissionSession(
     } catch (err: unknown) {
       console.warn(
         `[commission-session] Failed to sync status "${status}" to integration worktree for ${commission.commissionId}:`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
     }
-  }
-
-  /**
-   * Attempts a squash-merge with conflict resolution. Returns true if the
-   * merge succeeded (with or without auto-resolved .lore/ conflicts),
-   * false if non-.lore/ conflicts were detected (commission should fail).
-   *
-   * Conflict resolution strategy:
-   *   - .lore/-only conflicts: accept the incoming (commission's) version,
-   *     since each commission produces distinct artifacts. Log the resolution.
-   *   - Non-.lore/ conflicts (or mixed): abort the merge, return false.
-   *     The caller is responsible for failing the commission and preserving
-   *     the branch for manual resolution.
-   */
-  async function resolveSquashMerge(
-    integrationPath: string,
-    sourceBranch: string,
-    commissionId: CommissionId,
-  ): Promise<boolean> {
-    const clean = await git.squashMergeNoCommit(integrationPath, sourceBranch);
-
-    if (clean) {
-      // No conflicts, commit the squash result
-      await git.commitAll(integrationPath, `Commission: ${commissionId}`);
-      return true;
-    }
-
-    // Conflicts detected. Classify files.
-    const conflictedFiles = await git.listConflictedFiles(integrationPath);
-
-    if (conflictedFiles.length === 0) {
-      // squashMergeNoCommit returned false but no unmerged paths: unexpected.
-      // Abort and treat as failure.
-      console.warn(
-        `[commission] "${commissionId}" squash-merge reported conflict but no unmerged files found. Aborting.`,
-      );
-      await git.mergeAbort(integrationPath);
-      return false;
-    }
-
-    const loreFiles = conflictedFiles.filter((f) => f.startsWith(".lore/"));
-    const nonLoreFiles = conflictedFiles.filter((f) => !f.startsWith(".lore/"));
-
-    if (nonLoreFiles.length > 0) {
-      // Non-.lore/ conflicts present (possibly mixed with .lore/ conflicts).
-      // Cannot auto-resolve. Abort the merge.
-      console.warn(
-        `[commission] "${commissionId}" squash-merge has non-.lore/ conflicts: ${nonLoreFiles.join(", ")}. Aborting merge, commission will fail.`,
-      );
-      await git.mergeAbort(integrationPath);
-      return false;
-    }
-
-    // All conflicts are in .lore/. Accept the incoming (commission's) version.
-    console.log(
-      `[commission] "${commissionId}" auto-resolving ${loreFiles.length} .lore/ conflict(s): ${loreFiles.join(", ")}`,
-    );
-    await git.resolveConflictsTheirs(integrationPath, loreFiles);
-    await git.commitAll(
-      integrationPath,
-      `Commission: ${commissionId} (auto-resolved .lore/ conflicts)`,
-    );
-
-    return true;
   }
 
   /**
@@ -898,7 +836,7 @@ export function createCommissionSession(
     } catch (err: unknown) {
       console.error(
         `[commission-session] Failed to transition ${id} to failed:`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
     }
 
@@ -928,7 +866,7 @@ export function createCommissionSession(
     } catch (err: unknown) {
       console.warn(
         `[commission] Failed to commit partial results for "${id}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
     }
 
@@ -939,7 +877,7 @@ export function createCommissionSession(
       } catch (err: unknown) {
         console.warn(
           `[commission] Failed to remove worktree for "${id}":`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
     }
@@ -956,7 +894,7 @@ export function createCommissionSession(
     }).catch((err: unknown) => {
       console.error(
         `[commission-session] Failed to write state file for ${commission.commissionId}:`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
     });
 
@@ -977,26 +915,7 @@ export function createCommissionSession(
     workerPkg: DiscoveredPackage,
     context: ActivationContext,
   ): Promise<ActivationResult> {
-    if (deps.activateFn) {
-      return deps.activateFn(workerPkg, context);
-    }
-
-    // Built-in workers have path === "". Route to the correct activator.
-    if (workerPkg.path === "") {
-      if (workerPkg.name === MANAGER_PACKAGE_NAME) {
-        return activateManager(context);
-      }
-      throw new Error(
-        `Unknown built-in worker "${workerPkg.name}". Only "${MANAGER_PACKAGE_NAME}" is a recognized built-in.`,
-      );
-    }
-
-    // Dynamic import for production use. path.resolve() ensures an absolute
-    // path even when the package was discovered from a relative scan path.
-    const workerModule = (await import(path.resolve(workerPkg.path, "index.ts"))) as {
-      activate: (ctx: ActivationContext) => ActivationResult;
-    };
-    return workerModule.activate(context);
+    return activateWorkerShared(workerPkg, context, deps.activateFn);
   }
 
   /**
@@ -1093,7 +1012,7 @@ export function createCommissionSession(
         log(`memory exceeds limit, will trigger compaction`);
       }
     } catch (err: unknown) {
-      log(`failed to load memories (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+      log(`failed to load memories (non-fatal): ${errorMessage(err)}`);
     }
 
     // 4. Build activation context
@@ -1119,7 +1038,7 @@ export function createCommissionSession(
           memoryLimit: project?.memoryLimit,
         });
       } catch (err: unknown) {
-        log(`failed to build manager context (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+        log(`failed to build manager context (non-fatal): ${errorMessage(err)}`);
       }
     }
 
@@ -1129,7 +1048,7 @@ export function createCommissionSession(
     try {
       activation = await activateWorker(workerPkg, activationContext);
     } catch (err: unknown) {
-      logErr(`worker activation failed: ${err instanceof Error ? err.message : String(err)}`);
+      logErr(`worker activation failed: ${errorMessage(err)}`);
       return false;
     }
     log(`worker activated. systemPrompt length=${activation.systemPrompt.length}`);
@@ -1182,7 +1101,7 @@ export function createCommissionSession(
           log(`SDK session aborted after ${messageCount} message(s)`);
           return commission.resultSubmitted;
         }
-        logErr(`SDK session error after ${messageCount} message(s): ${err instanceof Error ? err.message : String(err)}`);
+        logErr(`SDK session error after ${messageCount} message(s): ${errorMessage(err)}`);
         return commission.resultSubmitted;
       }
       log(`SDK session complete. ${messageCount} message(s) consumed.`);
@@ -1222,7 +1141,7 @@ export function createCommissionSession(
           logSdkMessage(log, followUpCount, msg);
         }
       } catch (err: unknown) {
-        logErr(`follow-up session error: ${err instanceof Error ? err.message : String(err)}`);
+        logErr(`follow-up session error: ${errorMessage(err)}`);
       }
       log(`follow-up session complete. ${followUpCount} message(s) consumed.`);
 
@@ -1618,7 +1537,7 @@ projectName: ${projectName}
     } catch (err: unknown) {
       console.error(
         `[commission-session] Failed to transition ${commissionId} to ${finalStatus}:`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
     }
 
@@ -1633,7 +1552,7 @@ projectName: ${projectName}
       } catch (err: unknown) {
         console.error(
           `[commission-session] Failed to update result summary:`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
     }
@@ -1661,16 +1580,16 @@ projectName: ${projectName}
         await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
         mergeSucceeded = await withProjectLock(commission.projectName, async () => {
           await git.commitAll(iPath, `Pre-merge sync: ${commissionId}`);
-          return await resolveSquashMerge(
-            iPath,
-            commission.branchName,
-            commissionId,
-          );
+          return await resolveSquashMerge(git, iPath, commission.branchName, {
+            logPrefix: "commission",
+            commitLabel: "Commission",
+            activityId: commissionId,
+          });
         });
       } catch (err: unknown) {
         console.warn(
           `[commission] Git cleanup failed for completed "${commissionId}":`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
 
@@ -1682,7 +1601,7 @@ projectName: ${projectName}
         } catch (err: unknown) {
           console.warn(
             `[commission] Worktree/branch cleanup failed for "${commissionId}":`,
-            err instanceof Error ? err.message : String(err),
+            errorMessage(err),
           );
         }
         // Remove the state file: the artifact on the integration worktree is now
@@ -1712,7 +1631,7 @@ projectName: ${projectName}
         } catch (updateErr: unknown) {
           console.error(
             `[commission] Failed to update status after merge conflict for "${commissionId}":`,
-            updateErr instanceof Error ? updateErr.message : String(updateErr),
+            errorMessage(updateErr),
           );
         }
 
@@ -1741,7 +1660,7 @@ projectName: ${projectName}
           } catch (err: unknown) {
             console.warn(
               `[commission] Failed to remove worktree for "${commissionId}":`,
-              err instanceof Error ? err.message : String(err),
+              errorMessage(err),
             );
           }
         }
@@ -1756,12 +1675,12 @@ projectName: ${projectName}
             `Please resolve conflicts manually, then re-dispatch or clean up the branch.`;
           deps.createMeetingRequestFn({
             projectName: commission.projectName,
-            workerName: "guild-hall-manager",
+            workerName: MANAGER_PACKAGE_NAME,
             reason: escalationReason,
           }).catch((err: unknown) => {
             console.warn(
               `[commission] Failed to create Guild Master meeting request for "${commissionId}":`,
-              err instanceof Error ? err.message : String(err),
+              errorMessage(err),
             );
           });
         }
@@ -1785,7 +1704,7 @@ projectName: ${projectName}
       } catch (err: unknown) {
         console.warn(
           `[commission] Failed to commit partial results for "${commissionId}":`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
 
@@ -1795,7 +1714,7 @@ projectName: ${projectName}
         } catch (err: unknown) {
           console.warn(
             `[commission] Failed to remove worktree for "${commissionId}":`,
-            err instanceof Error ? err.message : String(err),
+            errorMessage(err),
           );
         }
       }
@@ -1817,7 +1736,7 @@ projectName: ${projectName}
       }).catch((err: unknown) => {
         console.error(
           `[commission-session] Failed to write state file for ${commissionId}:`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       });
     }
@@ -1915,7 +1834,7 @@ projectName: ${projectName}
       );
     } catch (err: unknown) {
       console.warn(
-        `[commission] transition to cancelled raced with completion handler for "${commissionId}": ${err instanceof Error ? err.message : String(err)}`,
+        `[commission] transition to cancelled raced with completion handler for "${commissionId}": ${errorMessage(err)}`,
       );
     }
 
@@ -1938,7 +1857,7 @@ projectName: ${projectName}
     } catch (err: unknown) {
       console.warn(
         `[commission] Failed to commit partial results for cancelled "${commissionId}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
     }
 
@@ -1949,7 +1868,7 @@ projectName: ${projectName}
       } catch (err: unknown) {
         console.warn(
           `[commission] Failed to remove worktree for cancelled "${commissionId}":`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
     }
@@ -1967,7 +1886,7 @@ projectName: ${projectName}
     }).catch((err: unknown) => {
       console.error(
         `[commission-session] Failed to write state file for ${commissionId}:`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
     });
 
@@ -2106,7 +2025,7 @@ projectName: ${projectName}
       } catch (err: unknown) {
         console.warn(
           `[commission-recovery] Corrupt state file "${file}", skipping:`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
         continue;
       }
@@ -2155,7 +2074,7 @@ projectName: ${projectName}
         if (isNodeError(err) && err.code === "ENOENT") continue;
         console.warn(
           `[commission-recovery] Failed to scan worktree root for "${project.name}":`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
         continue;
       }
@@ -2240,7 +2159,7 @@ projectName: ${projectName}
       } catch (err: unknown) {
         console.warn(
           `[commission-recovery] Failed to commit partial results for "${commissionId}":`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
     }
@@ -2260,7 +2179,7 @@ projectName: ${projectName}
     } catch (err: unknown) {
       console.warn(
         `[commission-recovery] Failed to update integration worktree for "${commissionId}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
     }
 
@@ -2277,7 +2196,7 @@ projectName: ${projectName}
       } catch (err: unknown) {
         console.warn(
           `[commission-recovery] Failed to remove worktree for "${commissionId}":`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
     }
@@ -2292,7 +2211,7 @@ projectName: ${projectName}
     } catch (err: unknown) {
       console.warn(
         `[commission-recovery] Failed to update state file for "${commissionId}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
     }
 

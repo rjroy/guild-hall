@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import fallbackApp from "./app";
 import { createProductionApp } from "./app";
 import {
@@ -39,7 +40,7 @@ try {
   console.log("[daemon] production app initialized with meeting session and worker routes");
 } catch (err) {
   console.warn(
-    `[daemon] Failed to create production app, falling back to basic app: ${err instanceof Error ? err.message : String(err)}`,
+    `[daemon] Failed to create production app, falling back to basic app: ${errorMessage(err)}`,
   );
   app = fallbackApp;
 }

@@ -26,6 +26,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { MeetingId, MeetingStatus } from "@/daemon/types";
+import { parseLinkedArtifacts, insertLinkedArtifact } from "@/daemon/lib/toolbox-utils";
 
 // -- Path resolution --
 
@@ -113,7 +114,6 @@ export async function appendMeetingLog(
 
 /**
  * Reads the linked_artifacts array from a meeting artifact's frontmatter.
- * Returns an array of artifact paths, or an empty array if none are linked.
  */
 export async function readLinkedArtifacts(
   projectPath: string,
@@ -121,30 +121,12 @@ export async function readLinkedArtifacts(
 ): Promise<string[]> {
   const artifactPath = meetingArtifactPath(projectPath, meetingId);
   const raw = await fs.readFile(artifactPath, "utf-8");
-
-  // Check for empty array form: `linked_artifacts: []`
-  if (/^linked_artifacts: \[\]$/m.test(raw)) {
-    return [];
-  }
-
-  // Parse list items under linked_artifacts:
-  const match = raw.match(
-    /^linked_artifacts:\n((?:  - .+\n)*)/m,
-  );
-  if (!match) return [];
-
-  return match[1]
-    .split("\n")
-    .filter((line) => line.startsWith("  - "))
-    .map((line) => line.replace(/^  - /, "").trim());
+  return parseLinkedArtifacts(raw);
 }
 
 /**
  * Adds an artifact path to the linked_artifacts array in a meeting
- * artifact's frontmatter. Handles both the empty array form (`[]`) and
- * existing list entries.
- *
- * Returns true if the path was added, false if it was already present.
+ * artifact's frontmatter. Deduplicates: returns false if already present.
  */
 export async function addLinkedArtifact(
   projectPath: string,
@@ -153,45 +135,9 @@ export async function addLinkedArtifact(
 ): Promise<boolean> {
   const artifactPath = meetingArtifactPath(projectPath, meetingId);
   const raw = await fs.readFile(artifactPath, "utf-8");
-
-  // Check if already linked
-  const existing = await readLinkedArtifacts(projectPath, meetingId);
-  if (existing.includes(artifactRelPath)) {
-    return false;
+  const { updated, added } = insertLinkedArtifact(raw, artifactRelPath);
+  if (added) {
+    await fs.writeFile(artifactPath, updated, "utf-8");
   }
-
-  let updated: string;
-
-  // Case 1: empty array form `linked_artifacts: []`
-  if (/^linked_artifacts: \[\]$/m.test(raw)) {
-    updated = raw.replace(
-      /^linked_artifacts: \[\]$/m,
-      `linked_artifacts:\n  - ${artifactRelPath}`,
-    );
-  } else {
-    // Case 2: existing list entries. Find the last `  - <path>` line
-    // under linked_artifacts: and append after it.
-    // Look for the next field that starts at column 0 after linked_artifacts:
-    const linkedIndex = raw.indexOf("linked_artifacts:\n");
-    if (linkedIndex === -1) {
-      // No linked_artifacts field at all; this shouldn't happen for meeting
-      // artifacts, but handle gracefully by returning false.
-      return false;
-    }
-
-    // Find where the linked_artifacts block ends (next field at column 0)
-    const afterLinked = raw.slice(linkedIndex + "linked_artifacts:\n".length);
-    const nextFieldMatch = afterLinked.match(/^[a-z_]/m);
-    const insertionPoint = nextFieldMatch
-      ? linkedIndex + "linked_artifacts:\n".length + (nextFieldMatch.index ?? 0)
-      : raw.length;
-
-    updated =
-      raw.slice(0, insertionPoint) +
-      `  - ${artifactRelPath}\n` +
-      raw.slice(insertionPoint);
-  }
-
-  await fs.writeFile(artifactPath, updated, "utf-8");
-  return true;
+  return added;
 }

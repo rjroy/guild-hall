@@ -23,6 +23,7 @@ import { isNodeError } from "@/lib/types";
 import { memoryScopeDir, type MemoryScope } from "@/daemon/services/memory-injector";
 import type { QueryOptions } from "@/daemon/services/meeting-session";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 
 // -- Constants --
 
@@ -301,7 +302,7 @@ async function runCompaction(
     // retries implicitly via the truncated-memory path.
     console.warn(
       `[memory-compaction] SDK call failed for ${workerName}/${projectName}:`,
-      err instanceof Error ? err.message : String(err),
+      errorMessage(err),
     );
     return;
   }
@@ -319,7 +320,7 @@ async function runCompaction(
   } catch (err: unknown) {
     console.warn(
       `[memory-compaction] Write/cleanup failed for ${workerName}/${projectName}:`,
-      err instanceof Error ? err.message : String(err),
+      errorMessage(err),
     );
     return;
   }

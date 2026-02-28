@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { GuildHallEvent, MeetingId } from "@/daemon/types";
 import { asMeetingId } from "@/daemon/types";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 
 /**
  * The meeting session interface as seen by the routes layer.
@@ -110,7 +111,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
       const { notes } = await deps.meetingSession.closeMeeting(meetingId);
       return c.json({ status: "ok", notes });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);
       }
@@ -125,7 +126,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
       deps.meetingSession.interruptTurn(meetingId);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);
       }
@@ -183,7 +184,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
       await deps.meetingSession.declineMeeting(meetingId, projectName);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);
       }
@@ -215,7 +216,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
       await deps.meetingSession.deferMeeting(meetingId, projectName, deferredUntil);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);
       }

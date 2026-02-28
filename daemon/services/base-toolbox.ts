@@ -11,6 +11,7 @@ import { z } from "zod/v4";
 import type { ToolResult } from "@/daemon/types";
 import { isNodeError } from "@/lib/types";
 import { validateContainedPath } from "@/daemon/lib/toolbox-utils";
+import { memoryScopeDir } from "./memory-injector";
 import type { ToolboxFactory } from "./toolbox-types";
 
 // -- Types --
@@ -21,25 +22,6 @@ interface BaseToolboxDeps {
   workerName: string;                         // identity of the active worker (enforces worker scope)
   projectName: string;                        // active project name (enforces project scope)
   guildHallHome: string;
-}
-
-// -- Memory scope resolution --
-
-function resolveMemoryBase(
-  guildHallHome: string,
-  scope: "global" | "project" | "worker",
-  projectName: string,
-  workerName: string,
-): string {
-  const memoryRoot = path.join(guildHallHome, "memory");
-  switch (scope) {
-    case "global":
-      return path.join(memoryRoot, "global");
-    case "project":
-      return path.join(memoryRoot, "projects", projectName);
-    case "worker":
-      return path.join(memoryRoot, "workers", workerName);
-  }
 }
 
 // -- Tool handler factories --
@@ -55,7 +37,8 @@ export function makeReadMemoryHandler(
     scope: "global" | "project" | "worker";
     path?: string | undefined;
   }): Promise<ToolResult> => {
-    const base = resolveMemoryBase(guildHallHome, args.scope, projectName, workerName);
+    const scopeKey = args.scope === "project" ? projectName : args.scope === "worker" ? workerName : "global";
+    const base = memoryScopeDir(guildHallHome, args.scope, scopeKey);
     const targetPath = args.path
       ? validateContainedPath(base, args.path)
       : base;
@@ -95,7 +78,8 @@ export function makeWriteMemoryHandler(
     path: string;
     content: string;
   }): Promise<ToolResult> => {
-    const base = resolveMemoryBase(guildHallHome, args.scope, projectName, workerName);
+    const scopeKey = args.scope === "project" ? projectName : args.scope === "worker" ? workerName : "global";
+    const base = memoryScopeDir(guildHallHome, args.scope, scopeKey);
     const targetPath = validateContainedPath(base, args.path);
 
     await fs.mkdir(path.dirname(targetPath), { recursive: true });

@@ -25,7 +25,7 @@ import { z } from "zod/v4";
 import { asCommissionId } from "@/daemon/types";
 import type { ToolResult } from "@/daemon/types";
 import { appendTimelineEntry } from "@/daemon/services/commission-artifact-helpers";
-import { formatTimestamp, escapeYamlValue } from "@/daemon/lib/toolbox-utils";
+import { formatTimestamp, escapeYamlValue, errorMessage } from "@/daemon/lib/toolbox-utils";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { EventBus } from "@/daemon/services/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
@@ -97,7 +97,7 @@ export function makeCreateCommissionHandler(
           // commission ID so the manager LLM can dispatch separately.
           console.error(
             `[manager-toolbox] Failed to dispatch commission "${commissionId}":`,
-            dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+            errorMessage(dispatchErr),
           );
           return {
             content: [
@@ -106,7 +106,7 @@ export function makeCreateCommissionHandler(
                 text: JSON.stringify({
                   commissionId,
                   dispatched: false,
-                  error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+                  error: errorMessage(dispatchErr),
                 }),
               },
             ],
@@ -132,7 +132,7 @@ export function makeCreateCommissionHandler(
           // entry is supplemental; don't fail the tool call over it.
           console.warn(
             `[manager-toolbox] Failed to append manager_dispatched timeline entry for "${cid}":`,
-            err instanceof Error ? err.message : String(err),
+            errorMessage(err),
           );
         }
       }
@@ -152,13 +152,13 @@ export function makeCreateCommissionHandler(
     } catch (err: unknown) {
       console.error(
         `[manager-toolbox] Failed to create commission "${args.title}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
       return {
         content: [
           {
             type: "text",
-            text: err instanceof Error ? err.message : String(err),
+            text: errorMessage(err),
           },
         ],
         isError: true,
@@ -190,13 +190,13 @@ export function makeDispatchCommissionHandler(
     } catch (err: unknown) {
       console.error(
         `[manager-toolbox] Failed to dispatch commission "${args.commissionId}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
       return {
         content: [
           {
             type: "text",
-            text: err instanceof Error ? err.message : String(err),
+            text: errorMessage(err),
           },
         ],
         isError: true,
@@ -310,13 +310,13 @@ export function makeCreatePrHandler(
     } catch (err: unknown) {
       console.error(
         `[manager-toolbox] Failed to create PR for "${deps.projectName}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
       return {
         content: [
           {
             type: "text",
-            text: err instanceof Error ? err.message : String(err),
+            text: errorMessage(err),
           },
         ],
         isError: true,
@@ -398,13 +398,13 @@ notes_summary: ""
     } catch (err: unknown) {
       console.error(
         `[manager-toolbox] Failed to create meeting request for "${args.workerName}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
       return {
         content: [
           {
             type: "text",
-            text: err instanceof Error ? err.message : String(err),
+            text: errorMessage(err),
           },
         ],
         isError: true,
@@ -456,13 +456,13 @@ export function makeAddCommissionNoteHandler(
     } catch (err: unknown) {
       console.error(
         `[manager-toolbox] Failed to add note to commission "${args.commissionId}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
       return {
         content: [
           {
             type: "text",
-            text: err instanceof Error ? err.message : String(err),
+            text: errorMessage(err),
           },
         ],
         isError: true,
@@ -498,13 +498,13 @@ export function makeCancelCommissionHandler(
     } catch (err: unknown) {
       console.error(
         `[manager-toolbox] Failed to cancel commission "${args.commissionId}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
       return {
         content: [
           {
             type: "text",
-            text: err instanceof Error ? err.message : String(err),
+            text: errorMessage(err),
           },
         ],
         isError: true,
@@ -579,13 +579,13 @@ export function makeSyncProjectHandler(
     } catch (err: unknown) {
       console.error(
         `[manager-toolbox] Failed to sync project "${args.projectName}":`,
-        err instanceof Error ? err.message : String(err),
+        errorMessage(err),
       );
       return {
         content: [
           {
             type: "text",
-            text: err instanceof Error ? err.message : String(err),
+            text: errorMessage(err),
           },
         ],
         isError: true,

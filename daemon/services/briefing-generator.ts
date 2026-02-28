@@ -25,6 +25,7 @@ import {
 } from "@/daemon/services/manager-context";
 import { integrationWorktreePath, briefingCachePath } from "@/lib/paths";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 
 // -- Types --
 
@@ -182,7 +183,7 @@ export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
       try {
         context = await buildManagerContext(contextDeps);
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         console.error(`[briefing-generator] Failed to build context for "${projectName}": ${reason}`);
         return {
           briefing: "Unable to assemble project state for briefing.",
@@ -222,7 +223,7 @@ Be factual and direct. No headers or bullet points. Plain prose.`;
             briefingText = generateTemplateBriefing(context);
           }
         } catch (err: unknown) {
-          const reason = err instanceof Error ? err.message : String(err);
+          const reason = errorMessage(err);
           console.error(`[briefing-generator] SDK invocation failed for "${projectName}": ${reason}`);
           // Fall back to template
           briefingText = generateTemplateBriefing(context);
@@ -236,7 +237,7 @@ Be factual and direct. No headers or bullet points. Plain prose.`;
       try {
         await writeCacheFile(cachePath, { text: briefingText, generatedAt: now });
       } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         console.warn(`[briefing-generator] Failed to write cache for "${projectName}": ${reason}`);
       }
 
