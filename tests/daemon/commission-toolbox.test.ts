@@ -5,7 +5,7 @@ import * as os from "node:os";
 import matter from "gray-matter";
 import { asCommissionId } from "@/daemon/types";
 import type { CommissionId } from "@/daemon/types";
-import type { CommissionToolboxDeps } from "@/daemon/services/commission-toolbox";
+import type { GuildHallToolboxDeps } from "@/daemon/services/toolbox-types";
 import {
   makeReportProgressHandler,
   makeSubmitResultHandler,
@@ -31,11 +31,13 @@ let emittedEvents: SystemEvent[];
 
 const projectName = "test-project";
 
-function makeDeps(overrides?: Partial<CommissionToolboxDeps>): CommissionToolboxDeps {
+function makeDeps(overrides?: Partial<GuildHallToolboxDeps>): GuildHallToolboxDeps {
   return {
     guildHallHome,
     projectName,
     contextId: commissionId,
+    contextType: "commission",
+    workerName: "test-worker",
     eventBus: testEventBus,
     ...overrides,
   };

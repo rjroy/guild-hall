@@ -27,7 +27,7 @@ import { meetingToolboxFactory } from "@/daemon/services/meeting-toolbox";
 import { createManagerToolboxFactory } from "@/daemon/services/manager-toolbox";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
-import type { EventBus } from "@/daemon/services/event-bus";
+import { noopEventBus, type EventBus } from "@/daemon/services/event-bus";
 import {
   MANAGER_PACKAGE_NAME,
   activateManager,
@@ -501,7 +501,6 @@ notes_summary: ""
         contextFactories.push(
           createManagerToolboxFactory({
             commissionSession: deps.commissionSession,
-            eventBus: deps.eventBus,
             gitOps: git,
             getProjectConfig: (name: string) => Promise.resolve(findProject(name)),
           }),
@@ -514,6 +513,7 @@ notes_summary: ""
         contextType: "meeting",
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,
+        eventBus: deps.eventBus ?? noopEventBus,
         contextFactories,
       });
 

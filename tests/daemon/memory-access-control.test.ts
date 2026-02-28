@@ -8,6 +8,7 @@ import {
   createBaseToolbox,
 } from "@/daemon/services/base-toolbox";
 import type { GuildHallToolboxDeps } from "@/daemon/services/toolbox-types";
+import { noopEventBus } from "@/daemon/services/event-bus";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import type { WorkerMetadata } from "@/lib/types";
 
@@ -202,6 +203,7 @@ describe("GuildHallToolboxDeps integration", () => {
       workerName: "my-worker",
       projectName: "my-project",
       guildHallHome,
+      eventBus: noopEventBus,
     };
 
     const result = createBaseToolbox(deps);
@@ -238,6 +240,7 @@ describe("toolbox resolver passes identity to base toolbox", () => {
       contextType: "meeting",
       workerName: "my-specific-worker",
       guildHallHome,
+      eventBus: noopEventBus,
     });
 
     expect(result.mcpServers.length).toBeGreaterThanOrEqual(1);
@@ -252,6 +255,7 @@ describe("toolbox resolver passes identity to base toolbox", () => {
       contextType: "meeting",
       workerName: "fallback-worker",
       guildHallHome,
+      eventBus: noopEventBus,
     });
 
     // Base only (no context factories)
@@ -268,6 +272,7 @@ describe("toolbox resolver passes identity to base toolbox", () => {
       contextType: "meeting",
       workerName: "test-worker",
       guildHallHome,
+      eventBus: noopEventBus,
     });
 
     expect(result.mcpServers.length).toBeGreaterThanOrEqual(1);

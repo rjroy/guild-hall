@@ -5,6 +5,7 @@ import type {
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
+import type { EventBus } from "./event-bus";
 import { baseToolboxFactory } from "./base-toolbox";
 import type {
   GuildHallToolboxDeps,
@@ -20,6 +21,7 @@ export interface ToolboxResolverContext {
   contextId: string;
   contextType: "meeting" | "commission";
   workerName: string;
+  eventBus: EventBus;
   /** Pre-bound context factories (meeting, commission, manager). */
   contextFactories?: ToolboxFactory[];
 }
@@ -45,12 +47,13 @@ export async function resolveToolSet(
   const mcpServers: McpSdkServerConfigWithInstance[] = [];
 
   // Build shared deps from context fields
-  const deps = {
+  const deps: GuildHallToolboxDeps = {
     guildHallHome: context.guildHallHome,
     projectName: context.projectName,
     contextId: context.contextId,
     contextType: context.contextType,
     workerName: context.workerName,
+    eventBus: context.eventBus,
   };
 
   // 1. Base toolbox (always present: memory + decision tools)

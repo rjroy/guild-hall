@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import { meetingToolboxFactory } from "@/daemon/services/meeting-toolbox";
-import { createCommissionToolboxFactory } from "@/daemon/services/commission-toolbox";
+import { commissionToolboxFactory } from "@/daemon/services/commission-toolbox";
 import { createManagerToolboxFactory } from "@/daemon/services/manager-toolbox";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { GitOps } from "@/daemon/lib/git";
@@ -79,6 +79,7 @@ function testContext() {
     contextType: "meeting" as const,
     workerName: "test-worker",
     guildHallHome,
+    eventBus: createEventBus(),
   };
 }
 
@@ -245,7 +246,7 @@ describe("resolveToolSet", () => {
       contextId: "commission-test",
       contextType: "commission" as const,
       contextFactories: [
-        createCommissionToolboxFactory(createEventBus()),
+        commissionToolboxFactory,
       ],
     };
     const result = await resolveToolSet(worker, [], context);
@@ -322,7 +323,6 @@ describe("resolveToolSet with manager toolbox", () => {
         meetingToolboxFactory,
         createManagerToolboxFactory({
           commissionSession: makeMockCommissionSession(),
-          eventBus: { emit() {}, subscribe() { return () => {}; } },
           gitOps: makeMockGitOps(),
           getProjectConfig: () => Promise.resolve(undefined),
         }),
@@ -361,7 +361,6 @@ describe("resolveToolSet with manager toolbox", () => {
         meetingToolboxFactory,
         createManagerToolboxFactory({
           commissionSession: makeMockCommissionSession(),
-          eventBus: { emit() {}, subscribe() { return () => {}; } },
           gitOps: makeMockGitOps(),
           getProjectConfig: () => Promise.resolve(undefined),
         }),

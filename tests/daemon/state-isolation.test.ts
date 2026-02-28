@@ -23,7 +23,7 @@ import {
 } from "@/daemon/services/commission-session";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import { meetingToolboxFactory } from "@/daemon/services/meeting-toolbox";
-import { createCommissionToolboxFactory } from "@/daemon/services/commission-toolbox";
+import { commissionToolboxFactory } from "@/daemon/services/commission-toolbox";
 import {
   makeReadMemoryHandler,
   makeWriteMemoryHandler,
@@ -534,6 +534,7 @@ describe("State Isolation", () => {
       contextType: "meeting",
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
+      eventBus: createEventBus(),
       contextFactories: [meetingToolboxFactory],
     });
 
@@ -544,8 +545,9 @@ describe("State Isolation", () => {
       contextType: "commission",
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
+      eventBus: createEventBus(),
       contextFactories: [
-        createCommissionToolboxFactory(createEventBus()),
+        commissionToolboxFactory,
       ],
     });
 

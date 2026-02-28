@@ -7,8 +7,8 @@
  * - log_question: record a question in the activity timeline
  *
  * Each tool writes to files for durability, then emits an event to the EventBus
- * for real-time notification. The commission session subscribes to these events
- * to update its own state (resultSubmitted, lastActivity, etc.).
+ * (received via GuildHallToolboxDeps) for real-time notification. The commission
+ * session subscribes to these events to update its own state.
  *
  * Follows the same MCP server factory pattern as base-toolbox.ts and
  * meeting-toolbox.ts.
@@ -28,15 +28,9 @@ import {
   updateResultSummary,
 } from "@/daemon/services/commission-artifact-helpers";
 import { resolveWritePath } from "@/daemon/lib/toolbox-utils";
-import type { EventBus } from "./event-bus";
-import type { ToolboxFactory } from "./toolbox-types";
+import type { GuildHallToolboxDeps, ToolboxFactory } from "./toolbox-types";
 
-export interface CommissionToolboxDeps {
-  guildHallHome: string;
-  projectName: string;
-  contextId: string;
-  eventBus: EventBus;
-}
+type CommissionToolboxDeps = Pick<GuildHallToolboxDeps, "guildHallHome" | "projectName" | "contextId" | "eventBus">;
 
 // -- Tool handler factories --
 
@@ -204,17 +198,7 @@ export function createCommissionToolbox(
 
 // -- Factory interface --
 
-/** Binds an EventBus, returns a ToolboxFactory. */
-export function createCommissionToolboxFactory(
-  eventBus: EventBus,
-): ToolboxFactory {
-  return (ctx) => {
-    const server = createCommissionToolbox({
-      guildHallHome: ctx.guildHallHome,
-      projectName: ctx.projectName,
-      contextId: ctx.contextId,
-      eventBus,
-    });
-    return { server };
-  };
-}
+/** Plain ToolboxFactory: eventBus flows through GuildHallToolboxDeps. */
+export const commissionToolboxFactory: ToolboxFactory = (deps) => ({
+  server: createCommissionToolbox(deps),
+});

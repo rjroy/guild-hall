@@ -692,9 +692,9 @@ export function createManagerToolbox(
 
 // -- Factory interface --
 
+/** Services bound via createManagerToolboxFactory. eventBus flows through GuildHallToolboxDeps. */
 export interface ManagerServices {
   commissionSession: CommissionSessionForRoutes;
-  eventBus: EventBus;
   gitOps: GitOps;
   getProjectConfig: (name: string) => Promise<ProjectConfig | undefined>;
 }
@@ -707,6 +707,7 @@ export function createManagerToolboxFactory(
     server: createManagerToolbox({
       projectName: ctx.projectName,
       guildHallHome: ctx.guildHallHome,
+      eventBus: ctx.eventBus,
       ...services,
     }),
   });

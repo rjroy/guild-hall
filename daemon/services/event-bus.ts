@@ -23,6 +23,12 @@ export interface EventBus {
   subscribe(callback: (event: SystemEvent) => void): () => void;
 }
 
+/** No-op event bus for contexts that don't need event emission. */
+export const noopEventBus: EventBus = {
+  emit() {},
+  subscribe() { return () => {}; },
+};
+
 /**
  * Creates a new event bus instance.
  *
