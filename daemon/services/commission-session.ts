@@ -297,7 +297,7 @@ function buildCommissionActivationContext(
   prompt: string,
   dependencies: string[],
   workerMeta: WorkerMetadata,
-  resolvedTools: ReturnType<typeof resolveToolSet>,
+  resolvedTools: Awaited<ReturnType<typeof resolveToolSet>>,
   projectPath: string,
   workingDirectory: string,
   injectedMemory = "",
@@ -1077,7 +1077,7 @@ export function createCommissionSession(
     }
 
     const resolve = deps.resolveToolSetFn ?? resolveToolSet;
-    const resolvedTools = resolve(workerMeta, deps.packages, {
+    const resolvedTools = await resolve(workerMeta, deps.packages, {
       projectName: commission.projectName,
       contextId: commissionId as string,
       contextType: "commission",

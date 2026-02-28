@@ -189,7 +189,8 @@ function createMockSession() {
       systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
     }),
     /* eslint-enable @typescript-eslint/require-await */
-    resolveToolSetFn: (): ResolvedToolSet => ({
+    // eslint-disable-next-line @typescript-eslint/require-await
+    resolveToolSetFn: async (): Promise<ResolvedToolSet> => ({
       mcpServers: [], allowedTools: [],
     }),
     submitResult: (bus: EventBus, cid: string, summary: string, artifacts?: string[]) => {
@@ -224,7 +225,7 @@ function createMultiMockTracker(count = 20) {
     systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
   });
 
-  const resolveToolSetFn = (): ResolvedToolSet => {
+  const resolveToolSetFn = async (): Promise<ResolvedToolSet> => {
     const idx = resolveCallCount++;
     return mocks[idx].resolveToolSetFn();
   };

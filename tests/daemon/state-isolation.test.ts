@@ -526,9 +526,9 @@ describe("State Isolation", () => {
     commissionSession.shutdown();
   });
 
-  test("tool isolation: meeting gets meeting tools, commission gets commission tools, no cross-contamination", () => {
+  test("tool isolation: meeting gets meeting tools, commission gets commission tools, no cross-contamination", async () => {
     // Resolve tools for a meeting context
-    const meetingTools = resolveToolSet(WORKER_META, [WORKER_PKG], {
+    const meetingTools = await resolveToolSet(WORKER_META, [WORKER_PKG], {
       projectName: "test-project",
       contextId: "audience-Assistant-20260223-120000",
       contextType: "meeting",
@@ -538,7 +538,7 @@ describe("State Isolation", () => {
     });
 
     // Resolve tools for a commission context
-    const commissionTools = resolveToolSet(WORKER_META, [WORKER_PKG], {
+    const commissionTools = await resolveToolSet(WORKER_META, [WORKER_PKG], {
       projectName: "test-project",
       contextId: "commission-Assistant-20260223-120000",
       contextType: "commission",

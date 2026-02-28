@@ -482,7 +482,8 @@ function createMockSession() {
       resourceBounds: {},
     }),
     /* eslint-enable @typescript-eslint/require-await */
-    resolveToolSetFn: (): ResolvedToolSet => ({
+    // eslint-disable-next-line @typescript-eslint/require-await
+    resolveToolSetFn: async (): Promise<ResolvedToolSet> => ({
       mcpServers: [],
       allowedTools: [],
     }),

@@ -590,7 +590,8 @@ projectName: test-project
         systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
       }),
       /* eslint-enable @typescript-eslint/require-await */
-      resolveToolSetFn: (): ResolvedToolSet => ({
+      // eslint-disable-next-line @typescript-eslint/require-await
+      resolveToolSetFn: async (): Promise<ResolvedToolSet> => ({
         mcpServers: [], allowedTools: [],
       }),
       submitResult: (bus: EventBus, cid: string, summary: string, artifacts?: string[]) => {

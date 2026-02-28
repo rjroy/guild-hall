@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type {
   DiscoveredPackage,
@@ -5,7 +6,11 @@ import type {
   WorkerMetadata,
 } from "@/lib/types";
 import { baseToolboxFactory } from "./base-toolbox";
-import type { ToolboxFactory } from "./toolbox-types";
+import type {
+  GuildHallToolboxDeps,
+  ToolboxFactory,
+  ToolboxOutput,
+} from "./toolbox-types";
 
 // -- Types --
 
@@ -32,11 +37,11 @@ export interface ToolboxResolverContext {
  * Throws if a worker references a domain toolbox that doesn't exist in the
  * discovered packages (REQ-WKR-13).
  */
-export function resolveToolSet(
+export async function resolveToolSet(
   worker: WorkerMetadata,
   packages: DiscoveredPackage[],
   context: ToolboxResolverContext,
-): ResolvedToolSet {
+): Promise<ResolvedToolSet> {
   const mcpServers: McpSdkServerConfigWithInstance[] = [];
 
   // Build shared deps from context fields
@@ -70,8 +75,8 @@ export function resolveToolSet(
           `Available toolbox packages: ${listToolboxNames(packages).join(", ") || "(none)"}`,
       );
     }
-    // Domain toolbox MCP servers will be created by the toolbox package itself
-    // in a later phase. For now, we validate that the package exists.
+    const output = await loadDomainToolbox(pkg, deps);
+    mcpServers.push(output.server);
   }
 
   // 4. Built-in tools + MCP server tool wildcards.
@@ -87,6 +92,32 @@ export function resolveToolSet(
 }
 
 // -- Helpers --
+
+async function loadDomainToolbox(
+  pkg: DiscoveredPackage,
+  deps: GuildHallToolboxDeps,
+): Promise<ToolboxOutput> {
+  const entryPoint = path.resolve(pkg.path, "index.ts");
+  let mod: Record<string, unknown>;
+  try {
+    mod = (await import(entryPoint)) as Record<string, unknown>;
+  } catch (cause) {
+    throw new Error(
+      `Failed to import domain toolbox "${pkg.name}" from ${entryPoint}`,
+      { cause },
+    );
+  }
+
+  if (typeof mod.toolboxFactory !== "function") {
+    const available = Object.keys(mod).join(", ") || "(none)";
+    throw new Error(
+      `Domain toolbox "${pkg.name}" does not export a toolboxFactory function. ` +
+        `Available exports: ${available}`,
+    );
+  }
+
+  return (mod.toolboxFactory as ToolboxFactory)(deps);
+}
 
 function isToolboxPackage(pkg: DiscoveredPackage): boolean {
   const type = pkg.metadata.type;

@@ -83,9 +83,9 @@ function testContext() {
 }
 
 describe("resolveToolSet", () => {
-  test("base only: worker with no domain toolboxes and no context factories", () => {
+  test("base only: worker with no domain toolboxes and no context factories", async () => {
     const worker = makeWorker();
-    const result = resolveToolSet(worker, [], testContext());
+    const result = await resolveToolSet(worker, [], testContext());
 
     // Should have exactly one MCP server (the base toolbox)
     expect(result.mcpServers).toHaveLength(1);
@@ -94,11 +94,11 @@ describe("resolveToolSet", () => {
     expect(result.mcpServers[0].instance).toBeDefined();
   });
 
-  test("built-in tools and MCP wildcards assembled from worker metadata", () => {
+  test("built-in tools and MCP wildcards assembled from worker metadata", async () => {
     const worker = makeWorker({
       builtInTools: ["Read", "Glob", "Grep", "Bash", "Edit"],
     });
-    const result = resolveToolSet(worker, [], testContext());
+    const result = await resolveToolSet(worker, [], testContext());
 
     // Built-in tools + MCP server wildcards (base only, no context factories)
     expect(result.allowedTools).toContain("Read");
@@ -109,35 +109,40 @@ describe("resolveToolSet", () => {
     expect(result.allowedTools).toContain("mcp__guild-hall-base__*");
   });
 
-  test("empty builtInTools still includes MCP wildcards", () => {
+  test("empty builtInTools still includes MCP wildcards", async () => {
     const worker = makeWorker({ builtInTools: [] });
-    const result = resolveToolSet(worker, [], testContext());
+    const result = await resolveToolSet(worker, [], testContext());
 
     // No built-in tools, but MCP wildcards are always present
     expect(result.allowedTools).toContain("mcp__guild-hall-base__*");
   });
 
-  test("worker with domain toolbox resolves without error when package exists", () => {
+  test("worker with domain toolbox resolves without error when package exists", async () => {
+    // This test now requires a real fixture since the resolver imports the package.
+    // Covered by the "domain toolbox loading" describe block below.
+    // Here we verify the missing-package error path still works.
     const worker = makeWorker({ domainToolboxes: ["code-analysis"] });
     const packages = [makeToolboxPackage("code-analysis")];
 
-    const result = resolveToolSet(worker, packages, testContext());
-
-    // Base toolbox is always present
-    expect(result.mcpServers).toHaveLength(1);
-    expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    // Package path doesn't contain a real index.ts, so import will fail.
+    // That's fine; this test just validated existence before. The new
+    // integration tests cover the full loading path.
+    await expect(
+      resolveToolSet(worker, packages, testContext()),
+    ).rejects.toThrow(/code-analysis/);
   });
 
-  test("worker-toolbox hybrid package counts as a toolbox", () => {
+  test("worker-toolbox hybrid package counts as a toolbox", async () => {
     const worker = makeWorker({ domainToolboxes: ["hybrid-pkg"] });
     const packages = [makeWorkerToolboxPackage("hybrid-pkg")];
 
-    // Should not throw since the hybrid package has the toolbox role
-    const result = resolveToolSet(worker, packages, testContext());
-    expect(result.mcpServers).toHaveLength(1);
+    // Package path doesn't contain a real index.ts, so import will fail.
+    await expect(
+      resolveToolSet(worker, packages, testContext()),
+    ).rejects.toThrow(/hybrid-pkg/);
   });
 
-  test("missing domain toolbox throws descriptive error (REQ-WKR-13)", () => {
+  test("missing domain toolbox throws descriptive error (REQ-WKR-13)", async () => {
     const worker = makeWorker({
       domainToolboxes: ["nonexistent-toolbox"],
       identity: {
@@ -147,24 +152,24 @@ describe("resolveToolSet", () => {
       },
     });
 
-    expect(() =>
+    await expect(
       resolveToolSet(worker, [], testContext()),
-    ).toThrow(/my-worker.*nonexistent-toolbox/);
+    ).rejects.toThrow(/my-worker.*nonexistent-toolbox/);
   });
 
-  test("missing toolbox error lists available toolbox packages", () => {
+  test("missing toolbox error lists available toolbox packages", async () => {
     const worker = makeWorker({ domainToolboxes: ["missing-one"] });
     const packages = [
       makeToolboxPackage("available-a"),
       makeToolboxPackage("available-b"),
     ];
 
-    expect(() =>
+    await expect(
       resolveToolSet(worker, packages, testContext()),
-    ).toThrow(/available-a.*available-b/);
+    ).rejects.toThrow(/available-a.*available-b/);
   });
 
-  test("missing toolbox error shows (none) when no toolboxes available", () => {
+  test("missing toolbox error shows (none) when no toolboxes available", async () => {
     const worker = makeWorker({ domainToolboxes: ["missing"] });
     // Only non-toolbox packages available
     const workerOnly: DiscoveredPackage = {
@@ -180,14 +185,14 @@ describe("resolveToolSet", () => {
       },
     };
 
-    expect(() =>
+    await expect(
       resolveToolSet(worker, [workerOnly], testContext()),
-    ).toThrow("(none)");
+    ).rejects.toThrow("(none)");
   });
 
-  test("allowedTools is a copy, not a shared reference", () => {
+  test("allowedTools is a copy, not a shared reference", async () => {
     const worker = makeWorker({ builtInTools: ["Read"] });
-    const result = resolveToolSet(worker, [], testContext());
+    const result = await resolveToolSet(worker, [], testContext());
 
     // Mutating the result should not affect the worker's original array
     result.allowedTools.push("Bash");
@@ -195,35 +200,35 @@ describe("resolveToolSet", () => {
     expect(worker.builtInTools).not.toContain("mcp__guild-hall-base__*");
   });
 
-  test("meeting context with meetingToolboxFactory produces base + meeting MCP servers", () => {
+  test("meeting context with meetingToolboxFactory produces base + meeting MCP servers", async () => {
     const worker = makeWorker();
     const context = {
       ...testContext(),
       contextFactories: [meetingToolboxFactory],
     };
-    const result = resolveToolSet(worker, [], context);
+    const result = await resolveToolSet(worker, [], context);
 
     expect(result.mcpServers).toHaveLength(2);
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
     expect(result.mcpServers[1].name).toBe("guild-hall-meeting");
   });
 
-  test("context without contextFactories produces base only", () => {
+  test("context without contextFactories produces base only", async () => {
     const worker = makeWorker();
-    const result = resolveToolSet(worker, [], testContext());
+    const result = await resolveToolSet(worker, [], testContext());
 
     expect(result.mcpServers).toHaveLength(1);
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
   });
 
-  test("workerName is passed through to meeting toolbox", () => {
+  test("workerName is passed through to meeting toolbox", async () => {
     const worker = makeWorker();
     const context = {
       ...testContext(),
       workerName: "specific-worker",
       contextFactories: [meetingToolboxFactory],
     };
-    const result = resolveToolSet(worker, [], context);
+    const result = await resolveToolSet(worker, [], context);
 
     // The meeting toolbox should be present and correctly named
     expect(result.mcpServers).toHaveLength(2);
@@ -233,7 +238,7 @@ describe("resolveToolSet", () => {
     expect(meetingServer.instance).toBeDefined();
   });
 
-  test("commission context with factory produces base + commission MCP servers", () => {
+  test("commission context with factory produces base + commission MCP servers", async () => {
     const worker = makeWorker();
     const context = {
       ...testContext(),
@@ -243,7 +248,7 @@ describe("resolveToolSet", () => {
         createCommissionToolboxFactory(createEventBus()),
       ],
     };
-    const result = resolveToolSet(worker, [], context);
+    const result = await resolveToolSet(worker, [], context);
 
     expect(result.mcpServers).toHaveLength(2);
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
@@ -308,7 +313,7 @@ function makeMockGitOps(): GitOps {
 /* eslint-enable @typescript-eslint/require-await */
 
 describe("resolveToolSet with manager toolbox", () => {
-  test("manager factory includes manager toolbox MCP server", () => {
+  test("manager factory includes manager toolbox MCP server", async () => {
     const worker = makeWorker();
     const context = {
       ...testContext(),
@@ -323,7 +328,7 @@ describe("resolveToolSet with manager toolbox", () => {
         }),
       ],
     };
-    const result = resolveToolSet(worker, [], context);
+    const result = await resolveToolSet(worker, [], context);
 
     // Should have: base + meeting + manager = 3 servers
     expect(result.mcpServers).toHaveLength(3);
@@ -332,14 +337,14 @@ describe("resolveToolSet with manager toolbox", () => {
     expect(result.mcpServers[2].name).toBe("guild-hall-manager");
   });
 
-  test("no manager factory does NOT include manager toolbox", () => {
+  test("no manager factory does NOT include manager toolbox", async () => {
     const worker = makeWorker();
     const context = {
       ...testContext(),
       workerName: "test-worker",
       contextFactories: [meetingToolboxFactory],
     };
-    const result = resolveToolSet(worker, [], context);
+    const result = await resolveToolSet(worker, [], context);
 
     // Should have: base + meeting = 2 servers, no manager
     expect(result.mcpServers).toHaveLength(2);
@@ -347,7 +352,7 @@ describe("resolveToolSet with manager toolbox", () => {
     expect(names).not.toContain("guild-hall-manager");
   });
 
-  test("manager tools appear in resolved allowedTools whitelist", () => {
+  test("manager tools appear in resolved allowedTools whitelist", async () => {
     const worker = makeWorker();
     const context = {
       ...testContext(),
@@ -362,7 +367,7 @@ describe("resolveToolSet with manager toolbox", () => {
         }),
       ],
     };
-    const result = resolveToolSet(worker, [], context);
+    const result = await resolveToolSet(worker, [], context);
 
     // The allowedTools should include the mcp wildcard for the manager server
     expect(result.allowedTools).toContain("mcp__guild-hall-manager__*");
@@ -371,17 +376,172 @@ describe("resolveToolSet with manager toolbox", () => {
     expect(result.allowedTools).toContain("mcp__guild-hall-meeting__*");
   });
 
-  test("non-manager worker with meeting context has no manager tools", () => {
+  test("non-manager worker with meeting context has no manager tools", async () => {
     const worker = makeWorker();
     const context = {
       ...testContext(),
       workerName: "test-worker",
       contextFactories: [meetingToolboxFactory],
     };
-    const result = resolveToolSet(worker, [], context);
+    const result = await resolveToolSet(worker, [], context);
 
     const names = result.mcpServers.map((s) => s.name);
     expect(names).not.toContain("guild-hall-manager");
     expect(result.allowedTools).not.toContain("mcp__guild-hall-manager__*");
+  });
+});
+
+// -- Domain toolbox loading --
+
+describe("domain toolbox loading", () => {
+  /**
+   * Creates a toolbox fixture: a package directory with package.json and
+   * index.ts that exports a toolboxFactory. The factory returns a mock MCP
+   * server shape (no real SDK dependency needed).
+   */
+  async function createToolboxFixture(
+    name: string,
+    serverName: string,
+    indexContent?: string,
+  ): Promise<DiscoveredPackage> {
+    const pkgDir = path.join(tmpDir, "packages", name);
+    await fs.mkdir(pkgDir, { recursive: true });
+
+    const packageJson = JSON.stringify({
+      name,
+      version: "1.0.0",
+      type: "toolbox",
+      description: `${name} toolbox`,
+    });
+    await fs.writeFile(path.join(pkgDir, "package.json"), packageJson);
+
+    const defaultIndex = `
+export function toolboxFactory(deps) {
+  return {
+    server: {
+      type: "sdk",
+      name: "${serverName}",
+      instance: { /* mock MCP server */ },
+    },
+  };
+}
+`;
+    await fs.writeFile(path.join(pkgDir, "index.ts"), indexContent ?? defaultIndex);
+
+    return {
+      name,
+      path: pkgDir,
+      metadata: {
+        type: "toolbox",
+        name,
+        description: `${name} toolbox`,
+      },
+    };
+  }
+
+  test("domain toolbox loads and server appears in mcpServers and allowedTools", async () => {
+    const pkg = await createToolboxFixture("my-tools", "my-tools-server");
+    const worker = makeWorker({ domainToolboxes: ["my-tools"] });
+
+    const result = await resolveToolSet(worker, [pkg], testContext());
+
+    // base + domain = 2 servers
+    expect(result.mcpServers).toHaveLength(2);
+    expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    expect(result.mcpServers[1].name).toBe("my-tools-server");
+    expect(result.allowedTools).toContain("mcp__my-tools-server__*");
+  });
+
+  test("multiple domain toolboxes load in declaration order", async () => {
+    const pkgA = await createToolboxFixture("tools-alpha", "alpha-server");
+    const pkgB = await createToolboxFixture("tools-beta", "beta-server");
+    const worker = makeWorker({ domainToolboxes: ["tools-alpha", "tools-beta"] });
+
+    const result = await resolveToolSet(worker, [pkgA, pkgB], testContext());
+
+    // base + alpha + beta = 3 servers
+    expect(result.mcpServers).toHaveLength(3);
+    expect(result.mcpServers[1].name).toBe("alpha-server");
+    expect(result.mcpServers[2].name).toBe("beta-server");
+  });
+
+  test("domain toolbox + context factory coexist (base + meeting + domain)", async () => {
+    const pkg = await createToolboxFixture("analysis", "analysis-server");
+    const worker = makeWorker({ domainToolboxes: ["analysis"] });
+    const context = {
+      ...testContext(),
+      contextFactories: [meetingToolboxFactory],
+    };
+
+    const result = await resolveToolSet(worker, [pkg], context);
+
+    // base + meeting + domain = 3 servers
+    expect(result.mcpServers).toHaveLength(3);
+    expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    expect(result.mcpServers[1].name).toBe("guild-hall-meeting");
+    expect(result.mcpServers[2].name).toBe("analysis-server");
+  });
+
+  test("missing toolboxFactory export throws with package name and available exports", async () => {
+    const indexContent = `
+export const version = "1.0.0";
+export function doStuff() { return 42; }
+`;
+    const pkg = await createToolboxFixture("bad-toolbox", "unused", indexContent);
+    const worker = makeWorker({ domainToolboxes: ["bad-toolbox"] });
+
+    await expect(
+      resolveToolSet(worker, [pkg], testContext()),
+    ).rejects.toThrow(/bad-toolbox.*toolboxFactory.*doStuff.*version/);
+  });
+
+  test("import failure throws with package name and cause", async () => {
+    const indexContent = `
+this is not valid javascript at all !!!
+`;
+    const pkg = await createToolboxFixture("broken-toolbox", "unused", indexContent);
+    const worker = makeWorker({ domainToolboxes: ["broken-toolbox"] });
+
+    await expect(
+      resolveToolSet(worker, [pkg], testContext()),
+    ).rejects.toThrow(/Failed to import.*broken-toolbox/);
+  });
+
+  test("worker-toolbox hybrid package works as domain toolbox", async () => {
+    const pkgDir = path.join(tmpDir, "packages", "hybrid-worker");
+    await fs.mkdir(pkgDir, { recursive: true });
+    await fs.writeFile(
+      path.join(pkgDir, "package.json"),
+      JSON.stringify({ name: "hybrid-worker", version: "1.0.0" }),
+    );
+    await fs.writeFile(
+      path.join(pkgDir, "index.ts"),
+      `
+export function toolboxFactory(deps) {
+  return {
+    server: { type: "sdk", name: "hybrid-server", instance: {} },
+  };
+}
+export function activate(ctx) {
+  return { systemPrompt: "test", tools: { mcpServers: [], allowedTools: [] }, resourceBounds: {} };
+}
+`,
+    );
+
+    const pkg: DiscoveredPackage = {
+      name: "hybrid-worker",
+      path: pkgDir,
+      metadata: {
+        type: ["worker", "toolbox"],
+        name: "hybrid-worker",
+        description: "A hybrid package",
+      } as ToolboxMetadata,
+    };
+    const worker = makeWorker({ domainToolboxes: ["hybrid-worker"] });
+
+    const result = await resolveToolSet(worker, [pkg], testContext());
+
+    expect(result.mcpServers).toHaveLength(2);
+    expect(result.mcpServers[1].name).toBe("hybrid-server");
   });
 });

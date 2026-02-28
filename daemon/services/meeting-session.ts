@@ -508,7 +508,7 @@ notes_summary: ""
         );
       }
 
-      const resolvedTools = resolveToolSet(workerMeta, deps.packages, {
+      const resolvedTools = await resolveToolSet(workerMeta, deps.packages, {
         projectName: meeting.projectName,
         contextId: meeting.meetingId as string,
         contextType: "meeting",

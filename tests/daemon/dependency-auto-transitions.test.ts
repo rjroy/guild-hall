@@ -456,7 +456,8 @@ describe("dependency auto-transitions", () => {
       const activateFn = async (_pkg: DiscoveredPackage, _ctx: unknown) => ({
         systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
       });
-      const resolveToolSetFn = (_w: WorkerMetadata, _p: DiscoveredPackage[], _ctx: ToolboxResolverContext): ResolvedToolSet => ({
+      // eslint-disable-next-line @typescript-eslint/require-await
+      const resolveToolSetFn = async (_w: WorkerMetadata, _p: DiscoveredPackage[], _ctx: ToolboxResolverContext): Promise<ResolvedToolSet> => ({
         mcpServers: [], allowedTools: [],
       });
 
@@ -553,7 +554,8 @@ describe("dependency auto-transitions", () => {
       const activateFn = async (_pkg: DiscoveredPackage, _ctx: unknown) => ({
         systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
       });
-      const resolveToolSetFn = (_w: WorkerMetadata, _p: DiscoveredPackage[], _ctx: ToolboxResolverContext): ResolvedToolSet => ({
+      // eslint-disable-next-line @typescript-eslint/require-await
+      const resolveToolSetFn = async (_w: WorkerMetadata, _p: DiscoveredPackage[], _ctx: ToolboxResolverContext): Promise<ResolvedToolSet> => ({
         mcpServers: [], allowedTools: [],
       });
 

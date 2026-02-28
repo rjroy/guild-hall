@@ -230,9 +230,9 @@ describe("toolbox resolver passes identity to base toolbox", () => {
     };
   }
 
-  test("resolveToolSet creates base toolbox with workerName from context", () => {
+  test("resolveToolSet creates base toolbox with workerName from context", async () => {
     const worker = makeWorker();
-    const result = resolveToolSet(worker, [], {
+    const result = await resolveToolSet(worker, [], {
       projectName: "test-project",
       contextId: "meeting-test",
       contextType: "meeting",
@@ -244,9 +244,9 @@ describe("toolbox resolver passes identity to base toolbox", () => {
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
   });
 
-  test("workerName is always required in new context shape", () => {
+  test("workerName is always required in new context shape", async () => {
     const worker = makeWorker();
-    const result = resolveToolSet(worker, [], {
+    const result = await resolveToolSet(worker, [], {
       projectName: "test-project",
       contextId: "meeting-test",
       contextType: "meeting",
@@ -259,10 +259,10 @@ describe("toolbox resolver passes identity to base toolbox", () => {
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
   });
 
-  test("projectName is passed through to base toolbox", () => {
+  test("projectName is passed through to base toolbox", async () => {
     const worker = makeWorker();
 
-    const result = resolveToolSet(worker, [], {
+    const result = await resolveToolSet(worker, [], {
       projectName: "explicit-project-name",
       contextId: "meeting-test",
       contextType: "meeting",
