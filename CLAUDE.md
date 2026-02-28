@@ -78,7 +78,7 @@ bun run guild-hall sync [project-name]    # post-merge sync (detect merged PRs, 
 
 **Daemon process model.** Entry point `daemon/index.ts` parses args, cleans stale sockets, starts `Bun.serve({ unix, fetch })`, writes PID file. Routes use DI factory pattern: `createHealthRoutes(deps)`. Production wiring lives in `daemon/app.ts` via `createProductionApp()`.
 
-**Toolbox resolver.** Uses a generic `ToolboxFactory` interface. All factories receive `GuildHallToolboxDeps` (includes eventBus). The resolver runs `baseToolboxFactory` (3 built-in MCP tools), then caller-provided `contextFactories` (meeting, commission, manager). Manager toolbox is gated by `isManager` flag.
+**Toolbox resolver.** Uses a name-based `SYSTEM_TOOLBOX_REGISTRY` mapping names to `ToolboxFactory` functions. All factories receive `GuildHallToolboxDeps` (includes eventBus). The resolver runs: (1) `baseToolboxFactory`, (2) context toolbox auto-added by `contextType` from the registry, (3) system toolboxes from `worker.systemToolboxes` (e.g. `["manager"]`), (4) domain toolboxes from packages. Manager toolbox requires `services` in deps.
 
 **Type boundaries.** Daemon-specific types live in `daemon/` (e.g., `GuildHallEvent`, `MeetingId`, `CommissionId`, `SystemEvent`, `AppDeps`). Shared types used by both daemon and Next.js live in `lib/types.ts`. The daemon imports from `lib/` via `@/lib/` path alias; `lib/` never imports from `daemon/`.
 

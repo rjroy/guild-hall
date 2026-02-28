@@ -62,6 +62,7 @@ export interface WorkerMetadata {
   type: "worker" | ["worker", "toolbox"];
   identity: WorkerIdentity;
   posture: string;
+  systemToolboxes?: string[];
   domainToolboxes: string[];
   builtInTools: string[];
   checkoutScope: CheckoutScope;

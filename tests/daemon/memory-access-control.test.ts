@@ -261,9 +261,10 @@ describe("toolbox resolver passes identity to base toolbox", () => {
       config: { projects: [] },
     });
 
-    // Base only (no context factories)
-    expect(result.mcpServers).toHaveLength(1);
+    // Base + auto-added meeting context toolbox
+    expect(result.mcpServers).toHaveLength(2);
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    expect(result.mcpServers[1].name).toBe("guild-hall-meeting");
   });
 
   test("projectName is passed through to base toolbox", async () => {

@@ -9,11 +9,22 @@ import type {
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import type { EventBus } from "./event-bus";
 import { baseToolboxFactory } from "./base-toolbox";
+import { meetingToolboxFactory } from "./meeting-toolbox";
+import { commissionToolboxFactory } from "./commission-toolbox";
+import { managerToolboxFactory } from "./manager-toolbox";
 import type {
   GuildHallToolboxDeps,
   ToolboxFactory,
   ToolboxOutput,
 } from "./toolbox-types";
+
+// -- System toolbox registry --
+
+const SYSTEM_TOOLBOX_REGISTRY: Record<string, ToolboxFactory> = {
+  meeting: meetingToolboxFactory,
+  commission: commissionToolboxFactory,
+  manager: managerToolboxFactory,
+};
 
 // -- Types --
 
@@ -25,8 +36,6 @@ export interface ToolboxResolverContext {
   workerName: string;
   eventBus: EventBus;
   config: AppConfig;
-  /** Pre-bound context factories (meeting, commission, manager). */
-  contextFactories?: ToolboxFactory[];
   /** Services for the manager toolbox (commission session + git ops). */
   services?: GuildHallToolServices;
 }
@@ -37,9 +46,10 @@ export interface ToolboxResolverContext {
  * Assembles the complete tool set for a worker activation.
  *
  * 1. Base toolbox (always present, provides memory/artifact/decision tools)
- * 2. Context factories (meeting, commission, manager, bound by caller)
- * 3. Domain toolboxes (resolved from worker.domainToolboxes against discovered packages)
- * 4. Built-in tool names (from worker.builtInTools, passed through as allowedTools)
+ * 2. Context toolbox (auto-added from registry based on contextType)
+ * 3. System toolboxes (from worker.systemToolboxes, looked up in registry)
+ * 4. Domain toolboxes (resolved from worker.domainToolboxes against discovered packages)
+ * 5. Built-in tool names (from worker.builtInTools, passed through as allowedTools)
  *
  * Throws if a worker references a domain toolbox that doesn't exist in the
  * discovered packages (REQ-WKR-13).
@@ -67,13 +77,31 @@ export async function resolveToolSet(
   const baseOutput = baseToolboxFactory(deps);
   mcpServers.push(baseOutput.server);
 
-  // 2. Context factories (meeting, commission, manager)
-  for (const factory of context.contextFactories ?? []) {
-    const output = factory(deps);
-    mcpServers.push(output.server);
+  // 2. Context toolbox (auto-added based on context type)
+  const contextFactory = SYSTEM_TOOLBOX_REGISTRY[context.contextType];
+  mcpServers.push(contextFactory(deps).server);
+
+  // 3. Worker's system toolboxes (e.g. manager)
+  for (const name of worker.systemToolboxes ?? []) {
+    const factory = SYSTEM_TOOLBOX_REGISTRY[name];
+    if (!factory) {
+      throw new Error(
+        `Worker "${worker.identity.name}" declares system toolbox "${name}" ` +
+          `but no such system toolbox exists. ` +
+          `Available: ${Object.keys(SYSTEM_TOOLBOX_REGISTRY).join(", ")}`,
+      );
+    }
+    if (name === "manager" && !deps.services) {
+      throw new Error(
+        `Worker "${worker.identity.name}" declares system toolbox "manager" ` +
+          `but required services are not available. ` +
+          `Only the Guild Master worker may use the manager toolbox.`,
+      );
+    }
+    mcpServers.push(factory(deps).server);
   }
 
-  // 3. Domain toolboxes
+  // 4. Domain toolboxes
   for (const toolboxName of worker.domainToolboxes) {
     const pkg = packages.find(
       (p) => p.name === toolboxName && isToolboxPackage(p),
@@ -89,7 +117,7 @@ export async function resolveToolSet(
     mcpServers.push(output.server);
   }
 
-  // 4. Built-in tools + MCP server tool wildcards.
+  // 5. Built-in tools + MCP server tool wildcards.
   //    allowedTools is a whitelist for ALL tools including MCP tools.
   //    MCP tools follow the naming convention mcp__<server>__<tool>.
   //    Without wildcards, MCP tools are silently filtered out.

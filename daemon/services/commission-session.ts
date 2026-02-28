@@ -54,9 +54,6 @@ import {
   updateResultSummary,
 } from "./commission-artifact-helpers";
 import { resolveToolSet } from "./toolbox-resolver";
-import { commissionToolboxFactory } from "./commission-toolbox";
-import { managerToolboxFactory } from "./manager-toolbox";
-import type { ToolboxFactory } from "./toolbox-types";
 import { loadMemories } from "./memory-injector";
 import { triggerCompaction } from "./memory-compaction";
 import {
@@ -1062,13 +1059,6 @@ export function createCommissionSession(
       }
     });
 
-    const contextFactories: ToolboxFactory[] = [
-      commissionToolboxFactory,
-    ];
-    if (isManager && deps.commissionSessionRef?.current && deps.eventBus) {
-      contextFactories.push(managerToolboxFactory);
-    }
-
     const resolve = deps.resolveToolSetFn ?? resolveToolSet;
     const resolvedTools = await resolve(workerMeta, deps.packages, {
       projectName: commission.projectName,
@@ -1078,7 +1068,6 @@ export function createCommissionSession(
       guildHallHome: ghHome,
       eventBus: deps.eventBus,
       config: deps.config,
-      contextFactories,
       services: isManager && deps.commissionSessionRef?.current
         ? { commissionSession: deps.commissionSessionRef.current, gitOps: git }
         : undefined,

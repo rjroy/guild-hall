@@ -22,8 +22,6 @@ import {
   type CommissionSessionDeps,
 } from "@/daemon/services/commission-session";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
-import { meetingToolboxFactory } from "@/daemon/services/meeting-toolbox";
-import { commissionToolboxFactory } from "@/daemon/services/commission-toolbox";
 import {
   makeReadMemoryHandler,
   makeWriteMemoryHandler,
@@ -536,7 +534,6 @@ describe("State Isolation", () => {
       guildHallHome: ghHome,
       eventBus: createEventBus(),
       config: { projects: [] },
-      contextFactories: [meetingToolboxFactory],
     });
 
     // Resolve tools for a commission context
@@ -548,9 +545,6 @@ describe("State Isolation", () => {
       guildHallHome: ghHome,
       eventBus: createEventBus(),
       config: { projects: [] },
-      contextFactories: [
-        commissionToolboxFactory,
-      ],
     });
 
     // Both should have the base toolbox
