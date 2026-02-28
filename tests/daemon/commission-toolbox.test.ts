@@ -5,6 +5,7 @@ import * as os from "node:os";
 import matter from "gray-matter";
 import { asCommissionId } from "@/daemon/types";
 import type { CommissionId } from "@/daemon/types";
+import type { CommissionToolboxDeps } from "@/daemon/services/commission-toolbox";
 import {
   makeReportProgressHandler,
   makeSubmitResultHandler,
@@ -16,24 +17,42 @@ import {
   readLinkedArtifacts,
   commissionArtifactPath,
 } from "@/daemon/services/commission-artifact-helpers";
+import { commissionWorktreePath } from "@/lib/paths";
 
 let tmpDir: string;
-let projectPath: string;
+let guildHallHome: string;
+/** The worktree path where resolveWritePath will find the commission artifacts. */
+let worktreePath: string;
 let commissionId: CommissionId;
+
+const projectName = "test-project";
 
 // No-op callbacks matching the new CommissionToolboxDeps interface
 const noopOnProgress = (_summary: string) => {};
 const noopOnResult = (_summary: string, _artifacts?: string[]) => {};
 const noopOnQuestion = (_question: string) => {};
 
+function makeDeps(overrides?: Partial<CommissionToolboxDeps>): CommissionToolboxDeps {
+  return {
+    guildHallHome,
+    projectName,
+    contextId: commissionId,
+    onProgress: noopOnProgress,
+    onResult: noopOnResult,
+    onQuestion: noopOnQuestion,
+    ...overrides,
+  };
+}
+
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-comm-toolbox-"));
-  projectPath = path.join(tmpDir, "test-project");
+  guildHallHome = path.join(tmpDir, ".guild-hall");
   commissionId = asCommissionId("commission-researcher-20260221-143000");
 
-  // Create commissions directory
+  // Create the commission worktree directory so resolveWritePath finds it.
+  worktreePath = commissionWorktreePath(guildHallHome, projectName, commissionId);
   await fs.mkdir(
-    path.join(projectPath, ".lore", "commissions"),
+    path.join(worktreePath, ".lore", "commissions"),
     { recursive: true },
   );
 });
@@ -85,7 +104,7 @@ projectName: guild-hall
 ---
 `;
 
-  const artifactPath = commissionArtifactPath(projectPath, commissionId);
+  const artifactPath = commissionArtifactPath(worktreePath, commissionId);
   await fs.writeFile(artifactPath, content, "utf-8");
 }
 
@@ -95,11 +114,7 @@ describe("report_progress", () => {
   test("appends timeline entry and updates current_progress", async () => {
     await writeCommissionArtifact();
 
-    const handler = makeReportProgressHandler(
-      projectPath,
-      commissionId,
-      noopOnProgress,
-    );
+    const handler = makeReportProgressHandler(makeDeps());
     const result = await handler({ summary: "Analyzed 3 OAuth libraries" });
 
     expect(result.isError).toBeUndefined();
@@ -108,7 +123,7 @@ describe("report_progress", () => {
     );
 
     // Verify timeline entry was added
-    const timeline = await readActivityTimeline(projectPath, commissionId);
+    const timeline = await readActivityTimeline(worktreePath, commissionId);
     const progressEntries = timeline.filter(
       (e) => e.event === "progress_report",
     );
@@ -116,8 +131,8 @@ describe("report_progress", () => {
     expect(progressEntries[0].reason).toBe("Analyzed 3 OAuth libraries");
 
     // Verify current_progress was updated
-    const artifactPath = commissionArtifactPath(projectPath, commissionId);
-    const raw = await fs.readFile(artifactPath, "utf-8");
+    const artifactFile = commissionArtifactPath(worktreePath, commissionId);
+    const raw = await fs.readFile(artifactFile, "utf-8");
     const parsed = matter(raw);
     expect(parsed.data.current_progress).toBe("Analyzed 3 OAuth libraries");
   });
@@ -125,23 +140,19 @@ describe("report_progress", () => {
   test("multiple progress reports accumulate in timeline", async () => {
     await writeCommissionArtifact();
 
-    const handler = makeReportProgressHandler(
-      projectPath,
-      commissionId,
-      noopOnProgress,
-    );
+    const handler = makeReportProgressHandler(makeDeps());
     await handler({ summary: "Step 1 complete" });
     await handler({ summary: "Step 2 complete" });
 
-    const timeline = await readActivityTimeline(projectPath, commissionId);
+    const timeline = await readActivityTimeline(worktreePath, commissionId);
     const progressEntries = timeline.filter(
       (e) => e.event === "progress_report",
     );
     expect(progressEntries).toHaveLength(2);
 
     // current_progress should show only the latest
-    const artifactPath = commissionArtifactPath(projectPath, commissionId);
-    const raw = await fs.readFile(artifactPath, "utf-8");
+    const artifactFile = commissionArtifactPath(worktreePath, commissionId);
+    const raw = await fs.readFile(artifactFile, "utf-8");
     const parsed = matter(raw);
     expect(parsed.data.current_progress).toBe("Step 2 complete");
   });
@@ -153,11 +164,7 @@ describe("submit_result", () => {
   test("sets result_summary and records in timeline", async () => {
     await writeCommissionArtifact();
 
-    const handler = makeSubmitResultHandler(
-      projectPath,
-      commissionId,
-      noopOnResult,
-    );
+    const handler = makeSubmitResultHandler(makeDeps());
     const result = await handler({
       summary: "Found 3 viable OAuth patterns",
     });
@@ -168,13 +175,13 @@ describe("submit_result", () => {
     );
 
     // Verify result_summary was set
-    const artifactPath = commissionArtifactPath(projectPath, commissionId);
-    const raw = await fs.readFile(artifactPath, "utf-8");
+    const artifactFile = commissionArtifactPath(worktreePath, commissionId);
+    const raw = await fs.readFile(artifactFile, "utf-8");
     const parsed = matter(raw);
     expect(parsed.data.result_summary).toBe("Found 3 viable OAuth patterns");
 
     // Verify timeline entry
-    const timeline = await readActivityTimeline(projectPath, commissionId);
+    const timeline = await readActivityTimeline(worktreePath, commissionId);
     const resultEntries = timeline.filter(
       (e) => e.event === "result_submitted",
     );
@@ -185,17 +192,13 @@ describe("submit_result", () => {
   test("adds linked_artifacts when provided", async () => {
     await writeCommissionArtifact();
 
-    const handler = makeSubmitResultHandler(
-      projectPath,
-      commissionId,
-      noopOnResult,
-    );
+    const handler = makeSubmitResultHandler(makeDeps());
     await handler({
       summary: "Research complete",
       artifacts: ["specs/oauth-report.md", "notes/findings.md"],
     });
 
-    const linked = await readLinkedArtifacts(projectPath, commissionId);
+    const linked = await readLinkedArtifacts(worktreePath, commissionId);
     expect(linked).toContain("specs/oauth-report.md");
     expect(linked).toContain("notes/findings.md");
   });
@@ -203,11 +206,7 @@ describe("submit_result", () => {
   test("second call returns error text", async () => {
     await writeCommissionArtifact();
 
-    const handler = makeSubmitResultHandler(
-      projectPath,
-      commissionId,
-      noopOnResult,
-    );
+    const handler = makeSubmitResultHandler(makeDeps());
 
     // First call succeeds
     const first = await handler({ summary: "Done" });
@@ -222,17 +221,13 @@ describe("submit_result", () => {
   test("works without artifacts parameter", async () => {
     await writeCommissionArtifact();
 
-    const handler = makeSubmitResultHandler(
-      projectPath,
-      commissionId,
-      noopOnResult,
-    );
+    const handler = makeSubmitResultHandler(makeDeps());
     const result = await handler({ summary: "Minimal result" });
 
     expect(result.isError).toBeUndefined();
 
     // linked_artifacts should remain empty
-    const linked = await readLinkedArtifacts(projectPath, commissionId);
+    const linked = await readLinkedArtifacts(worktreePath, commissionId);
     expect(linked).toEqual([]);
   });
 });
@@ -243,11 +238,7 @@ describe("log_question", () => {
   test("appends question to timeline", async () => {
     await writeCommissionArtifact();
 
-    const handler = makeLogQuestionHandler(
-      projectPath,
-      commissionId,
-      noopOnQuestion,
-    );
+    const handler = makeLogQuestionHandler(makeDeps());
     const result = await handler({
       question: "Should I include deprecated patterns?",
     });
@@ -257,7 +248,7 @@ describe("log_question", () => {
       "Question logged: Should I include deprecated patterns?",
     );
 
-    const timeline = await readActivityTimeline(projectPath, commissionId);
+    const timeline = await readActivityTimeline(worktreePath, commissionId);
     const questionEntries = timeline.filter((e) => e.event === "question");
     expect(questionEntries).toHaveLength(1);
     expect(questionEntries[0].reason).toBe(
@@ -268,15 +259,11 @@ describe("log_question", () => {
   test("multiple questions accumulate in timeline", async () => {
     await writeCommissionArtifact();
 
-    const handler = makeLogQuestionHandler(
-      projectPath,
-      commissionId,
-      noopOnQuestion,
-    );
+    const handler = makeLogQuestionHandler(makeDeps());
     await handler({ question: "First question?" });
     await handler({ question: "Second question?" });
 
-    const timeline = await readActivityTimeline(projectPath, commissionId);
+    const timeline = await readActivityTimeline(worktreePath, commissionId);
     const questionEntries = timeline.filter((e) => e.event === "question");
     expect(questionEntries).toHaveLength(2);
   });
@@ -289,11 +276,9 @@ describe("callback invocation", () => {
     await writeCommissionArtifact();
 
     let calledWith = "";
-    const handler = makeReportProgressHandler(
-      projectPath,
-      commissionId,
-      (summary: string) => { calledWith = summary; },
-    );
+    const handler = makeReportProgressHandler(makeDeps({
+      onProgress: (summary: string) => { calledWith = summary; },
+    }));
     const result = await handler({ summary: "Progress update" });
 
     expect(result.isError).toBeUndefined();
@@ -306,14 +291,12 @@ describe("callback invocation", () => {
 
     let calledSummary = "";
     let calledArtifacts: string[] | undefined;
-    const handler = makeSubmitResultHandler(
-      projectPath,
-      commissionId,
-      (summary: string, artifacts?: string[]) => {
+    const handler = makeSubmitResultHandler(makeDeps({
+      onResult: (summary: string, artifacts?: string[]) => {
         calledSummary = summary;
         calledArtifacts = artifacts;
       },
-    );
+    }));
     const result = await handler({
       summary: "Result with artifacts",
       artifacts: ["notes/finding.md"],
@@ -329,11 +312,9 @@ describe("callback invocation", () => {
     await writeCommissionArtifact();
 
     let calledWith = "";
-    const handler = makeLogQuestionHandler(
-      projectPath,
-      commissionId,
-      (question: string) => { calledWith = question; },
-    );
+    const handler = makeLogQuestionHandler(makeDeps({
+      onQuestion: (question: string) => { calledWith = question; },
+    }));
     const result = await handler({ question: "A question?" });
 
     expect(result.isError).toBeUndefined();
@@ -347,20 +328,8 @@ describe("callback invocation", () => {
 describe("per-closure resultSubmitted flag", () => {
   test("each createCommissionToolbox() call gets its own flag", () => {
     // Creating two separate toolbox instances verifies the flag is per-closure
-    const toolbox1 = createCommissionToolbox({
-      projectPath,
-      commissionId,
-      onProgress: noopOnProgress,
-      onResult: noopOnResult,
-      onQuestion: noopOnQuestion,
-    });
-    const toolbox2 = createCommissionToolbox({
-      projectPath,
-      commissionId,
-      onProgress: noopOnProgress,
-      onResult: noopOnResult,
-      onQuestion: noopOnQuestion,
-    });
+    const toolbox1 = createCommissionToolbox(makeDeps());
+    const toolbox2 = createCommissionToolbox(makeDeps());
 
     // Both should be independent instances
     expect(toolbox1.server.type).toBe("sdk");
@@ -379,16 +348,8 @@ describe("per-closure resultSubmitted flag", () => {
   test("separate handler instances have independent resultSubmitted flags", async () => {
     await writeCommissionArtifact();
 
-    const handler1 = makeSubmitResultHandler(
-      projectPath,
-      commissionId,
-      noopOnResult,
-    );
-    const handler2 = makeSubmitResultHandler(
-      projectPath,
-      commissionId,
-      noopOnResult,
-    );
+    const handler1 = makeSubmitResultHandler(makeDeps());
+    const handler2 = makeSubmitResultHandler(makeDeps());
 
     // First handler submits successfully
     const result1 = await handler1({ summary: "Handler 1 result" });
@@ -408,13 +369,7 @@ describe("per-closure resultSubmitted flag", () => {
 
 describe("createCommissionToolbox", () => {
   test("returns server config and wasResultSubmitted callback", () => {
-    const result = createCommissionToolbox({
-      projectPath,
-      commissionId,
-      onProgress: noopOnProgress,
-      onResult: noopOnResult,
-      onQuestion: noopOnQuestion,
-    });
+    const result = createCommissionToolbox(makeDeps());
 
     expect(result.server.type).toBe("sdk");
     expect(result.server.name).toBe("guild-hall-commission");

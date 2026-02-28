@@ -232,9 +232,7 @@ describe("toolbox resolver passes identity to base toolbox", () => {
 
   test("resolveToolSet creates base toolbox with workerName from context", () => {
     const worker = makeWorker();
-    const projectPath = path.join(tmpDir, "test-project");
     const result = resolveToolSet(worker, [], {
-      projectPath,
       projectName: "test-project",
       meetingId: "meeting-test",
       workerName: "my-specific-worker",
@@ -254,11 +252,9 @@ describe("toolbox resolver passes identity to base toolbox", () => {
         displayTitle: "Fallback",
       },
     });
-    const projectPath = path.join(tmpDir, "test-project");
 
     // No workerName in context: base toolbox only (no meeting toolbox without workerName)
     const result = resolveToolSet(worker, [], {
-      projectPath,
       projectName: "test-project",
       meetingId: "meeting-test",
       guildHallHome,
@@ -268,13 +264,12 @@ describe("toolbox resolver passes identity to base toolbox", () => {
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
   });
 
-  test("resolveToolSet falls back to path.basename when context.projectName is absent", () => {
+  test("projectName is passed through to base toolbox", () => {
     const worker = makeWorker();
-    const projectPath = path.join(tmpDir, "inferred-project-name");
 
     // workerName present triggers meeting toolbox, so base + meeting = 2
     const result = resolveToolSet(worker, [], {
-      projectPath,
+      projectName: "explicit-project-name",
       meetingId: "meeting-test",
       workerName: "test-worker",
       guildHallHome,

@@ -24,36 +24,27 @@ import {
   appendMeetingLog,
   addLinkedArtifact,
 } from "@/daemon/services/meeting-artifact-helpers";
-import { validateContainedPath, formatTimestamp } from "@/daemon/lib/toolbox-utils";
+import { validateContainedPath, formatTimestamp, resolveWritePath } from "@/daemon/lib/toolbox-utils";
+import { integrationWorktreePath } from "@/lib/paths";
 
 export interface MeetingToolboxDeps {
-  projectPath: string;
-  /** Path to the integration worktree for writing meeting request artifacts.
-   *  Used by propose_followup so the dashboard can see requests before the
-   *  parent meeting closes. Falls back to projectPath if not set. */
-  integrationPath?: string;
-  /** Activity worktree path for this meeting. When set, link_artifact and
-   *  summarize_progress write to this directory instead of projectPath.
-   *  Must be the meeting's worktreeDir for open meetings so artifact writes
-   *  land in the activity worktree, not the user's project root. */
-  worktreeDir?: string;
-  meetingId: string;
+  guildHallHome: string;
+  projectName: string;
+  contextId: string;
   workerName: string;
-  guildHallHome?: string;
 }
 
 // -- Tool handler factories --
 
-export function makeLinkArtifactHandler(
-  projectPath: string,
-  meetingId: string,
-  worktreeDir?: string,
-) {
-  const writePath = worktreeDir ?? projectPath;
-  const mid = asMeetingId(meetingId);
-  const lorePath = path.join(writePath, ".lore");
+export function makeLinkArtifactHandler(deps: MeetingToolboxDeps) {
+  const mid = asMeetingId(deps.contextId);
 
   return async (args: { artifactPath: string }): Promise<ToolResult> => {
+    const writePath = await resolveWritePath(
+      deps.guildHallHome, deps.projectName, deps.contextId, "meeting",
+    );
+    const lorePath = path.join(writePath, ".lore");
+
     // Validate path doesn't escape .lore/
     try {
       validateContainedPath(lorePath, args.artifactPath);
@@ -109,18 +100,14 @@ export function makeLinkArtifactHandler(
   };
 }
 
-export function makeProposeFollowupHandler(
-  projectPath: string,
-  meetingId: string,
-  workerName: string,
-) {
+export function makeProposeFollowupHandler(deps: MeetingToolboxDeps) {
   return async (args: {
     reason: string;
     referencedArtifacts?: string[];
   }): Promise<ToolResult> => {
     const now = new Date();
     const ts = formatTimestamp(now);
-    const followupId = `followup-${workerName}-${ts}`;
+    const followupId = `followup-${deps.workerName}-${ts}`;
     const followupMeetingId = asMeetingId(followupId);
 
     const dateStr = now.toISOString().split("T")[0];
@@ -133,17 +120,17 @@ export function makeProposeFollowupHandler(
         : "linked_artifacts:\n" +
           linkedArtifacts.map((a) => `  - ${a}`).join("\n");
 
-    const reasonForLog = `Worker proposed follow-up from meeting ${meetingId}`;
+    const reasonForLog = `Worker proposed follow-up from meeting ${deps.contextId}`;
 
     // Use the same template literal format as writeMeetingArtifact in
     // meeting-session.ts, with status: requested.
     const content = `---
-title: "Follow-up with ${workerName}"
+title: "Follow-up with ${deps.workerName}"
 date: ${dateStr}
 status: requested
 tags: [meeting]
-worker: ${workerName}
-workerDisplayTitle: "${workerName}"
+worker: ${deps.workerName}
+workerDisplayTitle: "${deps.workerName}"
 agenda: "${args.reason.replace(/"/g, '\\"')}"
 deferred_until: ""
 ${linkedYaml}
@@ -155,7 +142,10 @@ notes_summary: ""
 ---
 `;
 
-    const artifactPath = meetingArtifactPath(projectPath, followupMeetingId);
+    // propose_followup always writes to the integration worktree so the
+    // dashboard can see the request before the parent meeting closes.
+    const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
+    const artifactPath = meetingArtifactPath(intPath, followupMeetingId);
     await fs.mkdir(path.dirname(artifactPath), { recursive: true });
     await fs.writeFile(artifactPath, content, "utf-8");
 
@@ -170,21 +160,14 @@ notes_summary: ""
   };
 }
 
-export function makeSummarizeProgressHandler(
-  projectPath: string,
-  meetingId: string,
-  worktreeDir?: string,
-) {
-  const writePath = worktreeDir ?? projectPath;
-  const mid = asMeetingId(meetingId);
+export function makeSummarizeProgressHandler(deps: MeetingToolboxDeps) {
+  const mid = asMeetingId(deps.contextId);
 
   return async (args: { summary: string }): Promise<ToolResult> => {
-    await appendMeetingLog(
-      writePath,
-      mid,
-      "progress_summary",
-      args.summary,
+    const writePath = await resolveWritePath(
+      deps.guildHallHome, deps.projectName, deps.contextId, "meeting",
     );
+    await appendMeetingLog(writePath, mid, "progress_summary", args.summary);
 
     return {
       content: [
@@ -207,23 +190,9 @@ export function makeSummarizeProgressHandler(
 export function createMeetingToolbox(
   deps: MeetingToolboxDeps,
 ): McpSdkServerConfigWithInstance {
-  const linkArtifact = makeLinkArtifactHandler(
-    deps.projectPath,
-    deps.meetingId,
-    deps.worktreeDir,
-  );
-  // propose_followup writes to integration worktree so the dashboard can
-  // see the request before the parent meeting closes and squash-merges.
-  const proposeFollowup = makeProposeFollowupHandler(
-    deps.integrationPath ?? deps.projectPath,
-    deps.meetingId,
-    deps.workerName,
-  );
-  const summarizeProgress = makeSummarizeProgressHandler(
-    deps.projectPath,
-    deps.meetingId,
-    deps.worktreeDir,
-  );
+  const linkArtifact = makeLinkArtifactHandler(deps);
+  const proposeFollowup = makeProposeFollowupHandler(deps);
+  const summarizeProgress = makeSummarizeProgressHandler(deps);
 
   return createSdkMcpServer({
     name: "guild-hall-meeting",

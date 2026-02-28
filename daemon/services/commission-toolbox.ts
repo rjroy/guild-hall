@@ -27,14 +27,12 @@ import {
   updateCurrentProgress,
   updateResultSummary,
 } from "@/daemon/services/commission-artifact-helpers";
+import { resolveWritePath } from "@/daemon/lib/toolbox-utils";
 
 export interface CommissionToolboxDeps {
-  /** Must be the activity worktree path (commission config.workingDirectory).
-   *  Writing to the project root instead of the activity worktree would put
-   *  artifact changes on the wrong branch. */
-  projectPath: string;
-  commissionId: string;
-  guildHallHome?: string;
+  guildHallHome: string;
+  projectName: string;
+  contextId: string;
   /** Called after a progress report is persisted to disk. */
   onProgress: (summary: string) => void;
   /** Called after the final result is persisted to disk. */
@@ -46,22 +44,18 @@ export interface CommissionToolboxDeps {
 // -- Tool handler factories --
 
 export function makeReportProgressHandler(
-  projectPath: string,
-  commissionId: string,
-  onProgress: (summary: string) => void,
+  deps: CommissionToolboxDeps,
 ) {
-  const cid = asCommissionId(commissionId);
+  const cid = asCommissionId(deps.contextId);
 
   return async (args: { summary: string }): Promise<ToolResult> => {
-    await appendTimelineEntry(
-      projectPath,
-      cid,
-      "progress_report",
-      args.summary,
+    const writePath = await resolveWritePath(
+      deps.guildHallHome, deps.projectName, deps.contextId, "commission",
     );
-    await updateCurrentProgress(projectPath, cid, args.summary);
+    await appendTimelineEntry(writePath, cid, "progress_report", args.summary);
+    await updateCurrentProgress(writePath, cid, args.summary);
 
-    onProgress(args.summary);
+    deps.onProgress(args.summary);
 
     return {
       content: [
@@ -72,11 +66,9 @@ export function makeReportProgressHandler(
 }
 
 export function makeSubmitResultHandler(
-  projectPath: string,
-  commissionId: string,
-  onResult: (summary: string, artifacts?: string[]) => void,
+  deps: CommissionToolboxDeps,
 ) {
-  const cid = asCommissionId(commissionId);
+  const cid = asCommissionId(deps.contextId);
   let resultSubmitted = false;
 
   return async (args: {
@@ -96,13 +88,11 @@ export function makeSubmitResultHandler(
     }
 
     try {
-      await updateResultSummary(projectPath, cid, args.summary, args.artifacts);
-      await appendTimelineEntry(
-        projectPath,
-        cid,
-        "result_submitted",
-        args.summary,
+      const writePath = await resolveWritePath(
+        deps.guildHallHome, deps.projectName, deps.contextId, "commission",
       );
+      await updateResultSummary(writePath, cid, args.summary, args.artifacts);
+      await appendTimelineEntry(writePath, cid, "result_submitted", args.summary);
     } catch (err: unknown) {
       // File write failed (e.g. ENOENT). Don't set the flag so
       // the model can retry after the path issue is resolved.
@@ -120,7 +110,7 @@ export function makeSubmitResultHandler(
     // Only mark as submitted after successful file write
     resultSubmitted = true;
 
-    onResult(args.summary, args.artifacts);
+    deps.onResult(args.summary, args.artifacts);
 
     return {
       content: [
@@ -131,21 +121,17 @@ export function makeSubmitResultHandler(
 }
 
 export function makeLogQuestionHandler(
-  projectPath: string,
-  commissionId: string,
-  onQuestion: (question: string) => void,
+  deps: CommissionToolboxDeps,
 ) {
-  const cid = asCommissionId(commissionId);
+  const cid = asCommissionId(deps.contextId);
 
   return async (args: { question: string }): Promise<ToolResult> => {
-    await appendTimelineEntry(
-      projectPath,
-      cid,
-      "question",
-      args.question,
+    const writePath = await resolveWritePath(
+      deps.guildHallHome, deps.projectName, deps.contextId, "commission",
     );
+    await appendTimelineEntry(writePath, cid, "question", args.question);
 
-    onQuestion(args.question);
+    deps.onQuestion(args.question);
 
     return {
       content: [
@@ -173,21 +159,9 @@ export interface CommissionToolboxResult {
 export function createCommissionToolbox(
   deps: CommissionToolboxDeps,
 ): CommissionToolboxResult {
-  const reportProgress = makeReportProgressHandler(
-    deps.projectPath,
-    deps.commissionId,
-    deps.onProgress,
-  );
-  const submitResult = makeSubmitResultHandler(
-    deps.projectPath,
-    deps.commissionId,
-    deps.onResult,
-  );
-  const logQuestion = makeLogQuestionHandler(
-    deps.projectPath,
-    deps.commissionId,
-    deps.onQuestion,
-  );
+  const reportProgress = makeReportProgressHandler(deps);
+  const submitResult = makeSubmitResultHandler(deps);
+  const logQuestion = makeLogQuestionHandler(deps);
 
   // Track whether submit_result was called so the worker can detect
   // sessions that finished without submitting.

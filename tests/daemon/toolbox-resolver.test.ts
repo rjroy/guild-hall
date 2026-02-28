@@ -13,16 +13,11 @@ import type {
 } from "@/lib/types";
 
 let tmpDir: string;
-let projectPath: string;
 let guildHallHome: string;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-resolver-"));
-  projectPath = path.join(tmpDir, "test-project");
   guildHallHome = path.join(tmpDir, ".guild-hall");
-
-  // Create project .lore directory for context-specific toolboxes
-  await fs.mkdir(path.join(projectPath, ".lore"), { recursive: true });
 });
 
 afterEach(async () => {
@@ -76,7 +71,7 @@ function makeWorkerToolboxPackage(name: string): DiscoveredPackage {
 // Reset paths before each test since they depend on tmpDir
 function testContext() {
   return {
-    projectPath,
+    projectName: "test-project",
     meetingId: "meeting-test" as string,
     guildHallHome,
   };
@@ -235,7 +230,7 @@ describe("resolveToolSet", () => {
   test("commission context with callbacks produces base + commission MCP servers", () => {
     const worker = makeWorker();
     const context = {
-      projectPath,
+      projectName: "test-project",
       commissionId: "commission-test",
       guildHallHome,
       onProgress: () => {},
@@ -256,7 +251,7 @@ describe("resolveToolSet", () => {
   test("commission context without callbacks throws", () => {
     const worker = makeWorker();
     const context = {
-      projectPath,
+      projectName: "test-project",
       commissionId: "commission-test",
       guildHallHome,
     };
@@ -269,7 +264,7 @@ describe("resolveToolSet", () => {
   test("context with neither meetingId nor commissionId throws", () => {
     const worker = makeWorker();
     const context = {
-      projectPath,
+      projectName: "test-project",
       guildHallHome,
     };
 
@@ -335,14 +330,12 @@ function makeMockGitOps(): GitOps {
 
 function makeManagerToolboxDeps(): ManagerToolboxDeps {
   return {
-    integrationPath: path.join(tmpDir, "integration"),
     projectName: "test-project",
     guildHallHome,
     commissionSession: makeMockCommissionSession(),
     eventBus: { emit() {}, subscribe() { return () => {}; } },
     gitOps: makeMockGitOps(),
-    projectRepoPath: projectPath,
-    defaultBranch: "main",
+    getProjectConfig: () => Promise.resolve(undefined),
   };
 }
 

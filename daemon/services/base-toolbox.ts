@@ -19,7 +19,7 @@ export interface BaseToolboxDeps {
   contextType: "meeting" | "commission";      // determines storage path
   workerName: string;                         // identity of the active worker (enforces worker scope)
   projectName: string;                        // active project name (enforces project scope)
-  guildHallHome?: string;                     // defaults to ~/.guild-hall
+  guildHallHome: string;
 }
 
 // -- Memory scope resolution --
@@ -152,11 +152,9 @@ export function makeRecordDecisionHandler(
  * need metadata tracking and daemon notifications.
  */
 export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWithInstance {
-  const guildHallHome = deps.guildHallHome ?? defaultGuildHallHome();
-
-  const readMemory = makeReadMemoryHandler(guildHallHome, deps.workerName, deps.projectName);
-  const writeMemory = makeWriteMemoryHandler(guildHallHome, deps.workerName, deps.projectName);
-  const recordDecision = makeRecordDecisionHandler(guildHallHome, deps.contextId, deps.contextType);
+  const readMemory = makeReadMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName);
+  const writeMemory = makeWriteMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName);
+  const recordDecision = makeRecordDecisionHandler(deps.guildHallHome, deps.contextId, deps.contextType);
 
   return createSdkMcpServer({
     name: "guild-hall-base",
@@ -195,12 +193,3 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
   });
 }
 
-// -- Helpers --
-
-function defaultGuildHallHome(): string {
-  const home = process.env.HOME;
-  if (!home) {
-    throw new Error("Cannot determine home directory: HOME is not set");
-  }
-  return path.join(home, ".guild-hall");
-}

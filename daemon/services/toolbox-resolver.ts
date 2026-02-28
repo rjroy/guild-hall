@@ -1,4 +1,3 @@
-import * as path from "node:path";
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type {
   DiscoveredPackage,
@@ -13,16 +12,11 @@ import { createManagerToolbox, type ManagerToolboxDeps } from "./manager-toolbox
 // -- Types --
 
 export interface ToolboxResolverContext {
-  projectPath: string;
-  projectName?: string;
+  projectName: string;
+  guildHallHome: string;
   meetingId?: string;
   commissionId?: string;
   workerName?: string;
-  guildHallHome?: string;
-  /** Integration worktree path, used by meeting toolbox for propose_followup. */
-  integrationPath?: string;
-  /** Activity worktree path. Commission/meeting toolbox writes go here. */
-  workingDirectory?: string;
   /** When true, the manager-exclusive toolbox is injected. */
   isManager?: boolean;
   /** Dependencies for the manager toolbox. Required when isManager is true. */
@@ -60,11 +54,7 @@ export function resolveToolSet(
   }
   const contextType: "meeting" | "commission" = context.meetingId ? "meeting" : "commission";
 
-  // Resolve worker and project identity for the base toolbox's memory
-  // access control. workerName comes from the activation context (identity
-  // name); projectName from explicit context or path.basename() fallback.
   const resolvedWorkerName = context.workerName ?? worker.identity.name;
-  const resolvedProjectName = context.projectName ?? path.basename(context.projectPath);
 
   // 1. Base toolbox (always present: memory + decision tools)
   mcpServers.push(
@@ -72,7 +62,7 @@ export function resolveToolSet(
       contextId,
       contextType,
       workerName: resolvedWorkerName,
-      projectName: resolvedProjectName,
+      projectName: context.projectName,
       guildHallHome: context.guildHallHome,
     }),
   );
@@ -83,12 +73,10 @@ export function resolveToolSet(
   if (context.meetingId && context.workerName) {
     mcpServers.push(
       createMeetingToolbox({
-        projectPath: context.projectPath,
-        integrationPath: context.integrationPath,
-        worktreeDir: context.workingDirectory,
-        meetingId: context.meetingId,
-        workerName: context.workerName,
         guildHallHome: context.guildHallHome,
+        projectName: context.projectName,
+        contextId: context.meetingId,
+        workerName: context.workerName,
       }),
     );
   } else if (context.commissionId) {
@@ -99,9 +87,9 @@ export function resolveToolSet(
       );
     }
     const commissionToolbox = createCommissionToolbox({
-      projectPath: context.workingDirectory ?? context.projectPath,
-      commissionId: context.commissionId,
       guildHallHome: context.guildHallHome,
+      projectName: context.projectName,
+      contextId: context.commissionId,
       onProgress: context.onProgress,
       onResult: context.onResult,
       onQuestion: context.onQuestion,

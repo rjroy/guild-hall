@@ -12,16 +12,13 @@ import { makeSyncProjectHandler } from "@/daemon/services/manager-toolbox";
 import { clearProjectLocks } from "@/daemon/lib/project-lock";
 
 let tmpDir: string;
-let integrationPath: string;
 let guildHallHome: string;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-mgr-sync-"));
-  integrationPath = path.join(tmpDir, "integration");
   guildHallHome = path.join(tmpDir, "guild-hall-home");
 
-  await fs.mkdir(path.join(integrationPath, ".lore"), { recursive: true });
-  await fs.mkdir(path.join(guildHallHome, "projects", "test-project"), { recursive: true });
+  await fs.mkdir(path.join(guildHallHome, "projects", "test-project", ".lore"), { recursive: true });
 });
 
 afterEach(async () => {
@@ -109,14 +106,11 @@ function makeDeps(
   overrides?: Partial<ManagerToolboxDeps>,
 ): ManagerToolboxDeps {
   return {
-    integrationPath,
     projectName: "test-project",
     guildHallHome,
     commissionSession: makeMockCommissionSession(),
     eventBus: makeMockEventBus(),
     gitOps: makeMockGitOps(),
-    projectRepoPath: path.join(tmpDir, "repo"),
-    defaultBranch: "main",
     getProjectConfig(name: string) {
       if (name === "test-project") return Promise.resolve(testProjectConfig);
       return Promise.resolve(undefined);

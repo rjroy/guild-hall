@@ -2,23 +2,54 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
+import type { MeetingToolboxDeps } from "@/daemon/services/meeting-toolbox";
 import {
   makeLinkArtifactHandler,
   makeProposeFollowupHandler,
   makeSummarizeProgressHandler,
 } from "@/daemon/services/meeting-toolbox";
+import { meetingWorktreePath, integrationWorktreePath } from "@/lib/paths";
 
 let tmpDir: string;
-let projectPath: string;
+let guildHallHome: string;
 let meetingId: string;
+
+const projectName = "test-project";
+
+/** The meeting worktree path where resolveWritePath will find artifacts. */
+function derivedWorktreePath(): string {
+  return meetingWorktreePath(guildHallHome, projectName, meetingId);
+}
+
+/** The integration worktree path (fallback and propose_followup target). */
+function derivedIntegrationPath(): string {
+  return integrationWorktreePath(guildHallHome, projectName);
+}
+
+function makeDeps(overrides?: Partial<MeetingToolboxDeps>): MeetingToolboxDeps {
+  return {
+    guildHallHome,
+    projectName,
+    contextId: meetingId,
+    workerName: "test-worker",
+    ...overrides,
+  };
+}
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-mtg-toolbox-"));
-  projectPath = path.join(tmpDir, "test-project");
+  guildHallHome = path.join(tmpDir, ".guild-hall");
   meetingId = "audience-test-worker-20260221-100000";
 
-  // Create .lore/meetings/ directory
-  await fs.mkdir(path.join(projectPath, ".lore", "meetings"), {
+  // Create the meeting worktree directory so resolveWritePath finds it.
+  const wtPath = derivedWorktreePath();
+  await fs.mkdir(path.join(wtPath, ".lore", "meetings"), {
+    recursive: true,
+  });
+
+  // Also create the integration worktree for propose_followup.
+  const intPath = derivedIntegrationPath();
+  await fs.mkdir(path.join(intPath, ".lore", "meetings"), {
     recursive: true,
   });
 });
@@ -71,13 +102,13 @@ notes_summary: ""
 }
 
 /**
- * Creates a test artifact file in the project's .lore/ directory.
+ * Creates a test artifact file in a base directory's .lore/ directory.
  */
 async function writeTestArtifact(
-  projPath: string,
+  basePath: string,
   relPath: string,
 ): Promise<void> {
-  const fullPath = path.join(projPath, ".lore", relPath);
+  const fullPath = path.join(basePath, ".lore", relPath);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(
     fullPath,
@@ -90,10 +121,11 @@ async function writeTestArtifact(
 
 describe("link_artifact", () => {
   test("adds artifact path to linked_artifacts", async () => {
-    await writeMeetingArtifact(projectPath, meetingId);
-    await writeTestArtifact(projectPath, "specs/api-design.md");
+    const wtPath = derivedWorktreePath();
+    await writeMeetingArtifact(wtPath, meetingId);
+    await writeTestArtifact(wtPath, "specs/api-design.md");
 
-    const handler = makeLinkArtifactHandler(projectPath, meetingId);
+    const handler = makeLinkArtifactHandler(makeDeps());
     const result = await handler({ artifactPath: "specs/api-design.md" });
 
     expect(result.isError).toBeUndefined();
@@ -101,7 +133,7 @@ describe("link_artifact", () => {
 
     // Verify the artifact was updated
     const raw = await fs.readFile(
-      path.join(projectPath, ".lore", "meetings", `${meetingId}.md`),
+      path.join(wtPath, ".lore", "meetings", `${meetingId}.md`),
       "utf-8",
     );
     expect(raw).toContain("linked_artifacts:\n  - specs/api-design.md");
@@ -109,18 +141,19 @@ describe("link_artifact", () => {
   });
 
   test("appends to existing linked_artifacts", async () => {
-    await writeMeetingArtifact(projectPath, meetingId, {
+    const wtPath = derivedWorktreePath();
+    await writeMeetingArtifact(wtPath, meetingId, {
       linkedArtifacts: ["specs/existing.md"],
     });
-    await writeTestArtifact(projectPath, "specs/new-one.md");
+    await writeTestArtifact(wtPath, "specs/new-one.md");
 
-    const handler = makeLinkArtifactHandler(projectPath, meetingId);
+    const handler = makeLinkArtifactHandler(makeDeps());
     const result = await handler({ artifactPath: "specs/new-one.md" });
 
     expect(result.isError).toBeUndefined();
 
     const raw = await fs.readFile(
-      path.join(projectPath, ".lore", "meetings", `${meetingId}.md`),
+      path.join(wtPath, ".lore", "meetings", `${meetingId}.md`),
       "utf-8",
     );
     expect(raw).toContain("  - specs/existing.md");
@@ -128,10 +161,11 @@ describe("link_artifact", () => {
   });
 
   test("deduplicates: linking same path twice returns 'already linked'", async () => {
-    await writeMeetingArtifact(projectPath, meetingId);
-    await writeTestArtifact(projectPath, "specs/api-design.md");
+    const wtPath = derivedWorktreePath();
+    await writeMeetingArtifact(wtPath, meetingId);
+    await writeTestArtifact(wtPath, "specs/api-design.md");
 
-    const handler = makeLinkArtifactHandler(projectPath, meetingId);
+    const handler = makeLinkArtifactHandler(makeDeps());
 
     // Link once
     await handler({ artifactPath: "specs/api-design.md" });
@@ -144,9 +178,10 @@ describe("link_artifact", () => {
   });
 
   test("returns error for nonexistent artifact", async () => {
-    await writeMeetingArtifact(projectPath, meetingId);
+    const wtPath = derivedWorktreePath();
+    await writeMeetingArtifact(wtPath, meetingId);
 
-    const handler = makeLinkArtifactHandler(projectPath, meetingId);
+    const handler = makeLinkArtifactHandler(makeDeps());
     const result = await handler({ artifactPath: "specs/nonexistent.md" });
 
     expect(result.isError).toBe(true);
@@ -156,9 +191,10 @@ describe("link_artifact", () => {
   });
 
   test("rejects path traversal attempts", async () => {
-    await writeMeetingArtifact(projectPath, meetingId);
+    const wtPath = derivedWorktreePath();
+    await writeMeetingArtifact(wtPath, meetingId);
 
-    const handler = makeLinkArtifactHandler(projectPath, meetingId);
+    const handler = makeLinkArtifactHandler(makeDeps());
     const result = await handler({ artifactPath: "../../secret.md" });
 
     expect(result.isError).toBe(true);
@@ -170,11 +206,7 @@ describe("link_artifact", () => {
 
 describe("propose_followup", () => {
   test("creates a request artifact with correct frontmatter", async () => {
-    const handler = makeProposeFollowupHandler(
-      projectPath,
-      meetingId,
-      "test-worker",
-    );
+    const handler = makeProposeFollowupHandler(makeDeps());
     const result = await handler({
       reason: "Need to review API changes",
     });
@@ -190,9 +222,10 @@ describe("propose_followup", () => {
       "",
     );
 
-    // Read the created artifact
+    // Read the created artifact (propose_followup writes to integration path)
+    const intPath = derivedIntegrationPath();
     const raw = await fs.readFile(
-      path.join(projectPath, ".lore", "meetings", `${followupId}.md`),
+      path.join(intPath, ".lore", "meetings", `${followupId}.md`),
       "utf-8",
     );
 
@@ -207,11 +240,7 @@ describe("propose_followup", () => {
   });
 
   test("generates ID with followup- prefix", async () => {
-    const handler = makeProposeFollowupHandler(
-      projectPath,
-      meetingId,
-      "test-worker",
-    );
+    const handler = makeProposeFollowupHandler(makeDeps());
     const result = await handler({ reason: "Continue work" });
 
     expect(result.content[0].text).toMatch(
@@ -220,11 +249,7 @@ describe("propose_followup", () => {
   });
 
   test("includes referenced artifacts in frontmatter", async () => {
-    const handler = makeProposeFollowupHandler(
-      projectPath,
-      meetingId,
-      "test-worker",
-    );
+    const handler = makeProposeFollowupHandler(makeDeps());
     const result = await handler({
       reason: "Continue work",
       referencedArtifacts: ["specs/api.md", "notes/review.md"],
@@ -234,8 +259,9 @@ describe("propose_followup", () => {
       "Follow-up meeting proposed: ",
       "",
     );
+    const intPath = derivedIntegrationPath();
     const raw = await fs.readFile(
-      path.join(projectPath, ".lore", "meetings", `${followupId}.md`),
+      path.join(intPath, ".lore", "meetings", `${followupId}.md`),
       "utf-8",
     );
 
@@ -243,11 +269,7 @@ describe("propose_followup", () => {
   });
 
   test("handles empty referencedArtifacts", async () => {
-    const handler = makeProposeFollowupHandler(
-      projectPath,
-      meetingId,
-      "test-worker",
-    );
+    const handler = makeProposeFollowupHandler(makeDeps());
     const result = await handler({
       reason: "Continue work",
       referencedArtifacts: [],
@@ -257,8 +279,9 @@ describe("propose_followup", () => {
       "Follow-up meeting proposed: ",
       "",
     );
+    const intPath = derivedIntegrationPath();
     const raw = await fs.readFile(
-      path.join(projectPath, ".lore", "meetings", `${followupId}.md`),
+      path.join(intPath, ".lore", "meetings", `${followupId}.md`),
       "utf-8",
     );
 
@@ -270,9 +293,10 @@ describe("propose_followup", () => {
 
 describe("summarize_progress", () => {
   test("appends progress_summary event to meeting log", async () => {
-    await writeMeetingArtifact(projectPath, meetingId);
+    const wtPath = derivedWorktreePath();
+    await writeMeetingArtifact(wtPath, meetingId);
 
-    const handler = makeSummarizeProgressHandler(projectPath, meetingId);
+    const handler = makeSummarizeProgressHandler(makeDeps());
     const result = await handler({
       summary: "Completed initial API review",
     });
@@ -282,7 +306,7 @@ describe("summarize_progress", () => {
 
     // Verify the log entry was added
     const raw = await fs.readFile(
-      path.join(projectPath, ".lore", "meetings", `${meetingId}.md`),
+      path.join(wtPath, ".lore", "meetings", `${meetingId}.md`),
       "utf-8",
     );
     expect(raw).toContain("event: progress_summary");
@@ -290,14 +314,15 @@ describe("summarize_progress", () => {
   });
 
   test("preserves existing meeting log entries", async () => {
-    await writeMeetingArtifact(projectPath, meetingId);
+    const wtPath = derivedWorktreePath();
+    await writeMeetingArtifact(wtPath, meetingId);
 
-    const handler = makeSummarizeProgressHandler(projectPath, meetingId);
+    const handler = makeSummarizeProgressHandler(makeDeps());
     await handler({ summary: "First checkpoint" });
     await handler({ summary: "Second checkpoint" });
 
     const raw = await fs.readFile(
-      path.join(projectPath, ".lore", "meetings", `${meetingId}.md`),
+      path.join(wtPath, ".lore", "meetings", `${meetingId}.md`),
       "utf-8",
     );
     expect(raw).toContain("event: opened");
@@ -306,126 +331,57 @@ describe("summarize_progress", () => {
   });
 });
 
-// -- worktreeDir path routing tests --
+// -- worktree routing tests --
 //
-// When worktreeDir is provided, link_artifact and summarize_progress must
-// write to the activity worktree, not the project root. This ensures that
-// open-meeting writes land in the correct git branch.
+// resolveWritePath checks for the meeting worktree directory. When it exists,
+// writes go there. When it doesn't, writes fall back to the integration path.
 
-describe("worktreeDir routing: link_artifact", () => {
-  let worktreeDir: string;
+describe("worktree routing: link_artifact falls back to integration", () => {
+  test("falls back to integration when worktree does not exist", async () => {
+    // Remove the meeting worktree so resolveWritePath falls back
+    const wtPath = derivedWorktreePath();
+    await fs.rm(wtPath, { recursive: true, force: true });
 
-  beforeEach(async () => {
-    worktreeDir = path.join(tmpDir, "activity-worktree");
-    await fs.mkdir(path.join(worktreeDir, ".lore", "meetings"), {
-      recursive: true,
-    });
-  });
+    // Put artifacts at the integration path instead
+    const intPath = derivedIntegrationPath();
+    await writeMeetingArtifact(intPath, meetingId);
+    await writeTestArtifact(intPath, "specs/api-design.md");
 
-  test("uses worktreeDir as write path when provided", async () => {
-    // Meeting artifact and target artifact both live in the worktree.
-    await writeMeetingArtifact(worktreeDir, meetingId);
-    await writeTestArtifact(worktreeDir, "specs/api-design.md");
-
-    const handler = makeLinkArtifactHandler(projectPath, meetingId, worktreeDir);
+    const handler = makeLinkArtifactHandler(makeDeps());
     const result = await handler({ artifactPath: "specs/api-design.md" });
 
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toBe("Linked artifact: specs/api-design.md");
 
-    // The update must be in the worktree artifact, not the project root.
-    const worktreeRaw = await fs.readFile(
-      path.join(worktreeDir, ".lore", "meetings", `${meetingId}.md`),
+    // The update must be in the integration artifact
+    const intRaw = await fs.readFile(
+      path.join(intPath, ".lore", "meetings", `${meetingId}.md`),
       "utf-8",
     );
-    expect(worktreeRaw).toContain("linked_artifacts:\n  - specs/api-design.md");
-
-    // No artifact written at projectPath (directory was never populated).
-    const projectMeetingsDir = path.join(projectPath, ".lore", "meetings");
-    const projectFiles = await fs.readdir(projectMeetingsDir);
-    expect(projectFiles).toHaveLength(0);
-  });
-
-  test("falls back to projectPath when worktreeDir is undefined", async () => {
-    // Meeting artifact and target artifact both live in the project root.
-    await writeMeetingArtifact(projectPath, meetingId);
-    await writeTestArtifact(projectPath, "specs/api-design.md");
-
-    // No worktreeDir argument - falls back to projectPath.
-    const handler = makeLinkArtifactHandler(projectPath, meetingId);
-    const result = await handler({ artifactPath: "specs/api-design.md" });
-
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toBe("Linked artifact: specs/api-design.md");
-
-    // The update must be in the project root artifact.
-    const projectRaw = await fs.readFile(
-      path.join(projectPath, ".lore", "meetings", `${meetingId}.md`),
-      "utf-8",
-    );
-    expect(projectRaw).toContain("linked_artifacts:\n  - specs/api-design.md");
-  });
-
-  test("path traversal check uses worktreeDir when provided", async () => {
-    await writeMeetingArtifact(worktreeDir, meetingId);
-
-    const handler = makeLinkArtifactHandler(projectPath, meetingId, worktreeDir);
-    const result = await handler({ artifactPath: "../../escape.md" });
-
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Path traversal rejected");
+    expect(intRaw).toContain("linked_artifacts:\n  - specs/api-design.md");
   });
 });
 
-describe("worktreeDir routing: summarize_progress", () => {
-  let worktreeDir: string;
+describe("worktree routing: summarize_progress falls back to integration", () => {
+  test("falls back to integration when worktree does not exist", async () => {
+    // Remove the meeting worktree so resolveWritePath falls back
+    const wtPath = derivedWorktreePath();
+    await fs.rm(wtPath, { recursive: true, force: true });
 
-  beforeEach(async () => {
-    worktreeDir = path.join(tmpDir, "activity-worktree");
-    await fs.mkdir(path.join(worktreeDir, ".lore", "meetings"), {
-      recursive: true,
-    });
-  });
+    // Put artifacts at the integration path instead
+    const intPath = derivedIntegrationPath();
+    await writeMeetingArtifact(intPath, meetingId);
 
-  test("uses worktreeDir as write path when provided", async () => {
-    // Meeting artifact lives in the worktree.
-    await writeMeetingArtifact(worktreeDir, meetingId);
-
-    const handler = makeSummarizeProgressHandler(projectPath, meetingId, worktreeDir);
-    const result = await handler({ summary: "Checkpoint from worktree" });
-
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toBe("Progress summary recorded");
-
-    // The log entry must appear in the worktree artifact.
-    const worktreeRaw = await fs.readFile(
-      path.join(worktreeDir, ".lore", "meetings", `${meetingId}.md`),
-      "utf-8",
-    );
-    expect(worktreeRaw).toContain("event: progress_summary");
-    expect(worktreeRaw).toContain("Checkpoint from worktree");
-
-    // No artifact written at projectPath (directory was never populated).
-    const projectMeetingsDir = path.join(projectPath, ".lore", "meetings");
-    const projectFiles = await fs.readdir(projectMeetingsDir);
-    expect(projectFiles).toHaveLength(0);
-  });
-
-  test("falls back to projectPath when worktreeDir is undefined", async () => {
-    // Meeting artifact lives in the project root.
-    await writeMeetingArtifact(projectPath, meetingId);
-
-    // No worktreeDir argument - falls back to projectPath.
-    const handler = makeSummarizeProgressHandler(projectPath, meetingId);
-    const result = await handler({ summary: "Checkpoint from project root" });
+    const handler = makeSummarizeProgressHandler(makeDeps());
+    const result = await handler({ summary: "Checkpoint from integration" });
 
     expect(result.isError).toBeUndefined();
 
-    const projectRaw = await fs.readFile(
-      path.join(projectPath, ".lore", "meetings", `${meetingId}.md`),
+    const intRaw = await fs.readFile(
+      path.join(intPath, ".lore", "meetings", `${meetingId}.md`),
       "utf-8",
     );
-    expect(projectRaw).toContain("event: progress_summary");
-    expect(projectRaw).toContain("Checkpoint from project root");
+    expect(intRaw).toContain("event: progress_summary");
+    expect(intRaw).toContain("Checkpoint from integration");
   });
 });

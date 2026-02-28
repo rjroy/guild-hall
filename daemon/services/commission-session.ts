@@ -1043,23 +1043,19 @@ export function createCommissionSession(
     log("resolving tools...");
     const resolve = deps.resolveToolSetFn ?? resolveToolSet;
     const resolvedTools = resolve(workerMeta, deps.packages, {
-      projectPath,
       projectName: commission.projectName,
       commissionId: commissionId as string,
       workerName: workerMeta.identity.name,
       guildHallHome: ghHome,
-      workingDirectory: commission.worktreeDir,
       isManager,
       managerToolboxDeps: isManager && deps.commissionSessionRef?.current && deps.eventBus
         ? {
-          integrationPath: integrationWorktreePath(ghHome, commission.projectName),
           projectName: commission.projectName,
           guildHallHome: ghHome,
           commissionSession: deps.commissionSessionRef.current,
           eventBus: deps.eventBus,
           gitOps: git,
-          projectRepoPath: projectPath,
-          defaultBranch: findProject(commission.projectName)?.defaultBranch ?? "master",
+          getProjectConfig: (name: string) => Promise.resolve(findProject(name)),
         }
         : undefined,
       onProgress: (summary: string) => {

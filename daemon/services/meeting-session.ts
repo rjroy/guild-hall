@@ -494,24 +494,19 @@ notes_summary: ""
       const project = findProject(meeting.projectName);
 
       const resolvedTools = resolveToolSet(workerMeta, deps.packages, {
-        projectPath,
         projectName: meeting.projectName,
         meetingId: meeting.meetingId as string,
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,
-        integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
-        workingDirectory: meeting.worktreeDir,
         isManager,
         managerToolboxDeps: isManager && deps.commissionSession && deps.eventBus
           ? {
-            integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
             projectName: meeting.projectName,
             guildHallHome: ghHome,
             commissionSession: deps.commissionSession,
             eventBus: deps.eventBus,
             gitOps: git,
-            projectRepoPath: project?.path ?? projectPath,
-            defaultBranch: project?.defaultBranch ?? "master",
+            getProjectConfig: (name: string) => Promise.resolve(findProject(name)),
           }
           : undefined,
       });

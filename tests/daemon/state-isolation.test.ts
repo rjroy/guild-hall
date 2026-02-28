@@ -527,17 +527,14 @@ describe("State Isolation", () => {
   test("tool isolation: meeting gets meeting tools, commission gets commission tools, no cross-contamination", () => {
     // Resolve tools for a meeting context
     const meetingTools = resolveToolSet(WORKER_META, [WORKER_PKG], {
-      projectPath: projectDir,
       projectName: "test-project",
       meetingId: "audience-Assistant-20260223-120000",
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
-      integrationPath: integrationDir,
     });
 
     // Resolve tools for a commission context
     const commissionTools = resolveToolSet(WORKER_META, [WORKER_PKG], {
-      projectPath: projectDir,
       projectName: "test-project",
       commissionId: "commission-Assistant-20260223-120000",
       workerName: WORKER_NAME,

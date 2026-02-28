@@ -18,21 +18,24 @@ import {
 } from "@/daemon/services/manager-toolbox";
 
 let tmpDir: string;
-let integrationPath: string;
 let guildHallHome: string;
+
+/** Derived integration path: guildHallHome/projects/test-project */
+function derivedIntegrationPath(): string {
+  return path.join(guildHallHome, "projects", "test-project");
+}
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-mgr-toolbox-"));
-  integrationPath = path.join(tmpDir, "integration");
   guildHallHome = path.join(tmpDir, "guild-hall-home");
 
-  await fs.mkdir(path.join(integrationPath, ".lore", "meetings"), {
+  const intPath = derivedIntegrationPath();
+  await fs.mkdir(path.join(intPath, ".lore", "meetings"), {
     recursive: true,
   });
-  await fs.mkdir(path.join(integrationPath, ".lore", "commissions"), {
+  await fs.mkdir(path.join(intPath, ".lore", "commissions"), {
     recursive: true,
   });
-  await fs.mkdir(guildHallHome, { recursive: true });
 });
 
 afterEach(async () => {
@@ -150,14 +153,21 @@ function makeDeps(
   overrides?: Partial<ManagerToolboxDeps>,
 ): ManagerToolboxDeps {
   return {
-    integrationPath,
     projectName: "test-project",
     guildHallHome,
     commissionSession: makeMockCommissionSession(),
     eventBus: makeMockEventBus(),
     gitOps: makeMockGitOps(),
-    projectRepoPath: path.join(tmpDir, "repo"),
-    defaultBranch: "main",
+    getProjectConfig(name: string) {
+      if (name === "test-project") {
+        return Promise.resolve({
+          name: "test-project",
+          path: path.join(tmpDir, "repo"),
+          defaultBranch: "main",
+        });
+      }
+      return Promise.resolve(undefined);
+    },
     ...overrides,
   };
 }
@@ -218,7 +228,7 @@ describe("create_commission", () => {
 
     // Write the artifact so appendTimelineEntry can find it
     await writeCommissionArtifact(
-      integrationPath,
+      derivedIntegrationPath(),
       "commission-test-worker-20260223-120000",
     );
 
@@ -643,7 +653,7 @@ describe("initiate_meeting", () => {
     expect(parsed.artifactPath).toEndWith(".md");
 
     // Read the created file
-    const fullPath = path.join(integrationPath, ".lore", parsed.artifactPath!);
+    const fullPath = path.join(derivedIntegrationPath(), ".lore", parsed.artifactPath!);
     const raw = await fs.readFile(fullPath, "utf-8");
 
     expect(raw).toContain("status: requested");
@@ -667,7 +677,7 @@ describe("initiate_meeting", () => {
     expect(result.isError).toBeUndefined();
 
     const parsed = parseResult(result.content[0].text);
-    const fullPath = path.join(integrationPath, ".lore", parsed.artifactPath!);
+    const fullPath = path.join(derivedIntegrationPath(), ".lore", parsed.artifactPath!);
     const raw = await fs.readFile(fullPath, "utf-8");
 
     expect(raw).toContain("linked_artifacts:\n  - specs/api.md\n  - notes/review.md");
@@ -684,7 +694,7 @@ describe("initiate_meeting", () => {
     });
 
     const parsed = parseResult(result.content[0].text);
-    const fullPath = path.join(integrationPath, ".lore", parsed.artifactPath!);
+    const fullPath = path.join(derivedIntegrationPath(), ".lore", parsed.artifactPath!);
     const raw = await fs.readFile(fullPath, "utf-8");
 
     expect(raw).toContain("linked_artifacts: []");
@@ -716,7 +726,7 @@ describe("initiate_meeting", () => {
     });
 
     const parsed = parseResult(result.content[0].text);
-    const fullPath = path.join(integrationPath, ".lore", parsed.artifactPath!);
+    const fullPath = path.join(derivedIntegrationPath(), ".lore", parsed.artifactPath!);
     const raw = await fs.readFile(fullPath, "utf-8");
 
     expect(raw).toContain('agenda: "Review \\"critical\\" issues"');
@@ -732,7 +742,7 @@ describe("initiate_meeting", () => {
     });
 
     const parsed = parseResult(result.content[0].text);
-    const fullPath = path.join(integrationPath, ".lore", parsed.artifactPath!);
+    const fullPath = path.join(derivedIntegrationPath(), ".lore", parsed.artifactPath!);
     const raw = await fs.readFile(fullPath, "utf-8");
 
     // Backslashes should be double-escaped, newlines replaced with \n
@@ -759,7 +769,7 @@ describe("initiate_meeting", () => {
 
   test("creates meetings directory if it does not exist", async () => {
     // Remove the meetings directory
-    await fs.rm(path.join(integrationPath, ".lore", "meetings"), {
+    await fs.rm(path.join(derivedIntegrationPath(), ".lore", "meetings"), {
       recursive: true,
     });
 
@@ -775,15 +785,16 @@ describe("initiate_meeting", () => {
 
     // Verify directory was created and file exists
     const parsed = parseResult(result.content[0].text);
-    const fullPath = path.join(integrationPath, ".lore", parsed.artifactPath!);
+    const fullPath = path.join(derivedIntegrationPath(), ".lore", parsed.artifactPath!);
     const stat = await fs.stat(fullPath);
     expect(stat.isFile()).toBe(true);
   });
 
   test("returns error on filesystem failure", async () => {
     const deps = makeDeps({
-      // Use an invalid path that can't be created
-      integrationPath: "/nonexistent/readonly/path",
+      // Use a guildHallHome under a non-writable path so the derived
+      // integration path can't be created
+      guildHallHome: "/nonexistent/readonly/path",
     });
     const handler = makeInitiateMeetingHandler(deps);
 

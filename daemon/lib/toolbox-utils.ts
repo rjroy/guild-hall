@@ -5,7 +5,13 @@
  * and commission-artifact-helpers.ts where identical copies existed.
  */
 
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import {
+  integrationWorktreePath,
+  commissionWorktreePath,
+  meetingWorktreePath,
+} from "@/lib/paths";
 
 /**
  * Resolves a path within a base directory and verifies it doesn't escape.
@@ -47,4 +53,30 @@ export function escapeYamlValue(value: string): string {
     .replace(/\\/g, "\\\\")
     .replace(/"/g, '\\"')
     .replace(/\n/g, "\\n");
+}
+
+/**
+ * Resolves the write target path for a toolbox.
+ *
+ * Active commissions/meetings have their own activity worktree where
+ * artifact writes should land. If the worktree directory exists, we
+ * use it. Otherwise we fall back to the integration worktree on the
+ * `claude` branch.
+ */
+export async function resolveWritePath(
+  guildHallHome: string,
+  projectName: string,
+  contextId: string,
+  contextType: "meeting" | "commission",
+): Promise<string> {
+  const worktreePath = contextType === "commission"
+    ? commissionWorktreePath(guildHallHome, projectName, contextId)
+    : meetingWorktreePath(guildHallHome, projectName, contextId);
+
+  try {
+    await fs.access(worktreePath);
+    return worktreePath;
+  } catch {
+    return integrationWorktreePath(guildHallHome, projectName);
+  }
 }
