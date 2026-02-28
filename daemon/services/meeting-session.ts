@@ -30,20 +30,21 @@ import {
   activateWorker as activateWorkerShared,
 } from "@/daemon/services/manager-worker";
 import { buildManagerContext } from "@/daemon/services/manager-context";
-import {
-  translateSdkMessage,
-  type TranslatorContext,
-} from "@/daemon/services/event-translator";
 import type { GuildHallEvent, MeetingId, MeetingStatus, SdkSessionId } from "@/daemon/types";
 import { asMeetingId, asSdkSessionId } from "@/daemon/types";
+import {
+  runQueryAndTranslate,
+  truncateTranscript,
+} from "@/daemon/services/query-runner";
 import {
   getGuildHallHome,
   meetingWorktreePath,
   meetingBranchName,
   integrationWorktreePath,
 } from "@/lib/paths";
+import matter from "gray-matter";
 import { createGitOps, CLAUDE_BRANCH, resolveSquashMerge, type GitOps } from "@/daemon/lib/git";
-import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import { errorMessage, formatTimestamp, sanitizeForGitRef } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import {
   meetingArtifactPath,
@@ -55,10 +56,8 @@ import {
 import {
   createTranscript,
   appendUserTurn,
-  appendAssistantTurn,
   readTranscript,
   removeTranscript,
-  type ToolUseEntry,
 } from "@/daemon/services/transcript";
 import {
   generateMeetingNotes,
@@ -104,34 +103,12 @@ type ActiveMeeting = {
   status: "open" | "closed";
 };
 
+// -- Re-exports for backward compatibility --
+
+export type { QueryOptions, PresetQueryPrompt } from "@/daemon/services/query-runner";
+import type { QueryOptions } from "@/daemon/services/query-runner";
+
 // -- Dependency types --
-
-/**
- * Minimal SDK query options that the meeting session passes to the queryFn.
- * The real SDK Options type has many more fields; this captures what we use.
- */
-export type PresetQueryPrompt = {
-  type: 'preset';
-  preset: 'claude_code';
-  append?: string;
-};
-
-export type QueryOptions = {
-  systemPrompt?: string | PresetQueryPrompt;
-  includePartialMessages?: boolean;
-  permissionMode?: string;
-  allowDangerouslySkipPermissions?: boolean;
-  mcpServers?: Record<string, unknown>;
-  allowedTools?: string[];
-  settingSources?: string[];
-  cwd?: string;
-  additionalDirectories?: string[];
-  maxTurns?: number;
-  maxBudgetUsd?: number;
-  abortController?: AbortController;
-  model?: string;
-  resume?: string;
-};
 
 export type MeetingSessionDeps = {
   packages: DiscoveredPackage[];
@@ -197,7 +174,7 @@ export type MeetingSessionDeps = {
 // -- Factory --
 
 export function createMeetingSession(deps: MeetingSessionDeps) {
-  const meetings = new Map<string, ActiveMeeting>();
+  const meetings = new Map<MeetingId, ActiveMeeting>();
   const ghHome = deps.guildHallHome ?? getGuildHallHome();
   const git = deps.gitOps ?? createGitOps();
   let meetingSeq = 0;
@@ -208,6 +185,23 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     return deps.config.projects.find((p) => p.name === projectName);
   }
 
+  /** Serializes an ActiveMeeting to the shape written to state files. */
+  function serializeMeetingState(
+    meeting: ActiveMeeting,
+    status: "open" | "closed" = meeting.status,
+  ): Record<string, unknown> {
+    return {
+      meetingId: meeting.meetingId,
+      projectName: meeting.projectName,
+      workerName: meeting.workerName,
+      packageName: meeting.packageName,
+      sdkSessionId: meeting.sdkSessionId,
+      worktreeDir: meeting.worktreeDir,
+      branchName: meeting.branchName,
+      status,
+    };
+  }
+
   function getOpenMeetingsForProject(projectName: string): ActiveMeeting[] {
     return Array.from(meetings.values()).filter(
       (m) => m.projectName === projectName && m.status === "open",
@@ -215,25 +209,12 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
   }
 
   function formatMeetingId(workerName: string, now: Date): MeetingId {
-    const pad = (n: number, len = 2) => String(n).padStart(len, "0");
-    const ts = [
-      now.getFullYear(),
-      pad(now.getMonth() + 1),
-      pad(now.getDate()),
-      "-",
-      pad(now.getHours()),
-      pad(now.getMinutes()),
-      pad(now.getSeconds()),
-    ].join("");
+    const ts = formatTimestamp(now);
     const seq = meetingSeq++;
     // Append sequence number only when needed to avoid collisions within
     // the same second. Sequence 0 is omitted for clean default IDs.
     const suffix = seq > 0 ? `-${seq}` : "";
-    // Sanitize worker name for use in git branch names (no spaces, colons, etc.)
-    const safeName = workerName
-      .replace(/[^a-zA-Z0-9-]/g, "-")
-      .replace(/-{2,}/g, "-")
-      .replace(/^-|-$/g, "");
+    const safeName = sanitizeForGitRef(workerName);
     return asMeetingId(`audience-${safeName}-${ts}${suffix}`);
   }
 
@@ -352,102 +333,6 @@ notes_summary: ""
     await appendMeetingLog(iPath, meetingId, "deferred", `Deferred until ${deferredUntil}`);
   }
 
-  // -- Async generator: iterate SDK messages and yield Guild Hall events --
-  //
-  // Accumulates text_delta and tool_use/tool_result events during iteration
-  // so the assistant turn can be appended to the transcript after the
-  // generator completes. Only text_delta events contribute text (not
-  // SDKAssistantMessage text blocks) to avoid the double-data problem
-  // documented in event-translator.ts.
-
-  async function* iterateAndTranslate(
-    generator: AsyncGenerator<SDKMessage>,
-    translatorContext: TranslatorContext,
-    meeting: ActiveMeeting,
-  ): AsyncGenerator<GuildHallEvent> {
-    const textParts: string[] = [];
-    const toolUses: ToolUseEntry[] = [];
-    // Track the current tool_use name so we can pair it with its result
-    let pendingToolName: string | null = null;
-
-    try {
-      for await (const sdkMessage of generator) {
-        const events = translateSdkMessage(sdkMessage, translatorContext);
-
-        for (const event of events) {
-          // Intercept session event to capture SDK session ID
-          if (event.type === "session" && event.sessionId) {
-            meeting.sdkSessionId = asSdkSessionId(event.sessionId);
-          }
-
-          // Accumulate text from streaming deltas only (not complete messages)
-          if (event.type === "text_delta") {
-            textParts.push(event.text);
-          }
-
-          // Track tool_use name for pairing with its result
-          if (event.type === "tool_use") {
-            pendingToolName = event.name;
-          }
-
-          // Pair tool_result with the most recent tool_use name
-          if (event.type === "tool_result") {
-            toolUses.push({
-              toolName: pendingToolName ?? event.name,
-              result: event.output,
-            });
-            pendingToolName = null;
-          }
-
-          yield event;
-        }
-      }
-    } catch (err: unknown) {
-      // AbortError is expected when interruptTurn is called
-      if (err instanceof Error && err.name === "AbortError") {
-        yield { type: "error", reason: "Turn interrupted" };
-        // Still append whatever was accumulated before interruption
-        await appendAssistantTurnSafe(meeting.meetingId, textParts, toolUses);
-        return;
-      }
-      const reason =
-        errorMessage(err);
-      yield { type: "error", reason };
-      // Append partial content on error too
-      await appendAssistantTurnSafe(meeting.meetingId, textParts, toolUses);
-      return;
-    }
-
-    // Append the complete assistant turn to the transcript
-    await appendAssistantTurnSafe(meeting.meetingId, textParts, toolUses);
-  }
-
-  /**
-   * Appends an assistant turn to the transcript, swallowing errors so
-   * transcript failures don't break the meeting flow.
-   */
-  async function appendAssistantTurnSafe(
-    meetingId: MeetingId,
-    textParts: string[],
-    toolUses: ToolUseEntry[],
-  ): Promise<void> {
-    const text = textParts.join("");
-    if (!text && toolUses.length === 0) return;
-    try {
-      await appendAssistantTurn(
-        meetingId as string,
-        text,
-        toolUses.length > 0 ? toolUses : undefined,
-        ghHome,
-      );
-    } catch (err: unknown) {
-      const reason = errorMessage(err);
-      console.warn(`[meeting-session] Transcript append failed for meeting ${meetingId} (non-fatal): ${reason}`);
-    }
-  }
-
-  type QueryRunOutcome = "ok" | "session_expired" | "failed";
-
   type QueryOptionsResult =
     | { ok: true; options: QueryOptions }
     | { ok: false; reason: string };
@@ -455,8 +340,6 @@ notes_summary: ""
   async function buildActivatedQueryOptions(
     meeting: ActiveMeeting,
     prompt: string,
-    projectPath: string,
-    abortController: AbortController,
     resumeSessionId?: SdkSessionId,
   ): Promise<QueryOptionsResult> {
     const workerPkg = getWorkerByName(deps.packages, meeting.packageName);
@@ -467,16 +350,22 @@ notes_summary: ""
       };
     }
 
+    const project = findProject(meeting.projectName);
+    if (!project) {
+      return {
+        ok: false,
+        reason: `Project "${meeting.projectName}" not found`,
+      };
+    }
+
     const workerMeta = workerPkg.metadata as WorkerMetadata;
     const isManager = workerPkg.name === MANAGER_PACKAGE_NAME;
 
     let activation: ActivationResult;
     try {
-      const project = findProject(meeting.projectName);
-
       const resolvedTools = await resolveToolSet(workerMeta, deps.packages, {
         projectName: meeting.projectName,
-        contextId: meeting.meetingId as string,
+        contextId: meeting.meetingId,
         contextType: "meeting",
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,
@@ -494,7 +383,7 @@ notes_summary: ""
           meeting.projectName,
           {
             guildHallHome: ghHome,
-            memoryLimit: project?.memoryLimit,
+            memoryLimit: project.memoryLimit,
           },
         );
         injectedMemory = memoryResult.memoryBlock;
@@ -524,11 +413,11 @@ notes_summary: ""
           maxBudgetUsd: workerMeta.resourceDefaults?.maxBudgetUsd,
         },
         meetingContext: {
-          meetingId: meeting.meetingId as string,
+          meetingId: meeting.meetingId,
           agenda: prompt,
           referencedArtifacts: [],
         },
-        projectPath,
+        projectPath: project.path,
         workingDirectory: meeting.worktreeDir,
       };
 
@@ -538,7 +427,7 @@ notes_summary: ""
           projectName: meeting.projectName,
           integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
           guildHallHome: ghHome,
-          memoryLimit: project?.memoryLimit,
+          memoryLimit: project.memoryLimit,
         });
       }
 
@@ -553,15 +442,14 @@ notes_summary: ""
       mcpServersRecord[server.name] = server;
     }
 
-
     const maxTurns = activation.resourceBounds.maxTurns;
     const maxBudgetUsd = activation.resourceBounds.maxBudgetUsd;
 
     return {
       ok: true,
       options: {
-        ...(resumeSessionId ? { resume: resumeSessionId as string } : {}),
-        abortController,
+        ...(resumeSessionId ? { resume: resumeSessionId } : {}),
+        abortController: meeting.abortController,
         includePartialMessages: true,
         permissionMode: "dontAsk",
         allowedTools: activation.tools.allowedTools,
@@ -576,63 +464,6 @@ notes_summary: ""
     };
   }
 
-  async function* runQueryAndTranslate(
-    meeting: ActiveMeeting,
-    prompt: string,
-    options: QueryOptions,
-    suppressSessionExpiryError = false,
-  ): AsyncGenerator<GuildHallEvent, QueryRunOutcome> {
-    if (!deps.queryFn) {
-      yield { type: "error", reason: "No queryFn provided" };
-      return "failed";
-    }
-
-    const translatorContext: TranslatorContext = {
-      meetingId: meeting.meetingId as string,
-      workerName: meeting.workerName,
-    };
-
-    let generator: AsyncGenerator<SDKMessage>;
-    try {
-      generator = deps.queryFn({ prompt, options });
-    } catch (err: unknown) {
-      const reason = errorMessage(err);
-      if (isSessionExpiryError(reason)) {
-        if (!suppressSessionExpiryError) {
-          yield { type: "error", reason };
-        }
-        return "session_expired";
-      }
-      yield { type: "error", reason };
-      return "failed";
-    }
-
-    try {
-      for await (const event of iterateAndTranslate(generator, translatorContext, meeting)) {
-        if (event.type === "error" && isSessionExpiryError(event.reason)) {
-          if (!suppressSessionExpiryError) {
-            yield event;
-          }
-          return "session_expired";
-        }
-
-        yield event;
-      }
-    } catch (err: unknown) {
-      const reason = errorMessage(err);
-      if (isSessionExpiryError(reason)) {
-        if (!suppressSessionExpiryError) {
-          yield { type: "error", reason };
-        }
-        return "session_expired";
-      }
-      yield { type: "error", reason };
-      return "failed";
-    }
-
-    return "ok";
-  }
-
   // -- Session creation helper --
   //
   // Shared by createMeeting (first turn) and sendMessage renewal (expired
@@ -642,85 +473,32 @@ notes_summary: ""
   async function* startSession(
     meeting: ActiveMeeting,
     prompt: string,
-    projectPath: string,
   ): AsyncGenerator<GuildHallEvent> {
+    if (!deps.queryFn) {
+      yield { type: "error", reason: "No queryFn provided" };
+      return;
+    }
+
     const queryOptionsResult = await buildActivatedQueryOptions(
       meeting,
       prompt,
-      projectPath,
-      meeting.abortController,
     );
     if (!queryOptionsResult.ok) {
       yield { type: "error", reason: queryOptionsResult.reason };
       return;
     }
 
-    const outcome = yield* runQueryAndTranslate(meeting, prompt, queryOptionsResult.options);
+    const outcome = yield* runQueryAndTranslate(deps.queryFn, meeting, prompt, queryOptionsResult.options, ghHome);
     if (outcome === "failed") {
       return;
     }
 
     // Update state file with captured session ID
     try {
-      await writeStateFile(meeting.meetingId, {
-        meetingId: meeting.meetingId,
-        projectName: meeting.projectName,
-        workerName: meeting.workerName,
-        packageName: meeting.packageName,
-        sdkSessionId: meeting.sdkSessionId,
-        worktreeDir: meeting.worktreeDir,
-        branchName: meeting.branchName,
-        status: "open",
-      });
+      await writeStateFile(meeting.meetingId, serializeMeetingState(meeting));
     } catch {
       // State file update failure is non-fatal; the meeting is already in memory
     }
-  }
-
-  // -- Session renewal helpers --
-
-  /**
-   * Detects whether an error message indicates an expired or not-found SDK
-   * session. The SDK uses phrases like "session expired" or "session not found"
-   * when a resume attempt targets a stale session.
-   */
-  function isSessionExpiryError(reason: string): boolean {
-    const lower = reason.toLowerCase();
-    return (
-      (lower.includes("session") &&
-        (lower.includes("expired") || lower.includes("not found"))) ||
-      lower.includes("session_expired")
-    );
-  }
-
-  /**
-   * Truncates a transcript to approximately maxChars, preserving complete
-   * turn boundaries. Splits on `## User` or `## Assistant` headings and
-   * drops leading turns until the remainder fits.
-   */
-  function truncateTranscript(transcript: string, maxChars = 30000): string {
-    if (transcript.length <= maxChars) return transcript;
-
-    // Split on turn headings, keeping the delimiter with the following section
-    const turnPattern = /^(## (?:User|Assistant) \([^)]+\))/m;
-    const parts = transcript.split(turnPattern);
-
-    // parts alternates: [preamble, heading1, body1, heading2, body2, ...]
-    // Reassemble into turns (heading + body pairs)
-    const turns: string[] = [];
-    for (let i = 1; i < parts.length; i += 2) {
-      turns.push(parts[i] + (parts[i + 1] ?? ""));
-    }
-
-    // Drop turns from the front until we fit
-    let result = turns.join("");
-    let startIdx = 0;
-    while (result.length > maxChars && startIdx < turns.length - 1) {
-      startIdx++;
-      result = turns.slice(startIdx).join("");
-    }
-
-    return result;
   }
 
   // -- Public API --
@@ -734,7 +512,7 @@ notes_summary: ""
     // withProjectLock to prevent the TOCTOU race where two concurrent
     // accepts both pass the cap check before either registers.
     type SetupResult =
-      | { ok: true; meeting: ActiveMeeting; prompt: string; projectPath: string }
+      | { ok: true; meeting: ActiveMeeting; prompt: string }
       | { ok: false; errors: GuildHallEvent[] };
 
     const setup = await withProjectLock(projectName, async (): Promise<SetupResult> => {
@@ -790,8 +568,7 @@ notes_summary: ""
       try {
         const artifactFilePath = meetingArtifactPath(iPath, meetingId);
         const raw = await fs.readFile(artifactFilePath, "utf-8");
-        const matter = await import("gray-matter");
-        const parsed = matter.default(raw);
+        const parsed = matter(raw);
         const data = parsed.data as Record<string, unknown>;
         agenda = typeof data.agenda === "string" ? data.agenda : "";
         workerName = typeof data.worker === "string" ? data.worker : "";
@@ -815,8 +592,8 @@ notes_summary: ""
       }
 
       // g. Create git branch and worktree (activity branch inherits artifact from claude)
-      const branchName = meetingBranchName(meetingId as string);
-      const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId as string);
+      const branchName = meetingBranchName(meetingId);
+      const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId);
       try {
         await git.createBranch(project.path, branchName, CLAUDE_BRANCH);
         await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
@@ -881,12 +658,12 @@ notes_summary: ""
       // l. Create transcript and record initial user turn
       try {
         await createTranscript(
-          meetingId as string,
+          meetingId,
           workerName,
           projectName,
           ghHome,
         );
-        await appendUserTurn(meetingId as string, prompt, ghHome);
+        await appendUserTurn(meetingId, prompt, ghHome);
       } catch (err: unknown) {
         const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to create transcript: ${reason}` });
@@ -907,9 +684,9 @@ notes_summary: ""
         abortController,
         status: "open",
       };
-      meetings.set(meetingId as string, meeting);
+      meetings.set(meetingId, meeting);
 
-      return { ok: true, meeting, prompt, projectPath: project.path };
+      return { ok: true, meeting, prompt };
     });
 
     // Yield errors from the setup phase, or start the SDK session
@@ -921,7 +698,7 @@ notes_summary: ""
     }
 
     // n. Start the SDK session (outside lock, streaming can take arbitrarily long)
-    yield* startSession(setup.meeting, setup.prompt, setup.projectPath);
+    yield* startSession(setup.meeting, setup.prompt);
   }
 
   async function* createMeeting(
@@ -933,7 +710,7 @@ notes_summary: ""
     // withProjectLock to prevent the TOCTOU race where two concurrent
     // creates both pass the cap check before either registers.
     type SetupResult =
-      | { ok: true; meeting: ActiveMeeting; projectPath: string }
+      | { ok: true; meeting: ActiveMeeting }
       | { ok: false; errors: GuildHallEvent[] };
 
     const setup = await withProjectLock(projectName, async (): Promise<SetupResult> => {
@@ -973,8 +750,8 @@ notes_summary: ""
       const meetingId = formatMeetingId(workerMeta.identity.name, new Date());
 
       // d. Create git branch and worktree
-      const branchName = meetingBranchName(meetingId as string);
-      const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId as string);
+      const branchName = meetingBranchName(meetingId);
+      const worktreeDir = meetingWorktreePath(ghHome, projectName, meetingId);
       try {
         await git.createBranch(project.path, branchName, CLAUDE_BRANCH);
         await fs.mkdir(path.dirname(worktreeDir), { recursive: true });
@@ -1008,12 +785,12 @@ notes_summary: ""
       // e2. Create transcript and record initial user turn
       try {
         await createTranscript(
-          meetingId as string,
+          meetingId,
           workerMeta.identity.name,
           projectName,
           ghHome,
         );
-        await appendUserTurn(meetingId as string, prompt, ghHome);
+        await appendUserTurn(meetingId, prompt, ghHome);
       } catch (err: unknown) {
         const reason = errorMessage(err);
         errors.push({ type: "error", reason: `Failed to create transcript: ${reason}` });
@@ -1021,26 +798,6 @@ notes_summary: ""
       }
 
       // f. Write initial machine-local state
-      try {
-        await writeStateFile(meetingId, {
-          meetingId,
-          projectName,
-          workerName: workerMeta.identity.name,
-          packageName: workerName,
-          sdkSessionId: null,
-          worktreeDir,
-          branchName,
-          status: "open",
-        });
-      } catch (err: unknown) {
-        const reason = errorMessage(err);
-        errors.push({ type: "error", reason: `Failed to write state file: ${reason}` });
-        return { ok: false, errors };
-      }
-
-      // g. Create AbortController and register meeting in active map
-      const abortController = new AbortController();
-
       const meeting: ActiveMeeting = {
         meetingId,
         projectName,
@@ -1049,12 +806,21 @@ notes_summary: ""
         sdkSessionId: null,
         worktreeDir,
         branchName,
-        abortController,
+        abortController: new AbortController(),
         status: "open",
       };
-      meetings.set(meetingId as string, meeting);
+      try {
+        await writeStateFile(meetingId, serializeMeetingState(meeting));
+      } catch (err: unknown) {
+        const reason = errorMessage(err);
+        errors.push({ type: "error", reason: `Failed to write state file: ${reason}` });
+        return { ok: false, errors };
+      }
 
-      return { ok: true, meeting, projectPath: project.path };
+      // g. Register meeting in active map
+      meetings.set(meetingId, meeting);
+
+      return { ok: true, meeting };
     });
 
     // Yield errors from the setup phase, or start the SDK session
@@ -1066,14 +832,14 @@ notes_summary: ""
     }
 
     // h. Start the SDK session via the shared helper (outside lock)
-    yield* startSession(setup.meeting, prompt, setup.projectPath);
+    yield* startSession(setup.meeting, prompt);
   }
 
   async function* sendMessage(
     meetingId: MeetingId,
     message: string,
   ): AsyncGenerator<GuildHallEvent> {
-    const meeting = meetings.get(meetingId as string);
+    const meeting = meetings.get(meetingId);
     if (!meeting) {
       yield { type: "error", reason: `Meeting "${meetingId}" not found` };
       return;
@@ -1088,18 +854,11 @@ notes_summary: ""
     }
 
     // Create new AbortController for this turn
-    const abortController = new AbortController();
-    meeting.abortController = abortController;
-
-    const project = findProject(meeting.projectName);
-    if (!project) {
-      yield { type: "error", reason: `Project "${meeting.projectName}" not found` };
-      return;
-    }
+    meeting.abortController = new AbortController();
 
     // Record user turn in transcript before querying
     try {
-      await appendUserTurn(meetingId as string, message, ghHome);
+      await appendUserTurn(meetingId, message, ghHome);
     } catch {
       // Transcript append failure is non-fatal
     }
@@ -1109,8 +868,6 @@ notes_summary: ""
     const resumeOptionsResult = await buildActivatedQueryOptions(
       meeting,
       message,
-      project.path,
-      abortController,
       meeting.sdkSessionId,
     );
     if (!resumeOptionsResult.ok) {
@@ -1118,10 +875,17 @@ notes_summary: ""
       return;
     }
 
+    if (!deps.queryFn) {
+      yield { type: "error", reason: "No queryFn provided" };
+      return;
+    }
+
     const queryOutcome = yield* runQueryAndTranslate(
+      deps.queryFn,
       meeting,
       message,
       resumeOptionsResult.options,
+      ghHome,
       true,
     );
 
@@ -1133,16 +897,7 @@ notes_summary: ""
     if (!needsRenewal) {
       // Normal path: update state file if session ID changed
       try {
-        await writeStateFile(meetingId, {
-          meetingId,
-          projectName: meeting.projectName,
-          workerName: meeting.workerName,
-          packageName: meeting.packageName,
-          sdkSessionId: meeting.sdkSessionId,
-          worktreeDir: meeting.worktreeDir,
-          branchName: meeting.branchName,
-          status: "open",
-        });
+        await writeStateFile(meetingId, serializeMeetingState(meeting));
       } catch {
         // Non-fatal
       }
@@ -1156,7 +911,7 @@ notes_summary: ""
     // Read and truncate transcript for context injection
     let transcript = "";
     try {
-      transcript = await readTranscript(meetingId as string, ghHome);
+      transcript = await readTranscript(meetingId, ghHome);
     } catch {
       // If transcript read fails, proceed without context
     }
@@ -1170,12 +925,11 @@ notes_summary: ""
       : message;
 
     // Create a fresh AbortController for the renewal session
-    const renewalAbortController = new AbortController();
-    meeting.abortController = renewalAbortController;
+    meeting.abortController = new AbortController();
     // Clear the old session ID so startSession captures the new one
     meeting.sdkSessionId = null;
 
-    yield* startSession(meeting, renewalPrompt, project.path);
+    yield* startSession(meeting, renewalPrompt);
 
     // Record the renewal in the meeting log (artifact is in activity worktree)
     try {
@@ -1183,7 +937,7 @@ notes_summary: ""
         meeting.worktreeDir,
         meetingId,
         "session_renewed",
-        `SDK session expired. Old: ${oldSessionId as string}, New: ${String(meeting.sdkSessionId)}`,
+        `SDK session expired. Old: ${oldSessionId}, New: ${String(meeting.sdkSessionId)}`,
       );
     } catch {
       // Meeting log append failure is non-fatal
@@ -1238,9 +992,11 @@ notes_summary: ""
       const project = findProject(state.projectName);
       if (!project) continue;
 
+      const meetingId = asMeetingId(state.meetingId);
+
       // Don't re-add meetings already in the map (shouldn't happen on
       // fresh startup, but guard defensively)
-      if (meetings.has(state.meetingId)) continue;
+      if (meetings.has(meetingId)) continue;
 
       // packageName may be absent in state files written before this field
       // was added. Fall back to workerName, which is the identity name. This
@@ -1256,16 +1012,16 @@ notes_summary: ""
       try {
         await fs.access(worktreeDir);
       } catch {
-        console.warn(`[recoverMeetings] Worktree missing for meeting ${state.meetingId}, closing`);
+        console.warn(`[recoverMeetings] Worktree missing for meeting ${meetingId}, closing`);
         try {
           const iPath = integrationWorktreePath(ghHome, state.projectName);
-          await updateArtifactStatus(iPath, asMeetingId(state.meetingId), "closed");
-          await appendMeetingLog(iPath, asMeetingId(state.meetingId), "closed", "Worktree lost during daemon restart");
+          await updateArtifactStatus(iPath, meetingId, "closed");
+          await appendMeetingLog(iPath, meetingId, "closed", "Worktree lost during daemon restart");
         } catch {
           // Best-effort artifact update
         }
         try {
-          await writeStateFile(asMeetingId(state.meetingId), {
+          await writeStateFile(meetingId, {
             ...state,
             status: "closed",
           });
@@ -1276,7 +1032,7 @@ notes_summary: ""
       }
 
       const meeting: ActiveMeeting = {
-        meetingId: asMeetingId(state.meetingId),
+        meetingId,
         projectName: state.projectName,
         workerName: state.workerName,
         packageName,
@@ -1289,7 +1045,7 @@ notes_summary: ""
         status: "open",
       };
 
-      meetings.set(state.meetingId, meeting);
+      meetings.set(meetingId, meeting);
       recovered++;
     }
 
@@ -1297,7 +1053,7 @@ notes_summary: ""
   }
 
   async function closeMeeting(meetingId: MeetingId): Promise<{ notes: string }> {
-    const meeting = meetings.get(meetingId as string);
+    const meeting = meetings.get(meetingId);
     if (!meeting) {
       throw new Error(`Meeting "${meetingId}" not found`);
     }
@@ -1312,7 +1068,7 @@ notes_summary: ""
     if (project) {
       try {
         result = await generateMeetingNotes(
-          meetingId as string,
+          meetingId,
           meeting.worktreeDir,
           meeting.workerName,
           {
@@ -1362,16 +1118,7 @@ notes_summary: ""
 
     // Update machine-local state
     try {
-      await writeStateFile(meetingId, {
-        meetingId,
-        projectName: meeting.projectName,
-        workerName: meeting.workerName,
-        packageName: meeting.packageName,
-        sdkSessionId: meeting.sdkSessionId,
-        worktreeDir: meeting.worktreeDir,
-        branchName: meeting.branchName,
-        status: "closed",
-      });
+      await writeStateFile(meetingId, serializeMeetingState(meeting, "closed"));
     } catch {
       // Non-fatal
     }
@@ -1460,7 +1207,7 @@ notes_summary: ""
     // used for manual review or retry.
     if (!notesGenerationFailed) {
       try {
-        await removeTranscript(meetingId as string, ghHome);
+        await removeTranscript(meetingId, ghHome);
       } catch {
         // Non-fatal; transcript may not exist if creation failed
       }
@@ -1468,7 +1215,7 @@ notes_summary: ""
 
     // Mark closed and remove from active map
     meeting.status = "closed";
-    meetings.delete(meetingId as string);
+    meetings.delete(meetingId);
 
     return { notes };
   }
@@ -1493,7 +1240,7 @@ notes_summary: ""
   }
 
   function interruptTurn(meetingId: MeetingId): void {
-    const meeting = meetings.get(meetingId as string);
+    const meeting = meetings.get(meetingId);
     if (!meeting) {
       throw new Error(`Meeting "${meetingId}" not found`);
     }
