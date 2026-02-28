@@ -34,6 +34,7 @@ import { hasActiveActivities, syncProject } from "@/cli/rebase";
 import type { SyncResult } from "@/cli/rebase";
 import type { ProjectConfig } from "@/lib/types";
 import { integrationWorktreePath, resolveCommissionBasePath } from "@/lib/paths";
+import type { ToolboxFactory } from "./toolbox-types";
 
 export interface ManagerToolboxDeps {
   projectName: string;
@@ -686,5 +687,27 @@ export function createManagerToolbox(
         (args) => syncProjectTool(args),
       ),
     ],
+  });
+}
+
+// -- Factory interface --
+
+export interface ManagerServices {
+  commissionSession: CommissionSessionForRoutes;
+  eventBus: EventBus;
+  gitOps: GitOps;
+  getProjectConfig: (name: string) => Promise<ProjectConfig | undefined>;
+}
+
+/** Binds manager services, returns a ToolboxFactory. */
+export function createManagerToolboxFactory(
+  services: ManagerServices,
+): ToolboxFactory {
+  return (ctx) => ({
+    server: createManagerToolbox({
+      projectName: ctx.projectName,
+      guildHallHome: ctx.guildHallHome,
+      ...services,
+    }),
   });
 }

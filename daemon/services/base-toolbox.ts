@@ -11,6 +11,7 @@ import { z } from "zod/v4";
 import type { ToolResult } from "@/daemon/types";
 import { isNodeError } from "@/lib/types";
 import { validateContainedPath } from "@/daemon/lib/toolbox-utils";
+import type { ToolboxFactory } from "./toolbox-types";
 
 // -- Types --
 
@@ -151,6 +152,11 @@ export function makeRecordDecisionHandler(
  * (commission toolbox, meeting toolbox) handle structured updates that
  * need metadata tracking and daemon notifications.
  */
+/** ToolboxFactory adapter for the base toolbox. */
+export const baseToolboxFactory: ToolboxFactory = (deps) => ({
+  server: createBaseToolbox(deps),
+});
+
 export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWithInstance {
   const readMemory = makeReadMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName);
   const writeMemory = makeWriteMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName);

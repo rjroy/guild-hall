@@ -28,6 +28,7 @@ import {
   updateResultSummary,
 } from "@/daemon/services/commission-artifact-helpers";
 import { resolveWritePath } from "@/daemon/lib/toolbox-utils";
+import type { ToolboxFactory } from "./toolbox-types";
 
 export interface CommissionToolboxDeps {
   guildHallHome: string;
@@ -204,4 +205,27 @@ export function createCommissionToolbox(
   });
 
   return { server, wasResultSubmitted: () => resultSubmitted };
+}
+
+// -- Factory interface --
+
+export interface CommissionCallbacks {
+  onProgress: (summary: string) => void;
+  onResult: (summary: string, artifacts?: string[]) => void;
+  onQuestion: (question: string) => void;
+}
+
+/** Binds commission callbacks, returns a ToolboxFactory. */
+export function createCommissionToolboxFactory(
+  callbacks: CommissionCallbacks,
+): ToolboxFactory {
+  return (ctx) => {
+    const result = createCommissionToolbox({
+      guildHallHome: ctx.guildHallHome,
+      projectName: ctx.projectName,
+      contextId: ctx.contextId,
+      ...callbacks,
+    });
+    return { server: result.server, wasResultSubmitted: result.wasResultSubmitted };
+  };
 }

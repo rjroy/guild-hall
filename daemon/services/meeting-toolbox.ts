@@ -26,6 +26,7 @@ import {
 } from "@/daemon/services/meeting-artifact-helpers";
 import { validateContainedPath, formatTimestamp, resolveWritePath } from "@/daemon/lib/toolbox-utils";
 import { integrationWorktreePath } from "@/lib/paths";
+import type { ToolboxFactory } from "./toolbox-types";
 
 export interface MeetingToolboxDeps {
   guildHallHome: string;
@@ -179,6 +180,11 @@ export function makeSummarizeProgressHandler(deps: MeetingToolboxDeps) {
     };
   };
 }
+
+/** ToolboxFactory adapter for the meeting toolbox. */
+export const meetingToolboxFactory: ToolboxFactory = (deps) => ({
+  server: createMeetingToolbox(deps),
+});
 
 // -- MCP server factory --
 
