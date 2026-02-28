@@ -29,7 +29,7 @@ Phase 6 complete. 1532 tests pass. Phase 1 delivered three views (Dashboard, Pro
 - PID file at `<socket-path>.pid` enables crash recovery. On boot, if a PID file exists and the process is dead, both socket and PID file are cleaned up. If the process is alive, startup is rejected.
 - Routes use DI factory pattern: `createHealthRoutes(deps)` receives injected dependencies. The app factory `createApp(deps)` wires route groups. Production wiring lives in `daemon/app.ts` via `createProductionApp()`.
 - Meeting sessions manage Claude Agent SDK lifecycle, translate SDK messages to GuildHallEvents, and stream them via SSE.
-- Toolbox resolver assembles base tools (3 built-in via MCP server: read_memory, write_memory, record_decision), context-specific tools (meeting or commission), domain-specific tools from worker packages, built-in tool configurations, and the manager-exclusive toolbox (gated by `isManager` flag). Workers access `.lore/` artifacts directly via filesystem (activity worktrees have `.lore/` via sparse checkout). Base toolbox uses `contextId`/`contextType` (not `meetingId`) to support both meeting and commission contexts.
+- Toolbox resolver uses a generic `ToolboxFactory` interface. It always runs `baseToolboxFactory` (3 built-in MCP tools: read_memory, write_memory, record_decision), then iterates caller-provided `contextFactories` (meeting, commission, manager). Callers bind extras via partial application (`createCommissionToolboxFactory(callbacks)`, `createManagerToolboxFactory(services)`). Domain toolbox validation and built-in tool assembly are unchanged. Workers access `.lore/` artifacts directly via filesystem (activity worktrees have `.lore/` via sparse checkout).
 - Commission sessions manage in-process SDK sessions: dispatch (fire-and-forget async), cancel (AbortController), capacity limits (configurable concurrent session cap), and emit events to the EventBus. The EventBus (Set-based pub/sub) broadcasts SystemEvents to SSE subscribers via `GET /events`.
 
 ## Tech Stack
@@ -187,7 +187,8 @@ Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact
 | `daemon/services/meeting-session.ts` | Meeting lifecycle, SDK session management, session recovery and renewal |
 | `daemon/services/event-translator.ts` | SDK messages to GuildHallEvent translation |
 | `daemon/services/base-toolbox.ts` | 3 base tools via `createSdkMcpServer()` (memory + decisions) |
-| `daemon/services/toolbox-resolver.ts` | Assembles base + domain + built-in tools |
+| `daemon/services/toolbox-types.ts` | `GuildHallToolboxDeps`, `ToolboxOutput`, `ToolboxFactory` shared types |
+| `daemon/services/toolbox-resolver.ts` | Factory-driven assembly: base + contextFactories + domain + built-in tools |
 | `daemon/services/transcript.ts` | Transcript CRUD (create, append turns, read, parse, remove) |
 | `daemon/services/notes-generator.ts` | Meeting notes generation via SDK (transcript + decisions + artifacts) |
 | `daemon/services/meeting-toolbox.ts` | 3 meeting tools via MCP server (link_artifact, propose_followup, summarize_progress) |
