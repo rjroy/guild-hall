@@ -38,6 +38,17 @@ export function validateContainedPath(basePath: string, userPath: string): strin
 }
 
 /**
+ * Sanitizes a name for use in git branch/ref names. Replaces any character
+ * that isn't alphanumeric or hyphen, collapses runs, and trims edges.
+ */
+export function sanitizeForGitRef(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9-]/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
  * Formats a Date as YYYYMMDD-HHMMSS for use in artifact IDs and filenames.
  */
 export function formatTimestamp(now: Date): string {
