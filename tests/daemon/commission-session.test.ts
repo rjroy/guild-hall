@@ -28,7 +28,7 @@ import type {
   WorkerMetadata,
 } from "@/lib/types";
 import type { GitOps } from "@/daemon/lib/git";
-import type { ToolboxResolverContext } from "@/daemon/services/toolbox-resolver";
+import type { CommissionCallbacks } from "@/daemon/services/commission-toolbox";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   integrationWorktreePath,
@@ -436,19 +436,17 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
 /**
  * Creates a mock in-process session that replaces the old createMockSpawn.
  *
- * Provides DI seams (queryFn, activateFn, resolveToolSetFn) that simulate
- * an SDK session running inside the daemon. The test controls when the
- * session completes via resolve/reject, and can simulate tool callbacks
- * (submitResult, reportProgress, logQuestion) that would normally be
- * invoked by the commission toolbox MCP handlers.
+ * Provides DI seams (queryFn, activateFn, resolveToolSetFn, onCallbacksCreated)
+ * that simulate an SDK session running inside the daemon. The test controls
+ * when the session completes via resolve/reject, and can simulate tool
+ * callbacks (submitResult, reportProgress, logQuestion) that would normally
+ * be invoked by the commission toolbox MCP handlers.
  */
 function createMockSession() {
   let resolveSession!: () => void;
   let rejectSession!: (err: Error) => void;
   let resultSubmitted = false;
-  let capturedOnResult: ((summary: string, artifacts?: string[]) => void) | undefined;
-  let capturedOnProgress: ((summary: string) => void) | undefined;
-  let capturedOnQuestion: ((question: string) => void) | undefined;
+  let capturedCallbacks: CommissionCallbacks | undefined;
 
   const sessionPromise = new Promise<void>((resolve, reject) => {
     resolveSession = resolve;
@@ -487,28 +485,26 @@ function createMockSession() {
       resourceBounds: {},
     }),
     /* eslint-enable @typescript-eslint/require-await */
-    resolveToolSetFn: (_worker: WorkerMetadata, _packages: DiscoveredPackage[], context: ToolboxResolverContext): ResolvedToolSet => {
-      capturedOnResult = context.onResult;
-      capturedOnProgress = context.onProgress;
-      capturedOnQuestion = context.onQuestion;
-      return {
-        mcpServers: [],
-        allowedTools: [],
-        wasResultSubmitted: () => resultSubmitted,
-      };
+    resolveToolSetFn: (): ResolvedToolSet => ({
+      mcpServers: [],
+      allowedTools: [],
+      wasResultSubmitted: () => resultSubmitted,
+    }),
+    onCallbacksCreated: (callbacks: CommissionCallbacks) => {
+      capturedCallbacks = callbacks;
     },
     /** Simulate worker calling submit_result tool */
     submitResult: (summary: string, artifacts?: string[]) => {
       resultSubmitted = true;
-      capturedOnResult?.(summary, artifacts);
+      capturedCallbacks?.onResult(summary, artifacts);
     },
     /** Simulate worker calling report_progress tool */
     reportProgress: (summary: string) => {
-      capturedOnProgress?.(summary);
+      capturedCallbacks?.onProgress(summary);
     },
     /** Simulate worker calling log_question tool */
     logQuestion: (question: string) => {
-      capturedOnQuestion?.(question);
+      capturedCallbacks?.onQuestion(question);
     },
     /** Complete the SDK session (generator finishes normally) */
     resolve: () => resolveSession(),
@@ -861,6 +857,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -906,6 +903,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
         }),
       );
 
@@ -925,6 +923,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -993,6 +992,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1044,6 +1044,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1080,6 +1081,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1116,6 +1118,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1148,6 +1151,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1181,6 +1185,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1228,6 +1233,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
           createMeetingRequestFn: (params) => {
             meetingRequestCalls.push(params);
@@ -1281,6 +1287,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1316,6 +1323,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1360,6 +1368,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1397,6 +1406,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1425,6 +1435,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1478,6 +1489,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1510,6 +1522,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1539,6 +1552,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1570,6 +1584,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1596,6 +1611,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1626,6 +1642,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1665,6 +1682,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1718,6 +1736,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1800,6 +1819,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1821,6 +1841,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1862,6 +1883,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1888,6 +1910,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1917,6 +1940,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -1966,6 +1990,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -2013,6 +2038,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -2049,6 +2075,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -2104,6 +2131,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -2136,6 +2164,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -2175,6 +2204,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -2212,6 +2242,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -2264,6 +2295,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );
@@ -2317,6 +2349,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+          onCallbacksCreated: mock.onCallbacksCreated,
           gitOps: mockGitOps,
         }),
       );

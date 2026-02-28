@@ -22,6 +22,8 @@ import {
   type CommissionSessionDeps,
 } from "@/daemon/services/commission-session";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
+import { meetingToolboxFactory } from "@/daemon/services/meeting-toolbox";
+import { createCommissionToolboxFactory } from "@/daemon/services/commission-toolbox";
 import {
   makeReadMemoryHandler,
   makeWriteMemoryHandler,
@@ -528,20 +530,27 @@ describe("State Isolation", () => {
     // Resolve tools for a meeting context
     const meetingTools = resolveToolSet(WORKER_META, [WORKER_PKG], {
       projectName: "test-project",
-      meetingId: "audience-Assistant-20260223-120000",
+      contextId: "audience-Assistant-20260223-120000",
+      contextType: "meeting",
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
+      contextFactories: [meetingToolboxFactory],
     });
 
     // Resolve tools for a commission context
     const commissionTools = resolveToolSet(WORKER_META, [WORKER_PKG], {
       projectName: "test-project",
-      commissionId: "commission-Assistant-20260223-120000",
+      contextId: "commission-Assistant-20260223-120000",
+      contextType: "commission",
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
-      onProgress: () => {},
-      onResult: () => {},
-      onQuestion: () => {},
+      contextFactories: [
+        createCommissionToolboxFactory({
+          onProgress: () => {},
+          onResult: () => {},
+          onQuestion: () => {},
+        }),
+      ],
     });
 
     // Both should have the base toolbox

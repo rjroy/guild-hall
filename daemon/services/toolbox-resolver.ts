@@ -4,27 +4,19 @@ import type {
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
-import { createBaseToolbox } from "./base-toolbox";
-import { createCommissionToolbox } from "./commission-toolbox";
-import { createMeetingToolbox } from "./meeting-toolbox";
-import { createManagerToolbox, type ManagerToolboxDeps } from "./manager-toolbox";
+import { baseToolboxFactory } from "./base-toolbox";
+import type { ToolboxFactory } from "./toolbox-types";
 
 // -- Types --
 
 export interface ToolboxResolverContext {
   projectName: string;
   guildHallHome: string;
-  meetingId?: string;
-  commissionId?: string;
-  workerName?: string;
-  /** When true, the manager-exclusive toolbox is injected. */
-  isManager?: boolean;
-  /** Dependencies for the manager toolbox. Required when isManager is true. */
-  managerToolboxDeps?: ManagerToolboxDeps;
-  /** Commission callbacks. Required when commissionId is set. */
-  onProgress?: (summary: string) => void;
-  onResult?: (summary: string, artifacts?: string[]) => void;
-  onQuestion?: (question: string) => void;
+  contextId: string;
+  contextType: "meeting" | "commission";
+  workerName: string;
+  /** Pre-bound context factories (meeting, commission, manager). */
+  contextFactories?: ToolboxFactory[];
 }
 
 // -- Resolver --
@@ -33,7 +25,7 @@ export interface ToolboxResolverContext {
  * Assembles the complete tool set for a worker activation.
  *
  * 1. Base toolbox (always present, provides memory/artifact/decision tools)
- * 2. Context toolbox slot (empty in Phase 2, reserved for future use)
+ * 2. Context factories (meeting, commission, manager, bound by caller)
  * 3. Domain toolboxes (resolved from worker.domainToolboxes against discovered packages)
  * 4. Built-in tool names (from worker.builtInTools, passed through as allowedTools)
  *
@@ -46,61 +38,28 @@ export function resolveToolSet(
   context: ToolboxResolverContext,
 ): ResolvedToolSet {
   const mcpServers: McpSdkServerConfigWithInstance[] = [];
-
-  // Determine context identity for the base toolbox
-  const contextId = context.meetingId ?? context.commissionId;
-  if (!contextId) {
-    throw new Error("ToolboxResolverContext requires either meetingId or commissionId");
-  }
-  const contextType: "meeting" | "commission" = context.meetingId ? "meeting" : "commission";
-
-  const resolvedWorkerName = context.workerName ?? worker.identity.name;
-
-  // 1. Base toolbox (always present: memory + decision tools)
-  mcpServers.push(
-    createBaseToolbox({
-      contextId,
-      contextType,
-      workerName: resolvedWorkerName,
-      projectName: context.projectName,
-      guildHallHome: context.guildHallHome,
-    }),
-  );
-
-  // 2. Context toolbox (meeting or commission, mutually exclusive)
   let wasResultSubmitted: (() => boolean) | undefined;
 
-  if (context.meetingId && context.workerName) {
-    mcpServers.push(
-      createMeetingToolbox({
-        guildHallHome: context.guildHallHome,
-        projectName: context.projectName,
-        contextId: context.meetingId,
-        workerName: context.workerName,
-      }),
-    );
-  } else if (context.commissionId) {
-    if (!context.onProgress || !context.onResult || !context.onQuestion) {
-      throw new Error(
-        `Commission context requires onProgress, onResult, and onQuestion callbacks. ` +
-        `CommissionId "${context.commissionId}" was provided without callbacks.`,
-      );
-    }
-    const commissionToolbox = createCommissionToolbox({
-      guildHallHome: context.guildHallHome,
-      projectName: context.projectName,
-      contextId: context.commissionId,
-      onProgress: context.onProgress,
-      onResult: context.onResult,
-      onQuestion: context.onQuestion,
-    });
-    mcpServers.push(commissionToolbox.server);
-    wasResultSubmitted = commissionToolbox.wasResultSubmitted;
-  }
+  // Build shared deps from context fields
+  const deps = {
+    guildHallHome: context.guildHallHome,
+    projectName: context.projectName,
+    contextId: context.contextId,
+    contextType: context.contextType,
+    workerName: context.workerName,
+  };
 
-  // 2b. Manager toolbox (exclusive to the Guild Master, injected after context toolbox)
-  if (context.isManager && context.managerToolboxDeps) {
-    mcpServers.push(createManagerToolbox(context.managerToolboxDeps));
+  // 1. Base toolbox (always present: memory + decision tools)
+  const baseOutput = baseToolboxFactory(deps);
+  mcpServers.push(baseOutput.server);
+
+  // 2. Context factories (meeting, commission, manager)
+  for (const factory of context.contextFactories ?? []) {
+    const output = factory(deps);
+    mcpServers.push(output.server);
+    if (output.wasResultSubmitted) {
+      wasResultSubmitted = output.wasResultSubmitted;
+    }
   }
 
   // 3. Domain toolboxes
@@ -117,7 +76,6 @@ export function resolveToolSet(
     }
     // Domain toolbox MCP servers will be created by the toolbox package itself
     // in a later phase. For now, we validate that the package exists.
-    // The actual MCP server creation from toolbox packages is a Phase 3+ concern.
   }
 
   // 4. Built-in tools + MCP server tool wildcards.

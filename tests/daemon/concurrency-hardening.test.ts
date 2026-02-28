@@ -31,7 +31,7 @@ import type {
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
-import type { ToolboxResolverContext } from "@/daemon/services/toolbox-resolver";
+import type { CommissionCallbacks } from "@/daemon/services/commission-toolbox";
 import type { GitOps } from "@/daemon/lib/git";
 import {
   integrationWorktreePath,
@@ -593,10 +593,10 @@ projectName: test-project
         systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
       }),
       /* eslint-enable @typescript-eslint/require-await */
-      resolveToolSetFn: (_w: WorkerMetadata, _p: DiscoveredPackage[], ctx: ToolboxResolverContext): ResolvedToolSet => {
-        capturedOnResult = ctx.onResult;
-        return { mcpServers: [], allowedTools: [], wasResultSubmitted: () => resultSubmitted };
-      },
+      resolveToolSetFn: (): ResolvedToolSet => ({
+        mcpServers: [], allowedTools: [], wasResultSubmitted: () => resultSubmitted,
+      }),
+      onCallbacksCreated: (callbacks: CommissionCallbacks) => { capturedOnResult = callbacks.onResult; },
       submitResult: (summary: string, artifacts?: string[]) => { resultSubmitted = true; capturedOnResult?.(summary, artifacts); },
       resolve: () => resolveSession(),
     };
@@ -629,6 +629,7 @@ projectName: test-project
         queryFn: mock.queryFn,
         activateFn: mock.activateFn,
         resolveToolSetFn: mock.resolveToolSetFn,
+        onCallbacksCreated: mock.onCallbacksCreated,
         gitOps: mockGitOps,
       }),
     );
@@ -681,6 +682,7 @@ projectName: test-project
         queryFn: mock.queryFn,
         activateFn: mock.activateFn,
         resolveToolSetFn: mock.resolveToolSetFn,
+        onCallbacksCreated: mock.onCallbacksCreated,
         gitOps: mockGitOps,
       }),
     );
@@ -736,6 +738,7 @@ projectName: test-project
         queryFn: mock.queryFn,
         activateFn: mock.activateFn,
         resolveToolSetFn: mock.resolveToolSetFn,
+        onCallbacksCreated: mock.onCallbacksCreated,
         gitOps: mockGitOps,
       }),
     );
@@ -789,6 +792,7 @@ projectName: test-project
         queryFn: mock.queryFn,
         activateFn: mock.activateFn,
         resolveToolSetFn: mock.resolveToolSetFn,
+        onCallbacksCreated: mock.onCallbacksCreated,
         gitOps: mockGitOps,
       }),
     );
@@ -833,6 +837,7 @@ projectName: test-project
         queryFn: mock.queryFn,
         activateFn: mock.activateFn,
         resolveToolSetFn: mock.resolveToolSetFn,
+        onCallbacksCreated: mock.onCallbacksCreated,
         gitOps: mockGitOps,
       }),
     );

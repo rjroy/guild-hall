@@ -25,8 +25,8 @@ import type {
   CommissionSessionDeps,
   CommissionSessionForRoutes,
 } from "@/daemon/services/commission-session";
-import type { ToolboxResolverContext } from "@/daemon/services/toolbox-resolver";
-import type { AppConfig, DiscoveredPackage, ResolvedToolSet, WorkerMetadata } from "@/lib/types";
+import type { CommissionCallbacks } from "@/daemon/services/commission-toolbox";
+import type { AppConfig, DiscoveredPackage, ResolvedToolSet } from "@/lib/types";
 import {
   commissionArtifactPath,
 } from "@/daemon/services/commission-artifact-helpers";
@@ -192,10 +192,10 @@ function createMockSession() {
       systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
     }),
     /* eslint-enable @typescript-eslint/require-await */
-    resolveToolSetFn: (_w: WorkerMetadata, _p: DiscoveredPackage[], ctx: ToolboxResolverContext): ResolvedToolSet => {
-      capturedOnResult = ctx.onResult;
-      return { mcpServers: [], allowedTools: [], wasResultSubmitted: () => resultSubmitted };
-    },
+    resolveToolSetFn: (): ResolvedToolSet => ({
+      mcpServers: [], allowedTools: [], wasResultSubmitted: () => resultSubmitted,
+    }),
+    onCallbacksCreated: (callbacks: CommissionCallbacks) => { capturedOnResult = callbacks.onResult; },
     submitResult: (summary: string, artifacts?: string[]) => { resultSubmitted = true; capturedOnResult?.(summary, artifacts); },
     resolve: () => resolveSession(),
     reject: (err: Error) => rejectSession(err),
@@ -226,12 +226,18 @@ function createMultiMockTracker(count = 20) {
     systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
   });
 
-  const resolveToolSetFn = (_w: WorkerMetadata, _p: DiscoveredPackage[], ctx: ToolboxResolverContext): ResolvedToolSet => {
+  const resolveToolSetFn = (): ResolvedToolSet => {
     const idx = resolveCallCount++;
-    return mocks[idx].resolveToolSetFn(_w, _p, ctx);
+    return mocks[idx].resolveToolSetFn();
   };
 
-  return { queryFn, activateFn, resolveToolSetFn, mocks };
+  let callbacksCallCount = 0;
+  const onCallbacksCreated = (callbacks: CommissionCallbacks) => {
+    const idx = callbacksCallCount++;
+    mocks[idx].onCallbacksCreated(callbacks);
+  };
+
+  return { queryFn, activateFn, resolveToolSetFn, onCallbacksCreated, mocks };
 }
 
 /**
@@ -330,6 +336,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 3 },
@@ -370,6 +377,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 3 },
@@ -427,6 +435,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
         }),
       );
 
@@ -467,6 +476,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: {
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 5 },
@@ -520,6 +530,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 20 },
@@ -569,6 +580,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -628,6 +640,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -676,6 +689,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -736,6 +750,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: {
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -796,6 +811,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 3 },
@@ -854,6 +870,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 2 },
@@ -907,6 +924,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           // No commissionCap or maxConcurrentCommissions configured
         }),
       );
@@ -940,6 +958,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 20 },
@@ -999,6 +1018,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+          onCallbacksCreated: tracker.onCallbacksCreated,
           config: {
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },

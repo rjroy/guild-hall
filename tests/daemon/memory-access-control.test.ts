@@ -6,8 +6,8 @@ import {
   makeReadMemoryHandler,
   makeWriteMemoryHandler,
   createBaseToolbox,
-  type BaseToolboxDeps,
 } from "@/daemon/services/base-toolbox";
+import type { GuildHallToolboxDeps } from "@/daemon/services/toolbox-types";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import type { WorkerMetadata } from "@/lib/types";
 
@@ -192,11 +192,11 @@ describe("global scope", () => {
   });
 });
 
-// -- BaseToolboxDeps integration --
+// -- GuildHallToolboxDeps integration --
 
-describe("BaseToolboxDeps integration", () => {
+describe("GuildHallToolboxDeps integration", () => {
   test("createBaseToolbox requires workerName and projectName", () => {
-    const deps: BaseToolboxDeps = {
+    const deps: GuildHallToolboxDeps = {
       contextId: "meeting-001",
       contextType: "meeting",
       workerName: "my-worker",
@@ -234,32 +234,27 @@ describe("toolbox resolver passes identity to base toolbox", () => {
     const worker = makeWorker();
     const result = resolveToolSet(worker, [], {
       projectName: "test-project",
-      meetingId: "meeting-test",
+      contextId: "meeting-test",
+      contextType: "meeting",
       workerName: "my-specific-worker",
       guildHallHome,
     });
 
-    // Base toolbox + meeting toolbox (workerName triggers meeting toolbox)
     expect(result.mcpServers.length).toBeGreaterThanOrEqual(1);
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
   });
 
-  test("resolveToolSet falls back to worker identity name when context.workerName is absent", () => {
-    const worker = makeWorker({
-      identity: {
-        name: "fallback-worker",
-        description: "test",
-        displayTitle: "Fallback",
-      },
-    });
-
-    // No workerName in context: base toolbox only (no meeting toolbox without workerName)
+  test("workerName is always required in new context shape", () => {
+    const worker = makeWorker();
     const result = resolveToolSet(worker, [], {
       projectName: "test-project",
-      meetingId: "meeting-test",
+      contextId: "meeting-test",
+      contextType: "meeting",
+      workerName: "fallback-worker",
       guildHallHome,
     });
 
+    // Base only (no context factories)
     expect(result.mcpServers).toHaveLength(1);
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
   });
@@ -267,10 +262,10 @@ describe("toolbox resolver passes identity to base toolbox", () => {
   test("projectName is passed through to base toolbox", () => {
     const worker = makeWorker();
 
-    // workerName present triggers meeting toolbox, so base + meeting = 2
     const result = resolveToolSet(worker, [], {
       projectName: "explicit-project-name",
-      meetingId: "meeting-test",
+      contextId: "meeting-test",
+      contextType: "meeting",
       workerName: "test-worker",
       guildHallHome,
     });

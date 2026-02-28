@@ -15,7 +15,7 @@ import type { ToolboxFactory } from "./toolbox-types";
 
 // -- Types --
 
-export interface BaseToolboxDeps {
+interface BaseToolboxDeps {
   contextId: string;                          // meetingId or commissionId
   contextType: "meeting" | "commission";      // determines storage path
   workerName: string;                         // identity of the active worker (enforces worker scope)

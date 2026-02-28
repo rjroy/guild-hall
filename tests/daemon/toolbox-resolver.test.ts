@@ -3,7 +3,9 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
-import type { ManagerToolboxDeps } from "@/daemon/services/manager-toolbox";
+import { meetingToolboxFactory } from "@/daemon/services/meeting-toolbox";
+import { createCommissionToolboxFactory } from "@/daemon/services/commission-toolbox";
+import { createManagerToolboxFactory } from "@/daemon/services/manager-toolbox";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { GitOps } from "@/daemon/lib/git";
 import type {
@@ -72,13 +74,15 @@ function makeWorkerToolboxPackage(name: string): DiscoveredPackage {
 function testContext() {
   return {
     projectName: "test-project",
-    meetingId: "meeting-test" as string,
+    contextId: "meeting-test",
+    contextType: "meeting" as const,
+    workerName: "test-worker",
     guildHallHome,
   };
 }
 
 describe("resolveToolSet", () => {
-  test("base only: worker with no domain toolboxes", () => {
+  test("base only: worker with no domain toolboxes and no context factories", () => {
     const worker = makeWorker();
     const result = resolveToolSet(worker, [], testContext());
 
@@ -95,7 +99,7 @@ describe("resolveToolSet", () => {
     });
     const result = resolveToolSet(worker, [], testContext());
 
-    // Built-in tools + MCP server wildcards (base only, no workerName = no meeting toolbox)
+    // Built-in tools + MCP server wildcards (base only, no context factories)
     expect(result.allowedTools).toContain("Read");
     expect(result.allowedTools).toContain("Glob");
     expect(result.allowedTools).toContain("Grep");
@@ -190,11 +194,11 @@ describe("resolveToolSet", () => {
     expect(worker.builtInTools).not.toContain("mcp__guild-hall-base__*");
   });
 
-  test("meeting context with workerName produces base + meeting MCP servers", () => {
+  test("meeting context with meetingToolboxFactory produces base + meeting MCP servers", () => {
     const worker = makeWorker();
     const context = {
       ...testContext(),
-      workerName: "test-worker",
+      contextFactories: [meetingToolboxFactory],
     };
     const result = resolveToolSet(worker, [], context);
 
@@ -203,7 +207,7 @@ describe("resolveToolSet", () => {
     expect(result.mcpServers[1].name).toBe("guild-hall-meeting");
   });
 
-  test("context without workerName produces base only (no meeting toolbox)", () => {
+  test("context without contextFactories produces base only", () => {
     const worker = makeWorker();
     const result = resolveToolSet(worker, [], testContext());
 
@@ -216,6 +220,7 @@ describe("resolveToolSet", () => {
     const context = {
       ...testContext(),
       workerName: "specific-worker",
+      contextFactories: [meetingToolboxFactory],
     };
     const result = resolveToolSet(worker, [], context);
 
@@ -227,15 +232,19 @@ describe("resolveToolSet", () => {
     expect(meetingServer.instance).toBeDefined();
   });
 
-  test("commission context with callbacks produces base + commission MCP servers", () => {
+  test("commission context with factory produces base + commission MCP servers", () => {
     const worker = makeWorker();
     const context = {
-      projectName: "test-project",
-      commissionId: "commission-test",
-      guildHallHome,
-      onProgress: () => {},
-      onResult: () => {},
-      onQuestion: () => {},
+      ...testContext(),
+      contextId: "commission-test",
+      contextType: "commission" as const,
+      contextFactories: [
+        createCommissionToolboxFactory({
+          onProgress: () => {},
+          onResult: () => {},
+          onQuestion: () => {},
+        }),
+      ],
     };
     const result = resolveToolSet(worker, [], context);
 
@@ -246,31 +255,6 @@ describe("resolveToolSet", () => {
     expect(result.mcpServers[1].instance).toBeDefined();
     expect(result.wasResultSubmitted).toBeFunction();
     expect(result.wasResultSubmitted!()).toBe(false);
-  });
-
-  test("commission context without callbacks throws", () => {
-    const worker = makeWorker();
-    const context = {
-      projectName: "test-project",
-      commissionId: "commission-test",
-      guildHallHome,
-    };
-
-    expect(() => resolveToolSet(worker, [], context)).toThrow(
-      /Commission context requires onProgress, onResult, and onQuestion callbacks/,
-    );
-  });
-
-  test("context with neither meetingId nor commissionId throws", () => {
-    const worker = makeWorker();
-    const context = {
-      projectName: "test-project",
-      guildHallHome,
-    };
-
-    expect(() => resolveToolSet(worker, [], context)).toThrow(
-      /requires either meetingId or commissionId/,
-    );
   });
 });
 
@@ -328,25 +312,21 @@ function makeMockGitOps(): GitOps {
 
 /* eslint-enable @typescript-eslint/require-await */
 
-function makeManagerToolboxDeps(): ManagerToolboxDeps {
-  return {
-    projectName: "test-project",
-    guildHallHome,
-    commissionSession: makeMockCommissionSession(),
-    eventBus: { emit() {}, subscribe() { return () => {}; } },
-    gitOps: makeMockGitOps(),
-    getProjectConfig: () => Promise.resolve(undefined),
-  };
-}
-
 describe("resolveToolSet with manager toolbox", () => {
-  test("isManager=true includes manager toolbox MCP server", () => {
+  test("manager factory includes manager toolbox MCP server", () => {
     const worker = makeWorker();
     const context = {
       ...testContext(),
       workerName: "Guild Master",
-      isManager: true,
-      managerToolboxDeps: makeManagerToolboxDeps(),
+      contextFactories: [
+        meetingToolboxFactory,
+        createManagerToolboxFactory({
+          commissionSession: makeMockCommissionSession(),
+          eventBus: { emit() {}, subscribe() { return () => {}; } },
+          gitOps: makeMockGitOps(),
+          getProjectConfig: () => Promise.resolve(undefined),
+        }),
+      ],
     };
     const result = resolveToolSet(worker, [], context);
 
@@ -357,12 +337,12 @@ describe("resolveToolSet with manager toolbox", () => {
     expect(result.mcpServers[2].name).toBe("guild-hall-manager");
   });
 
-  test("isManager=false does NOT include manager toolbox", () => {
+  test("no manager factory does NOT include manager toolbox", () => {
     const worker = makeWorker();
     const context = {
       ...testContext(),
       workerName: "test-worker",
-      isManager: false,
+      contextFactories: [meetingToolboxFactory],
     };
     const result = resolveToolSet(worker, [], context);
 
@@ -377,8 +357,15 @@ describe("resolveToolSet with manager toolbox", () => {
     const context = {
       ...testContext(),
       workerName: "Guild Master",
-      isManager: true,
-      managerToolboxDeps: makeManagerToolboxDeps(),
+      contextFactories: [
+        meetingToolboxFactory,
+        createManagerToolboxFactory({
+          commissionSession: makeMockCommissionSession(),
+          eventBus: { emit() {}, subscribe() { return () => {}; } },
+          gitOps: makeMockGitOps(),
+          getProjectConfig: () => Promise.resolve(undefined),
+        }),
+      ],
     };
     const result = resolveToolSet(worker, [], context);
 
@@ -394,27 +381,12 @@ describe("resolveToolSet with manager toolbox", () => {
     const context = {
       ...testContext(),
       workerName: "test-worker",
+      contextFactories: [meetingToolboxFactory],
     };
     const result = resolveToolSet(worker, [], context);
 
     const names = result.mcpServers.map((s) => s.name);
     expect(names).not.toContain("guild-hall-manager");
     expect(result.allowedTools).not.toContain("mcp__guild-hall-manager__*");
-  });
-
-  test("isManager=true without managerToolboxDeps does not inject manager toolbox", () => {
-    const worker = makeWorker();
-    const context = {
-      ...testContext(),
-      workerName: "Guild Master",
-      isManager: true,
-      // managerToolboxDeps intentionally omitted
-    };
-    const result = resolveToolSet(worker, [], context);
-
-    // Only base + meeting, no manager (guard against undefined deps)
-    expect(result.mcpServers).toHaveLength(2);
-    const names = result.mcpServers.map((s) => s.name);
-    expect(names).not.toContain("guild-hall-manager");
   });
 });

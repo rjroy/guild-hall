@@ -54,6 +54,12 @@ import {
   updateResultSummary,
 } from "./commission-artifact-helpers";
 import { resolveToolSet } from "./toolbox-resolver";
+import {
+  createCommissionToolboxFactory,
+  type CommissionCallbacks,
+} from "./commission-toolbox";
+import { createManagerToolboxFactory } from "./manager-toolbox";
+import type { ToolboxFactory } from "./toolbox-types";
 import { loadMemories } from "./memory-injector";
 import { triggerCompaction } from "./memory-compaction";
 import {
@@ -172,6 +178,12 @@ export interface CommissionSessionDeps {
    * the real resolveToolSet from toolbox-resolver.ts.
    */
   resolveToolSetFn?: typeof resolveToolSet;
+  /**
+   * DI seam for commission callback capture. Tests use this to intercept the
+   * CommissionCallbacks object when it's created during dispatch, so they can
+   * simulate tool invocations (submitResult, reportProgress, logQuestion).
+   */
+  onCallbacksCreated?: (callbacks: CommissionCallbacks) => void;
 }
 
 type ActiveCommission = {
@@ -1041,23 +1053,8 @@ export function createCommissionSession(
 
     // 2. Resolve tools with commission callbacks
     log("resolving tools...");
-    const resolve = deps.resolveToolSetFn ?? resolveToolSet;
-    const resolvedTools = resolve(workerMeta, deps.packages, {
-      projectName: commission.projectName,
-      commissionId: commissionId as string,
-      workerName: workerMeta.identity.name,
-      guildHallHome: ghHome,
-      isManager,
-      managerToolboxDeps: isManager && deps.commissionSessionRef?.current && deps.eventBus
-        ? {
-          projectName: commission.projectName,
-          guildHallHome: ghHome,
-          commissionSession: deps.commissionSessionRef.current,
-          eventBus: deps.eventBus,
-          gitOps: git,
-          getProjectConfig: (name: string) => Promise.resolve(findProject(name)),
-        }
-        : undefined,
+
+    const callbacks: CommissionCallbacks = {
       onProgress: (summary: string) => {
         commission.lastActivity = new Date();
         log(`progress: ${summary.slice(0, 120)}`);
@@ -1096,6 +1093,31 @@ export function createCommissionSession(
           question,
         });
       },
+    };
+    deps.onCallbacksCreated?.(callbacks);
+
+    const contextFactories: ToolboxFactory[] = [
+      createCommissionToolboxFactory(callbacks),
+    ];
+    if (isManager && deps.commissionSessionRef?.current && deps.eventBus) {
+      contextFactories.push(
+        createManagerToolboxFactory({
+          commissionSession: deps.commissionSessionRef.current,
+          eventBus: deps.eventBus,
+          gitOps: git,
+          getProjectConfig: (name: string) => Promise.resolve(findProject(name)),
+        }),
+      );
+    }
+
+    const resolve = deps.resolveToolSetFn ?? resolveToolSet;
+    const resolvedTools = resolve(workerMeta, deps.packages, {
+      projectName: commission.projectName,
+      contextId: commissionId as string,
+      contextType: "commission",
+      workerName: workerMeta.identity.name,
+      guildHallHome: ghHome,
+      contextFactories,
     });
     log(`tools resolved: ${resolvedTools.mcpServers.length} MCP server(s), ${resolvedTools.allowedTools?.length ?? 0} allowed tool(s)`);
 

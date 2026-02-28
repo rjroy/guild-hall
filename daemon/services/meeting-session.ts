@@ -23,6 +23,9 @@ import type {
 } from "@/lib/types";
 import { getWorkerByName } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
+import { meetingToolboxFactory } from "@/daemon/services/meeting-toolbox";
+import { createManagerToolboxFactory } from "@/daemon/services/manager-toolbox";
+import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { EventBus } from "@/daemon/services/event-bus";
 import {
@@ -493,22 +496,25 @@ notes_summary: ""
     try {
       const project = findProject(meeting.projectName);
 
-      const resolvedTools = resolveToolSet(workerMeta, deps.packages, {
-        projectName: meeting.projectName,
-        meetingId: meeting.meetingId as string,
-        workerName: workerMeta.identity.name,
-        guildHallHome: ghHome,
-        isManager,
-        managerToolboxDeps: isManager && deps.commissionSession && deps.eventBus
-          ? {
-            projectName: meeting.projectName,
-            guildHallHome: ghHome,
+      const contextFactories: ToolboxFactory[] = [meetingToolboxFactory];
+      if (isManager && deps.commissionSession && deps.eventBus) {
+        contextFactories.push(
+          createManagerToolboxFactory({
             commissionSession: deps.commissionSession,
             eventBus: deps.eventBus,
             gitOps: git,
             getProjectConfig: (name: string) => Promise.resolve(findProject(name)),
-          }
-          : undefined,
+          }),
+        );
+      }
+
+      const resolvedTools = resolveToolSet(workerMeta, deps.packages, {
+        projectName: meeting.projectName,
+        contextId: meeting.meetingId as string,
+        contextType: "meeting",
+        workerName: workerMeta.identity.name,
+        guildHallHome: ghHome,
+        contextFactories,
       });
 
       let injectedMemory = "";
