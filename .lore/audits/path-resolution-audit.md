@@ -1,6 +1,6 @@
 ---
 title: Path Resolution Audit
-date: 2026-02-27
+date: 2026-02-28
 status: complete
 tags: [audit, paths, worktrees, data-integrity]
 modules: [lib-paths, daemon, next-app]
@@ -20,7 +20,7 @@ Every call site that resolves a project path for reads or writes was traced acro
 
 ## Summary
 
-**No path selection violations found.** The codebase consistently applies the correct path for each execution context. The Phase 5 migration to integration worktrees was thorough. Several areas are worth documenting as structurally fragile (rely on caller discipline rather than type-level enforcement), and one design decision (propose_followup writing to integration path) is intentional but easy to misread.
+**No path selection violations found.** The codebase consistently applies the correct path for each execution context. The Phase 5 migration to integration worktrees was thorough, and the toolbox composability refactor (Phase 3 of the toolbox plan) further improved path safety by centralizing write-path resolution into `resolveWritePath()` in `daemon/lib/toolbox-utils.ts`. One design decision (propose_followup writing to integration path) is intentional but easy to misread.
 
 ---
 
@@ -87,125 +87,129 @@ All Next.js pages read from the integration worktree, with dynamic resolution fo
 
 This is the most path-intensive file. It handles creation, dispatch, active session management, completion/merge, recovery, and dependency checking.
 
-**Commission creation** (line 1297):
+**Commission creation** (line ~1283):
 `integrationWorktreePath(ghHome, projectName)` to write the new commission artifact. Correct: new commissions start on the integration worktree before dispatch creates an activity branch.
 
-**scanPendingCommissions** (line 442):
+**scanPendingCommissions** (line ~434):
 `integrationWorktreePath(ghHome, project.name)` to scan for pending commissions. Correct: pending commissions live on the integration worktree.
 
-**checkDependencyTransitions** (line 559):
-`integrationWorktreePath(ghHome, projectName)` for scanning and resolving dependencies. Correct: dependencies are checked against the integration worktree (the shared branch). Comment on line 556-557 explicitly documents this.
+**checkDependencyTransitions** (line ~560):
+`integrationWorktreePath(ghHome, projectName)` for scanning and resolving dependencies. Correct: dependencies are checked against the integration worktree (the shared branch).
 
-**findProjectPathForCommission** (line 741):
+**findProjectPathForCommission** (line ~739):
 `integrationWorktreePath(ghHome, project.name)` to find the project containing a commission. Correct: artifact lookup searches the integration worktree.
 
-**resolveArtifactBasePath** (line 769):
+**resolveArtifactBasePath** (line ~771):
 Active commissions return `active.worktreeDir`; inactive return `integrationWorktreePath`. Correct: this is the daemon-internal version of the same pattern as `resolveCommissionBasePath` in lib/paths.ts.
 
-**dispatchCommission** (lines 1447-1599):
-- Line 1448: reads status from `found.integrationPath`. Correct (pre-dispatch, artifact is on integration worktree).
-- Line 1478: commits to `found.integrationPath`. Correct (ensures activity branch fork includes the commission).
-- Line 1486: creates worktree via `commissionWorktreePath`. Correct.
-- Lines 1493-1498: transitions to dispatched in `worktreeDir`. Correct (now in activity worktree).
-- Lines 1500-1506: reads artifact from `worktreeDir`. Correct.
-- Line 1588: passes `found.projectPath` to `runCommissionSession`. See note below.
+**dispatchCommission** (line ~1420):
+- Reads status from `found.integrationPath`. Correct (pre-dispatch, artifact is on integration worktree).
+- Commits to `found.integrationPath`. Correct (ensures activity branch fork includes the commission).
+- Creates worktree via `commissionWorktreePath`. Correct.
+- Transitions to dispatched in `worktreeDir`. Correct (now in activity worktree).
+- Reads artifact from `worktreeDir`. Correct.
+- Passes `found.projectPath` to `runCommissionSession`. See note below.
 
-**runCommissionSession** (line 1015):
-The `projectPath` parameter receives `found.projectPath` (the user's original project directory, e.g., `/home/user/Projects/my-project`). This is used for:
-- Line 1046: `resolveToolSet({ projectPath, ... workingDirectory: commission.worktreeDir })`. The toolbox-resolver passes `projectPath` to the meeting/commission toolbox and `workingDirectory` to override writes. For commissions, the commission-toolbox receives `context.workingDirectory ?? context.projectPath` (line 102 of toolbox-resolver.ts), so writes correctly go to the activity worktree. The base toolbox doesn't use `projectPath` for file I/O.
-- Line 1055: `integrationPath` for managerToolboxDeps is correctly resolved.
-- Line 1061: `projectRepoPath: projectPath` for git operations (createBranch, etc.). This is the actual repo path, not a worktree. Correct for git operations that need the main repo.
-- Line 1135: passed to `buildCommissionActivationContext`. Used for `ActivationContext.projectPath`, which workers can read but shouldn't write to directly (writes go through toolbox or the working directory).
+**runCommissionSession** (line ~1013):
+The `projectPath` parameter receives `found.projectPath` (the user's original project directory). After the toolbox composability refactor, path handling changed here. The session now builds a `GuildHallToolboxDeps` context with `contextId`, `contextType`, `projectName`, and `guildHallHome`. Individual toolbox factories derive their write paths internally via `resolveWritePath()` rather than receiving pre-resolved paths. The session still passes `projectPath` for git operations and activation context.
 
-**handleCompletion** (lines 1637-1654):
+**handleCompletion** (line ~1592):
 Writes to `commission.worktreeDir` for active commission. Correct.
 
-**syncStatusToIntegration** (line 788):
+**syncStatusToIntegration** (line ~785):
 `integrationWorktreePath(ghHome, commission.projectName)`. Correct: explicit sync to integration after merge.
 
-**handleCompletion git cleanup** (line 1685):
-`integrationWorktreePath(ghHome, commission.projectName)` for squash-merge target. Correct.
-
-**updateCommissionFn** (line 1380):
+**updateCommissionFn** (line ~1349):
 `resolveArtifactBasePath(commissionId, found.projectName)`. Correct: pending commissions resolve to integration worktree.
 
-**addUserNote** (line 2076):
+**addUserNote** (line ~2051):
 `resolveArtifactBasePath(commissionId, found.projectName)`. Correct: writes to whichever worktree the commission currently lives in.
 
-**recoverDeadCommission** (line 2246):
+**recoverDeadCommission** (line ~2224):
 `integrationWorktreePath(ghHome, projectName)` for writing failed status. Correct: after recovery, the activity worktree is being cleaned up, so the integration worktree gets the final status.
 
 ### `daemon/services/meeting-session.ts`
 
-**declineMeeting** (line 331):
+**declineMeeting** (line ~324):
 `integrationWorktreePath(ghHome, projectName)`. Correct: declined meetings are on the integration worktree (they were never opened/branched, or this is closing a request).
 
-**acceptMeetingRequest** (line 791):
+**acceptMeetingRequest** (line ~758):
 Reads from `integrationWorktreePath` before branching, then writes to `worktreeDir` after creating the activity worktree. Correct.
 
-**createMeeting** (line 1006):
-Creates worktree, then writes artifact to `worktreeDir` (line 1024). Correct.
+**createMeeting** (line ~957):
+Creates worktree, then writes artifact to `worktreeDir`. Correct.
 
-**buildActivatedQueryOptions** (lines 496-568):
-- `integrationPath: integrationWorktreePath(ghHome, meeting.projectName)` for propose_followup. Correct.
-- `workingDirectory: meeting.worktreeDir` for toolbox writes. Correct.
-- `projectPath` passed as `project.path`. This is the user's project directory. Used for toolbox-resolver context, not direct writes.
+**buildActivatedQueryOptions** (line ~477):
+After the toolbox composability refactor, this function builds a `GuildHallToolboxDeps` context with `contextId`, `contextType`, `projectName`, and `guildHallHome`. It passes `contextFactories` (an array of `ToolboxFactory` functions) to `resolveToolSet()`. The meeting toolbox factory derives write paths internally via `resolveWritePath()`. The `propose_followup` tool is a special case: it writes to the integration worktree (not the activity worktree) so meeting requests are visible on the dashboard immediately.
 
-**closeMeeting** (lines 1328-1420):
-- Notes generation: passes `meeting.worktreeDir` (line 1345). Correct.
-- Artifact updates: all use `meeting.worktreeDir` (lines 1367-1385). Correct.
-- Squash-merge target: `integrationWorktreePath(ghHome, meeting.projectName)` (line 1417). Correct.
+**closeMeeting** (line ~1329):
+- Notes generation: passes `meeting.worktreeDir`. Correct.
+- Artifact updates: all use `meeting.worktreeDir`. Correct.
+- Squash-merge target: `integrationWorktreePath(ghHome, meeting.projectName)`. Correct.
 
-**recoverMeetings** (line 1290):
+**recoverMeetings** (line ~1229):
 Lost worktrees are closed on `integrationWorktreePath`. Correct: the activity worktree is gone, so the integration worktree is the only place to record the closure.
 
-**createMeetingRequest** (line 1604):
+**createMeetingRequest** (line ~1585):
 Writes to `integrationWorktreePath`. Correct: meeting requests need to be visible on the dashboard immediately.
+
+### `daemon/lib/toolbox-utils.ts` (New: Composability Refactor)
+
+Centralized path utilities extracted during the toolbox composability refactor:
+
+**`resolveWritePath(guildHallHome, projectName, contextId, contextType)`** (line ~66):
+The canonical write-path resolver for all toolbox handlers. Checks if the activity worktree exists via `fs.access()`. If accessible, returns the activity worktree path; if it throws, falls back to the integration worktree path. This replaced the scattered `worktreeDir ?? projectPath` fallback patterns that previously existed in each toolbox.
+
+Also contains `validateContainedPath()`, `formatTimestamp()`, and `escapeYamlValue()`, deduplicated from their former locations in base-toolbox, meeting-toolbox, manager-toolbox, and commission-artifact-helpers.
+
+### `daemon/services/toolbox-types.ts` (New: Composability Refactor)
+
+Defines the unified interface all toolbox factories conform to:
+
+```
+GuildHallToolboxDeps { guildHallHome, projectName, contextId, contextType, workerName }
+ToolboxFactory = (deps: GuildHallToolboxDeps) => ToolboxOutput
+```
+
+Path resolution is no longer the resolver's responsibility. Each factory receives IDs and derives paths internally (via `resolveWritePath()` or `integrationWorktreePath()`). Service handles (eventBus, gitOps, etc.) are bound via partial application before factory registration, not passed through the generic interface.
 
 ### `daemon/services/toolbox-resolver.ts`
 
-| Line | Path Used | Verdict |
-|------|-----------|---------|
-| 86 | `projectPath: context.projectPath` for meeting toolbox | Correct, but only used as fallback. The `worktreeDir` override takes precedence for writes. |
-| 102 | `projectPath: context.workingDirectory ?? context.projectPath` for commission toolbox | Correct. `workingDirectory` is set to the activity worktree during dispatch. |
+Factory-driven assembly (line ~40). The resolver receives pre-bound `ToolboxFactory` functions as `contextFactories`, builds a `GuildHallToolboxDeps` from context, and calls each factory. No path resolution logic lives here. Correct: path decisions are pushed to the individual factories that understand their write semantics.
 
 ### `daemon/services/commission-toolbox.ts`
 
-The `CommissionToolboxDeps.projectPath` comment (line 32-34) explicitly documents: "Must be the activity worktree path." The toolbox-resolver passes `workingDirectory ?? projectPath`, and for active commissions `workingDirectory` is always set. Correct.
+All three tool handlers (`report_progress`, `submit_result`, `log_question`) call `resolveWritePath(deps.guildHallHome, deps.projectName, deps.contextId, "commission")` to determine where to write. The internal `CommissionToolboxDeps` holds `guildHallHome`, `projectName`, `contextId`, and `eventBus`. The public adapter `createCommissionToolboxFactory(eventBus)` binds the EventBus and returns a `ToolboxFactory`. Correct: writes land in the activity worktree when active, integration worktree otherwise.
 
 ### `daemon/services/meeting-toolbox.ts`
 
-**makeLinkArtifactHandler** (line 88):
-`worktreeDir ?? projectPath`. During active meetings, `worktreeDir` is set. Correct.
+`link_artifact` and `summarize_progress` call `resolveWritePath(deps.guildHallHome, deps.projectName, deps.contextId, "meeting")`. Correct.
 
-**makeProposeFollowupHandler** (line 194):
-Receives `deps.integrationPath ?? deps.projectPath`. Writes meeting request to integration worktree so dashboard sees it immediately. Correct. This is an intentional design decision documented in the comment on lines 251-252.
+`propose_followup` is the intentional exception: it writes to `integrationWorktreePath()` directly (not the activity worktree) so meeting requests are visible on the dashboard immediately. This is documented in comments within the handler.
 
-**makeSummarizeProgressHandler** (line 214):
-`worktreeDir ?? projectPath`. Correct.
-
-### `daemon/services/notes-generator.ts`
-
-**generateMeetingNotes** (line 105):
-Receives `projectPath` from caller. Called from `closeMeeting` with `meeting.worktreeDir` (line 1345 of meeting-session.ts). Correct: reads linked artifacts from the activity worktree where the meeting was running.
-
-### `daemon/services/briefing-generator.ts`
-
-**generateBriefing** (line 173):
-`integrationWorktreePath(deps.guildHallHome, projectName)` for building manager context. Correct: briefings summarize the project state from the integration worktree.
+The public adapter `meetingToolboxFactory` is a direct pass-through since meeting tools need no extra service deps.
 
 ### `daemon/services/manager-toolbox.ts`
 
-**makeAddCommissionNoteHandler** (line 453):
-`resolveCommissionBasePath(deps.guildHallHome, deps.projectName, args.commissionId)`. Correct: dynamic resolution ensures notes go to the right worktree based on commission status.
+`makeAddCommissionNoteHandler` uses `resolveCommissionBasePath(deps.guildHallHome, deps.projectName, args.commissionId)`. Correct: dynamic resolution ensures notes go to the right worktree based on commission status. The public adapter `createManagerToolboxFactory(services)` binds CommissionSession, EventBus, GitOps, and getProjectConfig via closure.
+
+### `daemon/services/notes-generator.ts`
+
+**generateMeetingNotes** (line ~105):
+Receives `projectPath` from caller. Called from `closeMeeting` with `meeting.worktreeDir`. Correct: reads linked artifacts from the activity worktree where the meeting was running.
+
+### `daemon/services/briefing-generator.ts`
+
+**generateBriefing** (line ~173):
+`integrationWorktreePath(deps.guildHallHome, projectName)` for building manager context. Correct: briefings summarize the project state from the integration worktree.
 
 ### `daemon/services/meeting-artifact-helpers.ts` and `commission-artifact-helpers.ts`
 
-Both accept `projectPath` as a parameter and document that callers are responsible for passing the correct path (PATH OWNERSHIP comment at lines 10-22 of meeting-artifact-helpers.ts). This is correct but structurally fragile (see recommendations).
+Both accept `projectPath` as a parameter and document that callers are responsible for passing the correct path (PATH OWNERSHIP comments). Since the toolbox composability refactor, the primary callers are toolbox handlers that resolve paths via `resolveWritePath()`, reducing the risk of incorrect path injection.
 
 ### `daemon/app.ts`
 
-**createProductionApp** (line 101):
+**createProductionApp** (line ~101):
 `integrationWorktreePath(guildHallHome, project.name)` for verifying/recreating integration worktrees at startup. Correct.
 
 ---
@@ -255,53 +259,30 @@ Every call site uses the correct path for its execution context. The Phase 5 git
 
 These are not bugs but areas where a future change could introduce a violation:
 
-1. **Artifact helper functions rely on caller discipline.** Both `meeting-artifact-helpers.ts` and `commission-artifact-helpers.ts` accept a bare `projectPath: string` parameter. There is no type-level distinction between an integration worktree path, an activity worktree path, or a user project path. A future caller could pass the wrong one and the compiler wouldn't catch it. The `PATH OWNERSHIP` comment in meeting-artifact-helpers.ts (lines 10-22) documents this explicitly, which is good, but comments are not enforcement.
+1. **Artifact helper functions rely on caller discipline.** Both `meeting-artifact-helpers.ts` and `commission-artifact-helpers.ts` accept a bare `projectPath: string` parameter. No type-level distinction between path kinds exists. The toolbox composability refactor reduced risk here: the primary callers are now toolbox handlers that resolve paths via `resolveWritePath()`, so the "caller discipline" gap is narrower. But the helpers themselves remain unguarded.
 
-2. **`runCommissionSession` receives `found.projectPath` (user's project dir).** This is correct today because it's only used for git operations and as a fallback in activation context. But if anyone adds direct file I/O using this parameter, writes would land in the user's working tree instead of the activity worktree.
+2. **`runCommissionSession` receives `found.projectPath` (user's project dir).** This is correct today because it's only used for git operations and activation context. Toolbox writes now go through `resolveWritePath()` in each factory, so the old risk of adding direct file I/O using this parameter is lower. Still worth noting as a raw string in the session scope.
 
 3. **`notes-generator.ts` trusts its caller for path correctness.** It receives `projectPath` and uses it to read linked artifacts. Today the only caller (`closeMeeting`) passes `meeting.worktreeDir`, which is correct. A future caller passing the wrong path would read stale data.
 
-4. **`MeetingToolboxDeps.projectPath` fallback.** If `worktreeDir` is ever not set for an active meeting, `link_artifact` and `summarize_progress` would write to `projectPath` (the user's project dir). Today `worktreeDir` is always set for active meetings, but the fallback path could silently corrupt the branching model if that invariant breaks.
+4. **`resolveWritePath()` fallback is silent.** If `fs.access()` fails on the activity worktree (e.g., it was cleaned up mid-session), `resolveWritePath()` silently falls back to the integration worktree. This is the intended behavior for recovery scenarios, but a race condition during normal operation could cause a write to land on the integration worktree instead of the activity worktree without any error signal.
+
+### Previously Identified, Now Resolved
+
+- ~~**`MeetingToolboxDeps.projectPath` fallback.**~~ The old `worktreeDir ?? projectPath` fallback in individual tool handlers has been replaced by `resolveWritePath()`, which derives paths from IDs rather than relying on a pre-resolved `worktreeDir` field being set. If the activity worktree doesn't exist, the fallback is to the integration worktree (not the user's project dir).
 
 ---
 
 ## Recommendation: Branded Path Types
 
-The issue file asks whether type-level guards could prevent regressions. The answer is yes, branded types would catch the most common class of mistakes (passing the wrong kind of path to a function).
+The original audit proposed branded types for compile-time path safety. The toolbox composability refactor changed the calculus: toolbox handlers no longer receive pre-resolved path strings. They receive IDs (`contextId`, `contextType`, `projectName`, `guildHallHome`) and call `resolveWritePath()` internally.
 
-Proposed approach:
+**What branded types would still protect:**
+- Artifact helper functions (`meeting-artifact-helpers.ts`, `commission-artifact-helpers.ts`) that accept bare `projectPath: string`
+- Session-level code in `commission-session.ts` and `meeting-session.ts` that passes paths to non-toolbox functions (notes generator, git merge targets, recovery writes)
+- `resolveArtifactBasePath` return value, which callers must handle correctly
 
-```typescript
-// In lib/paths.ts
-declare const IntegrationPathBrand: unique symbol;
-declare const ActivityPathBrand: unique symbol;
-declare const ProjectPathBrand: unique symbol;
+**What branded types would NOT help with:**
+- Toolbox handlers, which now derive paths from IDs via `resolveWritePath()`. The path kind is determined by the function, not the caller.
 
-export type IntegrationPath = string & { readonly [IntegrationPathBrand]: true };
-export type ActivityPath = string & { readonly [ActivityPathBrand]: true };
-export type ProjectPath = string & { readonly [ProjectPathBrand]: true };
-
-// Path constructors return branded types
-export function integrationWorktreePath(ghHome: string, projectName: string): IntegrationPath { ... }
-export function commissionWorktreePath(...): ActivityPath { ... }
-export function meetingWorktreePath(...): ActivityPath { ... }
-```
-
-Functions that accept only one kind of path would declare it in their signature:
-
-```typescript
-// Only accepts integration worktree paths
-function scanPendingCommissions(integrationPath: IntegrationPath): ...
-
-// Only accepts activity worktree paths
-function createCommissionToolbox(deps: { projectPath: ActivityPath; ... }): ...
-
-// Accepts either (e.g., resolveArtifactBasePath returns IntegrationPath | ActivityPath)
-function commissionArtifactPath(basePath: IntegrationPath | ActivityPath, ...): ...
-```
-
-**Cost:** Moderate. Requires updating all function signatures and adding cast points where dynamic resolution occurs (e.g., `resolveArtifactBasePath`). The `resolveCommission/MeetingBasePath` functions in lib/paths.ts would need to return a union type.
-
-**Benefit:** Compile-time prevention of the most dangerous class of path bugs. A developer accidentally passing `projectPath` where `worktreeDir` is expected would get a type error.
-
-**Recommendation:** Worth doing if the project continues to add features that touch the path layer. Not urgent given the current audit shows no violations. Could be introduced incrementally, starting with the most dangerous boundaries (commission-toolbox, meeting-toolbox).
+**Revised recommendation:** Lower priority than before. The most dangerous path boundary (toolbox writes) is now protected by `resolveWritePath()`. Branded types would still help at the session/helper layer, but the risk surface is smaller. Consider if new features add more path-sensitive call sites.

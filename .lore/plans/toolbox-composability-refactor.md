@@ -1,7 +1,7 @@
 ---
 title: "Toolbox Composability Refactor"
 date: 2026-02-27
-status: draft
+status: executed
 tags: [plan, refactor, toolbox]
 related:
   - specs/guild-hall-workers.md
@@ -94,8 +94,13 @@ Manager deps include `commissionSession`, `eventBus`, `gitOps`. These are daemon
 - Enable domain toolboxes (external packages providing MCP tools)
 - Complete the "Phase 3 TODO" in toolbox-resolver.ts that was never finished
 
-## Open Questions
+## Resolved Questions
 
-- How should toolbox-specific state (commission's `wasResultSubmitted`) flow back to the caller in a generic interface? Sidecar object? Event? Registration callback?
-- Should service handles (gitOps, eventBus, commissionSession) become injectable "system toolboxes" or remain separate from the MCP toolbox concept?
-- What does `isWorktreeValid()` actually check? Existence of the directory? Git status? Branch presence?
+**How does toolbox-specific state (`wasResultSubmitted`) flow back to the caller?**
+EventBus + sidecar state on ActiveCommission. The commission toolbox emits `commission_result` events via EventBus after file writes (`commission-toolbox.ts`). The commission session subscribes to those events and updates `commission.resultSubmitted = true` on its tracking object (`commission-session.ts`). The toolbox also keeps a local closure flag to prevent double-calls within a single MCP session.
+
+**Should service handles become injectable "system toolboxes"?**
+No. They remain separate, bound via partial application before factory registration. `createCommissionToolboxFactory(eventBus)` and `createManagerToolboxFactory(services)` capture service dependencies in closures and return standard `ToolboxFactory` functions. The generic `GuildHallToolboxDeps` contains only ID/path context (contextId, contextType, projectName, guildHallHome). The resolver never touches service handles.
+
+**What does `isWorktreeValid()` check?**
+Absorbed into `resolveWritePath()` in `daemon/lib/toolbox-utils.ts`. Calls `fs.access()` on the worktree directory. If accessible, uses the worktree path; if it throws, falls back to the integration path. "Valid" = directory exists and is accessible.
