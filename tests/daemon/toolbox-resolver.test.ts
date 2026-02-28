@@ -5,9 +5,10 @@ import * as os from "node:os";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import { meetingToolboxFactory } from "@/daemon/services/meeting-toolbox";
 import { commissionToolboxFactory } from "@/daemon/services/commission-toolbox";
-import { createManagerToolboxFactory } from "@/daemon/services/manager-toolbox";
+import { managerToolboxFactory } from "@/daemon/services/manager-toolbox";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { GitOps } from "@/daemon/lib/git";
+import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import { createEventBus } from "@/daemon/services/event-bus";
 import type {
   WorkerMetadata,
@@ -317,16 +318,15 @@ function makeMockGitOps(): GitOps {
 describe("resolveToolSet with manager toolbox", () => {
   test("manager factory includes manager toolbox MCP server", async () => {
     const worker = makeWorker();
+    const services: GuildHallToolServices = {
+      commissionSession: makeMockCommissionSession(),
+      gitOps: makeMockGitOps(),
+    };
     const context = {
       ...testContext(),
       workerName: "Guild Master",
-      contextFactories: [
-        meetingToolboxFactory,
-        createManagerToolboxFactory({
-          commissionSession: makeMockCommissionSession(),
-          gitOps: makeMockGitOps(),
-        }),
-      ],
+      contextFactories: [meetingToolboxFactory, managerToolboxFactory],
+      services,
     };
     const result = await resolveToolSet(worker, [], context);
 
@@ -354,16 +354,15 @@ describe("resolveToolSet with manager toolbox", () => {
 
   test("manager tools appear in resolved allowedTools whitelist", async () => {
     const worker = makeWorker();
+    const services: GuildHallToolServices = {
+      commissionSession: makeMockCommissionSession(),
+      gitOps: makeMockGitOps(),
+    };
     const context = {
       ...testContext(),
       workerName: "Guild Master",
-      contextFactories: [
-        meetingToolboxFactory,
-        createManagerToolboxFactory({
-          commissionSession: makeMockCommissionSession(),
-          gitOps: makeMockGitOps(),
-        }),
-      ],
+      contextFactories: [meetingToolboxFactory, managerToolboxFactory],
+      services,
     };
     const result = await resolveToolSet(worker, [], context);
 

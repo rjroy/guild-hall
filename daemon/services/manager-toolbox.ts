@@ -692,24 +692,15 @@ export function createManagerToolbox(
 
 // -- Factory interface --
 
-/** Services bound via createManagerToolboxFactory. eventBus flows through GuildHallToolboxDeps. */
-export interface ManagerServices {
-  commissionSession: CommissionSessionForRoutes;
-  gitOps: GitOps;
-}
-
-/** Binds manager services, returns a ToolboxFactory. */
-export function createManagerToolboxFactory(
-  services: ManagerServices,
-): ToolboxFactory {
-  return (ctx) => ({
-    server: createManagerToolbox({
-      projectName: ctx.projectName,
-      guildHallHome: ctx.guildHallHome,
-      eventBus: ctx.eventBus,
-      getProjectConfig: (name: string) =>
-        Promise.resolve(ctx.config.projects.find((p) => p.name === name)),
-      ...services,
-    }),
-  });
-}
+/** Plain ToolboxFactory: reads services from GuildHallToolboxDeps.services. */
+export const managerToolboxFactory: ToolboxFactory = (ctx) => ({
+  server: createManagerToolbox({
+    projectName: ctx.projectName,
+    guildHallHome: ctx.guildHallHome,
+    eventBus: ctx.eventBus,
+    getProjectConfig: (name: string) =>
+      Promise.resolve(ctx.config.projects.find((p) => p.name === name)),
+    commissionSession: ctx.services!.commissionSession,
+    gitOps: ctx.services!.gitOps,
+  }),
+});

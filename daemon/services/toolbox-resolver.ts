@@ -6,6 +6,7 @@ import type {
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
+import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import type { EventBus } from "./event-bus";
 import { baseToolboxFactory } from "./base-toolbox";
 import type {
@@ -26,6 +27,8 @@ export interface ToolboxResolverContext {
   config: AppConfig;
   /** Pre-bound context factories (meeting, commission, manager). */
   contextFactories?: ToolboxFactory[];
+  /** Services for the manager toolbox (commission session + git ops). */
+  services?: GuildHallToolServices;
 }
 
 // -- Resolver --
@@ -57,6 +60,7 @@ export async function resolveToolSet(
     workerName: context.workerName,
     eventBus: context.eventBus,
     config: context.config,
+    services: context.services,
   };
 
   // 1. Base toolbox (always present: memory + decision tools)

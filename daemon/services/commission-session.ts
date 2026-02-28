@@ -55,7 +55,7 @@ import {
 } from "./commission-artifact-helpers";
 import { resolveToolSet } from "./toolbox-resolver";
 import { commissionToolboxFactory } from "./commission-toolbox";
-import { createManagerToolboxFactory } from "./manager-toolbox";
+import { managerToolboxFactory } from "./manager-toolbox";
 import type { ToolboxFactory } from "./toolbox-types";
 import { loadMemories } from "./memory-injector";
 import { triggerCompaction } from "./memory-compaction";
@@ -1066,12 +1066,7 @@ export function createCommissionSession(
       commissionToolboxFactory,
     ];
     if (isManager && deps.commissionSessionRef?.current && deps.eventBus) {
-      contextFactories.push(
-        createManagerToolboxFactory({
-          commissionSession: deps.commissionSessionRef.current,
-          gitOps: git,
-        }),
-      );
+      contextFactories.push(managerToolboxFactory);
     }
 
     const resolve = deps.resolveToolSetFn ?? resolveToolSet;
@@ -1084,6 +1079,9 @@ export function createCommissionSession(
       eventBus: deps.eventBus,
       config: deps.config,
       contextFactories,
+      services: isManager && deps.commissionSessionRef?.current
+        ? { commissionSession: deps.commissionSessionRef.current, gitOps: git }
+        : undefined,
     });
     log(`tools resolved: ${resolvedTools.mcpServers.length} MCP server(s), ${resolvedTools.allowedTools?.length ?? 0} allowed tool(s)`);
 

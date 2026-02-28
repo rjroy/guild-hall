@@ -24,7 +24,7 @@ import type {
 import { getWorkerByName } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import { meetingToolboxFactory } from "@/daemon/services/meeting-toolbox";
-import { createManagerToolboxFactory } from "@/daemon/services/manager-toolbox";
+import { managerToolboxFactory } from "@/daemon/services/manager-toolbox";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import { noopEventBus, type EventBus } from "@/daemon/services/event-bus";
@@ -498,12 +498,7 @@ notes_summary: ""
 
       const contextFactories: ToolboxFactory[] = [meetingToolboxFactory];
       if (isManager && deps.commissionSession && deps.eventBus) {
-        contextFactories.push(
-          createManagerToolboxFactory({
-            commissionSession: deps.commissionSession,
-            gitOps: git,
-          }),
-        );
+        contextFactories.push(managerToolboxFactory);
       }
 
       const resolvedTools = await resolveToolSet(workerMeta, deps.packages, {
@@ -515,6 +510,9 @@ notes_summary: ""
         eventBus: deps.eventBus ?? noopEventBus,
         config: deps.config,
         contextFactories,
+        services: isManager && deps.commissionSession
+          ? { commissionSession: deps.commissionSession, gitOps: git }
+          : undefined,
       });
 
       let injectedMemory = "";

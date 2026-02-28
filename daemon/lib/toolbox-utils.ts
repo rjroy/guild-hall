@@ -7,11 +7,22 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { GitOps } from "@/daemon/lib/git";
 import {
   integrationWorktreePath,
   commissionWorktreePath,
   meetingWorktreePath,
 } from "@/lib/paths";
+
+/**
+ * Services needed by the manager toolbox. Separated from GuildHallToolboxDeps
+ * because only the manager worker needs them; other toolboxes don't.
+ */
+export interface GuildHallToolServices {
+  commissionSession: CommissionSessionForRoutes;
+  gitOps: GitOps;
+}
 
 /**
  * Resolves a path within a base directory and verifies it doesn't escape.
