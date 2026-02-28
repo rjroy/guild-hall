@@ -457,7 +457,7 @@ describe("dependency auto-transitions", () => {
         systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
       });
       const resolveToolSetFn = (_w: WorkerMetadata, _p: DiscoveredPackage[], _ctx: ToolboxResolverContext): ResolvedToolSet => ({
-        mcpServers: [], allowedTools: [], wasResultSubmitted: () => false,
+        mcpServers: [], allowedTools: [],
       });
 
       session = createCommissionSession(createTestDeps({
@@ -554,7 +554,7 @@ describe("dependency auto-transitions", () => {
         systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
       });
       const resolveToolSetFn = (_w: WorkerMetadata, _p: DiscoveredPackage[], _ctx: ToolboxResolverContext): ResolvedToolSet => ({
-        mcpServers: [], allowedTools: [], wasResultSubmitted: () => false,
+        mcpServers: [], allowedTools: [],
       });
 
       session = createCommissionSession(createTestDeps({

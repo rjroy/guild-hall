@@ -38,7 +38,6 @@ export function resolveToolSet(
   context: ToolboxResolverContext,
 ): ResolvedToolSet {
   const mcpServers: McpSdkServerConfigWithInstance[] = [];
-  let wasResultSubmitted: (() => boolean) | undefined;
 
   // Build shared deps from context fields
   const deps = {
@@ -57,9 +56,6 @@ export function resolveToolSet(
   for (const factory of context.contextFactories ?? []) {
     const output = factory(deps);
     mcpServers.push(output.server);
-    if (output.wasResultSubmitted) {
-      wasResultSubmitted = output.wasResultSubmitted;
-    }
   }
 
   // 3. Domain toolboxes
@@ -87,7 +83,7 @@ export function resolveToolSet(
     ...mcpServers.map((s) => `mcp__${s.name}__*`),
   ];
 
-  return { mcpServers, allowedTools, wasResultSubmitted };
+  return { mcpServers, allowedTools };
 }
 
 // -- Helpers --

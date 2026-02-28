@@ -8,6 +8,7 @@ import { createCommissionToolboxFactory } from "@/daemon/services/commission-too
 import { createManagerToolboxFactory } from "@/daemon/services/manager-toolbox";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { GitOps } from "@/daemon/lib/git";
+import { createEventBus } from "@/daemon/services/event-bus";
 import type {
   WorkerMetadata,
   DiscoveredPackage,
@@ -239,11 +240,7 @@ describe("resolveToolSet", () => {
       contextId: "commission-test",
       contextType: "commission" as const,
       contextFactories: [
-        createCommissionToolboxFactory({
-          onProgress: () => {},
-          onResult: () => {},
-          onQuestion: () => {},
-        }),
+        createCommissionToolboxFactory(createEventBus()),
       ],
     };
     const result = resolveToolSet(worker, [], context);
@@ -253,8 +250,6 @@ describe("resolveToolSet", () => {
     expect(result.mcpServers[1].name).toBe("guild-hall-commission");
     expect(result.mcpServers[1].type).toBe("sdk");
     expect(result.mcpServers[1].instance).toBeDefined();
-    expect(result.wasResultSubmitted).toBeFunction();
-    expect(result.wasResultSubmitted!()).toBe(false);
   });
 });
 

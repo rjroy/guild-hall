@@ -17,6 +17,8 @@ import {
   readLinkedArtifacts,
   commissionArtifactPath,
 } from "@/daemon/services/commission-artifact-helpers";
+import { createEventBus } from "@/daemon/services/event-bus";
+import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
 import { commissionWorktreePath } from "@/lib/paths";
 
 let tmpDir: string;
@@ -24,22 +26,17 @@ let guildHallHome: string;
 /** The worktree path where resolveWritePath will find the commission artifacts. */
 let worktreePath: string;
 let commissionId: CommissionId;
+let testEventBus: EventBus;
+let emittedEvents: SystemEvent[];
 
 const projectName = "test-project";
-
-// No-op callbacks matching the new CommissionToolboxDeps interface
-const noopOnProgress = (_summary: string) => {};
-const noopOnResult = (_summary: string, _artifacts?: string[]) => {};
-const noopOnQuestion = (_question: string) => {};
 
 function makeDeps(overrides?: Partial<CommissionToolboxDeps>): CommissionToolboxDeps {
   return {
     guildHallHome,
     projectName,
     contextId: commissionId,
-    onProgress: noopOnProgress,
-    onResult: noopOnResult,
-    onQuestion: noopOnQuestion,
+    eventBus: testEventBus,
     ...overrides,
   };
 }
@@ -55,6 +52,11 @@ beforeEach(async () => {
     path.join(worktreePath, ".lore", "commissions"),
     { recursive: true },
   );
+
+  // Set up test EventBus to capture emitted events
+  emittedEvents = [];
+  testEventBus = createEventBus();
+  testEventBus.subscribe((event) => { emittedEvents.push(event); });
 });
 
 afterEach(async () => {
@@ -269,80 +271,104 @@ describe("log_question", () => {
   });
 });
 
-// -- Callback invocation --
+// -- Event emission --
 
-describe("callback invocation", () => {
-  test("report_progress invokes onProgress callback with summary", async () => {
+describe("event emission", () => {
+  test("report_progress emits commission_progress event", async () => {
     await writeCommissionArtifact();
 
-    let calledWith = "";
-    const handler = makeReportProgressHandler(makeDeps({
-      onProgress: (summary: string) => { calledWith = summary; },
-    }));
-    const result = await handler({ summary: "Progress update" });
+    const handler = makeReportProgressHandler(makeDeps());
+    await handler({ summary: "Progress update" });
 
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toContain("Progress reported");
-    expect(calledWith).toBe("Progress update");
+    const progressEvents = emittedEvents.filter((e) => e.type === "commission_progress");
+    expect(progressEvents).toHaveLength(1);
+    expect(progressEvents[0]).toEqual({
+      type: "commission_progress",
+      commissionId: commissionId as string,
+      summary: "Progress update",
+    });
   });
 
-  test("submit_result invokes onResult callback with summary and artifacts", async () => {
+  test("submit_result emits commission_result event with summary and artifacts", async () => {
     await writeCommissionArtifact();
 
-    let calledSummary = "";
-    let calledArtifacts: string[] | undefined;
-    const handler = makeSubmitResultHandler(makeDeps({
-      onResult: (summary: string, artifacts?: string[]) => {
-        calledSummary = summary;
-        calledArtifacts = artifacts;
-      },
-    }));
-    const result = await handler({
+    const handler = makeSubmitResultHandler(makeDeps());
+    await handler({
       summary: "Result with artifacts",
       artifacts: ["notes/finding.md"],
     });
 
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toContain("Result submitted");
-    expect(calledSummary).toBe("Result with artifacts");
-    expect(calledArtifacts).toEqual(["notes/finding.md"]);
+    const resultEvents = emittedEvents.filter((e) => e.type === "commission_result");
+    expect(resultEvents).toHaveLength(1);
+    expect(resultEvents[0]).toEqual({
+      type: "commission_result",
+      commissionId: commissionId as string,
+      summary: "Result with artifacts",
+      artifacts: ["notes/finding.md"],
+    });
   });
 
-  test("log_question invokes onQuestion callback with question", async () => {
+  test("submit_result emits event without artifacts when none provided", async () => {
     await writeCommissionArtifact();
 
-    let calledWith = "";
-    const handler = makeLogQuestionHandler(makeDeps({
-      onQuestion: (question: string) => { calledWith = question; },
-    }));
-    const result = await handler({ question: "A question?" });
+    const handler = makeSubmitResultHandler(makeDeps());
+    await handler({ summary: "No artifacts" });
 
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toContain("Question logged");
-    expect(calledWith).toBe("A question?");
+    const resultEvents = emittedEvents.filter((e) => e.type === "commission_result");
+    expect(resultEvents).toHaveLength(1);
+    const evt = resultEvents[0];
+    expect(evt.type).toBe("commission_result");
+    if (evt.type === "commission_result") {
+      expect(evt.summary).toBe("No artifacts");
+      expect(evt.artifacts).toBeUndefined();
+    }
+  });
+
+  test("log_question emits commission_question event", async () => {
+    await writeCommissionArtifact();
+
+    const handler = makeLogQuestionHandler(makeDeps());
+    await handler({ question: "A question?" });
+
+    const questionEvents = emittedEvents.filter((e) => e.type === "commission_question");
+    expect(questionEvents).toHaveLength(1);
+    expect(questionEvents[0]).toEqual({
+      type: "commission_question",
+      commissionId: commissionId as string,
+      question: "A question?",
+    });
+  });
+
+  test("second submit_result does not emit event", async () => {
+    await writeCommissionArtifact();
+
+    const handler = makeSubmitResultHandler(makeDeps());
+    await handler({ summary: "First" });
+    await handler({ summary: "Second" });
+
+    const resultEvents = emittedEvents.filter((e) => e.type === "commission_result");
+    expect(resultEvents).toHaveLength(1);
+    expect(resultEvents[0].type === "commission_result" && resultEvents[0].summary).toBe("First");
   });
 });
 
 // -- Per-closure resultSubmitted flag --
 
 describe("per-closure resultSubmitted flag", () => {
-  test("each createCommissionToolbox() call gets its own flag", () => {
-    // Creating two separate toolbox instances verifies the flag is per-closure
+  test("each createCommissionToolbox() call gets its own server", () => {
+    // Creating two separate toolbox instances verifies independence
     const toolbox1 = createCommissionToolbox(makeDeps());
     const toolbox2 = createCommissionToolbox(makeDeps());
 
     // Both should be independent instances
-    expect(toolbox1.server.type).toBe("sdk");
-    expect(toolbox2.server.type).toBe("sdk");
-    expect(toolbox1.server.name).toBe("guild-hall-commission");
-    expect(toolbox2.server.name).toBe("guild-hall-commission");
-    expect(toolbox1.server.instance).toBeDefined();
-    expect(toolbox2.server.instance).toBeDefined();
+    expect(toolbox1.type).toBe("sdk");
+    expect(toolbox2.type).toBe("sdk");
+    expect(toolbox1.name).toBe("guild-hall-commission");
+    expect(toolbox2.name).toBe("guild-hall-commission");
+    expect(toolbox1.instance).toBeDefined();
+    expect(toolbox2.instance).toBeDefined();
     // They should be different instances
-    expect(toolbox1.server.instance).not.toBe(toolbox2.server.instance);
-    // Each has its own wasResultSubmitted callback
-    expect(toolbox1.wasResultSubmitted()).toBe(false);
-    expect(toolbox2.wasResultSubmitted()).toBe(false);
+    expect(toolbox1.instance).not.toBe(toolbox2.instance);
   });
 
   test("separate handler instances have independent resultSubmitted flags", async () => {
@@ -368,13 +394,11 @@ describe("per-closure resultSubmitted flag", () => {
 // -- createCommissionToolbox --
 
 describe("createCommissionToolbox", () => {
-  test("returns server config and wasResultSubmitted callback", () => {
+  test("returns MCP server config", () => {
     const result = createCommissionToolbox(makeDeps());
 
-    expect(result.server.type).toBe("sdk");
-    expect(result.server.name).toBe("guild-hall-commission");
-    expect(result.server.instance).toBeDefined();
-    expect(result.wasResultSubmitted).toBeFunction();
-    expect(result.wasResultSubmitted()).toBe(false);
+    expect(result.type).toBe("sdk");
+    expect(result.name).toBe("guild-hall-commission");
+    expect(result.instance).toBeDefined();
   });
 });

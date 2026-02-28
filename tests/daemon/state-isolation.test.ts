@@ -545,11 +545,7 @@ describe("State Isolation", () => {
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
       contextFactories: [
-        createCommissionToolboxFactory({
-          onProgress: () => {},
-          onResult: () => {},
-          onQuestion: () => {},
-        }),
+        createCommissionToolboxFactory(createEventBus()),
       ],
     });
 
@@ -586,9 +582,8 @@ describe("State Isolation", () => {
     expect(commissionBase).toBeDefined();
     expect(meetingBase).not.toBe(commissionBase);
 
-    // Commission tools have wasResultSubmitted, meeting tools do not
-    expect(commissionTools.wasResultSubmitted).toBeDefined();
-    expect(meetingTools.wasResultSubmitted).toBeUndefined();
+    // Both tool sets are resolved without wasResultSubmitted (removed in Phase 4 refactor)
+    // Commission isolation is confirmed by having the commission MCP server, not the meeting one
   });
 
   test("memory visibility: worker-scope write in commission is readable from meeting context", async () => {
