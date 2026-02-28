@@ -5,7 +5,7 @@ status: complete
 tags: [git, data-loss, recovery, worktrees, pre-commit-hooks, process, debugging]
 modules: [guild-hall-core, daemon-lib-git]
 related:
-  - .lore/plans/phase-5-git-integration.md
+  - .lore/plans/foundation/phase-5-git-integration.md
   - .lore/notes/phase-5-git-integration.md
 ---
 
@@ -39,7 +39,7 @@ The commit process failed multiple times due to the test corruption. Each recove
 
 ### What survived
 
-- All new files (untracked): `daemon/lib/git.ts`, `cli/rebase.ts`, `tests/daemon/lib/git.test.ts`, `tests/cli/rebase.test.ts`, `tests/daemon/app.test.ts`, `tests/daemon/rebase.test.ts`, `.lore/plans/phase-5-git-integration.md`, `.lore/notes/phase-5-git-integration.md`
+- All new files (untracked): `daemon/lib/git.ts`, `cli/rebase.ts`, `tests/daemon/lib/git.test.ts`, `tests/cli/rebase.test.ts`, `tests/daemon/app.test.ts`, `tests/daemon/rebase.test.ts`, `.lore/plans/foundation/phase-5-git-integration.md`, `.lore/notes/phase-5-git-integration.md`
 - The fix for the git isolation bug (already applied to the surviving files)
 - The plan, notes, and this retro
 
@@ -91,7 +91,7 @@ Modifications to ~20 existing files spanning all 10 implementation phases:
 
 ## Artifacts
 
-- `.lore/plans/phase-5-git-integration.md` - implementation plan (survived)
+- `.lore/plans/foundation/phase-5-git-integration.md` - implementation plan (survived)
 - `.lore/notes/phase-5-git-integration.md` - implementation notes (survived)
 - `daemon/lib/git.ts` - GitOps library with cleanGitEnv fix (survived)
 - `tests/daemon/lib/git.test.ts` - Git tests with cleanGitEnv fix (survived)

@@ -5,7 +5,7 @@ status: complete
 tags: [commissions, process-management, integration, debugging, sse, worker-packages]
 modules: [guild-hall-core, guild-hall-ui, sample-assistant]
 related:
-  - .lore/plans/phase-4-commissions.md
+  - .lore/plans/foundation/phase-4-commissions.md
   - .lore/notes/phase-4-commissions.md
   - .lore/retros/worker-dispatch.md
   - .lore/retros/dispatch-hardening.md
@@ -44,6 +44,6 @@ Phase 4 added async commissions to Guild Hall: a seven-state lifecycle, separate
 
 ## Artifacts
 
-- Plan: `.lore/plans/phase-4-commissions.md`
+- Plan: `.lore/plans/foundation/phase-4-commissions.md`
 - Implementation notes: `.lore/notes/phase-4-commissions.md`
 - Related retros: `.lore/retros/worker-dispatch.md`, `.lore/retros/dispatch-hardening.md`

@@ -3,7 +3,7 @@ title: "Commission exit replaces temp dir cleanup with git operations"
 date: 2026-02-22
 status: complete
 tags: [task, commission, exit, squash-merge, cleanup]
-source: .lore/plans/phase-5-git-integration.md
+source: .lore/plans/foundation/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-commissions.md
 sequence: 5

@@ -3,7 +3,7 @@ title: "Meeting session git lifecycle: branch, worktree, squash-merge"
 date: 2026-02-22
 status: complete
 tags: [task, meetings, worktrees, squash-merge, sparse-checkout]
-source: .lore/plans/phase-5-git-integration.md
+source: .lore/plans/foundation/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-meetings.md
   - .lore/specs/guild-hall-system.md

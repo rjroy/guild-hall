@@ -3,7 +3,7 @@ title: Manager sync_project Tool
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-7-hardening.md
+source: .lore/plans/foundation/phase-7-hardening.md
 sequence: 9
 modules: [guild-hall-core]
 ---

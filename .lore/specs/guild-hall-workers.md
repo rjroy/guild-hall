@@ -179,6 +179,6 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - [Brainstorm: Agentic Work UX](.lore/brainstorm/agentic-work-ux.md): Lines 310-321 scope this spec. Workers have identity, posture, toolboxes, memory. Manager is coordination. Plugin contract is bun packages.
 - [Research: Claude Agent SDK](.lore/research/claude-agent-sdk.md): SDK provides `query()`, in-process MCP servers for custom tools, tool restriction, permission modes, session persistence, and resource bounds.
 - [Research: Agent-Native Applications](.lore/research/agent-native-applications.md): Parity principle, granularity (atomic tools, judgment to agents), composability (features as prompts over tools).
-- [Spec: Worker Dispatch (Phase 1)](.lore/specs/phase-1/worker-dispatch.md): Superseded. Internal tool patterns (progress, decisions, questions, memory, result submission) carry forward as system toolbox tools.
+- Spec: Worker Dispatch (Phase 1) *(archived)*: Superseded. Internal tool patterns (progress, decisions, questions, memory, result submission) carry forward as system toolbox tools.
 - [Retro: Worker Dispatch](.lore/retros/worker-dispatch.md): Design explicit result submission tools (agents use tools over text for output). DI factory codebases need explicit production wiring.
 - [Retro: Dispatch Hardening](.lore/retros/dispatch-hardening.md): Resource budget defaults need real-workload validation (30 turns failed; 150 worked). Error handlers must not discard tool-submitted results.

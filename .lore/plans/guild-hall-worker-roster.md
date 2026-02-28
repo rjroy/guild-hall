@@ -12,7 +12,7 @@ related:
   - .lore/specs/guild-hall-meetings.md
   - .lore/specs/guild-hall-views.md
   - .lore/brainstorm/worker-roster-generic-workers.md
-  - .lore/plans/phase-2-workers-first-audience.md
+  - .lore/plans/foundation/phase-2-workers-first-audience.md
 ---
 
 # Plan: Guild Hall Worker Roster

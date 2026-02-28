@@ -7,15 +7,15 @@ worker: Writer
 workerDisplayTitle: "Guild Writer"
 prompt: "Update the frontmatter `status` field to `implemented` in the following 13 plan files. Only change the `status` field, nothing else.
 
-1. `.lore/plans/phase-1-empty-hall.md` (currently `approved`)
-2. `.lore/plans/phase-2-workers-first-audience.md` (currently `draft`)
-3. `.lore/plans/phase-3-meeting-lifecycle.md` (currently `draft`)
-4. `.lore/plans/phase-4-commissions.md` (currently `draft`)
-5. `.lore/plans/phase-5-git-integration.md` (currently `draft`)
-6. `.lore/plans/phase-6-guild-master.md` (currently `draft`)
-7. `.lore/plans/phase-7-hardening.md` (currently `draft`)
+1. `.lore/plans/foundation/phase-1-empty-hall.md` (currently `approved`)
+2. `.lore/plans/foundation/phase-2-workers-first-audience.md` (currently `draft`)
+3. `.lore/plans/foundation/phase-3-meeting-lifecycle.md` (currently `draft`)
+4. `.lore/plans/foundation/phase-4-commissions.md` (currently `draft`)
+5. `.lore/plans/foundation/phase-5-git-integration.md` (currently `draft`)
+6. `.lore/plans/foundation/phase-6-guild-master.md` (currently `draft`)
+7. `.lore/plans/foundation/phase-7-hardening.md` (currently `draft`)
 8. `.lore/plans/spec-gap-analysis.md` (currently `draft`)
-9. `.lore/plans/implementation-phases.md` (currently `draft`)
+9. `.lore/plans/foundation/implementation-phases.md` (currently `draft`)
 10. `.lore/plans/guild-hall-worker-roster.md` (currently `draft`)
 11. `.lore/plans/commission-meeting-state-ownership.md` (currently `draft`)
 12. `.lore/plans/artifact-tree-view.md` (currently `draft`)
@@ -26,28 +26,28 @@ Do NOT change these two files (they remain as-is):
 - `fix-duplicate-tool-notifications.md`"
 dependencies: []
 linked_artifacts:
-  - .lore/plans/phase-1-empty-hall.md
+  - .lore/plans/foundation/phase-1-empty-hall.md
 
-  - .lore/plans/phase-2-workers-first-audience.md
-  - .lore/plans/phase-3-meeting-lifecycle.md
-  - .lore/plans/phase-4-commissions.md
-  - .lore/plans/phase-5-git-integration.md
-  - .lore/plans/phase-6-guild-master.md
-  - .lore/plans/phase-7-hardening.md
+  - .lore/plans/foundation/phase-2-workers-first-audience.md
+  - .lore/plans/foundation/phase-3-meeting-lifecycle.md
+  - .lore/plans/foundation/phase-4-commissions.md
+  - .lore/plans/foundation/phase-5-git-integration.md
+  - .lore/plans/foundation/phase-6-guild-master.md
+  - .lore/plans/foundation/phase-7-hardening.md
   - .lore/plans/spec-gap-analysis.md
-  - .lore/plans/implementation-phases.md
+  - .lore/plans/foundation/implementation-phases.md
   - .lore/plans/guild-hall-worker-roster.md
   - .lore/plans/commission-meeting-state-ownership.md
   - .lore/plans/artifact-tree-view.md
   - .lore/plans/multiline-tool-display-on-reopen.md
-  - .lore/plans/phase-2-workers-first-audience.md
-  - .lore/plans/phase-3-meeting-lifecycle.md
-  - .lore/plans/phase-4-commissions.md
-  - .lore/plans/phase-5-git-integration.md
-  - .lore/plans/phase-6-guild-master.md
-  - .lore/plans/phase-7-hardening.md
+  - .lore/plans/foundation/phase-2-workers-first-audience.md
+  - .lore/plans/foundation/phase-3-meeting-lifecycle.md
+  - .lore/plans/foundation/phase-4-commissions.md
+  - .lore/plans/foundation/phase-5-git-integration.md
+  - .lore/plans/foundation/phase-6-guild-master.md
+  - .lore/plans/foundation/phase-7-hardening.md
   - .lore/plans/spec-gap-analysis.md
-  - .lore/plans/implementation-phases.md
+  - .lore/plans/foundation/implementation-phases.md
   - .lore/plans/guild-hall-worker-roster.md
   - .lore/plans/commission-meeting-state-ownership.md
   - .lore/plans/artifact-tree-view.md

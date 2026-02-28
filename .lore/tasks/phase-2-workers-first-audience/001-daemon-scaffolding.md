@@ -3,7 +3,7 @@ title: Dependencies and daemon scaffolding
 date: 2026-02-21
 status: complete
 tags: [task]
-source: .lore/plans/phase-2-workers-first-audience.md
+source: .lore/plans/foundation/phase-2-workers-first-audience.md
 related:
   - .lore/design/process-architecture.md
 sequence: 1
@@ -50,7 +50,7 @@ Install new dependencies and create the daemon directory structure. This is the 
 
 ## Why
 
-From `.lore/plans/phase-2-workers-first-audience.md`, Step 1: Foundation for all daemon work. The daemon (Hono on Unix socket) owns all SDK sessions per `.lore/design/process-architecture.md`. Phase 2 introduces the split architecture where Next.js becomes a pure UI client.
+From `.lore/plans/foundation/phase-2-workers-first-audience.md`, Step 1: Foundation for all daemon work. The daemon (Hono on Unix socket) owns all SDK sessions per `.lore/design/process-architecture.md`. Phase 2 introduces the split architecture where Next.js becomes a pure UI client.
 
 ## Files
 

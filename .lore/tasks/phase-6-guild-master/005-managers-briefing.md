@@ -3,7 +3,7 @@ title: Add on-demand manager briefing with SDK generation and caching
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-6-guild-master.md
+source: .lore/plans/foundation/phase-6-guild-master.md
 related: [.lore/specs/guild-hall-views.md]
 sequence: 5
 modules: [daemon-services, daemon-routes, next-api, guild-hall-ui]

@@ -3,7 +3,7 @@ title: Base toolbox and toolbox resolution
 date: 2026-02-21
 status: complete
 tags: [task]
-source: .lore/plans/phase-2-workers-first-audience.md
+source: .lore/plans/foundation/phase-2-workers-first-audience.md
 related:
   - .lore/specs/guild-hall-workers.md
   - .lore/research/claude-agent-sdk-ref-typescript.md

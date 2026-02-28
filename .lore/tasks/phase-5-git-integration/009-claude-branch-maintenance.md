@@ -3,7 +3,7 @@ title: "Claude branch rebase utility and CLI command"
 date: 2026-02-22
 status: complete
 tags: [task, rebase, cli, daemon-startup]
-source: .lore/plans/phase-5-git-integration.md
+source: .lore/plans/foundation/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-system.md
 sequence: 9
@@ -61,7 +61,7 @@ From `.lore/specs/guild-hall-system.md`:
 - REQ-SYS-23: PR from claude to master, squash-merged (infrastructure only; manager triggers in Phase 6)
 - REQ-SYS-24: Claude rebases onto master when user pushes
 
-From `.lore/plans/phase-5-git-integration.md`, Open Question 1: "Skip rebase if any activities are active for the project. The rebase happens on the next daemon restart when no activities are running."
+From `.lore/plans/foundation/phase-5-git-integration.md`, Open Question 1: "Skip rebase if any activities are active for the project. The rebase happens on the next daemon restart when no activities are running."
 
 ## Files
 

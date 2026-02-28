@@ -37,4 +37,4 @@ Fixed bug #2 from Phase I manual testing: "Double data in the response." When `i
 
 ## Artifacts
 
-- Known bugs: `.lore/notes/phase-1/phase-1-known-bugs.md` (bug #2 marked resolved)
+- Known bugs: `.lore/_abandoned/phase-1/notes/phase-1-known-bugs.md` (bug #2 marked resolved)

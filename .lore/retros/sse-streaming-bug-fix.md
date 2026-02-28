@@ -40,4 +40,4 @@ Fixed bug #1 from Phase I manual testing: "Agent response does not appear until 
 ## Artifacts
 
 - Commit: `9ac0d24` on `feat/guild-hall-phase-1`
-- Known bugs: `.lore/notes/phase-1/phase-1-known-bugs.md` (bug #1 marked resolved)
+- Known bugs: `.lore/_abandoned/phase-1/notes/phase-1-known-bugs.md` (bug #1 marked resolved)

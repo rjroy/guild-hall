@@ -5,8 +5,8 @@ status: executed
 tags: [plan, phase-5, git, worktrees, branches, isolation, squash-merge]
 modules: [guild-hall-core, guild-hall-ui]
 related:
-  - .lore/plans/implementation-phases.md
-  - .lore/plans/phase-4-commissions.md
+  - .lore/plans/foundation/implementation-phases.md
+  - .lore/plans/foundation/phase-4-commissions.md
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-workers.md
   - .lore/specs/guild-hall-commissions.md
@@ -999,7 +999,7 @@ No code needed for PR creation infrastructure beyond what Steps 3-7 provide. The
 
 ### Step 10: Validate Against Spec
 
-Launch a fresh-context sub-agent that reads the Phase 5 scope from `.lore/plans/implementation-phases.md`, the System, Workers, Commissions, and Meetings specs, and reviews the implementation. The agent flags any Phase 5 requirements not met.
+Launch a fresh-context sub-agent that reads the Phase 5 scope from `.lore/plans/foundation/implementation-phases.md`, the System, Workers, Commissions, and Meetings specs, and reviews the implementation. The agent flags any Phase 5 requirements not met.
 
 The agent checks:
 

@@ -7,7 +7,7 @@ modules: [guild-hall-core]
 related:
   - .lore/specs/guild-hall-system.md
   - .lore/design/process-architecture.md
-  - .lore/plans/implementation-phases.md
+  - .lore/plans/foundation/implementation-phases.md
 ---
 
 # Brainstorm: Squash-Merge Branch Recovery

@@ -3,7 +3,7 @@ title: "Implementation notes: phase-5-git-integration"
 date: 2026-02-22
 status: complete
 tags: [implementation, notes]
-source: .lore/plans/phase-5-git-integration.md
+source: .lore/plans/foundation/phase-5-git-integration.md
 modules: [guild-hall-core, guild-hall-ui]
 ---
 

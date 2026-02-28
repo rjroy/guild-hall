@@ -53,8 +53,5 @@ Fix: added `submit_result` tool that accepts a file path. The agent writes its r
 
 ## Artifacts
 
-- `.lore/specs/phase-1/worker-dispatch.md` - 47 requirements
-- `.lore/plans/phase-1/worker-dispatch.md` - 11 steps
-- `.lore/tasks/phase-1/worker-dispatch/` - 13 task files
-- `.lore/notes/phase-1/worker-dispatch.md` - implementation log
+- `.lore/_abandoned/phase-1/notes/worker-dispatch.md` - implementation log
 - Fixes: `e6b0d61` (production wiring + logging), `9e0a84c` (submit_result tool), `f09a020` (roster server lifecycle)

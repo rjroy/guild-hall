@@ -3,7 +3,7 @@ title: "Implementation notes: phase-1-empty-hall"
 date: 2026-02-20
 status: complete
 tags: [implementation, notes]
-source: .lore/plans/phase-1-empty-hall.md
+source: .lore/plans/foundation/phase-1-empty-hall.md
 modules: [guild-hall-ui, guild-hall-core]
 ---
 

@@ -5,8 +5,8 @@ status: executed
 tags: [plan, phase-3, meetings, toolbox, transcripts, requests, session-persistence]
 modules: [guild-hall-core, guild-hall-ui]
 related:
-  - .lore/plans/implementation-phases.md
-  - .lore/plans/phase-2-workers-first-audience.md
+  - .lore/plans/foundation/implementation-phases.md
+  - .lore/plans/foundation/phase-2-workers-first-audience.md
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-workers.md
   - .lore/specs/guild-hall-meetings.md
@@ -819,7 +819,7 @@ Ensure all new navigation flows work with no dead ends.
 
 ### Step 11: Validate Against Spec
 
-Launch a fresh-context sub-agent that reads the Phase 3 scope from `.lore/plans/implementation-phases.md`, the System, Workers, Meetings, and Views specs, and reviews the implementation. The agent flags any Phase 3 requirements not met. This step is not optional.
+Launch a fresh-context sub-agent that reads the Phase 3 scope from `.lore/plans/foundation/implementation-phases.md`, the System, Workers, Meetings, and Views specs, and reviews the implementation. The agent flags any Phase 3 requirements not met. This step is not optional.
 
 The agent checks:
 

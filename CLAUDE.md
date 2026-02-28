@@ -8,7 +8,7 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 ## Status
 
-Phase 6 complete, 1529 tests pass. See `.lore/plans/implementation-phases.md` for the full phase history and roadmap.
+Phase 6 complete, 1529 tests pass. See `.lore/plans/foundation/implementation-phases.md` for the full phase history and roadmap.
 
 ## Architecture
 

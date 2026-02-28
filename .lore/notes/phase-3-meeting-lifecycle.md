@@ -3,7 +3,7 @@ title: "Implementation notes: Phase 3 Meeting Lifecycle"
 date: 2026-02-21
 status: complete
 tags: [implementation, notes, phase-3, meetings, toolbox, transcripts, requests, session-persistence]
-source: .lore/plans/phase-3-meeting-lifecycle.md
+source: .lore/plans/foundation/phase-3-meeting-lifecycle.md
 modules: [guild-hall-core, guild-hall-ui]
 ---
 

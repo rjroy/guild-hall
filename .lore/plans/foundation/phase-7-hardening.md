@@ -5,7 +5,7 @@ status: executed
 tags: [plan, hardening, crash-recovery, memory, concurrent-limits, dependency-transitions]
 modules: [guild-hall-core, guild-hall-ui]
 related:
-  - .lore/plans/implementation-phases.md
+  - .lore/plans/foundation/implementation-phases.md
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-workers.md
   - .lore/specs/guild-hall-commissions.md

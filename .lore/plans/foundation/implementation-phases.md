@@ -26,8 +26,8 @@ Open the browser, see the dashboard. Fantasy aesthetic, glassmorphic panels, gem
 
 | Spec | Requirements |
 |------|-------------|
-| [System](../specs/guild-hall-system.md) | SYS-2/3 (artifact schema), SYS-26/27 (storage layout), SYS-35/36/37 (config, project registry, CLI validation), SYS-39 (files as interface) |
-| [Views](../specs/guild-hall-views.md) | VIEW-1/2 (design language, gems), VIEW-3 (worker identity rendering, stubbed), VIEW-4/5/6 (navigation model, URL routing, deep linking), VIEW-12 (dashboard five-zone layout, all zones present but empty/stubbed), VIEW-15/16 (project view header + tabs), VIEW-36/37/38/39 (artifact view: breadcrumb, provenance stub, markdown render+edit, metadata sidebar) |
+| [System](../../specs/guild-hall-system.md) | SYS-2/3 (artifact schema), SYS-26/27 (storage layout), SYS-35/36/37 (config, project registry, CLI validation), SYS-39 (files as interface) |
+| [Views](../../specs/guild-hall-views.md) | VIEW-1/2 (design language, gems), VIEW-3 (worker identity rendering, stubbed), VIEW-4/5/6 (navigation model, URL routing, deep linking), VIEW-12 (dashboard five-zone layout, all zones present but empty/stubbed), VIEW-15/16 (project view header + tabs), VIEW-36/37/38/39 (artifact view: breadcrumb, provenance stub, markdown render+edit, metadata sidebar) |
 
 After this: you can browse a real project's artifacts in a browser with the right look and feel. Everything else is "coming soon" but the skeleton is navigable.
 
@@ -37,10 +37,10 @@ Package discovery finds workers and toolboxes. Worker identities show up in the 
 
 | Spec | Requirements |
 |------|-------------|
-| [System](../specs/guild-hall-system.md) | SYS-5 (toolbox kinds), SYS-7 (meeting primitive), SYS-31/32/33 (package discovery) |
-| [Workers](../specs/guild-hall-workers.md) | WKR-1/2/3/4 (worker package metadata, identity, posture), WKR-4a (activation function), WKR-5/6/6a/7 (toolbox package metadata + export), WKR-8/9 (base toolbox: memory, artifact, decision tools), WKR-12/13 (toolbox resolution), WKR-14/15/16/17/18 (SDK integration) |
-| [Meetings](../specs/guild-hall-meetings.md) | MTG-1/2/2a/3 (meeting artifact + state), MTG-4/5/6/7 (status machine), MTG-8 (creation sequence, git stubbed), MTG-14/15 (streaming events) |
-| [Views](../specs/guild-hall-views.md) | VIEW-17 (start audience button, functional), VIEW-28/29 (worker identity + agenda in meeting view), VIEW-31/32/33/34 (chat interface, streaming display, input/send, stop button) |
+| [System](../../specs/guild-hall-system.md) | SYS-5 (toolbox kinds), SYS-7 (meeting primitive), SYS-31/32/33 (package discovery) |
+| [Workers](../../specs/guild-hall-workers.md) | WKR-1/2/3/4 (worker package metadata, identity, posture), WKR-4a (activation function), WKR-5/6/6a/7 (toolbox package metadata + export), WKR-8/9 (base toolbox: memory, artifact, decision tools), WKR-12/13 (toolbox resolution), WKR-14/15/16/17/18 (SDK integration) |
+| [Meetings](../../specs/guild-hall-meetings.md) | MTG-1/2/2a/3 (meeting artifact + state), MTG-4/5/6/7 (status machine), MTG-8 (creation sequence, git stubbed), MTG-14/15 (streaming events) |
+| [Views](../../specs/guild-hall-views.md) | VIEW-17 (start audience button, functional), VIEW-28/29 (worker identity + agenda in meeting view), VIEW-31/32/33/34 (chat interface, streaming display, input/send, stop button) |
 
 Mocked: git (temp directory instead of worktree).
 
@@ -52,10 +52,10 @@ Meetings persist across sittings. Leave, come back tomorrow, resume where you le
 
 | Spec | Requirements |
 |------|-------------|
-| [System](../specs/guild-hall-system.md) | SYS-8/8a (deferrable meetings, concurrent cap), SYS-9/10 (worker-is-definition, multi-context), SYS-30 (ephemeral transcripts) |
-| [Workers](../specs/guild-hall-workers.md) | WKR-11 (meeting toolbox stub fulfilled), WKR-19/20/21 (resource bounds, session persistence, streaming) |
-| [Meetings](../specs/guild-hall-meetings.md) | MTG-9 (cap enforcement), MTG-10/11/12/13 (session lifecycle: resume, expiry, multi-sitting), MTG-16/17/18 (meeting toolbox), MTG-19/20/21 (transcripts + notes generation), MTG-22/23/24 (meeting requests: worker-created, accept/decline/defer) |
-| [Views](../specs/guild-hall-views.md) | VIEW-13 (pending audiences: open, defer, ignore, not quick comment yet), VIEW-30 (artifacts panel in meeting), VIEW-35 (close button, notes display) |
+| [System](../../specs/guild-hall-system.md) | SYS-8/8a (deferrable meetings, concurrent cap), SYS-9/10 (worker-is-definition, multi-context), SYS-30 (ephemeral transcripts) |
+| [Workers](../../specs/guild-hall-workers.md) | WKR-11 (meeting toolbox stub fulfilled), WKR-19/20/21 (resource bounds, session persistence, streaming) |
+| [Meetings](../../specs/guild-hall-meetings.md) | MTG-9 (cap enforcement), MTG-10/11/12/13 (session lifecycle: resume, expiry, multi-sitting), MTG-16/17/18 (meeting toolbox), MTG-19/20/21 (transcripts + notes generation), MTG-22/23/24 (meeting requests: worker-created, accept/decline/defer) |
+| [Views](../../specs/guild-hall-views.md) | VIEW-13 (pending audiences: open, defer, ignore, not quick comment yet), VIEW-30 (artifacts panel in meeting), VIEW-35 (close button, notes display) |
 
 After this: meetings are fully functional except for git isolation.
 
@@ -65,10 +65,10 @@ Create a commission from the project view. Pick a worker, write the agentic prom
 
 | Spec | Requirements |
 |------|-------------|
-| [System](../specs/guild-hall-system.md) | SYS-11/12/13 (primitive relationships) |
-| [Workers](../specs/guild-hall-workers.md) | WKR-10 (commission toolbox stub fulfilled) |
-| [Commissions](../specs/guild-hall-commissions.md) | COM-1/2/3/3a/4 (commission artifact), COM-5/6/8 (status machine, minus dependency auto-transitions), COM-9/10/11 (dispatch sequence), COM-12/13 (process monitoring, heartbeat), COM-14/14a/15/16 (exit handling, partial results), COM-17/18/19/20 (commission toolbox), COM-24/25/26 (activity timeline) |
-| [Views](../specs/guild-hall-views.md) | VIEW-9 (system-wide SSE for live updates), VIEW-19 (commission creation form), VIEW-20/21/23/24/25/26/27 (commission view: header, prompt, artifacts, comment thread, timeline, live updates, cancel/re-dispatch) |
+| [System](../../specs/guild-hall-system.md) | SYS-11/12/13 (primitive relationships) |
+| [Workers](../../specs/guild-hall-workers.md) | WKR-10 (commission toolbox stub fulfilled) |
+| [Commissions](../../specs/guild-hall-commissions.md) | COM-1/2/3/3a/4 (commission artifact), COM-5/6/8 (status machine, minus dependency auto-transitions), COM-9/10/11 (dispatch sequence), COM-12/13 (process monitoring, heartbeat), COM-14/14a/15/16 (exit handling, partial results), COM-17/18/19/20 (commission toolbox), COM-24/25/26 (activity timeline) |
+| [Views](../../specs/guild-hall-views.md) | VIEW-9 (system-wide SSE for live updates), VIEW-19 (commission creation form), VIEW-20/21/23/24/25/26/27 (commission view: header, prompt, artifacts, comment thread, timeline, live updates, cancel/re-dispatch) |
 
 Mocked: git (temp directory), no dependency auto-transitions, no concurrent limits.
 
@@ -80,9 +80,9 @@ Meetings and commissions get real branches and worktrees. Workers are isolated f
 
 | Spec | Requirements |
 |------|-------------|
-| [System](../specs/guild-hall-system.md) | SYS-22/23/24/25 (git strategy: master/claude/activity branches, PRs, rebase), SYS-28/29/29a (integration worktree, sparse checkout, per-activity worktrees) |
-| [Commissions](../specs/guild-hall-commissions.md) | COM-30 (re-dispatch preserves old branch), COM-31/32 (commission git) |
-| [Meetings](../specs/guild-hall-meetings.md) | MTG-25/26/27 (meeting git) |
+| [System](../../specs/guild-hall-system.md) | SYS-22/23/24/25 (git strategy: master/claude/activity branches, PRs, rebase), SYS-28/29/29a (integration worktree, sparse checkout, per-activity worktrees) |
+| [Commissions](../../specs/guild-hall-commissions.md) | COM-30 (re-dispatch preserves old branch), COM-31/32 (commission git) |
+| [Meetings](../../specs/guild-hall-meetings.md) | MTG-25/26/27 (meeting git) |
 
 After this: the work is properly isolated. No more temp directories.
 
@@ -92,9 +92,9 @@ The manager worker ships. Meet with the manager to plan and prioritize. Manager 
 
 | Spec | Requirements |
 |------|-------------|
-| [System](../specs/guild-hall-system.md) | SYS-14 (dependency graph implicit in artifact references), SYS-16/17/18 (manager primitive) |
-| [Workers](../specs/guild-hall-workers.md) | WKR-24/25/26/27/28 (manager: capabilities, exclusive toolbox, dispatch-with-review, deference) |
-| [Views](../specs/guild-hall-views.md) | VIEW-12.2 (manager's briefing), VIEW-12.3 (dependency map on dashboard), VIEW-13 quick comment, VIEW-14 (dependency map rendering), VIEW-22 (commission neighborhood graph) |
+| [System](../../specs/guild-hall-system.md) | SYS-14 (dependency graph implicit in artifact references), SYS-16/17/18 (manager primitive) |
+| [Workers](../../specs/guild-hall-workers.md) | WKR-24/25/26/27/28 (manager: capabilities, exclusive toolbox, dispatch-with-review, deference) |
+| [Views](../../specs/guild-hall-views.md) | VIEW-12.2 (manager's briefing), VIEW-12.3 (dependency map on dashboard), VIEW-13 quick comment, VIEW-14 (dependency map rendering), VIEW-22 (commission neighborhood graph) |
 
 After this: the system coordinates, not just executes. The manager is your interface to the workforce.
 
@@ -104,10 +104,10 @@ Dependencies auto-transition commissions between blocked and pending. Concurrent
 
 | Spec | Requirements |
 |------|-------------|
-| [System](../specs/guild-hall-system.md) | SYS-15 (workspace scoping), SYS-19/20/21 (memory model access rules) |
-| [Workers](../specs/guild-hall-workers.md) | WKR-22/23 (memory injection + compaction) |
-| [Commissions](../specs/guild-hall-commissions.md) | COM-7 (dependency auto-transitions), COM-21/22/23 (concurrent limits + FIFO), COM-27/28/29 (crash recovery) |
-| [Meetings](../specs/guild-hall-meetings.md) | MTG-28/29 (concurrent cap enforcement), MTG-30 (state isolation) |
-| [Views](../specs/guild-hall-views.md) | VIEW-7/8 (daemon connectivity), VIEW-10 (cross-project aggregation) |
+| [System](../../specs/guild-hall-system.md) | SYS-15 (workspace scoping), SYS-19/20/21 (memory model access rules) |
+| [Workers](../../specs/guild-hall-workers.md) | WKR-22/23 (memory injection + compaction) |
+| [Commissions](../../specs/guild-hall-commissions.md) | COM-7 (dependency auto-transitions), COM-21/22/23 (concurrent limits + FIFO), COM-27/28/29 (crash recovery) |
+| [Meetings](../../specs/guild-hall-meetings.md) | MTG-28/29 (concurrent cap enforcement), MTG-30 (state isolation) |
+| [Views](../../specs/guild-hall-views.md) | VIEW-7/8 (daemon connectivity), VIEW-10 (cross-project aggregation) |
 
 After this: the system is production-grade. Multiple projects, multiple workers, things crash and recover.

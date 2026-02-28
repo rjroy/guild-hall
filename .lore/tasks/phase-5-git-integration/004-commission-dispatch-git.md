@@ -3,7 +3,7 @@ title: "Commission dispatch creates activity branch and worktree"
 date: 2026-02-22
 status: complete
 tags: [task, commission, dispatch, worktrees, sparse-checkout]
-source: .lore/plans/phase-5-git-integration.md
+source: .lore/plans/foundation/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-commissions.md
   - .lore/specs/guild-hall-system.md

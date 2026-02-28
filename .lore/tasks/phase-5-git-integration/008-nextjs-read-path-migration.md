@@ -3,7 +3,7 @@ title: "Next.js pages read from integration worktree instead of project.path"
 date: 2026-02-22
 status: complete
 tags: [task, next-js, paths, server-components]
-source: .lore/plans/phase-5-git-integration.md
+source: .lore/plans/foundation/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-views.md
@@ -78,7 +78,7 @@ From `.lore/specs/guild-hall-system.md`:
 - REQ-SYS-28: Integration worktree is the UI's read source for all Guild Hall content
 - REQ-SYS-25: User's working directory (project.path) is untouched by workers
 
-From `.lore/plans/phase-5-git-integration.md`, Open Question 4: "Auto-commit artifact edits to claude with a message like 'Edit artifact: <path>'. This keeps the integration worktree clean and changes tracked."
+From `.lore/plans/foundation/phase-5-git-integration.md`, Open Question 4: "Auto-commit artifact edits to claude with a message like 'Edit artifact: <path>'. This keeps the integration worktree clean and changes tracked."
 
 ## Files
 
