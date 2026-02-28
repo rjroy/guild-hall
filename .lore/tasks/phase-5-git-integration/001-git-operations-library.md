@@ -2,8 +2,8 @@
 title: "Git operations library with DI-injectable interface"
 date: 2026-02-22
 status: complete
-tags: [task, git, subprocess, di-factory]
-source: .lore/plans/phase-5-git-integration.md
+tags: [task, git, subprocess, dependency-injection]
+source: .lore/plans/foundation/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-system.md
   - .lore/retros/phase-5-git-integration-data-loss.md

@@ -5,7 +5,7 @@ status: executed
 tags: [plan, phase-1, ui, navigation, artifacts, config, design-system]
 modules: [guild-hall-ui, guild-hall-core]
 related:
-  - .lore/plans/implementation-phases.md
+  - .lore/plans/foundation/implementation-phases.md
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-views.md
   - .lore/specs/guild-hall-workers.md
@@ -535,7 +535,7 @@ All tests use dependency injection:
 
 ### Step 10: Validate Against Spec
 
-Launch a fresh-context sub-agent that reads the Phase 1 scope from `.lore/plans/implementation-phases.md`, the System spec, and the Views spec. The agent reviews the implementation and flags any Phase 1 requirements not met. This step is not optional.
+Launch a fresh-context sub-agent that reads the Phase 1 scope from `.lore/plans/foundation/implementation-phases.md`, the System spec, and the Views spec. The agent reviews the implementation and flags any Phase 1 requirements not met. This step is not optional.
 
 The agent checks:
 

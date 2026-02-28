@@ -3,7 +3,7 @@ title: Dependency Auto-Transitions
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-7-hardening.md
+source: .lore/plans/foundation/phase-7-hardening.md
 related: [.lore/specs/guild-hall-commissions.md]
 sequence: 4
 modules: [guild-hall-core]

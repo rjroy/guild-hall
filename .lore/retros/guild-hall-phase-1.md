@@ -5,8 +5,8 @@ status: complete
 tags: [phase-1, implementation, autonomous-implementation, sse, testing, frontend, agent-sdk]
 modules: [guild-hall, workshop, board, roster]
 related:
-  - .lore/_abandoned/phase-1/brainstorm/guild-hall-phase-1.md
-  - .lore/_abandoned/phase-1/notes/guild-hall-phase-1.md
+  - .lore/_abandoned/poc/brainstorm/guild-hall-phase-1.md
+  - .lore/_abandoned/poc/notes/guild-hall-phase-1.md
 ---
 
 # Retro: Guild Hall Phase I
@@ -55,8 +55,5 @@ The backend is solid. The frontend has three bugs that surfaced in manual testin
 
 ## Artifacts
 
-- Spec: `.lore/specs/phase-1/guild-hall-phase-1.md`
-- Plan: `.lore/plans/phase-1/guild-hall-phase-1.md`
-- Notes: `.lore/notes/phase-1/guild-hall-phase-1.md`
-- Tasks: `.lore/tasks/phase-1/guild-hall-phase-1/` (17 task files)
+- Notes: `.lore/_abandoned/poc/notes/guild-hall-phase-1.md`
 - PR: https://github.com/rjroy/guild-hall/pull/3

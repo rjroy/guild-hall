@@ -1,7 +1,7 @@
 ---
 title: Fix duplicate tool use indicators during live meeting streaming
 date: 2026-02-26
-status: draft
+status: executed
 tags: [bug-fix, streaming, sse, tool-use, meetings, ui]
 modules: [event-translator, meeting-chat, tool-use-indicator]
 related: [.lore/issues/duplicate-tool-notifications.md]

@@ -24,7 +24,7 @@ import type {
 import { getWorkerByName } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
-import type { EventBus } from "@/daemon/services/event-bus";
+import { noopEventBus, type EventBus } from "@/daemon/services/event-bus";
 import {
   MANAGER_PACKAGE_NAME,
   activateManager,
@@ -493,26 +493,16 @@ notes_summary: ""
     try {
       const project = findProject(meeting.projectName);
 
-      const resolvedTools = resolveToolSet(workerMeta, deps.packages, {
-        projectPath,
+      const resolvedTools = await resolveToolSet(workerMeta, deps.packages, {
         projectName: meeting.projectName,
-        meetingId: meeting.meetingId as string,
+        contextId: meeting.meetingId as string,
+        contextType: "meeting",
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,
-        integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
-        workingDirectory: meeting.worktreeDir,
-        isManager,
-        managerToolboxDeps: isManager && deps.commissionSession && deps.eventBus
-          ? {
-            integrationPath: integrationWorktreePath(ghHome, meeting.projectName),
-            projectName: meeting.projectName,
-            guildHallHome: ghHome,
-            commissionSession: deps.commissionSession,
-            eventBus: deps.eventBus,
-            gitOps: git,
-            projectRepoPath: project?.path ?? projectPath,
-            defaultBranch: project?.defaultBranch ?? "master",
-          }
+        eventBus: deps.eventBus ?? noopEventBus,
+        config: deps.config,
+        services: isManager && deps.commissionSession
+          ? { commissionSession: deps.commissionSession, gitOps: git }
           : undefined,
       });
 

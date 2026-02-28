@@ -22,23 +22,9 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import { parseActivityTimeline, type TimelineEntry } from "@/lib/commissions";
+import { escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 export { parseActivityTimeline } from "@/lib/commissions";
 export type { TimelineEntry } from "@/lib/commissions";
-
-// -- YAML helpers --
-
-/**
- * Escapes a string for use as a YAML double-quoted value.
- * Handles backslashes, double quotes, and newlines so the value
- * stays on a single line. YAML parsers (including gray-matter's
- * js-yaml) interpret \n back to newlines on read.
- */
-function escapeYamlValue(value: string): string {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n");
-}
 
 /**
  * Replaces a top-level YAML frontmatter field that may span multiple lines.

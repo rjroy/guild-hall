@@ -6,9 +6,9 @@
  * - submit_result: record the final result (one-shot, cannot be called twice)
  * - log_question: record a question in the activity timeline
  *
- * Each tool writes to files for durability, then invokes an injected callback
- * for real-time notification. The caller (commission session) owns the callback
- * implementation, which may emit events, update state, or do nothing.
+ * Each tool writes to files for durability, then emits an event to the EventBus
+ * (received via GuildHallToolboxDeps) for real-time notification. The commission
+ * session subscribes to these events to update its own state.
  *
  * Follows the same MCP server factory pattern as base-toolbox.ts and
  * meeting-toolbox.ts.
@@ -27,41 +27,30 @@ import {
   updateCurrentProgress,
   updateResultSummary,
 } from "@/daemon/services/commission-artifact-helpers";
+import { resolveWritePath } from "@/daemon/lib/toolbox-utils";
+import type { GuildHallToolboxDeps, ToolboxFactory } from "./toolbox-types";
 
-export interface CommissionToolboxDeps {
-  /** Must be the activity worktree path (commission config.workingDirectory).
-   *  Writing to the project root instead of the activity worktree would put
-   *  artifact changes on the wrong branch. */
-  projectPath: string;
-  commissionId: string;
-  guildHallHome?: string;
-  /** Called after a progress report is persisted to disk. */
-  onProgress: (summary: string) => void;
-  /** Called after the final result is persisted to disk. */
-  onResult: (summary: string, artifacts?: string[]) => void;
-  /** Called after a question is persisted to disk. */
-  onQuestion: (question: string) => void;
-}
+type CommissionToolboxDeps = Pick<GuildHallToolboxDeps, "guildHallHome" | "projectName" | "contextId" | "eventBus">;
 
 // -- Tool handler factories --
 
 export function makeReportProgressHandler(
-  projectPath: string,
-  commissionId: string,
-  onProgress: (summary: string) => void,
+  deps: CommissionToolboxDeps,
 ) {
-  const cid = asCommissionId(commissionId);
+  const cid = asCommissionId(deps.contextId);
 
   return async (args: { summary: string }): Promise<ToolResult> => {
-    await appendTimelineEntry(
-      projectPath,
-      cid,
-      "progress_report",
-      args.summary,
+    const writePath = await resolveWritePath(
+      deps.guildHallHome, deps.projectName, deps.contextId, "commission",
     );
-    await updateCurrentProgress(projectPath, cid, args.summary);
+    await appendTimelineEntry(writePath, cid, "progress_report", args.summary);
+    await updateCurrentProgress(writePath, cid, args.summary);
 
-    onProgress(args.summary);
+    deps.eventBus.emit({
+      type: "commission_progress",
+      commissionId: deps.contextId,
+      summary: args.summary,
+    });
 
     return {
       content: [
@@ -72,11 +61,9 @@ export function makeReportProgressHandler(
 }
 
 export function makeSubmitResultHandler(
-  projectPath: string,
-  commissionId: string,
-  onResult: (summary: string, artifacts?: string[]) => void,
+  deps: CommissionToolboxDeps,
 ) {
-  const cid = asCommissionId(commissionId);
+  const cid = asCommissionId(deps.contextId);
   let resultSubmitted = false;
 
   return async (args: {
@@ -96,13 +83,11 @@ export function makeSubmitResultHandler(
     }
 
     try {
-      await updateResultSummary(projectPath, cid, args.summary, args.artifacts);
-      await appendTimelineEntry(
-        projectPath,
-        cid,
-        "result_submitted",
-        args.summary,
+      const writePath = await resolveWritePath(
+        deps.guildHallHome, deps.projectName, deps.contextId, "commission",
       );
+      await updateResultSummary(writePath, cid, args.summary, args.artifacts);
+      await appendTimelineEntry(writePath, cid, "result_submitted", args.summary);
     } catch (err: unknown) {
       // File write failed (e.g. ENOENT). Don't set the flag so
       // the model can retry after the path issue is resolved.
@@ -120,7 +105,12 @@ export function makeSubmitResultHandler(
     // Only mark as submitted after successful file write
     resultSubmitted = true;
 
-    onResult(args.summary, args.artifacts);
+    deps.eventBus.emit({
+      type: "commission_result",
+      commissionId: deps.contextId,
+      summary: args.summary,
+      artifacts: args.artifacts,
+    });
 
     return {
       content: [
@@ -131,21 +121,21 @@ export function makeSubmitResultHandler(
 }
 
 export function makeLogQuestionHandler(
-  projectPath: string,
-  commissionId: string,
-  onQuestion: (question: string) => void,
+  deps: CommissionToolboxDeps,
 ) {
-  const cid = asCommissionId(commissionId);
+  const cid = asCommissionId(deps.contextId);
 
   return async (args: { question: string }): Promise<ToolResult> => {
-    await appendTimelineEntry(
-      projectPath,
-      cid,
-      "question",
-      args.question,
+    const writePath = await resolveWritePath(
+      deps.guildHallHome, deps.projectName, deps.contextId, "commission",
     );
+    await appendTimelineEntry(writePath, cid, "question", args.question);
 
-    onQuestion(args.question);
+    deps.eventBus.emit({
+      type: "commission_question",
+      commissionId: deps.contextId,
+      question: args.question,
+    });
 
     return {
       content: [
@@ -162,38 +152,18 @@ export function makeLogQuestionHandler(
  * during active commissions, providing tools to report progress, submit
  * results, and log questions.
  *
- * The resultSubmitted flag is scoped to the closure created by this call,
- * so each createCommissionToolbox() invocation gets its own independent flag.
+ * The submit_result handler has its own resultSubmitted flag for idempotency
+ * (preventing double-call within the same MCP session). The commission session
+ * tracks result submission separately via EventBus subscription.
  */
-export interface CommissionToolboxResult {
-  server: McpSdkServerConfigWithInstance;
-  wasResultSubmitted: () => boolean;
-}
-
 export function createCommissionToolbox(
   deps: CommissionToolboxDeps,
-): CommissionToolboxResult {
-  const reportProgress = makeReportProgressHandler(
-    deps.projectPath,
-    deps.commissionId,
-    deps.onProgress,
-  );
-  const submitResult = makeSubmitResultHandler(
-    deps.projectPath,
-    deps.commissionId,
-    deps.onResult,
-  );
-  const logQuestion = makeLogQuestionHandler(
-    deps.projectPath,
-    deps.commissionId,
-    deps.onQuestion,
-  );
+): McpSdkServerConfigWithInstance {
+  const reportProgress = makeReportProgressHandler(deps);
+  const submitResult = makeSubmitResultHandler(deps);
+  const logQuestion = makeLogQuestionHandler(deps);
 
-  // Track whether submit_result was called so the worker can detect
-  // sessions that finished without submitting.
-  let resultSubmitted = false;
-
-  const server = createSdkMcpServer({
+  return createSdkMcpServer({
     name: "guild-hall-commission",
     version: "0.1.0",
     tools: [
@@ -212,11 +182,7 @@ export function createCommissionToolbox(
           summary: z.string(),
           artifacts: z.array(z.string()).optional(),
         },
-        async (args) => {
-          const result = await submitResult(args);
-          if (!result.isError) resultSubmitted = true;
-          return result;
-        },
+        (args) => submitResult(args),
       ),
       tool(
         "log_question",
@@ -228,6 +194,11 @@ export function createCommissionToolbox(
       ),
     ],
   });
-
-  return { server, wasResultSubmitted: () => resultSubmitted };
 }
+
+// -- Factory interface --
+
+/** Plain ToolboxFactory: eventBus flows through GuildHallToolboxDeps. */
+export const commissionToolboxFactory: ToolboxFactory = (deps) => ({
+  server: createCommissionToolbox(deps),
+});

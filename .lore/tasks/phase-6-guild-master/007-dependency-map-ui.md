@@ -3,7 +3,7 @@ title: Render dependency map SVG and neighborhood graph in views
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-6-guild-master.md
+source: .lore/plans/foundation/phase-6-guild-master.md
 related: [.lore/specs/guild-hall-views.md]
 sequence: 7
 modules: [guild-hall-ui]

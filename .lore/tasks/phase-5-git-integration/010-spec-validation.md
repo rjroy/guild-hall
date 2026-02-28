@@ -3,7 +3,7 @@ title: "Validate implementation against spec requirements"
 date: 2026-02-22
 status: complete
 tags: [task, validation, spec-review]
-source: .lore/plans/phase-5-git-integration.md
+source: .lore/plans/foundation/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-commissions.md
@@ -17,7 +17,7 @@ modules: [guild-hall-core, guild-hall-ui]
 
 ## What
 
-Launch a fresh-context sub-agent that reads the Phase 5 scope from `.lore/plans/implementation-phases.md`, the System, Workers, Commissions, and Meetings specs, and reviews the implementation for completeness. The agent flags any Phase 5 requirements not met.
+Launch a fresh-context sub-agent that reads the Phase 5 scope from `.lore/plans/foundation/implementation-phases.md`, the System, Workers, Commissions, and Meetings specs, and reviews the implementation for completeness. The agent flags any Phase 5 requirements not met.
 
 This is not a code review (that happens per-task via review agents). This is a requirement coverage check: does the implementation satisfy every REQ listed in the plan's Spec Reference section?
 

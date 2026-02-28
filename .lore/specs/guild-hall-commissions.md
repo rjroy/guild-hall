@@ -231,7 +231,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - [Brainstorm: Agentic Work UX](.lore/brainstorm/agentic-work-ux.md): Lines 323-337 scope this spec. "Task" in the brainstorm = "commission" here. Renamed to avoid collision with lore-development's plan-decomposition tasks.
 - [Spec: Guild Hall System](guild-hall-system.md): Foundation. Activity branches (REQ-SYS-22), per-activity worktrees (REQ-SYS-29a), artifact dependencies (REQ-SYS-14), parity principle (REQ-SYS-39).
 - [Spec: Guild Hall Workers](guild-hall-workers.md): Worker activation (REQ-WKR-4a), commission toolbox stub (REQ-WKR-10), resource bounds (REQ-WKR-19), manager dispatch (REQ-WKR-25, REQ-WKR-27).
-- [Spec: Worker Dispatch (Phase 1)](.lore/specs/phase-1/worker-dispatch.md): Superseded. Internal tool patterns (status updates, decisions, questions, result submission) carry forward as commission and base toolbox tools.
+- Spec: Worker Dispatch (Phase 1) *(archived)*: Superseded. Internal tool patterns (status updates, decisions, questions, result submission) carry forward as commission and base toolbox tools.
 - [Retro: Worker Dispatch](.lore/retros/worker-dispatch.md): submit_result tool is essential (prompt instructions are hopes, tool calls are mechanisms). Production wiring needs explicit planning.
 - [Retro: Dispatch Hardening](.lore/retros/dispatch-hardening.md): Resource budgets need real-workload validation. Error handlers must preserve tool-submitted results.
 - [Research: Claude Agent SDK](.lore/research/claude-agent-sdk.md): SDK provides query(), in-process tools, permission modes, resource bounds.

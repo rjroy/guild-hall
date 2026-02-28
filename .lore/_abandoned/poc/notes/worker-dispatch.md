@@ -3,7 +3,7 @@ title: Implementation notes: worker-dispatch
 date: 2026-02-17
 status: superseded
 tags: [implementation, notes]
-source: .lore/_abandoned/phase-1/plans/worker-dispatch.md
+source: .lore/_abandoned/poc/plans/worker-dispatch.md
 modules: [guild-hall-core, plugin-contract, json-rpc-client, mcp-manager, plugin-discovery, researcher-plugin]
 ---
 

@@ -168,8 +168,7 @@ export interface CommissionSessionDeps {
   commissionSessionRef?: { current: CommissionSessionForRoutes | null };
   /**
    * DI seam for tool resolution. Tests provide a mock that returns controlled
-   * tools with a `wasResultSubmitted()` under test control. Production uses
-   * the real resolveToolSet from toolbox-resolver.ts.
+   * tools. Production uses the real resolveToolSet from toolbox-resolver.ts.
    */
   resolveToolSetFn?: typeof resolveToolSet;
 }
@@ -295,7 +294,7 @@ function buildCommissionActivationContext(
   prompt: string,
   dependencies: string[],
   workerMeta: WorkerMetadata,
-  resolvedTools: ReturnType<typeof resolveToolSet>,
+  resolvedTools: Awaited<ReturnType<typeof resolveToolSet>>,
   projectPath: string,
   workingDirectory: string,
   injectedMemory = "",
@@ -1039,67 +1038,39 @@ export function createCommissionSession(
     const workerMeta = workerPkg.metadata as WorkerMetadata;
     const isManager = workerPkg.name === MANAGER_PACKAGE_NAME;
 
-    // 2. Resolve tools with commission callbacks
+    // 2. Subscribe to EventBus for this commission's tool events
     log("resolving tools...");
+
+    const unsubscribe = deps.eventBus.subscribe((event) => {
+      if (!("commissionId" in event) || event.commissionId !== (commissionId as string)) return;
+
+      if (event.type === "commission_result") {
+        commission.lastActivity = new Date();
+        commission.resultSubmitted = true;
+        commission.resultSummary = event.summary;
+        commission.resultArtifacts = event.artifacts;
+        log(`result submitted: ${event.summary.slice(0, 120)}${event.artifacts?.length ? ` (${event.artifacts.length} artifacts)` : ""}`);
+      } else if (event.type === "commission_progress") {
+        commission.lastActivity = new Date();
+        log(`progress: ${event.summary.slice(0, 120)}`);
+      } else if (event.type === "commission_question") {
+        commission.lastActivity = new Date();
+        log(`question: ${event.question.slice(0, 120)}`);
+      }
+    });
+
     const resolve = deps.resolveToolSetFn ?? resolveToolSet;
-    const resolvedTools = resolve(workerMeta, deps.packages, {
-      projectPath,
+    const resolvedTools = await resolve(workerMeta, deps.packages, {
       projectName: commission.projectName,
-      commissionId: commissionId as string,
+      contextId: commissionId as string,
+      contextType: "commission",
       workerName: workerMeta.identity.name,
       guildHallHome: ghHome,
-      workingDirectory: commission.worktreeDir,
-      isManager,
-      managerToolboxDeps: isManager && deps.commissionSessionRef?.current && deps.eventBus
-        ? {
-          integrationPath: integrationWorktreePath(ghHome, commission.projectName),
-          projectName: commission.projectName,
-          guildHallHome: ghHome,
-          commissionSession: deps.commissionSessionRef.current,
-          eventBus: deps.eventBus,
-          gitOps: git,
-          projectRepoPath: projectPath,
-          defaultBranch: findProject(commission.projectName)?.defaultBranch ?? "master",
-        }
+      eventBus: deps.eventBus,
+      config: deps.config,
+      services: isManager && deps.commissionSessionRef?.current
+        ? { commissionSession: deps.commissionSessionRef.current, gitOps: git }
         : undefined,
-      onProgress: (summary: string) => {
-        commission.lastActivity = new Date();
-        log(`progress: ${summary.slice(0, 120)}`);
-        // File write (updateCurrentProgress) is handled by the toolbox handler
-        // before this callback is invoked. Only state + EventBus here.
-        deps.eventBus.emit({
-          type: "commission_progress",
-          commissionId: commissionId as string,
-          summary,
-        });
-      },
-      onResult: (summary: string, artifacts?: string[]) => {
-        commission.lastActivity = new Date();
-        // Dual tracking: commission.resultSubmitted is visible to handleError
-        // (outside runCommissionSession); resolvedTools.wasResultSubmitted()
-        // is visible inside runCommissionSession. Both set from this callback.
-        commission.resultSubmitted = true;
-        commission.resultSummary = summary;
-        commission.resultArtifacts = artifacts;
-        log(`result submitted: ${summary.slice(0, 120)}${artifacts?.length ? ` (${artifacts.length} artifacts)` : ""}`);
-
-        deps.eventBus.emit({
-          type: "commission_result",
-          commissionId: commissionId as string,
-          summary,
-          artifacts,
-        });
-      },
-      onQuestion: (question: string) => {
-        commission.lastActivity = new Date();
-        log(`question: ${question.slice(0, 120)}`);
-
-        deps.eventBus.emit({
-          type: "commission_question",
-          commissionId: commissionId as string,
-          question,
-        });
-      },
     });
     log(`tools resolved: ${resolvedTools.mcpServers.length} MCP server(s), ${resolvedTools.allowedTools?.length ?? 0} allowed tool(s)`);
 
@@ -1186,80 +1157,82 @@ export function createCommissionSession(
       );
     }
 
-    // 8. Run the SDK session
+    // 8. Run the SDK session (wrapped in try/finally to ensure unsubscribe)
     log("starting SDK session...");
     const session = deps.queryFn({ prompt, options });
 
-    let messageCount = 0;
-    let sessionId: string | undefined;
     try {
-      for await (const msg of session) {
-        messageCount++;
-        commission.lastActivity = new Date();
-        logSdkMessage(log, messageCount, msg);
+      let messageCount = 0;
+      let sessionId: string | undefined;
+      try {
+        for await (const msg of session) {
+          messageCount++;
+          commission.lastActivity = new Date();
+          logSdkMessage(log, messageCount, msg);
 
-        // Capture session_id from the init system message for resume support
-        const m = msg as Record<string, unknown>;
-        if (m.type === "system" && m.subtype === "init" && typeof m.session_id === "string") {
-          sessionId = m.session_id;
-          log(`captured session_id: ${sessionId}`);
+          // Capture session_id from the init system message for resume support
+          const m = msg as Record<string, unknown>;
+          if (m.type === "system" && m.subtype === "init" && typeof m.session_id === "string") {
+            sessionId = m.session_id;
+            log(`captured session_id: ${sessionId}`);
+          }
         }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
+          log(`SDK session aborted after ${messageCount} message(s)`);
+          return commission.resultSubmitted;
+        }
+        logErr(`SDK session error after ${messageCount} message(s): ${err instanceof Error ? err.message : String(err)}`);
+        return commission.resultSubmitted;
       }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") {
-        log(`SDK session aborted after ${messageCount} message(s)`);
-        return resolvedTools.wasResultSubmitted?.() ?? false;
+      log(`SDK session complete. ${messageCount} message(s) consumed.`);
+
+      // 9. Check if result was submitted
+      if (commission.resultSubmitted) {
+        return true;
       }
-      logErr(`SDK session error after ${messageCount} message(s): ${err instanceof Error ? err.message : String(err)}`);
-      return resolvedTools.wasResultSubmitted?.() ?? false;
-    }
-    log(`SDK session complete. ${messageCount} message(s) consumed.`);
 
-    // 9. Check if result was submitted
-    const wasSubmitted = resolvedTools.wasResultSubmitted?.() ?? false;
-    if (wasSubmitted) {
-      return true;
-    }
-
-    // 10. No result submitted: run follow-up session to force submit_result
-    if (!sessionId) {
-      logErr("no result submitted and no session_id captured; cannot resume");
-      return false;
-    }
-
-    log(`no result submitted, resuming session ${sessionId} to force submit_result...`);
-    const followUpOptions = {
-      ...options,
-      resume: sessionId,
-      maxTurns: 3,
-    };
-    const followUp = deps.queryFn({
-      prompt: [
-        "Your previous session completed without calling submit_result.",
-        "The commission WILL BE MARKED AS FAILED unless you call submit_result now.",
-        "Summarize what you accomplished (or attempted) and call submit_result immediately.",
-        "Do NOT do any other work. Just call submit_result with a summary.",
-      ].join(" "),
-      options: followUpOptions,
-    });
-
-    let followUpCount = 0;
-    try {
-      for await (const msg of followUp) {
-        followUpCount++;
-        commission.lastActivity = new Date();
-        logSdkMessage(log, followUpCount, msg);
+      // 10. No result submitted: run follow-up session to force submit_result
+      if (!sessionId) {
+        logErr("no result submitted and no session_id captured; cannot resume");
+        return false;
       }
-    } catch (err: unknown) {
-      logErr(`follow-up session error: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    log(`follow-up session complete. ${followUpCount} message(s) consumed.`);
 
-    const submittedAfterFollowUp = resolvedTools.wasResultSubmitted?.() ?? false;
-    if (!submittedAfterFollowUp) {
-      logErr("follow-up session also failed to call submit_result");
+      log(`no result submitted, resuming session ${sessionId} to force submit_result...`);
+      const followUpOptions = {
+        ...options,
+        resume: sessionId,
+        maxTurns: 3,
+      };
+      const followUp = deps.queryFn({
+        prompt: [
+          "Your previous session completed without calling submit_result.",
+          "The commission WILL BE MARKED AS FAILED unless you call submit_result now.",
+          "Summarize what you accomplished (or attempted) and call submit_result immediately.",
+          "Do NOT do any other work. Just call submit_result with a summary.",
+        ].join(" "),
+        options: followUpOptions,
+      });
+
+      let followUpCount = 0;
+      try {
+        for await (const msg of followUp) {
+          followUpCount++;
+          commission.lastActivity = new Date();
+          logSdkMessage(log, followUpCount, msg);
+        }
+      } catch (err: unknown) {
+        logErr(`follow-up session error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      log(`follow-up session complete. ${followUpCount} message(s) consumed.`);
+
+      if (!commission.resultSubmitted) {
+        logErr("follow-up session also failed to call submit_result");
+      }
+      return commission.resultSubmitted;
+    } finally {
+      unsubscribe();
     }
-    return submittedAfterFollowUp;
   }
 
   // -- Public API --

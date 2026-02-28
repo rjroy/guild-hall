@@ -3,7 +3,7 @@ title: "Path helpers and type updates for worktrees and branches"
 date: 2026-02-22
 status: complete
 tags: [task, paths, types]
-source: .lore/plans/phase-5-git-integration.md
+source: .lore/plans/foundation/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-system.md
 sequence: 2

@@ -25,70 +25,24 @@ import { z } from "zod/v4";
 import { asCommissionId } from "@/daemon/types";
 import type { ToolResult } from "@/daemon/types";
 import { appendTimelineEntry } from "@/daemon/services/commission-artifact-helpers";
+import { formatTimestamp, escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { EventBus } from "@/daemon/services/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import { hasActiveActivities, syncProject } from "@/cli/rebase";
 import type { SyncResult } from "@/cli/rebase";
-import { readConfig } from "@/lib/config";
 import type { ProjectConfig } from "@/lib/types";
-import { resolveCommissionBasePath } from "@/lib/paths";
+import { integrationWorktreePath, resolveCommissionBasePath } from "@/lib/paths";
+import type { ToolboxFactory } from "./toolbox-types";
 
 export interface ManagerToolboxDeps {
-  integrationPath: string;
   projectName: string;
   guildHallHome: string;
   commissionSession: CommissionSessionForRoutes;
   eventBus: EventBus;
   gitOps: GitOps;
-  projectRepoPath: string;
-  defaultBranch: string;
-  /**
-   * Optional config path for readConfig(). Used by tests to inject
-   * a temporary config file. Production code omits this (uses default).
-   */
-  configPath?: string;
-  /**
-   * Optional override for project lookup. When provided, used instead
-   * of reading config from disk. Enables tests to inject project data
-   * without creating config files.
-   */
-  getProjectConfig?: (name: string) => Promise<ProjectConfig | undefined>;
-}
-
-// -- YAML helpers --
-
-/**
- * Escapes a string for use as a YAML double-quoted value.
- * Handles backslashes, double quotes, and newlines so the value
- * stays on a single line. Duplicated from commission-artifact-helpers.ts
- * (which keeps it unexported as an internal detail).
- */
-function escapeYamlValue(value: string): string {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n");
-}
-
-// -- Timestamp formatting --
-
-/**
- * Formats a Date as YYYYMMDD-HHMMSS, matching the format used across
- * meeting-toolbox.ts and commission-session.ts.
- */
-function formatTimestamp(now: Date): string {
-  const pad = (n: number, len = 2) => String(n).padStart(len, "0");
-  return [
-    now.getFullYear(),
-    pad(now.getMonth() + 1),
-    pad(now.getDate()),
-    "-",
-    pad(now.getHours()),
-    pad(now.getMinutes()),
-    pad(now.getSeconds()),
-  ].join("");
+  getProjectConfig: (name: string) => Promise<ProjectConfig | undefined>;
 }
 
 /**
@@ -165,8 +119,9 @@ export function makeCreateCommissionHandler(
         // commission session handles that internally. We write to the integration
         // worktree copy since the manager operates on that path.
         try {
+          const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
           await appendTimelineEntry(
-            deps.integrationPath,
+            intPath,
             cid,
             "manager_dispatched",
             `Guild Master dispatched commission "${args.title}"`,
@@ -270,6 +225,22 @@ export function makeCreatePrHandler(
   }): Promise<ToolResult> => {
     try {
       return await withProjectLock(deps.projectName, async () => {
+        // 0. Look up project config to get repoPath and defaultBranch
+        const project = await deps.getProjectConfig(deps.projectName);
+        if (!project) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Project "${deps.projectName}" is not registered. Check the project name and try again.`,
+              },
+            ],
+            isError: true,
+          } as ToolResult;
+        }
+        const repoPath = project.path;
+        const defaultBranch = project.defaultBranch ?? "master";
+
         // 1. Block if any active commissions or meetings exist
         const active = await hasActiveActivities(deps.guildHallHome, deps.projectName);
         if (active) {
@@ -286,16 +257,16 @@ export function makeCreatePrHandler(
         }
 
         // 2. Fetch to ensure local view of origin is current
-        await deps.gitOps.fetch(deps.projectRepoPath);
+        await deps.gitOps.fetch(repoPath);
 
         // 3. Push claude/main to origin
-        await deps.gitOps.push(deps.projectRepoPath, CLAUDE_BRANCH);
+        await deps.gitOps.push(repoPath, CLAUDE_BRANCH);
 
         // 4. Create the PR via gh CLI
         const body = args.body ?? "";
         const { url } = await deps.gitOps.createPullRequest(
-          deps.projectRepoPath,
-          deps.defaultBranch,
+          repoPath,
+          defaultBranch,
           CLAUDE_BRANCH,
           args.title,
           body,
@@ -304,7 +275,7 @@ export function makeCreatePrHandler(
         // 5. Record the current claude/main tip so post-merge sync can detect
         //    that this PR was created through Guild Hall.
         const claudeMainTip = await deps.gitOps.revParse(
-          deps.projectRepoPath,
+          repoPath,
           CLAUDE_BRANCH,
         );
 
@@ -399,7 +370,8 @@ notes_summary: ""
 ---
 `;
 
-      const meetingsDir = path.join(deps.integrationPath, ".lore", "meetings");
+      const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
+      const meetingsDir = path.join(intPath, ".lore", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
 
       const artifactPath = path.join(meetingsDir, `${meetingFilename}.md`);
@@ -407,7 +379,7 @@ notes_summary: ""
 
       // Return path relative to integration worktree's .lore/
       const relativePath = path.relative(
-        path.join(deps.integrationPath, ".lore"),
+        path.join(intPath, ".lore"),
         artifactPath,
       );
 
@@ -567,13 +539,7 @@ export function makeSyncProjectHandler(
   return async (args: { projectName: string }): Promise<ToolResult> => {
     try {
       // Look up the project config to validate it exists and get its path
-      let project: ProjectConfig | undefined;
-      if (deps.getProjectConfig) {
-        project = await deps.getProjectConfig(args.projectName);
-      } else {
-        const config = await readConfig(deps.configPath);
-        project = config.projects.find((p) => p.name === args.projectName);
-      }
+      const project = await deps.getProjectConfig(args.projectName);
 
       if (!project) {
         return {
@@ -723,3 +689,18 @@ export function createManagerToolbox(
     ],
   });
 }
+
+// -- Factory interface --
+
+/** Plain ToolboxFactory: reads services from GuildHallToolboxDeps.services. */
+export const managerToolboxFactory: ToolboxFactory = (ctx) => ({
+  server: createManagerToolbox({
+    projectName: ctx.projectName,
+    guildHallHome: ctx.guildHallHome,
+    eventBus: ctx.eventBus,
+    getProjectConfig: (name: string) =>
+      Promise.resolve(ctx.config.projects.find((p) => p.name === name)),
+    commissionSession: ctx.services!.commissionSession,
+    gitOps: ctx.services!.gitOps,
+  }),
+});

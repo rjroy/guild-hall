@@ -524,27 +524,27 @@ describe("State Isolation", () => {
     commissionSession.shutdown();
   });
 
-  test("tool isolation: meeting gets meeting tools, commission gets commission tools, no cross-contamination", () => {
+  test("tool isolation: meeting gets meeting tools, commission gets commission tools, no cross-contamination", async () => {
     // Resolve tools for a meeting context
-    const meetingTools = resolveToolSet(WORKER_META, [WORKER_PKG], {
-      projectPath: projectDir,
+    const meetingTools = await resolveToolSet(WORKER_META, [WORKER_PKG], {
       projectName: "test-project",
-      meetingId: "audience-Assistant-20260223-120000",
+      contextId: "audience-Assistant-20260223-120000",
+      contextType: "meeting",
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
-      integrationPath: integrationDir,
+      eventBus: createEventBus(),
+      config: { projects: [] },
     });
 
     // Resolve tools for a commission context
-    const commissionTools = resolveToolSet(WORKER_META, [WORKER_PKG], {
-      projectPath: projectDir,
+    const commissionTools = await resolveToolSet(WORKER_META, [WORKER_PKG], {
       projectName: "test-project",
-      commissionId: "commission-Assistant-20260223-120000",
+      contextId: "commission-Assistant-20260223-120000",
+      contextType: "commission",
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
-      onProgress: () => {},
-      onResult: () => {},
-      onQuestion: () => {},
+      eventBus: createEventBus(),
+      config: { projects: [] },
     });
 
     // Both should have the base toolbox
@@ -580,9 +580,8 @@ describe("State Isolation", () => {
     expect(commissionBase).toBeDefined();
     expect(meetingBase).not.toBe(commissionBase);
 
-    // Commission tools have wasResultSubmitted, meeting tools do not
-    expect(commissionTools.wasResultSubmitted).toBeDefined();
-    expect(meetingTools.wasResultSubmitted).toBeUndefined();
+    // Both tool sets are resolved without wasResultSubmitted (removed in Phase 4 refactor)
+    // Commission isolation is confirmed by having the commission MCP server, not the meeting one
   });
 
   test("memory visibility: worker-scope write in commission is readable from meeting context", async () => {

@@ -6,8 +6,8 @@ tags: [architecture, primitives, memory, git, storage, plugins, configuration]
 modules: [guild-hall-core]
 related:
   - .lore/brainstorm/agentic-work-ux.md
-  - .lore/_abandoned/phase-1/brainstorm/guild-hall-phase-1.md
-  - .lore/_abandoned/phase-1/notes/worker-dispatch.md
+  - .lore/_abandoned/poc/brainstorm/guild-hall-phase-1.md
+  - .lore/_abandoned/poc/notes/worker-dispatch.md
   - .lore/research/agent-native-applications.md
 req-prefix: SYS
 ---
@@ -227,8 +227,8 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 ## Context
 
 - [Brainstorm: Agentic Work UX](.lore/brainstorm/agentic-work-ux.md): The authoritative source. Lines 297-308 scope this spec. Resolved questions on memory layers, meeting lifecycle, commission creation parity, plugin contract, git strategy.
-- [Spec: Guild Hall Phase 1](.lore/specs/phase-1/guild-hall-phase-1.md): Superseded. Lessons carried forward: DI factory pattern, deferred initialization, file-based storage.
-- [Spec: Worker Dispatch](.lore/specs/phase-1/worker-dispatch.md): Superseded. Internal tool pattern (status updates, decisions, questions, memory) carries forward into the Commissions spec.
+- Spec: Guild Hall Phase 1 *(archived)*: Superseded. Lessons carried forward: DI factory pattern, deferred initialization, file-based storage.
+- Spec: Worker Dispatch *(archived)*: Superseded. Internal tool pattern (status updates, decisions, questions, memory) carries forward into the Commissions spec.
 - [Research: Agent-Native Applications](.lore/research/agent-native-applications.md): Parity principle, files as universal interface.
 - [Retro: Phase 1](.lore/retros/guild-hall-phase-1.md): Navigation is implicit requirement. Never skip review.
 - [Retro: Worker Dispatch](.lore/retros/worker-dispatch.md): Plans need explicit production wiring. Design explicit result submission.

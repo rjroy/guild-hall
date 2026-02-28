@@ -3,7 +3,7 @@ title: Validate implementation against Phase 6 spec requirements
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-6-guild-master.md
+source: .lore/plans/foundation/phase-6-guild-master.md
 related: [.lore/specs/guild-hall-system.md, .lore/specs/guild-hall-workers.md, .lore/specs/guild-hall-views.md]
 sequence: 12
 modules: [guild-hall-core, guild-hall-ui]
@@ -13,7 +13,7 @@ modules: [guild-hall-core, guild-hall-ui]
 
 ## What
 
-Launch a fresh-context sub-agent that reads the Phase 6 scope from `.lore/plans/implementation-phases.md`, all five specs, and reviews the implementation against every Phase 6 requirement. The agent flags any requirement not met.
+Launch a fresh-context sub-agent that reads the Phase 6 scope from `.lore/plans/foundation/implementation-phases.md`, all five specs, and reviews the implementation against every Phase 6 requirement. The agent flags any requirement not met.
 
 **Checklist (the agent verifies each):**
 
@@ -55,7 +55,7 @@ Launch a fresh-context sub-agent that reads the Phase 6 scope from `.lore/plans/
 
 ## Why
 
-From `.lore/plans/phase-6-guild-master.md`, Step 10: "Launch a fresh-context sub-agent that reads the Phase 6 scope... and reviews the implementation."
+From `.lore/plans/foundation/phase-6-guild-master.md`, Step 10: "Launch a fresh-context sub-agent that reads the Phase 6 scope... and reviews the implementation."
 
 Retro lesson (worker-dispatch.md): "Spec validation catches requirement compliance but misses integration gaps." This validation step plus the production wiring checks in earlier tasks address both compliance and assembly.
 

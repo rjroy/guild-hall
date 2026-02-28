@@ -3,7 +3,7 @@ title: Implementation notes: phase-7-hardening
 date: 2026-02-23
 status: complete
 tags: [implementation, notes]
-source: .lore/plans/phase-7-hardening.md
+source: .lore/plans/foundation/phase-7-hardening.md
 modules: [guild-hall-core, guild-hall-ui]
 ---
 

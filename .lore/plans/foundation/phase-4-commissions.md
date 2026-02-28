@@ -5,8 +5,8 @@ status: executed
 tags: [plan, phase-4, commissions, dispatch, process-lifecycle, async-work, toolbox, sse]
 modules: [guild-hall-core, guild-hall-ui]
 related:
-  - .lore/plans/implementation-phases.md
-  - .lore/plans/phase-3-meeting-lifecycle.md
+  - .lore/plans/foundation/implementation-phases.md
+  - .lore/plans/foundation/phase-3-meeting-lifecycle.md
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-workers.md
   - .lore/specs/guild-hall-commissions.md
@@ -1147,7 +1147,7 @@ Replace the commissions tab stub with CommissionList:
 
 ### Step 12: Validate Against Spec
 
-Launch a fresh-context sub-agent that reads the Phase 4 scope from `.lore/plans/implementation-phases.md`, the System, Workers, Commissions, and Views specs, and reviews the implementation. The agent flags any Phase 4 requirements not met. This step is not optional.
+Launch a fresh-context sub-agent that reads the Phase 4 scope from `.lore/plans/foundation/implementation-phases.md`, the System, Workers, Commissions, and Views specs, and reviews the implementation. The agent flags any Phase 4 requirements not met. This step is not optional.
 
 The agent checks:
 

@@ -3,7 +3,7 @@ title: Validate Against Specs
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-7-hardening.md
+source: .lore/plans/foundation/phase-7-hardening.md
 related: [.lore/specs/guild-hall-commissions.md, .lore/specs/guild-hall-system.md, .lore/specs/guild-hall-workers.md, .lore/specs/guild-hall-meetings.md, .lore/specs/guild-hall-views.md]
 sequence: 13
 modules: [guild-hall-core, guild-hall-ui]
@@ -42,7 +42,7 @@ Report findings as: requirement ID, status (met/not met/partially met), evidence
 
 ## Why
 
-From `.lore/plans/phase-7-hardening.md`, Step 12: "Launch a sub-agent that reads all five specs, reviews the implementation, and flags any Phase 7 requirements not met. This step is not optional."
+From `.lore/plans/foundation/phase-7-hardening.md`, Step 12: "Launch a sub-agent that reads all five specs, reviews the implementation, and flags any Phase 7 requirements not met. This step is not optional."
 
 ## Files
 

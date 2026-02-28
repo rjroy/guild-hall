@@ -3,7 +3,7 @@ title: "Commission re-dispatch creates new branch preserving old"
 date: 2026-02-22
 status: complete
 tags: [task, commission, redispatch, branch-naming]
-source: .lore/plans/phase-5-git-integration.md
+source: .lore/plans/foundation/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-commissions.md
 sequence: 6

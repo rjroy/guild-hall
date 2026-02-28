@@ -3,7 +3,7 @@ title: Implement dependency graph data structures and layout algorithm
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-6-guild-master.md
+source: .lore/plans/foundation/phase-6-guild-master.md
 related: [.lore/specs/guild-hall-system.md, .lore/specs/guild-hall-views.md]
 sequence: 6
 modules: [lib]

@@ -62,6 +62,7 @@ export interface WorkerMetadata {
   type: "worker" | ["worker", "toolbox"];
   identity: WorkerIdentity;
   posture: string;
+  systemToolboxes?: string[];
   domainToolboxes: string[];
   builtInTools: string[];
   checkoutScope: CheckoutScope;
@@ -100,8 +101,6 @@ export interface DiscoveredPackage {
 export interface ResolvedToolSet {
   mcpServers: McpSdkServerConfigWithInstance[];
   allowedTools: string[];
-  /** Returns true if submit_result was called. Only set for commission contexts. */
-  wasResultSubmitted?: () => boolean;
 }
 
 /**

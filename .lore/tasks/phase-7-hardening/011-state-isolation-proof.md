@@ -3,7 +3,7 @@ title: State Isolation Proof
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-7-hardening.md
+source: .lore/plans/foundation/phase-7-hardening.md
 related: [.lore/specs/guild-hall-meetings.md, .lore/specs/guild-hall-system.md]
 sequence: 11
 modules: [guild-hall-core]

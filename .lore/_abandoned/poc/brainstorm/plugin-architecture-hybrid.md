@@ -5,8 +5,8 @@ status: resolved
 tags: [plugin-architecture, mcp, react-components, isolation, hybrid, design-decision]
 modules: [plugin-system]
 related:
-  - .lore/_abandoned/phase-1/specs/guild-hall-phase-1.md
-  - .lore/_abandoned/phase-1/brainstorm/plugin-repository-structure.md
+  - .lore/_abandoned/poc/specs/guild-hall-phase-1.md
+  - .lore/_abandoned/poc/brainstorm/plugin-repository-structure.md
 ---
 
 # Brainstorm: Plugin Architecture - Process Isolation vs In-Process Integration

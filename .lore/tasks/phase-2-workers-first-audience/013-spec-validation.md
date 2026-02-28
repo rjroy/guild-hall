@@ -3,7 +3,7 @@ title: Validate against spec
 date: 2026-02-21
 status: complete
 tags: [task]
-source: .lore/plans/phase-2-workers-first-audience.md
+source: .lore/plans/foundation/phase-2-workers-first-audience.md
 related:
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-workers.md
@@ -17,7 +17,7 @@ modules: [guild-hall-core, guild-hall-ui]
 
 ## What
 
-Launch a fresh-context sub-agent that reads the Phase 2 scope from `.lore/plans/implementation-phases.md`, all four specs, and reviews the implementation. The agent flags any Phase 2 requirements not met. This step is not optional.
+Launch a fresh-context sub-agent that reads the Phase 2 scope from `.lore/plans/foundation/implementation-phases.md`, all four specs, and reviews the implementation. The agent flags any Phase 2 requirements not met. This step is not optional.
 
 The agent checks:
 
@@ -47,7 +47,7 @@ The agent checks:
 
 ## Why
 
-From `.lore/plans/phase-2-workers-first-audience.md`, Step 12: Fresh-context validation catches what the implementer misses.
+From `.lore/plans/foundation/phase-2-workers-first-audience.md`, Step 12: Fresh-context validation catches what the implementer misses.
 
 From `.lore/retros/guild-hall-phase-1.md`: Spec validation is necessary but not sufficient. It checks capability, not assembly.
 

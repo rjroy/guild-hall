@@ -28,7 +28,6 @@ import type {
   WorkerMetadata,
 } from "@/lib/types";
 import type { GitOps } from "@/daemon/lib/git";
-import type { ToolboxResolverContext } from "@/daemon/services/toolbox-resolver";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   integrationWorktreePath,
@@ -438,17 +437,13 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
  *
  * Provides DI seams (queryFn, activateFn, resolveToolSetFn) that simulate
  * an SDK session running inside the daemon. The test controls when the
- * session completes via resolve/reject, and can simulate tool callbacks
- * (submitResult, reportProgress, logQuestion) that would normally be
- * invoked by the commission toolbox MCP handlers.
+ * session completes via resolve/reject. Tool invocations are simulated by
+ * emitting events directly to the EventBus (matching how the real commission
+ * toolbox works after the callback removal).
  */
 function createMockSession() {
   let resolveSession!: () => void;
   let rejectSession!: (err: Error) => void;
-  let resultSubmitted = false;
-  let capturedOnResult: ((summary: string, artifacts?: string[]) => void) | undefined;
-  let capturedOnProgress: ((summary: string) => void) | undefined;
-  let capturedOnQuestion: ((question: string) => void) | undefined;
 
   const sessionPromise = new Promise<void>((resolve, reject) => {
     resolveSession = resolve;
@@ -487,28 +482,22 @@ function createMockSession() {
       resourceBounds: {},
     }),
     /* eslint-enable @typescript-eslint/require-await */
-    resolveToolSetFn: (_worker: WorkerMetadata, _packages: DiscoveredPackage[], context: ToolboxResolverContext): ResolvedToolSet => {
-      capturedOnResult = context.onResult;
-      capturedOnProgress = context.onProgress;
-      capturedOnQuestion = context.onQuestion;
-      return {
-        mcpServers: [],
-        allowedTools: [],
-        wasResultSubmitted: () => resultSubmitted,
-      };
+    // eslint-disable-next-line @typescript-eslint/require-await
+    resolveToolSetFn: async (): Promise<ResolvedToolSet> => ({
+      mcpServers: [],
+      allowedTools: [],
+    }),
+    /** Simulate worker calling submit_result tool (emits to EventBus) */
+    submitResult: (bus: EventBus, cid: string, summary: string, artifacts?: string[]) => {
+      bus.emit({ type: "commission_result", commissionId: cid, summary, artifacts });
     },
-    /** Simulate worker calling submit_result tool */
-    submitResult: (summary: string, artifacts?: string[]) => {
-      resultSubmitted = true;
-      capturedOnResult?.(summary, artifacts);
+    /** Simulate worker calling report_progress tool (emits to EventBus) */
+    reportProgress: (bus: EventBus, cid: string, summary: string) => {
+      bus.emit({ type: "commission_progress", commissionId: cid, summary });
     },
-    /** Simulate worker calling report_progress tool */
-    reportProgress: (summary: string) => {
-      capturedOnProgress?.(summary);
-    },
-    /** Simulate worker calling log_question tool */
-    logQuestion: (question: string) => {
-      capturedOnQuestion?.(question);
+    /** Simulate worker calling log_question tool (emits to EventBus) */
+    logQuestion: (bus: EventBus, cid: string, question: string) => {
+      bus.emit({ type: "commission_question", commissionId: cid, question });
     },
     /** Complete the SDK session (generator finishes normally) */
     resolve: () => resolveSession(),
@@ -861,6 +850,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -906,6 +896,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
         }),
       );
 
@@ -925,6 +916,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -993,6 +985,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1044,6 +1037,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1080,6 +1074,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1088,7 +1083,7 @@ projectName: test-project
       expect(session.getActiveCommissions()).toBe(1);
 
       // Simulate submit_result tool call before session completes
-      mock.submitResult("Research complete", ["report.md"]);
+      mock.submitResult(eventBus, commissionId as string, "Research complete", ["report.md"]);
 
       // Session finishes normally
       mock.resolve();
@@ -1116,6 +1111,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1148,6 +1144,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1155,7 +1152,7 @@ projectName: test-project
       await session.dispatchCommission(commissionId);
 
       // Simulate submit_result before error
-      mock.submitResult("Partial result saved");
+      mock.submitResult(eventBus, commissionId as string, "Partial result saved");
       mock.reject(new Error("SDK session failed"));
       await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -1181,6 +1178,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1228,6 +1226,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
           createMeetingRequestFn: (params) => {
             meetingRequestCalls.push(params);
@@ -1239,7 +1238,7 @@ projectName: test-project
       await session.dispatchCommission(commissionId);
 
       // Complete the commission with a result so it attempts the squash-merge
-      mock.submitResult("Research complete");
+      mock.submitResult(eventBus, commissionId as string, "Research complete");
       mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -1281,12 +1280,13 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
-      mock.submitResult("Research complete");
+      mock.submitResult(eventBus, commissionId as string, "Research complete");
       mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -1316,6 +1316,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1360,6 +1361,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1397,6 +1399,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1425,6 +1428,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1478,6 +1482,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1510,6 +1515,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1539,6 +1545,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1570,6 +1577,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1596,6 +1604,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1626,6 +1635,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1635,7 +1645,7 @@ projectName: test-project
       // Clear events from dispatch
       emittedEvents.length = 0;
 
-      mock.reportProgress("50% complete");
+      mock.reportProgress(eventBus, commissionId as string, "50% complete");
 
       const progressEvents = emittedEvents.filter(
         (e) => e.type === "commission_progress",
@@ -1665,6 +1675,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1674,7 +1685,7 @@ projectName: test-project
       // Clear events from dispatch
       emittedEvents.length = 0;
 
-      mock.submitResult("Research complete", [
+      mock.submitResult(eventBus, commissionId as string, "Research complete", [
         "report.md",
         "findings.md",
       ]);
@@ -1718,6 +1729,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1728,7 +1740,7 @@ projectName: test-project
       emittedEvents.length = 0;
 
       mock.logQuestion(
-        "Which OAuth flow should I focus on?",
+        eventBus, commissionId as string, "Which OAuth flow should I focus on?",
       );
 
       const questionEvents = emittedEvents.filter(
@@ -1800,6 +1812,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1821,6 +1834,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1862,6 +1876,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1888,6 +1903,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1917,6 +1933,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -1966,6 +1983,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -2013,6 +2031,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -2049,6 +2068,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -2059,7 +2079,7 @@ projectName: test-project
       const dispatchCallCount = mockGitOps.calls.length;
 
       // Submit result so completion classifies as completed
-      mock.submitResult("Research complete", ["report.md"]);
+      mock.submitResult(eventBus, commissionId as string, "Research complete", ["report.md"]);
       mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -2104,6 +2124,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -2136,6 +2157,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -2175,6 +2197,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -2182,7 +2205,7 @@ projectName: test-project
       await session.dispatchCommission(commissionId);
 
       // Submit result so completion classifies as completed
-      mock.submitResult("Research complete");
+      mock.submitResult(eventBus, commissionId as string, "Research complete");
       mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -2212,6 +2235,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -2264,6 +2288,7 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
@@ -2272,7 +2297,7 @@ projectName: test-project
       const dispatchSequenceLength = callSequence.length;
 
       // Complete the commission so the merge path executes.
-      mock.submitResult("Research complete", ["report.md"]);
+      mock.submitResult(eventBus, commissionId as string, "Research complete", ["report.md"]);
       mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -2317,13 +2342,14 @@ projectName: test-project
           queryFn: mock.queryFn,
           activateFn: mock.activateFn,
           resolveToolSetFn: mock.resolveToolSetFn,
+
           gitOps: mockGitOps,
         }),
       );
 
       await session.dispatchCommission(commissionId);
 
-      mock.submitResult("Research complete", ["report.md"]);
+      mock.submitResult(eventBus, commissionId as string, "Research complete", ["report.md"]);
       mock.resolve();
       await new Promise((resolve) => setTimeout(resolve, 100));
 

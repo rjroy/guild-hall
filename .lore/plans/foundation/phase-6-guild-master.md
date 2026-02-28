@@ -5,8 +5,8 @@ status: executed
 tags: [plan, phase-6, manager, coordination, dependency-map, briefing, pr-creation]
 modules: [guild-hall-core, guild-hall-ui]
 related:
-  - .lore/plans/implementation-phases.md
-  - .lore/plans/phase-5-git-integration.md
+  - .lore/plans/foundation/implementation-phases.md
+  - .lore/plans/foundation/phase-5-git-integration.md
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-workers.md
   - .lore/specs/guild-hall-commissions.md
@@ -827,7 +827,7 @@ The "All" view (or the main timeline) continues showing everything chronological
 
 ### Step 10: Validate Against Spec
 
-Launch a fresh-context sub-agent that reads the Phase 6 scope from `.lore/plans/implementation-phases.md`, all five specs, and reviews the implementation. The agent flags any Phase 6 requirements not met.
+Launch a fresh-context sub-agent that reads the Phase 6 scope from `.lore/plans/foundation/implementation-phases.md`, all five specs, and reviews the implementation. The agent flags any Phase 6 requirements not met.
 
 The agent checks:
 

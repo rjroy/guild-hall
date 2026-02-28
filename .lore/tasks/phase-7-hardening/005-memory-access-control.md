@@ -3,7 +3,7 @@ title: Memory Access Control
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-7-hardening.md
+source: .lore/plans/foundation/phase-7-hardening.md
 related: [.lore/specs/guild-hall-system.md]
 sequence: 5
 modules: [guild-hall-core]

@@ -4,7 +4,7 @@ date: 2026-02-17
 status: superseded
 tags: [plugins, sdk-plugin-config, guild-members, architecture, agent-sdk]
 modules: [plugin-discovery, agent, schemas]
-related: [.lore/_abandoned/phase-1/brainstorm/plugin-architecture-hybrid.md]
+related: [.lore/_abandoned/poc/brainstorm/plugin-architecture-hybrid.md]
 ---
 
 # Brainstorm: SDK Plugin Config Support for Guild Members

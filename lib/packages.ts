@@ -48,6 +48,7 @@ export const workerMetadataSchema = z.object({
   type: z.union([z.literal("worker"), workerToolboxTuple]),
   identity: workerIdentitySchema,
   posture: z.string(),
+  systemToolboxes: z.array(z.string()).default([]),
   domainToolboxes: z.array(z.string()),
   builtInTools: z.array(z.string()),
   checkoutScope: z.union([z.literal("sparse"), z.literal("full")]),

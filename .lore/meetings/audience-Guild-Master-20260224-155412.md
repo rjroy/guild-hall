@@ -2,7 +2,7 @@
 title: "Audience with Guild Master"
 date: 2026-02-24
 status: closed
-tags: [meeting]
+tags: [meetings]
 worker: Guild Master
 workerDisplayTitle: "Guild Master"
 agenda: "The current Assistant is actually not a general purpose assistant.  It's just a sample. We need to design some workers which can be used for various situations."

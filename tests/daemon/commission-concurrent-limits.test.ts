@@ -25,8 +25,7 @@ import type {
   CommissionSessionDeps,
   CommissionSessionForRoutes,
 } from "@/daemon/services/commission-session";
-import type { ToolboxResolverContext } from "@/daemon/services/toolbox-resolver";
-import type { AppConfig, DiscoveredPackage, ResolvedToolSet, WorkerMetadata } from "@/lib/types";
+import type { AppConfig, DiscoveredPackage, ResolvedToolSet } from "@/lib/types";
 import {
   commissionArtifactPath,
 } from "@/daemon/services/commission-artifact-helpers";
@@ -165,8 +164,6 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
 function createMockSession() {
   let resolveSession!: () => void;
   let rejectSession!: (err: Error) => void;
-  let resultSubmitted = false;
-  let capturedOnResult: ((summary: string, artifacts?: string[]) => void) | undefined;
 
   const sessionPromise = new Promise<void>((resolve, reject) => {
     resolveSession = resolve;
@@ -192,11 +189,13 @@ function createMockSession() {
       systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
     }),
     /* eslint-enable @typescript-eslint/require-await */
-    resolveToolSetFn: (_w: WorkerMetadata, _p: DiscoveredPackage[], ctx: ToolboxResolverContext): ResolvedToolSet => {
-      capturedOnResult = ctx.onResult;
-      return { mcpServers: [], allowedTools: [], wasResultSubmitted: () => resultSubmitted };
+    // eslint-disable-next-line @typescript-eslint/require-await
+    resolveToolSetFn: async (): Promise<ResolvedToolSet> => ({
+      mcpServers: [], allowedTools: [],
+    }),
+    submitResult: (bus: EventBus, cid: string, summary: string, artifacts?: string[]) => {
+      bus.emit({ type: "commission_result", commissionId: cid, summary, artifacts });
     },
-    submitResult: (summary: string, artifacts?: string[]) => { resultSubmitted = true; capturedOnResult?.(summary, artifacts); },
     resolve: () => resolveSession(),
     reject: (err: Error) => rejectSession(err),
   };
@@ -226,9 +225,9 @@ function createMultiMockTracker(count = 20) {
     systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
   });
 
-  const resolveToolSetFn = (_w: WorkerMetadata, _p: DiscoveredPackage[], ctx: ToolboxResolverContext): ResolvedToolSet => {
+  const resolveToolSetFn = async (): Promise<ResolvedToolSet> => {
     const idx = resolveCallCount++;
-    return mocks[idx].resolveToolSetFn(_w, _p, ctx);
+    return mocks[idx].resolveToolSetFn();
   };
 
   return { queryFn, activateFn, resolveToolSetFn, mocks };
@@ -330,6 +329,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 3 },
@@ -370,6 +370,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 3 },
@@ -427,6 +428,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
         }),
       );
 
@@ -467,6 +469,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: {
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 5 },
@@ -520,6 +523,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 20 },
@@ -569,6 +573,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -587,7 +592,7 @@ describe("commission concurrent limits", () => {
       expect(r2.status).toBe("queued");
 
       // Complete the first commission (submit result + resolve session)
-      tracker.mocks[0].submitResult("Done");
+      tracker.mocks[0].submitResult(eventBus, id1 as string, "Done");
       tracker.mocks[0].resolve();
 
       // Wait for async exit handler and auto-dispatch
@@ -628,6 +633,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -676,6 +682,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -736,6 +743,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: {
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -757,7 +765,7 @@ describe("commission concurrent limits", () => {
       expect(r2.status).toBe("queued");
 
       // Complete the active commission
-      tracker.mocks[0].submitResult("Done");
+      tracker.mocks[0].submitResult(eventBus, idActive as string, "Done");
       tracker.mocks[0].resolve();
 
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -796,6 +804,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 3 },
@@ -854,6 +863,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 2 },
@@ -869,7 +879,7 @@ describe("commission concurrent limits", () => {
       expect(r3.status).toBe("queued");
 
       // Complete id1
-      tracker.mocks[0].submitResult("Done");
+      tracker.mocks[0].submitResult(eventBus, id1 as string, "Done");
       tracker.mocks[0].resolve();
 
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -907,6 +917,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           // No commissionCap or maxConcurrentCommissions configured
         }),
       );
@@ -940,6 +951,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: createTestConfig({
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 20 },
@@ -999,6 +1011,7 @@ describe("commission concurrent limits", () => {
           queryFn: tracker.queryFn,
           activateFn: tracker.activateFn,
           resolveToolSetFn: tracker.resolveToolSetFn,
+
           config: {
             projects: [
               { name: "test-project", path: projectPath, commissionCap: 1 },
@@ -1020,7 +1033,7 @@ describe("commission concurrent limits", () => {
       expect(r4.status).toBe("queued");
 
       // Complete project 2's active commission
-      tracker.mocks[1].submitResult("Done");
+      tracker.mocks[1].submitResult(eventBus, idP2Active as string, "Done");
       tracker.mocks[1].resolve();
 
       await new Promise((resolve) => setTimeout(resolve, 200));

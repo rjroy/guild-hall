@@ -3,7 +3,7 @@ title: Define the manager as a built-in worker
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-6-guild-master.md
+source: .lore/plans/foundation/phase-6-guild-master.md
 related: [.lore/specs/guild-hall-workers.md, .lore/specs/guild-hall-system.md]
 sequence: 1
 modules: [daemon-services]

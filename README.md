@@ -85,7 +85,7 @@ Guild Hall stores its config at `~/.guild-hall/config.yaml`. Each registered pro
 
 ## Roadmap
 
-Development follows vertical slices defined in `.lore/plans/implementation-phases.md`:
+Development follows vertical slices defined in `.lore/plans/foundation/implementation-phases.md`:
 
 1. **The Empty Hall** (complete) -- UI skeleton, artifact browsing, editing, CLI tools
 2. **Workers + First Audience** -- Package discovery, worker identities, basic chat with AI specialists

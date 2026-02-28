@@ -2,7 +2,7 @@
 title: Claude Agent SDK TypeScript API Reference
 date: 2026-02-14
 status: active
-tags: [claude-agent-sdk, typescript, api-reference]
+tags: [agent-sdk, typescript, api-reference]
 related: [.lore/research/claude-agent-sdk.md]
 ---
 

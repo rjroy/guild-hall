@@ -31,7 +31,6 @@ import type {
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
-import type { ToolboxResolverContext } from "@/daemon/services/toolbox-resolver";
 import type { GitOps } from "@/daemon/lib/git";
 import {
   integrationWorktreePath,
@@ -566,8 +565,6 @@ projectName: test-project
   function createMockCommissionSession() {
     let resolveSession!: () => void;
     let _rejectSession!: (err: Error) => void;
-    let resultSubmitted = false;
-    let capturedOnResult: ((summary: string, artifacts?: string[]) => void) | undefined;
 
     const sessionPromise = new Promise<void>((resolve, reject) => {
       resolveSession = resolve;
@@ -593,11 +590,13 @@ projectName: test-project
         systemPrompt: "Test", tools: { mcpServers: [] as never[], allowedTools: [] as string[] }, resourceBounds: {},
       }),
       /* eslint-enable @typescript-eslint/require-await */
-      resolveToolSetFn: (_w: WorkerMetadata, _p: DiscoveredPackage[], ctx: ToolboxResolverContext): ResolvedToolSet => {
-        capturedOnResult = ctx.onResult;
-        return { mcpServers: [], allowedTools: [], wasResultSubmitted: () => resultSubmitted };
+      // eslint-disable-next-line @typescript-eslint/require-await
+      resolveToolSetFn: async (): Promise<ResolvedToolSet> => ({
+        mcpServers: [], allowedTools: [],
+      }),
+      submitResult: (bus: EventBus, cid: string, summary: string, artifacts?: string[]) => {
+        bus.emit({ type: "commission_result", commissionId: cid, summary, artifacts });
       },
-      submitResult: (summary: string, artifacts?: string[]) => { resultSubmitted = true; capturedOnResult?.(summary, artifacts); },
       resolve: () => resolveSession(),
     };
   }
@@ -629,6 +628,7 @@ projectName: test-project
         queryFn: mock.queryFn,
         activateFn: mock.activateFn,
         resolveToolSetFn: mock.resolveToolSetFn,
+
         gitOps: mockGitOps,
       }),
     );
@@ -636,7 +636,7 @@ projectName: test-project
     await session.dispatchCommission(commissionId);
     const dispatchCallCount = mockGitOps.calls.length;
 
-    mock.submitResult("Research complete");
+    mock.submitResult(eventBus, commissionId as string, "Research complete");
     mock.resolve();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -681,6 +681,7 @@ projectName: test-project
         queryFn: mock.queryFn,
         activateFn: mock.activateFn,
         resolveToolSetFn: mock.resolveToolSetFn,
+
         gitOps: mockGitOps,
       }),
     );
@@ -688,7 +689,7 @@ projectName: test-project
     await session.dispatchCommission(commissionId);
     const dispatchCallCount = mockGitOps.calls.length;
 
-    mock.submitResult("Research complete");
+    mock.submitResult(eventBus, commissionId as string, "Research complete");
     mock.resolve();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -736,6 +737,7 @@ projectName: test-project
         queryFn: mock.queryFn,
         activateFn: mock.activateFn,
         resolveToolSetFn: mock.resolveToolSetFn,
+
         gitOps: mockGitOps,
       }),
     );
@@ -743,7 +745,7 @@ projectName: test-project
     await session.dispatchCommission(commissionId);
     const dispatchCallCount = mockGitOps.calls.length;
 
-    mock.submitResult("Research complete");
+    mock.submitResult(eventBus, commissionId as string, "Research complete");
     mock.resolve();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -789,6 +791,7 @@ projectName: test-project
         queryFn: mock.queryFn,
         activateFn: mock.activateFn,
         resolveToolSetFn: mock.resolveToolSetFn,
+
         gitOps: mockGitOps,
       }),
     );
@@ -796,7 +799,7 @@ projectName: test-project
     await session.dispatchCommission(commissionId);
     const dispatchCallCount = mockGitOps.calls.length;
 
-    mock.submitResult("Research complete");
+    mock.submitResult(eventBus, commissionId as string, "Research complete");
     mock.resolve();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -833,6 +836,7 @@ projectName: test-project
         queryFn: mock.queryFn,
         activateFn: mock.activateFn,
         resolveToolSetFn: mock.resolveToolSetFn,
+
         gitOps: mockGitOps,
       }),
     );
@@ -840,7 +844,7 @@ projectName: test-project
     await session.dispatchCommission(commissionId);
     const dispatchCallCount = mockGitOps.calls.length;
 
-    mock.submitResult("Research complete");
+    mock.submitResult(eventBus, commissionId as string, "Research complete");
     mock.resolve();
     await new Promise((resolve) => setTimeout(resolve, 100));
 

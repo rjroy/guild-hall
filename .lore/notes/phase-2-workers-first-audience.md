@@ -3,7 +3,7 @@ title: "Implementation notes: phase-2-workers-first-audience"
 date: 2026-02-21
 status: complete
 tags: [implementation, notes]
-source: .lore/plans/phase-2-workers-first-audience.md
+source: .lore/plans/foundation/phase-2-workers-first-audience.md
 modules: [guild-hall-core, guild-hall-ui]
 ---
 

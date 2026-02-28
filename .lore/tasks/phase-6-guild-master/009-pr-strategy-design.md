@@ -3,7 +3,7 @@ title: Design PR creation strategy resolving squash-merge branch recovery
 date: 2026-02-23
 status: complete
 tags: [task]
-source: .lore/plans/phase-6-guild-master.md
+source: .lore/plans/foundation/phase-6-guild-master.md
 related: [.lore/specs/guild-hall-system.md, .lore/brainstorm/squash-merge-branch-recovery.md]
 sequence: 9
 modules: [daemon-lib-git]

@@ -6,8 +6,9 @@ import {
   makeReadMemoryHandler,
   makeWriteMemoryHandler,
   createBaseToolbox,
-  type BaseToolboxDeps,
 } from "@/daemon/services/base-toolbox";
+import type { GuildHallToolboxDeps } from "@/daemon/services/toolbox-types";
+import { noopEventBus } from "@/daemon/services/event-bus";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import type { WorkerMetadata } from "@/lib/types";
 
@@ -192,16 +193,18 @@ describe("global scope", () => {
   });
 });
 
-// -- BaseToolboxDeps integration --
+// -- GuildHallToolboxDeps integration --
 
-describe("BaseToolboxDeps integration", () => {
+describe("GuildHallToolboxDeps integration", () => {
   test("createBaseToolbox requires workerName and projectName", () => {
-    const deps: BaseToolboxDeps = {
+    const deps: GuildHallToolboxDeps = {
       contextId: "meeting-001",
       contextType: "meeting",
       workerName: "my-worker",
       projectName: "my-project",
       guildHallHome,
+      eventBus: noopEventBus,
+      config: { projects: [] },
     };
 
     const result = createBaseToolbox(deps);
@@ -230,54 +233,51 @@ describe("toolbox resolver passes identity to base toolbox", () => {
     };
   }
 
-  test("resolveToolSet creates base toolbox with workerName from context", () => {
+  test("resolveToolSet creates base toolbox with workerName from context", async () => {
     const worker = makeWorker();
-    const projectPath = path.join(tmpDir, "test-project");
-    const result = resolveToolSet(worker, [], {
-      projectPath,
+    const result = await resolveToolSet(worker, [], {
       projectName: "test-project",
-      meetingId: "meeting-test",
+      contextId: "meeting-test",
+      contextType: "meeting",
       workerName: "my-specific-worker",
       guildHallHome,
+      eventBus: noopEventBus,
+      config: { projects: [] },
     });
 
-    // Base toolbox + meeting toolbox (workerName triggers meeting toolbox)
     expect(result.mcpServers.length).toBeGreaterThanOrEqual(1);
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
   });
 
-  test("resolveToolSet falls back to worker identity name when context.workerName is absent", () => {
-    const worker = makeWorker({
-      identity: {
-        name: "fallback-worker",
-        description: "test",
-        displayTitle: "Fallback",
-      },
-    });
-    const projectPath = path.join(tmpDir, "test-project");
-
-    // No workerName in context: base toolbox only (no meeting toolbox without workerName)
-    const result = resolveToolSet(worker, [], {
-      projectPath,
+  test("workerName is always required in new context shape", async () => {
+    const worker = makeWorker();
+    const result = await resolveToolSet(worker, [], {
       projectName: "test-project",
-      meetingId: "meeting-test",
+      contextId: "meeting-test",
+      contextType: "meeting",
+      workerName: "fallback-worker",
       guildHallHome,
+      eventBus: noopEventBus,
+      config: { projects: [] },
     });
 
-    expect(result.mcpServers).toHaveLength(1);
+    // Base + auto-added meeting context toolbox
+    expect(result.mcpServers).toHaveLength(2);
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    expect(result.mcpServers[1].name).toBe("guild-hall-meeting");
   });
 
-  test("resolveToolSet falls back to path.basename when context.projectName is absent", () => {
+  test("projectName is passed through to base toolbox", async () => {
     const worker = makeWorker();
-    const projectPath = path.join(tmpDir, "inferred-project-name");
 
-    // workerName present triggers meeting toolbox, so base + meeting = 2
-    const result = resolveToolSet(worker, [], {
-      projectPath,
-      meetingId: "meeting-test",
+    const result = await resolveToolSet(worker, [], {
+      projectName: "explicit-project-name",
+      contextId: "meeting-test",
+      contextType: "meeting",
       workerName: "test-worker",
       guildHallHome,
+      eventBus: noopEventBus,
+      config: { projects: [] },
     });
 
     expect(result.mcpServers.length).toBeGreaterThanOrEqual(1);

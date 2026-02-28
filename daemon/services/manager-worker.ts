@@ -42,6 +42,7 @@ export function createManagerPackage(): DiscoveredPackage {
       displayTitle: MANAGER_WORKER_NAME,
     },
     posture: MANAGER_POSTURE,
+    systemToolboxes: ["manager"],
     domainToolboxes: [],
     builtInTools: ["Read", "Glob", "Grep"],
     checkoutScope: "full",

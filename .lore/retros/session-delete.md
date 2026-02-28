@@ -4,7 +4,7 @@ date: 2026-02-13
 status: complete
 tags: [feature, crud, dialog, plan-execution, dependency-injection]
 modules: [session-store, api-routes, board-panel, confirm-dialog]
-related: [.lore/plans/phase-1/session-delete.md]
+related: []
 ---
 
 # Retro: Session Delete with Confirmation Dialog
@@ -35,4 +35,3 @@ Added the ability to delete sessions from the Board. Backend: `rmdir` on the fil
 
 ## Artifacts
 
-- Plan: `.lore/plans/phase-1/session-delete.md`

@@ -5,8 +5,8 @@ status: executed
 tags: [plan, phase-2, daemon, workers, meetings, streaming, agent-sdk]
 modules: [guild-hall-core, guild-hall-ui]
 related:
-  - .lore/plans/implementation-phases.md
-  - .lore/plans/phase-1-empty-hall.md
+  - .lore/plans/foundation/implementation-phases.md
+  - .lore/plans/foundation/phase-1-empty-hall.md
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-workers.md
   - .lore/specs/guild-hall-meetings.md
@@ -775,7 +775,7 @@ All tests use DI patterns:
 
 ### Step 12: Validate Against Spec
 
-Launch a fresh-context sub-agent that reads the Phase 2 scope from `.lore/plans/implementation-phases.md`, the System, Workers, Meetings, and Views specs, and reviews the implementation. The agent flags any Phase 2 requirements not met. This step is not optional.
+Launch a fresh-context sub-agent that reads the Phase 2 scope from `.lore/plans/foundation/implementation-phases.md`, the System, Workers, Meetings, and Views specs, and reviews the implementation. The agent flags any Phase 2 requirements not met. This step is not optional.
 
 The agent checks:
 

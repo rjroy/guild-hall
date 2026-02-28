@@ -3,9 +3,9 @@ title: Implementation notes: sdk-plugin-support
 date: 2026-02-18
 status: superseded
 tags: [implementation, notes, plugins, sdk-plugin-config, guild-members]
-source: .lore/_abandoned/phase-1/plans/sdk-plugin-support.md
+source: .lore/_abandoned/poc/plans/sdk-plugin-support.md
 modules: [schemas, plugin-discovery, agent, agent-manager, types]
-related: [.lore/_abandoned/phase-1/specs/sdk-plugin-support.md, .lore/_abandoned/phase-1/plans/sdk-plugin-support.md]
+related: [.lore/_abandoned/poc/specs/sdk-plugin-support.md, .lore/_abandoned/poc/plans/sdk-plugin-support.md]
 ---
 
 # Implementation Notes: SDK Plugin Support

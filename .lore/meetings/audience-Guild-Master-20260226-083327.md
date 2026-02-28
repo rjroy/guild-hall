@@ -2,7 +2,7 @@
 title: "Audience with Guild Master"
 date: 2026-02-26
 status: closed
-tags: [meeting]
+tags: [meetings]
 worker: Guild Master
 workerDisplayTitle: "Guild Master"
 agenda: "The 'Create Commission from Artifact' doesn't appear to be hooked up. What are the next steps to remedy this?"

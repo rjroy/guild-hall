@@ -2,7 +2,7 @@
 title: In-process commission migration caught production wiring gap via fresh-eyes review
 date: 2026-02-27
 status: complete
-tags: [architecture, refactor, commissions, di-wiring, race-condition, fresh-eyes-review]
+tags: [architecture, refactor, commissions, dependency-injection, race-condition, fresh-eyes-review]
 modules: [commission-session, commission-toolbox, toolbox-resolver, daemon-app]
 related: [.lore/plans/in-process-commissions.md, .lore/notes/in-process-commissions.md, .lore/retros/dispatch-hardening.md, .lore/retros/phase-4-commissions.md]
 ---

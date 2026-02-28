@@ -3,7 +3,7 @@ title: "Implementation notes: phase-4-commissions"
 date: 2026-02-21
 status: complete
 tags: [implementation, notes]
-source: .lore/plans/phase-4-commissions.md
+source: .lore/plans/foundation/phase-4-commissions.md
 modules: [guild-hall-core, guild-hall-ui]
 ---
 

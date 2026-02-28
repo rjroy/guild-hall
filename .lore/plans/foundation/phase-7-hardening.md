@@ -5,7 +5,7 @@ status: executed
 tags: [plan, hardening, crash-recovery, memory, concurrent-limits, dependency-transitions]
 modules: [guild-hall-core, guild-hall-ui]
 related:
-  - .lore/plans/implementation-phases.md
+  - .lore/plans/foundation/implementation-phases.md
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-workers.md
   - .lore/specs/guild-hall-commissions.md
@@ -54,7 +54,7 @@ Deferred items from prior phases:
 
 **Memory system**: `daemon/services/base-toolbox.ts` provides `read_memory`, `write_memory`, `record_decision`. Three scopes resolved by path. `validateContainedPath()` prevents traversal. No access control (any worker reads/writes any scope). No size tracking or compaction.
 
-**Memory compaction archive** (originally `.lore/_abandoned/phase-1/tasks/worker-dispatch/011-worker-memory-system.md`, deleted during archive migration): Complete design: `compactMemories()` via separate SDK invocation with `maxTurns: 1`, concurrent guard via `compactionInProgress` flag, snapshot-based cleanup.
+**Memory compaction archive** (originally `.lore/_abandoned/poc/tasks/worker-dispatch/011-worker-memory-system.md`, deleted during archive migration): Complete design: `compactMemories()` via separate SDK invocation with `maxTurns: 1`, concurrent guard via `compactionInProgress` flag, snapshot-based cleanup.
 
 **Daemon connectivity**: `components/ui/DaemonStatus.tsx` polls `/api/daemon/health` every 5 seconds, shows offline indicator. No action button disabling.
 
