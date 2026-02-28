@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 
 export interface BriefingRouteDeps {
   briefingGenerator: ReturnType<typeof createBriefingGenerator>;
@@ -21,7 +22,7 @@ export function createBriefingRoutes(deps: BriefingRouteDeps): Hono {
       const result = await deps.briefingGenerator.generateBriefing(projectName);
       return c.json(result);
     } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       console.error(`[briefing-route] Error generating briefing for "${projectName}": ${reason}`);
       return c.json({ error: "Failed to generate briefing" }, 500);
     }

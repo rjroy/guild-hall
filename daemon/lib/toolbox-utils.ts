@@ -38,6 +38,17 @@ export function validateContainedPath(basePath: string, userPath: string): strin
 }
 
 /**
+ * Sanitizes a name for use in git branch/ref names. Replaces any character
+ * that isn't alphanumeric or hyphen, collapses runs, and trims edges.
+ */
+export function sanitizeForGitRef(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9-]/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
  * Formats a Date as YYYYMMDD-HHMMSS for use in artifact IDs and filenames.
  */
 export function formatTimestamp(now: Date): string {
@@ -64,6 +75,79 @@ export function escapeYamlValue(value: string): string {
     .replace(/\\/g, "\\\\")
     .replace(/"/g, '\\"')
     .replace(/\n/g, "\\n");
+}
+
+/**
+ * Extracts a human-readable message from an unknown caught value.
+ * Replaces the `err instanceof Error ? err.message : String(err)` pattern.
+ */
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+// -- Linked artifact YAML parsing (shared by commission and meeting helpers) --
+
+/**
+ * Parses a linked_artifacts YAML list from raw frontmatter content.
+ * Pure function: no I/O, operates on the raw file string.
+ */
+export function parseLinkedArtifacts(raw: string): string[] {
+  if (/^linked_artifacts: \[\]$/m.test(raw)) {
+    return [];
+  }
+
+  const match = raw.match(
+    /^linked_artifacts:\n((?:  - .+\n)*)/m,
+  );
+  if (!match) return [];
+
+  return match[1]
+    .split("\n")
+    .filter((line) => line.startsWith("  - "))
+    .map((line) => line.replace(/^  - /, "").trim());
+}
+
+/**
+ * Inserts a linked artifact into raw frontmatter content. Returns the
+ * updated content and whether the artifact was actually added (false if
+ * already present or no linked_artifacts field exists).
+ * Pure function: no I/O, operates on the raw file string.
+ */
+export function insertLinkedArtifact(
+  raw: string,
+  artifactRelPath: string,
+): { updated: string; added: boolean } {
+  const existing = parseLinkedArtifacts(raw);
+  if (existing.includes(artifactRelPath)) {
+    return { updated: raw, added: false };
+  }
+
+  // Case 1: empty array form `linked_artifacts: []`
+  if (/^linked_artifacts: \[\]$/m.test(raw)) {
+    const updated = raw.replace(
+      /^linked_artifacts: \[\]$/m,
+      `linked_artifacts:\n  - ${artifactRelPath}`,
+    );
+    return { updated, added: true };
+  }
+
+  // Case 2: existing list entries
+  const linkedIndex = raw.indexOf("linked_artifacts:\n");
+  if (linkedIndex === -1) {
+    return { updated: raw, added: false };
+  }
+
+  const afterLinked = raw.slice(linkedIndex + "linked_artifacts:\n".length);
+  const nextFieldMatch = afterLinked.match(/^[a-z_]/m);
+  const insertionPoint = nextFieldMatch
+    ? linkedIndex + "linked_artifacts:\n".length + (nextFieldMatch.index ?? 0)
+    : raw.length;
+
+  const updated =
+    raw.slice(0, insertionPoint) +
+    `  - ${artifactRelPath}\n` +
+    raw.slice(insertionPoint);
+  return { updated, added: true };
 }
 
 /**

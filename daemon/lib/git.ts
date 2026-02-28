@@ -20,6 +20,8 @@
  * as a file, which blocks activity branches like refs/heads/claude/meeting/...
  * from being created (can't have a file and directory with the same name).
  */
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
+
 export const CLAUDE_BRANCH = "claude/main";
 
 export function cleanGitEnv(): Record<string, string | undefined> {
@@ -84,7 +86,7 @@ async function runCmd(
   } catch (err) {
     // Bun.spawn throws synchronously when the executable is not found
     throw new Error(
-      `Executable not found: ${cmd[0]} (${err instanceof Error ? err.message : String(err)})`,
+      `Executable not found: ${cmd[0]} (${errorMessage(err)})`,
     );
   }
 
@@ -242,7 +244,7 @@ export function createGitOps(): GitOps {
         await runGit(worktreePath, ["merge", "--squash", sourceBranch]);
       } catch (err) {
         throw new Error(
-          `Squash merge of ${sourceBranch} failed with conflicts: ${err instanceof Error ? err.message : String(err)}`
+          `Squash merge of ${sourceBranch} failed with conflicts: ${errorMessage(err)}`
         );
       }
       // --no-verify: same rationale as commitAll; integration worktrees
@@ -266,7 +268,7 @@ export function createGitOps(): GitOps {
           // Abort itself may fail if rebase wasn't actually in progress
         }
         throw new Error(
-          `Rebase onto ${ontoRef} failed with conflicts: ${err instanceof Error ? err.message : String(err)}`
+          `Rebase onto ${ontoRef} failed with conflicts: ${errorMessage(err)}`
         );
       }
     },
@@ -281,7 +283,7 @@ export function createGitOps(): GitOps {
           // Abort itself may fail if rebase wasn't actually in progress
         }
         throw new Error(
-          `Rebase --onto ${ontoRef} ${afterRef} failed: ${err instanceof Error ? err.message : String(err)}`
+          `Rebase --onto ${ontoRef} ${afterRef} failed: ${errorMessage(err)}`
         );
       }
     },
@@ -297,7 +299,7 @@ export function createGitOps(): GitOps {
           // Abort may fail if merge wasn't actually in progress
         }
         throw new Error(
-          `Merge of ${ref} failed: ${err instanceof Error ? err.message : String(err)}`
+          `Merge of ${ref} failed: ${errorMessage(err)}`
         );
       }
     },
@@ -466,4 +468,59 @@ export function createGitOps(): GitOps {
       }
     },
   };
+}
+
+/**
+ * Attempts a squash-merge from sourceBranch into integrationPath,
+ * auto-resolving .lore/ conflicts with --theirs (the activity branch's
+ * version). Non-.lore/ conflicts cause the merge to abort.
+ *
+ * Used by both commission-session and meeting-session to merge activity
+ * branches back to the integration worktree.
+ */
+export async function resolveSquashMerge(
+  git: GitOps,
+  integrationPath: string,
+  sourceBranch: string,
+  opts: { logPrefix: string; commitLabel: string; activityId: string },
+): Promise<boolean> {
+  const { logPrefix, commitLabel, activityId } = opts;
+  const clean = await git.squashMergeNoCommit(integrationPath, sourceBranch);
+
+  if (clean) {
+    await git.commitAll(integrationPath, `${commitLabel}: ${activityId}`);
+    return true;
+  }
+
+  const conflictedFiles = await git.listConflictedFiles(integrationPath);
+
+  if (conflictedFiles.length === 0) {
+    console.warn(
+      `[${logPrefix}] "${activityId}" squash-merge reported conflict but no unmerged files found. Aborting.`,
+    );
+    await git.mergeAbort(integrationPath);
+    return false;
+  }
+
+  const loreFiles = conflictedFiles.filter((f) => f.startsWith(".lore/"));
+  const nonLoreFiles = conflictedFiles.filter((f) => !f.startsWith(".lore/"));
+
+  if (nonLoreFiles.length > 0) {
+    console.warn(
+      `[${logPrefix}] "${activityId}" squash-merge has non-.lore/ conflicts: ${nonLoreFiles.join(", ")}. Aborting merge.`,
+    );
+    await git.mergeAbort(integrationPath);
+    return false;
+  }
+
+  console.log(
+    `[${logPrefix}] "${activityId}" auto-resolving ${loreFiles.length} .lore/ conflict(s): ${loreFiles.join(", ")}`,
+  );
+  await git.resolveConflictsTheirs(integrationPath, loreFiles);
+  await git.commitAll(
+    integrationPath,
+    `${commitLabel}: ${activityId} (auto-resolved .lore/ conflicts)`,
+  );
+
+  return true;
 }

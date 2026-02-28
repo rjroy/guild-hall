@@ -27,7 +27,7 @@ import {
   updateCurrentProgress,
   updateResultSummary,
 } from "@/daemon/services/commission-artifact-helpers";
-import { resolveWritePath } from "@/daemon/lib/toolbox-utils";
+import { resolveWritePath, errorMessage } from "@/daemon/lib/toolbox-utils";
 import type { GuildHallToolboxDeps, ToolboxFactory } from "./toolbox-types";
 
 type CommissionToolboxDeps = Pick<GuildHallToolboxDeps, "guildHallHome" | "projectName" | "contextId" | "eventBus">;
@@ -95,7 +95,7 @@ export function makeSubmitResultHandler(
         content: [
           {
             type: "text",
-            text: `Failed to write result: ${err instanceof Error ? err.message : String(err)}`,
+            text: `Failed to write result: ${errorMessage(err)}`,
           },
         ],
         isError: true,

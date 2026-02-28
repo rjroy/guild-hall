@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import type {
   ActivationContext,
   ActivationResult,
@@ -56,6 +57,38 @@ export function createManagerPackage(): DiscoveredPackage {
     path: "",
     metadata,
   };
+}
+
+/**
+ * Activates a worker package: routes built-in workers to their activator,
+ * dynamic-imports external workers from the filesystem. If activateFn is
+ * provided, uses it instead (DI seam for tests).
+ */
+export async function activateWorker(
+  workerPkg: DiscoveredPackage,
+  context: ActivationContext,
+  activateFn?: (pkg: DiscoveredPackage, ctx: ActivationContext) => Promise<ActivationResult>,
+): Promise<ActivationResult> {
+  if (activateFn) {
+    return activateFn(workerPkg, context);
+  }
+
+  // Built-in workers have path === "". Route to the correct activator.
+  if (workerPkg.path === "") {
+    if (workerPkg.name === MANAGER_PACKAGE_NAME) {
+      return activateManager(context);
+    }
+    throw new Error(
+      `Unknown built-in worker "${workerPkg.name}". Only "${MANAGER_PACKAGE_NAME}" is a recognized built-in.`,
+    );
+  }
+
+  // Dynamic import for production use. path.resolve() ensures an absolute
+  // path even when the package was discovered from a relative scan path.
+  const workerModule = (await import(path.resolve(workerPkg.path, "index.ts"))) as {
+    activate: (ctx: ActivationContext) => ActivationResult;
+  };
+  return workerModule.activate(context);
 }
 
 /**

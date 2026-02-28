@@ -18,6 +18,7 @@ import {
   MANAGER_WORKER_NAME,
 } from "@/daemon/services/manager-worker";
 import { isNodeError } from "@/lib/types";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { loadMemories } from "@/daemon/services/memory-injector";
 
 // -- Constants --
@@ -336,7 +337,7 @@ export async function buildManagerContext(
   } catch (err: unknown) {
     console.warn(
       `[manager-context] Failed to load manager memories (non-fatal):`,
-      err instanceof Error ? err.message : String(err),
+      errorMessage(err),
     );
   }
 

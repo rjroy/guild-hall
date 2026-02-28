@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import { Hono } from "hono";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { createHealthRoutes, type HealthDeps } from "./routes/health";
 import {
   createMeetingRoutes,
@@ -110,7 +111,7 @@ export async function createProductionApp(options?: {
       } catch (err: unknown) {
         console.warn(
           `[daemon] Failed to recreate worktree for "${project.name}":`,
-          err instanceof Error ? err.message : String(err),
+          errorMessage(err),
         );
       }
     }
@@ -124,7 +125,7 @@ export async function createProductionApp(options?: {
     try {
       await syncProject(project.path, project.name, guildHallHome, git, project.defaultBranch);
     } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       console.warn(`[daemon] Sync failed for "${project.name}": ${reason}`);
     }
   }

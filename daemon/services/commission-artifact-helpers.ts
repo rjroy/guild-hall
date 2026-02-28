@@ -22,7 +22,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import { parseActivityTimeline, type TimelineEntry } from "@/lib/commissions";
-import { escapeYamlValue } from "@/daemon/lib/toolbox-utils";
+import { escapeYamlValue, parseLinkedArtifacts, insertLinkedArtifact } from "@/daemon/lib/toolbox-utils";
 export { parseActivityTimeline } from "@/lib/commissions";
 export type { TimelineEntry } from "@/lib/commissions";
 
@@ -224,7 +224,6 @@ export async function updateResultSummary(
 
 /**
  * Reads the linked_artifacts array from a commission artifact's frontmatter.
- * Returns an array of artifact paths, or an empty array if none are linked.
  */
 export async function readLinkedArtifacts(
   projectPath: string,
@@ -232,29 +231,12 @@ export async function readLinkedArtifacts(
 ): Promise<string[]> {
   const artifactPath = commissionArtifactPath(projectPath, commissionId);
   const raw = await fs.readFile(artifactPath, "utf-8");
-
-  // Check for empty array form: `linked_artifacts: []`
-  if (/^linked_artifacts: \[\]$/m.test(raw)) {
-    return [];
-  }
-
-  // Parse list items under linked_artifacts:
-  const match = raw.match(
-    /^linked_artifacts:\n((?:  - .+\n)*)/m,
-  );
-  if (!match) return [];
-
-  return match[1]
-    .split("\n")
-    .filter((line) => line.startsWith("  - "))
-    .map((line) => line.replace(/^  - /, "").trim());
+  return parseLinkedArtifacts(raw);
 }
 
 /**
  * Adds an artifact path to the linked_artifacts array in a commission
  * artifact's frontmatter. Deduplicates: returns false if already present.
- *
- * Handles both the empty array form (`[]`) and existing list entries.
  */
 export async function addLinkedArtifact(
   projectPath: string,
@@ -263,41 +245,10 @@ export async function addLinkedArtifact(
 ): Promise<boolean> {
   const artifactPath = commissionArtifactPath(projectPath, commissionId);
   const raw = await fs.readFile(artifactPath, "utf-8");
-
-  const existing = await readLinkedArtifacts(projectPath, commissionId);
-  if (existing.includes(artifactRelPath)) {
-    return false;
+  const { updated, added } = insertLinkedArtifact(raw, artifactRelPath);
+  if (added) {
+    await fs.writeFile(artifactPath, updated, "utf-8");
   }
-
-  let updated: string;
-
-  // Case 1: empty array form `linked_artifacts: []`
-  if (/^linked_artifacts: \[\]$/m.test(raw)) {
-    updated = raw.replace(
-      /^linked_artifacts: \[\]$/m,
-      `linked_artifacts:\n  - ${artifactRelPath}`,
-    );
-  } else {
-    // Case 2: existing list entries. Find the end of the linked_artifacts block.
-    const linkedIndex = raw.indexOf("linked_artifacts:\n");
-    if (linkedIndex === -1) {
-      return false;
-    }
-
-    // Find where the linked_artifacts block ends (next field at column 0)
-    const afterLinked = raw.slice(linkedIndex + "linked_artifacts:\n".length);
-    const nextFieldMatch = afterLinked.match(/^[a-z_]/m);
-    const insertionPoint = nextFieldMatch
-      ? linkedIndex + "linked_artifacts:\n".length + (nextFieldMatch.index ?? 0)
-      : raw.length;
-
-    updated =
-      raw.slice(0, insertionPoint) +
-      `  - ${artifactRelPath}\n` +
-      raw.slice(insertionPoint);
-  }
-
-  await fs.writeFile(artifactPath, updated, "utf-8");
-  return true;
+  return added;
 }
 

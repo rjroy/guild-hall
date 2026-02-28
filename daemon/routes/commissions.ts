@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { asCommissionId } from "../types";
 import type { CommissionSessionForRoutes } from "../services/commission-session";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 
 export interface CommissionRoutesDeps {
   commissionSession: CommissionSessionForRoutes;
@@ -60,7 +61,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       );
       return c.json(result, 201);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       return c.json({ error: message }, 500);
     }
   });
@@ -84,7 +85,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       await deps.commissionSession.checkDependencyTransitions(projectName);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       return c.json({ error: message }, 500);
     }
   });
@@ -108,7 +109,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       await deps.commissionSession.updateCommission(commissionId, body);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       if (message.includes("must be \"pending\"")) {
         return c.json({ error: message }, 409);
       }
@@ -126,7 +127,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
         await deps.commissionSession.dispatchCommission(commissionId);
       return c.json(result, 202);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       console.error(`[route] dispatch failed: ${message}`);
       if (message.includes("must be \"pending\"")) {
         return c.json({ error: message }, 409);
@@ -144,7 +145,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       await deps.commissionSession.cancelCommission(commissionId);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);
       }
@@ -168,7 +169,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
         await deps.commissionSession.redispatchCommission(commissionId);
       return c.json(result, 202);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       console.error(`[route] redispatch failed: ${message}`);
       if (
         message.includes("must be \"failed\" or \"cancelled\"") ||
@@ -200,7 +201,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       await deps.commissionSession.addUserNote(commissionId, content);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       return c.json({ error: message }, 500);
     }
   });
