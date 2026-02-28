@@ -4,6 +4,7 @@ date: 2026-02-26
 status: complete
 tags: [simplify, cleanup, code-quality]
 modules: [transcript, meeting-chat]
+source: .lore/plans/multiline-tool-display-on-reopen.md
 ---
 
 # Simplification Notes: multiline-tool-display-on-reopen

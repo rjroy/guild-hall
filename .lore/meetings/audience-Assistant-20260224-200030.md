@@ -2,7 +2,7 @@
 title: "Audience with Guild Assistant"
 date: 2026-02-25
 status: closed
-tags: [meeting]
+tags: [meetings]
 worker: Assistant
 workerDisplayTitle: "Guild Assistant"
 agenda: "hello world."

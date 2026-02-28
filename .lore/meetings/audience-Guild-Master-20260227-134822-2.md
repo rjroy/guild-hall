@@ -2,7 +2,7 @@
 title: "Audience with Guild Master"
 date: 2026-02-27
 status: closed
-tags: [meeting]
+tags: [meetings]
 worker: Guild Master
 workerDisplayTitle: "Guild Master"
 agenda: "Discuss then commission some work."

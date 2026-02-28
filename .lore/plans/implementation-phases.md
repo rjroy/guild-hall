@@ -2,7 +2,7 @@
 title: Implementation Phases
 date: 2026-02-20
 status: executed
-tags: [planning, phases, implementation, vertical-slices]
+tags: [plan, phases, implementation, vertical-slices]
 modules: [guild-hall-core, guild-hall-ui]
 related:
   - .lore/specs/guild-hall-system.md

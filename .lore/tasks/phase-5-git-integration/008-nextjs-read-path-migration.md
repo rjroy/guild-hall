@@ -2,7 +2,7 @@
 title: "Next.js pages read from integration worktree instead of project.path"
 date: 2026-02-22
 status: complete
-tags: [task, nextjs, paths, server-components]
+tags: [task, next-js, paths, server-components]
 source: .lore/plans/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-system.md

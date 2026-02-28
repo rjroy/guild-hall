@@ -2,7 +2,7 @@
 title: Guild Hall Workers
 date: 2026-02-20
 status: implemented
-tags: [architecture, workers, toolboxes, agent-sdk, manager, packages]
+tags: [architecture, workers, toolbox, agent-sdk, manager, packages]
 modules: [guild-hall-core]
 related:
   - .lore/brainstorm/agentic-work-ux.md

@@ -4,6 +4,7 @@ date: 2026-02-26
 status: complete
 tags: [simplify, cleanup, code-quality]
 modules: [artifact-grouping, artifact-list]
+source: .lore/plans/artifact-tree-view.md
 ---
 
 # Simplification Notes: Artifact Tree View

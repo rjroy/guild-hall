@@ -33,4 +33,4 @@ Four structural fragility points identified (not bugs, but areas where future ch
 3. `notes-generator.ts` trusts its caller to provide the correct path
 4. `MeetingToolboxDeps.projectPath` fallback could corrupt the branching model if `worktreeDir` invariant breaks
 
-Branded path types (`IntegrationPath`, `ActivityPath`, `ProjectPath`) recommended as preventive measure if the path layer continues to evolve. Full audit written to project memory at `project/audits/path-resolution-audit.md`.
+Branded path types (`IntegrationPath`, `ActivityPath`, `ProjectPath`) recommended as preventive measure if the path layer continues to evolve. Full audit written to `.lore/retros/path-resolution-audit.md`.

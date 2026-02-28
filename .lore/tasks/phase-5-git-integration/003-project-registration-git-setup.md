@@ -2,7 +2,7 @@
 title: "Project registration creates claude branch and integration worktree"
 date: 2026-02-22
 status: complete
-tags: [task, registration, worktree, claude-branch]
+tags: [task, registration, worktrees, claude-branch]
 source: .lore/plans/phase-5-git-integration.md
 related:
   - .lore/specs/guild-hall-system.md

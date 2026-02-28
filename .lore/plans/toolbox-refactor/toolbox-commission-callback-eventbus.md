@@ -1,10 +1,10 @@
 ---
 title: "Phase 4: Untangle Commission Callbacks via EventBus"
 date: 2026-02-27
-status: draft
+status: executed
 tags: [plan, refactor, toolbox]
 related:
-  - plans/toolbox-composability-refactor.md
+  - plans/toolbox-refactor/toolbox-composability-refactor.md
 ---
 
 # Phase 4: Untangle Commission Callbacks via EventBus

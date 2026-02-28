@@ -2,7 +2,7 @@
 title: Production wiring and result channel gaps in worker dispatch
 date: 2026-02-18
 status: complete
-tags: [integration, di-pattern, agent-behavior, production-wiring, worker-dispatch]
+tags: [integration, dependency-injection, agent-behavior, production-wiring, worker-dispatch]
 modules: [researcher-plugin, worker-tools, worker-agent, server-context]
 related:
   - .lore/_abandoned/phase-1/notes/worker-dispatch.md

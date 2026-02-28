@@ -1,11 +1,11 @@
 ---
 title: "Normalize Toolbox Deps"
 date: 2026-02-27
-status: complete
+status: executed
 tags: [plan, refactor, toolbox]
 modules: [base-toolbox, meeting-toolbox, commission-toolbox, manager-toolbox, toolbox-resolver]
 related:
-  - plans/toolbox-composability-refactor.md
+  - plans/toolbox-refactor/toolbox-composability-refactor.md
   - plans/implementation-phases.md
 ---
 

@@ -1,3 +1,13 @@
+---
+title: Elevate tool services into GuildHallToolboxDeps
+date: 2026-02-28
+status: executed
+tags: [plan, refactor, toolbox, services]
+modules: [toolbox-types, toolbox-resolver, manager-toolbox, toolbox-utils]
+related:
+  - plans/toolbox-refactor/toolbox-composability-refactor.md
+---
+
 # Elevate tool services into GuildHallToolboxDeps
 
 ## Context

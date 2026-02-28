@@ -2,7 +2,8 @@
 title: Claude Agent SDK and agent-sdk-dev Plugin
 date: 2026-02-11
 status: active
-tags: [claude-agent-sdk, agent-sdk, mcp, frontend, python, typescript]
+tags: [agent-sdk, mcp, frontend, python, typescript]
+related: [.lore/research/claude-agent-sdk-ref-typescript.md]
 modules: [guild-hall]
 ---
 

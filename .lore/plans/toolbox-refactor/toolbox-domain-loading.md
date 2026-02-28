@@ -1,10 +1,10 @@
 ---
 title: "Phase 5: Make the Resolver Data-Driven (Domain Toolbox Loading)"
 date: 2026-02-27
-status: draft
+status: executed
 tags: [plan, refactor, toolbox]
 related:
-  - plans/toolbox-composability-refactor.md
+  - plans/toolbox-refactor/toolbox-composability-refactor.md
   - specs/guild-hall-workers.md
 ---
 

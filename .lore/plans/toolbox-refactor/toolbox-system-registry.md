@@ -1,7 +1,10 @@
 ---
 title: System Toolbox Registry
-status: draft
+status: executed
 date: 2026-02-28
+tags: [plan, refactor, toolbox]
+related:
+  - plans/toolbox-refactor/toolbox-composability-refactor.md
 ---
 
 # System Toolbox Registry

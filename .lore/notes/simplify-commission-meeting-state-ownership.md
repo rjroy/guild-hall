@@ -4,6 +4,7 @@ date: 2026-02-26
 status: complete
 tags: [simplify, cleanup, code-quality]
 modules: [commission-session, commission-artifact-helpers, meeting-session, meeting-artifact-helpers, commission-toolbox, meeting-toolbox, toolbox-resolver]
+source: .lore/plans/commission-meeting-state-ownership.md
 ---
 
 # Simplification Notes: commission-meeting-state-ownership

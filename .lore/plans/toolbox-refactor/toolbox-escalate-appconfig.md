@@ -1,3 +1,13 @@
+---
+title: Escalate AppConfig into GuildHallToolboxDeps
+date: 2026-02-28
+status: executed
+tags: [plan, refactor, toolbox, config]
+modules: [toolbox-types, toolbox-resolver, manager-toolbox, meeting-session, commission-session]
+related:
+  - plans/toolbox-refactor/toolbox-composability-refactor.md
+---
+
 # Plan: Escalate AppConfig into GuildHallToolboxDeps
 
 ## Context
