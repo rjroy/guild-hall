@@ -1,9 +1,9 @@
 ---
 title: Implementation notes: MCP HTTP transport integration
 date: 2026-02-14
-status: complete
+status: superseded
 tags: [implementation, notes]
-source: .lore/_archive/phase-1/plans/mcp-http-transport.md
+source: .lore/_abandoned/phase-1/plans/mcp-http-transport.md
 modules: [port-registry, json-rpc-client, http-mcp-factory, mcp-manager, server-context, plugin-discovery, example-guild-member]
 ---
 
@@ -87,7 +87,7 @@ Implementation started 2026-02-14.
 
 ## Final Validation
 
-Holistic review against `.lore/_archive/phase-1/specs/mcp-http-transport.md`:
+Holistic review against `.lore/_abandoned/phase-1/specs/mcp-http-transport.md`:
 - **43 of 44 requirements FULLY met**
 - **1 requirement PARTIALLY met**: REQ-MCP-HTTP-30 (localhost binding) - Guild Hall client uses localhost, but doesn't validate server binding (server responsibility)
 - All success criteria verified

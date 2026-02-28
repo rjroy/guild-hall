@@ -4,6 +4,7 @@ date: 2026-02-25
 status: open
 tags: [ui, layout, responsive, css]
 modules: [next-app, css-design-system]
+related: [.lore/plans/responsive-layout.md]
 ---
 
 # Responsive Layout

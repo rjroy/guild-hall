@@ -5,8 +5,8 @@ status: resolved
 tags: [mcp, transport, architecture, http, sse, stdio]
 modules: [mcp-manager, mcp-server-factory]
 related:
-  - .lore/_archive/phase-1/specs/mcp-server-factory.md
-  - .lore/_archive/phase-1/notes/mcp-server-factory.md
+  - .lore/_abandoned/phase-1/specs/mcp-server-factory.md
+  - .lore/_abandoned/phase-1/notes/mcp-server-factory.md
   - .lore/research/claude-agent-sdk.md
 ---
 

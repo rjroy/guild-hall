@@ -1,7 +1,7 @@
 ---
 title: Worker agent dispatch as plugin infrastructure
 date: 2026-02-17
-status: open
+status: superseded
 tags: [architecture, agents, dispatch, workers, mcp, json-rpc]
 modules: [guild-hall-core, plugin-contract]
 ---

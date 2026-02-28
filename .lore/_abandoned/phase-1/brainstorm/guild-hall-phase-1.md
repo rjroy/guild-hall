@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Phase I - Frontend Session Shell
 date: 2026-02-11
-status: open
+status: superseded
 tags: [phase-1, frontend, sessions, mcp, dashboard, architecture, plugin-system]
 modules: [guild-hall]
 related: [.lore/research/claude-agent-sdk.md, .lore/research/agent-native-applications.md]
