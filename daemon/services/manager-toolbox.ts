@@ -25,6 +25,7 @@ import { z } from "zod/v4";
 import { asCommissionId } from "@/daemon/types";
 import type { ToolResult } from "@/daemon/types";
 import { appendTimelineEntry } from "@/daemon/services/commission-artifact-helpers";
+import { formatTimestamp, escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
 import type { EventBus } from "@/daemon/services/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
@@ -55,40 +56,6 @@ export interface ManagerToolboxDeps {
    * without creating config files.
    */
   getProjectConfig?: (name: string) => Promise<ProjectConfig | undefined>;
-}
-
-// -- YAML helpers --
-
-/**
- * Escapes a string for use as a YAML double-quoted value.
- * Handles backslashes, double quotes, and newlines so the value
- * stays on a single line. Duplicated from commission-artifact-helpers.ts
- * (which keeps it unexported as an internal detail).
- */
-function escapeYamlValue(value: string): string {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n");
-}
-
-// -- Timestamp formatting --
-
-/**
- * Formats a Date as YYYYMMDD-HHMMSS, matching the format used across
- * meeting-toolbox.ts and commission-session.ts.
- */
-function formatTimestamp(now: Date): string {
-  const pad = (n: number, len = 2) => String(n).padStart(len, "0");
-  return [
-    now.getFullYear(),
-    pad(now.getMonth() + 1),
-    pad(now.getDate()),
-    "-",
-    pad(now.getHours()),
-    pad(now.getMinutes()),
-    pad(now.getSeconds()),
-  ].join("");
 }
 
 /**

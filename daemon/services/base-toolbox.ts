@@ -10,6 +10,7 @@ import type {
 import { z } from "zod/v4";
 import type { ToolResult } from "@/daemon/types";
 import { isNodeError } from "@/lib/types";
+import { validateContainedPath } from "@/daemon/lib/toolbox-utils";
 
 // -- Types --
 
@@ -19,21 +20,6 @@ export interface BaseToolboxDeps {
   workerName: string;                         // identity of the active worker (enforces worker scope)
   projectName: string;                        // active project name (enforces project scope)
   guildHallHome?: string;                     // defaults to ~/.guild-hall
-}
-
-// -- Path safety --
-
-/**
- * Resolves a path within a base directory and verifies it doesn't escape.
- * Throws on path traversal attempts.
- */
-function validateContainedPath(basePath: string, userPath: string): string {
-  const resolvedBase = path.resolve(basePath);
-  const resolved = path.resolve(basePath, userPath);
-  if (!resolved.startsWith(resolvedBase + path.sep) && resolved !== resolvedBase) {
-    throw new Error(`Path traversal detected: ${userPath} escapes ${basePath}`);
-  }
-  return resolved;
 }
 
 // -- Memory scope resolution --

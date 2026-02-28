@@ -24,6 +24,7 @@ import {
   appendMeetingLog,
   addLinkedArtifact,
 } from "@/daemon/services/meeting-artifact-helpers";
+import { validateContainedPath, formatTimestamp } from "@/daemon/lib/toolbox-utils";
 
 export interface MeetingToolboxDeps {
   projectPath: string;
@@ -39,43 +40,6 @@ export interface MeetingToolboxDeps {
   meetingId: string;
   workerName: string;
   guildHallHome?: string;
-}
-
-// -- Path safety --
-
-/**
- * Validates that a user-provided path stays within a base directory.
- * Throws on path traversal attempts.
- */
-function validateContainedPath(basePath: string, userPath: string): string {
-  const resolvedBase = path.resolve(basePath);
-  const resolved = path.resolve(basePath, userPath);
-  if (
-    !resolved.startsWith(resolvedBase + path.sep) &&
-    resolved !== resolvedBase
-  ) {
-    throw new Error(`Path traversal detected: ${userPath} escapes ${basePath}`);
-  }
-  return resolved;
-}
-
-// -- Timestamp formatting --
-
-/**
- * Formats a Date as YYYYMMDD-HHMMSS, matching the format used by
- * formatMeetingId in meeting-session.ts.
- */
-function formatTimestamp(now: Date): string {
-  const pad = (n: number, len = 2) => String(n).padStart(len, "0");
-  return [
-    now.getFullYear(),
-    pad(now.getMonth() + 1),
-    pad(now.getDate()),
-    "-",
-    pad(now.getHours()),
-    pad(now.getMinutes()),
-    pad(now.getSeconds()),
-  ].join("");
 }
 
 // -- Tool handler factories --
