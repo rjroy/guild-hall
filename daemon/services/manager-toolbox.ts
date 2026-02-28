@@ -696,7 +696,6 @@ export function createManagerToolbox(
 export interface ManagerServices {
   commissionSession: CommissionSessionForRoutes;
   gitOps: GitOps;
-  getProjectConfig: (name: string) => Promise<ProjectConfig | undefined>;
 }
 
 /** Binds manager services, returns a ToolboxFactory. */
@@ -708,6 +707,8 @@ export function createManagerToolboxFactory(
       projectName: ctx.projectName,
       guildHallHome: ctx.guildHallHome,
       eventBus: ctx.eventBus,
+      getProjectConfig: (name: string) =>
+        Promise.resolve(ctx.config.projects.find((p) => p.name === name)),
       ...services,
     }),
   });

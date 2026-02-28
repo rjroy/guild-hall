@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type {
+  AppConfig,
   DiscoveredPackage,
   ResolvedToolSet,
   WorkerMetadata,
@@ -22,6 +23,7 @@ export interface ToolboxResolverContext {
   contextType: "meeting" | "commission";
   workerName: string;
   eventBus: EventBus;
+  config: AppConfig;
   /** Pre-bound context factories (meeting, commission, manager). */
   contextFactories?: ToolboxFactory[];
 }
@@ -54,6 +56,7 @@ export async function resolveToolSet(
     contextType: context.contextType,
     workerName: context.workerName,
     eventBus: context.eventBus,
+    config: context.config,
   };
 
   // 1. Base toolbox (always present: memory + decision tools)

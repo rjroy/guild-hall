@@ -502,7 +502,6 @@ notes_summary: ""
           createManagerToolboxFactory({
             commissionSession: deps.commissionSession,
             gitOps: git,
-            getProjectConfig: (name: string) => Promise.resolve(findProject(name)),
           }),
         );
       }
@@ -514,6 +513,7 @@ notes_summary: ""
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,
         eventBus: deps.eventBus ?? noopEventBus,
+        config: deps.config,
         contextFactories,
       });
 

@@ -80,6 +80,7 @@ function testContext() {
     workerName: "test-worker",
     guildHallHome,
     eventBus: createEventBus(),
+    config: { projects: [] },
   };
 }
 
@@ -324,7 +325,6 @@ describe("resolveToolSet with manager toolbox", () => {
         createManagerToolboxFactory({
           commissionSession: makeMockCommissionSession(),
           gitOps: makeMockGitOps(),
-          getProjectConfig: () => Promise.resolve(undefined),
         }),
       ],
     };
@@ -362,7 +362,6 @@ describe("resolveToolSet with manager toolbox", () => {
         createManagerToolboxFactory({
           commissionSession: makeMockCommissionSession(),
           gitOps: makeMockGitOps(),
-          getProjectConfig: () => Promise.resolve(undefined),
         }),
       ],
     };

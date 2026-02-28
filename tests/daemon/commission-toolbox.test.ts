@@ -39,6 +39,7 @@ function makeDeps(overrides?: Partial<GuildHallToolboxDeps>): GuildHallToolboxDe
     contextType: "commission",
     workerName: "test-worker",
     eventBus: testEventBus,
+    config: { projects: [] },
     ...overrides,
   };
 }

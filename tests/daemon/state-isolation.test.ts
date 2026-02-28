@@ -535,6 +535,7 @@ describe("State Isolation", () => {
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
       eventBus: createEventBus(),
+      config: { projects: [] },
       contextFactories: [meetingToolboxFactory],
     });
 
@@ -546,6 +547,7 @@ describe("State Isolation", () => {
       workerName: WORKER_NAME,
       guildHallHome: ghHome,
       eventBus: createEventBus(),
+      config: { projects: [] },
       contextFactories: [
         commissionToolboxFactory,
       ],

@@ -1070,7 +1070,6 @@ export function createCommissionSession(
         createManagerToolboxFactory({
           commissionSession: deps.commissionSessionRef.current,
           gitOps: git,
-          getProjectConfig: (name: string) => Promise.resolve(findProject(name)),
         }),
       );
     }
@@ -1083,6 +1082,7 @@ export function createCommissionSession(
       workerName: workerMeta.identity.name,
       guildHallHome: ghHome,
       eventBus: deps.eventBus,
+      config: deps.config,
       contextFactories,
     });
     log(`tools resolved: ${resolvedTools.mcpServers.length} MCP server(s), ${resolvedTools.allowedTools?.length ?? 0} allowed tool(s)`);

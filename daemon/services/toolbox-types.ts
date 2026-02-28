@@ -8,6 +8,7 @@
  */
 
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
+import type { AppConfig } from "@/lib/types";
 import type { EventBus } from "./event-bus";
 
 export interface GuildHallToolboxDeps {
@@ -17,6 +18,7 @@ export interface GuildHallToolboxDeps {
   contextType: "meeting" | "commission";
   workerName: string;
   eventBus: EventBus;
+  config: AppConfig;
 }
 
 export interface ToolboxOutput {

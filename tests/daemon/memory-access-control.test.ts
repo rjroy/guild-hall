@@ -204,6 +204,7 @@ describe("GuildHallToolboxDeps integration", () => {
       projectName: "my-project",
       guildHallHome,
       eventBus: noopEventBus,
+      config: { projects: [] },
     };
 
     const result = createBaseToolbox(deps);
@@ -241,6 +242,7 @@ describe("toolbox resolver passes identity to base toolbox", () => {
       workerName: "my-specific-worker",
       guildHallHome,
       eventBus: noopEventBus,
+      config: { projects: [] },
     });
 
     expect(result.mcpServers.length).toBeGreaterThanOrEqual(1);
@@ -256,6 +258,7 @@ describe("toolbox resolver passes identity to base toolbox", () => {
       workerName: "fallback-worker",
       guildHallHome,
       eventBus: noopEventBus,
+      config: { projects: [] },
     });
 
     // Base only (no context factories)
@@ -273,6 +276,7 @@ describe("toolbox resolver passes identity to base toolbox", () => {
       workerName: "test-worker",
       guildHallHome,
       eventBus: noopEventBus,
+      config: { projects: [] },
     });
 
     expect(result.mcpServers.length).toBeGreaterThanOrEqual(1);
