@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { DaemonContext, useDaemonStatus } from "@/components/ui/DaemonContext";
-import type { DaemonStatusState } from "@/components/ui/DaemonContext";
+import { DaemonContext, useDaemonStatus } from "@/web/components/ui/DaemonContext";
+import type { DaemonStatusState } from "@/web/components/ui/DaemonContext";
 
 /**
  * Daemon connectivity graceful degradation tests.

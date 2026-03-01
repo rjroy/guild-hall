@@ -3,15 +3,15 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { NextRequest } from "next/server";
-import { POST as createPOST } from "@/app/api/commissions/route";
+import { POST as createPOST } from "@/web/app/api/commissions/route";
 import {
   PUT as updatePUT,
   DELETE as cancelDELETE,
-} from "@/app/api/commissions/[commissionId]/route";
-import { POST as dispatchPOST } from "@/app/api/commissions/[commissionId]/dispatch/route";
-import { POST as redispatchPOST } from "@/app/api/commissions/[commissionId]/redispatch/route";
-import { POST as notePOST } from "@/app/api/commissions/[commissionId]/note/route";
-import { GET as eventsGET } from "@/app/api/events/route";
+} from "@/web/app/api/commissions/[commissionId]/route";
+import { POST as dispatchPOST } from "@/web/app/api/commissions/[commissionId]/dispatch/route";
+import { POST as redispatchPOST } from "@/web/app/api/commissions/[commissionId]/redispatch/route";
+import { POST as notePOST } from "@/web/app/api/commissions/[commissionId]/note/route";
+import { GET as eventsGET } from "@/web/app/api/events/route";
 
 /**
  * These routes are thin proxies to the daemon. We test the error path

@@ -7,7 +7,7 @@
  * and navigation.
  */
 
-import type { ChatMessage } from "@/components/meeting/types";
+import type { ChatMessage } from "@/lib/types";
 
 // -- SSE Parsing --
 

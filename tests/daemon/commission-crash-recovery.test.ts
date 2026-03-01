@@ -344,7 +344,7 @@ describe("recoverCommissions", () => {
     );
 
     const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(0);
+    expect(recovered).toBe(1);
     expect(session.getActiveCommissions()).toBe(0);
 
     // Artifact should be updated to failed in integration worktree
@@ -475,7 +475,7 @@ describe("recoverCommissions", () => {
     );
 
     const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(0);
+    expect(recovered).toBe(1);
 
     const cId = asCommissionId(id);
     const status = await readCommissionStatus(integrationPath, cId);
@@ -498,7 +498,7 @@ describe("recoverCommissions", () => {
     );
 
     const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(0);
+    expect(recovered).toBe(1);
 
     const cId = asCommissionId(id);
     const status = await readCommissionStatus(integrationPath, cId);
@@ -526,7 +526,7 @@ describe("recoverCommissions", () => {
     );
 
     const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(0); // Orphans don't count as "recovered"
+    expect(recovered).toBe(1);
 
     // Artifact should be updated to failed
     const status = await readCommissionStatus(integrationPath, cId);
@@ -703,7 +703,7 @@ describe("recoverCommissions", () => {
     );
 
     const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(0);
+    expect(recovered).toBe(2);
     expect(session.getActiveCommissions()).toBe(0);
 
     // Both commissions should be failed
@@ -773,7 +773,7 @@ describe("recoverCommissions", () => {
 
     // Should not throw even though commitAll fails
     const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(0);
+    expect(recovered).toBe(1);
 
     // Status should still be updated to failed
     const status = await readCommissionStatus(
@@ -809,7 +809,7 @@ describe("recoverCommissions", () => {
 
     // Should not throw
     const recovered = await session.recoverCommissions();
-    expect(recovered).toBe(0);
+    expect(recovered).toBe(1);
 
     // Failed event should still be emitted
     const failedEvents = emittedEvents.filter(

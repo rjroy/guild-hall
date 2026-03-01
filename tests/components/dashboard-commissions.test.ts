@@ -3,7 +3,7 @@ import type { CommissionMeta } from "@/lib/commissions";
 import {
   sortCommissions,
   commissionHref,
-} from "@/components/dashboard/DependencyMap";
+} from "@/web/components/dashboard/DependencyMap";
 import { buildDependencyGraph, getNeighborhood, layoutGraph } from "@/lib/dependency-graph";
 import { statusToGem } from "@/lib/types";
 

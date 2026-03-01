@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import CommissionList from "@/components/commission/CommissionList";
+import CommissionList from "@/web/components/commission/CommissionList";
 import type { CommissionMeta } from "@/lib/commissions";
 
 /**
@@ -131,7 +131,7 @@ function makeCommission(overrides: Partial<CommissionMeta> = {}): CommissionMeta
 
 describe("CommissionForm type contract", () => {
   test("CommissionForm module exports default", async () => {
-    const mod = await import("@/components/commission/CommissionForm");
+    const mod = await import("@/web/components/commission/CommissionForm");
     expect(typeof mod.default).toBe("function");
   });
 
@@ -169,7 +169,7 @@ describe("CommissionForm type contract", () => {
 
 describe("CreateCommissionButton type contract", () => {
   test("module exports default", async () => {
-    const mod = await import("@/components/commission/CreateCommissionButton");
+    const mod = await import("@/web/components/commission/CreateCommissionButton");
     expect(typeof mod.default).toBe("function");
   });
 

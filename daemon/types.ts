@@ -39,7 +39,8 @@ export type CommissionStatus =
   | "in_progress"
   | "completed"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  | "abandoned";
 
 // -- Tool result type --
 

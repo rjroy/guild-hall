@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import GemIndicator from "@/components/ui/GemIndicator";
+import GemIndicator from "@/web/components/ui/GemIndicator";
 
 /**
  * GemIndicator is a server component (plain function returning JSX).

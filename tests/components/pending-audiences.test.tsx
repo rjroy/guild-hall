@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import PendingAudiences from "@/components/dashboard/PendingAudiences";
+import PendingAudiences from "@/web/components/dashboard/PendingAudiences";
 import type { MeetingMeta } from "@/lib/meetings";
 
 /**
@@ -164,7 +164,7 @@ describe("PendingAudiences", () => {
 
 describe("MeetingRequestCard type contract", () => {
   test("module exports a default function component", async () => {
-    const mod = await import("@/components/dashboard/MeetingRequestCard");
+    const mod = await import("@/web/components/dashboard/MeetingRequestCard");
     expect(typeof mod.default).toBe("function");
   });
 
@@ -183,7 +183,7 @@ describe("MeetingRequestCard type contract", () => {
 
   test("MeetingRequestCardProps interface is exported", async () => {
     // Verify the named export exists
-    const mod = await import("@/components/dashboard/MeetingRequestCard");
+    const mod = await import("@/web/components/dashboard/MeetingRequestCard");
     expect(mod).toHaveProperty("default");
   });
 });

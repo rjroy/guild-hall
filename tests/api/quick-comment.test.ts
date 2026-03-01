@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { NextRequest } from "next/server";
-import { POST } from "@/app/api/meetings/[meetingId]/quick-comment/route";
+import { POST } from "@/web/app/api/meetings/[meetingId]/quick-comment/route";
 
 /**
  * Tests for the quick-comment compound API route.

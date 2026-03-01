@@ -24,6 +24,9 @@ const eslintConfig = defineConfig([
         tsconfigRootDir: import.meta.dirname,
       },
     },
+    settings: {
+      next: { rootDir: "web" },
+    },
   },
   // Test files: suppress false positives from bun's assertion types and
   // React's JSX.Element typing (.props is `any`). These rules catch real
@@ -41,10 +44,10 @@ const eslintConfig = defineConfig([
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
-    ".next/**",
+    "web/.next/**",
     "out/**",
     "build/**",
-    "next-env.d.ts",
+    "web/next-env.d.ts",
   ]),
 ]);
 

@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as yaml from "yaml";
-import { PUT } from "@/app/api/artifacts/route";
+import { PUT } from "@/web/app/api/artifacts/route";
 import { NextRequest } from "next/server";
 
 let tmpDir: string;

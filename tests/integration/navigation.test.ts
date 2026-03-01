@@ -7,10 +7,10 @@ import { scanArtifacts, readArtifact } from "@/lib/artifacts";
 import { projectLorePath, getConfigPath } from "@/lib/paths";
 import { statusToGem } from "@/lib/types";
 import type { GemStatus } from "@/lib/types";
-import { relatedToHref } from "@/components/artifact/MetadataSidebar";
-import { artifactHref } from "@/components/dashboard/RecentArtifacts";
-import { commissionHref } from "@/components/dashboard/DependencyMap";
-import { meetingStatusToGem } from "@/components/project/MeetingList";
+import { relatedToHref } from "@/web/components/artifact/MetadataSidebar";
+import { artifactHref } from "@/web/components/dashboard/RecentArtifacts";
+import { commissionHref } from "@/web/components/dashboard/DependencyMap";
+import { meetingStatusToGem } from "@/web/components/project/MeetingList";
 import { scanCommissions } from "@/lib/commissions";
 
 /**
