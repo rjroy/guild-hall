@@ -591,78 +591,88 @@ export function createCommissionSession(
   }
 
   /**
-   * Handles a commission failure. Transitions to failed, emits event,
-   * and cleans up. Preserves the branch for inspection.
+   * Common tail for every termination path. Emits the status event, syncs
+   * to the integration worktree, preserves the activity branch, removes
+   * the commission from the active map, writes the state file, and kicks
+   * off dependency transitions and auto-dispatch.
    */
-  async function handleFailure(
-    id: string,
+  async function cleanupAfterTermination(
+    commissionId: CommissionId,
     commission: ActiveCommission,
+    status: CommissionStatus,
     reason: string,
   ): Promise<void> {
-    // Terminal state guard: another path (e.g., cancelCommission) may have
-    // already resolved this commission.
-    if (isTerminalStatus(commission.status)) {
-      activeCommissions.delete(id);
-      return;
-    }
+    deps.eventBus.emit({
+      type: "commission_status",
+      commissionId: commissionId as string,
+      status,
+      reason,
+    });
 
-    // Commission is always active when handleFailure is called, so the
-    // artifact lives in the activity worktree.
+    await syncStatusToIntegration(commission, status, reason);
+
+    await preserveAndCleanupWorktree(
+      commissionId as string,
+      commission.worktreeDir,
+      commission.branchName,
+      `Partial work preserved (${status}): ${commissionId}`,
+      findProject(commission.projectName)?.path,
+    );
+
+    activeCommissions.delete(commissionId as string);
+
+    writeStateFile(commissionId, {
+      commissionId: commissionId as string,
+      projectName: commission.projectName,
+      workerName: commission.workerName,
+      status,
+    }).catch((err: unknown) => {
+      console.error(
+        `[commission-session] Failed to write state file for ${commissionId}:`,
+        errorMessage(err),
+      );
+    });
+
+    await checkDependencyTransitions(commission.projectName);
+
+    enqueueAutoDispatch();
+  }
+
+  /**
+   * Full termination sequence for the normal path: set the commission's
+   * status, transition the artifact in the activity worktree, then run
+   * the common cleanup tail.
+   *
+   * The optional fromStatus handles cancelCommission's pre-mutation for
+   * the abort race: the caller already set commission.status = "cancelled"
+   * but needs the transition to reference the previous status.
+   */
+  async function terminateActiveCommission(
+    commissionId: CommissionId,
+    commission: ActiveCommission,
+    targetStatus: CommissionStatus,
+    reason: string,
+    fromStatus?: CommissionStatus,
+  ): Promise<void> {
+    const previousStatus = fromStatus ?? commission.status;
+    commission.status = targetStatus;
+
     try {
       await transitionCommission(
         commission.worktreeDir,
-        commission.commissionId,
-        commission.status,
-        "failed",
+        commissionId,
+        previousStatus,
+        targetStatus,
         reason,
       );
     } catch (err: unknown) {
       console.error(
-        `[commission-session] Failed to transition ${id} to failed:`,
+        `[commission-session] Failed to transition ${commissionId} to ${targetStatus}:`,
         errorMessage(err),
       );
     }
 
-    deps.eventBus.emit({
-      type: "commission_status",
-      commissionId: id,
-      status: "failed",
-      reason,
-    });
-
-    commission.status = "failed";
-
-    // Sync terminal status to integration worktree before cleanup
-    await syncStatusToIntegration(commission, "failed", reason);
-
-    await preserveAndCleanupWorktree(
-      id,
-      commission.worktreeDir,
-      commission.branchName,
-      `Partial work preserved: ${id}`,
-      findProject(commission.projectName)?.path,
-    );
-
-    activeCommissions.delete(id);
-
-    // Update state file
-    writeStateFile(commission.commissionId, {
-      commissionId: id,
-      projectName: commission.projectName,
-      workerName: commission.workerName,
-      status: "failed",
-    }).catch((err: unknown) => {
-      console.error(
-        `[commission-session] Failed to write state file for ${commission.commissionId}:`,
-        errorMessage(err),
-      );
-    });
-
-    // Failure may have changed which artifacts exist on the integration worktree.
-    await checkDependencyTransitions(commission.projectName);
-
-    // Capacity freed: check if pending commissions can now dispatch
-    enqueueAutoDispatch();
+    await cleanupAfterTermination(commissionId, commission, targetStatus, reason);
   }
 
   // -- In-process SDK session runner --
@@ -670,13 +680,6 @@ export function createCommissionSession(
   // Runs an SDK session for a commission directly in the daemon process,
   // replacing the subprocess model. Called as fire-and-forget from
   // dispatchCommission().
-
-  async function activateWorker(
-    workerPkg: DiscoveredPackage,
-    context: ActivationContext,
-  ): Promise<ActivationResult> {
-    return activateWorkerShared(workerPkg, context, deps.activateFn);
-  }
 
   /**
    * Runs an SDK session in-process for a commission. Handles the full
@@ -812,7 +815,7 @@ export function createCommissionSession(
     log(`activating worker "${workerMeta.identity.name}"...`);
     let activation: ActivationResult;
     try {
-      activation = await activateWorker(workerPkg, activationContext);
+      activation = await activateWorkerShared(workerPkg, activationContext, deps.activateFn);
     } catch (err: unknown) {
       logErr(`worker activation failed: ${errorMessage(err)}`);
       return false;
@@ -1295,38 +1298,34 @@ projectName: ${projectName}
       return;
     }
 
-    let finalStatus: CommissionStatus;
-    let reason: string;
-
-    if (resultSubmitted) {
-      finalStatus = "completed";
-      console.log(`[commission] "${commissionId}" completed (result submitted)`);
-      reason = "Worker completed successfully";
-    } else {
-      finalStatus = "failed";
+    // No result submitted: treat as failed via the standard path
+    if (!resultSubmitted) {
       console.log(`[commission] "${commissionId}" failed (session completed without submitting result)`);
-      reason = "Session completed without submitting result";
+      await terminateActiveCommission(commissionId, commission, "failed", "Session completed without submitting result");
+      return;
     }
 
-    commission.status = finalStatus;
+    // Result submitted: transition to completed
+    console.log(`[commission] "${commissionId}" completed (result submitted)`);
+    const reason = "Worker completed successfully";
+    commission.status = "completed";
 
-    // Artifact lives in the activity worktree (commission is active)
     try {
       await transitionCommission(
         commission.worktreeDir,
         commissionId,
         "in_progress",
-        finalStatus,
+        "completed",
         reason,
       );
     } catch (err: unknown) {
       console.error(
-        `[commission-session] Failed to transition ${commissionId} to ${finalStatus}:`,
+        `[commission-session] Failed to transition ${commissionId} to completed:`,
         errorMessage(err),
       );
     }
 
-    if (finalStatus === "completed" && commission.resultSummary) {
+    if (commission.resultSummary) {
       try {
         await updateResultSummary(
           commission.worktreeDir,
@@ -1342,161 +1341,110 @@ projectName: ${projectName}
       }
     }
 
-    deps.eventBus.emit({
-      type: "commission_status",
-      commissionId: commissionId as string,
-      status: finalStatus,
-      reason,
-    });
-
-    // Git cleanup: behavior depends on final status
+    // Squash-merge for completed commissions with a known project
     const project = findProject(commission.projectName);
-    let cleanMergeCompleted = false;
-    if (finalStatus === "completed" && project) {
-      // Squash-merge activity branch into claude, then clean up both.
-      // The merge brings the activity branch's artifact (status=completed
-      // with full timeline). We sync status to the integration worktree
-      // after the merge as a safety net: the merge should have brought it,
-      // but an explicit sync ensures auto-dispatch scanning sees the
-      // correct status even if the merge was a no-op.
-      const iPath = integrationWorktreePath(ghHome, commission.projectName);
-      let mergeSucceeded = false;
-      try {
-        await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
-        mergeSucceeded = await withProjectLock(commission.projectName, async () => {
-          await git.commitAll(iPath, `Pre-merge sync: ${commissionId}`);
-          return await resolveSquashMerge(git, iPath, commission.branchName, {
-            logPrefix: "commission",
-            commitLabel: "Commission",
-            activityId: commissionId,
-          });
+    if (!project) {
+      await cleanupAfterTermination(commissionId, commission, "completed", reason);
+      return;
+    }
+
+    // Squash-merge activity branch into claude, then clean up both.
+    // The merge brings the activity branch's artifact (status=completed
+    // with full timeline). We sync status to the integration worktree
+    // after the merge as a safety net: the merge should have brought it,
+    // but an explicit sync ensures auto-dispatch scanning sees the
+    // correct status even if the merge was a no-op.
+    const iPath = integrationWorktreePath(ghHome, commission.projectName);
+    let mergeSucceeded = false;
+    try {
+      await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
+      mergeSucceeded = await withProjectLock(commission.projectName, async () => {
+        await git.commitAll(iPath, `Pre-merge sync: ${commissionId}`);
+        return await resolveSquashMerge(git, iPath, commission.branchName, {
+          logPrefix: "commission",
+          commitLabel: "Commission",
+          activityId: commissionId,
         });
-      } catch (err: unknown) {
-        console.warn(
-          `[commission] Git cleanup failed for completed "${commissionId}":`,
-          errorMessage(err),
-        );
-      }
-
-      if (mergeSucceeded) {
-        await syncStatusToIntegration(commission, finalStatus, reason);
-        try {
-          await git.removeWorktree(project.path, commission.worktreeDir);
-          await git.deleteBranch(project.path, commission.branchName);
-        } catch (err: unknown) {
-          console.warn(
-            `[commission] Worktree/branch cleanup failed for "${commissionId}":`,
-            errorMessage(err),
-          );
-        }
-        // Remove the state file: the artifact on the integration worktree is now
-        // the source of truth. recoverCommissions() handles missing files gracefully.
-        await fs.unlink(commissionStatePath(commissionId)).catch(() => {});
-        cleanMergeCompleted = true;
-        console.log(`[commission] "${commissionId}" squash-merged to claude and cleaned up`);
-      } else {
-        // Merge failed due to non-.lore/ conflicts. Transition to failed,
-        // preserve branch for manual resolution.
-        const conflictReason = "Squash-merge conflict on non-.lore/ files";
-        commission.status = "failed";
-        finalStatus = "failed";
-        reason = conflictReason;
-
-        // completed -> failed is not in the state machine because completed
-        // is terminal. Squash-merge failure after completion is a special case
-        // handled directly.
-        try {
-          await updateCommissionStatus(commission.worktreeDir, commissionId, "failed");
-          await appendTimelineEntry(
-            commission.worktreeDir,
-            commissionId,
-            "status_failed",
-            conflictReason,
-          );
-        } catch (updateErr: unknown) {
-          console.error(
-            `[commission] Failed to update status after merge conflict for "${commissionId}":`,
-            errorMessage(updateErr),
-          );
-        }
-
-        deps.eventBus.emit({
-          type: "commission_status",
-          commissionId: commissionId as string,
-          status: "failed",
-          reason: conflictReason,
-        });
-
-        await syncStatusToIntegration(commission, "failed", conflictReason);
-
-        await preserveAndCleanupWorktree(
-          commissionId as string,
-          commission.worktreeDir,
-          commission.branchName,
-          `Partial work preserved (merge conflict): ${commissionId}`,
-          project?.path,
-        );
-
-        // Escalate conflict to Guild Master as a meeting request so the user
-        // sees an actionable notification instead of a silent failure.
-        if (deps.createMeetingRequestFn) {
-          const escalationReason =
-            `Commission ${commissionId} failed to merge: non-.lore/ conflicts detected. ` +
-            `Branch ${commission.branchName} preserved. ` +
-            `Please resolve conflicts manually, then re-dispatch or clean up the branch.`;
-          deps.createMeetingRequestFn({
-            projectName: commission.projectName,
-            workerName: MANAGER_PACKAGE_NAME,
-            reason: escalationReason,
-          }).catch((err: unknown) => {
-            console.warn(
-              `[commission] Failed to create Guild Master meeting request for "${commissionId}":`,
-              errorMessage(err),
-            );
-          });
-        }
-      }
-    } else {
-      // Sync terminal status to integration worktree. For failed,
-      // there's no squash-merge, so the integration copy needs a direct update.
-      await syncStatusToIntegration(commission, finalStatus, reason);
-
-      await preserveAndCleanupWorktree(
-        commissionId as string,
-        commission.worktreeDir,
-        commission.branchName,
-        `Partial work preserved: ${commissionId}`,
-        project?.path,
+      });
+    } catch (err: unknown) {
+      console.warn(
+        `[commission] Git cleanup failed for completed "${commissionId}":`,
+        errorMessage(err),
       );
     }
 
-    // Remove from active Map
-    activeCommissions.delete(commissionId as string);
-
-    // Update state file with final status. Skip when cleanMergeCompleted:
-    // the state file was already deleted above (artifact on the integration
-    // worktree is the source of truth for completed commissions).
-    if (!cleanMergeCompleted) {
-      writeStateFile(commissionId, {
+    if (mergeSucceeded) {
+      deps.eventBus.emit({
+        type: "commission_status",
         commissionId: commissionId as string,
+        status: "completed",
+        reason,
+      });
+
+      await syncStatusToIntegration(commission, "completed", reason);
+      try {
+        await git.removeWorktree(project.path, commission.worktreeDir);
+        await git.deleteBranch(project.path, commission.branchName);
+      } catch (err: unknown) {
+        console.warn(
+          `[commission] Worktree/branch cleanup failed for "${commissionId}":`,
+          errorMessage(err),
+        );
+      }
+      // Remove the state file: the artifact on the integration worktree is now
+      // the source of truth. recoverCommissions() handles missing files gracefully.
+      await fs.unlink(commissionStatePath(commissionId)).catch(() => {});
+      activeCommissions.delete(commissionId as string);
+      console.log(`[commission] "${commissionId}" squash-merged to claude and cleaned up`);
+
+      await checkDependencyTransitions(commission.projectName);
+      enqueueAutoDispatch();
+      return;
+    }
+
+    // Merge failed due to non-.lore/ conflicts. Transition to failed,
+    // preserve branch for manual resolution.
+    const conflictReason = "Squash-merge conflict on non-.lore/ files";
+    commission.status = "failed";
+
+    // completed -> failed is not in the state machine because completed
+    // is terminal. Squash-merge failure after completion is a special case
+    // handled directly.
+    try {
+      await updateCommissionStatus(commission.worktreeDir, commissionId, "failed");
+      await appendTimelineEntry(
+        commission.worktreeDir,
+        commissionId,
+        "status_failed",
+        conflictReason,
+      );
+    } catch (updateErr: unknown) {
+      console.error(
+        `[commission] Failed to update status after merge conflict for "${commissionId}":`,
+        errorMessage(updateErr),
+      );
+    }
+
+    await cleanupAfterTermination(commissionId, commission, "failed", conflictReason);
+
+    // Escalate conflict to Guild Master as a meeting request so the user
+    // sees an actionable notification instead of a silent failure.
+    if (deps.createMeetingRequestFn) {
+      const escalationReason =
+        `Commission ${commissionId} failed to merge: non-.lore/ conflicts detected. ` +
+        `Branch ${commission.branchName} preserved. ` +
+        `Please resolve conflicts manually, then re-dispatch or clean up the branch.`;
+      deps.createMeetingRequestFn({
         projectName: commission.projectName,
-        workerName: commission.workerName,
-        status: commission.status,
+        workerName: MANAGER_PACKAGE_NAME,
+        reason: escalationReason,
       }).catch((err: unknown) => {
-        console.error(
-          `[commission-session] Failed to write state file for ${commissionId}:`,
+        console.warn(
+          `[commission] Failed to create Guild Master meeting request for "${commissionId}":`,
           errorMessage(err),
         );
       });
     }
-
-    // Artifacts may have changed on the integration worktree (squash-merge
-    // brought new files, or failure removed expected outputs). Check if any
-    // blocked commissions can now proceed, or pending ones lost a dependency.
-    await checkDependencyTransitions(commission.projectName);
-
-    // Capacity freed: check if pending commissions can now dispatch
-    enqueueAutoDispatch();
   }
 
   /**
@@ -1543,7 +1491,7 @@ projectName: ${projectName}
       : `Session error: ${String(error)}`;
 
     console.error(`[commission] "${commissionId}" ${reason}`);
-    await handleFailure(commissionId as string, commission, reason);
+    await terminateActiveCommission(commissionId, commission, "failed", reason);
   }
 
   async function cancelCommission(
@@ -1567,61 +1515,7 @@ projectName: ${projectName}
     // Signal the in-process SDK session to stop
     commission.abortController.abort();
 
-    // Transition to cancelled (artifact is in activity worktree).
-    // Wrap in try/catch: handleCompletion may race and transition first.
-    try {
-      await transitionCommission(
-        commission.worktreeDir,
-        commissionId,
-        previousStatus,
-        "cancelled",
-        reason,
-      );
-    } catch (err: unknown) {
-      console.warn(
-        `[commission] transition to cancelled raced with completion handler for "${commissionId}": ${errorMessage(err)}`,
-      );
-    }
-
-    deps.eventBus.emit({
-      type: "commission_status",
-      commissionId: commissionId as string,
-      status: "cancelled",
-      reason,
-    });
-
-    // Sync terminal status to integration worktree before cleanup
-    await syncStatusToIntegration(commission, "cancelled", reason);
-
-    await preserveAndCleanupWorktree(
-      commissionId as string,
-      commission.worktreeDir,
-      commission.branchName,
-      `Partial work preserved on cancellation: ${commissionId}`,
-      findProject(commission.projectName)?.path,
-    );
-
-    // Remove from active Map
-    activeCommissions.delete(commissionId as string);
-
-    // Update state file
-    await writeStateFile(commissionId, {
-      commissionId: commissionId as string,
-      projectName: commission.projectName,
-      workerName: commission.workerName,
-      status: "cancelled",
-    }).catch((err: unknown) => {
-      console.error(
-        `[commission-session] Failed to write state file for ${commissionId}:`,
-        errorMessage(err),
-      );
-    });
-
-    // Cancellation may have removed artifacts that other commissions depend on.
-    await checkDependencyTransitions(commission.projectName);
-
-    // Capacity freed: check if pending commissions can now dispatch
-    enqueueAutoDispatch();
+    await terminateActiveCommission(commissionId, commission, "cancelled", reason, previousStatus);
   }
 
   async function redispatchCommission(
