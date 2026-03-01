@@ -186,3 +186,20 @@ export function statusToGem(status: string): GemStatus {
 export function isNodeError(err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && "code" in err;
 }
+
+// -- Chat / SSE message types --
+
+export interface ToolUseEntry {
+  id?: string;
+  name: string;
+  input?: unknown;
+  output?: string;
+  status: "running" | "complete";
+}
+
+export type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  toolUses?: ToolUseEntry[];
+};

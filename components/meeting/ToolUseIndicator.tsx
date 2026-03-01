@@ -1,16 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import type { ToolUseEntry } from "@/lib/types";
 import GemIndicator from "@/components/ui/GemIndicator";
 import styles from "./ToolUseIndicator.module.css";
 
-export interface ToolUseEntry {
-  id?: string;
-  name: string;
-  input?: unknown;
-  output?: string;
-  status: "running" | "complete";
-}
+export type { ToolUseEntry };
 
 interface ToolUseIndicatorProps {
   tool: ToolUseEntry;
