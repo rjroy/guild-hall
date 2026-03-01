@@ -1,21 +1,27 @@
+/* eslint-disable @typescript-eslint/require-await */
+
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { asCommissionId } from "@/daemon/types";
-import type { CommissionId } from "@/daemon/types";
+import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import {
-  recoverDeadCommission,
   recoverCommissions,
   type RecoveryDeps,
 } from "@/daemon/services/commission-recovery";
 import {
   commissionArtifactPath,
-  readCommissionStatus,
-  readActivityTimeline,
 } from "@/daemon/services/commission-artifact-helpers";
-import { integrationWorktreePath } from "@/lib/paths";
-import type { SystemEvent } from "@/daemon/services/event-bus";
+import { integrationWorktreePath, activityWorktreeRoot } from "@/lib/paths";
+import { ActivityMachine } from "@/daemon/lib/activity-state-machine";
+import type { ArtifactOps } from "@/daemon/lib/activity-state-machine";
+import type { ActiveCommissionEntry } from "@/daemon/services/commission-handlers";
+import {
+  COMMISSION_TRANSITIONS,
+  COMMISSION_ACTIVE_STATES,
+  COMMISSION_CLEANUP_STATES,
+} from "@/daemon/services/commission-handlers";
 
 let tmpDir: string;
 let ghHome: string;
@@ -67,143 +73,81 @@ projectName: test-project
   await fs.writeFile(artifactPath, content, "utf-8");
 }
 
-function createMockDeps(overrides: Partial<RecoveryDeps> = {}): RecoveryDeps & {
-  emitted: SystemEvent[];
-  gitCalls: Array<{ method: string; args: unknown[] }>;
-  stateWrites: Array<{ id: string; data: Record<string, unknown> }>;
+// -- Machine test infrastructure --
+
+type TransitionRecord = {
+  id: string;
+  from: CommissionStatus;
+  to: CommissionStatus;
+  reason: string;
+};
+
+/**
+ * Creates a real ActivityMachine with no-op artifact ops and tracking enter
+ * handlers that record transitions. The enter-failed handler is intentionally
+ * a no-op because the real handler has filesystem side effects we don't want
+ * in these tests. The point is to verify that recovery correctly calls
+ * machine.register() and machine.transition().
+ */
+function createTestMachine(): {
+  machine: ActivityMachine<CommissionStatus, CommissionId, ActiveCommissionEntry>;
+  trackedEntries: Map<CommissionId, ActiveCommissionEntry>;
+  transitions: TransitionRecord[];
 } {
-  const emitted: SystemEvent[] = [];
-  const gitCalls: Array<{ method: string; args: unknown[] }> = [];
-  const stateWrites: Array<{ id: string; data: Record<string, unknown> }> = [];
+  const transitions: TransitionRecord[] = [];
+
+  const artifactOps: ArtifactOps<CommissionId, CommissionStatus> = {
+    writeStatusAndTimeline: async () => {},
+    resolveBasePath: () => integrationPath,
+  };
+
+  const machine = new ActivityMachine<CommissionStatus, CommissionId, ActiveCommissionEntry>({
+    activityType: "commission",
+    transitions: COMMISSION_TRANSITIONS,
+    cleanupStates: COMMISSION_CLEANUP_STATES,
+    activeStates: COMMISSION_ACTIVE_STATES,
+    handlers: {
+      enter: {
+        // Track transitions to failed via the enter handler
+        failed: async (ctx) => {
+          transitions.push({
+            id: ctx.id as string,
+            from: ctx.sourceState as CommissionStatus,
+            to: ctx.targetState,
+            reason: ctx.reason,
+          });
+          return undefined;
+        },
+      },
+    },
+    artifactOps,
+    extractProjectName: (entry) => entry.projectName,
+  });
+
+  const trackedEntries = new Map<CommissionId, ActiveCommissionEntry>();
+
+  return { machine, trackedEntries, transitions };
+}
+
+function createMockDeps(
+  overrides: Partial<RecoveryDeps> = {},
+): RecoveryDeps & {
+  transitions: TransitionRecord[];
+  trackedEntries: Map<CommissionId, ActiveCommissionEntry>;
+} {
+  const { machine, trackedEntries, transitions } = createTestMachine();
 
   return {
     ghHome,
-    git: {
-      /* eslint-disable @typescript-eslint/require-await */
-      async commitAll(...args) {
-        gitCalls.push({ method: "commitAll", args });
-        return false;
-      },
-      async removeWorktree(...args) {
-        gitCalls.push({ method: "removeWorktree", args });
-      },
-      /* eslint-enable @typescript-eslint/require-await */
-    },
     config: {
       projects: [{ name: "test-project", path: projectPath }],
     },
-    eventBus: {
-      emit(event: SystemEvent) { emitted.push(event); },
-    },
-    activeCommissions: new Map(),
-    // eslint-disable-next-line @typescript-eslint/require-await
-    writeStateFile: async (id, data) => {
-      stateWrites.push({ id: id as string, data });
-    },
-    emitted,
-    gitCalls,
-    stateWrites,
+    machine,
+    trackedEntries,
+    transitions,
     ...overrides,
   };
 }
-
-describe("recoverDeadCommission", () => {
-  const commissionId = asCommissionId("commission-researcher-20260221-143000");
-
-  test("transitions commission to failed in integration worktree", async () => {
-    await writeCommissionArtifact(integrationPath, commissionId, "in_progress");
-    const deps = createMockDeps();
-
-    await recoverDeadCommission(
-      deps, commissionId, "test-project", "", "", projectPath,
-    );
-
-    const status = await readCommissionStatus(integrationPath, commissionId);
-    expect(status).toBe("failed");
-
-    const timeline = await readActivityTimeline(integrationPath, commissionId);
-    const last = timeline[timeline.length - 1];
-    expect(last.event).toBe("status_failed");
-    expect(last.reason).toContain("Recovery:");
-  });
-
-  test("emits commission_status event", async () => {
-    await writeCommissionArtifact(integrationPath, commissionId, "dispatched");
-    const deps = createMockDeps();
-
-    await recoverDeadCommission(
-      deps, commissionId, "test-project", "", "", projectPath,
-    );
-
-    expect(deps.emitted).toHaveLength(1);
-    expect(deps.emitted[0].type).toBe("commission_status");
-  });
-
-  test("writes state file with failed status", async () => {
-    await writeCommissionArtifact(integrationPath, commissionId, "dispatched");
-    const deps = createMockDeps();
-
-    await recoverDeadCommission(
-      deps, commissionId, "test-project", "", "", projectPath,
-    );
-
-    expect(deps.stateWrites).toHaveLength(1);
-    expect(deps.stateWrites[0].data.status).toBe("failed");
-  });
-
-  test("commits partial work when worktree exists", async () => {
-    await writeCommissionArtifact(integrationPath, commissionId, "in_progress");
-    const worktreeDir = path.join(tmpDir, "worktree");
-    await fs.mkdir(worktreeDir, { recursive: true });
-
-    const deps = createMockDeps();
-    await recoverDeadCommission(
-      deps, commissionId, "test-project", worktreeDir, "branch-name", projectPath,
-    );
-
-    const commitCall = deps.gitCalls.find((c) => c.method === "commitAll");
-    expect(commitCall).toBeDefined();
-    expect(commitCall!.args[0]).toBe(worktreeDir);
-  });
-
-  test("removes worktree when it exists", async () => {
-    await writeCommissionArtifact(integrationPath, commissionId, "in_progress");
-    const worktreeDir = path.join(tmpDir, "worktree");
-    await fs.mkdir(worktreeDir, { recursive: true });
-
-    const deps = createMockDeps();
-    await recoverDeadCommission(
-      deps, commissionId, "test-project", worktreeDir, "branch-name", projectPath,
-    );
-
-    const removeCall = deps.gitCalls.find((c) => c.method === "removeWorktree");
-    expect(removeCall).toBeDefined();
-  });
-
-  test("skips worktree operations when worktreeDir is empty", async () => {
-    await writeCommissionArtifact(integrationPath, commissionId, "dispatched");
-    const deps = createMockDeps();
-
-    await recoverDeadCommission(
-      deps, commissionId, "test-project", "", "", projectPath,
-    );
-
-    expect(deps.gitCalls).toHaveLength(0);
-  });
-
-  test("uses custom reason", async () => {
-    await writeCommissionArtifact(integrationPath, commissionId, "in_progress");
-    const deps = createMockDeps();
-
-    await recoverDeadCommission(
-      deps, commissionId, "test-project", "", "", projectPath, "state lost",
-    );
-
-    const timeline = await readActivityTimeline(integrationPath, commissionId);
-    const last = timeline[timeline.length - 1];
-    expect(last.reason).toContain("state lost");
-  });
-});
 
 describe("recoverCommissions", () => {
   test("returns 0 when no state files exist", async () => {
@@ -212,7 +156,7 @@ describe("recoverCommissions", () => {
     expect(result).toBe(0);
   });
 
-  test("recovers active commissions from state files", async () => {
+  test("recovers active commissions from state files via machine transition", async () => {
     const commissionId = "commission-researcher-20260221-143000";
     const stateDir = path.join(ghHome, "state", "commissions");
     await fs.mkdir(stateDir, { recursive: true });
@@ -233,10 +177,48 @@ describe("recoverCommissions", () => {
     );
 
     const deps = createMockDeps();
+    const result = await recoverCommissions(deps);
+
+    expect(result).toBe(1);
+    // Verify the machine was used: the enter-failed handler was called
+    expect(deps.transitions).toHaveLength(1);
+    expect(deps.transitions[0].from).toBe("dispatched");
+    expect(deps.transitions[0].to).toBe("failed");
+    expect(deps.transitions[0].reason).toContain("Recovery:");
+  });
+
+  test("registers entry in trackedEntries", async () => {
+    const commissionId = "commission-researcher-20260221-143000";
+    const stateDir = path.join(ghHome, "state", "commissions");
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, `${commissionId}.json`),
+      JSON.stringify({
+        commissionId,
+        projectName: "test-project",
+        workerName: "researcher",
+        status: "in_progress",
+        worktreeDir: "/some/path",
+        branchName: "branch-name",
+      }),
+    );
+
+    await writeCommissionArtifact(
+      integrationPath,
+      asCommissionId(commissionId),
+      "in_progress",
+    );
+
+    const deps = createMockDeps();
     await recoverCommissions(deps);
 
-    expect(deps.emitted).toHaveLength(1);
-    expect(deps.emitted[0].type).toBe("commission_status");
+    const cId = asCommissionId(commissionId);
+    expect(deps.trackedEntries.has(cId)).toBe(true);
+    const entry = deps.trackedEntries.get(cId)!;
+    expect(entry.projectName).toBe("test-project");
+    expect(entry.workerName).toBe("researcher");
+    expect(entry.worktreeDir).toBe("/some/path");
+    expect(entry.branchName).toBe("branch-name");
   });
 
   test("skips non-active commissions", async () => {
@@ -255,7 +237,7 @@ describe("recoverCommissions", () => {
     const deps = createMockDeps();
     await recoverCommissions(deps);
 
-    expect(deps.emitted).toHaveLength(0);
+    expect(deps.transitions).toHaveLength(0);
   });
 
   test("skips commissions for unknown projects", async () => {
@@ -274,10 +256,10 @@ describe("recoverCommissions", () => {
     const deps = createMockDeps();
     await recoverCommissions(deps);
 
-    expect(deps.emitted).toHaveLength(0);
+    expect(deps.transitions).toHaveLength(0);
   });
 
-  test("skips commissions already in active map", async () => {
+  test("skips commissions already tracked by machine", async () => {
     const commissionId = "commission-active";
     const stateDir = path.join(ghHome, "state", "commissions");
     await fs.mkdir(stateDir, { recursive: true });
@@ -291,12 +273,131 @@ describe("recoverCommissions", () => {
       }),
     );
 
-    const activeMap = new Map<string, unknown>();
-    activeMap.set(commissionId, {});
+    const deps = createMockDeps();
 
-    const deps = createMockDeps({ activeCommissions: activeMap });
+    // Pre-register the entry in the machine so it appears tracked
+    const cId = asCommissionId(commissionId);
+    const existingEntry: ActiveCommissionEntry = {
+      commissionId: cId,
+      projectName: "test-project",
+      workerName: "researcher",
+      startTime: new Date(),
+      lastActivity: new Date(),
+      status: "dispatched",
+      resultSubmitted: false,
+    };
+    deps.machine.register(cId, existingEntry, "dispatched");
+
     await recoverCommissions(deps);
 
-    expect(deps.emitted).toHaveLength(0);
+    // No transitions should have occurred for the already-tracked entry
+    expect(deps.transitions).toHaveLength(0);
+  });
+
+  test("recovers in_progress commissions and transitions to failed", async () => {
+    const commissionId = "commission-researcher-20260221-150000";
+    const stateDir = path.join(ghHome, "state", "commissions");
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, `${commissionId}.json`),
+      JSON.stringify({
+        commissionId,
+        projectName: "test-project",
+        workerName: "researcher",
+        status: "in_progress",
+      }),
+    );
+
+    await writeCommissionArtifact(
+      integrationPath,
+      asCommissionId(commissionId),
+      "in_progress",
+    );
+
+    const deps = createMockDeps();
+    const result = await recoverCommissions(deps);
+
+    expect(result).toBe(1);
+    expect(deps.transitions).toHaveLength(1);
+    expect(deps.transitions[0].from).toBe("in_progress");
+    expect(deps.transitions[0].to).toBe("failed");
+  });
+
+  test("handles orphaned worktrees (no state file)", async () => {
+    // Create an orphaned worktree directory with commission naming pattern
+    const commissionId = "commission-orphan-20260221-160000";
+    const worktreeRoot = activityWorktreeRoot(ghHome, "test-project");
+    const orphanDir = path.join(worktreeRoot, commissionId);
+    await fs.mkdir(orphanDir, { recursive: true });
+
+    await writeCommissionArtifact(
+      integrationPath,
+      asCommissionId(commissionId),
+      "in_progress",
+    );
+
+    const deps = createMockDeps();
+    const result = await recoverCommissions(deps);
+
+    expect(result).toBe(1);
+    expect(deps.transitions).toHaveLength(1);
+    expect(deps.transitions[0].from).toBe("in_progress");
+    expect(deps.transitions[0].to).toBe("failed");
+    expect(deps.transitions[0].reason).toContain("state lost");
+
+    // Verify the orphaned entry is tracked
+    const cId = asCommissionId(commissionId);
+    expect(deps.trackedEntries.has(cId)).toBe(true);
+    const entry = deps.trackedEntries.get(cId)!;
+    expect(entry.workerName).toBe("unknown");
+    expect(entry.worktreeDir).toBe(orphanDir);
+  });
+
+  test("skips orphaned worktrees with state files", async () => {
+    // Create a state file AND a worktree directory. The worktree should
+    // be handled by the state file path, not the orphan scanner.
+    const commissionId = "commission-researcher-20260221-170000";
+    const stateDir = path.join(ghHome, "state", "commissions");
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, `${commissionId}.json`),
+      JSON.stringify({
+        commissionId,
+        projectName: "test-project",
+        workerName: "researcher",
+        status: "in_progress",
+      }),
+    );
+
+    const worktreeRoot = activityWorktreeRoot(ghHome, "test-project");
+    await fs.mkdir(path.join(worktreeRoot, commissionId), { recursive: true });
+
+    await writeCommissionArtifact(
+      integrationPath,
+      asCommissionId(commissionId),
+      "in_progress",
+    );
+
+    const deps = createMockDeps();
+    const result = await recoverCommissions(deps);
+
+    // Should recover exactly once (via state file path), not twice
+    expect(result).toBe(1);
+    expect(deps.transitions).toHaveLength(1);
+  });
+
+  test("skips corrupt state files", async () => {
+    const stateDir = path.join(ghHome, "state", "commissions");
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, "commission-corrupt.json"),
+      "not valid json{{{",
+    );
+
+    const deps = createMockDeps();
+    const result = await recoverCommissions(deps);
+
+    expect(result).toBe(0);
+    expect(deps.transitions).toHaveLength(0);
   });
 });

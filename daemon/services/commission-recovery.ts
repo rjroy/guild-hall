@@ -3,11 +3,13 @@
  *
  * Handles two recovery scenarios on daemon startup:
  *   1. State file exists for an active commission (dispatched/in_progress):
- *      transition to failed, commit partial work, clean up worktree,
- *      preserve branch.
+ *      register at the stored status, then transition to failed via the
+ *      machine. The enter-failed handler runs all side effects (commit
+ *      partial work, clean up worktree, sync status, write state file,
+ *      emit event, fire cleanup hooks).
  *   2. Orphaned worktree (worktree exists with commission naming pattern
- *      but no corresponding state file): commit partial work, transition
- *      to failed via integration worktree, preserve branch.
+ *      but no corresponding state file): build a synthetic entry,
+ *      register at in_progress, transition to failed through the machine.
  *
  * In-process sessions don't survive daemon restarts, so all active
  * commissions are treated as dead on recovery.
@@ -15,32 +17,24 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { CommissionId } from "@/daemon/types";
+import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import { asCommissionId } from "@/daemon/types";
 import type { AppConfig } from "@/lib/types";
 import { isNodeError } from "@/lib/types";
 import {
-  integrationWorktreePath,
   activityWorktreeRoot,
   commissionBranchName,
 } from "@/lib/paths";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import {
-  updateCommissionStatus,
-  appendTimelineEntry,
-} from "./commission-artifact-helpers";
-import type { EventBus } from "./event-bus";
+import type { ActivityMachine } from "@/daemon/lib/activity-state-machine";
+import type { ActiveCommissionEntry } from "./commission-handlers";
+import { COMMISSION_TRANSITIONS } from "./commission-handlers";
 
 export interface RecoveryDeps {
   ghHome: string;
-  git: {
-    commitAll(worktreePath: string, message: string): Promise<boolean>;
-    removeWorktree(repoPath: string, worktreePath: string): Promise<void>;
-  };
   config: Pick<AppConfig, "projects">;
-  eventBus: Pick<EventBus, "emit">;
-  activeCommissions: ReadonlyMap<string, unknown>;
-  writeStateFile: (id: CommissionId, data: Record<string, unknown>) => Promise<void>;
+  machine: ActivityMachine<CommissionStatus, CommissionId, ActiveCommissionEntry>;
+  trackedEntries: Map<CommissionId, ActiveCommissionEntry>;
 }
 
 export async function recoverCommissions(deps: RecoveryDeps): Promise<number> {
@@ -62,6 +56,7 @@ export async function recoverCommissions(deps: RecoveryDeps): Promise<number> {
   }
 
   const stateJsonFiles = stateFiles.filter((f) => f.endsWith(".json"));
+  let recovered = 0;
 
   for (const file of stateJsonFiles) {
     let state: {
@@ -100,21 +95,75 @@ export async function recoverCommissions(deps: RecoveryDeps): Promise<number> {
       continue;
     }
 
-    // Skip commissions already in the active Map (defensive guard)
-    if (deps.activeCommissions.has(state.commissionId)) {
+    const cId = asCommissionId(state.commissionId);
+
+    // Skip commissions already tracked by the machine (defensive guard)
+    if (deps.machine.isTracked(cId)) {
       continue;
     }
 
-    const cId = asCommissionId(state.commissionId);
     const worktreeDir = state.worktreeDir ?? "";
     const branchName = state.branchName ?? "";
+
+    // Validate status against the transition graph before casting
+    if (!(state.status in COMMISSION_TRANSITIONS)) {
+      console.warn(
+        `[commission-recovery] Commission "${state.commissionId}" has unknown status "${state.status}", skipping.`,
+      );
+      continue;
+    }
+    const recoveredStatus = state.status as CommissionStatus;
+
+    // Build an ActiveCommissionEntry from state file data
+    const now = new Date();
+    const entry: ActiveCommissionEntry = {
+      commissionId: cId,
+      projectName: state.projectName,
+      workerName: state.workerName,
+      startTime: now,
+      lastActivity: now,
+      status: recoveredStatus,
+      resultSubmitted: false,
+      worktreeDir: worktreeDir || undefined,
+      branchName: branchName || undefined,
+    };
 
     // In-process sessions don't survive daemon restarts. Any commission
     // that was dispatched or in_progress when the daemon stopped is dead.
     console.log(
       `[commission-recovery] Commission "${state.commissionId}" was ${state.status} when daemon stopped, transitioning to failed.`,
     );
-    await recoverDeadCommission(deps, cId, state.projectName, worktreeDir, branchName, project.path);
+
+    // Register at the stored status, then transition to failed.
+    // The enter-failed handler handles all side effects: commit partial
+    // work, remove worktree, sync status to integration, write state
+    // file, emit event. Cleanup hooks fire after (enabling auto-dispatch).
+    deps.trackedEntries.set(cId, entry);
+    deps.machine.register(cId, entry, recoveredStatus);
+
+    try {
+      const result = await deps.machine.transition(
+        cId,
+        recoveredStatus,
+        "failed",
+        `Recovery: process lost on restart`,
+      );
+      if (result.outcome === "skipped") {
+        console.warn(
+          `[commission-recovery] Transition skipped for "${state.commissionId}": ${result.reason}`,
+        );
+      }
+    } catch (err: unknown) {
+      console.error(
+        `[commission-recovery] Failed to transition "${state.commissionId}" to failed:`,
+        errorMessage(err),
+      );
+      // Clean up phantom entry to prevent permanently invisible commission
+      deps.trackedEntries.delete(cId);
+      deps.machine.forget(cId);
+    }
+
+    recovered++;
   }
 
   // -- Scan for orphaned worktrees --
@@ -133,21 +182,23 @@ export async function recoverCommissions(deps: RecoveryDeps): Promise<number> {
       continue;
     }
 
-    for (const entry of entries) {
+    for (const dirEntry of entries) {
       // Commission worktrees start with "commission-"
-      if (!entry.startsWith("commission-")) continue;
+      if (!dirEntry.startsWith("commission-")) continue;
 
       // The entry name IS the commission ID (commissionWorktreePath uses
       // the raw commissionId which already has the "commission-" prefix).
-      const commissionId = entry;
+      const commissionId = dirEntry;
 
       // Skip if there's a state file (already handled above)
       if (stateFileCommissionIds.has(commissionId)) continue;
 
-      // Skip if already in active Map
-      if (deps.activeCommissions.has(commissionId)) continue;
+      const cId = asCommissionId(commissionId);
 
-      const orphanWorktreeDir = path.join(worktreeRoot, entry);
+      // Skip if already tracked by the machine
+      if (deps.machine.isTracked(cId)) continue;
+
+      const orphanWorktreeDir = path.join(worktreeRoot, dirEntry);
 
       // Verify it's a directory
       try {
@@ -161,119 +212,57 @@ export async function recoverCommissions(deps: RecoveryDeps): Promise<number> {
         `[commission-recovery] Found orphaned worktree "${commissionId}" for project "${project.name}" (no state file), transitioning to failed.`,
       );
 
-      const cId = asCommissionId(commissionId);
       const branchName = commissionBranchName(commissionId);
 
-      await recoverDeadCommission(deps, cId, project.name, orphanWorktreeDir, branchName, project.path, "state lost");
+      // Build a synthetic entry for the orphaned worktree
+      const now = new Date();
+      const entry: ActiveCommissionEntry = {
+        commissionId: cId,
+        projectName: project.name,
+        workerName: "unknown",
+        startTime: now,
+        lastActivity: now,
+        status: "in_progress",
+        resultSubmitted: false,
+        worktreeDir: orphanWorktreeDir,
+        branchName,
+      };
+
+      // Register at in_progress and transition to failed.
+      // The enter-failed handler's worktree-missing guard handles
+      // both present and absent worktrees.
+      deps.trackedEntries.set(cId, entry);
+      deps.machine.register(cId, entry, "in_progress");
+
+      try {
+        const result = await deps.machine.transition(
+          cId,
+          "in_progress",
+          "failed",
+          "Recovery: state lost",
+        );
+        if (result.outcome === "skipped") {
+          console.warn(
+            `[commission-recovery] Transition skipped for orphan "${commissionId}": ${result.reason}`,
+          );
+        }
+      } catch (err: unknown) {
+        console.error(
+          `[commission-recovery] Failed to transition orphan "${commissionId}" to failed:`,
+          errorMessage(err),
+        );
+        // Clean up phantom entry to prevent permanently invisible commission
+        deps.trackedEntries.delete(cId);
+        deps.machine.forget(cId);
+      }
+
+      recovered++;
     }
   }
 
-  if (stateJsonFiles.length === 0) {
+  if (recovered === 0) {
     console.log("[commission-recovery] No commissions to recover.");
   }
 
-  return 0;
-}
-
-/**
- * Recovery helper for dead commissions (lost on restart or orphaned worktree).
- * Commits any uncommitted changes in the worktree, transitions the
- * commission to failed in the integration worktree, cleans up the
- * worktree, and preserves the branch.
- */
-export async function recoverDeadCommission(
-  deps: RecoveryDeps,
-  commissionId: CommissionId,
-  projectName: string,
-  worktreeDir: string,
-  branchName: string,
-  projectPath: string,
-  reason = "process lost on restart",
-): Promise<void> {
-  const iPath = integrationWorktreePath(deps.ghHome, projectName);
-
-  // Commit any uncommitted changes to preserve partial results
-  if (worktreeDir) {
-    try {
-      const worktreeExists = await fs.access(worktreeDir).then(() => true, () => false);
-      if (worktreeExists) {
-        const hadChanges = await deps.git.commitAll(
-          worktreeDir,
-          `Partial work preserved on recovery: ${commissionId}`,
-        );
-        if (hadChanges) {
-          console.log(
-            `[commission-recovery] Committed partial results for "${commissionId}" to branch "${branchName}".`,
-          );
-        } else {
-          console.log(
-            `[commission-recovery] No uncommitted changes for "${commissionId}".`,
-          );
-        }
-      }
-    } catch (err: unknown) {
-      console.warn(
-        `[commission-recovery] Failed to commit partial results for "${commissionId}":`,
-        errorMessage(err),
-      );
-    }
-  }
-
-  // Transition to failed in the integration worktree
-  try {
-    await updateCommissionStatus(iPath, commissionId, "failed");
-    await appendTimelineEntry(
-      iPath,
-      commissionId,
-      "status_failed",
-      `Recovery: ${reason}`,
-    );
-    console.log(
-      `[commission-recovery] Transitioned "${commissionId}" to failed in integration worktree.`,
-    );
-  } catch (err: unknown) {
-    console.warn(
-      `[commission-recovery] Failed to update integration worktree for "${commissionId}":`,
-      errorMessage(err),
-    );
-  }
-
-  // Remove the activity worktree (branch is preserved)
-  if (worktreeDir) {
-    try {
-      const worktreeExists = await fs.access(worktreeDir).then(() => true, () => false);
-      if (worktreeExists) {
-        await deps.git.removeWorktree(projectPath, worktreeDir);
-        console.log(
-          `[commission-recovery] Removed worktree for "${commissionId}".`,
-        );
-      }
-    } catch (err: unknown) {
-      console.warn(
-        `[commission-recovery] Failed to remove worktree for "${commissionId}":`,
-        errorMessage(err),
-      );
-    }
-  }
-
-  // Update state file to reflect the failed status
-  try {
-    await deps.writeStateFile(commissionId, {
-      commissionId: commissionId as string,
-      projectName,
-      status: "failed",
-    });
-  } catch (err: unknown) {
-    console.warn(
-      `[commission-recovery] Failed to update state file for "${commissionId}":`,
-      errorMessage(err),
-    );
-  }
-
-  deps.eventBus.emit({
-    type: "commission_status",
-    commissionId: commissionId as string,
-    status: "failed",
-    reason: `Recovery: ${reason}`,
-  });
+  return recovered;
 }

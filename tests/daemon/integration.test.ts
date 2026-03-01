@@ -181,13 +181,36 @@ function makeMockActivateFn() {
 
 // -- Mock GitOps --
 
+/** Recursively copies a directory tree. */
+async function copyDir(src: string, dest: string): Promise<void> {
+  const entries = await fs.readdir(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      await fs.mkdir(destPath, { recursive: true });
+      await copyDir(srcPath, destPath);
+    } else {
+      await fs.copyFile(srcPath, destPath);
+    }
+  }
+}
+
+/**
+ * Creates a mock GitOps that simulates squash-merge by copying .lore/
+ * from the last created worktree to the integration path. This mirrors
+ * the real git behavior where squashMergeNoCommit stages the source
+ * branch's content in the target working tree.
+ */
 function createMockGitOps(): GitOps {
+  const worktreePaths: string[] = [];
   return {
     createBranch: () => Promise.resolve(),
     branchExists: () => Promise.resolve(false),
     deleteBranch: () => Promise.resolve(),
     createWorktree: async (_repoPath, worktreePath) => {
       await fs.mkdir(worktreePath, { recursive: true });
+      worktreePaths.push(worktreePath);
     },
     removeWorktree: () => Promise.resolve(),
     configureSparseCheckout: () => Promise.resolve(),
@@ -209,7 +232,21 @@ function createMockGitOps(): GitOps {
     revParse: () => Promise.resolve("abc"),
     rebaseOnto: () => Promise.resolve(),
     merge: async () => {},
-    squashMergeNoCommit: () => Promise.resolve(true),
+    squashMergeNoCommit: async (integrationPath) => {
+      // Simulate merge by copying .lore/ from the last worktree to integration
+      const lastWorktree = worktreePaths[worktreePaths.length - 1];
+      if (lastWorktree) {
+        const loreSrc = path.join(lastWorktree, ".lore");
+        const loreDest = path.join(integrationPath, ".lore");
+        try {
+          await fs.mkdir(loreDest, { recursive: true });
+          await copyDir(loreSrc, loreDest);
+        } catch {
+          // .lore may not exist in some test scenarios
+        }
+      }
+      return true;
+    },
     listConflictedFiles: () => Promise.resolve([]),
     resolveConflictsTheirs: () => Promise.resolve(),
     mergeAbort: () => Promise.resolve(),
