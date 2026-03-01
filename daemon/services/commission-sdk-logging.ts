@@ -7,12 +7,12 @@
  */
 
 /** Truncates a string to a maximum length, appending "..." if truncated. */
-export function truncateSdkStr(s: string, max = 300): string {
+function truncateSdkStr(s: string, max = 300): string {
   return s.length > max ? s.slice(0, max) + "..." : s;
 }
 
 /** Safely extract a string property from an unknown record. */
-export function sdkStr(obj: Record<string, unknown>, key: string, fallback = ""): string {
+function sdkStr(obj: Record<string, unknown>, key: string, fallback = ""): string {
   const val = obj[key];
   return typeof val === "string" ? val : (typeof val === "number" ? String(val) : fallback);
 }

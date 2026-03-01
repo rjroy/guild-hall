@@ -37,7 +37,7 @@ export function isTerminalStatus(status: CommissionStatus): boolean {
  * Validates that a status transition is allowed by the state machine.
  * Throws an error with a descriptive message if the transition is invalid.
  */
-export function validateTransition(
+function validateTransition(
   from: CommissionStatus,
   to: CommissionStatus,
 ): void {

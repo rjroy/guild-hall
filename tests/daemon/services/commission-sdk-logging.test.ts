@@ -1,51 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import {
-  truncateSdkStr,
-  sdkStr,
-  logSdkMessage,
-} from "@/daemon/services/commission-sdk-logging";
-
-describe("truncateSdkStr", () => {
-  test("returns short strings unchanged", () => {
-    expect(truncateSdkStr("hello")).toBe("hello");
-  });
-
-  test("truncates strings exceeding default max (300)", () => {
-    const long = "x".repeat(400);
-    const result = truncateSdkStr(long);
-    expect(result).toBe("x".repeat(300) + "...");
-  });
-
-  test("truncates at custom max", () => {
-    expect(truncateSdkStr("abcdef", 3)).toBe("abc...");
-  });
-
-  test("returns exact-length strings unchanged", () => {
-    expect(truncateSdkStr("abc", 3)).toBe("abc");
-  });
-});
-
-describe("sdkStr", () => {
-  test("extracts string values", () => {
-    expect(sdkStr({ key: "value" }, "key")).toBe("value");
-  });
-
-  test("converts numbers to strings", () => {
-    expect(sdkStr({ count: 42 }, "count")).toBe("42");
-  });
-
-  test("returns fallback for missing keys", () => {
-    expect(sdkStr({}, "missing", "default")).toBe("default");
-  });
-
-  test("returns empty string fallback by default", () => {
-    expect(sdkStr({}, "missing")).toBe("");
-  });
-
-  test("returns fallback for non-string, non-number values", () => {
-    expect(sdkStr({ obj: { nested: true } }, "obj", "nope")).toBe("nope");
-  });
-});
+import { logSdkMessage } from "@/daemon/services/commission-sdk-logging";
 
 describe("logSdkMessage", () => {
   function collect(msg: unknown): string[] {
@@ -147,6 +101,18 @@ describe("logSdkMessage", () => {
       },
     });
     expect(logs).toEqual(["[msg 1] assistant/image"]);
+  });
+
+  test("truncates long text content", () => {
+    const longText = "x".repeat(400);
+    const logs = collect({
+      type: "assistant",
+      message: {
+        content: [{ type: "text", text: longText }],
+      },
+    });
+    expect(logs[0]).toContain("x".repeat(300) + "...");
+    expect(logs[0]).not.toContain("x".repeat(301));
   });
 
   test("uses message index in prefix", () => {

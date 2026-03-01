@@ -12,7 +12,6 @@
  * Stateless helpers have been extracted to sibling modules:
  * - commission-state-machine.ts: status transitions and validation
  * - commission-sdk-logging.ts: SDK message formatting
- * - commission-context-builders.ts: activation context and query options
  * - commission-capacity.ts: concurrent limit checks
  * - commission-recovery.ts: crash recovery on daemon startup
  */
@@ -59,14 +58,10 @@ import {
 import { buildManagerContext } from "./manager-context";
 import { logSdkMessage } from "./commission-sdk-logging";
 import {
-  buildCommissionActivationContext,
-  buildCommissionQueryOptions,
-} from "./commission-context-builders";
-import {
   isTerminalStatus,
   transitionCommission,
 } from "./commission-state-machine";
-export { validateTransition, transitionCommission } from "./commission-state-machine";
+export { transitionCommission } from "./commission-state-machine";
 import { isAtCapacity } from "./commission-capacity";
 import { recoverCommissions as recoverCommissionsImpl } from "./commission-recovery";
 
@@ -781,16 +776,22 @@ export function createCommissionSession(
     }
 
     // 4. Build activation context
-    const activationContext = buildCommissionActivationContext(
-      commissionId as string,
-      prompt,
-      commissionDeps,
-      workerMeta,
-      resolvedTools,
-      projectPath,
-      commission.worktreeDir,
+    const activationContext: ActivationContext = {
+      posture: workerMeta.posture,
       injectedMemory,
-    );
+      resolvedTools,
+      resourceDefaults: {
+        maxTurns: workerMeta.resourceDefaults?.maxTurns,
+        maxBudgetUsd: workerMeta.resourceDefaults?.maxBudgetUsd,
+      },
+      commissionContext: {
+        commissionId: commissionId as string,
+        prompt,
+        dependencies: commissionDeps,
+      },
+      projectPath,
+      workingDirectory: commission.worktreeDir,
+    };
 
     // Inject manager context if this is the Guild Master
     if (isManager) {
@@ -819,12 +820,31 @@ export function createCommissionSession(
     log(`worker activated. systemPrompt length=${activation.systemPrompt.length}`);
 
     // 6. Build SDK query options
-    const options = buildCommissionQueryOptions(
-      activation,
-      commission.worktreeDir,
-      resourceOverrides,
-      abortController,
-    );
+    const maxTurns =
+      resourceOverrides?.maxTurns ??
+      activation.resourceBounds.maxTurns;
+    const maxBudgetUsd =
+      resourceOverrides?.maxBudgetUsd ??
+      activation.resourceBounds.maxBudgetUsd;
+
+    const mcpServers: Record<string, unknown> = {};
+    for (const server of activation.tools.mcpServers) {
+      mcpServers[server.name] = server;
+    }
+
+    const options: Record<string, unknown> = {
+      systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
+      cwd: commission.worktreeDir,
+      mcpServers,
+      allowedTools: activation.tools.allowedTools,
+      ...(activation.model ? { model: activation.model } : {}),
+      ...(maxTurns ? { maxTurns } : {}),
+      ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
+      permissionMode: "dontAsk",
+      settingSources: ["local", "project", "user"] as string[],
+      includePartialMessages: false,
+      ...(abortController ? { abortController } : {}),
+    };
     const maxTurnsLog = typeof options.maxTurns === "number" ? options.maxTurns : "unset";
     log(`SDK options: maxTurns=${maxTurnsLog}, cwd="${String(options.cwd)}"`);
 

@@ -7,7 +7,6 @@ import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import {
   VALID_TRANSITIONS,
   isTerminalStatus,
-  validateTransition,
   transitionCommission,
 } from "@/daemon/services/commission-state-machine";
 import {
@@ -100,87 +99,6 @@ describe("isTerminalStatus", () => {
   });
   test("in_progress is not terminal", () => {
     expect(isTerminalStatus("in_progress")).toBe(false);
-  });
-});
-
-// -- validateTransition --
-
-describe("validateTransition", () => {
-  describe("valid transitions", () => {
-    const validEdges: [CommissionStatus, CommissionStatus][] = [
-      ["pending", "dispatched"],
-      ["pending", "blocked"],
-      ["pending", "cancelled"],
-      ["blocked", "pending"],
-      ["blocked", "cancelled"],
-      ["dispatched", "in_progress"],
-      ["dispatched", "failed"],
-      ["in_progress", "completed"],
-      ["in_progress", "failed"],
-      ["in_progress", "cancelled"],
-    ];
-
-    for (const [from, to] of validEdges) {
-      test(`${from} -> ${to} succeeds`, () => {
-        expect(() => validateTransition(from, to)).not.toThrow();
-      });
-    }
-  });
-
-  describe("invalid transitions", () => {
-    const invalidEdges: [CommissionStatus, CommissionStatus][] = [
-      ["completed", "pending"],
-      ["completed", "in_progress"],
-      ["failed", "in_progress"],
-      ["failed", "pending"],
-      ["cancelled", "dispatched"],
-      ["cancelled", "pending"],
-      ["pending", "in_progress"],
-      ["pending", "completed"],
-      ["dispatched", "completed"],
-      ["dispatched", "cancelled"],
-    ];
-
-    for (const [from, to] of invalidEdges) {
-      test(`${from} -> ${to} throws`, () => {
-        expect(() => validateTransition(from, to)).toThrow(
-          `Invalid commission transition: "${from}" -> "${to}"`,
-        );
-      });
-    }
-  });
-
-  describe("terminal states have no outgoing transitions", () => {
-    const terminalStates: CommissionStatus[] = [
-      "completed",
-      "failed",
-      "cancelled",
-    ];
-    const allStatuses: CommissionStatus[] = [
-      "pending",
-      "blocked",
-      "dispatched",
-      "in_progress",
-      "completed",
-      "failed",
-      "cancelled",
-    ];
-
-    for (const terminal of terminalStates) {
-      test(`${terminal} rejects all transitions`, () => {
-        for (const target of allStatuses) {
-          expect(() => validateTransition(terminal, target)).toThrow(
-            "(none, terminal state)",
-          );
-        }
-      });
-    }
-  });
-
-  test("error message includes valid transitions for non-terminal states", () => {
-    expect(() => validateTransition("pending", "completed")).toThrow(
-      "dispatched, blocked, cancelled",
-    );
   });
 });
 

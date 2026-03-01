@@ -1,12 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import {
-  DEFAULT_COMMISSION_CAP,
-  DEFAULT_MAX_CONCURRENT,
-  getGlobalLimit,
-  getProjectLimit,
-  countActiveForProject,
-  isAtCapacity,
-} from "@/daemon/services/commission-capacity";
+import { isAtCapacity } from "@/daemon/services/commission-capacity";
 import type { AppConfig } from "@/lib/types";
 
 function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -27,51 +20,6 @@ function makeActiveMap(entries: Array<{ id: string; projectName: string }>): Map
   return map;
 }
 
-describe("getGlobalLimit", () => {
-  test("returns default when config has no maxConcurrentCommissions", () => {
-    expect(getGlobalLimit(makeConfig())).toBe(DEFAULT_MAX_CONCURRENT);
-  });
-
-  test("returns configured value when set", () => {
-    expect(getGlobalLimit(makeConfig({ maxConcurrentCommissions: 20 }))).toBe(20);
-  });
-});
-
-describe("getProjectLimit", () => {
-  test("returns default when project has no commissionCap", () => {
-    expect(getProjectLimit("alpha", makeConfig())).toBe(DEFAULT_COMMISSION_CAP);
-  });
-
-  test("returns configured project cap", () => {
-    expect(getProjectLimit("beta", makeConfig())).toBe(5);
-  });
-
-  test("returns default for unknown project", () => {
-    expect(getProjectLimit("unknown", makeConfig())).toBe(DEFAULT_COMMISSION_CAP);
-  });
-});
-
-describe("countActiveForProject", () => {
-  test("returns 0 for empty map", () => {
-    expect(countActiveForProject("alpha", new Map())).toBe(0);
-  });
-
-  test("counts only matching project", () => {
-    const map = makeActiveMap([
-      { id: "c1", projectName: "alpha" },
-      { id: "c2", projectName: "beta" },
-      { id: "c3", projectName: "alpha" },
-    ]);
-    expect(countActiveForProject("alpha", map)).toBe(2);
-    expect(countActiveForProject("beta", map)).toBe(1);
-  });
-
-  test("returns 0 for project with no active commissions", () => {
-    const map = makeActiveMap([{ id: "c1", projectName: "alpha" }]);
-    expect(countActiveForProject("beta", map)).toBe(0);
-  });
-});
-
 describe("isAtCapacity", () => {
   test("not at capacity when under both limits", () => {
     const result = isAtCapacity("alpha", new Map(), makeConfig());
@@ -80,7 +28,8 @@ describe("isAtCapacity", () => {
   });
 
   test("at capacity when global limit reached", () => {
-    const entries = Array.from({ length: DEFAULT_MAX_CONCURRENT }, (_, i) => ({
+    // Default global limit is 10
+    const entries = Array.from({ length: 10 }, (_, i) => ({
       id: `c${i}`,
       projectName: `project-${i}`,
     }));
@@ -90,7 +39,8 @@ describe("isAtCapacity", () => {
   });
 
   test("at capacity when project limit reached", () => {
-    const entries = Array.from({ length: DEFAULT_COMMISSION_CAP }, (_, i) => ({
+    // Default project cap is 3
+    const entries = Array.from({ length: 3 }, (_, i) => ({
       id: `c${i}`,
       projectName: "alpha",
     }));
@@ -109,6 +59,17 @@ describe("isAtCapacity", () => {
     expect(result.atLimit).toBe(false);
   });
 
+  test("respects custom global limit", () => {
+    const config = makeConfig({ maxConcurrentCommissions: 20 });
+    const entries = Array.from({ length: 10 }, (_, i) => ({
+      id: `c${i}`,
+      projectName: `project-${i}`,
+    }));
+    // Default would be at capacity at 10, but custom is 20
+    const result = isAtCapacity("alpha", makeActiveMap(entries), config);
+    expect(result.atLimit).toBe(false);
+  });
+
   test("global limit checked before project limit", () => {
     const config = makeConfig({ maxConcurrentCommissions: 2 });
     const entries = [
@@ -120,17 +81,24 @@ describe("isAtCapacity", () => {
     expect(result.reason).toContain("Global");
   });
 
-  test("at-limit edge case: exactly at project limit", () => {
-    const entries = Array.from({ length: DEFAULT_COMMISSION_CAP }, (_, i) => ({
-      id: `c${i}`,
-      projectName: "alpha",
-    }));
+  test("counts only matching project for project limit", () => {
+    const entries = [
+      { id: "c1", projectName: "alpha" },
+      { id: "c2", projectName: "beta" },
+      { id: "c3", projectName: "alpha" },
+      { id: "c4", projectName: "alpha" },
+    ];
+    // alpha has 3 active (at default cap of 3)
     const result = isAtCapacity("alpha", makeActiveMap(entries), makeConfig());
     expect(result.atLimit).toBe(true);
+    // beta has only 1 active
+    const resultBeta = isAtCapacity("beta", makeActiveMap(entries), makeConfig());
+    expect(resultBeta.atLimit).toBe(false);
   });
 
   test("one below project limit is not at capacity", () => {
-    const entries = Array.from({ length: DEFAULT_COMMISSION_CAP - 1 }, (_, i) => ({
+    // Default cap is 3, so 2 active should be fine
+    const entries = Array.from({ length: 2 }, (_, i) => ({
       id: `c${i}`,
       projectName: "alpha",
     }));
