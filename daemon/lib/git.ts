@@ -470,6 +470,71 @@ export function createGitOps(): GitOps {
   };
 }
 
+export interface FinalizeActivityResult {
+  /** True if squash-merge succeeded and worktree+branch were cleaned up. */
+  merged: boolean;
+  /** True if the branch was preserved for manual resolution (merge failed). */
+  preserved: boolean;
+}
+
+/**
+ * Commits work in an activity worktree, squash-merges it into the
+ * integration worktree (under a project lock), then cleans up on success
+ * or preserves the branch on failure.
+ *
+ * Caller-specific concerns (events, status transitions, escalation,
+ * state files) are NOT handled here. Callers inspect the result and
+ * do their own post-processing.
+ */
+export async function finalizeActivity(
+  git: GitOps,
+  opts: {
+    activityId: string;
+    worktreeDir: string;
+    branchName: string;
+    projectPath: string;
+    integrationPath: string;
+    commitMessage: string;
+    logPrefix: string;
+    commitLabel: string;
+    lockFn: <T>(fn: () => Promise<T>) => Promise<T>;
+  },
+): Promise<FinalizeActivityResult> {
+  await git.commitAll(opts.worktreeDir, opts.commitMessage);
+
+  const merged = await opts.lockFn(async () => {
+    await git.commitAll(opts.integrationPath, `Pre-merge sync: ${opts.activityId}`);
+    return await resolveSquashMerge(git, opts.integrationPath, opts.branchName, {
+      logPrefix: opts.logPrefix,
+      commitLabel: opts.commitLabel,
+      activityId: opts.activityId,
+    });
+  });
+
+  if (merged) {
+    try {
+      await git.removeWorktree(opts.projectPath, opts.worktreeDir);
+      await git.deleteBranch(opts.projectPath, opts.branchName);
+    } catch (err: unknown) {
+      console.warn(
+        `[${opts.logPrefix}] Worktree/branch cleanup failed for "${opts.activityId}":`,
+        errorMessage(err),
+      );
+    }
+    return { merged: true, preserved: false };
+  }
+
+  try {
+    await git.removeWorktree(opts.projectPath, opts.worktreeDir);
+  } catch (err: unknown) {
+    console.warn(
+      `[${opts.logPrefix}] Failed to remove worktree for "${opts.activityId}":`,
+      errorMessage(err),
+    );
+  }
+  return { merged: false, preserved: true };
+}
+
 /**
  * Attempts a squash-merge from sourceBranch into integrationPath,
  * auto-resolving .lore/ conflicts with --theirs (the activity branch's

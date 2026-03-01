@@ -36,7 +36,7 @@ import {
   commissionBranchName,
 } from "@/lib/paths";
 import { getWorkerByName } from "@/lib/packages";
-import { createGitOps, CLAUDE_BRANCH, resolveSquashMerge, type GitOps } from "@/daemon/lib/git";
+import { createGitOps, CLAUDE_BRANCH, finalizeActivity, type FinalizeActivityResult, type GitOps } from "@/daemon/lib/git";
 import { errorMessage, sanitizeForGitRef, formatTimestamp, escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import type { EventBus } from "./event-bus";
@@ -1355,16 +1355,18 @@ projectName: ${projectName}
     // but an explicit sync ensures auto-dispatch scanning sees the
     // correct status even if the merge was a no-op.
     const iPath = integrationWorktreePath(ghHome, commission.projectName);
-    let mergeSucceeded = false;
+    let result: FinalizeActivityResult = { merged: false, preserved: false };
     try {
-      await git.commitAll(commission.worktreeDir, `Commission completed: ${commissionId}`);
-      mergeSucceeded = await withProjectLock(commission.projectName, async () => {
-        await git.commitAll(iPath, `Pre-merge sync: ${commissionId}`);
-        return await resolveSquashMerge(git, iPath, commission.branchName, {
-          logPrefix: "commission",
-          commitLabel: "Commission",
-          activityId: commissionId,
-        });
+      result = await finalizeActivity(git, {
+        activityId: commissionId,
+        worktreeDir: commission.worktreeDir,
+        branchName: commission.branchName,
+        projectPath: project.path,
+        integrationPath: iPath,
+        commitMessage: `Commission completed: ${commissionId}`,
+        logPrefix: "commission",
+        commitLabel: "Commission",
+        lockFn: (fn) => withProjectLock(commission.projectName, fn),
       });
     } catch (err: unknown) {
       console.warn(
@@ -1373,7 +1375,7 @@ projectName: ${projectName}
       );
     }
 
-    if (mergeSucceeded) {
+    if (result.merged) {
       deps.eventBus.emit({
         type: "commission_status",
         commissionId: commissionId as string,
@@ -1382,17 +1384,6 @@ projectName: ${projectName}
       });
 
       await syncStatusToIntegration(commission, "completed", reason);
-      try {
-        await git.removeWorktree(project.path, commission.worktreeDir);
-        await git.deleteBranch(project.path, commission.branchName);
-      } catch (err: unknown) {
-        console.warn(
-          `[commission] Worktree/branch cleanup failed for "${commissionId}":`,
-          errorMessage(err),
-        );
-      }
-      // Remove the state file: the artifact on the integration worktree is now
-      // the source of truth. recoverCommissions() handles missing files gracefully.
       await fs.unlink(commissionStatePath(commissionId)).catch(() => {});
       activeCommissions.delete(commissionId as string);
       console.log(`[commission] "${commissionId}" squash-merged to claude and cleaned up`);

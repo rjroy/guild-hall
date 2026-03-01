@@ -43,7 +43,7 @@ import {
   integrationWorktreePath,
 } from "@/lib/paths";
 import matter from "gray-matter";
-import { createGitOps, CLAUDE_BRANCH, resolveSquashMerge, type GitOps } from "@/daemon/lib/git";
+import { createGitOps, CLAUDE_BRANCH, finalizeActivity, type GitOps } from "@/daemon/lib/git";
 import { errorMessage, formatTimestamp, sanitizeForGitRef } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import {
@@ -1124,44 +1124,29 @@ notes_summary: ""
     }
 
     // Git cleanup: commit changes, squash-merge to integration, remove worktree and branch.
-    // Uses conflict-aware squash-merge: try squashMergeNoCommit first, then
-    // auto-resolve .lore/ conflicts with --theirs (the meeting's version).
     // Non-.lore/ conflicts are logged but don't fail the meeting close
     // (meetings should always close gracefully).
     let squashMergeSucceeded = false;
     if (project) {
       try {
-        await git.commitAll(meeting.worktreeDir, `Meeting closed: ${meeting.meetingId}`);
         const iPath = integrationWorktreePath(ghHome, meeting.projectName);
-
-        const mergeSucceeded = await withProjectLock(meeting.projectName, async () => {
-          await git.commitAll(iPath, `Pre-merge sync: ${meeting.meetingId}`);
-          return await resolveSquashMerge(git, iPath, meeting.branchName, {
-            logPrefix: "closeMeeting",
-            commitLabel: "Meeting",
-            activityId: meeting.meetingId,
-          });
+        const result = await finalizeActivity(git, {
+          activityId: meeting.meetingId,
+          worktreeDir: meeting.worktreeDir,
+          branchName: meeting.branchName,
+          projectPath: project.path,
+          integrationPath: iPath,
+          commitMessage: `Meeting closed: ${meeting.meetingId}`,
+          logPrefix: "closeMeeting",
+          commitLabel: "Meeting",
+          lockFn: (fn) => withProjectLock(meeting.projectName, fn),
         });
 
-        squashMergeSucceeded = mergeSucceeded;
+        squashMergeSucceeded = result.merged;
 
         if (squashMergeSucceeded) {
-          await git.removeWorktree(project.path, meeting.worktreeDir);
-          await git.deleteBranch(project.path, meeting.branchName);
-          // Remove the state file: the artifact on the integration worktree is now
-          // the source of truth. recoverMeetings() handles missing files gracefully.
           await fs.unlink(statePath(meetingId)).catch(() => {});
         } else {
-          // Merge failed. Remove worktree but preserve branch for manual resolution.
-          try {
-            await git.removeWorktree(project.path, meeting.worktreeDir);
-          } catch (err: unknown) {
-            console.warn(
-              `[closeMeeting] Failed to remove worktree for "${meeting.meetingId}":`,
-              errorMessage(err),
-            );
-          }
-
           // Escalate conflict to Guild Master as a meeting request so the user
           // sees an actionable notification instead of a silent log line.
           // Meeting still closes as "closed"; the request surfaces the unmerged branch.
