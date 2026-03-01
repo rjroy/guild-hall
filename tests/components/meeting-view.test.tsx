@@ -1,8 +1,8 @@
 import { describe, test, expect } from "bun:test";
-import MeetingHeader from "@/components/meeting/MeetingHeader";
-import ErrorMessage from "@/components/meeting/ErrorMessage";
-import type { ToolUseEntry } from "@/components/meeting/ToolUseIndicator";
-import type { ChatMessage } from "@/components/meeting/types";
+import MeetingHeader from "@/web/components/meeting/MeetingHeader";
+import ErrorMessage from "@/web/components/meeting/ErrorMessage";
+import type { ToolUseEntry } from "@/web/components/meeting/ToolUseIndicator";
+import type { ChatMessage } from "@/web/components/meeting/types";
 
 /**
  * Meeting view component tests. Server components (MeetingHeader, ErrorMessage)
@@ -294,7 +294,7 @@ describe("ToolUseEntry type contract", () => {
 
 describe("MessageBubble", () => {
   // Import lazily to avoid hook issues at module level
-  let MessageBubble: typeof import("@/components/meeting/MessageBubble").default;
+  let MessageBubble: typeof import("@/web/components/meeting/MessageBubble").default;
 
   // We need to import dynamically because the module imports ToolUseIndicator
   // which has useState. But MessageBubble itself only renders ToolUseIndicator
@@ -302,7 +302,7 @@ describe("MessageBubble", () => {
   // and inspect its element tree without triggering hooks.
 
   test("renders user message with user-side alignment class", async () => {
-    const { default: MB } = await import("@/components/meeting/MessageBubble");
+    const { default: MB } = await import("@/web/components/meeting/MessageBubble");
     MessageBubble = MB;
 
     const el = MessageBubble({
@@ -316,7 +316,7 @@ describe("MessageBubble", () => {
   });
 
   test("user message does not render WorkerPortrait", async () => {
-    const { default: MB } = await import("@/components/meeting/MessageBubble");
+    const { default: MB } = await import("@/web/components/meeting/MessageBubble");
 
     const el = MB({
       message: { id: "msg-1", role: "user", content: "Hi" },
@@ -328,7 +328,7 @@ describe("MessageBubble", () => {
   });
 
   test("assistant message renders WorkerPortrait with correct name", async () => {
-    const { default: MB } = await import("@/components/meeting/MessageBubble");
+    const { default: MB } = await import("@/web/components/meeting/MessageBubble");
 
     const el = MB({
       message: { id: "msg-2", role: "assistant", content: "Response" },
@@ -342,7 +342,7 @@ describe("MessageBubble", () => {
   });
 
   test("message with tool uses renders ToolUseIndicator elements", async () => {
-    const { default: MB } = await import("@/components/meeting/MessageBubble");
+    const { default: MB } = await import("@/web/components/meeting/MessageBubble");
     const tools: ToolUseEntry[] = [
       { name: "read_file", status: "complete", output: "content" },
       { name: "write_file", status: "running" },
@@ -364,7 +364,7 @@ describe("MessageBubble", () => {
   });
 
   test("message without tool uses does not render ToolUseIndicator", async () => {
-    const { default: MB } = await import("@/components/meeting/MessageBubble");
+    const { default: MB } = await import("@/web/components/meeting/MessageBubble");
 
     const el = MB({
       message: { id: "msg-4", role: "assistant", content: "Plain" },
@@ -375,7 +375,7 @@ describe("MessageBubble", () => {
   });
 
   test("renders ReactMarkdown for message content", async () => {
-    const { default: MB } = await import("@/components/meeting/MessageBubble");
+    const { default: MB } = await import("@/web/components/meeting/MessageBubble");
 
     const el = MB({
       message: { id: "msg-5", role: "user", content: "**bold text**" },
@@ -394,7 +394,7 @@ describe("MessageBubble", () => {
 
 describe("StreamingMessage", () => {
   test("renders WorkerPortrait with correct props", async () => {
-    const { default: SM } = await import("@/components/meeting/StreamingMessage");
+    const { default: SM } = await import("@/web/components/meeting/StreamingMessage");
 
     const el = SM({
       content: "Partial response",
@@ -411,7 +411,7 @@ describe("StreamingMessage", () => {
   });
 
   test("renders streaming text content", async () => {
-    const { default: SM } = await import("@/components/meeting/StreamingMessage");
+    const { default: SM } = await import("@/web/components/meeting/StreamingMessage");
 
     const el = SM({
       content: "Partial response so far",
@@ -422,7 +422,7 @@ describe("StreamingMessage", () => {
   });
 
   test("renders cursor span with aria-hidden", async () => {
-    const { default: SM } = await import("@/components/meeting/StreamingMessage");
+    const { default: SM } = await import("@/web/components/meeting/StreamingMessage");
 
     const el = SM({
       content: "Text",
@@ -437,7 +437,7 @@ describe("StreamingMessage", () => {
   });
 
   test("renders ToolUseIndicator for active tools", async () => {
-    const { default: SM } = await import("@/components/meeting/StreamingMessage");
+    const { default: SM } = await import("@/web/components/meeting/StreamingMessage");
     const tools: ToolUseEntry[] = [
       { name: "search_code", status: "running" },
     ];
@@ -453,7 +453,7 @@ describe("StreamingMessage", () => {
   });
 
   test("renders cursor even with empty content and no tools", async () => {
-    const { default: SM } = await import("@/components/meeting/StreamingMessage");
+    const { default: SM } = await import("@/web/components/meeting/StreamingMessage");
 
     const el = SM({
       content: "",

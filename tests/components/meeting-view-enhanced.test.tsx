@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
-import ArtifactsPanel from "@/components/meeting/ArtifactsPanel";
-import NotesDisplay from "@/components/meeting/NotesDisplay";
-import type { LinkedArtifact } from "@/components/meeting/ArtifactsPanel";
+import ArtifactsPanel from "@/web/components/meeting/ArtifactsPanel";
+import NotesDisplay from "@/web/components/meeting/NotesDisplay";
+import type { LinkedArtifact } from "@/web/components/meeting/ArtifactsPanel";
 
 /**
  * Meeting view enhancement tests for Phase 3 Step 9.

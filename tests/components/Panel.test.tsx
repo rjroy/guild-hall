@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import Panel from "@/components/ui/Panel";
+import Panel from "@/web/components/ui/Panel";
 
 /**
  * Panel is a server component (plain function returning JSX).

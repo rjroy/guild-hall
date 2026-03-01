@@ -3,9 +3,9 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { NextRequest } from "next/server";
-import { POST as acceptPOST } from "@/app/api/meetings/[meetingId]/accept/route";
-import { POST as declinePOST } from "@/app/api/meetings/[meetingId]/decline/route";
-import { POST as deferPOST } from "@/app/api/meetings/[meetingId]/defer/route";
+import { POST as acceptPOST } from "@/web/app/api/meetings/[meetingId]/accept/route";
+import { POST as declinePOST } from "@/web/app/api/meetings/[meetingId]/decline/route";
+import { POST as deferPOST } from "@/web/app/api/meetings/[meetingId]/defer/route";
 
 /**
  * These routes are thin proxies to the daemon. We test the error path

@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 import MetadataSidebar, {
   relatedToHref,
   createCommissionHref,
-} from "@/components/artifact/MetadataSidebar";
+} from "@/web/components/artifact/MetadataSidebar";
 import type { CommissionMeta } from "@/lib/commissions";
 import type { ArtifactMeta } from "@/lib/types";
 

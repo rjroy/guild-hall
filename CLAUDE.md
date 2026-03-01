@@ -12,7 +12,11 @@ Phase 6 complete, 1529 tests pass. See `.lore/plans/foundation/implementation-ph
 
 ## Architecture
 
-Next.js App Router serves the UI, reading config and artifacts from the filesystem. The daemon (Hono on a Unix socket at `~/.guild-hall/guild-hall.sock`) owns all write operations, meeting/commission sessions, and the EventBus. Meetings and commissions run as Claude Agent SDK sessions inside the daemon process. A three-tier git branch strategy (`master` / `claude` / activity branches) isolates AI work: Next.js reads from integration worktrees on `claude`, active sessions get their own activity worktrees with sparse checkout. The Guild Master is a built-in manager worker with an exclusive toolbox and coordination posture.
+The repo root is a monorepo with four top-level systems: `web/` (Next.js App Router UI), `daemon/` (Hono on a Unix socket), `cli/` (bun scripts), and `packages/` (workers and toolboxes). Shared code lives in `lib/`, tests in `tests/`.
+
+Next.js App Router serves the UI from `web/`, reading config and artifacts from the filesystem. The daemon (`~/.guild-hall/guild-hall.sock`) owns all write operations, meeting/commission sessions, and the EventBus. Meetings and commissions run as Claude Agent SDK sessions inside the daemon process. A three-tier git branch strategy (`master` / `claude` / activity branches) isolates AI work: Next.js reads from integration worktrees on `claude`, active sessions get their own activity worktrees with sparse checkout. The Guild Master is a built-in manager worker with an exclusive toolbox and coordination posture.
+
+`@/` resolves to the repo root everywhere. Root `tsconfig.json` maps `@/*` to `./*`; `web/tsconfig.json` extends root with `baseUrl: ".."` and the same `@/*` to `./*` mapping. Both resolve identically: `@/lib/types`, `@/daemon/lib/git`, `@/web/components/ui/Panel`. The `baseUrl` approach is required because bun resolves the nearest `tsconfig.json` per file, and relative `../*` paths break when `extends` is involved.
 
 For deeper architectural context, see `.lore/design/process-architecture.md` and `.lore/design/pr-strategy.md`.
 
@@ -80,9 +84,9 @@ bun run guild-hall sync [project-name]    # post-merge sync (detect merged PRs, 
 
 **Toolbox resolver.** Uses a name-based `SYSTEM_TOOLBOX_REGISTRY` mapping names to `ToolboxFactory` functions. All factories receive `GuildHallToolboxDeps` (includes eventBus). The resolver runs: (1) `baseToolboxFactory`, (2) context toolbox auto-added by `contextType` from the registry, (3) system toolboxes from `worker.systemToolboxes` (e.g. `["manager"]`), (4) domain toolboxes from packages. Manager toolbox requires `services` in deps.
 
-**Type boundaries.** Daemon-specific types live in `daemon/` (e.g., `GuildHallEvent`, `MeetingId`, `CommissionId`, `SystemEvent`, `AppDeps`). Shared types used by both daemon and Next.js live in `lib/types.ts`. The daemon imports from `lib/` via `@/lib/` path alias; `lib/` never imports from `daemon/`.
+**Type boundaries.** Daemon-specific types live in `daemon/` (e.g., `GuildHallEvent`, `MeetingId`, `CommissionId`, `SystemEvent`, `AppDeps`). Shared types used by both daemon and Next.js live in `lib/types.ts` (including `ChatMessage` and `ToolUseEntry`). The daemon imports from `lib/` via `@/lib/` path alias; `lib/` never imports from `daemon/` or `web/`.
 
-**Component model.** Server components read from the filesystem, pass data as props to client components. Client components handle local UI state only. Catch-all route `app/projects/[name]/artifacts/[...path]/` handles deep artifact hierarchies. Pages use `await searchParams` (Next.js 15 async params pattern).
+**Component model.** Server components in `web/app/` read from the filesystem, pass data as props to client components in `web/components/`. Client components handle local UI state only. Catch-all route `web/app/projects/[name]/artifacts/[...path]/` handles deep artifact hierarchies. Pages use `await searchParams` (Next.js 15 async params pattern).
 
 **EventBus.** Set-based pub/sub broadcasting `SystemEvent` to SSE subscribers via `GET /events`. Commission and meeting toolboxes emit events after file writes.
 
@@ -90,7 +94,7 @@ bun run guild-hall sync [project-name]    # post-merge sync (detect merged PRs, 
 
 **Vendor prefix order matters.** In Next.js, `-webkit-backdrop-filter` must come BEFORE `backdrop-filter` or the standard property gets dropped during compilation. Add inline comments where this applies. (Source: `.lore/retros/ui-redesign-fantasy-theme.md`)
 
-`globals.css` defines design tokens: `--color-brass/bronze/amber` (metallics), `--color-parchment/dark-bg` (backgrounds), `--space-xs` through `--space-2xl`, `--font-body` (Ysabeau Office), `--font-code` (Source Code Pro).
+`web/app/globals.css` defines design tokens: `--color-brass/bronze/amber` (metallics), `--color-parchment/dark-bg` (backgrounds), `--space-xs` through `--space-2xl`, `--font-body` (Ysabeau Office), `--font-code` (Source Code Pro).
 
 ## Testing
 

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import MeetingList from "@/components/project/MeetingList";
+import MeetingList from "@/web/components/project/MeetingList";
 import type { Artifact } from "@/lib/types";
 
 /**
@@ -491,7 +491,7 @@ describe("MeetingList", () => {
 describe("WorkerPicker type contract", () => {
   test("WorkerPickerProps interface is satisfied", async () => {
     // Verify the module exports a default function component
-    const mod = await import("@/components/ui/WorkerPicker");
+    const mod = await import("@/web/components/ui/WorkerPicker");
     expect(typeof mod.default).toBe("function");
   });
 
@@ -512,7 +512,7 @@ describe("WorkerPicker type contract", () => {
 
 describe("StartAudienceButton type contract", () => {
   test("StartAudienceButton module exports default", async () => {
-    const mod = await import("@/components/project/StartAudienceButton");
+    const mod = await import("@/web/components/project/StartAudienceButton");
     expect(typeof mod.default).toBe("function");
   });
 
@@ -527,7 +527,7 @@ describe("StartAudienceButton type contract", () => {
 describe("ProjectHeader with StartAudienceButton", () => {
   test("renders StartAudienceButton component", async () => {
     const { default: ProjectHeader } = await import(
-      "@/components/project/ProjectHeader"
+      "@/web/components/project/ProjectHeader"
     );
 
     const project = {
@@ -545,7 +545,7 @@ describe("ProjectHeader with StartAudienceButton", () => {
 
   test("no longer renders disabled audience button element", async () => {
     const { default: ProjectHeader } = await import(
-      "@/components/project/ProjectHeader"
+      "@/web/components/project/ProjectHeader"
     );
 
     const project = {

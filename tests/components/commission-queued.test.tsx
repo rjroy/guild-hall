@@ -1,8 +1,8 @@
 import { describe, test, expect } from "bun:test";
-import CommissionHeader from "@/components/commission/CommissionHeader";
+import CommissionHeader from "@/web/components/commission/CommissionHeader";
 import { statusToGem } from "@/lib/types";
 import type { TimelineEntry } from "@/lib/commissions";
-import type { CommissionArtifact } from "@/components/commission/CommissionLinkedArtifacts";
+import type { CommissionArtifact } from "@/web/components/commission/CommissionLinkedArtifacts";
 
 /**
  * Tests for the queued commission UI state. Covers:

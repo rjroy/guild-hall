@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 import {
   meetingStatusToGem,
   meetingHref,
-} from "@/components/project/MeetingList";
+} from "@/web/components/project/MeetingList";
 
 describe("meetingStatusToGem", () => {
   test("open maps to active", () => {

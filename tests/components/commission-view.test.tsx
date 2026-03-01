@@ -1,14 +1,14 @@
 import { describe, test, expect } from "bun:test";
-import CommissionHeader from "@/components/commission/CommissionHeader";
-import CommissionLinkedArtifacts from "@/components/commission/CommissionLinkedArtifacts";
+import CommissionHeader from "@/web/components/commission/CommissionHeader";
+import CommissionLinkedArtifacts from "@/web/components/commission/CommissionLinkedArtifacts";
 import {
   filterTimeline,
   WORKER_EVENTS,
   USER_EVENTS,
   MANAGER_EVENTS,
-} from "@/components/commission/CommissionTimeline";
+} from "@/web/components/commission/CommissionTimeline";
 import type { TimelineEntry } from "@/lib/commissions";
-import type { CommissionArtifact } from "@/components/commission/CommissionLinkedArtifacts";
+import type { CommissionArtifact } from "@/web/components/commission/CommissionLinkedArtifacts";
 
 /**
  * Commission view component tests. Server-renderable components (CommissionHeader,
