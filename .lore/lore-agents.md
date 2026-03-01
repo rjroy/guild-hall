@@ -1,6 +1,6 @@
 ---
 title: Lore Agents Registry
-date: 2026-02-15
+date: 2026-03-01
 status: current
 tags: [reference, agents, lore-development]
 ---
@@ -9,7 +9,7 @@ tags: [reference, agents, lore-development]
 
 Specialized agents available for lore-development work in this project.
 
-Last updated: 2026-02-15
+Last updated: 2026-03-01
 
 ## Implementation
 
@@ -47,12 +47,6 @@ Last updated: 2026-02-15
 | Agent | Purpose | When to Use |
 |-------|---------|-------------|
 | Plan | Software architect agent for designing implementation plans | Architectural decisions, identifies critical files, considers trade-offs |
-
-## Performance
-
-| Agent | Purpose | When to Use |
-|-------|---------|-------------|
-| - | *No performance-specific agents currently available* | - |
 
 ## Testing
 
