@@ -43,7 +43,7 @@ import {
 } from "@/lib/paths";
 import { getWorkerByName } from "@/lib/packages";
 import { createGitOps, CLAUDE_BRANCH, resolveSquashMerge, type GitOps } from "@/daemon/lib/git";
-import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import { errorMessage, sanitizeForGitRef, formatTimestamp, escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import type { EventBus } from "./event-bus";
 import {
@@ -79,6 +79,11 @@ const VALID_TRANSITIONS: Record<CommissionStatus, CommissionStatus[]> = {
   failed: [],
   cancelled: [],
 };
+
+/** Returns true for terminal states (no outgoing transitions). */
+function isTerminalStatus(status: CommissionStatus): boolean {
+  return VALID_TRANSITIONS[status].length === 0;
+}
 
 /**
  * Validates that a status transition is allowed by the state machine.
@@ -504,11 +509,6 @@ export function createCommissionSession(
       const { atLimit } = isAtCapacity(candidate.projectName);
       if (atLimit) continue;
 
-      // Also check global limit explicitly since isAtCapacity checks both
-      const globalCount = activeCommissions.size;
-      const globalLimit = getGlobalLimit();
-      if (globalCount >= globalLimit) break;
-
       try {
         console.log(
           `[commission] auto-dispatching "${candidate.commissionId}" from queue (FIFO)`,
@@ -673,23 +673,8 @@ export function createCommissionSession(
   }
 
   function formatCommissionId(workerName: string, now: Date): CommissionId {
-    // Sanitize worker name: replace spaces and characters invalid in git refs
-    // with hyphens, then collapse consecutive hyphens. Git branch names cannot
-    // contain spaces, and commission IDs are used as branch name segments.
-    const safeName = workerName
-      .replace(/[\s~^:?*[\]\\]/g, "-")
-      .replace(/-{2,}/g, "-")
-      .replace(/^-|-$/g, "");
-    const pad = (n: number, len = 2) => String(n).padStart(len, "0");
-    const ts = [
-      now.getFullYear(),
-      pad(now.getMonth() + 1),
-      pad(now.getDate()),
-      "-",
-      pad(now.getHours()),
-      pad(now.getMinutes()),
-      pad(now.getSeconds()),
-    ].join("");
+    const safeName = sanitizeForGitRef(workerName);
+    const ts = formatTimestamp(now);
     return asCommissionId(`commission-${safeName}-${ts}`);
   }
 
@@ -804,6 +789,43 @@ export function createCommissionSession(
   }
 
   /**
+   * Commits any uncommitted changes to preserve partial results, then
+   * removes the activity worktree. Branch is always preserved for inspection.
+   */
+  async function preserveAndCleanupWorktree(
+    id: string,
+    worktreeDir: string,
+    branchName: string,
+    commitMessage: string,
+    projectPath?: string,
+  ): Promise<void> {
+    try {
+      const hadChanges = await git.commitAll(worktreeDir, commitMessage);
+      if (hadChanges) {
+        console.log(
+          `[commission] "${id}" partial results committed to ${branchName}`,
+        );
+      }
+    } catch (err: unknown) {
+      console.warn(
+        `[commission] Failed to commit partial results for "${id}":`,
+        errorMessage(err),
+      );
+    }
+
+    if (projectPath) {
+      try {
+        await git.removeWorktree(projectPath, worktreeDir);
+      } catch (err: unknown) {
+        console.warn(
+          `[commission] Failed to remove worktree for "${id}":`,
+          errorMessage(err),
+        );
+      }
+    }
+  }
+
+  /**
    * Handles a commission failure. Transitions to failed, emits event,
    * and cleans up. Preserves the branch for inspection.
    */
@@ -814,11 +836,7 @@ export function createCommissionSession(
   ): Promise<void> {
     // Terminal state guard: another path (e.g., cancelCommission) may have
     // already resolved this commission.
-    if (
-      commission.status === "completed" ||
-      commission.status === "failed" ||
-      commission.status === "cancelled"
-    ) {
+    if (isTerminalStatus(commission.status)) {
       activeCommissions.delete(id);
       return;
     }
@@ -852,36 +870,13 @@ export function createCommissionSession(
     // Sync terminal status to integration worktree before cleanup
     await syncStatusToIntegration(commission, "failed", reason);
 
-    // Git: preserve partial results on branch for inspection
-    try {
-      const hadChanges = await git.commitAll(
-        commission.worktreeDir,
-        `Partial work preserved: ${id}`,
-      );
-      if (hadChanges) {
-        console.log(
-          `[commission] "${id}" partial results committed to ${commission.branchName}`,
-        );
-      }
-    } catch (err: unknown) {
-      console.warn(
-        `[commission] Failed to commit partial results for "${id}":`,
-        errorMessage(err),
-      );
-    }
-
-    const project = findProject(commission.projectName);
-    if (project) {
-      try {
-        await git.removeWorktree(project.path, commission.worktreeDir);
-      } catch (err: unknown) {
-        console.warn(
-          `[commission] Failed to remove worktree for "${id}":`,
-          errorMessage(err),
-        );
-      }
-    }
-    // Branch is NOT deleted - preserved for inspection
+    await preserveAndCleanupWorktree(
+      id,
+      commission.worktreeDir,
+      commission.branchName,
+      `Partial work preserved: ${id}`,
+      findProject(commission.projectName)?.path,
+    );
 
     activeCommissions.delete(id);
 
@@ -1195,12 +1190,9 @@ export function createCommissionSession(
     const dateStr = now.toISOString().split("T")[0];
     const isoStr = now.toISOString();
 
-    const escapedTitle = title.replace(/"/g, '\\"');
-    const escapedPrompt = prompt.replace(/"/g, '\\"');
-    const escapedDisplayTitle = workerMeta.identity.displayTitle.replace(
-      /"/g,
-      '\\"',
-    );
+    const escapedTitle = escapeYamlValue(title);
+    const escapedPrompt = escapeYamlValue(prompt);
+    const escapedDisplayTitle = escapeYamlValue(workerMeta.identity.displayTitle);
 
     // Format dependencies as YAML array
     const depsYaml =
@@ -1484,7 +1476,14 @@ projectName: ${projectName}
     ).then(async (resultSubmitted) => {
       await handleCompletion(commissionId, active, resultSubmitted);
     }).catch(async (err: unknown) => {
-      await handleError(commissionId, active, err);
+      try {
+        await handleError(commissionId, active, err);
+      } catch (innerErr: unknown) {
+        console.error(
+          `[commission-session] handleError itself failed for ${commissionId}:`,
+          errorMessage(innerErr),
+        );
+      }
     });
 
     return { status: "accepted" };
@@ -1501,11 +1500,7 @@ projectName: ${projectName}
     resultSubmitted: boolean,
   ): Promise<void> {
     // If already in a terminal state (e.g., cancelled during session), skip
-    if (
-      commission.status === "completed" ||
-      commission.status === "failed" ||
-      commission.status === "cancelled"
-    ) {
+    if (isTerminalStatus(commission.status)) {
       activeCommissions.delete(commissionId as string);
       return;
     }
@@ -1644,27 +1639,13 @@ projectName: ${projectName}
 
         await syncStatusToIntegration(commission, "failed", conflictReason);
 
-        // Preserve branch for manual resolution (commit any staged work)
-        try {
-          await git.commitAll(
-            commission.worktreeDir,
-            `Partial work preserved (merge conflict): ${commissionId}`,
-          );
-        } catch {
-          // Non-fatal
-        }
-
-        if (project) {
-          try {
-            await git.removeWorktree(project.path, commission.worktreeDir);
-          } catch (err: unknown) {
-            console.warn(
-              `[commission] Failed to remove worktree for "${commissionId}":`,
-              errorMessage(err),
-            );
-          }
-        }
-        // Branch is NOT deleted - preserved for manual conflict resolution
+        await preserveAndCleanupWorktree(
+          commissionId as string,
+          commission.worktreeDir,
+          commission.branchName,
+          `Partial work preserved (merge conflict): ${commissionId}`,
+          project?.path,
+        );
 
         // Escalate conflict to Guild Master as a meeting request so the user
         // sees an actionable notification instead of a silent failure.
@@ -1690,35 +1671,13 @@ projectName: ${projectName}
       // there's no squash-merge, so the integration copy needs a direct update.
       await syncStatusToIntegration(commission, finalStatus, reason);
 
-      // Failure: preserve partial results on branch for inspection
-      try {
-        const hadChanges = await git.commitAll(
-          commission.worktreeDir,
-          `Partial work preserved: ${commissionId}`,
-        );
-        if (hadChanges) {
-          console.log(
-            `[commission] "${commissionId}" partial results committed to ${commission.branchName}`,
-          );
-        }
-      } catch (err: unknown) {
-        console.warn(
-          `[commission] Failed to commit partial results for "${commissionId}":`,
-          errorMessage(err),
-        );
-      }
-
-      if (project) {
-        try {
-          await git.removeWorktree(project.path, commission.worktreeDir);
-        } catch (err: unknown) {
-          console.warn(
-            `[commission] Failed to remove worktree for "${commissionId}":`,
-            errorMessage(err),
-          );
-        }
-      }
-      // Branch is NOT deleted - preserved for inspection
+      await preserveAndCleanupWorktree(
+        commissionId as string,
+        commission.worktreeDir,
+        commission.branchName,
+        `Partial work preserved: ${commissionId}`,
+        project?.path,
+      );
     }
 
     // Remove from active Map
@@ -1763,11 +1722,7 @@ projectName: ${projectName}
     error: unknown,
   ): Promise<void> {
     // If already in a terminal state, skip
-    if (
-      commission.status === "completed" ||
-      commission.status === "failed" ||
-      commission.status === "cancelled"
-    ) {
+    if (isTerminalStatus(commission.status)) {
       activeCommissions.delete(commissionId as string);
       return;
     }
@@ -1848,31 +1803,13 @@ projectName: ${projectName}
     // Sync terminal status to integration worktree before cleanup
     await syncStatusToIntegration(commission, "cancelled", reason);
 
-    // Git: preserve partial results on branch (same as failure)
-    try {
-      await git.commitAll(
-        commission.worktreeDir,
-        `Partial work preserved on cancellation: ${commissionId}`,
-      );
-    } catch (err: unknown) {
-      console.warn(
-        `[commission] Failed to commit partial results for cancelled "${commissionId}":`,
-        errorMessage(err),
-      );
-    }
-
-    const project = findProject(commission.projectName);
-    if (project) {
-      try {
-        await git.removeWorktree(project.path, commission.worktreeDir);
-      } catch (err: unknown) {
-        console.warn(
-          `[commission] Failed to remove worktree for cancelled "${commissionId}":`,
-          errorMessage(err),
-        );
-      }
-    }
-    // Branch is NOT deleted - preserved for inspection
+    await preserveAndCleanupWorktree(
+      commissionId as string,
+      commission.worktreeDir,
+      commission.branchName,
+      `Partial work preserved on cancellation: ${commissionId}`,
+      findProject(commission.projectName)?.path,
+    );
 
     // Remove from active Map
     activeCommissions.delete(commissionId as string);
