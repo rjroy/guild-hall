@@ -64,11 +64,7 @@ import {
   transitionCommission,
 } from "./commission-state-machine";
 export { validateTransition, transitionCommission } from "./commission-state-machine";
-
-// -- Capacity limit defaults --
-
-const DEFAULT_COMMISSION_CAP = 3;
-const DEFAULT_MAX_CONCURRENT = 10;
+import { isAtCapacity } from "./commission-capacity";
 
 // -- Session management types --
 
@@ -191,8 +187,6 @@ export function createCommissionSession(
     }
   });
 
-  // -- Capacity limits --
-
   /**
    * Serialization lock for auto-dispatch. When two commissions complete
    * simultaneously, both call tryAutoDispatch. Without serialization,
@@ -200,45 +194,6 @@ export function createCommissionSession(
    * it. The promise chain ensures only one auto-dispatch runs at a time.
    */
   let autoDispatchChain: Promise<void> = Promise.resolve();
-
-  function getGlobalLimit(): number {
-    return deps.config.maxConcurrentCommissions ?? DEFAULT_MAX_CONCURRENT;
-  }
-
-  function getProjectLimit(projectName: string): number {
-    const project = findProject(projectName);
-    return project?.commissionCap ?? DEFAULT_COMMISSION_CAP;
-  }
-
-  function countActiveForProject(projectName: string): number {
-    let count = 0;
-    for (const commission of activeCommissions.values()) {
-      if (commission.projectName === projectName) count++;
-    }
-    return count;
-  }
-
-  function isAtCapacity(projectName: string): { atLimit: boolean; reason: string } {
-    const globalCount = activeCommissions.size;
-    const globalLimit = getGlobalLimit();
-    if (globalCount >= globalLimit) {
-      return {
-        atLimit: true,
-        reason: `Global concurrent limit reached (${globalCount}/${globalLimit})`,
-      };
-    }
-
-    const projectCount = countActiveForProject(projectName);
-    const projectLimit = getProjectLimit(projectName);
-    if (projectCount >= projectLimit) {
-      return {
-        atLimit: true,
-        reason: `Project "${projectName}" concurrent limit reached (${projectCount}/${projectLimit})`,
-      };
-    }
-
-    return { atLimit: false, reason: "" };
-  }
 
   /**
    * Scans pending commissions across all projects and returns them sorted
@@ -317,7 +272,7 @@ export function createCommissionSession(
 
     for (const candidate of pending) {
       // Re-check capacity for each candidate (previous dispatch may have filled a slot)
-      const { atLimit } = isAtCapacity(candidate.projectName);
+      const { atLimit } = isAtCapacity(candidate.projectName, activeCommissions, deps.config);
       if (atLimit) continue;
 
       try {
@@ -1155,7 +1110,7 @@ projectName: ${projectName}
     }
 
     // 3. Check capacity limits before starting session
-    const capacityCheck = isAtCapacity(found.projectName);
+    const capacityCheck = isAtCapacity(found.projectName, activeCommissions, deps.config);
     if (capacityCheck.atLimit) {
       console.log(
         `[commission] queuing "${commissionId}": ${capacityCheck.reason}`,
