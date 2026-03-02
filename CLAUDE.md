@@ -8,7 +8,7 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 ## Status
 
-Phase 6 complete, 1706 tests pass. Commission layer separation landed. See `.lore/plans/foundation/implementation-phases.md` for the full phase history and roadmap.
+Core systems are built: UI, daemon, meetings, commissions, git isolation, worker packages, Guild Master coordination. 1706 tests pass. Active development is issue-driven.
 
 ## Architecture
 
@@ -26,10 +26,10 @@ For deeper architectural context, see `.lore/design/process-architecture.md` and
 |-----------|----------|-----------------|
 | `.lore/specs/` | System, workers, commissions, meetings, views, worker roster specs | Understanding requirements or checking REQ IDs |
 | `.lore/design/` | Process architecture, PR/sync strategy | Understanding how subsystems work |
-| `.lore/plans/` | Implementation phases, per-phase plans | Planning new work or understanding what was built when |
+| `.lore/plans/` | Implementation plans (current and historical) | Planning new work or understanding what was built when |
 | `.lore/retros/` | Post-mortems with lessons learned | Avoiding repeated mistakes |
 | `.lore/research/` | Claude Agent SDK, MCP protocol, plugin systems | Working with external dependencies |
-| `.lore/notes/` | Per-phase context notes | Getting phase-specific background |
+| `.lore/notes/` | Context notes for past and current work | Getting background on specific features or decisions |
 | `.lore/issues/` | Known issues and investigations | Checking if a problem is already tracked |
 | `.lore/brainstorm/` | Exploratory design ideas | Considering alternatives |
 

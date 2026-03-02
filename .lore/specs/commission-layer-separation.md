@@ -6,13 +6,13 @@ tags: [architecture, commissions, refactor, object-design, boundaries, state-mac
 modules: [commission-session, commission-handlers, commission-recovery, activity-state-machine]
 related:
   - .lore/brainstorm/commission-layer-separation.md
-  - .lore/_archive/specs/guild-hall-commissions.md
-  - .lore/_archive/specs/activity-state-machine.md
-  - .lore/_archive/design/activity-state-machine.md
+  - .lore/specs/guild-hall-commissions.md
+  - .lore/specs/activity-state-machine.md
+  - .lore/design/activity-state-machine.md
   - .lore/reference/commissions.md
-  - .lore/_archive/retros/in-process-commissions.md
-  - .lore/_archive/retros/phase-5-git-integration-data-loss.md
-  - .lore/_archive/issues/commission-meeting-state-ownership.md
+  - .lore/retros/in-process-commissions.md
+  - .lore/retros/phase-5-git-integration-data-loss.md
+  - .lore/issues/commission-meeting-state-ownership.md
 req-prefix: CLS
 ---
 
