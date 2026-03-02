@@ -5,7 +5,6 @@ status: complete
 tags: [integration, dependency-injection, agent-behavior, production-wiring, worker-dispatch]
 modules: [researcher-plugin, worker-tools, worker-agent, server-context]
 related:
-  - .lore/_abandoned/poc/notes/worker-dispatch.md
   - .lore/retros/coverage-di-factories.md
 ---
 
@@ -53,5 +52,5 @@ Fix: added `submit_result` tool that accepts a file path. The agent writes its r
 
 ## Artifacts
 
-- `.lore/_abandoned/poc/notes/worker-dispatch.md` - implementation log
+- POC-era worker-dispatch implementation log (deleted)
 - Fixes: `e6b0d61` (production wiring + logging), `9e0a84c` (submit_result tool), `f09a020` (roster server lifecycle)

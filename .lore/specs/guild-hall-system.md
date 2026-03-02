@@ -6,8 +6,7 @@ tags: [architecture, primitives, memory, git, storage, plugins, configuration]
 modules: [guild-hall-core]
 related:
   - .lore/brainstorm/agentic-work-ux.md
-  - .lore/_abandoned/poc/brainstorm/guild-hall-phase-1.md
-  - .lore/_abandoned/poc/notes/worker-dispatch.md
+  - .lore/_abandoned/poc/poc-concepts-summary.md
   - .lore/research/agent-native-applications.md
 req-prefix: SYS
 ---

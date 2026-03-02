@@ -5,7 +5,6 @@ status: complete
 tags: [bug-fix, sse, race-condition, event-bus, id-mismatch, integration]
 modules: [agent, workshop, hooks]
 related:
-  - .lore/_abandoned/poc/notes/phase-1-known-bugs.md
   - .lore/retros/guild-hall-phase-1.md
 ---
 
@@ -40,4 +39,4 @@ Fixed bug #1 from Phase I manual testing: "Agent response does not appear until 
 ## Artifacts
 
 - Commit: `9ac0d24` on `feat/guild-hall-phase-1`
-- Known bugs: `.lore/_abandoned/poc/notes/phase-1-known-bugs.md` (bug #1 marked resolved)
+- Known bugs: POC-era phase-1-known-bugs.md (deleted, bug #1 was marked resolved)
