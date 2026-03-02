@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { asCommissionId } from "../types";
-import type { CommissionSessionForRoutes } from "../services/commission-session";
+import type { CommissionSessionForRoutes } from "../services/commission/orchestrator";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 
 export interface CommissionRoutesDeps {

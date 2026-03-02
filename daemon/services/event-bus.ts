@@ -7,7 +7,7 @@
  */
 
 export type SystemEvent =
-  | { type: "commission_status"; commissionId: string; status: string; reason?: string }
+  | { type: "commission_status"; commissionId: string; status: string; oldStatus?: string; projectName?: string; reason?: string }
   | { type: "commission_progress"; commissionId: string; summary: string }
   | { type: "commission_question"; commissionId: string; question: string }
   | { type: "commission_result"; commissionId: string; summary: string; artifacts?: string[] }

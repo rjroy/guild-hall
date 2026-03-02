@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { GitOps } from "@/daemon/lib/git";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import { createEventBus } from "@/daemon/services/event-bus";

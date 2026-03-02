@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { logSdkMessage } from "@/daemon/services/commission-sdk-logging";
+import { logSdkMessage } from "@/daemon/services/sdk-logging";
 
 describe("logSdkMessage", () => {
   function collect(msg: unknown): string[] {

@@ -1,5 +1,5 @@
 /**
- * SDK message logging helpers for commission sessions.
+ * SDK message logging helpers.
  *
  * Pure functions that extract and format content blocks from Claude Agent SDK
  * messages for debug logging. No closure dependencies; logSdkMessage takes a

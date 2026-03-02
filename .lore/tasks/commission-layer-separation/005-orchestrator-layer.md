@@ -1,7 +1,7 @@
 ---
 title: Implement Layer 5 - Orchestrator
 date: 2026-03-01
-status: pending
+status: complete
 tags: [task]
 source: .lore/plans/commission-layer-separation.md
 related:

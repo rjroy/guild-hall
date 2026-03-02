@@ -24,16 +24,15 @@ import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-
 import { z } from "zod/v4";
 import { asCommissionId } from "@/daemon/types";
 import type { ToolResult } from "@/daemon/types";
-import { appendTimelineEntry } from "@/daemon/services/commission-artifact-helpers";
 import { formatTimestamp, escapeYamlValue, errorMessage } from "@/daemon/lib/toolbox-utils";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { EventBus } from "@/daemon/services/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import { hasActiveActivities, syncProject } from "@/cli/rebase";
 import type { SyncResult } from "@/cli/rebase";
 import type { ProjectConfig } from "@/lib/types";
-import { integrationWorktreePath, resolveCommissionBasePath } from "@/lib/paths";
+import { integrationWorktreePath } from "@/lib/paths";
 import type { ToolboxFactory } from "./toolbox-types";
 
 export interface ManagerToolboxDeps {
@@ -114,27 +113,6 @@ export function makeCreateCommissionHandler(
           };
         }
 
-        // Append a manager_dispatched timeline entry to the commission artifact.
-        // After dispatch, the artifact lives in the activity worktree, but the
-        // commission session handles that internally. We write to the integration
-        // worktree copy since the manager operates on that path.
-        try {
-          const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
-          await appendTimelineEntry(
-            intPath,
-            cid,
-            "manager_dispatched",
-            `Guild Master dispatched commission "${args.title}"`,
-          );
-        } catch (err) {
-          // The integration worktree's artifact may already have been
-          // committed and the activity worktree forked from it. The timeline
-          // entry is supplemental; don't fail the tool call over it.
-          console.warn(
-            `[manager-toolbox] Failed to append manager_dispatched timeline entry for "${cid}":`,
-            errorMessage(err),
-          );
-        }
       }
 
       console.log(
@@ -422,24 +400,7 @@ export function makeAddCommissionNoteHandler(
   }): Promise<ToolResult> => {
     try {
       const cid = asCommissionId(args.commissionId);
-      const basePath = await resolveCommissionBasePath(
-        deps.guildHallHome,
-        deps.projectName,
-        args.commissionId,
-      );
-
-      await appendTimelineEntry(
-        basePath,
-        cid,
-        "manager_note",
-        args.content,
-      );
-
-      deps.eventBus.emit({
-        type: "commission_manager_note",
-        commissionId: args.commissionId,
-        content: args.content,
-      });
+      await deps.commissionSession.addUserNote(cid, args.content);
 
       console.log(
         `[manager-toolbox] Added note to commission "${args.commissionId}"`,

@@ -1,7 +1,7 @@
 ---
 title: Implement Layer 4 - Session Runner and Toolbox Callbacks
 date: 2026-03-01
-status: pending
+status: complete
 tags: [task]
 source: .lore/plans/commission-layer-separation.md
 related:
