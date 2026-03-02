@@ -1,7 +1,7 @@
 ---
 title: Commission layer separation implementation plan
 date: 2026-03-01
-status: draft
+status: approved
 tags: [architecture, commissions, refactor, boundaries, state-machine, phased-migration]
 modules: [commission-session, commission-handlers, commission-recovery, activity-state-machine, commission-toolbox, commission-artifact-helpers]
 related:
