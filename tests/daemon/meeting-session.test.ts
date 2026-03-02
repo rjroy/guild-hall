@@ -2882,7 +2882,7 @@ import {
   MANAGER_PACKAGE_NAME,
   createManagerPackage,
 } from "@/daemon/services/manager-worker";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 
 /* eslint-disable @typescript-eslint/require-await */
 function makeMockCommissionSession(): CommissionSessionForRoutes {

@@ -1,13 +1,13 @@
 /**
  * Shared utilities used across toolbox implementations.
  *
- * Extracted from base-toolbox.ts, meeting-toolbox.ts, manager-toolbox.ts,
- * and commission-artifact-helpers.ts where identical copies existed.
+ * Extracted from base-toolbox.ts, meeting-toolbox.ts, and manager-toolbox.ts
+ * where identical copies existed.
  */
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { GitOps } from "@/daemon/lib/git";
 import {
   integrationWorktreePath,

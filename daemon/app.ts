@@ -12,7 +12,7 @@ import { createWorkerRoutes } from "./routes/workers";
 import { createBriefingRoutes } from "./routes/briefing";
 import type { DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting-session";
-import type { CommissionSessionDeps, CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { EventBus } from "@/daemon/services/event-bus";
 import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
@@ -83,8 +83,20 @@ export async function createProductionApp(options?: {
   const { createMeetingSession } = await import(
     "@/daemon/services/meeting-session"
   );
-  const { createCommissionSession } = await import(
-    "@/daemon/services/commission-session"
+  const { createCommissionOrchestrator } = await import(
+    "@/daemon/services/commission/orchestrator"
+  );
+  const { createCommissionRecordOps } = await import(
+    "@/daemon/services/commission/record"
+  );
+  const { createCommissionLifecycle } = await import(
+    "@/daemon/services/commission/lifecycle"
+  );
+  const { createWorkspaceOps } = await import(
+    "@/daemon/services/workspace"
+  );
+  const { createSessionRunner } = await import(
+    "@/daemon/services/session-runner"
   );
 
   const { createEventBus } = await import("@/daemon/services/event-bus");
@@ -160,36 +172,64 @@ export async function createProductionApp(options?: {
     );
   }
 
-  // Commission session is created before meeting session (manager toolbox
-  // needs it). Both sessions need createMeetingRequestFn for merge conflict
-  // escalation, but meetingSession doesn't exist yet. The lazy ref breaks
-  // the circular dependency: the closure captures meetingSessionRef, which
-  // is assigned after both sessions are fully constructed.
-  const packagesDir = options?.packagesDir ?? defaultPackagesDir;
+  // Commission orchestrator is created before meeting session (manager
+  // toolbox needs it). Both sessions need createMeetingRequestFn for merge
+  // conflict escalation, but meetingSession doesn't exist yet. The lazy ref
+  // breaks the circular dependency: the closure captures meetingSessionRef,
+  // which is assigned after both sessions are fully constructed.
   // eslint-disable-next-line prefer-const -- assigned after meetingSession is constructed; cannot be const
   let meetingSessionRef: ReturnType<typeof createMeetingSession> | undefined;
-  const createMeetingRequestFn: NonNullable<CommissionSessionDeps["createMeetingRequestFn"]> =
-    async (params) => {
-      if (meetingSessionRef) {
-        await meetingSessionRef.createMeetingRequest(params);
-      }
-    };
+  const createMeetingRequestFn = async (params: {
+    projectName: string;
+    workerName: string;
+    reason: string;
+  }) => {
+    if (meetingSessionRef) {
+      await meetingSessionRef.createMeetingRequest(params);
+    }
+  };
 
-  const commissionSessionRef: { current: ReturnType<typeof createCommissionSession> | null } = { current: null };
+  // -- Commission layer assembly (REQ-CLS-26) --
+  // Layer 1: Record operations (pure YAML I/O)
+  const recordOps = createCommissionRecordOps();
 
-  const commissionSession = createCommissionSession({
-    packages: allPackages,
-    config,
-    guildHallHome,
-    eventBus,
-    packagesDir,
-    gitOps: git,
-    createMeetingRequestFn,
-    queryFn: queryFn as CommissionSessionDeps["queryFn"],
-    commissionSessionRef,
+  // Layer 2: Lifecycle (state transitions, event emission)
+  const lifecycle = createCommissionLifecycle({
+    recordOps,
+    emitEvent: (event) => eventBus.emit(event),
   });
 
-  commissionSessionRef.current = commissionSession;
+  // Layer 3: Workspace operations (git branch/worktree/merge)
+  const workspaceOps = createWorkspaceOps({ git });
+
+  // Layer 4: Session runner (SDK execution, context-type agnostic)
+  const { resolveToolSet } = await import("@/daemon/services/toolbox-resolver");
+  const { loadMemories } = await import("@/daemon/services/memory-injector");
+  const { activateWorker: activateWorkerFn } = await import(
+    "@/daemon/services/manager-worker"
+  );
+
+  const sessionRunner = createSessionRunner({
+    resolveToolSet,
+    loadMemories,
+    activateWorker: activateWorkerFn,
+    queryFn: queryFn!,
+    eventBus,
+  });
+
+  // Layer 5: Orchestrator (coordinates all layers, implements CommissionSessionForRoutes)
+  const commissionSession = createCommissionOrchestrator({
+    lifecycle,
+    workspace: workspaceOps,
+    sessionRunner,
+    recordOps,
+    eventBus,
+    config,
+    packages: allPackages,
+    guildHallHome,
+    gitOps: git,
+    createMeetingRequestFn,
+  });
 
   const meetingSession = createMeetingSession({
     packages: allPackages,

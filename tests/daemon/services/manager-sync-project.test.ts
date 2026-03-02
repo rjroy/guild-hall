@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import type { CommissionId } from "@/daemon/types";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { GitOps } from "@/daemon/lib/git";
 import type { ManagerToolboxDeps } from "@/daemon/services/manager-toolbox";
 import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";

@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { createApp } from "@/daemon/app";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { CommissionId } from "@/daemon/types";
 
 // -- Mock commission session --

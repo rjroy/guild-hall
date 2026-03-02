@@ -8,7 +8,7 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 ## Status
 
-Phase 6 complete, 1529 tests pass. See `.lore/plans/foundation/implementation-phases.md` for the full phase history and roadmap.
+Phase 6 complete, 1706 tests pass. Commission layer separation landed. See `.lore/plans/foundation/implementation-phases.md` for the full phase history and roadmap.
 
 ## Architecture
 
@@ -77,6 +77,20 @@ bun run guild-hall sync [project-name]    # post-merge sync (detect merged PRs, 
 | `packages/` | Worker/toolbox packages (local dev) |
 | `<project>/.lore/` | Project artifacts (markdown + YAML frontmatter) |
 | `<project>/.lore/commissions/` | Commission artifacts (timeline, progress, result) |
+
+## Five Concerns
+
+The daemon's session infrastructure serves five distinct concerns. When a piece of code touches more than one, that's a signal to check whether a boundary is missing.
+
+| Concern | Responsibility | Boundary rule |
+|---------|---------------|---------------|
+| **Session** | SDK interaction (query, stream, abort) | No git, no artifacts, no knowledge of activity types |
+| **Activity** | Git isolation (branch, worktree, merge) | No SDK, no artifacts, no knowledge of activity types |
+| **Artifact** | Structured document I/O (frontmatter, timeline) | No git, no SDK. Writes to a path it's given. |
+| **Toolbox** | Tool composition and resolution | Context-aware (commissions and meetings have different capabilities), but tools communicate through callbacks, not direct artifact writes |
+| **Worker** | Identity, posture, capability declaration | Declares what it needs. Doesn't know how it got activated. |
+
+Commissions and meetings are orchestrators that compose these concerns. They sequence the steps; they don't implement the infrastructure. The commission layer separation (Layers 1-5 in `daemon/services/commission/`) enforces this for commissions. Meetings still use the older monolithic pattern.
 
 ## Key Patterns
 

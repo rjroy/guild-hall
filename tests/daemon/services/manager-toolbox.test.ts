@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import type { CommissionId } from "@/daemon/types";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission-session";
+import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { GitOps } from "@/daemon/lib/git";
 import type { ManagerToolboxDeps } from "@/daemon/services/manager-toolbox";
 import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
@@ -91,7 +91,9 @@ function makeMockCommissionSession(
     async redispatchCommission() {
       return { status: "accepted" as const };
     },
-    async addUserNote() {},
+    async addUserNote(cid: CommissionId, content: string) {
+      calls.addUserNote.push([cid, content]);
+    },
     async checkDependencyTransitions() {},
     async recoverCommissions() { return 0; },
     getActiveCommissions() { return 0; },
@@ -811,23 +813,10 @@ describe("initiate_meeting", () => {
 // -- add_commission_note --
 
 describe("add_commission_note", () => {
-  /**
-   * resolveCommissionBasePath falls through to integrationWorktreePath(ghHome, projectName)
-   * for non-active commissions. That path is <guildHallHome>/projects/<projectName>/.
-   * We need to write artifacts there for the tool to find them.
-   */
-  async function writeArtifactAtResolvedPath(commissionId: string): Promise<string> {
-    const resolvedPath = path.join(guildHallHome, "projects", "test-project");
-    await writeCommissionArtifact(resolvedPath, commissionId);
-    return resolvedPath;
-  }
-
-  test("writes manager_note timeline entry to commission artifact", async () => {
+  test("delegates to commissionSession.addUserNote with correct args", async () => {
     const commissionId = "commission-test-worker-20260223-120000";
-    const resolvedPath = await writeArtifactAtResolvedPath(commissionId);
-
-    const mockEventBus = makeMockEventBus();
-    const deps = makeDeps({ eventBus: mockEventBus });
+    const mockSession = makeMockCommissionSession();
+    const deps = makeDeps({ commissionSession: mockSession });
     const handler = makeAddCommissionNoteHandler(deps);
 
     const result = await handler({
@@ -844,24 +833,19 @@ describe("add_commission_note", () => {
     expect(parsed.commissionId).toBe(commissionId);
     expect(parsed.noted).toBe(true);
 
-    // Verify the timeline entry was written
-    const artifactPath = path.join(
-      resolvedPath,
-      ".lore",
-      "commissions",
-      `${commissionId}.md`,
+    // Verify addUserNote was called with the commission ID and content
+    expect(mockSession.calls.addUserNote).toHaveLength(1);
+    expect(mockSession.calls.addUserNote[0][0]).toBe(commissionId);
+    expect(mockSession.calls.addUserNote[0][1]).toBe(
+      "Worker seems stalled, consider re-dispatching",
     );
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("event: manager_note");
-    expect(raw).toContain("Worker seems stalled, consider re-dispatching");
   });
 
-  test("emits commission_manager_note SystemEvent", async () => {
+  test("does not emit events directly (delegated to commissionSession)", async () => {
     const commissionId = "commission-test-worker-20260223-120000";
-    await writeArtifactAtResolvedPath(commissionId);
-
     const mockEventBus = makeMockEventBus();
-    const deps = makeDeps({ eventBus: mockEventBus });
+    const mockSession = makeMockCommissionSession();
+    const deps = makeDeps({ eventBus: mockEventBus, commissionSession: mockSession });
     const handler = makeAddCommissionNoteHandler(deps);
 
     await handler({
@@ -869,21 +853,23 @@ describe("add_commission_note", () => {
       content: "Status update: good progress",
     });
 
-    expect(mockEventBus.emitted).toHaveLength(1);
-    expect(mockEventBus.emitted[0].type).toBe("commission_manager_note");
-
-    const event = mockEventBus.emitted[0] as {
-      type: string;
-      commissionId: string;
-      content: string;
-    };
-    expect(event.commissionId).toBe(commissionId);
-    expect(event.content).toBe("Status update: good progress");
+    // The handler delegates to commissionSession.addUserNote(), which
+    // handles both timeline writes and EventBus emission internally.
+    // The handler itself should not emit events directly.
+    expect(mockEventBus.emitted).toHaveLength(0);
+    expect(mockSession.calls.addUserNote).toHaveLength(1);
   });
 
-  test("returns error when commission artifact not found", async () => {
+  test("returns error when addUserNote throws", async () => {
+    const mockSession = makeMockCommissionSession({
+      addUserNote() {
+        return Promise.reject(
+          new Error('Commission "commission-nonexistent-20260223-999999" not found in any project'),
+        );
+      },
+    });
     const mockEventBus = makeMockEventBus();
-    const deps = makeDeps({ eventBus: mockEventBus });
+    const deps = makeDeps({ eventBus: mockEventBus, commissionSession: mockSession });
     const handler = makeAddCommissionNoteHandler(deps);
 
     const result = await handler({
@@ -892,54 +878,28 @@ describe("add_commission_note", () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.content[0].text.length).toBeGreaterThan(0);
+    expect(result.content[0].text).toContain("not found");
 
     // No event should be emitted on failure
     expect(mockEventBus.emitted).toHaveLength(0);
   });
 
-  test("resolves to activity worktree for active commissions", async () => {
+  test("passes commission ID as branded type to addUserNote", async () => {
     const commissionId = "commission-test-worker-20260223-120000";
-
-    // Create a state file that points to an activity worktree
-    const activityDir = path.join(tmpDir, "activity-worktree");
-    await fs.mkdir(path.join(activityDir, ".lore", "commissions"), {
-      recursive: true,
-    });
-    await writeCommissionArtifact(activityDir, commissionId);
-
-    const stateDir = path.join(guildHallHome, "state", "commissions");
-    await fs.mkdir(stateDir, { recursive: true });
-    await fs.writeFile(
-      path.join(stateDir, `${commissionId}.json`),
-      JSON.stringify({
-        status: "in_progress",
-        worktreeDir: activityDir,
-        projectName: "test-project",
-      }),
-    );
-
-    const mockEventBus = makeMockEventBus();
-    const deps = makeDeps({ eventBus: mockEventBus });
+    const mockSession = makeMockCommissionSession();
+    const deps = makeDeps({ commissionSession: mockSession });
     const handler = makeAddCommissionNoteHandler(deps);
 
-    const result = await handler({
+    await handler({
       commissionId,
       content: "Note for active commission",
     });
 
-    expect(result.isError).toBeUndefined();
-
-    // Verify the note was written to the activity worktree, not integration
-    const activityArtifactPath = path.join(
-      activityDir,
-      ".lore",
-      "commissions",
-      `${commissionId}.md`,
-    );
-    const raw = await fs.readFile(activityArtifactPath, "utf-8");
-    expect(raw).toContain("event: manager_note");
-    expect(raw).toContain("Note for active commission");
+    // The handler converts the string to a CommissionId via asCommissionId
+    // before passing to addUserNote
+    expect(mockSession.calls.addUserNote).toHaveLength(1);
+    expect(mockSession.calls.addUserNote[0][0]).toBe(commissionId);
+    expect(mockSession.calls.addUserNote[0][1]).toBe("Note for active commission");
   });
 });
 

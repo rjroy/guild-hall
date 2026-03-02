@@ -540,7 +540,7 @@ export async function finalizeActivity(
  * auto-resolving .lore/ conflicts with --theirs (the activity branch's
  * version). Non-.lore/ conflicts cause the merge to abort.
  *
- * Used by both commission-session and meeting-session to merge activity
+ * Used by both commission orchestrator and meeting-session to merge activity
  * branches back to the integration worktree.
  */
 export async function resolveSquashMerge(

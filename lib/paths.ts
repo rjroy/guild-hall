@@ -76,6 +76,19 @@ export function meetingWorktreePath(
 }
 
 /**
+ * Returns the filesystem path for a commission artifact within a project
+ * or worktree root. The commissionId is a plain string here (not the
+ * branded CommissionId type from daemon/types.ts) because this module
+ * lives in the shared layer.
+ */
+export function commissionArtifactPath(
+  projectPath: string,
+  commissionId: string,
+): string {
+  return path.join(projectPath, ".lore", "commissions", `${commissionId}.md`);
+}
+
+/**
  * Returns the git branch name for a commission activity.
  * Follows the same `claude/<type>/<id>` pattern as meetings.
  * For re-dispatches, append the attempt number.
