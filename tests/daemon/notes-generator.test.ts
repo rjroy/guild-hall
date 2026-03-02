@@ -496,7 +496,7 @@ describe("closeMeeting with notes generation", () => {
   };
 
   const WORKER_PKG = {
-    name: "guild-hall-sample-assistant",
+    name: "test-assistant",
     path: "/packages/sample-assistant",
     metadata: WORKER_META,
   };
@@ -599,7 +599,7 @@ describe("closeMeeting with notes generation", () => {
 
     // Create meeting
     const events = [];
-    for await (const event of session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello")) {
+    for await (const event of session.createMeeting("test-project", "test-assistant", "Hello")) {
       events.push(event);
     }
 
@@ -664,7 +664,7 @@ describe("closeMeeting with notes generation", () => {
 
     // Create meeting
     const events = [];
-    for await (const event of session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello")) {
+    for await (const event of session.createMeeting("test-project", "test-assistant", "Hello")) {
       events.push(event);
     }
 
@@ -721,7 +721,7 @@ describe("closeMeeting with notes generation", () => {
 
     // Create meeting
     const events = [];
-    for await (const event of session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello")) {
+    for await (const event of session.createMeeting("test-project", "test-assistant", "Hello")) {
       events.push(event);
     }
 

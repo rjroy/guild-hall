@@ -316,6 +316,16 @@ notes_summary: ""
     ensureDir: async (dirPath: string) => {
       await fs.mkdir(dirPath, { recursive: true });
     },
+    resolveCheckoutScope: (workerName: string) => {
+      const workerPkg = deps.packages.find((p) => {
+        if (!("identity" in p.metadata)) return false;
+        return p.metadata.identity.name === workerName;
+      });
+      if (workerPkg && "checkoutScope" in workerPkg.metadata) {
+        return workerPkg.metadata.checkoutScope;
+      }
+      return "full";
+    },
     claudeBranch: CLAUDE_BRANCH,
     createTranscript: async (id, workerName, projectName) => {
       await createTranscript(id, workerName, projectName, ghHome);

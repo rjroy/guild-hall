@@ -14,6 +14,7 @@
 
 import * as path from "node:path";
 import type { MeetingId, MeetingStatus, SdkSessionId } from "@/daemon/types";
+import type { CheckoutScope } from "@/lib/types";
 import type {
   TransitionContext,
   EnterHandler,
@@ -49,7 +50,7 @@ export type ActiveMeetingEntry = {
   meetingId: MeetingId;
   projectName: string;
   workerName: string;
-  /** The discovered package name (e.g., "guild-hall-sample-assistant"),
+  /** The discovered package name (e.g., "test-assistant"),
    *  used for getWorkerByName lookups during session renewal/recovery. */
   packageName: string;
   sdkSessionId: SdkSessionId | null;
@@ -109,6 +110,8 @@ export interface MeetingHandlerDeps {
   meetingBranchName: (meetingId: string) => string;
   /** Ensures a directory exists (recursive). Injected for testability. */
   ensureDir: (dirPath: string) => Promise<void>;
+  /** Resolves the worker's declared checkout scope (REQ-MTG-26). Defaults to "full". */
+  resolveCheckoutScope: (workerName: string) => CheckoutScope;
   /** Updates the status field in a meeting artifact. Defaults to meeting-artifact-helpers. */
   updateArtifactStatus?: (
     projectPath: string,
@@ -229,9 +232,11 @@ export function createEnterOpen(
     await deps.ensureDir(path.dirname(worktreeDir));
     await deps.git.createWorktree(projectPath, worktreeDir, branchName);
 
-    // 2. Configure sparse checkout (always uses sparse for meetings)
-    // TODO (Phase 5): Read worker metadata for checkoutScope instead of assuming sparse
-    await deps.git.configureSparseCheckout(worktreeDir, [".lore/"]);
+    // 2. Configure checkout scope per worker declaration (REQ-MTG-26)
+    const checkoutScope = deps.resolveCheckoutScope(entry.workerName);
+    if (checkoutScope === "sparse") {
+      await deps.git.configureSparseCheckout(worktreeDir, [".lore/"]);
+    }
 
     // 3. Handle artifact operations based on path
     if (isAccept) {

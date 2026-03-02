@@ -126,6 +126,7 @@ function createMockDeps(): MeetingHandlerDeps & {
     meetingWorktreePath: (name: string, id: string) => `/fake/guild-hall/worktrees/${name}/${id}`,
     meetingBranchName: (id: string) => `claude/meeting/${id}`,
     ensureDir: mock(async () => {}),
+    resolveCheckoutScope: (_workerName: string) => "sparse" as const,
     updateArtifactStatus: mock(async () => {}),
     appendMeetingLog: mock(async () => {}),
     claudeBranch: "claude/main",
@@ -436,8 +437,9 @@ describe("enter-declined handler", () => {
 // -- Enter-open handler tests (stub behavior) --
 
 describe("enter-open handler", () => {
-  test("creates branch, worktree, and configures sparse checkout", async () => {
+  test("creates branch, worktree, and configures sparse checkout for sparse workers (REQ-MTG-26)", async () => {
     const deps = createMockDeps();
+    // Default mock resolveCheckoutScope returns "sparse"
     const handler = createEnterOpen(deps);
     const id = asMeetingId("audience-scribe-20260301-100000");
     const entry = makeEntry({ meetingId: id, worktreeDir: "", branchName: "" });
@@ -454,6 +456,27 @@ describe("enter-open handler", () => {
     expect(deps.git.createBranch).toHaveBeenCalledTimes(1);
     expect(deps.git.createWorktree).toHaveBeenCalledTimes(1);
     expect(deps.git.configureSparseCheckout).toHaveBeenCalledTimes(1);
+  });
+
+  test("skips sparse checkout for full-scope workers (REQ-MTG-26)", async () => {
+    const deps = createMockDeps();
+    deps.resolveCheckoutScope = () => "full";
+    const handler = createEnterOpen(deps);
+    const id = asMeetingId("audience-dev-20260301-100000");
+    const entry = makeEntry({ meetingId: id, workerName: "Developer", worktreeDir: "", branchName: "" });
+    const ctx = makeContext({
+      id,
+      entry,
+      sourceState: "requested",
+      targetState: "open",
+      reason: "Review implementation",
+    });
+
+    await handler(ctx);
+
+    expect(deps.git.createBranch).toHaveBeenCalledTimes(1);
+    expect(deps.git.createWorktree).toHaveBeenCalledTimes(1);
+    expect(deps.git.configureSparseCheckout).not.toHaveBeenCalled();
   });
 
   test("populates entry worktreeDir and branchName", async () => {
