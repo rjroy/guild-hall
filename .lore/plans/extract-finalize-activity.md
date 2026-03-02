@@ -1,6 +1,6 @@
 ---
 title: Extract finalizeActivity to unify commission and meeting git cleanup
-status: draft
+status: executed
 ---
 
 # Extract finalizeActivity

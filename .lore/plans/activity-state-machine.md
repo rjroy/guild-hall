@@ -1,7 +1,7 @@
 ---
 title: "Plan: Activity state machine with enter/exit handlers"
 date: 2026-03-01
-status: draft
+status: executed
 tags: [architecture, refactor, state-machine, commissions, meetings, lifecycle]
 modules: [commission-session, meeting-session, commission-state-machine, activity-state-machine]
 related:
