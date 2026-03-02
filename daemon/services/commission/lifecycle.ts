@@ -88,9 +88,9 @@ export class CommissionLifecycle {
       );
     }
 
-    await this.recordOps.writeStatus(artifactPath, initialStatus);
-    await this.recordOps.appendTimeline(
+    await this.recordOps.writeStatusAndTimeline(
       artifactPath,
+      initialStatus,
       "created",
       `Commission created with status ${initialStatus}`,
     );
@@ -183,9 +183,9 @@ export class CommissionLifecycle {
 
       entry.artifactPath = artifactPath;
       entry.resultSignalReceived = false;
-      await this.recordOps.writeStatus(entry.artifactPath, "in_progress");
-      await this.recordOps.appendTimeline(
+      await this.recordOps.writeStatusAndTimeline(
         entry.artifactPath,
+        "in_progress",
         "status_in_progress",
         "Execution started",
         { from: "dispatched", to: "in_progress" },
@@ -365,9 +365,9 @@ export class CommissionLifecycle {
         };
       }
 
-      await this.recordOps.writeStatus(entry.artifactPath, to);
-      await this.recordOps.appendTimeline(
+      await this.recordOps.writeStatusAndTimeline(
         entry.artifactPath,
+        to,
         `status_${to}`,
         reason,
         { from, to },

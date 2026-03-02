@@ -35,6 +35,7 @@ import type {
   WorkerMetadata,
 } from "@/lib/types";
 import type { SystemEvent, EventBus } from "./event-bus";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import { logSdkMessage } from "./sdk-logging";
 
@@ -166,11 +167,6 @@ export interface SessionRunnerDeps {
 }
 
 // -- Implementation --
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return String(err);
-}
 
 /**
  * Checks whether an EventBus event matches a context ID by looking up

@@ -41,6 +41,16 @@ function createMockRecordOps(): CommissionRecordOps & {
       calls.push({ method: "updateProgress", args: [artifactPath, summary] });
       return Promise.resolve();
     },
+    writeStatusAndTimeline(
+      artifactPath: string,
+      status: string,
+      event: string,
+      reason: string,
+      extra?: Record<string, unknown>,
+    ): Promise<void> {
+      calls.push({ method: "writeStatusAndTimeline", args: [artifactPath, status, event, reason, extra] });
+      return Promise.resolve();
+    },
     updateResult(
       artifactPath: string,
       summary: string,
@@ -75,15 +85,12 @@ describe("create", () => {
   test("writes initial status and timeline via Layer 1", async () => {
     await lifecycle.create(TEST_ID, TEST_PROJECT, TEST_ARTIFACT, "pending");
 
-    const statusCalls = recordOps.calls.filter((c) => c.method === "writeStatus");
-    expect(statusCalls).toHaveLength(1);
-    expect(statusCalls[0].args).toEqual([TEST_ARTIFACT, "pending"]);
-
-    const timelineCalls = recordOps.calls.filter((c) => c.method === "appendTimeline");
-    expect(timelineCalls).toHaveLength(1);
-    expect(timelineCalls[0].args[0]).toBe(TEST_ARTIFACT);
-    expect(timelineCalls[0].args[1]).toBe("created");
-    expect(timelineCalls[0].args[2]).toContain("pending");
+    const combinedCalls = recordOps.calls.filter((c) => c.method === "writeStatusAndTimeline");
+    expect(combinedCalls).toHaveLength(1);
+    expect(combinedCalls[0].args[0]).toBe(TEST_ARTIFACT);
+    expect(combinedCalls[0].args[1]).toBe("pending");
+    expect(combinedCalls[0].args[2]).toBe("created");
+    expect(combinedCalls[0].args[3]).toContain("pending");
   });
 
   test("tracks the commission after creation", async () => {
@@ -99,8 +106,8 @@ describe("create", () => {
     await lifecycle.create(TEST_ID, TEST_PROJECT, TEST_ARTIFACT, "blocked");
 
     expect(lifecycle.getStatus(TEST_ID)).toBe("blocked");
-    const statusCalls = recordOps.calls.filter((c) => c.method === "writeStatus");
-    expect(statusCalls[0].args[1]).toBe("blocked");
+    const combinedCalls = recordOps.calls.filter((c) => c.method === "writeStatusAndTimeline");
+    expect(combinedCalls[0].args[1]).toBe("blocked");
   });
 });
 
@@ -448,20 +455,16 @@ describe("event emission", () => {
 // -- Layer 1 calls --
 
 describe("Layer 1 calls", () => {
-  test("transition writes status then appends timeline", async () => {
+  test("transition writes status and timeline in a single call", async () => {
     lifecycle.register(TEST_ID, TEST_PROJECT, "pending", TEST_ARTIFACT);
     await lifecycle.dispatch(TEST_ID);
 
-    const writeStatusCalls = recordOps.calls.filter((c) => c.method === "writeStatus");
-    const timelineCalls = recordOps.calls.filter((c) => c.method === "appendTimeline");
-
-    expect(writeStatusCalls).toHaveLength(1);
-    expect(writeStatusCalls[0].args).toEqual([TEST_ARTIFACT, "dispatched"]);
-
-    expect(timelineCalls).toHaveLength(1);
-    expect(timelineCalls[0].args[0]).toBe(TEST_ARTIFACT);
-    expect(timelineCalls[0].args[1]).toBe("status_dispatched");
-    expect(timelineCalls[0].args[3]).toEqual({ from: "pending", to: "dispatched" });
+    const combinedCalls = recordOps.calls.filter((c) => c.method === "writeStatusAndTimeline");
+    expect(combinedCalls).toHaveLength(1);
+    expect(combinedCalls[0].args[0]).toBe(TEST_ARTIFACT);
+    expect(combinedCalls[0].args[1]).toBe("dispatched");
+    expect(combinedCalls[0].args[2]).toBe("status_dispatched");
+    expect(combinedCalls[0].args[4]).toEqual({ from: "pending", to: "dispatched" });
   });
 
   test("executionStarted uses the NEW artifact path for Layer 1 calls", async () => {
@@ -469,11 +472,8 @@ describe("Layer 1 calls", () => {
     const newPath = "/tmp/worktree/commission.md";
     await lifecycle.executionStarted(TEST_ID, newPath);
 
-    const writeStatusCalls = recordOps.calls.filter((c) => c.method === "writeStatus");
-    expect(writeStatusCalls[0].args[0]).toBe(newPath);
-
-    const timelineCalls = recordOps.calls.filter((c) => c.method === "appendTimeline");
-    expect(timelineCalls[0].args[0]).toBe(newPath);
+    const combinedCalls = recordOps.calls.filter((c) => c.method === "writeStatusAndTimeline");
+    expect(combinedCalls[0].args[0]).toBe(newPath);
   });
 
   test("progressReported calls updateProgress", async () => {

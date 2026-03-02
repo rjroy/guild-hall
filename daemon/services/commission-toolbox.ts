@@ -14,7 +14,6 @@
  * meeting-toolbox.ts.
  */
 
-import * as path from "node:path";
 import {
   createSdkMcpServer,
   tool,
@@ -22,45 +21,55 @@ import {
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod/v4";
 import { asCommissionId } from "@/daemon/types";
-import type { CommissionId, ToolResult } from "@/daemon/types";
+import type { ToolResult } from "@/daemon/types";
+import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import { createCommissionRecordOps } from "@/daemon/services/commission/record";
 import { resolveWritePath, errorMessage } from "@/daemon/lib/toolbox-utils";
+import { commissionArtifactPath } from "@/lib/paths";
+import type { SessionCallbacks } from "@/daemon/services/session-runner";
 import type { GuildHallToolboxDeps, ToolboxFactory } from "./toolbox-types";
 
 type CommissionToolboxDeps = Pick<GuildHallToolboxDeps, "guildHallHome" | "projectName" | "contextId" | "eventBus">;
 
-// -- Local path helper --
-
-function commissionArtifactPath(projectPath: string, commissionId: CommissionId): string {
-  return path.join(projectPath, ".lore", "commissions", `${commissionId}.md`);
-}
-
-// -- Callback types --
+/**
+ * @deprecated Use SessionCallbacks from session-runner.ts instead.
+ * Kept as a re-export alias for backward compatibility with tests.
+ */
+export type CommissionToolCallbacks = SessionCallbacks;
 
 /**
- * Callbacks for the commission toolbox (Layer 4 interface).
- * These decouple the toolbox from EventBus emission, allowing the
- * session runner to receive tool invocations directly.
+ * Shared resources created once per toolbox and passed to handler factories.
+ * Avoids creating a new CommissionRecordOps per handler and resolving the
+ * write path on every tool call.
  */
-export type CommissionToolCallbacks = {
-  onProgress: (summary: string) => void;
-  onResult: (summary: string, artifacts?: string[]) => void;
-  onQuestion: (question: string) => void;
+type ToolboxResources = {
+  recordOps: CommissionRecordOps;
+  /** Lazily resolved on first use, then cached for the toolbox lifetime. */
+  writePathPromise: Promise<string>;
 };
+
+function createToolboxResources(deps: CommissionToolboxDeps): ToolboxResources {
+  const recordOps = createCommissionRecordOps();
+  // Resolve write path once and cache the promise. All handlers await
+  // the same promise, so the fs.access() call happens at most once.
+  const writePathPromise = resolveWritePath(
+    deps.guildHallHome, deps.projectName, deps.contextId, "commission",
+  );
+  return { recordOps, writePathPromise };
+}
 
 // -- Handler factories --
 
 export function makeReportProgressHandler(
   deps: CommissionToolboxDeps,
-  callbacks: CommissionToolCallbacks,
+  callbacks: SessionCallbacks,
+  resources?: ToolboxResources,
 ) {
   const cid = asCommissionId(deps.contextId);
-  const recordOps = createCommissionRecordOps();
+  const { recordOps, writePathPromise } = resources ?? createToolboxResources(deps);
 
   return async (args: { summary: string }): Promise<ToolResult> => {
-    const writePath = await resolveWritePath(
-      deps.guildHallHome, deps.projectName, deps.contextId, "commission",
-    );
+    const writePath = await writePathPromise;
     const artifactPath = commissionArtifactPath(writePath, cid);
     await recordOps.appendTimeline(artifactPath, "progress_report", args.summary);
     await recordOps.updateProgress(artifactPath, args.summary);
@@ -77,10 +86,11 @@ export function makeReportProgressHandler(
 
 export function makeSubmitResultHandler(
   deps: CommissionToolboxDeps,
-  callbacks: CommissionToolCallbacks,
+  callbacks: SessionCallbacks,
+  resources?: ToolboxResources,
 ) {
   const cid = asCommissionId(deps.contextId);
-  const recordOps = createCommissionRecordOps();
+  const { recordOps, writePathPromise } = resources ?? createToolboxResources(deps);
   let resultSubmitted = false;
 
   return async (args: {
@@ -100,9 +110,7 @@ export function makeSubmitResultHandler(
     }
 
     try {
-      const writePath = await resolveWritePath(
-        deps.guildHallHome, deps.projectName, deps.contextId, "commission",
-      );
+      const writePath = await writePathPromise;
       const artifactPath = commissionArtifactPath(writePath, cid);
       await recordOps.updateResult(artifactPath, args.summary, args.artifacts);
       await recordOps.appendTimeline(artifactPath, "result_submitted", args.summary);
@@ -134,15 +142,14 @@ export function makeSubmitResultHandler(
 
 export function makeLogQuestionHandler(
   deps: CommissionToolboxDeps,
-  callbacks: CommissionToolCallbacks,
+  callbacks: SessionCallbacks,
+  resources?: ToolboxResources,
 ) {
   const cid = asCommissionId(deps.contextId);
-  const recordOps = createCommissionRecordOps();
+  const { recordOps, writePathPromise } = resources ?? createToolboxResources(deps);
 
   return async (args: { question: string }): Promise<ToolResult> => {
-    const writePath = await resolveWritePath(
-      deps.guildHallHome, deps.projectName, deps.contextId, "commission",
-    );
+    const writePath = await writePathPromise;
     const artifactPath = commissionArtifactPath(writePath, cid);
     await recordOps.appendTimeline(artifactPath, "question", args.question);
 
@@ -162,14 +169,19 @@ export function makeLogQuestionHandler(
  * Creates a commission toolbox that routes tool invocations through
  * callbacks. File writes for durability still happen; only the
  * notification path goes through callbacks.
+ *
+ * Creates a single CommissionRecordOps instance and resolves the write
+ * path once, sharing them across all handlers for the toolbox lifetime.
  */
 export function createCommissionToolboxWithCallbacks(
   deps: CommissionToolboxDeps,
-  callbacks: CommissionToolCallbacks,
+  callbacks: SessionCallbacks,
 ): McpSdkServerConfigWithInstance {
-  const reportProgress = makeReportProgressHandler(deps, callbacks);
-  const submitResult = makeSubmitResultHandler(deps, callbacks);
-  const logQuestion = makeLogQuestionHandler(deps, callbacks);
+  const resources = createToolboxResources(deps);
+
+  const reportProgress = makeReportProgressHandler(deps, callbacks, resources);
+  const submitResult = makeSubmitResultHandler(deps, callbacks, resources);
+  const logQuestion = makeLogQuestionHandler(deps, callbacks, resources);
 
   return createSdkMcpServer({
     name: "guild-hall-commission",

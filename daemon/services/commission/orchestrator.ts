@@ -44,6 +44,7 @@ import {
   integrationWorktreePath as integrationWorktreePathFn,
   commissionWorktreePath as commissionWorktreePathFn,
   commissionBranchName as commissionBranchNameFn,
+  commissionArtifactPath,
   activityWorktreeRoot,
 } from "@/lib/paths";
 import { getWorkerByName } from "@/lib/packages";
@@ -58,6 +59,7 @@ import {
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import type { EventBus } from "@/daemon/services/event-bus";
 import type { CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
+import { replaceYamlField } from "@/daemon/services/commission/record";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import type {
   WorkspaceOps,
@@ -107,38 +109,6 @@ export interface CommissionSessionForRoutes {
   recoverCommissions(): Promise<number>;
   getActiveCommissions(): number;
   shutdown(): void;
-}
-
-// -- Local path helper --
-
-/**
- * Returns the filesystem path for a commission artifact within a project
- * or worktree root. This was previously in commission-artifact-helpers.ts;
- * kept here as a simple path computation.
- */
-function commissionArtifactPath(
-  projectPath: string,
-  commissionId: CommissionId,
-): string {
-  return path.join(projectPath, ".lore", "commissions", `${commissionId}.md`);
-}
-
-// -- Local helpers --
-
-/**
- * Replaces a top-level YAML frontmatter field that may span multiple lines.
- * Same approach as record.ts: regex-based replacement avoids the
- * reformatting noise from gray-matter stringify().
- */
-function replaceYamlField(raw: string, fieldName: string, newValue: string): string {
-  const pattern = new RegExp(
-    `^${fieldName}:.*$(?:\\n(?![a-z_]|---).*)*`,
-    "m",
-  );
-  if (!pattern.test(raw)) {
-    throw new Error(`replaceYamlField: no "${fieldName}" field found in content`);
-  }
-  return raw.replace(pattern, `${fieldName}:${newValue}`);
 }
 
 // -- Constants --
@@ -424,15 +394,10 @@ export function createCommissionOrchestrator(
           const statusMatch = raw.match(/^status: (\S+)$/m);
           if (!statusMatch || statusMatch[1] !== "pending") continue;
 
-          const { data } = matter(raw);
-          const firstEntry = (data.activity_timeline as Array<{ timestamp: unknown }> | undefined)?.[0];
-          const rawTs = firstEntry?.timestamp;
-          const createdAt =
-            rawTs instanceof Date
-              ? rawTs.toISOString()
-              : typeof rawTs === "string"
-                ? rawTs
-                : "9999-12-31T23:59:59.999Z";
+          // Extract the first timestamp from activity_timeline using regex
+          // instead of parsing the entire file with gray-matter.
+          const tsMatch = raw.match(/^activity_timeline:\n\s+- timestamp: (.+)$/m);
+          const createdAt = tsMatch?.[1] ?? "9999-12-31T23:59:59.999Z";
 
           pending.push({ commissionId: cId, projectName: project.name, createdAt });
         } catch (err: unknown) {
@@ -545,19 +510,7 @@ export function createCommissionOrchestrator(
           ? `Session error: ${result.error}`
           : "Session completed without submitting result";
 
-        try {
-          await lifecycle.executionFailed(ctx.commissionId, reason);
-        } catch (err: unknown) {
-          console.error(`[orchestrator] executionFailed threw for "${ctx.commissionId as string}":`, errorMessage(err));
-        }
-        await preserveAndCleanup(ctx, reason);
-        await syncStatusToIntegration(ctx.commissionId, ctx.projectName, "failed", reason);
-        await writeStateFile(ctx.commissionId, {
-          commissionId: ctx.commissionId as string,
-          projectName: ctx.projectName,
-          workerName: ctx.workerName,
-          status: "failed",
-        });
+        await failAndCleanup(ctx, reason);
       }
     } finally {
       executions.delete(ctx.commissionId);
@@ -585,23 +538,14 @@ export function createCommissionOrchestrator(
       console.error(
         `[orchestrator] project "${ctx.projectName}" not found during finalize`,
       );
-      await lifecycle.executionFailed(ctx.commissionId, "Project not found during finalize");
-      await preserveAndCleanup(ctx, "Project not found during finalize");
+      await failAndCleanup(ctx, "Project not found during finalize");
       return;
     }
 
     const iPath = integrationWorktreePathFn(guildHallHome, ctx.projectName);
 
-    // Commit the activity worktree artifacts before merging
-    try {
-      await gitOps.commitAll(ctx.worktreeDir, `Commission completed: ${ctx.commissionId as string}`);
-    } catch (err: unknown) {
-      console.warn(
-        `[orchestrator] pre-merge commit failed for "${ctx.commissionId as string}":`,
-        errorMessage(err),
-      );
-    }
-
+    // workspace.finalize() commits the activity worktree as its first step,
+    // so no separate pre-merge commitAll is needed here.
     let finalizeResult: FinalizeResult;
     try {
       finalizeResult = await workspace.finalize({
@@ -620,15 +564,7 @@ export function createCommissionOrchestrator(
         `[orchestrator] finalize threw for "${ctx.commissionId as string}":`,
         errMsg,
       );
-      await lifecycle.executionFailed(ctx.commissionId, `Finalize error: ${errMsg}`);
-      await preserveAndCleanup(ctx, errMsg);
-      await syncStatusToIntegration(ctx.commissionId, ctx.projectName, "failed", `Finalize error: ${errMsg}`);
-      await writeStateFile(ctx.commissionId, {
-        commissionId: ctx.commissionId as string,
-        projectName: ctx.projectName,
-        workerName: ctx.workerName,
-        status: "failed",
-      });
+      await failAndCleanup(ctx, `Finalize error: ${errMsg}`);
       return;
     }
 
@@ -670,14 +606,7 @@ export function createCommissionOrchestrator(
         }
       }
 
-      await lifecycle.executionFailed(ctx.commissionId, conflictReason);
-      await syncStatusToIntegration(ctx.commissionId, ctx.projectName, "failed", conflictReason);
-      await writeStateFile(ctx.commissionId, {
-        commissionId: ctx.commissionId as string,
-        projectName: ctx.projectName,
-        workerName: ctx.workerName,
-        status: "failed",
-      });
+      await failAndCleanup(ctx, conflictReason, { preserveWorktree: false });
 
       console.log(
         `[orchestrator] "${ctx.commissionId as string}" merge failed: ${conflictReason}`,
@@ -700,25 +629,47 @@ export function createCommissionOrchestrator(
       : `Session error: ${String(error)}`;
 
     try {
-      try {
-        await lifecycle.executionFailed(ctx.commissionId, reason);
-      } catch (err: unknown) {
-        console.error(`[orchestrator] executionFailed threw for "${ctx.commissionId as string}":`, errorMessage(err));
-      }
-      await preserveAndCleanup(ctx, reason);
-      await syncStatusToIntegration(ctx.commissionId, ctx.projectName, "failed", reason);
-      await writeStateFile(ctx.commissionId, {
-        commissionId: ctx.commissionId as string,
-        projectName: ctx.projectName,
-        workerName: ctx.workerName,
-        status: "failed",
-      });
+      await failAndCleanup(ctx, reason);
     } finally {
       executions.delete(ctx.commissionId);
       lifecycle.forget(ctx.commissionId);
     }
 
     enqueueAutoDispatch();
+  }
+
+  /**
+   * Encapsulates the recurring failure cleanup sequence:
+   * 1. lifecycle.executionFailed (with catch + log)
+   * 2. preserveAndCleanup (optional, when preserveWorktree is true)
+   * 3. syncStatusToIntegration
+   * 4. writeStateFile with "failed"
+   *
+   * Some call sites (merge conflict) don't need preserveAndCleanup because
+   * the worktree was already removed by workspace.finalize. Pass
+   * preserveWorktree: false for those cases.
+   */
+  async function failAndCleanup(
+    ctx: ExecutionContext,
+    reason: string,
+    options: { preserveWorktree?: boolean } = {},
+  ): Promise<void> {
+    const { preserveWorktree = true } = options;
+    try {
+      await lifecycle.executionFailed(ctx.commissionId, reason);
+    } catch (err: unknown) {
+      console.error(`[orchestrator] executionFailed threw for "${ctx.commissionId as string}":`, errorMessage(err));
+    }
+    if (preserveWorktree) {
+      await preserveAndCleanup(ctx, reason);
+    }
+    await syncStatusToIntegration(ctx.commissionId, ctx.projectName, "failed", reason);
+    await writeStateFile(ctx.commissionId, {
+      commissionId: ctx.commissionId as string,
+      projectName: ctx.projectName,
+      workerName: ctx.workerName,
+      status: "failed",
+    });
   }
 
   /**
@@ -754,45 +705,61 @@ export function createCommissionOrchestrator(
       return;
     }
 
+    // Filter to candidate commission IDs (not active, .md files)
+    const candidates = entries
+      .filter((f) => f.endsWith(".md"))
+      .map((f) => asCommissionId(f.replace(/\.md$/, "")))
+      .filter((cId) => !executions.has(cId));
+
+    if (candidates.length === 0) return;
+
+    // Read status and dependencies for all candidates in parallel
+    type CandidateData = {
+      cId: CommissionId;
+      artifactPath: string;
+      status: string;
+      dependencies: string[];
+      allSatisfied: boolean;
+    };
+
+    const readResults = await Promise.allSettled(
+      candidates.map(async (cId): Promise<CandidateData | null> => {
+        const cArtifactPath = commissionArtifactPath(iPath, cId);
+        let status: string;
+        try {
+          status = await recordOps.readStatus(cArtifactPath);
+        } catch (err: unknown) {
+          console.warn(`[orchestrator] checkDependencyTransitions: failed to read status for "${cId as string}":`, errorMessage(err));
+          return null;
+        }
+
+        if (status !== "blocked" && status !== "pending") return null;
+
+        let dependencies: string[];
+        try {
+          dependencies = await recordOps.readDependencies(cArtifactPath);
+        } catch (err: unknown) {
+          console.warn(`[orchestrator] checkDependencyTransitions: failed to read dependencies for "${cId as string}":`, errorMessage(err));
+          return null;
+        }
+
+        if (dependencies.length === 0) return null;
+
+        const depChecks = await Promise.all(
+          dependencies.map((dep) => fileExists(path.join(iPath, dep))),
+        );
+        const allSatisfied = depChecks.every(Boolean);
+
+        return { cId, artifactPath: cArtifactPath, status, dependencies, allSatisfied };
+      }),
+    );
+
+    // Process transitions sequentially (lifecycle operations need serialization)
     let anyUnblocked = false;
 
-    for (const filename of entries) {
-      if (!filename.endsWith(".md")) continue;
-      const cId = asCommissionId(filename.replace(/\.md$/, ""));
-
-      // Skip commissions that are currently active
-      if (executions.has(cId)) continue;
-
-      const cArtifactPath = commissionArtifactPath(iPath, cId);
-      let status: string;
-      try {
-        status = await recordOps.readStatus(cArtifactPath);
-      } catch (err: unknown) {
-        console.warn(`[orchestrator] checkDependencyTransitions: failed to read status for "${cId as string}":`, errorMessage(err));
-        continue;
-      }
-
-      if (status !== "blocked" && status !== "pending") continue;
-
-      let dependencies: string[];
-      try {
-        dependencies = await recordOps.readDependencies(cArtifactPath);
-      } catch (err: unknown) {
-        console.warn(`[orchestrator] checkDependencyTransitions: failed to read dependencies for "${cId as string}":`, errorMessage(err));
-        continue;
-      }
-
-      if (dependencies.length === 0) continue;
-
-      let allSatisfied = true;
-      for (const dep of dependencies) {
-        const depPath = path.join(iPath, dep);
-        const exists = await fileExists(depPath);
-        if (!exists) {
-          allSatisfied = false;
-          break;
-        }
-      }
+    for (const result of readResults) {
+      if (result.status !== "fulfilled" || !result.value) continue;
+      const { cId, artifactPath: cArtifactPath, status, allSatisfied } = result.value;
 
       if (status === "blocked" && allSatisfied) {
         try {
@@ -1165,13 +1132,13 @@ projectName: ${projectName}
     let raw = await fs.readFile(artifactPath, "utf-8");
 
     if (updates.prompt !== undefined) {
-      raw = replaceYamlField(raw, "prompt", ` "${escapeYamlValue(updates.prompt)}"`);
+      raw = replaceYamlField(raw, "prompt", `"${escapeYamlValue(updates.prompt)}"`);
     }
 
     if (updates.dependencies !== undefined) {
       const depsYaml = updates.dependencies.length > 0
         ? "\n" + updates.dependencies.map((d) => `  - ${d}`).join("\n")
-        : " []";
+        : "[]";
       raw = replaceYamlField(raw, "dependencies", depsYaml);
     }
 
@@ -1224,17 +1191,18 @@ projectName: ${projectName}
       );
     }
 
-    // 2. Verify status is pending
-    let currentStatus: string;
+    // 2. Read the artifact once for status verification and dispatch data
+    const artifactPath = commissionArtifactPath(found.integrationPath, commissionId);
+    let raw: string;
     try {
-      currentStatus = await recordOps.readStatus(
-        commissionArtifactPath(found.integrationPath, commissionId),
-      );
+      raw = await fs.readFile(artifactPath, "utf-8");
     } catch {
       throw new Error(
         `Cannot read status from commission "${commissionId as string}" artifact. The file may be corrupted.`,
       );
     }
+    const { data } = matter(raw);
+    const currentStatus = (data.status as string | undefined) ?? "";
     if (currentStatus !== "pending") {
       throw new Error(
         `Cannot dispatch commission "${commissionId as string}": status is "${currentStatus}", must be "pending"`,
@@ -1258,11 +1226,6 @@ projectName: ${projectName}
       });
       return { status: "queued" };
     }
-
-    // 4. Read the artifact for dispatch data
-    const artifactPath = commissionArtifactPath(found.integrationPath, commissionId);
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    const { data } = matter(raw);
 
     const prompt = (data.prompt as string | undefined) ?? "";
     const workerName = (data.worker as string | undefined) ?? "";

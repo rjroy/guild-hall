@@ -13,6 +13,8 @@
  */
 
 import * as fs from "node:fs/promises";
+import { escapeYamlValue } from "@/daemon/lib/toolbox-utils";
+import { isNodeError } from "@/lib/types";
 
 // -- Interface --
 
@@ -21,6 +23,14 @@ export interface CommissionRecordOps {
   writeStatus(artifactPath: string, status: string): Promise<void>;
   appendTimeline(
     artifactPath: string,
+    event: string,
+    reason: string,
+    extra?: Record<string, unknown>,
+  ): Promise<void>;
+  /** Combines writeStatus + appendTimeline in a single read/write cycle. */
+  writeStatusAndTimeline(
+    artifactPath: string,
+    status: string,
     event: string,
     reason: string,
     extra?: Record<string, unknown>,
@@ -44,7 +54,7 @@ async function readArtifact(artifactPath: string, operation: string): Promise<st
   try {
     return await fs.readFile(artifactPath, "utf-8");
   } catch (err: unknown) {
-    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+    if (isNodeError(err) && err.code === "ENOENT") {
       throw new Error(`${operation}: artifact not found at ${artifactPath}`);
     }
     throw err;
@@ -53,30 +63,64 @@ async function readArtifact(artifactPath: string, operation: string): Promise<st
 
 /**
  * Replaces a top-level YAML frontmatter field that may span multiple lines.
- * Matches from "fieldName: " through all continuation lines (lines that don't
- * start a new top-level key) up to the next top-level field or closing ---.
+ * Matches from "fieldName:" (with or without space after colon) through all
+ * continuation lines (lines that don't start a new top-level key) up to the
+ * next top-level field or closing ---. The replacement always normalizes to
+ * "fieldName: newValue" (with space after colon).
  */
-function replaceYamlField(raw: string, fieldName: string, newValue: string): string {
+export function replaceYamlField(raw: string, fieldName: string, newValue: string): string {
   const pattern = new RegExp(
-    `^${fieldName}: .*$(?:\\n(?![a-z_]|---).*)*`,
+    `^${fieldName}:[ ]?.*$(?:\\n(?![a-z_]|---).*)*`,
     "m",
   );
-  if (!pattern.test(raw)) {
+  const replaced = raw.replace(pattern, `${fieldName}: ${newValue}`);
+  if (replaced === raw) {
     throw new Error(`replaceYamlField: no "${fieldName}" field found in content`);
   }
-  return raw.replace(pattern, `${fieldName}: ${newValue}`);
+  return replaced;
 }
 
 /**
- * Escapes a string for use as a YAML double-quoted value.
- * Handles backslashes, double quotes, and newlines so the value
- * stays on a single line.
+ * Builds a YAML timeline entry string. Used by appendTimeline and
+ * writeStatusAndTimeline to avoid duplicating the formatting logic.
  */
-function escapeYamlValue(value: string): string {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n");
+function buildTimelineEntry(
+  event: string,
+  reason: string,
+  extra?: Record<string, unknown>,
+): string {
+  const now = new Date();
+  let entry = `  - timestamp: ${now.toISOString()}\n    event: ${event}\n    reason: "${escapeYamlValue(reason)}"`;
+
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      entry += `\n    ${key}: "${escapeYamlValue(String(value))}"`;
+    }
+  }
+
+  return entry;
+}
+
+/**
+ * Inserts a timeline entry into raw content. Returns the updated content.
+ * Throws if no insertion point is found.
+ */
+function insertTimelineEntry(raw: string, entry: string, artifactPath: string): string {
+  // Insert before "current_progress:" line
+  const progressIndex = raw.indexOf("current_progress:");
+  if (progressIndex !== -1) {
+    return raw.slice(0, progressIndex) + entry + "\n" + raw.slice(progressIndex);
+  }
+
+  // Fallback: append before closing ---
+  const closingIndex = raw.lastIndexOf("\n---");
+  if (closingIndex !== -1) {
+    return raw.slice(0, closingIndex) + "\n" + entry + raw.slice(closingIndex);
+  }
+
+  throw new Error(
+    `appendTimeline: no "current_progress:" field or closing "---" delimiter found in ${artifactPath}`,
+  );
 }
 
 // -- Implementation --
@@ -108,40 +152,26 @@ function createRecordOps(): CommissionRecordOps {
       extra?: Record<string, unknown>,
     ): Promise<void> {
       const raw = await readArtifact(artifactPath, "appendTimeline");
+      const entry = buildTimelineEntry(event, reason, extra);
+      const updated = insertTimelineEntry(raw, entry, artifactPath);
+      await fs.writeFile(artifactPath, updated, "utf-8");
+    },
 
-      const now = new Date();
-      let entry = `  - timestamp: ${now.toISOString()}\n    event: ${event}\n    reason: "${escapeYamlValue(reason)}"`;
-
-      if (extra) {
-        for (const [key, value] of Object.entries(extra)) {
-          entry += `\n    ${key}: "${escapeYamlValue(String(value))}"`;
-        }
+    async writeStatusAndTimeline(
+      artifactPath: string,
+      status: string,
+      event: string,
+      reason: string,
+      extra?: Record<string, unknown>,
+    ): Promise<void> {
+      const raw = await readArtifact(artifactPath, "writeStatusAndTimeline");
+      if (!/^status: \S+$/m.test(raw)) {
+        throw new Error(`writeStatusAndTimeline: no status field found in ${artifactPath}`);
       }
-
-      // Insert before "current_progress:" line
-      const progressIndex = raw.indexOf("current_progress:");
-      if (progressIndex !== -1) {
-        const updated =
-          raw.slice(0, progressIndex) +
-          entry +
-          "\n" +
-          raw.slice(progressIndex);
-        await fs.writeFile(artifactPath, updated, "utf-8");
-        return;
-      }
-
-      // Fallback: append before closing ---
-      const closingIndex = raw.lastIndexOf("\n---");
-      if (closingIndex !== -1) {
-        const updated =
-          raw.slice(0, closingIndex) + "\n" + entry + raw.slice(closingIndex);
-        await fs.writeFile(artifactPath, updated, "utf-8");
-        return;
-      }
-
-      throw new Error(
-        `appendTimeline: no "current_progress:" field or closing "---" delimiter found in ${artifactPath}`,
-      );
+      let updated = raw.replace(/^status: \S+$/m, `status: ${status}`);
+      const entry = buildTimelineEntry(event, reason, extra);
+      updated = insertTimelineEntry(updated, entry, artifactPath);
+      await fs.writeFile(artifactPath, updated, "utf-8");
     },
 
     async readDependencies(artifactPath: string): Promise<string[]> {
