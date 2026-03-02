@@ -1,8 +1,8 @@
 ---
 title: Commission layer separation interfaces and mechanisms
 date: 2026-03-01
-status: draft
-tags: [architecture, state-machine, commission, boundaries, interfaces, refactor]
+status: implemented
+tags: [architecture, state-machine, commissions, boundaries, interfaces, refactor]
 modules: [commission-session, commission-handlers, commission-toolbox, activity-state-machine]
 related:
   - .lore/specs/commission-layer-separation.md

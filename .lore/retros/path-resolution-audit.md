@@ -4,12 +4,12 @@ date: 2026-02-28
 status: complete
 tags: [audit, paths, worktrees, data-integrity]
 modules: [lib-paths, daemon, next-app]
-related: [issues/path-resolution-audit.md]
+related: [_archive/issues/path-resolution-audit.md]
 ---
 
 # Path Resolution Audit
 
-References: `.lore/issues/path-resolution-audit.md`
+References: `.lore/_archive/issues/path-resolution-audit.md`
 
 ## Methodology
 

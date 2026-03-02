@@ -2,7 +2,7 @@
 title: Commission session internal structure and state dependencies
 date: 2026-02-28
 status: current
-tags: [architecture, refactoring, commission-session, decomposition]
+tags: [architecture, refactor, commission-session, decomposition]
 modules: [commission-session]
 related: [.lore/design/process-architecture.md]
 ---

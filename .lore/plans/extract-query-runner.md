@@ -1,3 +1,11 @@
+---
+title: Extract SDK query execution from meeting-session.ts
+date: 2026-03-01
+status: draft
+tags: [refactor, meeting-session, query-runner, separation-of-concerns]
+modules: [meeting-session, query-runner]
+---
+
 # Extract SDK Query Execution from meeting-session.ts
 
 ## Context

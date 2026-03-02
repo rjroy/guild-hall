@@ -2,7 +2,7 @@
 title: Activity state machine with enter/exit handlers
 date: 2026-03-01
 status: draft
-tags: [architecture, refactor, state-machine, commission, meeting, lifecycle]
+tags: [architecture, refactor, state-machine, commissions, meetings, lifecycle]
 modules: [commission-session, meeting-session, commission-state-machine]
 related:
   - .lore/specs/guild-hall-commissions.md

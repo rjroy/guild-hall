@@ -4,7 +4,7 @@ date: 2026-02-26
 status: executed
 tags: [bug-fix, transcripts, serialization, meetings]
 modules: [transcript, meeting-chat]
-related: [.lore/issues/multiline-tool-display-on-reopen.md]
+related: [.lore/_archive/issues/multiline-tool-display-on-reopen.md]
 ---
 
 # Plan: Fix Multiline Tool Results on Meeting Reopen

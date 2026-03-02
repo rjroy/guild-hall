@@ -1,8 +1,8 @@
 ---
 title: Commission layer separation
 date: 2026-03-01
-status: open
-tags: [commission, architecture, refactor, object-design, boundaries]
+status: resolved
+tags: [commissions, architecture, refactor, object-design, boundaries]
 modules: [daemon-services, commission-session, commission-handlers, activity-state-machine]
 related:
   - .lore/reference/commissions.md

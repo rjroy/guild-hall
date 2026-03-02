@@ -5,7 +5,7 @@ status: executed
 tags: [architecture, git, commissions, meetings, state-management, worktrees, refactor]
 modules: [commission-session, commission-artifact-helpers, meeting-session, meeting-artifact-helpers, daemon-routes, git]
 related:
-  - .lore/issues/commission-meeting-state-ownership.md
+  - .lore/_archive/issues/commission-meeting-state-ownership.md
   - .lore/specs/guild-hall-system.md
   - .lore/specs/guild-hall-commissions.md
   - .lore/specs/guild-hall-meetings.md
@@ -179,7 +179,7 @@ For each gap that required code changes, add or update tests:
 
 Launch a sub-agent with fresh context. Provide:
 - This plan
-- The issue file (`.lore/issues/commission-meeting-state-ownership.md`)
+- The issue file (`.lore/_archive/issues/commission-meeting-state-ownership.md`)
 - The five gaps described in Codebase Context above
 
 The sub-agent reads the implementation changes and confirms:

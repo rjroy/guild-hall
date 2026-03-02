@@ -1,7 +1,7 @@
 ---
 title: Commission layer separation
 date: 2026-03-01
-status: draft
+status: implemented
 tags: [architecture, commissions, refactor, object-design, boundaries, state-machine]
 modules: [commission-session, commission-handlers, commission-recovery, activity-state-machine]
 related:

@@ -5,7 +5,7 @@ status: complete
 tags: [implementation, notes, bug-fix, transcripts, serialization]
 source: .lore/plans/multiline-tool-display-on-reopen.md
 modules: [transcript, meeting-chat]
-related: [.lore/plans/multiline-tool-display-on-reopen.md, .lore/issues/multiline-tool-display-on-reopen.md]
+related: [.lore/plans/multiline-tool-display-on-reopen.md, .lore/_archive/issues/multiline-tool-display-on-reopen.md]
 ---
 
 # Implementation Notes: Multiline Tool Display on Reopen

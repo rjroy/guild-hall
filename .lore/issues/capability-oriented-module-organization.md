@@ -2,7 +2,7 @@
 title: Organize modules by capability, not by consumer
 date: 2026-02-28
 status: open
-tags: [architecture, refactoring, separation-of-concerns, toolboxes]
+tags: [architecture, refactor, separation-of-concerns, toolbox]
 modules: [daemon-services, manager-toolbox, commission-session]
 ---
 
