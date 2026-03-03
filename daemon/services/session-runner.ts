@@ -21,8 +21,7 @@
  *
  * REQ-CLS-24: Terminal state guard. When cancellation (AbortController)
  * and natural session completion race, exactly one outcome is reported.
- * The `settle` function stores the first outcome and returns it on
- * subsequent calls.
+ * The first outcome is stored; subsequent settle calls return it.
  */
 
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
@@ -246,217 +245,198 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       });
 
       try {
-        const result = await runSession(spec, deps, log, logErr, settle, () => resultSubmitted);
+        // 1. Find the worker package
+        const workerPkg = spec.packages.find((p) => {
+          if (!("identity" in p.metadata)) return false;
+          return p.metadata.identity.name === spec.workerName;
+        });
+        if (!workerPkg) {
+          return settle({
+            resultSubmitted: false,
+            error: `Worker package for "${spec.workerName}" not found`,
+            aborted: false,
+          });
+        }
+
+        // 2. Resolve tools
+        log("resolving tools...");
+        let resolvedTools: ResolvedToolSet;
+        try {
+          resolvedTools = await deps.resolveToolSet(
+            spec.workerConfig,
+            spec.packages,
+            {
+              projectName: spec.projectName,
+              guildHallHome: spec.guildHallHome,
+              contextId: spec.contextId,
+              contextType: spec.contextType,
+              workerName: spec.workerConfig.identity.name,
+              eventBus: deps.eventBus,
+              config: spec.config,
+              services: spec.services,
+            },
+          );
+        } catch (err: unknown) {
+          return settle({
+            resultSubmitted: false,
+            error: `Tool resolution failed: ${errorMessage(err)}`,
+            aborted: false,
+          });
+        }
+        log(`tools resolved: ${resolvedTools.mcpServers.length} MCP server(s), ${resolvedTools.allowedTools.length} allowed tool(s)`);
+
+        // 3. Load memory files
+        let injectedMemory = "";
+        try {
+          const memoryResult = await deps.loadMemories(
+            spec.workerConfig.identity.name,
+            spec.projectName,
+            {
+              guildHallHome: spec.guildHallHome,
+              memoryLimit: deps.memoryLimit,
+            },
+          );
+          injectedMemory = memoryResult.memoryBlock;
+        } catch (err: unknown) {
+          log(`failed to load memories (non-fatal): ${errorMessage(err)}`);
+        }
+
+        // 4. Activate worker (build system prompt)
+        log(`activating worker "${spec.workerConfig.identity.name}"...`);
+        let activation: ActivationResult;
+        try {
+          const activationContext: ActivationContext = {
+            posture: spec.workerConfig.posture,
+            injectedMemory,
+            resolvedTools,
+            resourceDefaults: {
+              maxTurns: spec.workerConfig.resourceDefaults?.maxTurns,
+              maxBudgetUsd: spec.workerConfig.resourceDefaults?.maxBudgetUsd,
+            },
+            projectPath: spec.projectPath,
+            workingDirectory: spec.workspaceDir,
+            ...spec.activationExtras,
+          };
+          activation = await deps.activateWorker(workerPkg, activationContext);
+        } catch (err: unknown) {
+          return settle({
+            resultSubmitted: false,
+            error: `Worker activation failed: ${errorMessage(err)}`,
+            aborted: false,
+          });
+        }
+        log(`worker activated. systemPrompt length=${activation.systemPrompt.length}`);
+
+        // 5. Build SDK query options
+        const maxTurns =
+          spec.resourceOverrides?.maxTurns ??
+          activation.resourceBounds.maxTurns;
+        const maxBudgetUsd =
+          spec.resourceOverrides?.maxBudgetUsd ??
+          activation.resourceBounds.maxBudgetUsd;
+
+        const mcpServers: Record<string, unknown> = {};
+        for (const server of activation.tools.mcpServers) {
+          mcpServers[server.name] = server;
+        }
+
+        // Build an AbortController from the incoming signal. The SDK
+        // expects an AbortController instance, not a bare AbortSignal.
+        const sessionAbortController = new AbortController();
+        spec.abortSignal.addEventListener("abort", () => {
+          sessionAbortController.abort();
+        }, { once: true });
+
+        const options: Record<string, unknown> = {
+          systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
+          cwd: spec.workspaceDir,
+          mcpServers,
+          allowedTools: activation.tools.allowedTools,
+          ...(activation.model ? { model: activation.model } : {}),
+          ...(maxTurns ? { maxTurns } : {}),
+          ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
+          permissionMode: "dontAsk",
+          settingSources: ["local", "project", "user"] as string[],
+          includePartialMessages: false,
+          abortController: sessionAbortController,
+        };
+
+        // 6. Run the SDK session
+        log("starting SDK session...");
+        const session = deps.queryFn({ prompt: spec.prompt, options });
+
+        let messageCount = 0;
+        let sessionId: string | undefined;
+        try {
+          for await (const msg of session) {
+            messageCount++;
+            logSdkMessage(log, messageCount, msg);
+
+            const m = msg as Record<string, unknown>;
+            if (m.type === "system" && m.subtype === "init" && typeof m.session_id === "string") {
+              sessionId = m.session_id;
+              log(`captured session_id: ${sessionId}`);
+            }
+          }
+        } catch (err: unknown) {
+          if (err instanceof Error && err.name === "AbortError") {
+            log(`SDK session aborted after ${messageCount} message(s)`);
+            return settle({ resultSubmitted, aborted: true });
+          }
+          logErr(`SDK session error after ${messageCount} message(s): ${errorMessage(err)}`);
+          return settle({
+            resultSubmitted,
+            error: `SDK session error: ${errorMessage(err)}`,
+            aborted: false,
+          });
+        }
+        log(`SDK session complete. ${messageCount} message(s) consumed.`);
+
+        // 7. Check if result was submitted (via EventBus during the session)
+        if (resultSubmitted) {
+          return settle({ resultSubmitted: true, aborted: false });
+        }
+
+        // 8. No result submitted: run follow-up session to force submit_result
+        if (!sessionId) {
+          logErr("no result submitted and no session_id captured; cannot resume");
+          return settle({
+            resultSubmitted: false,
+            error: "Session completed without submitting result (no session_id for follow-up)",
+            aborted: false,
+          });
+        }
+
+        log(`no result submitted, resuming session ${sessionId} to force submit_result...`);
+        const followUpOptions = {
+          ...options,
+          resume: sessionId,
+          maxTurns: 3,
+        };
+        const followUp = deps.queryFn({
+          prompt: spec.followUpPrompt ?? DEFAULT_FOLLOW_UP_PROMPT,
+          options: followUpOptions,
+        });
+
+        let followUpCount = 0;
+        try {
+          for await (const msg of followUp) {
+            followUpCount++;
+            logSdkMessage(log, followUpCount, msg);
+          }
+        } catch (err: unknown) {
+          logErr(`follow-up session error: ${errorMessage(err)}`);
+        }
+        log(`follow-up session complete. ${followUpCount} message(s) consumed.`);
+
+        if (!resultSubmitted) {
+          logErr("follow-up session also failed to call submit_result");
+        }
+
+        return settle({ resultSubmitted, aborted: false });
+      } finally {
         unsubscribe();
-        return result;
-      } catch (err: unknown) {
-        unsubscribe();
-        throw err;
       }
     },
   };
-}
-
-/**
- * Core session execution logic. Separated from the EventBus subscription
- * lifecycle to keep concerns clean.
- */
-async function runSession(
-  spec: SessionSpec,
-  deps: SessionRunnerDeps,
-  log: (msg: string) => void,
-  logErr: (msg: string) => void,
-  settle: (outcome: SessionResult) => SessionResult,
-  wasResultSubmitted: () => boolean,
-): Promise<SessionResult> {
-  // 1. Find the worker package
-  const workerPkg = spec.packages.find((p) => {
-    if (!("identity" in p.metadata)) return false;
-    return p.metadata.identity.name === spec.workerName;
-  });
-  if (!workerPkg) {
-    return settle({
-      resultSubmitted: false,
-      error: `Worker package for "${spec.workerName}" not found`,
-      aborted: false,
-    });
-  }
-
-  // 2. Resolve tools
-  log("resolving tools...");
-  let resolvedTools: ResolvedToolSet;
-  try {
-    resolvedTools = await deps.resolveToolSet(
-      spec.workerConfig,
-      spec.packages,
-      {
-        projectName: spec.projectName,
-        guildHallHome: spec.guildHallHome,
-        contextId: spec.contextId,
-        contextType: spec.contextType,
-        workerName: spec.workerConfig.identity.name,
-        eventBus: deps.eventBus,
-        config: spec.config,
-        services: spec.services,
-      },
-    );
-  } catch (err: unknown) {
-    return settle({
-      resultSubmitted: false,
-      error: `Tool resolution failed: ${errorMessage(err)}`,
-      aborted: false,
-    });
-  }
-  log(`tools resolved: ${resolvedTools.mcpServers.length} MCP server(s), ${resolvedTools.allowedTools.length} allowed tool(s)`);
-
-  // 3. Load memory files
-  let injectedMemory = "";
-  try {
-    const memoryResult = await deps.loadMemories(
-      spec.workerConfig.identity.name,
-      spec.projectName,
-      {
-        guildHallHome: spec.guildHallHome,
-        memoryLimit: deps.memoryLimit,
-      },
-    );
-    injectedMemory = memoryResult.memoryBlock;
-  } catch (err: unknown) {
-    log(`failed to load memories (non-fatal): ${errorMessage(err)}`);
-  }
-
-  // 4. Activate worker (build system prompt)
-  log(`activating worker "${spec.workerConfig.identity.name}"...`);
-  let activation: ActivationResult;
-  try {
-    const activationContext: ActivationContext = {
-      posture: spec.workerConfig.posture,
-      injectedMemory,
-      resolvedTools,
-      resourceDefaults: {
-        maxTurns: spec.workerConfig.resourceDefaults?.maxTurns,
-        maxBudgetUsd: spec.workerConfig.resourceDefaults?.maxBudgetUsd,
-      },
-      projectPath: spec.projectPath,
-      workingDirectory: spec.workspaceDir,
-      ...spec.activationExtras,
-    };
-    activation = await deps.activateWorker(workerPkg, activationContext);
-  } catch (err: unknown) {
-    return settle({
-      resultSubmitted: false,
-      error: `Worker activation failed: ${errorMessage(err)}`,
-      aborted: false,
-    });
-  }
-  log(`worker activated. systemPrompt length=${activation.systemPrompt.length}`);
-
-  // 5. Build SDK query options
-  const maxTurns =
-    spec.resourceOverrides?.maxTurns ??
-    activation.resourceBounds.maxTurns;
-  const maxBudgetUsd =
-    spec.resourceOverrides?.maxBudgetUsd ??
-    activation.resourceBounds.maxBudgetUsd;
-
-  const mcpServers: Record<string, unknown> = {};
-  for (const server of activation.tools.mcpServers) {
-    mcpServers[server.name] = server;
-  }
-
-  // Build an AbortController from the incoming signal. The SDK
-  // expects an AbortController instance, not a bare AbortSignal.
-  const sessionAbortController = new AbortController();
-  spec.abortSignal.addEventListener("abort", () => {
-    sessionAbortController.abort();
-  }, { once: true });
-
-  const options: Record<string, unknown> = {
-    systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
-    cwd: spec.workspaceDir,
-    mcpServers,
-    allowedTools: activation.tools.allowedTools,
-    ...(activation.model ? { model: activation.model } : {}),
-    ...(maxTurns ? { maxTurns } : {}),
-    ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
-    permissionMode: "dontAsk",
-    settingSources: ["local", "project", "user"] as string[],
-    includePartialMessages: false,
-    abortController: sessionAbortController,
-  };
-
-  // 6. Run the SDK session
-  log("starting SDK session...");
-  const session = deps.queryFn({ prompt: spec.prompt, options });
-
-  let messageCount = 0;
-  let sessionId: string | undefined;
-  try {
-    for await (const msg of session) {
-      messageCount++;
-      logSdkMessage(log, messageCount, msg);
-
-      const m = msg as Record<string, unknown>;
-      if (m.type === "system" && m.subtype === "init" && typeof m.session_id === "string") {
-        sessionId = m.session_id;
-        log(`captured session_id: ${sessionId}`);
-      }
-    }
-  } catch (err: unknown) {
-    if (err instanceof Error && err.name === "AbortError") {
-      log(`SDK session aborted after ${messageCount} message(s)`);
-      return settle({ resultSubmitted: wasResultSubmitted(), aborted: true });
-    }
-    logErr(`SDK session error after ${messageCount} message(s): ${errorMessage(err)}`);
-    return settle({
-      resultSubmitted: wasResultSubmitted(),
-      error: `SDK session error: ${errorMessage(err)}`,
-      aborted: false,
-    });
-  }
-  log(`SDK session complete. ${messageCount} message(s) consumed.`);
-
-  // 7. Check if result was submitted (via EventBus during the session)
-  if (wasResultSubmitted()) {
-    return settle({ resultSubmitted: true, aborted: false });
-  }
-
-  // 8. No result submitted: run follow-up session to force submit_result
-  if (!sessionId) {
-    logErr("no result submitted and no session_id captured; cannot resume");
-    return settle({
-      resultSubmitted: false,
-      error: "Session completed without submitting result (no session_id for follow-up)",
-      aborted: false,
-    });
-  }
-
-  log(`no result submitted, resuming session ${sessionId} to force submit_result...`);
-  const followUpOptions = {
-    ...options,
-    resume: sessionId,
-    maxTurns: 3,
-  };
-  const followUp = deps.queryFn({
-    prompt: spec.followUpPrompt ?? DEFAULT_FOLLOW_UP_PROMPT,
-    options: followUpOptions,
-  });
-
-  let followUpCount = 0;
-  try {
-    for await (const msg of followUp) {
-      followUpCount++;
-      logSdkMessage(log, followUpCount, msg);
-    }
-  } catch (err: unknown) {
-    logErr(`follow-up session error: ${errorMessage(err)}`);
-  }
-  log(`follow-up session complete. ${followUpCount} message(s) consumed.`);
-
-  const submitted = wasResultSubmitted();
-  if (!submitted) {
-    logErr("follow-up session also failed to call submit_result");
-  }
-
-  return settle({ resultSubmitted: submitted, aborted: false });
 }
