@@ -114,6 +114,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - REQ-WKR-25: The manager has capabilities beyond other workers, provided through a manager-specific system toolbox:
   - **Commission creation**: create commission artifacts and assign workers to them.
   - **Worker dispatch**: start tasks immediately (dispatch with review, see REQ-WKR-27).
+  - **Commission cancellation**: cancel commissions directly with an optional reason string. Reuses the same cancellation mechanics as user-initiated cancellation (REQ-COM-15), with the reason flowing through to the activity timeline and SSE events.
   - **PR management**: create pull requests from `claude` to `master` when work is ready for user review (fulfills REQ-SYS-23).
   - **Meeting initiation**: request meetings with the user when it has findings, completed tasks, or blocked work to present.
 
@@ -149,7 +150,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - [ ] Workers run as Agent SDK sessions with only their declared tools available
 - [ ] Memory from three scopes is injected into worker system prompts with configurable size limits
 - [ ] Memory compaction triggers when size exceeds threshold
-- [ ] Manager can create tasks, dispatch workers, create PRs, and initiate meetings via its exclusive toolbox
+- [ ] Manager can create tasks, dispatch workers, cancel commissions, create PRs, and initiate meetings via its exclusive toolbox
 - [ ] Manager dispatches appear as reviewable items the user can cancel or modify
 - [ ] Manager deference rules are encoded in posture; system enforces PR-requires-merge
 - [ ] Meeting sessions persist across multiple sittings; commission sessions are non-interactive and do not persist

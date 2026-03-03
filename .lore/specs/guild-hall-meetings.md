@@ -98,12 +98,12 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-MTG-15: The event types visible to the UI are:
   - **text_delta**: incremental text content
-  - **tool_use**: worker is using a tool (name, input). Informational for UI rendering.
-  - **tool_result**: tool completed (name, output summary). Informational.
+  - **tool_use**: worker is using a tool (id, name, input). The `id` field carries the SDK's tool_use content block ID for matching tool_use to tool_result. Informational for UI rendering.
+  - **tool_result**: tool completed (toolUseId, name, output summary). The `toolUseId` field references the originating tool_use's `id` for reliable matching (name-only matching fails when the same tool is invoked multiple times in one turn). Informational.
   - **turn_end**: the worker's response is complete
   - **error**: something went wrong (reason string)
 
-  SDK-internal event types do not surface through the meeting interface.
+  SDK-internal event types do not surface through the meeting interface. The daemon's event translator deduplicates both text and tool_use events: the SDK emits tool_use blocks during streaming (content_block_start) and again in the finalized assistant message; only the streaming emission is forwarded to the UI.
 
 ### Meeting Toolbox
 
@@ -118,7 +118,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 ### Meeting Notes and Transcripts
 
-- REQ-MTG-19: Raw meeting transcripts are stored in `~/.guild-hall/meetings/<meeting-id>.md` while the meeting is open. Transcripts are a chronological append of user and assistant turns in markdown, preserving enough structure for session renewal summaries and meeting notes generation. Transcripts are ephemeral (REQ-SYS-30): available during the meeting for context and session renewal, cleaned up after the meeting closes.
+- REQ-MTG-19: Raw meeting transcripts are stored in `~/.guild-hall/meetings/<meeting-id>.md` while the meeting is open. Transcripts are a chronological append of user and assistant turns in markdown, preserving enough structure for session renewal summaries and meeting notes generation. Tool results within assistant turns are serialized as blockquoted lines (each line prefixed with `> `), including empty lines within multiline results. Both the daemon and Next.js parsers collect consecutive `> ` lines to reconstruct the full tool output. Transcripts are ephemeral (REQ-SYS-30): available during the meeting for context and session renewal, cleaned up after the meeting closes.
 
 - REQ-MTG-20: On meeting close, the system generates meeting notes: a summary of the conversation, decisions made (from the base toolbox's decision recording), and artifacts produced. Notes are written to the meeting artifact's notes_summary field.
 
@@ -137,7 +137,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - REQ-MTG-25: Meeting git operations follow the system spec's activity branch model (REQ-SYS-22, REQ-SYS-29a):
   - Branch: `claude/meeting/<meeting-id>`
   - Worktree: `~/.guild-hall/worktrees/<project>/meeting-<meeting-id>/`
-  - Close: squash-merge to `claude`, clean up worktree and transcript
+  - Close: commit any pending changes on the integration worktree (`claude`), then squash-merge the meeting branch. `.lore/`-only conflicts are auto-resolved (activity branch wins). Non-`.lore/` conflicts abort the merge and create a Guild Master meeting request describing the unmerged changes; the meeting still closes (status: closed) but the merge does not happen. On successful merge or after conflict: clean up worktree and transcript, remove machine-local state file. The commit-merge-cleanup sequence uses the shared `finalizeActivity()` function in `daemon/lib/git.ts` (same as commissions, see REQ-COM-31).
   - Decline: no branch or worktree created (meeting never opened)
 
 - REQ-MTG-26: Worktree checkout scope follows the assigned worker's declaration (REQ-SYS-29): sparse for artifact-only workers, full for workers needing the codebase.
@@ -195,7 +195,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 ## Constraints
 
 - No database. All meeting state is files.
-- Meeting sessions run in-process in the daemon (not separate OS processes like commissions). Meetings don't fork.
+- Both meeting and commission sessions run in-process in the daemon, using the shared SDK runner (`prepareSdkSession`, `runSdkSession`). Meetings stream the generator to the browser; commissions drain it.
 - Workers don't manage their own lifecycle (REQ-SYS-9). The meeting system manages everything outside the SDK session boundary.
 - Agent SDK session details (model, tool configuration, streaming internals) belong to the Worker spec. This spec covers the session boundary.
 - No idle timeout in V1. Meetings stay open until explicitly closed.
