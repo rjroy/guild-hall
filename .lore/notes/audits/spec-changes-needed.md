@@ -59,11 +59,14 @@ These are defensible design choices where the spec text is close enough, but a r
 ### guild-hall-system
 
 **REQ-SYS-31** (Workers are bun packages): Manager is built into daemon code, injected as a synthetic DiscoveredPackage. Pragmatic: needs direct access to daemon internals. Note the exception.
+- USER NOTE: The manager was meant to be baked in by design as it is a system level worker and therefore is built in.
 
 **REQ-SYS-16** (Manager knows all active workspaces): Implementation scopes the manager to one project per meeting. Cross-project coordination requires separate meetings. Note the scope reduction.
 
 ## Not Spec Issues
 
 **Phase 5 SDK read context path**: `additionalDirectories` in `meeting-session.ts` passes `project.path` (repo root) instead of worktree path for SDK read context. Inconsistent with git isolation model but read-only, low risk. This is an implementation consistency question, not a spec gap. Track as a potential fix, not a spec change.
+- USER NOTE: The `additionalDirectories` was something I never wanted. I missed it in the spec. It should never have ever been there. Do NOT ever make changes in the repo root. That breaks all kinds of isoliation issues. This simply shouldn't even be an option. Hell we should even delete it from your memory. The only reason to do this is say you have a repo for the server and one for the client so you want to manipulate both. But not for two different branches of the same project, that's madness.
 
 **Tool display fidelity** (`fix-duplicate-tool-notifications`): Tool input shows `{}` during streaming instead of full parameters. No REQ-ID involved. Documented as accepted tradeoff with follow-up enhancement noted.
+- USER NOTE: This brings me to something we'll want to do eventually .. where do we capture these requirements that were implemented but never made it into a spec?
