@@ -74,7 +74,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   - dispatched -> failed (activation failed, process failed to start)
   - dispatched -> cancelled (user or manager cancels during workspace preparation)
   - in_progress -> completed (worker calls submit_result, then exits cleanly)
-  - in_progress -> failed (crash, budget exhaustion, heartbeat timeout)
+  - in_progress -> failed (session error, budget exhaustion, daemon restart)
   - in_progress -> cancelled (user or manager cancels)
 
 - REQ-COM-7: Dependency checking runs when artifacts are created or removed in the workspace. When all of a blocked commission's dependency artifacts exist, it auto-transitions to pending. When a pending commission loses a dependency artifact, it auto-transitions to blocked. This is existence checking ("does the file exist?"), not content validation.
@@ -98,7 +98,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
   > **History (2026-03):** Originally specified OS process isolation (separate Bun.spawn per commission). Rewritten to match the in-process async model. Containment is achieved through AbortController-based session management and per-commission worktrees rather than process boundaries.
 
-- REQ-COM-11: The worker process receives the commission's agentic prompt as its primary input. The worker's system prompt (posture + injected memory, per Worker spec) shapes how it approaches the work.
+- REQ-COM-11: The worker session receives the commission's agentic prompt as its primary input. The worker's system prompt (posture + injected memory, per Worker spec) shapes how it approaches the work.
 
 ### Process Lifecycle
 
@@ -106,13 +106,17 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
   > **History (2026-03):** Originally specified PID-based monitoring with OS process liveness checks. Rewritten to match the in-process session model. Heartbeat mechanism is unchanged (progress reports reset the timer), but liveness detection uses session callbacks instead of PID checking.
 
-- REQ-COM-13: Worker processes signal liveness via heartbeat. The primary heartbeat signal is report_progress (REQ-COM-18): each call updates the heartbeat timestamp. Workers performing long operations without progress to report should call report_progress periodically to avoid appearing dead. If the heartbeat timestamp exceeds a configurable staleness threshold (default: 180 seconds), the commission transitions to failed with reason "process unresponsive."
+- REQ-COM-13: The commission system tracks a `lastActivity` timestamp per session, updated whenever the session emits SDK events or the worker calls report_progress (REQ-COM-18). This timestamp is available for observability (e.g., "last active 2m ago" in the dashboard) but is not used for automated liveness decisions. The SDK manages its own timeouts for hung API calls; the commission system does not independently kill sessions based on inactivity.
 
-- REQ-COM-14: When a worker process exits:
-  - Clean exit with submitted result: transition to completed. Squash-merge the commission branch back to `claude`. Clean up the worktree.
-  - Clean exit without submitted result: transition to failed with reason "completed without submitting result."
-  - Crash exit with submitted result: transition to completed. The result was explicitly registered before the crash. Record the crash as an anomaly in the activity timeline. Squash-merge and clean up as normal.
-  - Crash exit without submitted result: transition to failed with exit information. Preserve partial results.
+  > **History (2026-03):** Originally specified a heartbeat staleness threshold (default 180s) that would transition commissions to failed. Removed because in-process sessions don't need external liveness checks: the SDK handles its own timeouts, and workers performing long operations (file reads, test runs) would trigger false kills.
+
+- REQ-COM-14: When a session ends:
+  - Normal completion with submitted result: transition to completed. Squash-merge the commission branch back to `claude`. Clean up the worktree.
+  - Normal completion without submitted result: transition to failed with reason "completed without submitting result."
+  - Error with submitted result: transition to completed. The result was explicitly registered before the error. Record the error as an anomaly in the activity timeline. Squash-merge and clean up as normal.
+  - Error without submitted result: transition to failed with error information. Preserve partial results.
+
+  > **History (2026-03):** Originally framed as "process exit" with "clean exit" and "crash exit" categories. Rewritten for the in-process model where sessions end normally or with errors, not process exits.
 
 - REQ-COM-14a: **Partial results** are: all artifacts written to the commission branch (committed or uncommitted), progress reports and questions in the activity timeline, decisions recorded via the base toolbox, and any memory writes the worker performed. Before cleaning up a worktree on failure or cancellation, the commission system commits any uncommitted changes to the commission branch. The branch preserves all work; the worktree is then safe to remove.
 
@@ -131,7 +135,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   - **submit_result**: Declare the commission complete. Accepts a summary and an optional list of artifact paths produced. This is the explicit result channel. Tool calls are mechanisms; prompt instructions are hopes.
   - **log_question**: Record a question the worker cannot resolve autonomously. Questions surface to the user through the commission view and manager.
 
-- REQ-COM-19: submit_result can only be called once per commission. Calling it registers the result; the completion transition happens when the process exits (cleanly or not, per REQ-COM-14). If the worker continues after submit_result (cleanup, final memory writes), additional artifacts are still captured.
+- REQ-COM-19: submit_result can only be called once per commission. Calling it registers the result; the completion transition happens when the session ends (normally or with error, per REQ-COM-14). If the worker continues after submit_result (cleanup, final memory writes), additional artifacts are still captured.
 
 - REQ-COM-20: report_progress updates are append-only in the activity timeline and replace-latest in the commission's current progress field. The timeline preserves history; the commission shows the most recent.
 
@@ -153,7 +157,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   - Questions logged (from log_question)
   - Decisions recorded (from base toolbox decision recording)
   - Artifacts produced (path, timestamp)
-  - Heartbeat status changes (healthy, stale, lost)
+  - Session activity updates (last activity timestamp changes)
 
 - REQ-COM-25: The timeline is append-only during execution and read-only after completion or failure.
 
@@ -168,7 +172,9 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
   > **History (2026-03):** Originally specified PID-based liveness checks on restart (check if process is alive, reattach if so). Rewritten because in-process sessions do not survive daemon restart. All active commissions are failed on startup; there is no reattach path.
 
-- REQ-COM-28: During operation, the heartbeat mechanism (REQ-COM-13) detects unresponsive worker processes. Stale heartbeats trigger transition to failed with reason "process unresponsive."
+- REQ-COM-28: During operation, session liveness is managed by the SDK's built-in timeout mechanisms. The `lastActivity` timestamp (REQ-COM-13) provides observability but does not trigger automated failure transitions. If the SDK session hangs beyond its configured timeout, the session ends with an error and follows the normal error path (REQ-COM-14).
+
+  > **History (2026-03):** Originally specified daemon-side heartbeat monitoring with a staleness threshold. Removed because in-process sessions delegate timeout handling to the SDK, and the original heartbeat design caused false kills during legitimate long-running operations.
 
 - REQ-COM-29: Failed commissions preserve all state per REQ-COM-14a: the commission branch (not merged, not deleted), all committed artifacts, progress reports, questions, decisions, and the full activity timeline.
 
@@ -197,13 +203,13 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - [ ] Commission artifacts are created in `.lore/commissions/` with required fields
 - [ ] Status transitions follow the defined state machine; invalid transitions are rejected
 - [ ] Dependency checking auto-transitions commissions between blocked and pending when artifacts appear or disappear
-- [ ] Dispatch creates activity branch, worktree, and spawns isolated worker process
+- [ ] Dispatch creates activity branch, worktree, and launches async session within the daemon
 - [ ] Commission toolbox (report_progress, submit_result, log_question) is injected into worker sessions
 - [ ] submit_result is the explicit result channel; clean exit without it is failure; crash after submit_result is still completion
 - [ ] Concurrent limits enforced per-project and globally; excess commissions queue
 - [ ] Activity timeline records all lifecycle events with timestamps
 - [ ] Startup scan detects orphaned commissions, marks failed, preserves partial results
-- [ ] Heartbeat detects unresponsive processes and transitions to failed
+- [ ] Session activity timestamps provide observability into running commissions
 - [ ] Failed commissions preserve branch, artifacts, and all recorded state
 - [ ] Completed commissions squash-merge branch back to `claude`
 - [ ] Re-dispatch creates fresh branch/worktree, preserves previous branch
@@ -211,29 +217,28 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 ## AI Validation
 
 **Defaults:**
-- Unit tests with mocked filesystem, git operations, and process management
+- Unit tests with mocked filesystem, git operations, and session management
 - 90%+ coverage on new code
 - Code review by fresh-context sub-agent
 
 **Custom:**
 - State machine test: every valid transition succeeds; every invalid transition is rejected with clear error
 - Dependency test: create commissions with dependencies, verify blocked/pending auto-transitions when artifacts appear/disappear
-- Dispatch sequence test: dispatch a commission, verify worktree creation, branch creation, process spawn, status progression through dispatched to in_progress
+- Dispatch sequence test: dispatch a commission, verify worktree creation, branch creation, session launch, status progression through dispatched to in_progress
 - Activation failure test: dispatch with missing toolbox or invalid worker package, verify clean transition to failed with descriptive reason
 - Toolbox test: report_progress, submit_result, log_question write to correct locations and update commission state correctly
 - Concurrent limit test: dispatch commissions up to and beyond limits, verify queuing and FIFO dispatch
-- Crash recovery test: simulate process death mid-commission, verify startup scan detects it, marks failed, preserves partial results
-- Heartbeat test: simulate stale heartbeat beyond threshold, verify commission transitions to failed
-- Cancellation test: cancel running commission, verify graceful then forceful shutdown, branch preserved, worktree cleaned up
+- Crash recovery test: simulate daemon restart with active commissions, verify startup scan fails them, preserves partial results
+- Cancellation test: cancel running commission via AbortController, verify session stops, branch preserved, worktree cleaned up
 - Re-dispatch test: re-dispatch failed commission, verify new branch/worktree, previous branch preserved, timeline records new lifecycle
 - Result preservation test: worker calls submit_result then crashes, verify result is preserved (not discarded by error handler)
 
 ## Constraints
 
 - No database. All commission state is files.
-- One process per commission, one worktree per commission, one branch per commission.
+- One session per commission, one worktree per commission, one branch per commission.
 - Workers don't manage their own lifecycle (REQ-SYS-9). The commission system manages everything outside the SDK session boundary.
-- Agent SDK session details (model, tool configuration, streaming) belong to the Worker spec. This spec covers the process boundary.
+- Agent SDK session details (model, tool configuration, streaming) belong to the Worker spec. This spec covers the session boundary.
 - No worker-to-worker communication. Commissions coordinate through artifact dependencies.
 - Resource budget defaults need real-workload validation (lesson: 30 turns failed every real task, increased to 150).
 
