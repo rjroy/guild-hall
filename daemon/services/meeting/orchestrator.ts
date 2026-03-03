@@ -31,12 +31,25 @@ import {
   activateWorker as activateWorkerShared,
 } from "@/daemon/services/manager-worker";
 import { buildManagerContext } from "@/daemon/services/manager-context";
-import type { GuildHallEvent, MeetingId, MeetingStatus, SdkSessionId } from "@/daemon/types";
-import { asMeetingId } from "@/daemon/types";
 import {
-  runQueryAndTranslate,
+  prepareSdkSession,
+  runSdkSession,
+  isSessionExpiryError,
+  type SessionPrepSpec,
+  type SessionPrepDeps,
+  type SdkQueryOptions,
+} from "@/daemon/services/sdk-runner";
+import type { GuildHallEvent, MeetingId, MeetingStatus, SdkSessionId } from "@/daemon/types";
+import { asMeetingId, asSdkSessionId } from "@/daemon/types";
+import {
+  createTranscript,
+  appendUserTurn,
+  readTranscript,
+  removeTranscript,
   truncateTranscript,
-} from "@/daemon/services/query-runner";
+  appendAssistantTurnSafe,
+  type ToolUseEntry,
+} from "@/daemon/services/transcript";
 import {
   getGuildHallHome,
   meetingWorktreePath as meetingWorktreePathFn,
@@ -57,12 +70,6 @@ import {
   writeMeetingArtifact,
 } from "@/daemon/services/meeting/record";
 import {
-  createTranscript,
-  appendUserTurn,
-  readTranscript,
-  removeTranscript,
-} from "@/daemon/services/transcript";
-import {
   generateMeetingNotes,
 } from "@/daemon/services/notes-generator";
 import { isNodeError } from "@/lib/types";
@@ -77,10 +84,12 @@ import { escalateMergeConflict } from "@/daemon/lib/escalation";
 const DEFAULT_MEETING_CAP = 5;
 
 // -- Re-exports for backward compatibility --
+// QueryOptions re-exported so notes-generator, briefing-generator, and
+// memory-compaction can keep importing from the meeting orchestrator without
+// reaching into sdk-runner. Remove once those modules migrate (Task 008).
 
 export type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
-export type { QueryOptions, PresetQueryPrompt } from "@/daemon/services/query-runner";
-import type { QueryOptions } from "@/daemon/services/query-runner";
+export type { SdkQueryOptions as QueryOptions } from "@/daemon/services/sdk-runner";
 
 // -- Dependency types --
 
@@ -95,7 +104,7 @@ export type MeetingSessionDeps = {
    */
   queryFn?: (params: {
     prompt: string;
-    options: QueryOptions;
+    options: SdkQueryOptions;
   }) => AsyncGenerator<SDKMessage>;
   /**
    * DI seam for notes generation. Same type signature as queryFn, but used
@@ -104,7 +113,7 @@ export type MeetingSessionDeps = {
    */
   notesQueryFn?: (params: {
     prompt: string;
-    options: QueryOptions;
+    options: SdkQueryOptions;
   }) => AsyncGenerator<SDKMessage>;
   /**
    * DI seam for worker activation. Tests can provide a mock that returns a
@@ -328,137 +337,180 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     }
   }
 
-  // -- Query/session helpers --
+  // -- SDK session preparation --
+  //
+  // Constructs SessionPrepDeps from the meeting orchestrator's existing imports,
+  // keeping the external DI surface (MeetingSessionDeps) unchanged.
 
-  type QueryOptionsResult =
-    | { ok: true; options: QueryOptions }
-    | { ok: false; reason: string };
+  const prepDeps: SessionPrepDeps = {
+    resolveToolSet,
+    loadMemories: async (workerName, projectName, memDeps) => {
+      // Meeting orchestrator treats memory load failure as non-fatal (warn and
+      // continue with empty memory). Wrap to preserve that behavior since
+      // prepareSdkSession would otherwise return ok:false on failure.
+      try {
+        return await loadMemories(workerName, projectName, memDeps);
+      } catch (err: unknown) {
+        console.warn(
+          `[meeting] Failed to load memories for "${workerName}" (non-fatal):`,
+          errorMessage(err),
+        );
+        return { memoryBlock: "", needsCompaction: false };
+      }
+    },
+    activateWorker,
+    triggerCompaction: deps.queryFn
+      ? (workerName, projectName, opts) => {
+          void triggerCompaction(workerName, projectName, {
+            guildHallHome: opts.guildHallHome,
+            compactFn: deps.queryFn!,
+          });
+        }
+      : undefined,
+  };
 
-  async function buildActivatedQueryOptions(
+  /**
+   * Builds a SessionPrepSpec for a meeting. The caller passes the meeting entry,
+   * prompt (for meetingContext.agenda), and optional resume session ID.
+   */
+  async function buildMeetingPrepSpec(
     meeting: ActiveMeetingEntry,
     prompt: string,
     resumeSessionId?: SdkSessionId,
-  ): Promise<QueryOptionsResult> {
-    const workerPkg = getWorkerByName(deps.packages, meeting.packageName);
-    if (!workerPkg) {
-      return {
-        ok: false,
-        reason: `Worker "${meeting.packageName}" not found in discovered packages`,
-      };
-    }
-
+  ): Promise<{ ok: true; spec: SessionPrepSpec } | { ok: false; reason: string }> {
     const project = findProject(meeting.projectName);
     if (!project) {
-      return {
-        ok: false,
-        reason: `Project "${meeting.projectName}" not found`,
-      };
+      return { ok: false, reason: `Project "${meeting.projectName}" not found` };
     }
 
-    const workerMeta = workerPkg.metadata as WorkerMetadata;
-    const isManager = workerPkg.name === MANAGER_PACKAGE_NAME;
+    // Determine if this is the manager worker for manager-specific context
+    const workerPkg = getWorkerByName(deps.packages, meeting.packageName);
+    const isManager = workerPkg?.name === MANAGER_PACKAGE_NAME;
 
-    let activation: ActivationResult;
-    try {
-      const resolvedTools = await resolveToolSet(workerMeta, deps.packages, {
+    // Build activation extras (meeting context + optional manager context)
+    const activationExtras: Partial<ActivationContext> = {
+      meetingContext: {
+        meetingId: meeting.meetingId,
+        agenda: prompt,
+        referencedArtifacts: [],
+      },
+    };
+
+    if (isManager) {
+      activationExtras.managerContext = await buildManagerContext({
+        packages: deps.packages,
         projectName: meeting.projectName,
-        contextId: meeting.meetingId,
-        contextType: "meeting",
-        workerName: workerMeta.identity.name,
+        integrationPath: integrationWorktreePathFn(ghHome, meeting.projectName),
         guildHallHome: ghHome,
-        eventBus,
-        config: deps.config,
-        services: isManager && deps.commissionSession
-          ? { commissionSession: deps.commissionSession, gitOps: git }
-          : undefined,
+        memoryLimit: project.memoryLimit,
       });
+    }
 
-      let injectedMemory = "";
-      try {
-        const memoryResult = await loadMemories(
-          workerMeta.identity.name,
-          meeting.projectName,
-          {
-            guildHallHome: ghHome,
-            memoryLimit: project.memoryLimit,
-          },
-        );
-        injectedMemory = memoryResult.memoryBlock;
-        if (memoryResult.needsCompaction && deps.queryFn) {
-          console.log(
-            `[meeting] Memory for worker "${workerMeta.identity.name}" exceeds limit, triggering compaction`,
-          );
-          void triggerCompaction(
-            workerMeta.identity.name,
-            meeting.projectName,
-            { guildHallHome: ghHome, compactFn: deps.queryFn },
+    const spec: SessionPrepSpec = {
+      workerName: meeting.workerName,
+      packages: deps.packages,
+      config: deps.config,
+      guildHallHome: ghHome,
+      projectName: meeting.projectName,
+      projectPath: project.path,
+      workspaceDir: meeting.worktreeDir,
+      contextId: meeting.meetingId,
+      contextType: "meeting",
+      eventBus,
+      services: isManager && deps.commissionSession
+        ? { commissionSession: deps.commissionSession, gitOps: git }
+        : undefined,
+      activationExtras,
+      abortController: meeting.abortController,
+      includePartialMessages: true,
+      ...(resumeSessionId ? { resume: resumeSessionId as string } : {}),
+    };
+
+    return { ok: true, spec };
+  }
+
+  // -- Session loop helper --
+  //
+  // Iterates runSdkSession, maps SdkRunnerEvent to GuildHallEvent, accumulates
+  // transcript data, and appends the assistant turn after the loop completes.
+  // suppressExpiryErrors: when true, session-expiry errors are tracked for
+  // post-loop detection but withheld from SSE (sendMessage path).
+
+  async function* iterateSession(
+    meeting: ActiveMeetingEntry,
+    prompt: string,
+    options: SdkQueryOptions,
+    suppressExpiryErrors: boolean,
+  ): AsyncGenerator<GuildHallEvent, { lastError: string | null; hasExpiryError: boolean }> {
+    if (!deps.queryFn) {
+      yield { type: "error", reason: "No queryFn provided" };
+      return { lastError: "No queryFn provided", hasExpiryError: false };
+    }
+
+    const textParts: string[] = [];
+    const toolUses: ToolUseEntry[] = [];
+    let pendingToolName: string | null = null;
+    let lastError: string | null = null;
+    let hasExpiryError = false;
+
+    for await (const event of runSdkSession(deps.queryFn, prompt, options)) {
+      // Capture session ID (guard against empty string from SDK init)
+      if (event.type === "session") {
+        if (event.sessionId) {
+          meeting.sdkSessionId = asSdkSessionId(event.sessionId);
+        } else {
+          console.warn(
+            `[meeting] SDK init message for "${meeting.meetingId as string}" had no session_id`,
           );
         }
-      } catch (err: unknown) {
-        console.warn(
-          `[meeting] Failed to load memories for "${workerMeta.identity.name}" (non-fatal):`,
-          errorMessage(err),
-        );
       }
 
-      const activationContext: ActivationContext = {
-        posture: workerMeta.posture,
-        injectedMemory,
-        resolvedTools,
-        resourceDefaults: {
-          maxTurns: workerMeta.resourceDefaults?.maxTurns,
-          maxBudgetUsd: workerMeta.resourceDefaults?.maxBudgetUsd,
-        },
-        meetingContext: {
-          meetingId: meeting.meetingId,
-          agenda: prompt,
-          referencedArtifacts: [],
-        },
-        projectPath: project.path,
-        workingDirectory: meeting.worktreeDir,
-      };
+      // Accumulate text from streaming deltas only (not complete messages)
+      // to avoid the double-data problem documented in event-translator.ts.
+      if (event.type === "text_delta") textParts.push(event.text);
 
-      if (isManager) {
-        activationContext.managerContext = await buildManagerContext({
-          packages: deps.packages,
-          projectName: meeting.projectName,
-          integrationPath: integrationWorktreePathFn(ghHome, meeting.projectName),
-          guildHallHome: ghHome,
-          memoryLimit: project.memoryLimit,
+      // Track tool_use name for pairing with its result
+      if (event.type === "tool_use") pendingToolName = event.name;
+
+      // Pair tool_result with the most recent tool_use name
+      if (event.type === "tool_result") {
+        toolUses.push({
+          toolName: pendingToolName ?? event.name,
+          result: event.output,
         });
+        pendingToolName = null;
       }
 
-      activation = await activateWorker(workerPkg, activationContext);
-    } catch (err: unknown) {
-      const reason = errorMessage(err);
-      return { ok: false, reason: `Worker activation failed: ${reason}` };
-    }
-
-    const mcpServersRecord: Record<string, unknown> = {};
-    for (const server of activation.tools.mcpServers) {
-      mcpServersRecord[server.name] = server;
-    }
-
-    const maxTurns = activation.resourceBounds.maxTurns;
-    const maxBudgetUsd = activation.resourceBounds.maxBudgetUsd;
-
-    return {
-      ok: true,
-      options: {
-        ...(resumeSessionId ? { resume: resumeSessionId } : {}),
-        abortController: meeting.abortController,
-        includePartialMessages: true,
-        permissionMode: "dontAsk",
-        allowedTools: activation.tools.allowedTools,
-        settingSources: ["local", "project", "user"],
-        systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
-        ...(activation.model ? { model: activation.model } : {}),
-        mcpServers: mcpServersRecord,
-        ...(maxTurns ? { maxTurns } : {}),
-        ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
-        cwd: meeting.worktreeDir,
+      // Map SdkRunnerEvent to GuildHallEvent and yield to SSE
+      if (event.type === "session") {
+        yield {
+          type: "session",
+          meetingId: meeting.meetingId as string,
+          sessionId: event.sessionId,
+          worker: meeting.workerName,
+        };
+      } else if (event.type === "aborted") {
+        yield { type: "error", reason: "Turn interrupted" };
+      } else if (event.type === "error") {
+        // Track for post-loop session expiry detection
+        lastError = event.reason;
+        if (isSessionExpiryError(event.reason)) {
+          hasExpiryError = true;
+        }
+        if (!suppressExpiryErrors || !isSessionExpiryError(event.reason)) {
+          yield event;
+        }
+      } else {
+        // text_delta, tool_use, tool_result, turn_end pass through
+        yield event;
       }
-    };
+    }
+
+    // Append the assistant turn to the transcript (single post-loop call
+    // handles all cases including abort/error with partial content).
+    await appendAssistantTurnSafe(meeting.meetingId as string, textParts, toolUses, ghHome);
+
+    return { lastError, hasExpiryError };
   }
 
   // -- Session creation helper --
@@ -476,19 +528,19 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       return;
     }
 
-    const queryOptionsResult = await buildActivatedQueryOptions(
-      meeting,
-      prompt,
-    );
-    if (!queryOptionsResult.ok) {
-      yield { type: "error", reason: queryOptionsResult.reason };
+    const prepSpecResult = await buildMeetingPrepSpec(meeting, prompt);
+    if (!prepSpecResult.ok) {
+      yield { type: "error", reason: prepSpecResult.reason };
       return;
     }
 
-    const outcome = yield* runQueryAndTranslate(deps.queryFn, meeting, prompt, queryOptionsResult.options, ghHome);
-    if (outcome === "failed") {
+    const prep = await prepareSdkSession(prepSpecResult.spec, prepDeps);
+    if (!prep.ok) {
+      yield { type: "error", reason: prep.error };
       return;
     }
+
+    yield* iterateSession(meeting, prompt, prep.result.options, false);
 
     // Update state file with captured session ID
     try {
@@ -869,34 +921,26 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
 
     const oldSessionId = meeting.sdkSessionId;
 
-    const resumeOptionsResult = await buildActivatedQueryOptions(
-      meeting,
-      message,
-      meeting.sdkSessionId,
-    );
-    if (!resumeOptionsResult.ok) {
-      yield { type: "error", reason: resumeOptionsResult.reason };
+    const resumePrepResult = await buildMeetingPrepSpec(meeting, message, meeting.sdkSessionId);
+    if (!resumePrepResult.ok) {
+      yield { type: "error", reason: resumePrepResult.reason };
       return;
     }
 
-    if (!deps.queryFn) {
-      yield { type: "error", reason: "No queryFn provided" };
+    const resumePrep = await prepareSdkSession(resumePrepResult.spec, prepDeps);
+    if (!resumePrep.ok) {
+      yield { type: "error", reason: resumePrep.error };
       return;
     }
 
-    const queryOutcome = yield* runQueryAndTranslate(
-      deps.queryFn,
+    const { lastError, hasExpiryError } = yield* iterateSession(
       meeting,
       message,
-      resumeOptionsResult.options,
-      ghHome,
+      resumePrep.result.options,
       true,
     );
 
-    const needsRenewal = queryOutcome === "session_expired";
-    if (queryOutcome === "failed") {
-      return;
-    }
+    const needsRenewal = lastError !== null && hasExpiryError;
 
     if (!needsRenewal) {
       // Normal path: update state file if session ID changed

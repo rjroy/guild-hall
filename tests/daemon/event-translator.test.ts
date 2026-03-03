@@ -1,18 +1,8 @@
 import { describe, test, expect } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import {
-  translateSdkMessage,
-  type TranslatorContext,
-} from "@/daemon/services/event-translator";
+import { translateSdkMessage } from "@/daemon/services/event-translator";
 import type { GuildHallEvent, MeetingId, SdkSessionId } from "@/daemon/types";
 import { asMeetingId, asSdkSessionId } from "@/daemon/types";
-
-// -- Helpers --
-
-const context: TranslatorContext = {
-  meetingId: "meeting-001",
-  workerName: "code-reviewer",
-};
 
 /**
  * Constructs a mock SDKSystemMessage (init).
@@ -193,30 +183,23 @@ function makeResultError(
 describe("translateSdkMessage", () => {
   describe("SDKSystemMessage (init)", () => {
     test("init message produces session event with correct IDs", () => {
-      const events = translateSdkMessage(makeInitMessage("sess-42"), context);
+      const events = translateSdkMessage(makeInitMessage("sess-42"));
 
       expect(events).toEqual([
         {
           type: "session",
-          meetingId: "meeting-001",
           sessionId: "sess-42",
-          worker: "code-reviewer",
         },
       ]);
     });
 
-    test("init message uses context for meetingId and workerName", () => {
-      const customContext: TranslatorContext = {
-        meetingId: "meeting-xyz",
-        workerName: "architect",
-      };
-      const events = translateSdkMessage(makeInitMessage(), customContext);
+    test("init message produces session event without activity IDs", () => {
+      const events = translateSdkMessage(makeInitMessage());
 
       expect(events).toHaveLength(1);
-      expect(events[0]).toMatchObject({
+      expect(events[0]).toEqual({
         type: "session",
-        meetingId: "meeting-xyz",
-        worker: "architect",
+        sessionId: "sdk-session-abc",
       });
     });
   });
@@ -225,7 +208,6 @@ describe("translateSdkMessage", () => {
     test("text_delta event produces text_delta", () => {
       const events = translateSdkMessage(
         makeStreamEventTextDelta("Hello, world!"),
-        context,
       );
 
       expect(events).toEqual([{ type: "text_delta", text: "Hello, world!" }]);
@@ -234,7 +216,6 @@ describe("translateSdkMessage", () => {
     test("tool_use content_block_start produces tool_use event with id", () => {
       const events = translateSdkMessage(
         makeStreamEventToolUseStart("Read"),
-        context,
       );
 
       expect(events).toEqual([
@@ -245,7 +226,6 @@ describe("translateSdkMessage", () => {
     test("input_json_delta produces empty array", () => {
       const events = translateSdkMessage(
         makeStreamEventInputJsonDelta(),
-        context,
       );
 
       expect(events).toEqual([]);
@@ -254,7 +234,6 @@ describe("translateSdkMessage", () => {
     test("message_stop produces empty array", () => {
       const events = translateSdkMessage(
         makeStreamEventMessageStop(),
-        context,
       );
 
       expect(events).toEqual([]);
@@ -263,7 +242,6 @@ describe("translateSdkMessage", () => {
     test("content_block_stop produces empty array", () => {
       const events = translateSdkMessage(
         makeStreamEventContentBlockStop(),
-        context,
       );
 
       expect(events).toEqual([]);
@@ -276,7 +254,6 @@ describe("translateSdkMessage", () => {
         makeAssistantMessage([
           { type: "text", text: "Here is my analysis..." },
         ]),
-        context,
       );
 
       expect(events).toEqual([]);
@@ -292,7 +269,6 @@ describe("translateSdkMessage", () => {
             input: { file_path: "/foo/bar.ts" },
           },
         ]),
-        context,
       );
 
       expect(events).toEqual([]);
@@ -316,7 +292,6 @@ describe("translateSdkMessage", () => {
             input: { file_path: "/src/index.ts" },
           },
         ]),
-        context,
       );
 
       expect(events).toEqual([]);
@@ -325,7 +300,6 @@ describe("translateSdkMessage", () => {
     test("empty content array produces empty array", () => {
       const events = translateSdkMessage(
         makeAssistantMessage([]),
-        context,
       );
 
       expect(events).toEqual([]);
@@ -342,7 +316,6 @@ describe("translateSdkMessage", () => {
             content: "File contents here",
           },
         ]),
-        context,
       );
 
       expect(events).toEqual([
@@ -362,7 +335,6 @@ describe("translateSdkMessage", () => {
             ],
           },
         ]),
-        context,
       );
 
       expect(events).toEqual([
@@ -380,7 +352,6 @@ describe("translateSdkMessage", () => {
             content: "exit code 0",
           },
         ]),
-        context,
       );
 
       expect(events).toEqual([
@@ -400,7 +371,7 @@ describe("translateSdkMessage", () => {
         uuid: "00000000-0000-0000-0000-000000000021",
       } as unknown as SDKMessage;
 
-      const events = translateSdkMessage(msg, context);
+      const events = translateSdkMessage(msg);
       expect(events).toEqual([]);
     });
 
@@ -416,20 +387,20 @@ describe("translateSdkMessage", () => {
         uuid: "00000000-0000-0000-0000-000000000022",
       } as unknown as SDKMessage;
 
-      const events = translateSdkMessage(msg, context);
+      const events = translateSdkMessage(msg);
       expect(events).toEqual([]);
     });
   });
 
   describe("SDKResultSuccess", () => {
     test("success produces turn_end with cost", () => {
-      const events = translateSdkMessage(makeResultSuccess(0.042), context);
+      const events = translateSdkMessage(makeResultSuccess(0.042));
 
       expect(events).toEqual([{ type: "turn_end", cost: 0.042 }]);
     });
 
     test("success with zero cost includes cost", () => {
-      const events = translateSdkMessage(makeResultSuccess(0), context);
+      const events = translateSdkMessage(makeResultSuccess(0));
 
       expect(events).toEqual([{ type: "turn_end", cost: 0 }]);
     });
@@ -442,7 +413,6 @@ describe("translateSdkMessage", () => {
           "Tool failed",
           "Retries exhausted",
         ]),
-        context,
       );
 
       expect(events).toEqual([
@@ -453,7 +423,6 @@ describe("translateSdkMessage", () => {
     test("error_max_turns with empty errors falls back to subtype", () => {
       const events = translateSdkMessage(
         makeResultError("error_max_turns", []),
-        context,
       );
 
       expect(events).toEqual([
@@ -464,7 +433,6 @@ describe("translateSdkMessage", () => {
     test("error_max_budget_usd produces error event", () => {
       const events = translateSdkMessage(
         makeResultError("error_max_budget_usd", ["Budget exceeded"]),
-        context,
       );
 
       expect(events).toEqual([
@@ -475,7 +443,6 @@ describe("translateSdkMessage", () => {
     test("error_max_structured_output_retries produces error event", () => {
       const events = translateSdkMessage(
         makeResultError("error_max_structured_output_retries", []),
-        context,
       );
 
       expect(events).toEqual([
@@ -494,7 +461,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
 
     test("SDKStatusMessage produces empty array", () => {
@@ -506,7 +473,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
 
     test("SDKHookStartedMessage produces empty array", () => {
@@ -520,7 +487,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
 
     test("SDKToolProgressMessage produces empty array", () => {
@@ -534,7 +501,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
 
     test("SDKAuthStatusMessage produces empty array", () => {
@@ -546,7 +513,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
 
     test("SDKTaskNotificationMessage produces empty array", () => {
@@ -561,7 +528,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
 
     test("SDKToolUseSummaryMessage produces empty array", () => {
@@ -573,7 +540,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
 
     test("SDKHookProgressMessage produces empty array", () => {
@@ -590,7 +557,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
 
     test("SDKTaskStartedMessage produces empty array", () => {
@@ -603,7 +570,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
 
     test("SDKFilesPersistedEvent produces empty array", () => {
@@ -617,7 +584,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
   });
 
@@ -632,7 +599,7 @@ describe("translateSdkMessage", () => {
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
 
-      expect(translateSdkMessage(msg, context)).toEqual([]);
+      expect(translateSdkMessage(msg)).toEqual([]);
     });
   });
 
@@ -641,7 +608,6 @@ describe("translateSdkMessage", () => {
       // Step 1: stream_event content_block_start
       const streamEvents = translateSdkMessage(
         makeStreamEventToolUseStart("Read"),
-        context,
       );
       expect(streamEvents).toEqual([
         { type: "tool_use", name: "Read", input: {}, id: "tool-1" },
@@ -657,7 +623,6 @@ describe("translateSdkMessage", () => {
             input: { file_path: "/foo/bar.ts" },
           },
         ]),
-        context,
       );
       expect(assistantEvents).toEqual([]);
 
@@ -670,7 +635,6 @@ describe("translateSdkMessage", () => {
             content: "File contents here",
           },
         ]),
-        context,
       );
       expect(userEvents).toEqual([
         { type: "tool_result", name: "unknown", output: "File contents here", toolUseId: "tool-1" },

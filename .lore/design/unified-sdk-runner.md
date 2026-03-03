@@ -1,7 +1,7 @@
 ---
 title: Unified SDK runner for commissions and meetings
 date: 2026-03-03
-status: approved
+status: implemented
 tags: [sdk, refactor, session-runner, query-runner, architecture]
 modules: [sdk-runner, event-translator, sdk-logging, commission-orchestrator, meeting-orchestrator]
 related: [.lore/brainstorm/unified-sdk-runner.md, .lore/design/process-architecture.md]

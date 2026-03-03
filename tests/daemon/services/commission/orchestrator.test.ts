@@ -4,8 +4,8 @@
  * Tests for the commission orchestrator (Layer 5).
  *
  * Uses real Layer 1 (CommissionRecordOps on filesystem) and real Layer 2
- * (CommissionLifecycle) for integration testing. Layers 3 (WorkspaceOps)
- * and 4 (SessionRunner) are mocked at their interfaces.
+ * (CommissionLifecycle) for integration testing. Layer 3 (WorkspaceOps) is
+ * mocked at its interface. Layer 4 uses mock SessionPrepDeps and queryFn.
  *
  * Covers:
  * - Full dispatch-through-completion wiring
@@ -16,6 +16,10 @@
  * - Cancel during workspace preparation
  * - Dependency auto-transitions: blocked -> pending when deps satisfied
  * - addUserNote during execution targets activity worktree
+ * - EventBus subscription/unsubscription for tool events
+ * - resultSubmitted tracking via commission_result events
+ * - Preparation failure (prepareSdkSession returns ok: false)
+ * - Abort handling (generator yields aborted)
  */
 
 import * as fs from "node:fs/promises";
@@ -26,16 +30,13 @@ import type { CommissionOrchestratorDeps } from "@/daemon/services/commission/or
 import { createCommissionLifecycle, type CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
 import { createCommissionRecordOps } from "@/daemon/services/commission/record";
 import type { WorkspaceOps, FinalizeResult } from "@/daemon/services/workspace";
-import type {
-  SessionRunner,
-  SessionResult,
-  SessionSpec,
-} from "@/daemon/services/session-runner";
+import type { SessionPrepDeps } from "@/daemon/services/sdk-runner";
 import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
 import type { GitOps } from "@/daemon/lib/git";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import { asCommissionId } from "@/daemon/types";
 import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 // -- Test helpers --
 
@@ -185,50 +186,168 @@ function createMockWorkspace(overrides?: Partial<{
 }
 
 /**
- * Creates a mock SessionRunner that resolves with the given result.
- * Captures the spec for inspection. If resolveAfterMs is provided,
- * delays the resolution.
+ * Creates mock SessionPrepDeps that always succeeds. The activateWorker
+ * returns a minimal ActivationResult with an empty system prompt.
  */
-function createMockSessionRunner(
-  result: SessionResult = { resultSubmitted: true, aborted: false },
-  resolveAfterMs = 0,
-): SessionRunner & {
-  lastSpec: SessionSpec | null;
+function createMockPrepDeps(overrides?: Partial<SessionPrepDeps>): SessionPrepDeps {
+  return {
+    resolveToolSet: overrides?.resolveToolSet ?? (async () => ({
+      mcpServers: [],
+      allowedTools: [],
+    })),
+    loadMemories: overrides?.loadMemories ?? (async () => ({
+      memoryBlock: "",
+      needsCompaction: false,
+    })),
+    activateWorker: overrides?.activateWorker ?? (async () => ({
+      systemPrompt: "Test system prompt",
+      tools: { mcpServers: [], allowedTools: [] },
+      resourceBounds: { maxTurns: 10 },
+    })),
+    triggerCompaction: overrides?.triggerCompaction,
+    memoryLimit: overrides?.memoryLimit,
+  };
+}
+
+/**
+ * A controllable mock SDK query function. Returns an async generator that:
+ * - In immediate mode (resolveAfterMs >= 0): yields messages then completes.
+ *   If resultSubmitted is true, the EventBus emits a commission_result event
+ *   during iteration.
+ * - In manual mode (resolveAfterMs < 0): blocks until resolve() is called.
+ *
+ * The mock also emits SDK-like messages so drainSdkSession captures a sessionId.
+ */
+function createMockQueryFn(options: {
+  resultSubmitted?: boolean;
+  aborted?: boolean;
+  error?: string;
+  resolveAfterMs?: number;
+  eventBus?: EventBus;
+  /** Override commission ID to match in EventBus events */
+  commissionId?: string;
+} = {}): {
+  queryFn: (params: { prompt: string; options: Record<string, unknown> }) => AsyncGenerator<SDKMessage>;
   runCount: number;
-  /** Manually resolve the session (only when resolveAfterMs < 0 / manual mode). */
-  resolve: (r: SessionResult) => void;
+  /** Manually complete the session (only in manual mode). Pass resultSubmitted to emit event. */
+  resolve: (opts?: { resultSubmitted?: boolean; aborted?: boolean; error?: string }) => void;
 } {
-  let lastSpec: SessionSpec | null = null;
-  let runCount = 0;
-  let manualResolve: ((r: SessionResult) => void) | null = null;
+  const {
+    resultSubmitted = true,
+    aborted = false,
+    error,
+    resolveAfterMs = 0,
+    eventBus,
+    commissionId,
+  } = options;
+
+  let manualResolve: ((opts?: { resultSubmitted?: boolean; aborted?: boolean; error?: string }) => void) | null = null;
+
+  const state = { runCount: 0 };
+
+  async function* generate(
+    emitResult: boolean,
+    shouldAbort: boolean,
+    errorMsg?: string,
+  ): AsyncGenerator<SDKMessage> {
+    // Emit a system init message so runSdkSession yields a session event
+    yield {
+      type: "system",
+      subtype: "init",
+      session_id: `test-session-${state.runCount}`,
+    } as unknown as SDKMessage;
+
+    if (emitResult && eventBus && commissionId) {
+      // Simulate the toolbox emitting a result event through the EventBus.
+      // The orchestrator's EventBus subscription picks this up.
+      eventBus.emit({
+        type: "commission_result",
+        commissionId,
+        summary: "Test result summary",
+        artifacts: ["output.md"],
+      });
+    }
+
+    if (shouldAbort) {
+      const abortError = new Error("Aborted");
+      abortError.name = "AbortError";
+      throw abortError;
+    }
+
+    if (errorMsg) {
+      throw new Error(errorMsg);
+    }
+
+    // Yield a turn_end to simulate normal completion
+    yield {
+      type: "result",
+      subtype: "success",
+    } as unknown as SDKMessage;
+  }
 
   return {
-    get lastSpec() { return lastSpec; },
-    get runCount() { return runCount; },
-    resolve(r: SessionResult) {
-      if (manualResolve) manualResolve(r);
+    get runCount() { return state.runCount; },
+    resolve(opts) {
+      if (manualResolve) manualResolve(opts);
     },
-    async run(spec: SessionSpec): Promise<SessionResult> {
-      lastSpec = spec;
-      runCount++;
+    queryFn(_params) {
+      state.runCount++;
 
       if (resolveAfterMs < 0) {
-        // Manual mode: wait for external resolution
-        return new Promise<SessionResult>((resolve) => {
-          manualResolve = resolve;
-        });
+        // Manual mode: return a generator that blocks until resolved
+        const outerEventBus = eventBus;
+        const outerCommissionId = commissionId;
+
+        async function* manualGenerate(): AsyncGenerator<SDKMessage> {
+          yield {
+            type: "system",
+            subtype: "init",
+            session_id: `test-session-${state.runCount}`,
+          } as unknown as SDKMessage;
+
+          // Block until resolve() is called
+          const resolveOpts = await new Promise<{
+            resultSubmitted?: boolean;
+            aborted?: boolean;
+            error?: string;
+          } | undefined>((resolve) => {
+            manualResolve = resolve;
+          });
+
+          if (resolveOpts?.resultSubmitted && outerEventBus && outerCommissionId) {
+            outerEventBus.emit({
+              type: "commission_result",
+              commissionId: outerCommissionId,
+              summary: "Test result summary",
+              artifacts: ["output.md"],
+            });
+          }
+
+          if (resolveOpts?.aborted) {
+            const abortError = new Error("Aborted");
+            abortError.name = "AbortError";
+            throw abortError;
+          }
+
+          if (resolveOpts?.error) {
+            throw new Error(resolveOpts.error);
+          }
+        }
+
+        return manualGenerate();
       }
 
       if (resolveAfterMs > 0) {
-        await new Promise<void>((r) => setTimeout(r, resolveAfterMs));
+        // Delayed mode: wrap generate with a delay
+        const inner = generate(resultSubmitted, aborted, error);
+        async function* delayed(): AsyncGenerator<SDKMessage> {
+          await new Promise<void>((r) => setTimeout(r, resolveAfterMs));
+          yield* inner;
+        }
+        return delayed();
       }
 
-      // Simulate the session calling onResult when resultSubmitted is true
-      if (result.resultSubmitted && spec.callbacks) {
-        spec.callbacks.onResult("Test result summary", ["output.md"]);
-      }
-
-      return result;
+      return generate(resultSubmitted, aborted, error);
     },
   };
 }
@@ -288,22 +407,25 @@ projectName: ${projectName}
 
 /**
  * Builds orchestrator deps with sane defaults. Tests override specific parts.
+ *
+ * The mockQueryFn uses the eventBus for commission_result emission. If a test
+ * needs manual control, pass a pre-configured mockQueryFn.
  */
 function buildDeps(overrides?: Partial<{
   lifecycle: CommissionLifecycle;
   workspace: ReturnType<typeof createMockWorkspace>;
-  sessionRunner: ReturnType<typeof createMockSessionRunner>;
+  prepDeps: SessionPrepDeps;
+  mockQueryFn: ReturnType<typeof createMockQueryFn>;
   eventBus: ReturnType<typeof createTestEventBus>;
   gitOps: ReturnType<typeof createMockGitOps>;
   heartbeatTimeoutMs: number;
   fileExists: (p: string) => Promise<boolean>;
   createMeetingRequestFn: CommissionOrchestratorDeps["createMeetingRequestFn"];
-  buildSessionSpec: CommissionOrchestratorDeps["buildSessionSpec"];
 }>): {
   orchestrator: CommissionSessionForRoutes;
   lifecycle: CommissionLifecycle;
   workspace: ReturnType<typeof createMockWorkspace>;
-  sessionRunner: ReturnType<typeof createMockSessionRunner>;
+  mockQueryFn: ReturnType<typeof createMockQueryFn>;
   eventBus: ReturnType<typeof createTestEventBus>;
   gitOps: ReturnType<typeof createMockGitOps>;
 } {
@@ -314,13 +436,15 @@ function buildDeps(overrides?: Partial<{
     emitEvent: (event: SystemEvent) => eventBus.emit(event),
   });
   const workspace = overrides?.workspace ?? createMockWorkspace();
-  const sessionRunner = overrides?.sessionRunner ?? createMockSessionRunner();
+  const prepDeps = overrides?.prepDeps ?? createMockPrepDeps();
+  const mockQueryFn = overrides?.mockQueryFn ?? createMockQueryFn({ eventBus });
   const gitOps = overrides?.gitOps ?? createMockGitOps();
 
   const orchestrator = createCommissionOrchestrator({
     lifecycle,
     workspace,
-    sessionRunner,
+    prepDeps,
+    queryFn: mockQueryFn.queryFn,
     recordOps,
     eventBus,
     config: makeConfig(),
@@ -330,10 +454,9 @@ function buildDeps(overrides?: Partial<{
     heartbeatTimeoutMs: overrides?.heartbeatTimeoutMs ?? 60000, // Long default for tests
     fileExists: overrides?.fileExists,
     createMeetingRequestFn: overrides?.createMeetingRequestFn,
-    buildSessionSpec: overrides?.buildSessionSpec,
   });
 
-  return { orchestrator, lifecycle, workspace, sessionRunner, eventBus, gitOps };
+  return { orchestrator, lifecycle, workspace, mockQueryFn, eventBus, gitOps };
 }
 
 // -- Setup / Teardown --
@@ -400,8 +523,8 @@ describe("createCommission", () => {
 });
 
 describe("dispatch flow", () => {
-  test("full dispatch: workspace.prepare called, session runner started", async () => {
-    const { orchestrator, workspace, sessionRunner } = buildDeps();
+  test("full dispatch: workspace.prepare called, SDK session started", async () => {
+    const { orchestrator, workspace, mockQueryFn } = buildDeps();
 
     const commissionId = asCommissionId("commission-test-dispatch-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
@@ -416,8 +539,8 @@ describe("dispatch flow", () => {
     // Wait for fire-and-forget session to settle
     await new Promise<void>((r) => setTimeout(r, 50));
 
-    // Session runner was called
-    expect(sessionRunner.runCount).toBe(1);
+    // queryFn was called
+    expect(mockQueryFn.runCount).toBe(1);
   });
 
   test("returns queued when at capacity", async () => {
@@ -428,11 +551,13 @@ describe("dispatch flow", () => {
       recordOps,
       emitEvent: (e) => eventBus.emit(e),
     });
+    const mockQueryFn = createMockQueryFn({ eventBus });
 
     const orchestrator = createCommissionOrchestrator({
       lifecycle,
       workspace: createMockWorkspace(),
-      sessionRunner: createMockSessionRunner(),
+      prepDeps: createMockPrepDeps(),
+      queryFn: mockQueryFn.queryFn,
       recordOps,
       eventBus,
       config: { projects: [{ name: TEST_PROJECT, path: projectPath }], maxConcurrentCommissions: 0 },
@@ -456,13 +581,16 @@ describe("dispatch flow", () => {
 describe("session completion flow", () => {
   test("successful completion: finalize called, status becomes completed", async () => {
     const workspace = createMockWorkspace();
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: true, aborted: false },
-      10, // resolve after 10ms
-    );
-    const { orchestrator, eventBus } = buildDeps({ workspace, sessionRunner });
-
+    const eventBus = createTestEventBus();
     const commissionId = asCommissionId("commission-test-complete-001");
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: true,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const { orchestrator, eventBus: eb } = buildDeps({ workspace, mockQueryFn, eventBus });
+
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -475,21 +603,24 @@ describe("session completion flow", () => {
     expect(finalizeCalls.length).toBe(1);
 
     // Completed status event was emitted
-    const completedEvents = eventBus.events.filter(
+    const completedEvents = eb.events.filter(
       (e) => e.type === "commission_status" && "status" in e && e.status === "completed",
     );
     expect(completedEvents.length).toBeGreaterThanOrEqual(1);
   });
 
   test("no result submitted: transitions to failed", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      10,
-    );
-    const workspace = createMockWorkspace();
-    const { orchestrator, eventBus } = buildDeps({ workspace, sessionRunner });
-
+    const eventBus = createTestEventBus();
     const commissionId = asCommissionId("commission-test-noresult-001");
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: false,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const workspace = createMockWorkspace();
+    const { orchestrator, eventBus: eb } = buildDeps({ workspace, mockQueryFn, eventBus });
+
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -502,7 +633,7 @@ describe("session completion flow", () => {
     expect(preserveCalls.length).toBe(1);
 
     // Failed status event was emitted
-    const failedEvents = eventBus.events.filter(
+    const failedEvents = eb.events.filter(
       (e) => e.type === "commission_status" && "status" in e && e.status === "failed",
     );
     expect(failedEvents.length).toBeGreaterThanOrEqual(1);
@@ -520,20 +651,24 @@ describe("merge conflict escalation", () => {
         reason: "Squash-merge conflict on non-.lore/ files",
       } as FinalizeResult),
     });
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: true, aborted: false },
-      10,
-    );
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-conflict-001");
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: true,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
 
-    const { orchestrator, eventBus } = buildDeps({
+    const { orchestrator, eventBus: eb } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
       createMeetingRequestFn: async (params) => {
         meetingRequests.push(params);
       },
     });
 
-    const commissionId = asCommissionId("commission-test-conflict-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -546,7 +681,7 @@ describe("merge conflict escalation", () => {
     expect(meetingRequests[0].reason).toContain("conflict");
 
     // Failed status event was emitted
-    const failedEvents = eventBus.events.filter(
+    const failedEvents = eb.events.filter(
       (e) => e.type === "commission_status" && "status" in e && e.status === "failed",
     );
     expect(failedEvents.length).toBeGreaterThanOrEqual(1);
@@ -555,14 +690,16 @@ describe("merge conflict escalation", () => {
 
 describe("cancel flow", () => {
   test("cancel active commission: aborts, preserves work, cleans up", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1, // manual mode
-    );
-    const workspace = createMockWorkspace();
-    const { orchestrator, eventBus } = buildDeps({ workspace, sessionRunner });
-
+    const eventBus = createTestEventBus();
     const commissionId = asCommissionId("commission-test-cancel-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const workspace = createMockWorkspace();
+    const { orchestrator, eventBus: eb } = buildDeps({ workspace, mockQueryFn, eventBus });
+
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -578,7 +715,7 @@ describe("cancel flow", () => {
     expect(preserveCalls.length).toBe(1);
 
     // Cancelled events emitted
-    const cancelledEvents = eventBus.events.filter(
+    const cancelledEvents = eb.events.filter(
       (e) => e.type === "commission_status" && "status" in e && e.status === "cancelled",
     );
     expect(cancelledEvents.length).toBeGreaterThanOrEqual(1);
@@ -587,7 +724,7 @@ describe("cancel flow", () => {
     expect(orchestrator.getActiveCommissions()).toBe(0);
 
     // Resolve the dangling session promise so it doesn't leak
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
   });
 
   test("cancel pending commission not in execution context", async () => {
@@ -613,18 +750,21 @@ describe("cancel flow", () => {
 
 describe("heartbeat", () => {
   test("heartbeat timeout triggers executionFailed and abort", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1, // manual mode
-    );
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-heartbeat-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
     const workspace = createMockWorkspace();
-    const { orchestrator, eventBus: _eventBus, lifecycle } = buildDeps({
+    const { orchestrator, eventBus: _eb, lifecycle } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
       heartbeatTimeoutMs: 100, // 100ms for fast test
     });
 
-    const commissionId = asCommissionId("commission-test-heartbeat-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -637,37 +777,42 @@ describe("heartbeat", () => {
     expect(status).toBe("failed");
 
     // Resolve session so it doesn't leak
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
   });
 
   test("progress resets heartbeat timer", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1,
-    );
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-heartbeat-reset-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
     const workspace = createMockWorkspace();
     const { orchestrator, lifecycle } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
       heartbeatTimeoutMs: 150,
     });
 
-    const commissionId = asCommissionId("commission-test-heartbeat-reset-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
 
-    // Wait 100ms (before timeout), then trigger progress via the session callbacks
+    // Wait 100ms (before timeout), then emit progress via EventBus to reset heartbeat
     await new Promise<void>((r) => setTimeout(r, 100));
 
-    // The session runner spec has callbacks on it; invoke onProgress to reset heartbeat
-    if (sessionRunner.lastSpec?.callbacks) {
-      sessionRunner.lastSpec.callbacks.onProgress("Making progress");
-    }
+    // Emit a commission_progress event to reset the heartbeat timer
+    eventBus.emit({
+      type: "commission_progress",
+      commissionId: commissionId as string,
+      summary: "Making progress",
+    });
 
     // Wait another 100ms. Without heartbeat reset, this would be 200ms total
     // and the 150ms timer would have fired. With reset, it starts fresh from
-    // the last onProgress, so 100ms after that is still within the 150ms window.
+    // the last progress event, so 100ms after that is still within the 150ms window.
     await new Promise<void>((r) => setTimeout(r, 100));
 
     // Should still be in_progress (heartbeat was reset)
@@ -675,7 +820,7 @@ describe("heartbeat", () => {
     expect(status).toBe("in_progress");
 
     // Clean up: resolve session and wait for cleanup
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
     await new Promise<void>((r) => setTimeout(r, 50));
     orchestrator.shutdown();
   });
@@ -830,14 +975,16 @@ describe("dependency auto-transitions", () => {
 
 describe("addUserNote", () => {
   test("writes note to activity worktree during execution", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1, // manual mode
-    );
-    const workspace = createMockWorkspace();
-    const { orchestrator, eventBus } = buildDeps({ workspace, sessionRunner });
-
+    const eventBus = createTestEventBus();
     const commissionId = asCommissionId("commission-test-note-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const workspace = createMockWorkspace();
+    const { orchestrator, eventBus: eb } = buildDeps({ workspace, mockQueryFn, eventBus });
+
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -850,13 +997,13 @@ describe("addUserNote", () => {
 
     // The note should be written to the activity worktree (not integration)
     // Check via the event bus
-    const noteEvents = eventBus.events.filter(
+    const noteEvents = eb.events.filter(
       (e) => e.type === "commission_manager_note",
     );
     expect(noteEvents.length).toBe(1);
 
     // Clean up
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
     await new Promise<void>((r) => setTimeout(r, 50));
     orchestrator.shutdown();
   });
@@ -926,7 +1073,7 @@ describe("updateCommission", () => {
 
 describe("redispatchCommission", () => {
   test("re-dispatches a failed commission", async () => {
-    const { orchestrator, workspace: _workspace, sessionRunner } = buildDeps();
+    const { orchestrator, workspace: _workspace, mockQueryFn } = buildDeps();
 
     const commissionId = asCommissionId("commission-test-redispatch-001");
     await writeCommissionArtifact(integrationPath, commissionId as string, {
@@ -939,8 +1086,8 @@ describe("redispatchCommission", () => {
     // Wait for session to start
     await new Promise<void>((r) => setTimeout(r, 50));
 
-    // Session runner was called
-    expect(sessionRunner.runCount).toBe(1);
+    // queryFn was called
+    expect(mockQueryFn.runCount).toBe(1);
   });
 
   test("rejects redispatch on pending commission", async () => {
@@ -959,17 +1106,20 @@ describe("redispatchCommission", () => {
 
 describe("race condition", () => {
   test("concurrent completion and cancellation: exactly one succeeds", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: true, aborted: false },
-      -1, // manual mode
-    );
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-race-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
     const workspace = createMockWorkspace();
-    const { orchestrator, lifecycle, eventBus: _eventBus2 } = buildDeps({
+    const { orchestrator, lifecycle } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
     });
 
-    const commissionId = asCommissionId("commission-test-race-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -982,7 +1132,7 @@ describe("race condition", () => {
       commissionId,
       "User cancelled",
     ).catch(() => "cancel-failed");
-    sessionRunner.resolve({ resultSubmitted: true, aborted: false });
+    mockQueryFn.resolve({ resultSubmitted: true });
 
     await cancelPromise;
 
@@ -1004,13 +1154,15 @@ describe("race condition", () => {
 
 describe("shutdown", () => {
   test("aborts all active sessions", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1,
-    );
-    const { orchestrator } = buildDeps({ sessionRunner });
-
+    const eventBus = createTestEventBus();
     const commissionId = asCommissionId("commission-test-shutdown-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const { orchestrator } = buildDeps({ mockQueryFn, eventBus });
+
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -1023,7 +1175,7 @@ describe("shutdown", () => {
     orchestrator.shutdown();
 
     // Resolve dangling session
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
     await new Promise<void>((r) => setTimeout(r, 50));
   });
 });
@@ -1037,17 +1189,18 @@ describe("getActiveCommissions", () => {
 
 // -- Error handling fix tests --
 
-describe("session callback error handling (Fix 1)", () => {
-  test("onProgress catch prevents unhandled rejection when lifecycle throws", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1,
-    );
+describe("EventBus handler error resilience (Fix 1)", () => {
+  test("EventBus progress/result/question handlers catch lifecycle errors", async () => {
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-callback-err-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
     const workspace = createMockWorkspace();
     const recordOps = createCommissionRecordOps();
-    const eventBus = createTestEventBus();
 
-    // Create a lifecycle that throws on progressReported
     const lifecycle = createCommissionLifecycle({
       recordOps,
       emitEvent: (e) => eventBus.emit(e),
@@ -1055,31 +1208,40 @@ describe("session callback error handling (Fix 1)", () => {
 
     const { orchestrator } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
       lifecycle,
     });
 
-    const commissionId = asCommissionId("commission-test-callback-err-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
     await new Promise<void>((r) => setTimeout(r, 50));
 
-    // Manually forget the commission from lifecycle so progressReported
-    // returns "skipped" (not throw). The .catch() handles any promise
-    // rejection gracefully regardless.
-    // The key assertion: no unhandled promise rejection crashes the process.
-    if (sessionRunner.lastSpec?.callbacks) {
-      sessionRunner.lastSpec.callbacks.onProgress("test progress");
-      sessionRunner.lastSpec.callbacks.onResult("test result");
-      sessionRunner.lastSpec.callbacks.onQuestion("test question");
-    }
+    // Emit EventBus events directly. The orchestrator's subscription
+    // handler calls lifecycle methods with .catch() so these won't
+    // cause unhandled rejections even if lifecycle is in a weird state.
+    eventBus.emit({
+      type: "commission_progress",
+      commissionId: commissionId as string,
+      summary: "test progress",
+    });
+    eventBus.emit({
+      type: "commission_result",
+      commissionId: commissionId as string,
+      summary: "test result",
+    });
+    eventBus.emit({
+      type: "commission_question",
+      commissionId: commissionId as string,
+      question: "test question",
+    });
 
     // Wait for .catch() handlers to execute
     await new Promise<void>((r) => setTimeout(r, 50));
 
     // Clean up
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
     await new Promise<void>((r) => setTimeout(r, 50));
     orchestrator.shutdown();
   });
@@ -1087,13 +1249,15 @@ describe("session callback error handling (Fix 1)", () => {
 
 describe("heartbeat error handling (Fix 2)", () => {
   test("heartbeat skips abort when commission already terminal", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1,
-    );
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-hb-skip-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
     const workspace = createMockWorkspace();
     const recordOps = createCommissionRecordOps();
-    const eventBus = createTestEventBus();
     const lifecycle = createCommissionLifecycle({
       recordOps,
       emitEvent: (e) => eventBus.emit(e),
@@ -1101,12 +1265,12 @@ describe("heartbeat error handling (Fix 2)", () => {
 
     const { orchestrator } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
       lifecycle,
       heartbeatTimeoutMs: 100,
     });
 
-    const commissionId = asCommissionId("commission-test-hb-skip-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -1122,27 +1286,29 @@ describe("heartbeat error handling (Fix 2)", () => {
     // commission is already cancelled, and abort should NOT be called again.
     // No crash, no unhandled rejection.
 
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
   });
 });
 
 describe("lifecycle.forget cleanup (Fix 3)", () => {
   test("lifecycle.forget is called after session completion", async () => {
     const workspace = createMockWorkspace();
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: true, aborted: false },
-      10,
-    );
     const recordOps = createCommissionRecordOps();
     const eventBus = createTestEventBus();
     const lifecycle = createCommissionLifecycle({
       recordOps,
       emitEvent: (e) => eventBus.emit(e),
     });
-
-    const { orchestrator } = buildDeps({ workspace, sessionRunner, lifecycle });
-
     const commissionId = asCommissionId("commission-test-forget-001");
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: true,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+
+    const { orchestrator } = buildDeps({ workspace, mockQueryFn, eventBus, lifecycle });
+
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -1152,7 +1318,7 @@ describe("lifecycle.forget cleanup (Fix 3)", () => {
     expect(lifecycle.isTracked(commissionId)).toBe(false);
   });
 
-  test("lifecycle.forget is called after session error", async () => {
+  test("lifecycle.forget is called after preparation failure", async () => {
     const workspace = createMockWorkspace();
     const recordOps = createCommissionRecordOps();
     const eventBus = createTestEventBus();
@@ -1161,19 +1327,17 @@ describe("lifecycle.forget cleanup (Fix 3)", () => {
       emitEvent: (e) => eventBus.emit(e),
     });
 
-    // Session runner that throws
-    const sessionRunner: ReturnType<typeof createMockSessionRunner> = {
-      lastSpec: null,
-      runCount: 0,
-      resolve: () => {},
-      async run() {
-        throw new Error("Session crashed");
-      },
-    };
+    // prepDeps that fails on resolveToolSet
+    const failingPrepDeps = createMockPrepDeps({
+      resolveToolSet: async () => { throw new Error("Tool resolution crashed"); },
+    });
+    const mockQueryFn = createMockQueryFn({ eventBus });
 
     const { orchestrator } = buildDeps({
       workspace,
-      sessionRunner,
+      prepDeps: failingPrepDeps,
+      mockQueryFn,
+      eventBus,
       lifecycle,
     });
 
@@ -1189,13 +1353,15 @@ describe("lifecycle.forget cleanup (Fix 3)", () => {
   });
 
   test("lifecycle.forget is called on early return (aborted)", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1,
-    );
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-forget-abort-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
     const workspace = createMockWorkspace();
     const recordOps = createCommissionRecordOps();
-    const eventBus = createTestEventBus();
     const lifecycle = createCommissionLifecycle({
       recordOps,
       emitEvent: (e) => eventBus.emit(e),
@@ -1203,11 +1369,11 @@ describe("lifecycle.forget cleanup (Fix 3)", () => {
 
     const { orchestrator } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
       lifecycle,
     });
 
-    const commissionId = asCommissionId("commission-test-forget-abort-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -1215,7 +1381,7 @@ describe("lifecycle.forget cleanup (Fix 3)", () => {
 
     // Cancel first, then resolve session as aborted
     await orchestrator.cancelCommission(commissionId, "Cancel for test");
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
     await new Promise<void>((r) => setTimeout(r, 100));
 
     // lifecycle should have forgotten
@@ -1332,13 +1498,15 @@ describe("updateCommission uses regex replacement (Fix 5)", () => {
 
 describe("cancel flow error handling (Fix 6)", () => {
   test("cancel continues cleanup even if lifecycle.cancel throws", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1,
-    );
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-cancel-err-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
     const workspace = createMockWorkspace();
     const recordOps = createCommissionRecordOps();
-    const eventBus = createTestEventBus();
     const lifecycle = createCommissionLifecycle({
       recordOps,
       emitEvent: (e) => eventBus.emit(e),
@@ -1346,22 +1514,16 @@ describe("cancel flow error handling (Fix 6)", () => {
 
     const { orchestrator } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
       lifecycle,
     });
 
-    const commissionId = asCommissionId("commission-test-cancel-err-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
     await new Promise<void>((r) => setTimeout(r, 50));
 
-    // Forget the commission from lifecycle so cancel will throw "not tracked"
-    // Actually, lifecycle.cancel returns TransitionResult, it doesn't throw
-    // for invalid transitions. But if the artifact path is gone, the
-    // recordOps.writeStatus will throw.
-    // Let's just verify that cancelCommission doesn't throw even after
-    // lifecycle cleanup, and that executions.delete always runs.
     await orchestrator.cancelCommission(commissionId, "Error test cancel");
 
     // The key assertion: active count is 0 (cleanup ran regardless)
@@ -1370,13 +1532,13 @@ describe("cancel flow error handling (Fix 6)", () => {
     // lifecycle.forget was also called
     expect(lifecycle.isTracked(commissionId)).toBe(false);
 
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
     await new Promise<void>((r) => setTimeout(r, 50));
   });
 });
 
 describe("sequential await resilience (Fix 7)", () => {
-  test("executions.delete runs even if executionFailed throws", async () => {
+  test("executions.delete runs even if session fails without result", async () => {
     const workspace = createMockWorkspace();
     const recordOps = createCommissionRecordOps();
     const eventBus = createTestEventBus();
@@ -1385,19 +1547,22 @@ describe("sequential await resilience (Fix 7)", () => {
       emitEvent: (e) => eventBus.emit(e),
     });
 
+    const commissionId = asCommissionId("commission-test-seq-001");
     // Session that returns no result (triggers the fail path)
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      10,
-    );
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: false,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
 
     const { orchestrator } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
       lifecycle,
     });
 
-    const commissionId = asCommissionId("commission-test-seq-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -1411,7 +1576,7 @@ describe("sequential await resilience (Fix 7)", () => {
 });
 
 describe("handleSuccessfulCompletion early return cleanup (Fix 8)", () => {
-  test("preserveAndCleanup called when executionCompleted is skipped", async () => {
+  test("early return when commission already cancelled before completion", async () => {
     const workspace = createMockWorkspace();
     const recordOps = createCommissionRecordOps();
     const eventBus = createTestEventBus();
@@ -1420,34 +1585,34 @@ describe("handleSuccessfulCompletion early return cleanup (Fix 8)", () => {
       emitEvent: (e) => eventBus.emit(e),
     });
 
-    // Session that submits a result
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: true, aborted: false },
-      -1,
-    );
+    const commissionId = asCommissionId("commission-test-skip-complete-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
 
     const { orchestrator } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
       lifecycle,
     });
 
-    const commissionId = asCommissionId("commission-test-skip-complete-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
     await new Promise<void>((r) => setTimeout(r, 50));
 
     // Cancel the commission so that when the session completes,
-    // executionCompleted will be skipped (already cancelled/terminal).
+    // handleSessionCompletion detects cancelled status and exits early.
     await orchestrator.cancelCommission(commissionId, "Cancel before complete");
 
     // Now resolve the session with result submitted
-    sessionRunner.resolve({ resultSubmitted: true, aborted: false });
+    mockQueryFn.resolve({ resultSubmitted: true });
     await new Promise<void>((r) => setTimeout(r, 200));
 
-    // The handleSessionCompletion detects cancelled status and exits early.
-    // With Fix 3, lifecycle.forget is called on this early return.
+    // lifecycle.forget is called on this early return.
     expect(lifecycle.isTracked(commissionId)).toBe(false);
     expect(orchestrator.getActiveCommissions()).toBe(0);
   });
@@ -1467,13 +1632,16 @@ describe("heartbeat default timeout (Fix 9)", () => {
 describe("deleteStateFile ENOENT handling (Fix 11)", () => {
   test("deleteStateFile does not throw for missing file", async () => {
     const workspace = createMockWorkspace();
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: true, aborted: false },
-      10,
-    );
-    const { orchestrator } = buildDeps({ workspace, sessionRunner });
-
+    const eventBus = createTestEventBus();
     const commissionId = asCommissionId("commission-test-delete-state-001");
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: true,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const { orchestrator } = buildDeps({ workspace, mockQueryFn, eventBus });
+
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -1497,14 +1665,16 @@ describe("deleteStateFile ENOENT handling (Fix 11)", () => {
 
 describe("addUserNote fallback (Fix 13)", () => {
   test("falls back to integration worktree when activity worktree is gone", async () => {
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1,
-    );
-    const workspace = createMockWorkspace();
-    const { orchestrator, eventBus } = buildDeps({ workspace, sessionRunner });
-
+    const eventBus = createTestEventBus();
     const commissionId = asCommissionId("commission-test-note-fallback-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const workspace = createMockWorkspace();
+    const { orchestrator, eventBus: eb } = buildDeps({ workspace, mockQueryFn, eventBus });
+
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     await orchestrator.dispatchCommission(commissionId);
@@ -1525,8 +1695,6 @@ describe("addUserNote fallback (Fix 13)", () => {
 
     // Try addUserNote. It should fall back to integration worktree
     // if the activity worktree artifact is missing.
-    // Note: In the test mock, workspace.prepare copies artifacts to the
-    // worktree, so deleting them simulates a cleaned-up worktree.
     try {
       await orchestrator.addUserNote(commissionId, "Fallback note");
     } catch {
@@ -1535,13 +1703,13 @@ describe("addUserNote fallback (Fix 13)", () => {
     }
 
     // Note event should have been emitted (fallback path succeeds)
-    expect(eventBus.events.some(
+    expect(eb.events.some(
       (e) => e.type === "commission_manager_note",
     )).toBe(true);
     expect(orchestrator.getActiveCommissions()).toBe(1);
 
     // Clean up
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
     await new Promise<void>((r) => setTimeout(r, 50));
     orchestrator.shutdown();
   });
@@ -1550,12 +1718,9 @@ describe("addUserNote fallback (Fix 13)", () => {
 describe("cancel during workspace preparation (Fix 15)", () => {
   test("cancel during workspace.prepare delay", async () => {
     // Create a workspace mock where prepare takes time.
-    // Use a container object so TS doesn't narrow the closure-assigned
-    // variable to `never` after awaits.
     const gate: { resolve: (() => void) | null } = { resolve: null };
     const workspace = createMockWorkspace({
       prepare: async (config) => {
-        // Copy artifacts like default
         const wtCommDir = path.join(config.worktreeDir, ".lore", "commissions");
         await fs.mkdir(wtCommDir, { recursive: true });
         const sourceDir = path.join(integrationPath, ".lore", "commissions");
@@ -1580,16 +1745,19 @@ describe("cancel during workspace preparation (Fix 15)", () => {
       },
     });
 
-    const sessionRunner = createMockSessionRunner(
-      { resultSubmitted: false, aborted: false },
-      -1,
-    );
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-cancel-prep-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
     const { orchestrator } = buildDeps({
       workspace,
-      sessionRunner,
+      mockQueryFn,
+      eventBus,
     });
 
-    const commissionId = asCommissionId("commission-test-cancel-prep-001");
     await writeCommissionArtifact(integrationPath, commissionId as string);
 
     // Start dispatch (will block in workspace.prepare)
@@ -1599,8 +1767,6 @@ describe("cancel during workspace preparation (Fix 15)", () => {
     await new Promise<void>((r) => setTimeout(r, 50));
 
     // Cancel while dispatch is pending in workspace.prepare
-    // The commission is tracked in lifecycle at "dispatched" but workspace.prepare
-    // hasn't returned yet, so there's no execution context.
     const cancelPromise = orchestrator.cancelCommission(
       commissionId,
       "Cancelled during prep",
@@ -1616,12 +1782,10 @@ describe("cancel during workspace preparation (Fix 15)", () => {
     await new Promise<void>((r) => setTimeout(r, 100));
 
     // The commission should end up in a terminal state
-    // Either dispatch failed because cancel happened first,
-    // or dispatch succeeded but cancel ran after.
     expect(orchestrator.getActiveCommissions()).toBeLessThanOrEqual(1);
 
     // Clean up any dangling sessions
-    sessionRunner.resolve({ resultSubmitted: false, aborted: true });
+    mockQueryFn.resolve({ aborted: true });
     await new Promise<void>((r) => setTimeout(r, 100));
     orchestrator.shutdown();
   });

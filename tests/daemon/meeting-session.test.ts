@@ -503,7 +503,6 @@ describe("createMeetingSession", () => {
       expect(call.options.includePartialMessages).toBe(true);
       expect(call.options.permissionMode).toBe("dontAsk");
       expect(call.options.settingSources).toEqual(["local", "project", "user"]);
-      expect(call.options.additionalDirectories).toBeUndefined();
       expect(call.options.maxTurns).toBe(30);
     });
   });
@@ -3176,5 +3175,209 @@ describe("createMeetingRequest", () => {
         reason: "conflict",
       }),
     ).rejects.toThrow('Worker "guild-hall-manager" not found');
+  });
+
+  // -- iterateSession edge cases --
+  //
+  // These tests exercise guards and error tracking inside the iterateSession
+  // helper that are not reachable through higher-level happy-path tests.
+
+  describe("iterateSession edge cases", () => {
+    // Helper: SDK result message with error subtype and errors array.
+    // The event-translator converts this to { type: "error", reason }.
+    function makeResultError(errors: string[]): SDKMessage {
+      return {
+        type: "result",
+        subtype: "error_during_execution",
+        is_error: true,
+        errors,
+        total_cost_usd: 0,
+        duration_ms: 0,
+        duration_api_ms: 0,
+        num_turns: 0,
+        result: "",
+        stop_reason: "error",
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+        modelUsage: {},
+        permission_denials: [],
+        uuid: "00000000-0000-0000-0000-000000000099" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "sdk-session-123",
+      } as unknown as SDKMessage;
+    }
+
+    test("session expiry error is suppressed in sendMessage (suppressExpiryErrors=true)", async () => {
+      // First call: normal session (createMeeting)
+      // Second call: session expired error (sendMessage with suppress)
+      let callCount = 0;
+      async function* multiCallQuery(_params: {
+        prompt: string;
+        options: QueryOptions;
+      }): AsyncGenerator<SDKMessage> {
+        await Promise.resolve();
+        callCount++;
+        if (callCount === 1) {
+          // First call: createMeeting succeeds normally
+          yield makeInitMessage();
+          yield makeTextDelta("Hello");
+          yield makeResultSuccess();
+        } else if (callCount === 2) {
+          // Second call: session expired error
+          yield makeInitMessage("sdk-session-456");
+          yield makeResultError(["session expired"]);
+        } else {
+          // Third call: renewal session succeeds
+          yield makeInitMessage("sdk-session-789");
+          yield makeTextDelta("Renewed");
+          yield makeResultSuccess();
+        }
+      }
+
+      const session = createMeetingSession(
+        makeDeps({ queryFn: multiCallQuery }),
+      );
+
+      // Create a meeting (call 1)
+      const createEvents = await collectEvents(
+        session.createMeeting("test-project", "test-assistant", "Hello"),
+      );
+      let meetingId = "";
+      const sessionEvent = createEvents.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      // Send a message (call 2: will get session expired, suppressed; call 3: renewal)
+      const sendEvents = await collectEvents(
+        session.sendMessage(asMeetingId(meetingId), "Follow up"),
+      );
+
+      // The session expiry error should NOT appear in the yielded events
+      const errorEvents = sendEvents.filter((e) => e.type === "error");
+      const expiryErrors = errorEvents.filter(
+        (e) => e.type === "error" && e.reason.includes("session expired"),
+      );
+      expect(expiryErrors).toHaveLength(0);
+
+      // The renewal session should have produced events (session from call 3)
+      const sessionEvents = sendEvents.filter((e) => e.type === "session");
+      expect(sessionEvents.length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("multi-error with expiry followed by non-expiry still triggers renewal", async () => {
+      // This tests the hasExpiryError fix: if a session expiry error is
+      // followed by another error, the renewal should still trigger because
+      // hasExpiryError is tracked separately from lastError.
+      let callCount = 0;
+      async function* multiErrorQuery(_params: {
+        prompt: string;
+        options: QueryOptions;
+      }): AsyncGenerator<SDKMessage> {
+        await Promise.resolve();
+        callCount++;
+        if (callCount === 1) {
+          // createMeeting: normal
+          yield makeInitMessage();
+          yield makeTextDelta("Hello");
+          yield makeResultSuccess();
+        } else if (callCount === 2) {
+          // sendMessage: expiry error followed by a non-expiry error.
+          // The SDK can emit multiple result messages if it retries
+          // internally, so both errors flow through the event translator.
+          yield makeInitMessage("sdk-session-456");
+          yield makeResultError(["session expired"]);
+          yield makeResultError(["rate limit exceeded"]);
+        } else {
+          // Renewal: fresh session
+          yield makeInitMessage("sdk-session-renewed");
+          yield makeTextDelta("After renewal");
+          yield makeResultSuccess();
+        }
+      }
+
+      const session = createMeetingSession(
+        makeDeps({ queryFn: multiErrorQuery }),
+      );
+
+      // Create meeting (call 1)
+      const createEvents = await collectEvents(
+        session.createMeeting("test-project", "test-assistant", "Hello"),
+      );
+      let meetingId = "";
+      const sessionEvent = createEvents.find((e) => e.type === "session");
+      if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
+
+      // Send message (call 2: two errors; call 3: renewal)
+      const sendEvents = await collectEvents(
+        session.sendMessage(asMeetingId(meetingId), "Follow up"),
+      );
+
+      // Renewal should have happened (call 3 was invoked), producing a
+      // new session event with the renewal session ID.
+      const renewalSession = sendEvents.find(
+        (e) => e.type === "session" && "sessionId" in e && e.sessionId === "sdk-session-renewed",
+      );
+      expect(renewalSession).toBeDefined();
+
+      // Total calls should be 3: create, failed send, renewal
+      expect(callCount).toBe(3);
+    });
+
+    test("empty sessionId from SDK init is not stored on meeting entry", async () => {
+      // Mock an SDK init message with an empty session_id
+      const emptySessionInit: SDKMessage = {
+        type: "system",
+        subtype: "init",
+        session_id: "",
+        uuid: "00000000-0000-0000-0000-000000000001" as `${string}-${string}-${string}-${string}-${string}`,
+        apiKeySource: "user",
+        betas: [],
+        claude_code_version: "2.1.50",
+        cwd: "/tmp",
+        tools: ["Read"],
+        mcp_servers: [],
+        model: "claude-sonnet-4-6",
+        permissionMode: "default",
+        slash_commands: [],
+        output_style: "text",
+        skills: [],
+        plugins: [],
+      } as unknown as SDKMessage;
+
+      const mock = makeMockQueryFn([
+        emptySessionInit,
+        makeTextDelta("Hello"),
+        makeResultSuccess(),
+      ]);
+
+      const session = createMeetingSession(
+        makeDeps({ queryFn: mock.queryFn }),
+      );
+
+      const events = await collectEvents(
+        session.createMeeting("test-project", "test-assistant", "Hello"),
+      );
+
+      // The session event should still be yielded (with empty sessionId from SDK)
+      const sessionEvent = events.find((e) => e.type === "session");
+      expect(sessionEvent).toBeDefined();
+
+      // But the state file should NOT have an empty sdkSessionId.
+      // Read the state file to verify.
+      const stateDir = path.join(ghHomeDir, "state", "meetings");
+      const files = await fs.readdir(stateDir);
+      expect(files).toHaveLength(1);
+
+      const stateContent = await fs.readFile(
+        path.join(stateDir, files[0]),
+        "utf-8",
+      );
+      const state = JSON.parse(stateContent) as { sdkSessionId: string | null };
+
+      // sdkSessionId should be null (not set to empty string)
+      expect(state.sdkSessionId).toBeNull();
+    });
   });
 });

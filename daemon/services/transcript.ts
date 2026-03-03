@@ -11,6 +11,9 @@
  * - ## Assistant (timestamp) sections for assistant turns
  * - Tool use blocks rendered as blockquotes within assistant sections
  *
+ * Also provides transcript utilities (truncation, safe append) that operate
+ * on transcript content without SDK knowledge.
+ *
  * All functions accept a guildHallHome override for testing (DI pattern).
  */
 
@@ -18,6 +21,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getGuildHallHome } from "@/lib/paths";
 import { isNodeError } from "@/lib/types";
+import { errorMessage } from "@/daemon/lib/toolbox-utils";
 
 // -- Types --
 
@@ -143,6 +147,68 @@ export async function appendAssistantTurn(
   }
 
   await fs.appendFile(filePath, section, "utf-8");
+}
+
+// -- Transcript utilities --
+
+/** Default max length for transcript truncation. */
+export const TRANSCRIPT_MAX_CHARS = 30000;
+
+/**
+ * Truncates a transcript to approximately maxChars, preserving complete
+ * turn boundaries. Splits on `## User` or `## Assistant` headings and
+ * drops leading turns until the remainder fits.
+ */
+export function truncateTranscript(transcript: string, maxChars = TRANSCRIPT_MAX_CHARS): string {
+  if (transcript.length <= maxChars) return transcript;
+
+  // Split on turn headings, keeping the delimiter with the following section
+  const turnPattern = /^(## (?:User|Assistant) \([^)]+\))/m;
+  const parts = transcript.split(turnPattern);
+
+  // parts alternates: [preamble, heading1, body1, heading2, body2, ...]
+  // Reassemble into turns (heading + body pairs)
+  const turns: string[] = [];
+  for (let i = 1; i < parts.length; i += 2) {
+    turns.push(parts[i] + (parts[i + 1] ?? ""));
+  }
+
+  // Walk backward from the end, summing turn lengths until we exceed the
+  // budget. This avoids the O(N^2) of repeatedly slicing and joining.
+  let totalLen = 0;
+  let startIdx = turns.length;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    if (totalLen + turns[i].length > maxChars && startIdx < turns.length) break;
+    totalLen += turns[i].length;
+    startIdx = i;
+  }
+
+  return turns.slice(startIdx).join("");
+}
+
+/**
+ * Appends an assistant turn to the transcript, swallowing errors so
+ * transcript failures don't break the meeting flow.
+ */
+export async function appendAssistantTurnSafe(
+  meetingId: string,
+  textParts: string[],
+  toolUses: ToolUseEntry[],
+  guildHallHome: string,
+): Promise<void> {
+  const text = textParts.join("");
+  if (!text && toolUses.length === 0) return;
+  try {
+    await appendAssistantTurn(
+      meetingId,
+      text,
+      toolUses.length > 0 ? toolUses : undefined,
+      guildHallHome,
+    );
+  } catch (err: unknown) {
+    const reason = errorMessage(err);
+    console.warn(`[transcript] Transcript append failed for meeting ${meetingId} (non-fatal): ${reason}`);
+  }
 }
 
 // -- Read operations --

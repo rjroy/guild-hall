@@ -511,7 +511,6 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
     });
     expect(call.options.includePartialMessages).toBe(true);
     expect(call.options.permissionMode).toBe("dontAsk");
-    expect(call.options.additionalDirectories).toBeUndefined();
     expect(call.options.maxTurns).toBe(30);
   });
 });
