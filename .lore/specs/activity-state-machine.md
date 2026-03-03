@@ -1,7 +1,7 @@
 ---
 title: Activity state machine with enter/exit handlers
 date: 2026-03-01
-status: draft
+status: executed
 tags: [architecture, refactor, state-machine, commissions, meetings, lifecycle]
 modules: [commission-session, meeting-session, commission-state-machine]
 related:
@@ -42,6 +42,8 @@ Both commissions and meetings are "activities": they have a status lifecycle, an
 
 - REQ-ASM-3: Enter and exit handlers receive a context object containing the activity entry, the activity ID, the source state, the target state, a transition reason string, and any transition-specific data. The context type is defined per activity type, not shared generically. Commission handlers get commission-specific context (worktreeDir, branchName, projectPath, resultSubmitted, etc.). Meeting handlers get meeting-specific context.
 
+  > **Implementation (2026-03):** The implementation maintains a separate `trackedEntries` Map alongside the machine context rather than passing all data through the context object. The context object carries transition-specific data, but execution state (worktree paths, abort controllers, session references) lives in the orchestrator's tracked entries. Behavior is correct; the encapsulation boundary is at the orchestrator rather than the machine context.
+
 - REQ-ASM-4: The state machine validates transitions against its graph before executing handlers. Invalid transitions throw, same as today. The graph is the source of truth for what transitions are allowed.
 
 - REQ-ASM-5: The state machine owns the active entries Map. Adding entries (on dispatch/open), removing entries (on cleanup states), and querying entries (for capacity checks, artifact routing) all go through the machine's interface. External code does not directly read or mutate the Map. An activity is "active" (in the Map) from the moment it enters a running state (dispatched/in_progress for commissions, open for meetings) until it enters a cleanup state. Pending, blocked, and requested activities are not in the active Map.
@@ -57,6 +59,14 @@ Both commissions and meetings are "activities": they have a status lifecycle, an
 ### Race Safety
 
 - REQ-ASM-9: If a transition is attempted from a state that has already been exited by a concurrent transition, the attempt is a no-op and returns a result indicating the transition was skipped. No handlers are invoked. This is the testable contract: given two concurrent `transition(id, "in_progress", "completed")` and `transition(id, "in_progress", "cancelled")` calls, exactly one executes its handlers and the other returns "skipped." The machine enforces this by tracking the current state per entry and rejecting transitions where the `from` state no longer matches.
+
+### Commission Lifecycle Split
+
+> **Implementation (2026-03):** Commission-specific requirements (REQ-ASM-10 through REQ-ASM-22) are now implemented by CommissionLifecycle (REQ-CLS-10 in [Spec: Commission Layer Separation](commission-layer-separation.md)) rather than the shared ActivityMachine described in this spec. The commission layer separation replaced the generic machine with a commission-specific lifecycle layer that enforces stricter boundaries between record, lifecycle, execution, and orchestration concerns.
+>
+> Meeting requirements (REQ-ASM-23 through REQ-ASM-27) remain the active implementation target for the shared ActivityMachine pattern. The split is temporary: after meeting migration applies the same layered pattern, the shared abstractions in REQ-ASM-1 through REQ-ASM-9 will be re-evaluated for unification.
+>
+> The commission requirements below are preserved as-is for reference and to support the eventual re-unification. Where the implementation diverges from these requirements, annotations on the specific REQ-IDs explain the difference.
 
 ### Commission Transition Graph
 
@@ -80,7 +90,9 @@ Both commissions and meetings are "activities": they have a status lifecycle, an
 
 - REQ-ASM-13: **Enter dispatched**: Create activity branch from claude, create worktree, write state file, configure sparse checkout if needed. This replaces the setup portion of `dispatchCommission()`.
 
-- REQ-ASM-14: **Enter in_progress**: Add to active Map, emit commission_status event, fire-and-forget SDK session. This replaces the session-launch portion of `dispatchCommission()`.
+- REQ-ASM-14: **Enter in_progress**: Add to active Map, emit commission_status event. The SDK session launches after the enter handler returns and the machine transition completes, not inside the handler callback. The orchestrator (Layer 5) starts the session as a follow-up to the dispatched -> in_progress transition. This replaces the session-launch portion of `dispatchCommission()`.
+
+  > **History (2026-03):** Originally specified as "fire-and-forget SDK session" inside the enter handler. Rewritten because async generator streaming (the session yields events) requires yield after the transition completes, not inside a handler callback. The handler sets up state; the caller runs the session. See also the handler placement pattern note below REQ-ASM-18.
 
 - REQ-ASM-15: **Exit in_progress**: The exit handler receives the target state. For cancellation (target = cancelled), abort the SDK session via AbortController. For completion or failure, no exit action needed (the SDK session has already finished or errored). This replaces `cancelCommission()`'s abort logic.
 
@@ -88,11 +100,19 @@ Both commissions and meetings are "activities": they have a status lifecycle, an
 
 - REQ-ASM-17: **Enter failed**: Emit commission_status event. Sync status to integration worktree. Preserve-and-cleanup worktree: commit any uncommitted changes to the activity branch, remove worktree, keep branch. Write state file. Fire the post-cleanup hook (REQ-ASM-29). If entering from completed (context.sourceState === "completed"), escalate to Guild Master meeting request with the conflicting branch name and commission ID. This replaces `terminateActiveCommission()` + `cleanupAfterTermination()`.
 
+  > **Implementation (2026-03):** Cleanup of execution state (clearing `trackedEntries`, releasing abort controllers) happens in session code and the orchestrator, not via machine lifecycle handlers. The enter-failed handler handles artifact and git operations; execution state teardown is the orchestrator's responsibility.
+
 - REQ-ASM-18: **Enter cancelled**: Emit commission_status event. Sync status to integration worktree. Preserve-and-cleanup worktree: commit any uncommitted changes, remove worktree, keep branch. Write state file. Fire the post-cleanup hook (REQ-ASM-29). This replaces the cancelled path through `terminateActiveCommission()`.
+
+  > **Implementation (2026-03), handler placement pattern:** Three behaviors fire after handlers return rather than inside them: (1) SDK session launch (REQ-ASM-14, commission), (2) merge conflict escalation (REQ-ASM-16, triggers completed -> failed from within completion), and (3) meeting SDK streaming (REQ-ASM-24/25, yields events to the caller). The spec's enter-handler model assumes handlers complete synchronously or fire-and-forget. Streaming requires the caller to yield after the transition, which means the behavior lives outside the handler. This is a structural limitation of the handler callback model, not a deviation from intent.
 
 - REQ-ASM-19: **Enter pending (from blocked)**: Dependency satisfaction. Fire the post-cleanup hook (REQ-ASM-29) to trigger auto-dispatch. This replaces the blocked -> pending path in `checkDependencyTransitions()`.
 
+  > **History (2026-03):** In the commission layer separation, these dependency transitions operate outside the machine for pre-dispatch commissions. The machine's scope is post-dispatch lifecycle (dispatched through terminal states). `checkDependencyTransitions` handles pre-dispatch lifecycle (blocked <-> pending) directly through Layer 2's lifecycle API without routing through machine handlers, because pre-dispatch commissions are not in the active entries Map.
+
 - REQ-ASM-20: **Enter blocked (from pending)**: Dependency missing. Emit commission_status event. No other action. This replaces the pending -> blocked path in `checkDependencyTransitions()`.
+
+  > **Implementation (2026-03):** Same as REQ-ASM-19: operates outside the machine for pre-dispatch commissions in the layer separation model.
 
 - REQ-ASM-21: **Enter pending (from failed/cancelled)**: Redispatch reset. No active Map changes (the activity was removed when entering failed/cancelled). The attempt counter is derived from terminal timeline entries at dispatch time, not stored as mutable state.
 
@@ -124,6 +144,8 @@ Both commissions and meetings are "activities": they have a status lifecycle, an
 ### Single Entry Point
 
 - REQ-ASM-28: The state machine's transition method is the single entry point for all state changes. No code outside the machine directly updates artifact status or the active entries Map. This eliminates the class of bugs where status updates happen in multiple places with inconsistent side effects. The only exception is initial state injection for direct meeting creation (REQ-ASM-25), which creates the artifact at the target state without a prior state.
+
+  > **Implementation (2026-03):** Recovery (REQ-ASM-31) operates outside the machine by design. Recovery runs on daemon startup before the machine has active entries, so it reconciles state through direct Layer 2 signals rather than machine transitions. This is acknowledged in REQ-ASM-31 and is consistent with the commission layer separation model where the orchestrator handles recovery coordination.
 
 ### Post-Cleanup Hooks
 

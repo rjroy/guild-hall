@@ -52,13 +52,17 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-WKR-6: A toolbox provides named tool definitions. Each tool has a name, description, typed input schema, and handler function. Tools are the atomic capability unit. A toolbox groups related tools by domain (e.g., all mail operations in one toolbox, all calendar operations in another).
 
-- REQ-WKR-6a: A toolbox package exports a collection of tool definitions. Guild Hall loads these at activation time and provides them to the SDK session as in-process tools. The export is the toolbox's public contract; how tools are internally implemented is the package author's concern.
+- REQ-WKR-6a: A toolbox package exports a `toolboxFactory` function that receives dependencies (event bus, project context, activity identity) and returns a configured tool provider. Guild Hall calls this factory at activation time and provides the resulting tools to the SDK session as in-process functions. The factory contract is the toolbox's public interface; how tools are internally implemented is the package author's concern.
+
+  > **History (2026-03):** Originally specified as "exports a collection of tool definitions." Rewritten to match the factory pattern that was built. Toolboxes need runtime dependencies (event bus for emitting events after writes, project paths for file operations), so a static export of definitions was insufficient.
 
 - REQ-WKR-7: A package can declare both "worker" and "toolbox" types. A specialist can also provide domain tools to other workers. Example: a mail worker that also exports mail tools as a toolbox so the manager can check for urgent messages.
 
 ### System Toolboxes
 
-- REQ-WKR-8: Guild Hall provides system toolboxes that are automatically injected based on execution context. Workers do not declare these in their requirements; the system provides them.
+- REQ-WKR-8: Guild Hall provides system toolboxes that are injected based on execution context and worker declaration. Most system toolboxes are automatic: the base toolbox is always present, and the context toolbox (commission or meeting) is added based on activation mode. Workers may declare additional system toolbox requirements in their package metadata (e.g., `systemToolboxes: ["manager"]`). The system validates eligibility at activation time: a worker declaring a system toolbox it is not entitled to will fail activation.
+
+  > **History (2026-03):** Originally specified as "workers do not declare system toolboxes; the system provides them." Rewritten to match the declaration + validation model. The manager needs to declare its system toolbox requirement so the resolver knows to include it, but the system validates that only the designated manager worker can request it.
 
 - REQ-WKR-9: The **base toolbox** is always provided to every worker in every context. It includes:
   - **Memory tools**: read and write across the three memory scopes (global, project, worker) per the System spec's access rules (REQ-SYS-20).
@@ -113,7 +117,9 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   - **PR management**: create pull requests from `claude` to `master` when work is ready for user review (fulfills REQ-SYS-23).
   - **Meeting initiation**: request meetings with the user when it has findings, completed tasks, or blocked work to present.
 
-- REQ-WKR-26: The manager's toolbox is a system toolbox, not a domain toolbox. Other workers do not have access to commission creation, dispatch, or PR management tools. These capabilities are exclusive to the manager.
+- REQ-WKR-26: The manager's toolbox is a system toolbox, not a domain toolbox. The manager declares its requirement via `systemToolboxes: ["manager"]` in package metadata. The toolbox resolver validates that the declaring worker is the designated manager before including the toolbox. Exclusivity is enforced through this validation check, not through structural omission. Other workers that attempt to declare the manager toolbox will fail activation.
+
+  > **History (2026-03):** Originally implied the system structurally decides who gets the manager toolbox without worker declaration. Rewritten to match the validation-based model: the worker declares, the system validates eligibility. Same outcome (only the manager gets these tools), different mechanism.
 
 - REQ-WKR-27: The manager uses a dispatch-with-review model. It can dispatch commissions immediately without waiting for user approval. All manager-dispatched commissions are created with a status that makes them visible and cancellable (status values and review mechanics are defined in [Spec: guild-hall-commissions](guild-hall-commissions.md)). The user can cancel or modify dispatched commissions after the fact. The manager acts first; the user reviews second.
 
