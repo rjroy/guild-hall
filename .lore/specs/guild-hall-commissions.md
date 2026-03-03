@@ -111,7 +111,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   > **History (2026-03):** Originally specified a heartbeat staleness threshold (default 180s) that would transition commissions to failed. Removed because in-process sessions don't need external liveness checks: the SDK handles its own timeouts, and workers performing long operations (file reads, test runs) would trigger false kills.
 
 - REQ-COM-14: When a session ends:
-  - Normal completion with submitted result: transition to completed. Squash-merge the commission branch back to `claude`. Clean up the worktree.
+  - Normal completion with submitted result: transition to completed. Commit any pending changes on the integration worktree, then squash-merge the commission branch back to `claude` (see REQ-COM-31 for conflict handling). Clean up the worktree and remove the machine-local state file.
   - Normal completion without submitted result: transition to failed with reason "completed without submitting result."
   - Error with submitted result: transition to completed. The result was explicitly registered before the error. Record the error as an anomaly in the activity timeline. Squash-merge and clean up as normal.
   - Error without submitted result: transition to failed with error information. Preserve partial results.
@@ -120,7 +120,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-COM-14a: **Partial results** are: all artifacts written to the commission branch (committed or uncommitted), progress reports and questions in the activity timeline, decisions recorded via the base toolbox, and any memory writes the worker performed. Before cleaning up a worktree on failure or cancellation, the commission system commits any uncommitted changes to the commission branch. The branch preserves all work; the worktree is then safe to remove.
 
-- REQ-COM-15: Cancellation signals the session runner to stop via AbortController. The session runner detects the abort and exits. Partial results are preserved per REQ-COM-14a. The commission branch is NOT merged; it remains available for inspection. The worktree is cleaned up after committing uncommitted work.
+- REQ-COM-15: Cancellation signals the session runner to stop via AbortController. The session runner detects the abort and exits. Partial results are preserved per REQ-COM-14a. The commission branch is NOT merged; it remains available for inspection. The worktree is cleaned up after committing uncommitted work. Cancellation accepts an optional reason string (default: "Commission cancelled by user" for UI-initiated, "Commission cancelled by manager" for manager-initiated). The reason flows through to the activity timeline entry (REQ-COM-8), SSE status event, and integration worktree sync.
 
   > **History (2026-03):** Originally specified a two-phase termination (signal, then 30-second grace period, then forceful kill). Rewritten to match the AbortController model. In-process sessions respond to abort signals directly without needing a grace period or forceful termination.
 
@@ -185,7 +185,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - REQ-COM-31: Commission git operations follow the system spec's activity branch model (REQ-SYS-22, REQ-SYS-29a):
   - Branch: `claude/commission/<commission-id>`
   - Worktree: `~/.guild-hall/worktrees/<project>/commission-<commission-id>/`
-  - Completion: squash-merge to `claude`, clean up worktree
+  - Completion: commit any pending changes on the integration worktree (`claude`), then squash-merge the commission branch. `.lore/`-only conflicts are auto-resolved (activity branch wins). Non-`.lore/` conflicts abort the merge, transition the commission to failed, and create a Guild Master meeting request describing the conflict and affected files. On successful merge: clean up worktree, delete activity branch, remove machine-local state file. The commit-merge-cleanup sequence uses the shared `finalizeActivity()` function in `daemon/lib/git.ts` (same function used by meetings, see REQ-MTG-25).
   - Failure/cancellation: commit uncommitted work (REQ-COM-14a), clean up worktree, preserve branch
 
   Note: The system spec uses "task" where this spec uses "commission." REQ-SYS-22 shows `claude/task/<task-id>` as the naming convention; commissions use `claude/commission/<commission-id>` instead. The system spec's generic "task" references should be read as "commission" in this context.
