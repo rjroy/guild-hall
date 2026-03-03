@@ -4,7 +4,7 @@ date: 2026-02-13
 status: complete
 tags: [testing, coverage, dependency-injection, refactor]
 modules: [server-context, node-session-store, tools-invoke-route, mock-fs]
-related: [.lore/_abandoned/poc/notes/coverage-gaps.md]
+related: []
 ---
 
 # Retro: Coverage DI Factories
@@ -33,5 +33,5 @@ Four files were below the 80% functions / 90% lines coverage threshold. Three sh
 
 ## Artifacts
 
-- Gap analysis: `.lore/_abandoned/poc/notes/coverage-gaps.md`
+- Gap analysis: POC-era coverage-gaps.md (deleted)
 - PR: https://github.com/rjroy/guild-hall/pull/4

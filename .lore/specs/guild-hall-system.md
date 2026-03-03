@@ -6,8 +6,7 @@ tags: [architecture, primitives, memory, git, storage, plugins, configuration]
 modules: [guild-hall-core]
 related:
   - .lore/brainstorm/agentic-work-ux.md
-  - .lore/_abandoned/poc/brainstorm/guild-hall-phase-1.md
-  - .lore/_abandoned/poc/notes/worker-dispatch.md
+  - .lore/_abandoned/poc/poc-concepts-summary.md
   - .lore/research/agent-native-applications.md
 req-prefix: SYS
 ---
@@ -74,6 +73,8 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 ### Manager
 
 - REQ-SYS-16: The **manager** is a distinguished worker whose posture is coordination. It knows the other workers, their capabilities, active workspaces, and the commission graph. The user meets with the manager to plan and prioritize. The manager dispatches to specialists.
+
+  > **Implementation (2026-03):** The manager is scoped to one project per meeting. "Knows all active workspaces" means it receives the commission graph for the meeting's project, not a cross-project view. Cross-project coordination requires separate meetings.
 
 - REQ-SYS-17: The manager can initiate meetings when it has information to present: completed commissions, findings ready for review, blocked work needing decisions. The user can decline or defer.
 
@@ -151,6 +152,8 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 ### Plugin Architecture
 
 - REQ-SYS-31: Workers and toolboxes are bun packages. The entry point is a function call, not a server process. No MCP protocol, no JSON-RPC, no stdio communication.
+
+  > **Implementation (2026-03):** The manager is a system-level worker built into the daemon, not a bun package in `~/.guild-hall/packages/`. It is injected as a synthetic DiscoveredPackage because it needs direct access to daemon internals (services, event bus, active session state). This is by design, not an exception to the package model.
 
 - REQ-SYS-32: Packages are discovered by scanning `~/.guild-hall/packages/`. Each subdirectory containing a valid `package.json` is a candidate. Package metadata declares whether the package is a worker, a toolbox, or both.
 

@@ -25,7 +25,8 @@ export interface MeetingMeta {
   date: string;
   deferred_until: string;
   linked_artifacts: string[];
-  notes_summary: string;
+  /** Meeting notes, read from the markdown body (after frontmatter). */
+  notes: string;
   workerDisplayTitle: string;
   projectName: string;
 }
@@ -43,11 +44,13 @@ function meetingIdFromFilename(filename: string): string {
 /**
  * Parses a gray-matter data object into MeetingMeta.
  * Missing or malformed fields fall back to empty defaults.
+ * Notes are read from the markdown body (content), not frontmatter.
  */
 function parseMeetingData(
   data: Record<string, unknown>,
   meetingId: string,
   projectName: string,
+  body: string = "",
 ): MeetingMeta {
   return {
     meetingId,
@@ -64,7 +67,7 @@ function parseMeetingData(
     linked_artifacts: Array.isArray(data.linked_artifacts)
       ? data.linked_artifacts.filter((a): a is string => typeof a === "string")
       : [],
-    notes_summary: typeof data.notes_summary === "string" ? data.notes_summary : "",
+    notes: body.trim(),
     workerDisplayTitle: typeof data.workerDisplayTitle === "string"
       ? data.workerDisplayTitle
       : "",
@@ -90,6 +93,7 @@ export async function readMeetingMeta(
       parsed.data as Record<string, unknown>,
       meetingId,
       projectName,
+      parsed.content,
     );
   } catch {
     // Malformed frontmatter: return empty defaults
@@ -102,7 +106,7 @@ export async function readMeetingMeta(
       date: "",
       deferred_until: "",
       linked_artifacts: [],
-      notes_summary: "",
+      notes: "",
       workerDisplayTitle: "",
       projectName,
     };

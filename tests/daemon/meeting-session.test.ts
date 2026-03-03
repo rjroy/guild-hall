@@ -7,9 +7,10 @@ import {
   createMeetingSession,
   type MeetingSessionDeps,
   type QueryOptions,
-} from "@/daemon/services/meeting-session";
+} from "@/daemon/services/meeting/orchestrator";
 import type { GuildHallEvent, MeetingStatus } from "@/daemon/types";
-import { asMeetingId } from "@/daemon/types";
+import { asMeetingId, asSdkSessionId } from "@/daemon/types";
+import { MeetingRegistry } from "@/daemon/services/meeting/registry";
 import type {
   ActivationContext,
   ActivationResult,
@@ -41,7 +42,7 @@ const WORKER_META: WorkerMetadata = {
 };
 
 const WORKER_PKG: DiscoveredPackage = {
-  name: "guild-hall-sample-assistant",
+  name: "test-assistant",
   path: "/packages/sample-assistant",
   metadata: WORKER_META,
 };
@@ -323,7 +324,7 @@ describe("createMeetingSession", () => {
     test("yields session event, text_delta, and turn_end in order", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const types = events.map((e) => e.type);
@@ -333,7 +334,7 @@ describe("createMeetingSession", () => {
     test("session event contains correct meetingId, sessionId, and worker", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const sessionEvent = events.find((e) => e.type === "session");
@@ -349,7 +350,7 @@ describe("createMeetingSession", () => {
     test("creates meeting artifact with correct frontmatter", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Review the code"),
+        session.createMeeting("test-project", "test-assistant", "Review the code"),
       );
 
       // Get the meetingId to find the worktreeDir
@@ -378,7 +379,7 @@ describe("createMeetingSession", () => {
     test("writes state file with meeting info", async () => {
       const session = createMeetingSession(makeDeps());
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const stateDir = path.join(ghHomeDir, "state", "meetings");
@@ -399,7 +400,7 @@ describe("createMeetingSession", () => {
     test("meeting ID follows naming convention", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const sessionEvent = events.find((e) => e.type === "session");
@@ -449,7 +450,7 @@ describe("createMeetingSession", () => {
       );
 
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const sessionEvent = events.find((e) => e.type === "session");
@@ -461,7 +462,7 @@ describe("createMeetingSession", () => {
     test("temp directory exists after creation", async () => {
       const session = createMeetingSession(makeDeps());
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       // The meeting should be open and the temp dir should exist.
@@ -474,7 +475,7 @@ describe("createMeetingSession", () => {
       expect(session.getActiveMeetings()).toBe(0);
 
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       expect(session.getActiveMeetings()).toBe(1);
@@ -488,7 +489,7 @@ describe("createMeetingSession", () => {
       );
 
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       expect(mock.calls).toHaveLength(1);
@@ -526,13 +527,13 @@ describe("createMeetingSession", () => {
 
       // First meeting should succeed
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
       expect(session.getActiveMeetings()).toBe(1);
 
       // Second meeting should fail due to cap
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello again"),
+        session.createMeeting("test-project", "test-assistant", "Hello again"),
       );
 
       expect(events).toHaveLength(1);
@@ -548,7 +549,7 @@ describe("createMeetingSession", () => {
 
       // Default cap is 5, creating one should work
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const errorEvents = events.filter((e) => e.type === "error");
@@ -560,7 +561,7 @@ describe("createMeetingSession", () => {
     test("returns error for invalid project name", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
-        session.createMeeting("nonexistent-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("nonexistent-project", "test-assistant", "Hello"),
       );
 
       expect(events).toHaveLength(1);
@@ -598,7 +599,7 @@ describe("createMeetingSession", () => {
       });
 
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const errorEvent = events.find((e) => e.type === "error");
@@ -628,7 +629,7 @@ describe("createMeetingSession", () => {
       });
 
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const errorEvent = events.find((e) => e.type === "error");
@@ -657,7 +658,7 @@ describe("createMeetingSession", () => {
 
       // Create a meeting first
       const createEvents = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
       const sessionEvent = createEvents.find((e) => e.type === "session");
       expect(sessionEvent).toBeDefined();
@@ -708,7 +709,7 @@ describe("createMeetingSession", () => {
 
       // Create and close a meeting
       const createEvents = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -736,7 +737,7 @@ describe("createMeetingSession", () => {
     test("updates artifact status to closed", async () => {
       const session = createMeetingSession(makeDeps());
       const createEvents = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -759,7 +760,7 @@ describe("createMeetingSession", () => {
     test("appends closed event to meeting_log", async () => {
       const session = createMeetingSession(makeDeps());
       const createEvents = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -783,7 +784,7 @@ describe("createMeetingSession", () => {
       const mockGit = createMockGitOps();
       const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
       const createEvents = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -807,7 +808,7 @@ describe("createMeetingSession", () => {
     test("removes meeting from active map", async () => {
       const session = createMeetingSession(makeDeps());
       const createEvents = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
       expect(session.getActiveMeetings()).toBe(1);
 
@@ -824,7 +825,7 @@ describe("createMeetingSession", () => {
     test("removes state file after successful squash-merge on close", async () => {
       const session = createMeetingSession(makeDeps());
       const createEvents = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -883,7 +884,7 @@ describe("createMeetingSession", () => {
       );
 
       const createEvents = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -922,7 +923,7 @@ describe("createMeetingSession", () => {
       const session = createMeetingSession(makeDeps({ gitOps: conflictGit }));
 
       const createEvents = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -972,7 +973,7 @@ describe("createMeetingSession", () => {
 
       // Create a meeting
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       // Get meetingId
@@ -1017,12 +1018,12 @@ describe("createMeetingSession", () => {
       const session = createMeetingSession(makeDeps());
 
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello 1"),
+        session.createMeeting("test-project", "test-assistant", "Hello 1"),
       );
       expect(session.getActiveMeetings()).toBe(1);
 
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello 2"),
+        session.createMeeting("test-project", "test-assistant", "Hello 2"),
       );
       expect(session.getActiveMeetings()).toBe(2);
     });
@@ -1031,7 +1032,7 @@ describe("createMeetingSession", () => {
       const session = createMeetingSession(makeDeps());
 
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
       expect(session.getActiveMeetings()).toBe(1);
 
@@ -1073,10 +1074,10 @@ describe("createMeetingSession", () => {
       });
 
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
       await collectEvents(
-        session.createMeeting("other-project", "guild-hall-sample-assistant", "World"),
+        session.createMeeting("other-project", "test-assistant", "World"),
       );
 
       const testMeetings = session.getOpenMeetingsForProject("test-project");
@@ -1093,7 +1094,7 @@ describe("createMeetingSession", () => {
     test("artifact frontmatter is valid YAML", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -1128,7 +1129,7 @@ describe("createMeetingSession", () => {
       const events = await collectEvents(
         session.createMeeting(
           "test-project",
-          "guild-hall-sample-assistant",
+          "test-assistant",
           'Review "important" code',
         ),
       );
@@ -1151,7 +1152,7 @@ describe("createMeetingSession", () => {
     test("state file contains valid JSON", async () => {
       const session = createMeetingSession(makeDeps());
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const stateDir = path.join(ghHomeDir, "state", "meetings");
@@ -1171,7 +1172,7 @@ describe("createMeetingSession", () => {
     test("state file name matches meeting ID", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -1203,12 +1204,12 @@ describe("createMeetingSession", () => {
       });
 
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Review code"),
+        session.createMeeting("test-project", "test-assistant", "Review code"),
       );
 
       expect(activateMock.calls).toHaveLength(1);
       const call = activateMock.calls[0];
-      expect(call.pkg.name).toBe("guild-hall-sample-assistant");
+      expect(call.pkg.name).toBe("test-assistant");
       expect(call.context.posture).toBe("You are a helpful assistant.");
       expect(call.context.meetingContext?.agenda).toBe("Review code");
       expect(call.context.resourceDefaults.maxTurns).toBe(30);
@@ -1234,7 +1235,7 @@ describe("createMeetingSession", () => {
       });
 
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const errorEvent = events.find((e) => e.type === "error");
@@ -1269,7 +1270,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: ${status === "requested" ? "requested" : "opened"}
     reason: "Test setup"
-notes_summary: ""
 ---
 `;
       await fs.writeFile(path.join(meetingsDir, `${meetingId}.md`), content, "utf-8");
@@ -1297,7 +1297,7 @@ notes_summary: ""
         // written by createMeeting has status: open.
         const session = createMeetingSession(makeDeps());
         const events = await collectEvents(
-          session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+          session.createMeeting("test-project", "test-assistant", "Hello"),
         );
 
         let meetingId = "";
@@ -1314,7 +1314,7 @@ notes_summary: ""
       test("open -> closed via closeMeeting", async () => {
         const session = createMeetingSession(makeDeps());
         const events = await collectEvents(
-          session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+          session.createMeeting("test-project", "test-assistant", "Hello"),
         );
 
         let meetingId = "";
@@ -1442,7 +1442,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: ${status === "requested" ? "requested" : "opened"}
     reason: "Test setup"
-notes_summary: ""
 ---
 `;
       await fs.writeFile(path.join(meetingsDir, `${meetingId}.md`), content, "utf-8");
@@ -1505,7 +1504,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: ${status === "requested" ? "requested" : "opened"}
     reason: "Test setup"
-notes_summary: ""
 ---
 `;
       await fs.writeFile(path.join(meetingsDir, `${meetingId}.md`), content, "utf-8");
@@ -1595,7 +1593,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: ${status === "requested" ? "requested" : "opened"}
     reason: "Test setup"
-notes_summary: ""
 ---
 `;
       await fs.writeFile(path.join(meetingsDir, `${meetingId}.md`), content, "utf-8");
@@ -1655,7 +1652,7 @@ notes_summary: ""
 
       // Create one meeting to fill the cap
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
       expect(session.getActiveMeetings()).toBe(1);
 
@@ -1761,7 +1758,7 @@ notes_summary: ""
     test("meeting artifact includes deferred_until field", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -1804,7 +1801,7 @@ notes_summary: ""
         meetingId,
         projectName: "test-project",
         workerName: "Assistant",
-        packageName: "guild-hall-sample-assistant",
+        packageName: "test-assistant",
         sdkSessionId: "sdk-old-session",
         worktreeDir,
         branchName: "claude/meeting/audience-Assistant-20260221-100000",
@@ -1828,7 +1825,7 @@ notes_summary: ""
         meetingId,
         projectName: "test-project",
         workerName: "Assistant",
-        packageName: "guild-hall-sample-assistant",
+        packageName: "test-assistant",
         sdkSessionId: "sdk-session-closed",
         worktreeDir: "/tmp/guild-hall-closed",
         status: "closed",
@@ -1847,7 +1844,7 @@ notes_summary: ""
         meetingId,
         projectName: "deleted-project",
         workerName: "Assistant",
-        packageName: "guild-hall-sample-assistant",
+        packageName: "test-assistant",
         sdkSessionId: "sdk-session-orphan",
         worktreeDir: "/tmp/guild-hall-orphan",
         status: "open",
@@ -1869,7 +1866,7 @@ notes_summary: ""
         meetingId,
         projectName: "test-project",
         workerName: "Assistant",
-        packageName: "guild-hall-sample-assistant",
+        packageName: "test-assistant",
         sdkSessionId: "sdk-session-to-resume",
         worktreeDir,
         branchName: "claude/meeting/audience-Assistant-20260221-100003",
@@ -1893,9 +1890,10 @@ notes_summary: ""
       const types = events.map((e) => e.type);
       expect(types).toEqual(["session", "text_delta", "turn_end"]);
 
-      // Verify the resume option used the persisted session ID
+      // SDK session is lost on reboot; recovered entries have null
+      // sdkSessionId, so sendMessage starts a fresh session (no resume).
       expect(mock.calls).toHaveLength(1);
-      expect(mock.calls[0].options.resume).toBe("sdk-session-to-resume");
+      expect(mock.calls[0].options.resume).toBeUndefined();
     });
 
     test("returns 0 when no state directory exists", async () => {
@@ -1913,7 +1911,7 @@ notes_summary: ""
         meetingId,
         projectName: "test-project",
         workerName: "Assistant",
-        packageName: "guild-hall-sample-assistant",
+        packageName: "test-assistant",
         sdkSessionId: "sdk-after-reboot",
         worktreeDir: nonExistentDir,
         branchName: "claude/meeting/audience-Assistant-20260221-100020",
@@ -1927,14 +1925,12 @@ notes_summary: ""
       expect(recovered).toBe(0);
       expect(session.getActiveMeetings()).toBe(0);
 
-      // State file should show closed
+      // State file should be deleted (not left with "closed" status)
       const stateDir = path.join(ghHomeDir, "state", "meetings");
-      const stateContent = await fs.readFile(
+      const stateFileExists = await fs.access(
         path.join(stateDir, `${meetingId}.json`),
-        "utf-8",
-      );
-      const state = JSON.parse(stateContent);
-      expect(state.status).toBe("closed");
+      ).then(() => true).catch(() => false);
+      expect(stateFileExists).toBe(false);
     });
 
     test("recovers multiple open meetings, skipping closed ones", async () => {
@@ -1948,7 +1944,7 @@ notes_summary: ""
         meetingId: "audience-Assistant-20260221-100010",
         projectName: "test-project",
         workerName: "Assistant",
-        packageName: "guild-hall-sample-assistant",
+        packageName: "test-assistant",
         sdkSessionId: "sdk-1",
         worktreeDir: wt1,
         branchName: "claude/meeting/audience-Assistant-20260221-100010",
@@ -1958,7 +1954,7 @@ notes_summary: ""
         meetingId: "audience-Assistant-20260221-100011",
         projectName: "test-project",
         workerName: "Assistant",
-        packageName: "guild-hall-sample-assistant",
+        packageName: "test-assistant",
         sdkSessionId: "sdk-2",
         worktreeDir: "/tmp/gh-2",
         status: "closed",
@@ -1967,7 +1963,7 @@ notes_summary: ""
         meetingId: "audience-Assistant-20260221-100012",
         projectName: "test-project",
         workerName: "Assistant",
-        packageName: "guild-hall-sample-assistant",
+        packageName: "test-assistant",
         sdkSessionId: "sdk-3",
         worktreeDir: wt3,
         branchName: "claude/meeting/audience-Assistant-20260221-100012",
@@ -2029,35 +2025,9 @@ notes_summary: ""
       const config = makeConfig();
       config.projects[0].path = projectDir;
 
-      // First: create a meeting with a normal queryFn for the initial session
-      const createMock = makeMockQueryFn();
-      const createSession = createMeetingSession({
-        packages: [WORKER_PKG],
-        config,
-        guildHallHome: ghHomeDir,
-        queryFn: createMock.queryFn,
-        activateFn: activateMock.activateFn,
-        gitOps: mockGit,
-      });
-
-      const createEvents = await collectEvents(
-        createSession.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
-      );
-
-      let meetingId = "";
-      const sessionEvent = createEvents.find((e) => e.type === "session");
-      if (sessionEvent?.type === "session") {
-        meetingId = sessionEvent.meetingId;
-      }
-      expect(meetingId).not.toBe("");
-
-      // Now create a session with the expiring queryFn and recover the meeting
-      const stateDir = path.join(ghHomeDir, "state", "meetings");
-      const stateContent = await fs.readFile(
-        path.join(stateDir, `${meetingId}.json`),
-        "utf-8",
-      );
-      const state = JSON.parse(stateContent);
+      const meetingId = "audience-Assistant-20260221-120000";
+      const worktreeDir = path.join(tmpRoot, "wt-renewal-expiry");
+      await fs.mkdir(worktreeDir, { recursive: true });
 
       // Write the transcript so renewal can inject context
       const meetingsTranscriptDir = path.join(ghHomeDir, "meetings");
@@ -2068,8 +2038,40 @@ notes_summary: ""
         "utf-8",
       );
 
-      // Create a fresh session that will use the expiring queryFn, manually
-      // adding the meeting to its map via recovery
+      // Register the meeting directly in a shared registry with a valid
+      // sdkSessionId so sendMessage takes the resume path (not the null
+      // sdkSessionId path). This tests the resume-then-expire flow.
+      const registry = new MeetingRegistry();
+      registry.register(asMeetingId(meetingId), {
+        meetingId: asMeetingId(meetingId),
+        projectName: "test-project",
+        workerName: "Assistant",
+        packageName: "test-assistant",
+        sdkSessionId: asSdkSessionId("sdk-session-123"),
+        worktreeDir,
+        branchName: "claude/meeting/" + meetingId,
+        abortController: new AbortController(),
+        status: "open",
+      });
+
+      // Write a state file so state updates succeed
+      const stateDir = path.join(ghHomeDir, "state", "meetings");
+      await fs.mkdir(stateDir, { recursive: true });
+      await fs.writeFile(
+        path.join(stateDir, `${meetingId}.json`),
+        JSON.stringify({
+          meetingId,
+          projectName: "test-project",
+          workerName: "Assistant",
+          packageName: "test-assistant",
+          sdkSessionId: "sdk-session-123",
+          worktreeDir,
+          branchName: "claude/meeting/" + meetingId,
+          status: "open",
+        }),
+        "utf-8",
+      );
+
       const renewalSession = createMeetingSession({
         packages: [WORKER_PKG],
         config,
@@ -2077,20 +2079,8 @@ notes_summary: ""
         queryFn: expiringMock.queryFn,
         activateFn: activateMock.activateFn,
         gitOps: mockGit,
+        registry,
       });
-
-      // Write a state file for recovery (worktreeDir from state already exists)
-      await fs.writeFile(
-        path.join(stateDir, `${meetingId}.json`),
-        JSON.stringify({
-          ...state,
-          packageName: "guild-hall-sample-assistant",
-        }),
-        "utf-8",
-      );
-
-      const recovered = await renewalSession.recoverMeetings();
-      expect(recovered).toBe(1);
 
       // Send a message; this should trigger expiry then renewal
       const sendEvents = await collectEvents(
@@ -2125,10 +2115,26 @@ notes_summary: ""
       const config = makeConfig();
       config.projects[0].path = projectDir;
 
-      // Set up a meeting via state file recovery
       const meetingId = "audience-Assistant-20260221-110000";
       const worktreeDir = path.join(tmpRoot, "wt-renewal-log");
       await fs.mkdir(worktreeDir, { recursive: true });
+
+      // Register the meeting directly with a valid sdkSessionId so
+      // sendMessage takes the resume path (testing renewal, not recovery).
+      const registry = new MeetingRegistry();
+      registry.register(asMeetingId(meetingId), {
+        meetingId: asMeetingId(meetingId),
+        projectName: "test-project",
+        workerName: "Assistant",
+        packageName: "test-assistant",
+        sdkSessionId: asSdkSessionId("sdk-old-session-for-log"),
+        worktreeDir,
+        branchName: "claude/meeting/" + meetingId,
+        abortController: new AbortController(),
+        status: "open",
+      });
+
+      // Write state file so state updates succeed
       const stateDir = path.join(ghHomeDir, "state", "meetings");
       await fs.mkdir(stateDir, { recursive: true });
       await fs.writeFile(
@@ -2137,10 +2143,10 @@ notes_summary: ""
           meetingId,
           projectName: "test-project",
           workerName: "Assistant",
-          packageName: "guild-hall-sample-assistant",
+          packageName: "test-assistant",
           sdkSessionId: "sdk-old-session-for-log",
           worktreeDir,
-          branchName: "claude/meeting/audience-Assistant-20260221-110000",
+          branchName: "claude/meeting/" + meetingId,
           status: "open",
         }),
         "utf-8",
@@ -2166,7 +2172,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: opened
     reason: "User started audience"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2179,9 +2184,9 @@ notes_summary: ""
         queryFn: expiringMock.queryFn,
         activateFn: activateMock.activateFn,
         gitOps: mockGit,
+        registry,
       });
 
-      await session.recoverMeetings();
       await collectEvents(
         session.sendMessage(asMeetingId(meetingId), "Trigger renewal"),
       );
@@ -2215,7 +2220,7 @@ notes_summary: ""
           meetingId,
           projectName: "test-project",
           workerName: "Assistant",
-          packageName: "guild-hall-sample-assistant",
+          packageName: "test-assistant",
           sdkSessionId: "sdk-before-renewal",
           worktreeDir,
           branchName: "claude/meeting/audience-Assistant-20260221-110001",
@@ -2223,6 +2228,21 @@ notes_summary: ""
         }),
         "utf-8",
       );
+
+      // Register meeting directly with a valid sdkSessionId to test
+      // the resume-then-expire renewal path.
+      const registry = new MeetingRegistry();
+      registry.register(asMeetingId(meetingId), {
+        meetingId: asMeetingId(meetingId),
+        projectName: "test-project",
+        workerName: "Assistant",
+        packageName: "test-assistant",
+        sdkSessionId: asSdkSessionId("sdk-before-renewal"),
+        worktreeDir,
+        branchName: "claude/meeting/" + meetingId,
+        abortController: new AbortController(),
+        status: "open",
+      });
 
       // Write meeting artifact to worktreeDir for appendMeetingLog
       const meetingsArtifactDir = path.join(worktreeDir, ".lore", "meetings");
@@ -2244,7 +2264,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: opened
     reason: "User started audience"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2257,9 +2276,9 @@ notes_summary: ""
         queryFn: expiringMock.queryFn,
         activateFn: activateMock.activateFn,
         gitOps: mockGit,
+        registry,
       });
 
-      await session.recoverMeetings();
       await collectEvents(
         session.sendMessage(asMeetingId(meetingId), "Trigger renewal"),
       );
@@ -2312,14 +2331,29 @@ notes_summary: ""
           meetingId,
           projectName: "test-project",
           workerName: "Assistant",
-          packageName: "guild-hall-sample-assistant",
+          packageName: "test-assistant",
           sdkSessionId: "sdk-will-throw",
           worktreeDir,
-          branchName: "claude/meeting/audience-Assistant-20260221-110002",
+          branchName: "claude/meeting/" + meetingId,
           status: "open",
         }),
         "utf-8",
       );
+
+      // Register meeting directly with a valid sdkSessionId to test
+      // the resume-then-throw-then-renew path.
+      const registry = new MeetingRegistry();
+      registry.register(asMeetingId(meetingId), {
+        meetingId: asMeetingId(meetingId),
+        projectName: "test-project",
+        workerName: "Assistant",
+        packageName: "test-assistant",
+        sdkSessionId: asSdkSessionId("sdk-will-throw"),
+        worktreeDir,
+        branchName: "claude/meeting/" + meetingId,
+        abortController: new AbortController(),
+        status: "open",
+      });
 
       // Write meeting artifact to worktreeDir for appendMeetingLog
       const meetingsArtifactDir = path.join(worktreeDir, ".lore", "meetings");
@@ -2341,7 +2375,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: opened
     reason: "User started audience"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2354,9 +2387,8 @@ notes_summary: ""
         queryFn: throwingExpiryQuery,
         activateFn: activateMock.activateFn,
         gitOps: mockGit,
+        registry,
       });
-
-      await session.recoverMeetings();
 
       const events = await collectEvents(
         session.sendMessage(asMeetingId(meetingId), "After throw"),
@@ -2411,14 +2443,29 @@ notes_summary: ""
           meetingId,
           projectName: "test-project",
           workerName: "Assistant",
-          packageName: "guild-hall-sample-assistant",
+          packageName: "test-assistant",
           sdkSessionId: "sdk-regular-error",
           worktreeDir,
-          branchName: "claude/meeting/audience-Assistant-20260221-110003",
+          branchName: "claude/meeting/" + meetingId,
           status: "open",
         }),
         "utf-8",
       );
+
+      // Register meeting directly with a valid sdkSessionId so
+      // sendMessage takes the resume path.
+      const registry = new MeetingRegistry();
+      registry.register(asMeetingId(meetingId), {
+        meetingId: asMeetingId(meetingId),
+        projectName: "test-project",
+        workerName: "Assistant",
+        packageName: "test-assistant",
+        sdkSessionId: asSdkSessionId("sdk-regular-error"),
+        worktreeDir,
+        branchName: "claude/meeting/" + meetingId,
+        abortController: new AbortController(),
+        status: "open",
+      });
 
       const session = createMeetingSession({
         packages: [WORKER_PKG],
@@ -2427,9 +2474,8 @@ notes_summary: ""
         queryFn: regularErrorQuery,
         activateFn: activateMock.activateFn,
         gitOps: mockGit,
+        registry,
       });
-
-      await session.recoverMeetings();
 
       const events = await collectEvents(
         session.sendMessage(asMeetingId(meetingId), "Should fail"),
@@ -2448,7 +2494,7 @@ notes_summary: ""
     test("state file written by createMeeting includes packageName", async () => {
       const session = createMeetingSession(makeDeps());
       await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       const stateDir = path.join(ghHomeDir, "state", "meetings");
@@ -2458,7 +2504,7 @@ notes_summary: ""
         "utf-8",
       );
       const state = JSON.parse(stateContent);
-      expect(state.packageName).toBe("guild-hall-sample-assistant");
+      expect(state.packageName).toBe("test-assistant");
       expect(state.workerName).toBe("Assistant");
     });
   });
@@ -2468,7 +2514,7 @@ notes_summary: ""
       const mockGit = createMockGitOps();
       const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       // Verify session established successfully
@@ -2492,7 +2538,7 @@ notes_summary: ""
       const mockGit = createMockGitOps();
       const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -2550,7 +2596,7 @@ notes_summary: ""
 
       const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -2592,7 +2638,7 @@ notes_summary: ""
 
       const session = createMeetingSession(makeDeps({ gitOps: mockGit }));
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -2615,7 +2661,7 @@ notes_summary: ""
     test("state file includes branchName after createMeeting", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -2635,7 +2681,7 @@ notes_summary: ""
     test("worktreeDir uses meetingWorktreePath convention", async () => {
       const session = createMeetingSession(makeDeps());
       const events = await collectEvents(
-        session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello"),
+        session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
       let meetingId = "";
@@ -2669,7 +2715,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: requested
     reason: "Test setup"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2718,7 +2763,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: requested
     reason: "Test setup"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2770,7 +2814,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: requested
     reason: "Test setup"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2815,7 +2858,7 @@ notes_summary: ""
           meetingId,
           projectName: "test-project",
           workerName: "Assistant",
-          packageName: "guild-hall-sample-assistant",
+          packageName: "test-assistant",
           sdkSessionId: "sdk-gone",
           worktreeDir: nonExistentDir,
           branchName: "claude/meeting/" + meetingId,
@@ -2844,7 +2887,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: opened
     reason: "Test setup"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2857,13 +2899,11 @@ notes_summary: ""
       expect(recovered).toBe(0);
       expect(session.getActiveMeetings()).toBe(0);
 
-      // State file should show closed
-      const stateContent = await fs.readFile(
+      // State file should be deleted
+      const stateFileExists = await fs.access(
         path.join(stateDir, `${meetingId}.json`),
-        "utf-8",
-      );
-      const state = JSON.parse(stateContent);
-      expect(state.status).toBe("closed");
+      ).then(() => true).catch(() => false);
+      expect(stateFileExists).toBe(false);
 
       // Integration worktree artifact should be updated to closed
       const artifactContent = await fs.readFile(
@@ -2871,7 +2911,7 @@ notes_summary: ""
         "utf-8",
       );
       expect(artifactContent).toContain("status: closed");
-      expect(artifactContent).toContain("Worktree lost during daemon restart");
+      expect(artifactContent).toContain("Stale worktree detected on recovery");
     });
   });
 });
@@ -3071,12 +3111,12 @@ describe("manager worker integration", () => {
 
     const session = createMeetingSession(deps);
     await collectEvents(
-      session.createMeeting("test-project", "guild-hall-sample-assistant", "Regular meeting"),
+      session.createMeeting("test-project", "test-assistant", "Regular meeting"),
     );
 
     // The activateFn should have been called with the regular worker
     expect(activateCalls).toHaveLength(1);
-    expect(activateCalls[0].pkg.name).toBe("guild-hall-sample-assistant");
+    expect(activateCalls[0].pkg.name).toBe("test-assistant");
 
     // The resolved tools should NOT include the manager toolbox
     const mcpNames = activateCalls[0].context.resolvedTools.mcpServers.map(

@@ -344,7 +344,6 @@ meeting_log:
   - timestamp: ${isoStr}
     event: requested
     reason: "Guild Master initiated meeting request"
-notes_summary: ""
 ---
 `;
 

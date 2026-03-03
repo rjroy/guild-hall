@@ -5,8 +5,7 @@ status: complete
 tags: [phase-1, implementation, autonomous-implementation, sse, testing, frontend, agent-sdk]
 modules: [guild-hall, workshop, board, roster]
 related:
-  - .lore/_abandoned/poc/brainstorm/guild-hall-phase-1.md
-  - .lore/_abandoned/poc/notes/guild-hall-phase-1.md
+  - .lore/_abandoned/poc/poc-concepts-summary.md
 ---
 
 # Retro: Guild Hall Phase I
@@ -55,5 +54,5 @@ The backend is solid. The frontend has three bugs that surfaced in manual testin
 
 ## Artifacts
 
-- Notes: `.lore/_abandoned/poc/notes/guild-hall-phase-1.md`
+- Notes: POC-era guild-hall-phase-1 implementation notes (deleted)
 - PR: https://github.com/rjroy/guild-hall/pull/3

@@ -1,7 +1,7 @@
 ---
 title: "Plan: cancel_commission manager tool"
 date: 2026-02-26
-status: draft
+status: executed
 tags: [manager-toolbox, commissions, cancellation, mcp-tools]
 modules: [manager-toolbox, commission-session]
 related: [.lore/specs/guild-hall-commissions.md, .lore/specs/guild-hall-workers.md, .lore/plans/foundation/phase-6-guild-master.md]

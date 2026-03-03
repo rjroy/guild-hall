@@ -11,7 +11,7 @@ import { createEventRoutes } from "./routes/events";
 import { createWorkerRoutes } from "./routes/workers";
 import { createBriefingRoutes } from "./routes/briefing";
 import type { DiscoveredPackage } from "@/lib/types";
-import type { MeetingSessionDeps } from "@/daemon/services/meeting-session";
+import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { EventBus } from "@/daemon/services/event-bus";
 import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
@@ -81,7 +81,10 @@ export async function createProductionApp(options?: {
   const { discoverPackages } = await import("@/lib/packages");
   const { getGuildHallHome, integrationWorktreePath } = await import("@/lib/paths");
   const { createMeetingSession } = await import(
-    "@/daemon/services/meeting-session"
+    "@/daemon/services/meeting/orchestrator"
+  );
+  const { MeetingRegistry } = await import(
+    "@/daemon/services/meeting/registry"
   );
   const { createCommissionOrchestrator } = await import(
     "@/daemon/services/commission/orchestrator"
@@ -184,9 +187,14 @@ export async function createProductionApp(options?: {
     workerName: string;
     reason: string;
   }) => {
-    if (meetingSessionRef) {
-      await meetingSessionRef.createMeetingRequest(params);
+    if (!meetingSessionRef) {
+      console.error(
+        `[daemon] createMeetingRequestFn called before meetingSession initialized. ` +
+        `Merge conflict escalation for project "${params.projectName}" will be lost.`,
+      );
+      return;
     }
+    await meetingSessionRef.createMeetingRequest(params);
   };
 
   // -- Commission layer assembly (REQ-CLS-26) --
@@ -231,6 +239,9 @@ export async function createProductionApp(options?: {
     createMeetingRequestFn,
   });
 
+  // Meeting registry (singleton for the daemon process)
+  const meetingRegistry = new MeetingRegistry();
+
   const meetingSession = createMeetingSession({
     packages: allPackages,
     config,
@@ -241,6 +252,8 @@ export async function createProductionApp(options?: {
     commissionSession,
     eventBus,
     createMeetingRequestFn,
+    workspace: workspaceOps,
+    registry: meetingRegistry,
   });
   meetingSessionRef = meetingSession;
 

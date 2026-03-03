@@ -107,7 +107,6 @@ State files at `~/.guild-hall/state/commissions/{commissionId}.json` track activ
 | `daemon/services/commission-recovery.ts` | Crash recovery: state files + orphaned worktrees |
 | `daemon/services/commission-sdk-logging.ts` | SDK message formatting for console |
 | `daemon/services/commission-toolbox.ts` | Commission-context MCP tools (see Workers/Toolbox feature) |
-| `daemon/lib/activity-state-machine.ts` | Generic ActivityMachine shared with meetings |
 | `lib/commissions.ts` | Read-only scanning/parsing for Next.js server components |
 | `lib/paths.ts` | Path resolution (integration worktree, commission worktree, branch names) |
 | `web/app/projects/[name]/commissions/[id]/page.tsx` | Server component: reads artifact, builds dependency graph neighborhood |

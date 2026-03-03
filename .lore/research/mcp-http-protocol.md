@@ -5,7 +5,7 @@ status: active
 tags: [mcp, http, sse, streamable-http, protocol, agent-sdk]
 modules: [mcp-manager, mcp-server-factory]
 related:
-  - .lore/_abandoned/poc/brainstorm/mcp-transport-stdio-vs-http.md
+  - .lore/_abandoned/poc/poc-concepts-summary.md
 ---
 
 # Research: MCP HTTP Protocol and Claude Agent SDK Integration

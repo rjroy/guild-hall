@@ -70,12 +70,6 @@ The remaining 14 Next.js API routes proxy meeting and commission operations (doc
 | `daemon/services/query-runner.ts` | `runQueryAndTranslate()`: creates SDK generator, iterates via `iterateAndTranslate()`, detects session expiry, returns `QueryRunOutcome`. `iterateAndTranslate()`: accumulates text parts and tool uses from events, appends assistant turn to transcript (error-swallowing). `truncateTranscript()`: preserves turn boundaries when truncating for session renewal. `isSessionExpiryError()`: heuristic detection of expired sessions. |
 | `daemon/lib/sdk-text.ts` | `collectSdkText()`: iterates SDK generator for single-turn, no-streaming invocations (notes generator, briefing generator). Extracts text from assistant message content blocks. |
 
-#### Activity State Machine
-
-| File | Role |
-|------|------|
-| `daemon/lib/activity-state-machine.ts` | Generic `ActivityMachine` class: state tracker (Map), active entries (Map), per-entry locks (Promise chain), cleanup hooks. Methods: `transition()` (10-step execution with lock, guards, exit/enter handlers), `inject()` (direct entry), `register()`/`registerActive()` (recovery), `forget()`, `get()`, `has()`, `getState()`, `onCleanup()`. Configurable via `ActivityMachineConfig` with transition graph, handler registry, artifact ops, state classification. |
-
 #### Daemon Client and Proxy Layer
 
 | File | Role |

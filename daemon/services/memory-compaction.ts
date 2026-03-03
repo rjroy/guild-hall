@@ -21,7 +21,7 @@ import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { isNodeError } from "@/lib/types";
 import { memoryScopeDir, type MemoryScope } from "@/daemon/services/memory-injector";
-import type { QueryOptions } from "@/daemon/services/meeting-session";
+import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 

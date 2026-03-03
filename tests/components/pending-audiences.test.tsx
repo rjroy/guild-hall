@@ -62,7 +62,7 @@ function makeRequest(overrides: Partial<MeetingMeta> = {}): MeetingMeta {
     date: "2026-02-21",
     deferred_until: "",
     linked_artifacts: [],
-    notes_summary: "",
+    notes: "",
     workerDisplayTitle: "Guild Researcher",
     projectName: "test-project",
     ...overrides,

@@ -5,10 +5,9 @@ import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   generateMeetingNotes,
-  formatNotesForYaml,
   type NotesResult,
 } from "@/daemon/services/notes-generator";
-import type { QueryOptions } from "@/daemon/services/meeting-session";
+import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
 import type { GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";
 
@@ -227,7 +226,6 @@ meeting_log:
   - timestamp: 2026-02-21T12:00:00.000Z
     event: opened
     reason: "User started audience"
-notes_summary: ""
 ---
 `;
   await fs.writeFile(
@@ -453,34 +451,11 @@ The architecture follows a clean separation of concerns.
   });
 });
 
-describe("formatNotesForYaml", () => {
-  test("formats single-line notes as YAML block scalar", () => {
-    const result = formatNotesForYaml("Meeting discussed architecture.");
-    expect(result).toBe("notes_summary: |\n  Meeting discussed architecture.");
-  });
-
-  test("formats multi-line notes with proper indentation", () => {
-    const notes = "First paragraph of notes.\n\nSecond paragraph.\nWith continuation.";
-    const result = formatNotesForYaml(notes);
-    expect(result).toBe(
-      "notes_summary: |\n  First paragraph of notes.\n  \n  Second paragraph.\n  With continuation.",
-    );
-  });
-
-  test("handles notes with special YAML characters", () => {
-    const notes = 'Decision: "Use DI" was made.\nReasoning: it\'s testable.';
-    const result = formatNotesForYaml(notes);
-    // Block scalar doesn't need escaping for quotes
-    expect(result).toContain('Decision: "Use DI" was made.');
-    expect(result).toContain("Reasoning: it's testable.");
-  });
-});
-
 describe("closeMeeting with notes generation", () => {
   // This tests the integration between closeMeeting and notes generation
-  // through the meeting-session module.
+  // through the meeting orchestrator module.
 
-  // Use the same fixtures as meeting-session tests
+  // Use the same fixtures as meeting orchestrator tests
   const WORKER_META = {
     type: "worker" as const,
     identity: {
@@ -496,7 +471,7 @@ describe("closeMeeting with notes generation", () => {
   };
 
   const WORKER_PKG = {
-    name: "guild-hall-sample-assistant",
+    name: "test-assistant",
     path: "/packages/sample-assistant",
     metadata: WORKER_META,
   };
@@ -561,7 +536,7 @@ describe("closeMeeting with notes generation", () => {
   }
 
   test("closeMeeting returns generated notes", async () => {
-    const { createMeetingSession } = await import("@/daemon/services/meeting-session");
+    const { createMeetingSession } = await import("@/daemon/services/meeting/orchestrator");
     const { asMeetingId } = await import("@/daemon/types");
 
     const config = {
@@ -599,7 +574,7 @@ describe("closeMeeting with notes generation", () => {
 
     // Create meeting
     const events = [];
-    for await (const event of session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello")) {
+    for await (const event of session.createMeeting("test-project", "test-assistant", "Hello")) {
       events.push(event);
     }
 
@@ -623,14 +598,15 @@ describe("closeMeeting with notes generation", () => {
     // (mock removeWorktree is a no-op so the directory still exists)
     const artifactPath = path.join(state.worktreeDir, ".lore", "meetings", `${meetingId}.md`);
     const artifactContent = await fs.readFile(artifactPath, "utf-8");
-    expect(artifactContent).toContain("notes_summary: |");
-    expect(artifactContent).toContain("  These are the generated meeting notes.");
-    expect(artifactContent).toContain("  With multiple lines.");
-    expect(artifactContent).not.toContain('notes_summary: ""');
+    // Notes are now in the markdown body (after closing ---), not in frontmatter
+    expect(artifactContent).not.toContain("notes_summary");
+    const closingIndex = artifactContent.lastIndexOf("\n---");
+    const body = artifactContent.slice(closingIndex + 4).trim();
+    expect(body).toBe("These are the generated meeting notes.\nWith multiple lines.");
   });
 
   test("closeMeeting preserves transcript when notes generation fails", async () => {
-    const { createMeetingSession } = await import("@/daemon/services/meeting-session");
+    const { createMeetingSession } = await import("@/daemon/services/meeting/orchestrator");
     const { asMeetingId } = await import("@/daemon/types");
 
     const config = {
@@ -664,7 +640,7 @@ describe("closeMeeting with notes generation", () => {
 
     // Create meeting
     const events = [];
-    for await (const event of session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello")) {
+    for await (const event of session.createMeeting("test-project", "test-assistant", "Hello")) {
       events.push(event);
     }
 
@@ -685,7 +661,7 @@ describe("closeMeeting with notes generation", () => {
   });
 
   test("closeMeeting removes transcript when notes succeed", async () => {
-    const { createMeetingSession } = await import("@/daemon/services/meeting-session");
+    const { createMeetingSession } = await import("@/daemon/services/meeting/orchestrator");
     const { asMeetingId } = await import("@/daemon/types");
 
     const config = {
@@ -721,7 +697,7 @@ describe("closeMeeting with notes generation", () => {
 
     // Create meeting
     const events = [];
-    for await (const event of session.createMeeting("test-project", "guild-hall-sample-assistant", "Hello")) {
+    for await (const event of session.createMeeting("test-project", "test-assistant", "Hello")) {
       events.push(event);
     }
 

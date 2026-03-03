@@ -18,7 +18,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { DiscoveredPackage, AppConfig } from "@/lib/types";
-import type { QueryOptions } from "@/daemon/services/meeting-session";
+import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
 import {
   buildManagerContext,
   type ManagerContextDeps,

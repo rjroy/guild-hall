@@ -5,8 +5,8 @@
  * meeting session (with mock queryFn) -> event translator -> SSE response.
  *
  * Unlike the unit tests in routes/meetings.test.ts (which mock the entire
- * meeting session) and meeting-session.test.ts (which test the session in
- * isolation), these tests wire real route handlers to a real meeting session,
+ * meeting session) and meeting/orchestrator.test.ts (which test the orchestrator
+ * in isolation), these tests wire real route handlers to a real meeting session,
  * verifying that the layers compose correctly.
  *
  * Limitations:
@@ -28,7 +28,7 @@ import {
   createMeetingSession,
   type MeetingSessionDeps,
   type QueryOptions,
-} from "@/daemon/services/meeting-session";
+} from "@/daemon/services/meeting/orchestrator";
 import type { GuildHallEvent } from "@/daemon/types";
 import type { GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";
@@ -58,7 +58,7 @@ const WORKER_META: WorkerMetadata = {
 };
 
 const WORKER_PKG: DiscoveredPackage = {
-  name: "guild-hall-sample-assistant",
+  name: "test-assistant",
   path: "/tmp/fake-packages/sample-assistant",
   metadata: WORKER_META,
 };
@@ -346,7 +346,7 @@ async function postCreateMeeting(
   app: ReturnType<typeof createApp>,
   body: Record<string, unknown> = {
     projectName: "test-project",
-    workerName: "guild-hall-sample-assistant",
+    workerName: "test-assistant",
     prompt: "Analyze the codebase",
   },
 ) {
@@ -477,14 +477,14 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
 
     const res = await postCreateMeeting(app, {
       projectName: "test-project",
-      workerName: "guild-hall-sample-assistant",
+      workerName: "test-assistant",
       prompt: "Review the architecture",
     });
     await parseSSEResponse(res);
 
     expect(activateMock.calls).toHaveLength(1);
     const call = activateMock.calls[0];
-    expect(call.pkg.name).toBe("guild-hall-sample-assistant");
+    expect(call.pkg.name).toBe("test-assistant");
     expect(call.context.posture).toBe(WORKER_META.posture);
     expect(call.context.meetingContext?.agenda).toBe("Review the architecture");
     expect(call.context.projectPath).toBe(projectDir);
@@ -496,7 +496,7 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
 
     const res = await postCreateMeeting(app, {
       projectName: "test-project",
-      workerName: "guild-hall-sample-assistant",
+      workerName: "test-assistant",
       prompt: "Explain the config",
     });
     await parseSSEResponse(res);
@@ -758,13 +758,13 @@ describe("integration: GET /health returns correct meeting counts", () => {
 
     const r1 = await postCreateMeeting(app, {
       projectName: "test-project",
-      workerName: "guild-hall-sample-assistant",
+      workerName: "test-assistant",
       prompt: "Task 1",
     });
     await parseSSEResponse(r1);
     const r2 = await postCreateMeeting(app, {
       projectName: "test-project",
-      workerName: "guild-hall-sample-assistant",
+      workerName: "test-assistant",
       prompt: "Task 2",
     });
     await parseSSEResponse(r2);
@@ -792,7 +792,7 @@ describe("integration: GET /workers returns discovered workers", () => {
       }>;
     };
     expect(body.workers).toHaveLength(1);
-    expect(body.workers[0].name).toBe("guild-hall-sample-assistant");
+    expect(body.workers[0].name).toBe("test-assistant");
     expect(body.workers[0].displayName).toBe("Assistant");
     expect(body.workers[0].displayTitle).toBe("Guild Assistant");
     expect(body.workers[0].description).toBe(
@@ -874,7 +874,7 @@ describe("integration: error cases", () => {
 
     const res = await postCreateMeeting(app, {
       projectName: "nonexistent-project",
-      workerName: "guild-hall-sample-assistant",
+      workerName: "test-assistant",
       prompt: "Hello",
     });
 
@@ -968,7 +968,7 @@ describe("integration: full lifecycle (create, message, close)", () => {
     // 1. Create meeting
     const createRes = await postCreateMeeting(app, {
       projectName: "test-project",
-      workerName: "guild-hall-sample-assistant",
+      workerName: "test-assistant",
       prompt: "Begin investigation",
     });
     const createEvents = await parseSSEResponse(createRes);

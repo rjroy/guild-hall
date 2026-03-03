@@ -6,13 +6,13 @@ tags: [architecture, commissions, refactor, object-design, boundaries, state-mac
 modules: [commission-session, commission-handlers, commission-recovery, activity-state-machine]
 related:
   - .lore/brainstorm/commission-layer-separation.md
-  - .lore/_archive/specs/guild-hall-commissions.md
-  - .lore/_archive/specs/activity-state-machine.md
-  - .lore/_archive/design/activity-state-machine.md
+  - .lore/specs/guild-hall-commissions.md
+  - .lore/specs/activity-state-machine.md
+  - .lore/design/activity-state-machine.md
   - .lore/reference/commissions.md
-  - .lore/_archive/retros/in-process-commissions.md
-  - .lore/_archive/retros/phase-5-git-integration-data-loss.md
-  - .lore/_archive/issues/commission-meeting-state-ownership.md
+  - .lore/retros/in-process-commissions.md
+  - .lore/retros/phase-5-git-integration-data-loss.md
+  - .lore/issues/commission-meeting-state-ownership.md
 req-prefix: CLS
 ---
 
@@ -121,6 +121,8 @@ This refactor also replaces the shared ActivityMachine for commissions with a co
 
 - REQ-CLS-23: Layer 4 does not know about commissions, state machines, git, or artifacts. It runs an SDK session in a directory with a prompt and reports what happened. The caller (Layer 5) maps these callbacks to lifecycle signals.
 
+  > **Implementation (2026-03):** `syncStatusToIntegration` in Layer 5 writes to the integration worktree via Layer 1's `recordOps`, bypassing Layer 2. This is by design: it copies already-transitioned state to a different filesystem path (integration worktree), not a second state transition. Layer 2 owns state changes; the integration sync is a visibility operation.
+
 - REQ-CLS-24: Layer 4 implements the terminal state guard pattern. When cancellation (via AbortController) and natural session completion race, exactly one outcome is reported. The second path is a no-op. This carries forward the lesson from the in-process commission migration retro.
 
 - REQ-CLS-25: Layer 4 owns the `resultSubmitted` flag. When the worker calls submit_result through the commission toolbox, Layer 4 records that a result was submitted and includes this in its completion callback. The orchestrator uses this to determine whether to signal executionCompleted or executionFailed to Layer 2.
@@ -133,13 +135,21 @@ This refactor also replaces the shared ActivityMachine for commissions with a co
 
 - REQ-CLS-28: Layer 5 owns crash recovery. On daemon startup, it scans machine-local state files, checks worktree existence, and reconciles state through Layer 2 signals (executionFailed) and Layer 3 operations (worktree cleanup). Recovery always transitions interrupted commissions to failed, consistent with current behavior (REQ-COM-27 through REQ-COM-29).
 
+  > **Implementation (2026-03):** Verified. Crash recovery is implemented in the orchestrator (Layer 5), scanning state files and reconciling through Layer 2 signals and Layer 3 cleanup as specified.
+
 - REQ-CLS-29: Layer 5 owns auto-dispatch and dependency checking. After a commission reaches a cleanup state (completed, failed, cancelled, abandoned), Layer 5 triggers dependency scans (do any blocked commissions now have their dependencies satisfied?) and dispatch queue scans (is there capacity for pending commissions?). This replaces the post-cleanup hook pattern from the ActivityMachine spec.
+
+  > **Implementation (2026-03):** Verified. Dependency auto-dispatch is wired in the orchestrator's cleanup event handler, triggering both dependency scans and queue dispatch after terminal transitions.
 
 - REQ-CLS-30: Layer 5 translates Layer 4 session callbacks into Layer 2 signals. When the session runner reports progress, Layer 5 calls progressReported on the lifecycle. When the session ends, Layer 5 evaluates the outcome (result submitted? error? abort?) and sends the appropriate signal (executionCompleted or executionFailed).
 
 - REQ-CLS-30a: Layer 5 owns merge conflict escalation. When Layer 3 reports a squash-merge failure due to non-.lore/ conflicts, Layer 5 creates a Guild Master meeting request with the commission ID and conflicting branch name, then sends executionFailed to Layer 2 with a descriptive reason.
 
+  > **Implementation (2026-03):** Verified. Merge conflict escalation is implemented in the orchestrator's completion handler, creating a Guild Master meeting request on non-.lore/ conflicts.
+
 - REQ-CLS-30b: Layer 5 owns terminal-state artifact visibility. After a commission reaches a terminal state and the activity worktree is cleaned up, Layer 5 ensures the commission artifact on the integration worktree reflects the final status. This replaces the current `syncStatusToIntegration` pattern.
+
+  > **Implementation (2026-03):** Verified. Terminal artifact visibility is implemented via `syncStatusToIntegration` in the orchestrator, writing final status to the integration worktree after cleanup.
 
 ### Heartbeat and Liveness
 
@@ -150,6 +160,8 @@ This refactor also replaces the shared ActivityMachine for commissions with a co
 - REQ-CLS-31: All commission behaviors defined in the original commission spec (REQ-COM-1 through REQ-COM-32) are preserved, as extended by the ActivityMachine spec (REQ-ASM-10 through REQ-ASM-21) and the abandoned state addition. The transition graph in REQ-CLS-6 supersedes REQ-COM-6 to include `abandoned` and `completed -> failed`. The layer separation changes where logic lives, not what the system does. External API contracts (REST routes, SSE events, artifact format) do not change.
 
 - REQ-CLS-32: The activity timeline format and content are preserved. Timeline entries from before the refactor remain readable. New entries follow the same schema.
+
+  > **Implementation (2026-03):** The `manager_dispatched` event type was dropped during implementation. Manager attribution is captured in the dispatch reason string instead. The timeline format is preserved; event types are not a frozen set.
 
 - REQ-CLS-33: Machine-local state files for crash recovery are preserved. The format and location (~/.guild-hall/state/commissions/) do not change.
 
