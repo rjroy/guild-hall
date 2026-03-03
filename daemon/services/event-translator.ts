@@ -15,14 +15,7 @@
  */
 
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { GuildHallEvent } from "../types";
-
-// -- Context --
-
-export interface TranslatorContext {
-  meetingId: string;
-  workerName: string;
-}
+import type { SdkRunnerEvent } from "@/daemon/services/sdk-runner";
 
 // -- Local type projections for SDK message shapes --
 //
@@ -69,8 +62,7 @@ interface SdkResultMessage {
  */
 export function translateSdkMessage(
   message: SDKMessage,
-  context: TranslatorContext,
-): GuildHallEvent[] {
+): SdkRunnerEvent[] {
   // Cast to access .type: SDKMessage is a complex union that ESLint's type
   // checker can't resolve for member access.
   const msg = message as unknown as { type: string };
@@ -78,7 +70,6 @@ export function translateSdkMessage(
     case "system":
       return translateSystemMessage(
         message as unknown as SdkSystemMessage,
-        context,
       );
 
     case "stream_event":
@@ -108,8 +99,7 @@ export function translateSdkMessage(
 
 function translateSystemMessage(
   message: SdkSystemMessage,
-  context: TranslatorContext,
-): GuildHallEvent[] {
+): SdkRunnerEvent[] {
   // The SDK uses "system" for multiple subtypes. Only "init" maps to a
   // Guild Hall event; compact_boundary, status, hook_*, task_*, and
   // files_persisted are internal.
@@ -120,9 +110,7 @@ function translateSystemMessage(
   return [
     {
       type: "session",
-      meetingId: context.meetingId,
       sessionId: message.session_id ?? "",
-      worker: context.workerName,
     },
   ];
 }
@@ -131,7 +119,7 @@ function translateSystemMessage(
 
 function translateStreamEvent(
   message: SdkStreamEventMessage,
-): GuildHallEvent[] {
+): SdkRunnerEvent[] {
   const event = message.event;
   const eventType = event.type as string | undefined;
 
@@ -169,7 +157,7 @@ function translateStreamEvent(
 
 function translateAssistantMessage(
   _message: SdkAssistantMessage,
-): GuildHallEvent[] {
+): SdkRunnerEvent[] {
   // The SDK emits all content blocks twice when includePartialMessages is
   // enabled: once via stream_event (content_block_start for tool_use,
   // content_block_delta for text) and once in the finalized assistant
@@ -183,14 +171,14 @@ function translateAssistantMessage(
 
 function translateUserMessage(
   message: SdkUserMessage,
-): GuildHallEvent[] {
+): SdkRunnerEvent[] {
   // SDKUserMessage.message is a MessageParam with a content field.
   // When the SDK sends tool results back, the content array contains
   // tool_result blocks.
   const content = message.message?.content;
   if (!Array.isArray(content)) return [];
 
-  const events: GuildHallEvent[] = [];
+  const events: SdkRunnerEvent[] = [];
   for (const block of content) {
     const typed = block as Record<string, unknown>;
     if (typed.type === "tool_result") {
@@ -241,7 +229,7 @@ function extractToolResultOutput(block: Record<string, unknown>): string {
 
 function translateResultMessage(
   message: SdkResultMessage,
-): GuildHallEvent[] {
+): SdkRunnerEvent[] {
   const subtype = message.subtype;
 
   if (subtype === "success") {

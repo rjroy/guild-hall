@@ -26,14 +26,23 @@ import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import { createCommissionRecordOps } from "@/daemon/services/commission/record";
 import { resolveWritePath, errorMessage } from "@/daemon/lib/toolbox-utils";
 import { commissionArtifactPath } from "@/lib/paths";
-import type { SessionCallbacks } from "@/daemon/services/session-runner";
 import type { GuildHallToolboxDeps, ToolboxFactory } from "./toolbox-types";
+
+/**
+ * Callbacks invoked by commission tools to notify the caller of
+ * tool invocations. The session runner (or orchestrator) provides
+ * these so it can track result submission, progress, and questions.
+ */
+export type SessionCallbacks = {
+  onProgress: (summary: string) => void;
+  onResult: (summary: string, artifacts?: string[]) => void;
+  onQuestion: (question: string) => void;
+};
 
 type CommissionToolboxDeps = Pick<GuildHallToolboxDeps, "guildHallHome" | "projectName" | "contextId" | "eventBus">;
 
 /**
- * @deprecated Use SessionCallbacks from session-runner.ts instead.
- * Kept as a re-export alias for backward compatibility with tests.
+ * Alias kept for backward compatibility with existing tests.
  */
 export type CommissionToolCallbacks = SessionCallbacks;
 
@@ -222,7 +231,7 @@ export function createCommissionToolboxWithCallbacks(
  * ToolboxFactory for the system toolbox registry. When used through
  * the toolbox resolver (session runner path), callbacks route events
  * through the EventBus so the session runner's subscription can
- * translate them into SessionCallbacks.
+ * translate them into callback invocations.
  */
 export const commissionToolboxFactory: ToolboxFactory = (deps) => ({
   server: createCommissionToolboxWithCallbacks(deps, {

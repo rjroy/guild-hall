@@ -5,7 +5,7 @@
  *   Layer 1: CommissionRecordOps (addUserNote writes)
  *   Layer 2: CommissionLifecycle (state transitions, signals)
  *   Layer 3: WorkspaceOps (git branch/worktree/merge)
- *   Layer 4: SessionRunner (SDK session execution)
+ *   Layer 4: sdk-runner (prepareSdkSession + runSdkSession + drainSdkSession)
  *
  * Implements CommissionSessionForRoutes so routes and manager toolbox
  * continue to work unchanged. Manages ExecutionContext per running
@@ -65,12 +65,16 @@ import type {
   WorkspaceOps,
   FinalizeResult,
 } from "@/daemon/services/workspace";
-import type {
-  SessionRunner,
-  SessionResult,
-  SessionCallbacks,
-  SessionSpec,
-} from "@/daemon/services/session-runner";
+import {
+  prepareSdkSession,
+  drainSdkSession,
+  runSdkSession,
+  type SessionPrepSpec,
+  type SessionPrepDeps,
+  type SdkRunnerOutcome,
+  type SdkQueryOptions,
+} from "@/daemon/services/sdk-runner";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { isAtCapacity } from "@/daemon/services/commission-capacity";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
 
@@ -135,7 +139,8 @@ export type ExecutionContext = {
 export interface CommissionOrchestratorDeps {
   lifecycle: CommissionLifecycle;
   workspace: WorkspaceOps;
-  sessionRunner: SessionRunner;
+  prepDeps: SessionPrepDeps;
+  queryFn: (params: { prompt: string; options: SdkQueryOptions }) => AsyncGenerator<SDKMessage>;
   recordOps: CommissionRecordOps;
   eventBus: EventBus;
   config: AppConfig;
@@ -161,13 +166,6 @@ export interface CommissionOrchestratorDeps {
   }) => Promise<void>;
   /** Manager worker package name for escalation references. */
   managerPackageName?: string;
-  /** The session spec builder. Tests can override to control session configuration. */
-  buildSessionSpec?: (
-    ctx: ExecutionContext,
-    prompt: string,
-    deps: string[],
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
-  ) => SessionSpec;
 }
 
 // -- Factory --
@@ -178,7 +176,8 @@ export function createCommissionOrchestrator(
   const {
     lifecycle,
     workspace,
-    sessionRunner,
+    prepDeps,
+    queryFn,
     recordOps,
     eventBus,
     config,
@@ -452,36 +451,12 @@ export function createCommissionOrchestrator(
     }
   }
 
-  // -- Session callbacks wiring --
-
-  function createSessionCallbacks(ctx: ExecutionContext): SessionCallbacks {
-    return {
-      onProgress(summary: string) {
-        lifecycle.progressReported(ctx.commissionId, summary).catch((err: unknown) => {
-          console.warn(`[orchestrator] progressReported failed for "${ctx.commissionId as string}":`, errorMessage(err));
-        });
-        resetHeartbeat(ctx);
-      },
-      onResult(summary: string, artifacts?: string[]) {
-        lifecycle.resultSubmitted(ctx.commissionId, summary, artifacts).catch((err: unknown) => {
-          console.warn(`[orchestrator] resultSubmitted failed for "${ctx.commissionId as string}":`, errorMessage(err));
-        });
-        resetHeartbeat(ctx);
-      },
-      onQuestion(question: string) {
-        lifecycle.questionLogged(ctx.commissionId, question).catch((err: unknown) => {
-          console.warn(`[orchestrator] questionLogged failed for "${ctx.commissionId as string}":`, errorMessage(err));
-        });
-        resetHeartbeat(ctx);
-      },
-    };
-  }
-
   // -- Session completion handling --
 
   async function handleSessionCompletion(
     ctx: ExecutionContext,
-    result: SessionResult,
+    outcome: SdkRunnerOutcome,
+    resultSubmitted: boolean,
   ): Promise<void> {
     clearHeartbeat(ctx);
 
@@ -494,7 +469,7 @@ export function createCommissionOrchestrator(
       return;
     }
 
-    if (result.aborted) {
+    if (outcome.aborted) {
       // Aborted by cancel flow. Context cleanup already happened there.
       executions.delete(ctx.commissionId);
       lifecycle.forget(ctx.commissionId);
@@ -502,13 +477,13 @@ export function createCommissionOrchestrator(
     }
 
     try {
-      if (result.resultSubmitted) {
+      if (resultSubmitted) {
         // Result was submitted: attempt finalize (squash-merge)
         await handleSuccessfulCompletion(ctx);
       } else {
         // No result submitted: fail
-        const reason = result.error
-          ? `Session error: ${result.error}`
+        const reason = outcome.error
+          ? `Session error: ${outcome.error}`
           : "Session completed without submitting result";
 
         await failAndCleanup(ctx, reason);
@@ -1336,14 +1311,11 @@ projectName: ${projectName}
     executions.set(commissionId, execCtx);
     createHeartbeat(execCtx);
 
-    // 10. Fire-and-forget: run the session
+    // 10. Fire-and-forget: run the session via sdk-runner
     console.log(
       `[orchestrator] dispatching "${commissionId as string}" -> worker="${workerName}" (in-process)`,
     );
 
-    const callbacks = createSessionCallbacks(execCtx);
-
-    // Build session spec.
     // The services bag is passed to the toolbox resolver so the manager
     // toolbox can access the commission session and git ops. Only populated
     // when the worker is the manager (identified by managerPackageName).
@@ -1352,69 +1324,98 @@ projectName: ${projectName}
       ? { commissionSession: selfRef.current, gitOps: gitOps }
       : undefined;
 
-    const spec: SessionSpec = deps.buildSessionSpec
-      ? deps.buildSessionSpec(execCtx, prompt, commissionDeps, Object.keys(resourceOverrides).length > 0 ? resourceOverrides : undefined)
-      : {
-          workspaceDir: worktreeDir,
+    const prepSpec: SessionPrepSpec = {
+      workerName,
+      packages,
+      config,
+      guildHallHome,
+      projectName: found.projectName,
+      projectPath: found.projectPath,
+      workspaceDir: worktreeDir,
+      contextId: commissionId as string,
+      contextType: "commission",
+      eventBus,
+      services,
+      activationExtras: {
+        commissionContext: {
+          commissionId: commissionId as string,
           prompt,
-          workerName,
-          workerConfig: (workerPkg?.metadata ?? {}) as WorkerMetadata,
-          packages,
-          config,
-          guildHallHome,
-          abortSignal: abortController.signal,
-          callbacks,
-          projectName: found.projectName,
-          projectPath: found.projectPath,
-          contextId: commissionId as string,
-          contextType: "commission",
-          contextIdField: "commissionId",
-          eventTypes: {
-            result: "commission_result",
-            progress: "commission_progress",
-            question: "commission_question",
-          },
-          activationExtras: {
-            commissionContext: {
-              commissionId: commissionId as string,
-              prompt,
-              dependencies: commissionDeps,
-            },
-          },
-          resourceOverrides: Object.keys(resourceOverrides).length > 0 ? resourceOverrides : undefined,
-          services,
-        };
+          dependencies: commissionDeps,
+        },
+      },
+      abortController,
+      resourceOverrides: Object.keys(resourceOverrides).length > 0 ? resourceOverrides : undefined,
+    };
 
-    // When using buildSessionSpec, ensure callbacks and services are on the spec
-    if (deps.buildSessionSpec) {
-      spec.callbacks = callbacks;
-      spec.abortSignal = abortController.signal;
-      if (services) {
-        spec.services = services;
-      }
-    }
+    void runCommissionSession(execCtx, prepSpec, prompt);
 
-    void sessionRunner.run(spec).then(async (result) => {
-      try {
-        await handleSessionCompletion(execCtx, result);
-      } catch (err: unknown) {
-        console.error(
-          `[orchestrator] handleSessionCompletion failed for ${commissionId as string}:`,
-          errorMessage(err),
-        );
-      }
-    }).catch(async (err: unknown) => {
-      try {
-        await handleSessionError(execCtx, err);
-      } catch (innerErr: unknown) {
-        console.error(
-          `[orchestrator] handleSessionError failed for ${commissionId as string}:`,
-          errorMessage(innerErr),
-        );
+    return { status: "accepted" };
+  }
+
+  /**
+   * Runs a commission session: prepare, subscribe to EventBus, drain the
+   * SDK generator, unsubscribe, and handle completion. Fire-and-forget
+   * from the dispatch flow.
+   */
+  async function runCommissionSession(
+    ctx: ExecutionContext,
+    prepSpec: SessionPrepSpec,
+    prompt: string,
+  ): Promise<void> {
+    let resultSubmitted = false;
+
+    // Subscribe to EventBus for tool events matching this commission
+    const unsubscribe = eventBus.subscribe((event) => {
+      if (!("commissionId" in event) || event.commissionId !== (ctx.commissionId as string)) return;
+
+      if (event.type === "commission_result") {
+        resultSubmitted = true;
+        const e = event as typeof event & { summary: string; artifacts?: string[] };
+        lifecycle.resultSubmitted(ctx.commissionId, e.summary, e.artifacts).catch((err: unknown) => {
+          console.warn(`[orchestrator] resultSubmitted failed for "${ctx.commissionId as string}":`, errorMessage(err));
+        });
+        resetHeartbeat(ctx);
+      } else if (event.type === "commission_progress") {
+        const e = event as typeof event & { summary: string };
+        lifecycle.progressReported(ctx.commissionId, e.summary).catch((err: unknown) => {
+          console.warn(`[orchestrator] progressReported failed for "${ctx.commissionId as string}":`, errorMessage(err));
+        });
+        resetHeartbeat(ctx);
+      } else if (event.type === "commission_question") {
+        const e = event as typeof event & { question: string };
+        lifecycle.questionLogged(ctx.commissionId, e.question).catch((err: unknown) => {
+          console.warn(`[orchestrator] questionLogged failed for "${ctx.commissionId as string}":`, errorMessage(err));
+        });
+        resetHeartbeat(ctx);
       }
     });
 
-    return { status: "accepted" };
+    try {
+      // 1. Prepare the SDK session (resolve tools, load memory, activate worker)
+      const prepResult = await prepareSdkSession(prepSpec, prepDeps);
+      if (!prepResult.ok) {
+        await handleSessionError(ctx, new Error(prepResult.error));
+        return;
+      }
+
+      // 2. Run and drain the SDK session
+      const { options } = prepResult.result;
+      const outcome = await drainSdkSession(runSdkSession(queryFn, prompt, options));
+
+      // 3. Handle completion
+      await handleSessionCompletion(ctx, outcome, resultSubmitted);
+    } catch (err: unknown) {
+      try {
+        await handleSessionError(ctx, err);
+      } catch (innerErr: unknown) {
+        console.error(
+          `[orchestrator] handleSessionError failed for ${ctx.commissionId as string}:`,
+          errorMessage(innerErr),
+        );
+      }
+    } finally {
+      unsubscribe();
+    }
   }
 
   async function cancelCommission(

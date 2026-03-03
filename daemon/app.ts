@@ -98,8 +98,8 @@ export async function createProductionApp(options?: {
   const { createWorkspaceOps } = await import(
     "@/daemon/services/workspace"
   );
-  const { createSessionRunner } = await import(
-    "@/daemon/services/session-runner"
+  const { triggerCompaction } = await import(
+    "@/daemon/services/memory-compaction"
   );
 
   const { createEventBus } = await import("@/daemon/services/event-bus");
@@ -210,26 +210,38 @@ export async function createProductionApp(options?: {
   // Layer 3: Workspace operations (git branch/worktree/merge)
   const workspaceOps = createWorkspaceOps({ git });
 
-  // Layer 4: Session runner (SDK execution, context-type agnostic)
+  // Layer 4: Session preparation deps (sdk-runner)
   const { resolveToolSet } = await import("@/daemon/services/toolbox-resolver");
   const { loadMemories } = await import("@/daemon/services/memory-injector");
   const { activateWorker: activateWorkerFn } = await import(
     "@/daemon/services/manager-worker"
   );
 
-  const sessionRunner = createSessionRunner({
+  const prepDeps = {
     resolveToolSet,
     loadMemories,
     activateWorker: activateWorkerFn,
-    queryFn: queryFn!,
-    eventBus,
-  });
+    triggerCompaction: (
+      workerName: string,
+      projectName: string,
+      opts: { guildHallHome: string },
+    ) => {
+      // Fire-and-forget compaction using the SDK queryFn.
+      // This fixes the commission compaction gap: commissions now trigger
+      // memory compaction the same way meetings do.
+      void triggerCompaction(workerName, projectName, {
+        guildHallHome: opts.guildHallHome,
+        compactFn: queryFn!,
+      });
+    },
+  };
 
   // Layer 5: Orchestrator (coordinates all layers, implements CommissionSessionForRoutes)
   const commissionSession = createCommissionOrchestrator({
     lifecycle,
     workspace: workspaceOps,
-    sessionRunner,
+    prepDeps,
+    queryFn: queryFn!,
     recordOps,
     eventBus,
     config,
