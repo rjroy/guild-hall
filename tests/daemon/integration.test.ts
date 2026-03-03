@@ -5,8 +5,8 @@
  * meeting session (with mock queryFn) -> event translator -> SSE response.
  *
  * Unlike the unit tests in routes/meetings.test.ts (which mock the entire
- * meeting session) and meeting-session.test.ts (which test the session in
- * isolation), these tests wire real route handlers to a real meeting session,
+ * meeting session) and meeting/orchestrator.test.ts (which test the orchestrator
+ * in isolation), these tests wire real route handlers to a real meeting session,
  * verifying that the layers compose correctly.
  *
  * Limitations:
@@ -28,7 +28,7 @@ import {
   createMeetingSession,
   type MeetingSessionDeps,
   type QueryOptions,
-} from "@/daemon/services/meeting-session";
+} from "@/daemon/services/meeting/orchestrator";
 import type { GuildHallEvent } from "@/daemon/types";
 import type { GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";

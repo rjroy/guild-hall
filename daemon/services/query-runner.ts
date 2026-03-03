@@ -3,7 +3,7 @@
  *
  * Stateless module-level functions that handle running SDK queries,
  * translating messages into Guild Hall events, and accumulating
- * transcript data. Separated from meeting-session.ts (lifecycle
+ * transcript data. Separated from meeting/orchestrator.ts (lifecycle
  * management) so the execution layer is independently testable.
  *
  * Follows the event-translator.ts pattern: pure or near-pure functions,

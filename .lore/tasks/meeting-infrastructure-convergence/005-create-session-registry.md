@@ -1,7 +1,7 @@
 ---
 title: Create active session registry
 date: 2026-03-02
-status: pending
+status: complete
 tags: [task]
 source: .lore/plans/meeting-infrastructure-convergence.md
 related: [.lore/specs/meeting-infrastructure-convergence.md]

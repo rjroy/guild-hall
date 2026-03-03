@@ -2,8 +2,9 @@
  * Meeting session lifecycle management.
  *
  * Orchestration core: CRUD operations, SDK session runner, and session
- * renewal. State management is delegated to the ActivityMachine via
- * meeting-handlers.ts.
+ * renewal. Uses a MeetingRegistry for active entry tracking, WorkspaceOps
+ * for git branch/worktree provisioning, meeting/record ops for artifact I/O,
+ * and shared escalation for merge conflict handling.
  *
  * Two ID namespaces exist and must never be mixed:
  * - MeetingId: Guild Hall's own ID for a meeting (branded type)
@@ -17,6 +18,7 @@ import type {
   ActivationContext,
   ActivationResult,
   AppConfig,
+  CheckoutScope,
   DiscoveredPackage,
   WorkerMetadata,
 } from "@/lib/types";
@@ -30,7 +32,7 @@ import {
 } from "@/daemon/services/manager-worker";
 import { buildManagerContext } from "@/daemon/services/manager-context";
 import type { GuildHallEvent, MeetingId, MeetingStatus, SdkSessionId } from "@/daemon/types";
-import { asMeetingId, asSdkSessionId } from "@/daemon/types";
+import { asMeetingId } from "@/daemon/types";
 import {
   runQueryAndTranslate,
   truncateTranscript,
@@ -42,16 +44,18 @@ import {
   integrationWorktreePath as integrationWorktreePathFn,
 } from "@/lib/paths";
 import matter from "gray-matter";
-import { createGitOps, CLAUDE_BRANCH, finalizeActivity, type GitOps } from "@/daemon/lib/git";
+import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { errorMessage, formatTimestamp, sanitizeForGitRef } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import {
   meetingArtifactPath,
   appendMeetingLog,
+  closeArtifact,
   readArtifactStatus,
   updateArtifactStatus,
   readLinkedArtifacts,
-} from "@/daemon/services/meeting-artifact-helpers";
+  writeMeetingArtifact,
+} from "@/daemon/services/meeting/record";
 import {
   createTranscript,
   appendUserTurn,
@@ -60,17 +64,13 @@ import {
 } from "@/daemon/services/transcript";
 import {
   generateMeetingNotes,
-  formatNotesForYaml,
 } from "@/daemon/services/notes-generator";
 import { isNodeError } from "@/lib/types";
 import { loadMemories } from "@/daemon/services/memory-injector";
 import { triggerCompaction } from "@/daemon/services/memory-compaction";
-import { ActivityMachine } from "@/daemon/lib/activity-state-machine";
-import {
-  createMeetingHandlers,
-  type ActiveMeetingEntry,
-  type MeetingHandlerDeps,
-} from "@/daemon/services/meeting-handlers";
+import { MeetingRegistry, type ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
+import type { WorkspaceOps } from "@/daemon/services/workspace";
+import { escalateMergeConflict } from "@/daemon/lib/escalation";
 
 // -- Constants --
 
@@ -78,6 +78,7 @@ const DEFAULT_MEETING_CAP = 5;
 
 // -- Re-exports for backward compatibility --
 
+export type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
 export type { QueryOptions, PresetQueryPrompt } from "@/daemon/services/query-runner";
 import type { QueryOptions } from "@/daemon/services/query-runner";
 
@@ -142,6 +143,17 @@ export type MeetingSessionDeps = {
     workerName: string;
     reason: string;
   }) => Promise<void>;
+  /**
+   * Workspace operations for git branch/worktree provisioning and finalization.
+   * If omitted, a default WorkspaceOps is created from gitOps.
+   */
+  workspace?: WorkspaceOps;
+  /**
+   * Active meeting registry. If omitted, a new registry is created.
+   * Pass a shared instance when the daemon needs a single registry
+   * across all consumers.
+   */
+  registry?: MeetingRegistry;
 };
 
 // -- Factory --
@@ -149,7 +161,23 @@ export type MeetingSessionDeps = {
 export function createMeetingSession(deps: MeetingSessionDeps) {
   const ghHome = deps.guildHallHome ?? getGuildHallHome();
   const git = deps.gitOps ?? createGitOps();
+  const eventBus = deps.eventBus ?? noopEventBus;
   let meetingSeq = 0;
+
+  // Registry tracks active meeting entries. Shared instance when provided,
+  // otherwise local to this session.
+  const registry = deps.registry ?? new MeetingRegistry();
+
+  // Workspace ops for git provisioning. If not provided, create from gitOps.
+  // Lazy-import createWorkspaceOps only when needed to avoid circular deps.
+  let workspaceOps: WorkspaceOps | undefined = deps.workspace;
+
+  async function getWorkspace(): Promise<WorkspaceOps> {
+    if (workspaceOps) return workspaceOps;
+    const { createWorkspaceOps } = await import("@/daemon/services/workspace");
+    workspaceOps = createWorkspaceOps({ git });
+    return workspaceOps;
+  }
 
   // -- Helpers --
 
@@ -172,29 +200,6 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       branchName: meeting.branchName,
       status,
     };
-  }
-
-  /**
-   * Returns entries occupying meeting slots for a project. Used for cap
-   * enforcement and the public getOpenMeetingsForProject API.
-   *
-   * Counts entries in trackedEntries whose status is NOT a terminal state
-   * (closed/declined). This ensures entries registered inside withProjectLock
-   * but not yet injected into the machine still count toward the cap,
-   * preventing TOCTOU races between concurrent creates/accepts.
-   */
-  function getOpenMeetingsForProject(projectName: string): ActiveMeetingEntry[] {
-    const result: ActiveMeetingEntry[] = [];
-    for (const [, entry] of trackedEntries) {
-      if (
-        entry.projectName === projectName &&
-        entry.status !== "closed" &&
-        entry.status !== "declined"
-      ) {
-        result.push(entry);
-      }
-    }
-    return result;
   }
 
   function formatMeetingId(workerName: string, now: Date): MeetingId {
@@ -221,49 +226,15 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
   }
 
   async function deleteStateFile(meetingId: MeetingId): Promise<void> {
-    await fs.unlink(statePath(meetingId)).catch(() => {});
-  }
-
-  async function writeMeetingArtifact(
-    projectPath: string,
-    meetingId: MeetingId,
-    workerDisplayTitle: string,
-    prompt: string,
-    workerName: string,
-    status: MeetingStatus = "open",
-  ): Promise<void> {
-    const artifactPath = meetingArtifactPath(projectPath, meetingId);
-    await fs.mkdir(path.dirname(artifactPath), { recursive: true });
-
-    const now = new Date();
-    const dateStr = now.toISOString().split("T")[0];
-    const isoStr = now.toISOString();
-
-    const initialEvent = status === "requested" ? "requested" : "opened";
-    const initialReason = status === "requested"
-      ? "Meeting requested"
-      : "User started audience";
-
-    // Write raw YAML frontmatter + empty body. Using template literal to
-    // avoid gray-matter stringify reformatting (lesson from retros).
-    const content = `---
-title: "Audience with ${workerDisplayTitle}"
-date: ${dateStr}
-status: ${status}
-tags: [meeting]
-worker: ${workerName}
-workerDisplayTitle: "${workerDisplayTitle.replace(/"/g, '\\"')}"
-agenda: "${prompt.replace(/"/g, '\\"')}"
-deferred_until: ""
-linked_artifacts: []
-meeting_log:
-  - timestamp: ${isoStr}
-    event: ${initialEvent}
-    reason: "${initialReason}"
-notes_summary: ""
----
-`;
-    await fs.writeFile(artifactPath, content, "utf-8");
+    try {
+      await fs.unlink(statePath(meetingId));
+    } catch (err: unknown) {
+      if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") return;
+      console.warn(
+        `[meeting] Failed to delete state file for "${meetingId as string}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
   }
 
   async function activateWorker(
@@ -273,214 +244,91 @@ notes_summary: ""
     return activateWorkerShared(workerPkg, context, deps.activateFn);
   }
 
-  // -- Build the ActivityMachine --
+  function resolveCheckoutScope(workerName: string): CheckoutScope {
+    const workerPkg = deps.packages.find((p) => {
+      if (!("identity" in p.metadata)) return false;
+      return p.metadata.identity.name === workerName;
+    });
+    if (workerPkg && "checkoutScope" in workerPkg.metadata) {
+      return workerPkg.metadata.checkoutScope;
+    }
+    return "full";
+  }
 
-  const handlerDeps: MeetingHandlerDeps = {
-    eventBus: deps.eventBus ?? noopEventBus,
-    git,
-    writeStateFile,
-    deleteStateFile,
-    finalizeActivity: async (opts) => {
-      const iPath = integrationWorktreePathFn(ghHome, opts.projectName);
-      const project = findProject(opts.projectName);
-      if (!project) {
-        console.warn(`[meeting] finalizeActivity: project "${opts.projectName}" not found`);
-        return { merged: false, preserved: false };
-      }
-      return finalizeActivity(git, {
-        activityId: opts.activityId,
-        worktreeDir: opts.worktreeDir,
-        branchName: opts.branchName,
-        projectPath: project.path,
-        integrationPath: iPath,
-        commitMessage: `Meeting closed: ${opts.activityId}`,
-        logPrefix: "meeting",
-        commitLabel: "Meeting",
-        lockFn: (fn) => withProjectLock(opts.projectName, fn),
-      });
-    },
-    createMeetingRequest: deps.createMeetingRequestFn,
-    managerPackageName: MANAGER_PACKAGE_NAME,
-    findProjectPath: (name) => findProject(name)?.path,
-    fileExists: async (filePath: string): Promise<boolean> => {
-      try {
-        await fs.access(filePath);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    integrationWorktreePath: (name) => integrationWorktreePathFn(ghHome, name),
-    meetingWorktreePath: (name, id) => meetingWorktreePathFn(ghHome, name, id),
-    meetingBranchName: (id) => meetingBranchNameFn(id),
-    ensureDir: async (dirPath: string) => {
-      await fs.mkdir(dirPath, { recursive: true });
-    },
-    resolveCheckoutScope: (workerName: string) => {
-      const workerPkg = deps.packages.find((p) => {
-        if (!("identity" in p.metadata)) return false;
-        return p.metadata.identity.name === workerName;
-      });
-      if (workerPkg && "checkoutScope" in workerPkg.metadata) {
-        return workerPkg.metadata.checkoutScope;
-      }
-      return "full";
-    },
-    claudeBranch: CLAUDE_BRANCH,
-    createTranscript: async (id, workerName, projectName) => {
-      await createTranscript(id, workerName, projectName, ghHome);
-    },
-    appendUserTurn: async (id, message) => {
-      await appendUserTurn(id, message, ghHome);
-    },
-    readTranscript: async (id) => {
-      return readTranscript(id, ghHome);
-    },
-    removeTranscript: async (id) => {
-      await removeTranscript(id, ghHome);
-    },
-    generateMeetingNotes: async (id, worktreeDir, workerName) => {
-      return generateMeetingNotes(id, worktreeDir, workerName, {
-        guildHallHome: ghHome,
-        queryFn: deps.notesQueryFn,
-      });
-    },
-    writeNotesToArtifact: async (projectPath, meetingId, notes) => {
-      await writeNotesToArtifact(projectPath, meetingId, notes);
-    },
-    writeMeetingArtifact: async (projectPath, meetingId, workerName, prompt, status) => {
-      // For inject (direct creation), we need the worker display title.
-      // The handler receives the identity name; look up the display title.
-      const workerPkg = deps.packages.find((p) => {
-        if (!("identity" in p.metadata)) return false;
-        return p.metadata.identity.name === workerName;
-      });
-      const displayTitle = workerPkg
-        ? (workerPkg.metadata as WorkerMetadata).identity.displayTitle
-        : workerName;
-      await writeMeetingArtifact(projectPath, meetingId, displayTitle, prompt, workerName, status);
-    },
-    checkDependencyTransitions: deps.commissionSession
-      ? async (projectName) => {
-          await deps.commissionSession!.checkDependencyTransitions(projectName);
-        }
-      : undefined,
-  };
+  // -- Open flow: shared between acceptMeetingRequest and createMeeting --
 
-  const handlersConfig = createMeetingHandlers(handlerDeps);
-
-  // Parallel lookup for all tracked entries (active and inactive).
-  // Populated when entries are injected/registered into the machine.
-  const trackedEntries = new Map<MeetingId, ActiveMeetingEntry>();
-
-  // Create the artifact ops with a lookup that reads from the machine's state tracker.
-  // The machine is created below; we use a lazy reference to avoid circular init.
-  let machineRef: ActivityMachine<MeetingStatus, MeetingId, ActiveMeetingEntry> | null = null;
-
-  const artifactOps = handlersConfig.createArtifactOps((id) => {
-    if (!machineRef) return undefined;
-    const active = machineRef.get(id);
-    if (active) return active;
-    return trackedEntries.get(id);
-  });
-
-  const machine = new ActivityMachine<MeetingStatus, MeetingId, ActiveMeetingEntry>({
-    activityType: "meeting",
-    transitions: handlersConfig.transitions,
-    cleanupStates: handlersConfig.cleanupStates,
-    activeStates: handlersConfig.activeStates,
-    handlers: handlersConfig.handlers,
-    artifactOps,
-    extractProjectName: (entry) => entry.projectName,
-  });
-  machineRef = machine;
-
-  // Meetings don't trigger auto-dispatch (they don't consume commission
-  // capacity), but successful merges may satisfy blocked commission
-  // dependencies. The cleanup hooks in the handlers already call
-  // checkDependencyTransitions, so we don't need a separate machine
-  // cleanup hook for that. No additional cleanup hooks needed.
-
-  // -- Operations that stay outside the machine --
-
-  async function declineMeeting(
-    meetingId: MeetingId,
-    projectName: string,
+  /**
+   * Provisions a workspace (branch + worktree + sparse checkout) for a meeting.
+   * Populates the entry's worktreeDir and branchName fields.
+   * On failure after partial setup, cleans up the workspace.
+   */
+  async function provisionWorkspace(
+    entry: ActiveMeetingEntry,
+    projectPath: string,
   ): Promise<void> {
-    const project = findProject(projectName);
-    if (!project) {
-      throw new Error(`Project "${projectName}" not found`);
-    }
-    // Meeting requests live on the integration worktree (claude branch),
-    // not in the user's working directory.
-    const iPath = integrationWorktreePathFn(ghHome, projectName);
+    const workspace = await getWorkspace();
+    const branchName = meetingBranchNameFn(entry.meetingId as string);
+    const worktreeDir = meetingWorktreePathFn(ghHome, entry.projectName, entry.meetingId as string);
+    const checkoutScope = resolveCheckoutScope(entry.workerName);
 
-    const currentStatus = await readArtifactStatus(iPath, meetingId);
-    if (!currentStatus) {
-      throw new Error(`Could not read status for meeting "${meetingId}"`);
-    }
-    if (currentStatus !== "requested") {
-      throw new Error(
-        `Invalid meeting status transition: ${currentStatus} -> declined`,
+    await workspace.prepare({
+      projectPath,
+      baseBranch: CLAUDE_BRANCH,
+      activityBranch: branchName,
+      worktreeDir,
+      checkoutScope,
+      sparsePatterns: checkoutScope === "sparse" ? [".lore/"] : undefined,
+    });
+
+    entry.worktreeDir = worktreeDir;
+    entry.branchName = branchName;
+    entry.status = "open";
+  }
+
+  /**
+   * Creates the transcript, writes the state file, and records the initial
+   * user turn. Non-fatal failures are logged but don't block the meeting.
+   */
+  async function setupTranscriptAndState(
+    entry: ActiveMeetingEntry,
+    prompt: string,
+  ): Promise<void> {
+    // Write state file
+    await writeStateFile(entry.meetingId, serializeMeetingState(entry));
+
+    // Create transcript and record initial user turn
+    try {
+      await createTranscript(entry.meetingId, entry.workerName, entry.projectName, ghHome);
+      await appendUserTurn(entry.meetingId, prompt, ghHome);
+    } catch (err: unknown) {
+      console.warn(
+        `[meeting] Failed to create transcript for "${entry.meetingId as string}":`,
+        errorMessage(err),
       );
+      // Non-fatal: transcript failure shouldn't block meeting creation
     }
-
-    // Register and transition through the machine for declined meetings.
-    // The entry is minimal since declined meetings have no worktree.
-    const entry: ActiveMeetingEntry = {
-      meetingId,
-      projectName,
-      workerName: "",
-      packageName: "",
-      sdkSessionId: null,
-      worktreeDir: "",
-      branchName: "",
-      abortController: new AbortController(),
-      status: "requested",
-    };
-    trackedEntries.set(meetingId, entry);
-    machine.register(meetingId, entry, "requested");
-    const result = await machine.transition(meetingId, "requested", "declined", "User declined meeting request");
-    if (result.outcome === "skipped") {
-      throw new Error(`Could not decline meeting "${meetingId as string}": ${result.reason}`);
-    }
-
-    // Clean up parallel tracking after terminal state transition
-    trackedEntries.delete(meetingId);
-    machine.forget(meetingId);
   }
 
-  async function deferMeeting(
-    meetingId: MeetingId,
-    projectName: string,
-    deferredUntil: string,
-  ): Promise<void> {
-    const project = findProject(projectName);
-    if (!project) {
-      throw new Error(`Project "${projectName}" not found`);
+  /**
+   * Cleans up a meeting entry that failed after registration. Deregisters
+   * from the registry and attempts to remove the worktree if one was created.
+   */
+  async function cleanupFailedEntry(entry: ActiveMeetingEntry, projectPath: string): Promise<void> {
+    registry.deregister(entry.meetingId);
+    if (entry.worktreeDir) {
+      try {
+        const workspace = await getWorkspace();
+        await workspace.removeWorktree(entry.worktreeDir, projectPath);
+      } catch (err: unknown) {
+        console.warn(
+          `[meeting] Failed to clean up worktree for "${entry.meetingId as string}":`,
+          errorMessage(err),
+        );
+      }
     }
-    // Meeting requests live on the integration worktree (claude branch),
-    // not in the user's working directory.
-    const iPath = integrationWorktreePathFn(ghHome, projectName);
-
-    const currentStatus = await readArtifactStatus(iPath, meetingId);
-    if (!currentStatus) {
-      throw new Error(`Could not read status for meeting "${meetingId}"`);
-    }
-    if (currentStatus !== "requested") {
-      throw new Error(`Cannot defer meeting with status "${currentStatus}": only requested meetings can be deferred`);
-    }
-
-    // Replace the deferred_until value in the artifact frontmatter
-    const artifactFilePath = meetingArtifactPath(iPath, meetingId);
-    const raw = await fs.readFile(artifactFilePath, "utf-8");
-    // Sanitize the value to strip newlines that could corrupt YAML frontmatter
-    const sanitized = deferredUntil.replace(/[\r\n]/g, "");
-    const updated = raw.replace(/^deferred_until: ".*"$/m, `deferred_until: "${sanitized}"`);
-    await fs.writeFile(artifactFilePath, updated, "utf-8");
-
-    await appendMeetingLog(iPath, meetingId, "deferred", `Deferred until ${deferredUntil}`);
   }
+
+  // -- Query/session helpers --
 
   type QueryOptionsResult =
     | { ok: true; options: QueryOptions }
@@ -518,7 +366,7 @@ notes_summary: ""
         contextType: "meeting",
         workerName: workerMeta.identity.name,
         guildHallHome: ghHome,
-        eventBus: deps.eventBus ?? noopEventBus,
+        eventBus,
         config: deps.config,
         services: isManager && deps.commissionSession
           ? { commissionSession: deps.commissionSession, gitOps: git }
@@ -538,7 +386,7 @@ notes_summary: ""
         injectedMemory = memoryResult.memoryBlock;
         if (memoryResult.needsCompaction && deps.queryFn) {
           console.log(
-            `[meeting-session] Memory for worker "${workerMeta.identity.name}" exceeds limit, triggering compaction`,
+            `[meeting] Memory for worker "${workerMeta.identity.name}" exceeds limit, triggering compaction`,
           );
           void triggerCompaction(
             workerMeta.identity.name,
@@ -548,7 +396,7 @@ notes_summary: ""
         }
       } catch (err: unknown) {
         console.warn(
-          `[meeting-session] Failed to load memories for "${workerMeta.identity.name}" (non-fatal):`,
+          `[meeting] Failed to load memories for "${workerMeta.identity.name}" (non-fatal):`,
           errorMessage(err),
         );
       }
@@ -645,16 +493,13 @@ notes_summary: ""
     // Update state file with captured session ID
     try {
       await writeStateFile(meeting.meetingId, serializeMeetingState(meeting));
-    } catch {
-      // State file update failure is non-fatal; the meeting is already in memory
+    } catch (err: unknown) {
+      console.warn(
+        `[meeting] Failed to update state file for "${meeting.meetingId as string}" after session start (non-fatal):`,
+        err instanceof Error ? err.message : String(err),
+      );
     }
   }
-
-  // NOTE: startSdkSession is NOT wired into the handler deps. The SDK
-  // session must stream events back through the caller's async generator
-  // (createMeeting, acceptMeetingRequest). The enter-open handler handles
-  // git setup, artifact writes, state file, and transcript. The SDK session
-  // is started after the machine transition completes.
 
   // -- Public API --
 
@@ -682,8 +527,8 @@ notes_summary: ""
 
       // b. Check concurrent meeting cap (atomic with registration under lock)
       const cap = project.meetingCap ?? DEFAULT_MEETING_CAP;
-      const openMeetings = getOpenMeetingsForProject(projectName);
-      if (openMeetings.length >= cap) {
+      const activeCount = registry.countForProject(projectName);
+      if (activeCount >= cap) {
         errors.push({
           type: "error",
           reason: `Meeting cap reached for project "${projectName}" (${cap} concurrent meetings)`,
@@ -707,7 +552,7 @@ notes_summary: ""
         return { ok: false, errors };
       }
 
-      // d. Validate status is "requested" (the machine will validate the edge)
+      // d. Validate status is "requested"
       if (currentStatus !== "requested") {
         errors.push({
           type: "error",
@@ -753,22 +598,20 @@ notes_summary: ""
         prompt += `\n\n${message}`;
       }
 
-      // h. Create the entry and register with the machine. The enter-open
-      // handler will create the branch, worktree, state file, transcript,
-      // and start the SDK session.
+      // h. Create the entry and register with the registry. Registration
+      // under lock ensures cap enforcement is atomic.
       const entry: ActiveMeetingEntry = {
         meetingId,
         projectName,
         workerName,
         packageName: workerPkg.name,
         sdkSessionId: null,
-        worktreeDir: "", // Populated by enter-open handler
-        branchName: "",  // Populated by enter-open handler
+        worktreeDir: "", // Populated by provisionWorkspace
+        branchName: "",  // Populated by provisionWorkspace
         abortController: new AbortController(),
         status: "requested",
       };
-      trackedEntries.set(meetingId, entry);
-      machine.register(meetingId, entry, "requested");
+      registry.register(meetingId, entry);
 
       return { ok: true, entry, prompt };
     });
@@ -781,28 +624,45 @@ notes_summary: ""
       return;
     }
 
-    // i. Transition requested -> open (outside lock; the enter-open handler
-    // handles git setup, artifact updates, and transcript creation)
+    const { entry, prompt } = setup;
+
+    // Provision workspace, update artifact, create transcript (outside lock)
+    const project = findProject(projectName);
+    if (!project) {
+      registry.deregister(meetingId);
+      yield { type: "error", reason: `Project "${projectName}" not found` };
+      return;
+    }
+
     try {
-      await machine.transition(
-        meetingId,
-        "requested",
-        "open",
-        setup.prompt,
-      );
+      // 1. Provision workspace (creates branch + worktree + sparse checkout)
+      await provisionWorkspace(entry, project.path);
+
+      // 2. Update artifact: status to "open" + log entry (on the activity worktree)
+      await updateArtifactStatus(entry.worktreeDir, meetingId, "open");
+      await appendMeetingLog(entry.worktreeDir, meetingId, "opened", "User accepted meeting request");
+
+      // 3. Set up transcript and state file
+      await setupTranscriptAndState(entry, prompt);
     } catch (err: unknown) {
-      machine.forget(meetingId);
-      trackedEntries.delete(meetingId);
+      await cleanupFailedEntry(entry, project.path);
       yield { type: "error", reason: errorMessage(err) };
       return;
     }
 
-    // j. Start the SDK session (outside lock, streaming can take arbitrarily long).
-    // The entry's worktreeDir and branchName were populated by the enter-open handler.
-    const entry = machine.get(meetingId);
-    if (entry) {
-      yield* startSession(entry, setup.prompt);
-    }
+    // Emit event
+    eventBus.emit({
+      type: "meeting_started",
+      meetingId: meetingId as string,
+      worker: entry.workerName,
+    });
+
+    console.log(
+      `[meeting] "${meetingId as string}" open: branch="${entry.branchName}", worktree="${entry.worktreeDir}"`,
+    );
+
+    // Start the SDK session (outside lock, streaming can take arbitrarily long)
+    yield* startSession(entry, prompt);
   }
 
   async function* createMeeting(
@@ -829,8 +689,8 @@ notes_summary: ""
 
       // b. Check concurrent meeting cap (atomic with registration under lock)
       const cap = project.meetingCap ?? DEFAULT_MEETING_CAP;
-      const openMeetings = getOpenMeetingsForProject(projectName);
-      if (openMeetings.length >= cap) {
+      const activeCount = registry.countForProject(projectName);
+      if (activeCount >= cap) {
         errors.push({
           type: "error",
           reason: `Meeting cap reached for project "${projectName}" (${cap} concurrent meetings)`,
@@ -853,11 +713,9 @@ notes_summary: ""
       // c. Generate meeting ID
       const meetingId = formatMeetingId(workerMeta.identity.name, new Date());
 
-      // d. Write the meeting artifact to the integration worktree BEFORE
-      // machine.inject() runs. The machine's ArtifactOps updates status and
-      // appends a timeline entry during inject, which requires the artifact
-      // to already exist. This mirrors the commission pattern where
-      // createCommission writes the artifact before dispatch.
+      // d. Write the meeting artifact to the integration worktree. The
+      // artifact must exist before workspace provisioning copies it to the
+      // activity worktree via the branch fork.
       const iPath = integrationWorktreePathFn(ghHome, projectName);
       try {
         await writeMeetingArtifact(
@@ -873,20 +731,19 @@ notes_summary: ""
         return { ok: false, errors };
       }
 
-      // e. Create the entry. The enter-open handler (via machine.inject)
-      // will create the branch, worktree, transcript, state file.
+      // e. Create the entry and register with the registry.
       const entry: ActiveMeetingEntry = {
         meetingId,
         projectName,
         workerName: workerMeta.identity.name,
         packageName: workerName,
         sdkSessionId: null,
-        worktreeDir: "", // Populated by enter-open handler
-        branchName: "",  // Populated by enter-open handler
+        worktreeDir: "", // Populated by provisionWorkspace
+        branchName: "",  // Populated by provisionWorkspace
         abortController: new AbortController(),
         status: "open",
       };
-      trackedEntries.set(meetingId, entry);
+      registry.register(meetingId, entry);
 
       return { ok: true, entry };
     });
@@ -899,35 +756,62 @@ notes_summary: ""
       return;
     }
 
-    // e. Inject into the machine at "open" state (outside lock; the
-    // enter-open handler with sourceState=null handles git setup, artifact,
-    // transcript, and state file)
+    const { entry } = setup;
+
+    // Provision workspace, write artifact to activity worktree, set up transcript (outside lock)
+    const project = findProject(projectName);
+    if (!project) {
+      registry.deregister(entry.meetingId);
+      yield { type: "error", reason: `Project "${projectName}" not found` };
+      return;
+    }
+
     try {
-      await machine.inject(
-        setup.entry.meetingId,
-        setup.entry,
-        "open",
-        prompt,
-      );
+      // 1. Provision workspace (creates branch + worktree + sparse checkout)
+      await provisionWorkspace(entry, project.path);
+
+      // 2. Write artifact to activity worktree (for direct creation)
+      const workerPkg = getWorkerByName(deps.packages, workerName);
+      if (workerPkg) {
+        const wMeta = workerPkg.metadata as WorkerMetadata;
+        await writeMeetingArtifact(
+          entry.worktreeDir,
+          entry.meetingId,
+          wMeta.identity.displayTitle,
+          prompt,
+          wMeta.identity.name,
+          "open",
+        );
+      }
+
+      // 3. Set up transcript and state file
+      await setupTranscriptAndState(entry, prompt);
     } catch (err: unknown) {
-      trackedEntries.delete(setup.entry.meetingId);
+      await cleanupFailedEntry(entry, project.path);
       yield { type: "error", reason: errorMessage(err) };
       return;
     }
 
-    // f. Start the SDK session (outside lock, streaming can take arbitrarily long).
-    // The entry's worktreeDir and branchName were populated by the enter-open handler.
-    const entry = machine.get(setup.entry.meetingId);
-    if (entry) {
-      yield* startSession(entry, prompt);
-    }
+    // Emit event
+    eventBus.emit({
+      type: "meeting_started",
+      meetingId: entry.meetingId as string,
+      worker: entry.workerName,
+    });
+
+    console.log(
+      `[meeting] "${entry.meetingId as string}" open: branch="${entry.branchName}", worktree="${entry.worktreeDir}"`,
+    );
+
+    // Start the SDK session (outside lock, streaming can take arbitrarily long)
+    yield* startSession(entry, prompt);
   }
 
   async function* sendMessage(
     meetingId: MeetingId,
     message: string,
   ): AsyncGenerator<GuildHallEvent> {
-    const meeting = machine.get(meetingId);
+    const meeting = registry.get(meetingId);
     if (!meeting) {
       yield { type: "error", reason: `Meeting "${meetingId}" not found` };
       return;
@@ -937,7 +821,36 @@ notes_summary: ""
       return;
     }
     if (!meeting.sdkSessionId) {
-      yield { type: "error", reason: `Meeting "${meetingId}" has no SDK session to resume` };
+      // No SDK session (typically after daemon restart recovery). Start a
+      // fresh session with transcript context so the agent picks up where
+      // the conversation left off.
+      meeting.abortController = new AbortController();
+
+      try {
+        await appendUserTurn(meetingId, message, ghHome);
+      } catch (err: unknown) {
+        console.warn(
+          `[meeting] Transcript append failed for "${meetingId as string}" (non-fatal):`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+
+      let transcript = "";
+      try {
+        transcript = await readTranscript(meetingId, ghHome);
+      } catch (err: unknown) {
+        console.warn(
+          `[meeting] Transcript read failed for "${meetingId as string}", proceeding without context:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+
+      const truncatedTranscript = truncateTranscript(transcript);
+      const contextPrompt = truncatedTranscript
+        ? `Previous conversation context:\n${truncatedTranscript}`
+        : message;
+
+      yield* startSession(meeting, contextPrompt);
       return;
     }
 
@@ -947,8 +860,11 @@ notes_summary: ""
     // Record user turn in transcript before querying
     try {
       await appendUserTurn(meetingId, message, ghHome);
-    } catch {
-      // Transcript append failure is non-fatal
+    } catch (err: unknown) {
+      console.warn(
+        `[meeting] Transcript append failed for "${meetingId as string}" (non-fatal):`,
+        err instanceof Error ? err.message : String(err),
+      );
     }
 
     const oldSessionId = meeting.sdkSessionId;
@@ -986,8 +902,11 @@ notes_summary: ""
       // Normal path: update state file if session ID changed
       try {
         await writeStateFile(meetingId, serializeMeetingState(meeting));
-      } catch {
-        // Non-fatal
+      } catch (err: unknown) {
+        console.warn(
+          `[meeting] Failed to update state file for "${meetingId as string}" (non-fatal):`,
+          err instanceof Error ? err.message : String(err),
+        );
       }
       return;
     }
@@ -1000,8 +919,11 @@ notes_summary: ""
     let transcript = "";
     try {
       transcript = await readTranscript(meetingId, ghHome);
-    } catch {
-      // If transcript read fails, proceed without context
+    } catch (err: unknown) {
+      console.warn(
+        `[meeting] Transcript read failed for "${meetingId as string}" during renewal, proceeding without context:`,
+        err instanceof Error ? err.message : String(err),
+      );
     }
 
     const truncatedTranscript = truncateTranscript(transcript);
@@ -1027,17 +949,278 @@ notes_summary: ""
         "session_renewed",
         `SDK session expired. Old: ${oldSessionId}, New: ${String(meeting.sdkSessionId)}`,
       );
-    } catch {
-      // Meeting log append failure is non-fatal
+    } catch (err: unknown) {
+      console.warn(
+        `[meeting] Meeting log append failed for "${meetingId as string}" (non-fatal):`,
+        err instanceof Error ? err.message : String(err),
+      );
     }
+  }
+
+  /**
+   * Closes a meeting: aborts SDK, generates notes, writes artifact,
+   * finalizes workspace (squash-merge), handles escalation, cleans up.
+   *
+   * Returns the generated notes (or error reason if notes generation failed).
+   */
+  async function closeMeeting(meetingId: MeetingId): Promise<{ notes: string }> {
+    const meeting = registry.get(meetingId);
+    if (!meeting) {
+      throw new Error(`Meeting "${meetingId}" not found`);
+    }
+
+    // Acquire close guard to prevent concurrent closes
+    if (!registry.acquireClose(meetingId)) {
+      throw new Error(`Meeting "${meetingId as string}" is already being closed`);
+    }
+
+    try {
+      // 1. Abort any active SDK generation
+      meeting.abortController.abort();
+      meeting.status = "closed";
+
+      // 2. Generate notes from transcript
+      let notesResult: { success: true; notes: string } | { success: false; reason: string };
+      try {
+        notesResult = await generateMeetingNotes(
+          meetingId,
+          meeting.worktreeDir,
+          meeting.workerName,
+          { guildHallHome: ghHome, queryFn: deps.notesQueryFn },
+        );
+      } catch (err: unknown) {
+        const errMsg = errorMessage(err);
+        console.error(
+          `[meeting] Notes generation threw for "${meetingId as string}":`,
+          errMsg,
+        );
+        notesResult = { success: false, reason: `Notes generation failed: ${errMsg}` };
+      }
+
+      const notesText = notesResult.success ? notesResult.notes : notesResult.reason;
+
+      // 3. Write notes, update status, and append log in a single read-write cycle
+      try {
+        await closeArtifact(
+          meeting.worktreeDir, meetingId, notesText,
+          "closed", "closed", "User closed audience",
+        );
+      } catch (err: unknown) {
+        console.error(
+          `[meeting] Failed to update artifact for "${meetingId as string}":`,
+          errorMessage(err),
+        );
+      }
+
+      // 5. Finalize workspace (squash-merge into integration worktree)
+      let merged = false;
+      if (meeting.worktreeDir && meeting.branchName) {
+        const project = findProject(meeting.projectName);
+        if (project) {
+          const workspace = await getWorkspace();
+          const iPath = integrationWorktreePathFn(ghHome, meeting.projectName);
+          try {
+            const result = await workspace.finalize({
+              activityBranch: meeting.branchName,
+              worktreeDir: meeting.worktreeDir,
+              projectPath: project.path,
+              integrationPath: iPath,
+              activityId: meetingId as string,
+              commitMessage: `Meeting closed: ${meetingId as string}`,
+              commitLabel: "Meeting",
+              lockFn: (fn) => withProjectLock(meeting.projectName, fn),
+            });
+            merged = result.merged;
+          } catch (err: unknown) {
+            const errMsg = errorMessage(err);
+            console.error(
+              `[meeting] finalizeActivity threw for "${meetingId as string}":`,
+              errMsg,
+            );
+          }
+        } else {
+          console.warn(
+            `[meeting] "${meetingId as string}" closed but project "${meeting.projectName}" not found, skipping merge`,
+          );
+        }
+      } else {
+        console.warn(
+          `[meeting] "${meetingId as string}" closed but missing worktree/branch info, skipping merge`,
+        );
+      }
+
+      // 6. Handle merge result
+      if (merged) {
+        // Success: clean up state file
+        try {
+          await deleteStateFile(meetingId);
+        } catch (err: unknown) {
+          console.warn(
+            `[meeting] Failed to delete state file for "${meetingId as string}":`,
+            errorMessage(err),
+          );
+        }
+
+        // After merge, new artifacts may satisfy blocked commission dependencies
+        if (deps.commissionSession) {
+          try {
+            await deps.commissionSession.checkDependencyTransitions(meeting.projectName);
+          } catch (err: unknown) {
+            console.warn(
+              `[meeting] Dependency transition check failed after merge for "${meetingId as string}":`,
+              errorMessage(err),
+            );
+          }
+        }
+
+        console.log(
+          `[meeting] "${meetingId as string}" squash-merged to claude and cleaned up`,
+        );
+
+        // Only remove transcript if notes generated successfully
+        if (notesResult.success) {
+          try {
+            await removeTranscript(meetingId, ghHome);
+          } catch (err: unknown) {
+            console.debug(
+              `[meeting] Transcript removal skipped for "${meetingId as string}":`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        }
+      } else {
+        // Merge failed (non-.lore/ conflicts) or skipped. Escalate.
+        if (deps.createMeetingRequestFn && meeting.branchName) {
+          await escalateMergeConflict({
+            activityType: "meeting",
+            activityId: meetingId as string,
+            branchName: meeting.branchName,
+            projectName: meeting.projectName,
+            createMeetingRequest: deps.createMeetingRequestFn,
+            managerPackageName: MANAGER_PACKAGE_NAME,
+          });
+        }
+
+        console.log(
+          `[meeting] "${meetingId as string}" merge failed: non-.lore/ conflicts. Branch preserved.`,
+        );
+
+        // Remove transcript on successful notes even when merge fails
+        if (notesResult.success) {
+          try {
+            await removeTranscript(meetingId, ghHome);
+          } catch (err: unknown) {
+            console.debug(
+              `[meeting] Transcript removal skipped for "${meetingId as string}":`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        }
+      }
+
+      // Always emit event and delete state file (regardless of merge result)
+      eventBus.emit({ type: "meeting_ended", meetingId: meetingId as string });
+
+      // Delete state file for non-merged meetings too (they are terminal)
+      if (!merged) {
+        try {
+          await deleteStateFile(meetingId);
+        } catch (err: unknown) {
+          console.warn(
+            `[meeting] Failed to delete state file for "${meetingId as string}":`,
+            errorMessage(err),
+          );
+        }
+      }
+
+      // 7. Deregister from registry
+      registry.deregister(meetingId);
+
+      // 8. Return the notes generated in step 2. Using the in-memory value
+      // instead of re-reading from the integration worktree because the merge
+      // may have failed, leaving notes only on the activity branch.
+      return { notes: notesText || "Meeting closed." };
+    } catch (err: unknown) {
+      // If close fails for any reason, release the close guard so it can be retried
+      registry.releaseClose(meetingId);
+      throw err;
+    }
+  }
+
+  async function declineMeeting(
+    meetingId: MeetingId,
+    projectName: string,
+  ): Promise<void> {
+    const project = findProject(projectName);
+    if (!project) {
+      throw new Error(`Project "${projectName}" not found`);
+    }
+    // Meeting requests live on the integration worktree (claude branch),
+    // not in the user's working directory.
+    const iPath = integrationWorktreePathFn(ghHome, projectName);
+
+    const currentStatus = await readArtifactStatus(iPath, meetingId);
+    if (!currentStatus) {
+      throw new Error(`Could not read status for meeting "${meetingId}"`);
+    }
+    if (currentStatus !== "requested") {
+      throw new Error(
+        `Invalid meeting status transition: ${currentStatus} -> declined`,
+      );
+    }
+
+    // Update artifact status and log on integration worktree (no workspace needed)
+    await updateArtifactStatus(iPath, meetingId, "declined");
+    await appendMeetingLog(iPath, meetingId, "declined", "User declined meeting request");
+
+    // Emit event
+    eventBus.emit({
+      type: "meeting_ended",
+      meetingId: meetingId as string,
+    });
+
+    console.log(
+      `[meeting] "${meetingId as string}" declined: User declined meeting request`,
+    );
+  }
+
+  async function deferMeeting(
+    meetingId: MeetingId,
+    projectName: string,
+    deferredUntil: string,
+  ): Promise<void> {
+    const project = findProject(projectName);
+    if (!project) {
+      throw new Error(`Project "${projectName}" not found`);
+    }
+    // Meeting requests live on the integration worktree (claude branch),
+    // not in the user's working directory.
+    const iPath = integrationWorktreePathFn(ghHome, projectName);
+
+    const currentStatus = await readArtifactStatus(iPath, meetingId);
+    if (!currentStatus) {
+      throw new Error(`Could not read status for meeting "${meetingId}"`);
+    }
+    if (currentStatus !== "requested") {
+      throw new Error(`Cannot defer meeting with status "${currentStatus}": only requested meetings can be deferred`);
+    }
+
+    // Replace the deferred_until value in the artifact frontmatter
+    const artifactFilePath = meetingArtifactPath(iPath, meetingId);
+    const raw = await fs.readFile(artifactFilePath, "utf-8");
+    // Sanitize the value to strip newlines that could corrupt YAML frontmatter
+    const sanitized = deferredUntil.replace(/[\r\n]/g, "");
+    const updated = raw.replace(/^deferred_until: ".*"$/m, `deferred_until: "${sanitized}"`);
+    await fs.writeFile(artifactFilePath, updated, "utf-8");
+
+    await appendMeetingLog(iPath, meetingId, "deferred", `Deferred until ${deferredUntil}`);
   }
 
   /**
    * Recovers open meetings from persisted state files on daemon startup.
    * Scans ~/.guild-hall/state/meetings/ for .json files, reads each one,
-   * and adds open meetings with valid projects to the machine via
-   * registerActive (no enter handler re-run). Closed meetings and meetings
-   * for projects no longer in config are skipped.
+   * and adds open meetings with valid projects to the registry.
+   * Closed meetings and meetings for projects no longer in config are skipped.
    */
   async function recoverMeetings(): Promise<number> {
     const stateDir = path.join(ghHome, "state", "meetings");
@@ -1069,8 +1252,11 @@ notes_summary: ""
       try {
         const raw = await fs.readFile(path.join(stateDir, file), "utf-8");
         state = JSON.parse(raw) as typeof state;
-      } catch {
-        // Corrupt or unreadable state file, skip
+      } catch (err: unknown) {
+        console.warn(
+          `[recoverMeetings] Skipping unreadable state file "${file}":`,
+          err instanceof Error ? err.message : String(err),
+        );
         continue;
       }
 
@@ -1085,7 +1271,7 @@ notes_summary: ""
 
       // Don't re-add meetings already tracked (shouldn't happen on
       // fresh startup, but guard defensively)
-      if (machine.isTracked(meetingId)) continue;
+      if (registry.has(meetingId)) continue;
 
       // packageName may be absent in state files written before this field
       // was added. Fall back to workerName, which is the identity name. This
@@ -1105,116 +1291,49 @@ notes_summary: ""
         try {
           const iPath = integrationWorktreePathFn(ghHome, state.projectName);
           await updateArtifactStatus(iPath, meetingId, "closed");
-          await appendMeetingLog(iPath, meetingId, "closed", "Worktree lost during daemon restart");
-        } catch {
-          // Best-effort artifact update
+          await appendMeetingLog(iPath, meetingId, "closed", "Stale worktree detected on recovery");
+        } catch (err: unknown) {
+          console.warn(
+            `[recoverMeetings] Failed to update artifact for stale meeting "${meetingId as string}":`,
+            err instanceof Error ? err.message : String(err),
+          );
         }
+        eventBus.emit({ type: "meeting_ended", meetingId: meetingId as string });
         try {
-          await writeStateFile(meetingId, {
-            ...state,
-            status: "closed",
-          });
-        } catch {
-          // Best-effort state update
+          await deleteStateFile(meetingId);
+        } catch (err: unknown) {
+          console.warn(
+            `[recoverMeetings] Failed to delete state file for stale meeting "${meetingId as string}":`,
+            err instanceof Error ? err.message : String(err),
+          );
         }
         continue;
       }
 
+      // SDK session is lost on reboot. Set to null so sendMessage starts
+      // a fresh session with context injection instead of trying to resume
+      // a stale session ID.
       const entry: ActiveMeetingEntry = {
         meetingId,
         projectName: state.projectName,
         workerName: state.workerName,
         packageName,
-        sdkSessionId: state.sdkSessionId
-          ? asSdkSessionId(state.sdkSessionId)
-          : null,
+        sdkSessionId: null,
         worktreeDir,
         branchName,
         abortController: new AbortController(),
         status: "open",
       };
 
-      trackedEntries.set(meetingId, entry);
-      machine.registerActive(meetingId, entry, "open");
+      registry.register(meetingId, entry);
       recovered++;
     }
 
     return recovered;
   }
 
-  /**
-   * Closes a meeting by transitioning open -> closed through the machine.
-   * The enter-closed handler generates notes, writes them to the artifact,
-   * runs finalizeActivity, handles escalation on merge conflict, and cleans
-   * up the state file.
-   *
-   * Returns the generated notes (or error reason if notes generation failed).
-   */
-  async function closeMeeting(meetingId: MeetingId): Promise<{ notes: string }> {
-    const meeting = machine.get(meetingId);
-    if (!meeting) {
-      throw new Error(`Meeting "${meetingId}" not found`);
-    }
-
-    // The machine's exit-open handler aborts the SDK session, and the
-    // enter-closed handler handles notes, merge, escalation, state file
-    // cleanup, transcript removal, and event emission.
-    const result = await machine.transition(meetingId, "open", "closed", "User closed audience");
-    if (result.outcome === "skipped") {
-      throw new Error(`Could not close meeting "${meetingId as string}": ${result.reason}`);
-    }
-
-    // Clean up: the machine handles its own state tracker and active map,
-    // but trackedEntries is a parallel lookup that must be cleaned separately.
-    trackedEntries.delete(meetingId);
-    machine.forget(meetingId);
-
-    // The notes are generated inside the enter-closed handler. We need to
-    // return them to the caller. Read the artifact to extract notes_summary.
-    // After the transition, the worktree has been removed by finalizeActivity.
-    // Read unconditionally from the integration worktree where the squash-merge
-    // landed the artifact.
-    let notes = "Meeting closed.";
-    try {
-      const basePath = integrationWorktreePathFn(ghHome, meeting.projectName);
-      const artifactFilePath = meetingArtifactPath(basePath, meetingId);
-      const raw = await fs.readFile(artifactFilePath, "utf-8");
-      const parsed = matter(raw);
-      const data = parsed.data as Record<string, unknown>;
-      if (typeof data.notes_summary === "string" && data.notes_summary.trim()) {
-        notes = data.notes_summary.trim();
-      }
-    } catch (err: unknown) {
-      console.warn(
-        `[meeting] Failed to read notes from artifact for "${meetingId as string}":`,
-        err instanceof Error ? err.message : String(err),
-      );
-    }
-
-    return { notes };
-  }
-
-  /**
-   * Writes notes_summary to a meeting artifact. Replaces the empty
-   * `notes_summary: ""` placeholder with a YAML block scalar.
-   */
-  async function writeNotesToArtifact(
-    projectPath: string,
-    meetingId: MeetingId,
-    notes: string,
-  ): Promise<void> {
-    const artifactPath = meetingArtifactPath(projectPath, meetingId);
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    const replacement = formatNotesForYaml(notes);
-    const updated = raw.replace(/^notes_summary: ""$/m, replacement);
-    if (updated === raw) {
-      console.error(`[writeNotesToArtifact] notes_summary placeholder not found in artifact for meeting ${meetingId}`);
-    }
-    await fs.writeFile(artifactPath, updated, "utf-8");
-  }
-
   function interruptTurn(meetingId: MeetingId): void {
-    const meeting = machine.get(meetingId);
+    const meeting = registry.get(meetingId);
     if (!meeting) {
       throw new Error(`Meeting "${meetingId}" not found`);
     }
@@ -1222,18 +1341,18 @@ notes_summary: ""
   }
 
   function getActiveMeetings(): number {
-    return machine.activeCount;
+    return registry.size;
   }
 
   function getOpenMeetingsForProjectPublic(projectName: string): ActiveMeetingEntry[] {
-    return getOpenMeetingsForProject(projectName);
+    return registry.listForProject(projectName);
   }
 
   /**
    * Creates a meeting request artifact (status: "requested") on the integration
    * worktree without starting a session or creating a git branch/worktree.
    * Used by production wiring to surface merge conflicts as actionable Guild
-   * Master meeting requests. No machine involvement (request is artifact-only).
+   * Master meeting requests. No registry involvement (request is artifact-only).
    */
   async function createMeetingRequest(params: {
     projectName: string;

@@ -43,7 +43,7 @@ function writeMeetingArtifact(
     agenda: "Review the architecture",
     deferred_until: "",
     linked_artifacts: "[]",
-    notes_summary: "",
+    body: "",
   };
 
   const fields = { ...defaults, ...overrides };
@@ -58,9 +58,8 @@ workerDisplayTitle: "${fields.workerDisplayTitle}"
 agenda: "${fields.agenda}"
 deferred_until: "${fields.deferred_until}"
 linked_artifacts: ${fields.linked_artifacts}
-notes_summary: "${fields.notes_summary}"
 ---
-`;
+${fields.body}`;
 
   return fs.writeFile(path.join(meetingsDir, filename), content, "utf-8");
 }
@@ -92,7 +91,7 @@ describe("readMeetingMeta", () => {
     expect(meta.date).toBe("2026-02-21");
     expect(meta.deferred_until).toBe("");
     expect(meta.linked_artifacts).toEqual([]);
-    expect(meta.notes_summary).toBe("");
+    expect(meta.notes).toBe("");
   });
 
   test("extracts meetingId from filename", async () => {

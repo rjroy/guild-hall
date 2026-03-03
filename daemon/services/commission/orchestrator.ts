@@ -59,7 +59,7 @@ import {
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import type { EventBus } from "@/daemon/services/event-bus";
 import type { CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
-import { replaceYamlField } from "@/daemon/services/commission/record";
+import { replaceYamlField } from "@/daemon/lib/record-utils";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import type {
   WorkspaceOps,
@@ -72,6 +72,7 @@ import type {
   SessionSpec,
 } from "@/daemon/services/session-runner";
 import { isAtCapacity } from "@/daemon/services/commission-capacity";
+import { escalateMergeConflict } from "@/daemon/lib/escalation";
 
 // -- CommissionSessionForRoutes interface --
 
@@ -588,22 +589,14 @@ export function createCommissionOrchestrator(
         : "Squash-merge conflict on non-.lore/ files";
 
       if (deps.createMeetingRequestFn) {
-        const escalationReason =
-          `Commission ${ctx.commissionId as string} failed to merge: non-.lore/ conflicts detected. ` +
-          `Branch ${ctx.branchName} preserved. ` +
-          `Please resolve conflicts manually, then re-dispatch or clean up the branch.`;
-        try {
-          await deps.createMeetingRequestFn({
-            projectName: ctx.projectName,
-            workerName: managerPackageName,
-            reason: escalationReason,
-          });
-        } catch (err: unknown) {
-          console.error(
-            `[orchestrator] Failed to escalate merge conflict for "${ctx.commissionId as string}":`,
-            errorMessage(err),
-          );
-        }
+        await escalateMergeConflict({
+          activityType: "commission",
+          activityId: ctx.commissionId as string,
+          branchName: ctx.branchName,
+          projectName: ctx.projectName,
+          createMeetingRequest: deps.createMeetingRequestFn,
+          managerPackageName,
+        });
       }
 
       await failAndCleanup(ctx, conflictReason, { preserveWorktree: false });

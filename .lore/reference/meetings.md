@@ -123,13 +123,13 @@ State files at `~/.guild-hall/state/meetings/{meetingId}.json` track open meetin
 |------|------|
 | `daemon/routes/meetings.ts` | Thin route layer, validates input, streams SSE responses. Defines `MeetingSessionForRoutes` interface. |
 | `daemon/services/meeting-session.ts` | Orchestration core: CRUD, SDK session runner, session renewal, transcript context injection, crash recovery. Builds the ActivityMachine with meeting-specific handler deps. |
-| `daemon/services/meeting-handlers.ts` | State machine graph, enter/exit handler implementations. `createEnterOpen` (two paths: accept vs inject), `createEnterClosed` (notes, merge, escalation), `createEnterDeclined`, `createExitOpen` (abort SDK). |
-| `daemon/services/meeting-artifact-helpers.ts` | Read/write meeting artifact frontmatter: `updateArtifactStatus`, `appendMeetingLog`, `readLinkedArtifacts`, `addLinkedArtifact`, `readArtifactStatus`. Uses regex/string operations. |
+| `daemon/services/meeting/orchestrator.ts` | Meeting lifecycle flows: open, close, decline, defer. Sequential steps over injected dependencies. |
+| `daemon/services/meeting/record.ts` | Meeting artifact record operations: create, update status, append log, linked artifacts. |
+| `daemon/services/meeting/registry.ts` | Active meeting registry: lookup, counting, concurrent-close guard. |
 | `daemon/services/meeting-toolbox.ts` | Meeting-context MCP tools (see Workers/Toolbox feature). |
 | `daemon/services/transcript.ts` | Transcript CRUD: `createTranscript`, `appendUserTurn`, `appendAssistantTurn`, `readTranscript`, `removeTranscript`. |
 | `daemon/services/notes-generator.ts` | AI-generated meeting notes from transcript + artifact context. |
 | `daemon/services/query-runner.ts` | Shared SDK query execution and event translation. `runQueryAndTranslate` yields `GuildHallEvent` from `SDKMessage` stream. Handles session expiry detection. |
-| `daemon/lib/activity-state-machine.ts` | Generic ActivityMachine shared with commissions. |
 | `lib/meetings.ts` | Read-only scanning/parsing for Next.js: `MeetingMeta`, `scanMeetings`, `scanMeetingRequests`, `getActiveMeetingWorktrees`, `parseTranscriptToMessages`. |
 | `lib/paths.ts` | Path resolution (meeting worktree, branch names). |
 | `web/app/projects/[name]/meetings/[id]/page.tsx` | Server component: reads artifact, parses transcript for session resume, resolves linked artifact existence and hrefs. |

@@ -13,6 +13,7 @@
  */
 
 import * as fs from "node:fs/promises";
+import { replaceYamlField, appendLogEntry } from "@/daemon/lib/record-utils";
 import { escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 import { isNodeError } from "@/lib/types";
 
@@ -62,25 +63,6 @@ async function readArtifact(artifactPath: string, operation: string): Promise<st
 }
 
 /**
- * Replaces a top-level YAML frontmatter field that may span multiple lines.
- * Matches from "fieldName:" (with or without space after colon) through all
- * continuation lines (lines that don't start a new top-level key) up to the
- * next top-level field or closing ---. The replacement always normalizes to
- * "fieldName: newValue" (with space after colon).
- */
-export function replaceYamlField(raw: string, fieldName: string, newValue: string): string {
-  const pattern = new RegExp(
-    `^${fieldName}:[ ]?.*$(?:\\n(?![a-z_]|---).*)*`,
-    "m",
-  );
-  const replaced = raw.replace(pattern, `${fieldName}: ${newValue}`);
-  if (replaced === raw) {
-    throw new Error(`replaceYamlField: no "${fieldName}" field found in content`);
-  }
-  return replaced;
-}
-
-/**
  * Builds a YAML timeline entry string. Used by appendTimeline and
  * writeStatusAndTimeline to avoid duplicating the formatting logic.
  */
@@ -99,28 +81,6 @@ function buildTimelineEntry(
   }
 
   return entry;
-}
-
-/**
- * Inserts a timeline entry into raw content. Returns the updated content.
- * Throws if no insertion point is found.
- */
-function insertTimelineEntry(raw: string, entry: string, artifactPath: string): string {
-  // Insert before "current_progress:" line
-  const progressIndex = raw.indexOf("current_progress:");
-  if (progressIndex !== -1) {
-    return raw.slice(0, progressIndex) + entry + "\n" + raw.slice(progressIndex);
-  }
-
-  // Fallback: append before closing ---
-  const closingIndex = raw.lastIndexOf("\n---");
-  if (closingIndex !== -1) {
-    return raw.slice(0, closingIndex) + "\n" + entry + raw.slice(closingIndex);
-  }
-
-  throw new Error(
-    `appendTimeline: no "current_progress:" field or closing "---" delimiter found in ${artifactPath}`,
-  );
 }
 
 // -- Implementation --
@@ -153,7 +113,7 @@ function createRecordOps(): CommissionRecordOps {
     ): Promise<void> {
       const raw = await readArtifact(artifactPath, "appendTimeline");
       const entry = buildTimelineEntry(event, reason, extra);
-      const updated = insertTimelineEntry(raw, entry, artifactPath);
+      const updated = appendLogEntry(raw, entry, "current_progress");
       await fs.writeFile(artifactPath, updated, "utf-8");
     },
 
@@ -170,7 +130,7 @@ function createRecordOps(): CommissionRecordOps {
       }
       let updated = raw.replace(/^status: \S+$/m, `status: ${status}`);
       const entry = buildTimelineEntry(event, reason, extra);
-      updated = insertTimelineEntry(updated, entry, artifactPath);
+      updated = appendLogEntry(updated, entry, "current_progress");
       await fs.writeFile(artifactPath, updated, "utf-8");
     },
 

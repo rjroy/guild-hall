@@ -13,9 +13,9 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { readTranscript } from "@/daemon/services/transcript";
-import { readLinkedArtifacts } from "@/daemon/services/meeting-artifact-helpers";
+import { readLinkedArtifacts } from "@/daemon/services/meeting/record";
 import type { MeetingId } from "@/daemon/types";
-import type { QueryOptions } from "@/daemon/services/meeting-session";
+import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
 import { isNodeError } from "@/lib/types";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
@@ -114,29 +114,20 @@ export async function generateMeetingNotes(
     return { success: false, reason: "Notes generation not available." };
   }
 
-  // 1. Read transcript
-  const transcript = await readTranscript(meetingId, guildHallHome);
+  // Read transcript, decisions, and linked artifacts in parallel
+  const [transcript, decisions, linkedArtifacts] = await Promise.all([
+    readTranscript(meetingId, guildHallHome),
+    readDecisions(meetingId, guildHallHome),
+    readLinkedArtifacts(projectPath, meetingId as MeetingId).catch((err: unknown) => {
+      if (isNodeError(err) && err.code === "ENOENT") return [];
+      console.error(`[notes-generator] Failed to read linked artifacts for meeting ${meetingId}: ${errorMessage(err)}`);
+      return [];
+    }),
+  ]);
+
   const truncatedTranscript = transcript.length > MAX_TRANSCRIPT_CHARS
     ? transcript.slice(-MAX_TRANSCRIPT_CHARS)
     : transcript;
-
-  // 2. Read decisions
-  const decisions = await readDecisions(meetingId, guildHallHome);
-
-  // 3. Read linked artifacts
-  let linkedArtifacts: string[];
-  try {
-    const meetingIdBranded = meetingId as MeetingId;
-    linkedArtifacts = await readLinkedArtifacts(projectPath, meetingIdBranded);
-  } catch (err: unknown) {
-    if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "ENOENT") {
-      linkedArtifacts = [];
-    } else {
-      const reason = errorMessage(err);
-      console.error(`[notes-generator] Failed to read linked artifacts for meeting ${meetingId}: ${reason}`);
-      linkedArtifacts = [];
-    }
-  }
 
   const artifactsList = linkedArtifacts.length > 0
     ? linkedArtifacts.map((a) => `- ${a}`).join("\n")
@@ -182,16 +173,6 @@ Use plain text, no markdown headers. Be factual, not conversational.`;
     console.error(`[notes-generator] SDK invocation failed for meeting ${meetingId}: ${reason}`);
     return { success: false, reason: `Notes generation failed: ${reason}` };
   }
-}
-
-/**
- * Writes notes_summary to a meeting artifact using YAML block scalar format.
- * Replaces `notes_summary: ""` with a `|` block scalar containing the notes.
- */
-export function formatNotesForYaml(notes: string): string {
-  const lines = notes.split("\n");
-  const indented = lines.map((line) => `  ${line}`).join("\n");
-  return `notes_summary: |\n${indented}`;
 }
 
 // -- Utility --

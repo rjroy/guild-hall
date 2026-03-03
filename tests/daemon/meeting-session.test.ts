@@ -7,9 +7,10 @@ import {
   createMeetingSession,
   type MeetingSessionDeps,
   type QueryOptions,
-} from "@/daemon/services/meeting-session";
+} from "@/daemon/services/meeting/orchestrator";
 import type { GuildHallEvent, MeetingStatus } from "@/daemon/types";
-import { asMeetingId } from "@/daemon/types";
+import { asMeetingId, asSdkSessionId } from "@/daemon/types";
+import { MeetingRegistry } from "@/daemon/services/meeting/registry";
 import type {
   ActivationContext,
   ActivationResult,
@@ -1269,7 +1270,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: ${status === "requested" ? "requested" : "opened"}
     reason: "Test setup"
-notes_summary: ""
 ---
 `;
       await fs.writeFile(path.join(meetingsDir, `${meetingId}.md`), content, "utf-8");
@@ -1442,7 +1442,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: ${status === "requested" ? "requested" : "opened"}
     reason: "Test setup"
-notes_summary: ""
 ---
 `;
       await fs.writeFile(path.join(meetingsDir, `${meetingId}.md`), content, "utf-8");
@@ -1505,7 +1504,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: ${status === "requested" ? "requested" : "opened"}
     reason: "Test setup"
-notes_summary: ""
 ---
 `;
       await fs.writeFile(path.join(meetingsDir, `${meetingId}.md`), content, "utf-8");
@@ -1595,7 +1593,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: ${status === "requested" ? "requested" : "opened"}
     reason: "Test setup"
-notes_summary: ""
 ---
 `;
       await fs.writeFile(path.join(meetingsDir, `${meetingId}.md`), content, "utf-8");
@@ -1893,9 +1890,10 @@ notes_summary: ""
       const types = events.map((e) => e.type);
       expect(types).toEqual(["session", "text_delta", "turn_end"]);
 
-      // Verify the resume option used the persisted session ID
+      // SDK session is lost on reboot; recovered entries have null
+      // sdkSessionId, so sendMessage starts a fresh session (no resume).
       expect(mock.calls).toHaveLength(1);
-      expect(mock.calls[0].options.resume).toBe("sdk-session-to-resume");
+      expect(mock.calls[0].options.resume).toBeUndefined();
     });
 
     test("returns 0 when no state directory exists", async () => {
@@ -1927,14 +1925,12 @@ notes_summary: ""
       expect(recovered).toBe(0);
       expect(session.getActiveMeetings()).toBe(0);
 
-      // State file should show closed
+      // State file should be deleted (not left with "closed" status)
       const stateDir = path.join(ghHomeDir, "state", "meetings");
-      const stateContent = await fs.readFile(
+      const stateFileExists = await fs.access(
         path.join(stateDir, `${meetingId}.json`),
-        "utf-8",
-      );
-      const state = JSON.parse(stateContent);
-      expect(state.status).toBe("closed");
+      ).then(() => true).catch(() => false);
+      expect(stateFileExists).toBe(false);
     });
 
     test("recovers multiple open meetings, skipping closed ones", async () => {
@@ -2029,35 +2025,9 @@ notes_summary: ""
       const config = makeConfig();
       config.projects[0].path = projectDir;
 
-      // First: create a meeting with a normal queryFn for the initial session
-      const createMock = makeMockQueryFn();
-      const createSession = createMeetingSession({
-        packages: [WORKER_PKG],
-        config,
-        guildHallHome: ghHomeDir,
-        queryFn: createMock.queryFn,
-        activateFn: activateMock.activateFn,
-        gitOps: mockGit,
-      });
-
-      const createEvents = await collectEvents(
-        createSession.createMeeting("test-project", "test-assistant", "Hello"),
-      );
-
-      let meetingId = "";
-      const sessionEvent = createEvents.find((e) => e.type === "session");
-      if (sessionEvent?.type === "session") {
-        meetingId = sessionEvent.meetingId;
-      }
-      expect(meetingId).not.toBe("");
-
-      // Now create a session with the expiring queryFn and recover the meeting
-      const stateDir = path.join(ghHomeDir, "state", "meetings");
-      const stateContent = await fs.readFile(
-        path.join(stateDir, `${meetingId}.json`),
-        "utf-8",
-      );
-      const state = JSON.parse(stateContent);
+      const meetingId = "audience-Assistant-20260221-120000";
+      const worktreeDir = path.join(tmpRoot, "wt-renewal-expiry");
+      await fs.mkdir(worktreeDir, { recursive: true });
 
       // Write the transcript so renewal can inject context
       const meetingsTranscriptDir = path.join(ghHomeDir, "meetings");
@@ -2068,8 +2038,40 @@ notes_summary: ""
         "utf-8",
       );
 
-      // Create a fresh session that will use the expiring queryFn, manually
-      // adding the meeting to its map via recovery
+      // Register the meeting directly in a shared registry with a valid
+      // sdkSessionId so sendMessage takes the resume path (not the null
+      // sdkSessionId path). This tests the resume-then-expire flow.
+      const registry = new MeetingRegistry();
+      registry.register(asMeetingId(meetingId), {
+        meetingId: asMeetingId(meetingId),
+        projectName: "test-project",
+        workerName: "Assistant",
+        packageName: "test-assistant",
+        sdkSessionId: asSdkSessionId("sdk-session-123"),
+        worktreeDir,
+        branchName: "claude/meeting/" + meetingId,
+        abortController: new AbortController(),
+        status: "open",
+      });
+
+      // Write a state file so state updates succeed
+      const stateDir = path.join(ghHomeDir, "state", "meetings");
+      await fs.mkdir(stateDir, { recursive: true });
+      await fs.writeFile(
+        path.join(stateDir, `${meetingId}.json`),
+        JSON.stringify({
+          meetingId,
+          projectName: "test-project",
+          workerName: "Assistant",
+          packageName: "test-assistant",
+          sdkSessionId: "sdk-session-123",
+          worktreeDir,
+          branchName: "claude/meeting/" + meetingId,
+          status: "open",
+        }),
+        "utf-8",
+      );
+
       const renewalSession = createMeetingSession({
         packages: [WORKER_PKG],
         config,
@@ -2077,20 +2079,8 @@ notes_summary: ""
         queryFn: expiringMock.queryFn,
         activateFn: activateMock.activateFn,
         gitOps: mockGit,
+        registry,
       });
-
-      // Write a state file for recovery (worktreeDir from state already exists)
-      await fs.writeFile(
-        path.join(stateDir, `${meetingId}.json`),
-        JSON.stringify({
-          ...state,
-          packageName: "test-assistant",
-        }),
-        "utf-8",
-      );
-
-      const recovered = await renewalSession.recoverMeetings();
-      expect(recovered).toBe(1);
 
       // Send a message; this should trigger expiry then renewal
       const sendEvents = await collectEvents(
@@ -2125,10 +2115,26 @@ notes_summary: ""
       const config = makeConfig();
       config.projects[0].path = projectDir;
 
-      // Set up a meeting via state file recovery
       const meetingId = "audience-Assistant-20260221-110000";
       const worktreeDir = path.join(tmpRoot, "wt-renewal-log");
       await fs.mkdir(worktreeDir, { recursive: true });
+
+      // Register the meeting directly with a valid sdkSessionId so
+      // sendMessage takes the resume path (testing renewal, not recovery).
+      const registry = new MeetingRegistry();
+      registry.register(asMeetingId(meetingId), {
+        meetingId: asMeetingId(meetingId),
+        projectName: "test-project",
+        workerName: "Assistant",
+        packageName: "test-assistant",
+        sdkSessionId: asSdkSessionId("sdk-old-session-for-log"),
+        worktreeDir,
+        branchName: "claude/meeting/" + meetingId,
+        abortController: new AbortController(),
+        status: "open",
+      });
+
+      // Write state file so state updates succeed
       const stateDir = path.join(ghHomeDir, "state", "meetings");
       await fs.mkdir(stateDir, { recursive: true });
       await fs.writeFile(
@@ -2140,7 +2146,7 @@ notes_summary: ""
           packageName: "test-assistant",
           sdkSessionId: "sdk-old-session-for-log",
           worktreeDir,
-          branchName: "claude/meeting/audience-Assistant-20260221-110000",
+          branchName: "claude/meeting/" + meetingId,
           status: "open",
         }),
         "utf-8",
@@ -2166,7 +2172,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: opened
     reason: "User started audience"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2179,9 +2184,9 @@ notes_summary: ""
         queryFn: expiringMock.queryFn,
         activateFn: activateMock.activateFn,
         gitOps: mockGit,
+        registry,
       });
 
-      await session.recoverMeetings();
       await collectEvents(
         session.sendMessage(asMeetingId(meetingId), "Trigger renewal"),
       );
@@ -2224,6 +2229,21 @@ notes_summary: ""
         "utf-8",
       );
 
+      // Register meeting directly with a valid sdkSessionId to test
+      // the resume-then-expire renewal path.
+      const registry = new MeetingRegistry();
+      registry.register(asMeetingId(meetingId), {
+        meetingId: asMeetingId(meetingId),
+        projectName: "test-project",
+        workerName: "Assistant",
+        packageName: "test-assistant",
+        sdkSessionId: asSdkSessionId("sdk-before-renewal"),
+        worktreeDir,
+        branchName: "claude/meeting/" + meetingId,
+        abortController: new AbortController(),
+        status: "open",
+      });
+
       // Write meeting artifact to worktreeDir for appendMeetingLog
       const meetingsArtifactDir = path.join(worktreeDir, ".lore", "meetings");
       await fs.mkdir(meetingsArtifactDir, { recursive: true });
@@ -2244,7 +2264,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: opened
     reason: "User started audience"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2257,9 +2276,9 @@ notes_summary: ""
         queryFn: expiringMock.queryFn,
         activateFn: activateMock.activateFn,
         gitOps: mockGit,
+        registry,
       });
 
-      await session.recoverMeetings();
       await collectEvents(
         session.sendMessage(asMeetingId(meetingId), "Trigger renewal"),
       );
@@ -2315,11 +2334,26 @@ notes_summary: ""
           packageName: "test-assistant",
           sdkSessionId: "sdk-will-throw",
           worktreeDir,
-          branchName: "claude/meeting/audience-Assistant-20260221-110002",
+          branchName: "claude/meeting/" + meetingId,
           status: "open",
         }),
         "utf-8",
       );
+
+      // Register meeting directly with a valid sdkSessionId to test
+      // the resume-then-throw-then-renew path.
+      const registry = new MeetingRegistry();
+      registry.register(asMeetingId(meetingId), {
+        meetingId: asMeetingId(meetingId),
+        projectName: "test-project",
+        workerName: "Assistant",
+        packageName: "test-assistant",
+        sdkSessionId: asSdkSessionId("sdk-will-throw"),
+        worktreeDir,
+        branchName: "claude/meeting/" + meetingId,
+        abortController: new AbortController(),
+        status: "open",
+      });
 
       // Write meeting artifact to worktreeDir for appendMeetingLog
       const meetingsArtifactDir = path.join(worktreeDir, ".lore", "meetings");
@@ -2341,7 +2375,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: opened
     reason: "User started audience"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2354,9 +2387,8 @@ notes_summary: ""
         queryFn: throwingExpiryQuery,
         activateFn: activateMock.activateFn,
         gitOps: mockGit,
+        registry,
       });
-
-      await session.recoverMeetings();
 
       const events = await collectEvents(
         session.sendMessage(asMeetingId(meetingId), "After throw"),
@@ -2414,11 +2446,26 @@ notes_summary: ""
           packageName: "test-assistant",
           sdkSessionId: "sdk-regular-error",
           worktreeDir,
-          branchName: "claude/meeting/audience-Assistant-20260221-110003",
+          branchName: "claude/meeting/" + meetingId,
           status: "open",
         }),
         "utf-8",
       );
+
+      // Register meeting directly with a valid sdkSessionId so
+      // sendMessage takes the resume path.
+      const registry = new MeetingRegistry();
+      registry.register(asMeetingId(meetingId), {
+        meetingId: asMeetingId(meetingId),
+        projectName: "test-project",
+        workerName: "Assistant",
+        packageName: "test-assistant",
+        sdkSessionId: asSdkSessionId("sdk-regular-error"),
+        worktreeDir,
+        branchName: "claude/meeting/" + meetingId,
+        abortController: new AbortController(),
+        status: "open",
+      });
 
       const session = createMeetingSession({
         packages: [WORKER_PKG],
@@ -2427,9 +2474,8 @@ notes_summary: ""
         queryFn: regularErrorQuery,
         activateFn: activateMock.activateFn,
         gitOps: mockGit,
+        registry,
       });
-
-      await session.recoverMeetings();
 
       const events = await collectEvents(
         session.sendMessage(asMeetingId(meetingId), "Should fail"),
@@ -2669,7 +2715,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: requested
     reason: "Test setup"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2718,7 +2763,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: requested
     reason: "Test setup"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2770,7 +2814,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: requested
     reason: "Test setup"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2844,7 +2887,6 @@ meeting_log:
   - timestamp: ${now.toISOString()}
     event: opened
     reason: "Test setup"
-notes_summary: ""
 ---
 `,
         "utf-8",
@@ -2857,13 +2899,11 @@ notes_summary: ""
       expect(recovered).toBe(0);
       expect(session.getActiveMeetings()).toBe(0);
 
-      // State file should show closed
-      const stateContent = await fs.readFile(
+      // State file should be deleted
+      const stateFileExists = await fs.access(
         path.join(stateDir, `${meetingId}.json`),
-        "utf-8",
-      );
-      const state = JSON.parse(stateContent);
-      expect(state.status).toBe("closed");
+      ).then(() => true).catch(() => false);
+      expect(stateFileExists).toBe(false);
 
       // Integration worktree artifact should be updated to closed
       const artifactContent = await fs.readFile(
@@ -2871,7 +2911,7 @@ notes_summary: ""
         "utf-8",
       );
       expect(artifactContent).toContain("status: closed");
-      expect(artifactContent).toContain("Worktree lost during daemon restart");
+      expect(artifactContent).toContain("Stale worktree detected on recovery");
     });
   });
 });

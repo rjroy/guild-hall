@@ -23,7 +23,7 @@ import {
   meetingArtifactPath,
   appendMeetingLog,
   addLinkedArtifact,
-} from "@/daemon/services/meeting-artifact-helpers";
+} from "@/daemon/services/meeting/record";
 import { validateContainedPath, formatTimestamp, resolveWritePath } from "@/daemon/lib/toolbox-utils";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { ToolboxFactory } from "./toolbox-types";
@@ -124,7 +124,7 @@ export function makeProposeFollowupHandler(deps: MeetingToolboxDeps) {
     const reasonForLog = `Worker proposed follow-up from meeting ${deps.contextId}`;
 
     // Use the same template literal format as writeMeetingArtifact in
-    // meeting-session.ts, with status: requested.
+    // meeting/record.ts, with status: requested.
     const content = `---
 title: "Follow-up with ${deps.workerName}"
 date: ${dateStr}
@@ -139,7 +139,6 @@ meeting_log:
   - timestamp: ${isoStr}
     event: requested
     reason: "${reasonForLog.replace(/"/g, '\\"')}"
-notes_summary: ""
 ---
 `;
 

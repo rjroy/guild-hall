@@ -60,7 +60,7 @@ afterEach(async () => {
 
 /**
  * Writes a minimal meeting artifact for testing. Uses the same template
- * format as writeMeetingArtifact in meeting-session.ts.
+ * format as writeMeetingArtifact in meeting/record.ts.
  */
 async function writeMeetingArtifact(
   projPath: string,
@@ -95,7 +95,6 @@ meeting_log:
   - timestamp: 2026-02-21T10:00:00.000Z
     event: opened
     reason: "User started audience"
-notes_summary: ""
 ---
 `;
   await fs.writeFile(artifactPath, content, "utf-8");
