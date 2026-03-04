@@ -33,7 +33,7 @@ import { hasActiveActivities, syncProject } from "@/cli/rebase";
 import type { SyncResult } from "@/cli/rebase";
 import type { ProjectConfig } from "@/lib/types";
 import { integrationWorktreePath } from "@/lib/paths";
-import type { ToolboxFactory } from "./toolbox-types";
+import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 
 export interface ManagerToolboxDeps {
   projectName: string;

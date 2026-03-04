@@ -29,8 +29,8 @@ import { noopEventBus, type EventBus } from "@/daemon/services/event-bus";
 import {
   MANAGER_PACKAGE_NAME,
   activateWorker as activateWorkerShared,
-} from "@/daemon/services/manager-worker";
-import { buildManagerContext } from "@/daemon/services/manager-context";
+} from "@/daemon/services/manager/worker";
+import { buildManagerContext } from "@/daemon/services/manager/context";
 import {
   prepareSdkSession,
   runSdkSession,

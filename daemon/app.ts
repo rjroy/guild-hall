@@ -155,7 +155,7 @@ export async function createProductionApp(options?: {
   // Prepend the built-in Guild Master worker package to the packages list
   // so it appears in worker listings and can be selected for meetings.
   const { createManagerPackage } = await import(
-    "@/daemon/services/manager-worker"
+    "@/daemon/services/manager/worker"
   );
   const managerPkg = createManagerPackage();
   const allPackages = [managerPkg, ...discoveredPackages];
@@ -214,7 +214,7 @@ export async function createProductionApp(options?: {
   const { resolveToolSet } = await import("@/daemon/services/toolbox-resolver");
   const { loadMemories } = await import("@/daemon/services/memory-injector");
   const { activateWorker: activateWorkerFn } = await import(
-    "@/daemon/services/manager-worker"
+    "@/daemon/services/manager/worker"
   );
 
   const prepDeps = {

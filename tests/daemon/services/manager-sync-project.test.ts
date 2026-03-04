@@ -5,10 +5,10 @@ import * as os from "node:os";
 import type { CommissionId } from "@/daemon/types";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { GitOps } from "@/daemon/lib/git";
-import type { ManagerToolboxDeps } from "@/daemon/services/manager-toolbox";
+import type { ManagerToolboxDeps } from "@/daemon/services/manager/toolbox";
 import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
 import type { ProjectConfig } from "@/lib/types";
-import { makeSyncProjectHandler } from "@/daemon/services/manager-toolbox";
+import { makeSyncProjectHandler } from "@/daemon/services/manager/toolbox";
 import { clearProjectLocks } from "@/daemon/lib/project-lock";
 
 let tmpDir: string;

@@ -13,7 +13,7 @@ import {
   makeSubmitResultHandler,
   makeLogQuestionHandler,
   type CommissionToolCallbacks,
-} from "@/daemon/services/commission-toolbox";
+} from "@/daemon/services/commission/toolbox";
 import { parseActivityTimeline } from "@/lib/commissions";
 import { createEventBus } from "@/daemon/services/event-bus";
 import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";

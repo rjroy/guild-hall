@@ -22,7 +22,7 @@ import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
 import {
   buildManagerContext,
   type ManagerContextDeps,
-} from "@/daemon/services/manager-context";
+} from "@/daemon/services/manager/context";
 import { integrationWorktreePath, briefingCachePath } from "@/lib/paths";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";

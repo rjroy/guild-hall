@@ -9,9 +9,9 @@ import type {
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import type { EventBus } from "./event-bus";
 import { baseToolboxFactory } from "./base-toolbox";
-import { meetingToolboxFactory } from "./meeting-toolbox";
-import { commissionToolboxFactory } from "./commission-toolbox";
-import { managerToolboxFactory } from "./manager-toolbox";
+import { meetingToolboxFactory } from "./meeting/toolbox";
+import { commissionToolboxFactory } from "./commission/toolbox";
+import { managerToolboxFactory } from "./manager/toolbox";
 import type {
   GuildHallToolboxDeps,
   ToolboxFactory,

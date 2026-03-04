@@ -4,7 +4,7 @@ import { readConfig } from "@/lib/config";
 import { getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
-import type { PrMarker } from "@/daemon/services/manager-toolbox";
+import type { PrMarker } from "@/daemon/services/manager/toolbox";
 
 /**
  * Checks whether a project has active commissions or meetings by scanning

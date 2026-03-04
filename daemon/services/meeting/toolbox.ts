@@ -26,7 +26,7 @@ import {
 } from "@/daemon/services/meeting/record";
 import { validateContainedPath, formatTimestamp, resolveWritePath } from "@/daemon/lib/toolbox-utils";
 import { integrationWorktreePath } from "@/lib/paths";
-import type { ToolboxFactory } from "./toolbox-types";
+import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 
 export interface MeetingToolboxDeps {
   guildHallHome: string;
