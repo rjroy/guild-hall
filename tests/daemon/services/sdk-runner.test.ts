@@ -17,7 +17,7 @@ import {
   type SdkQueryOptions,
   type SessionPrepSpec,
   type SessionPrepDeps,
-} from "@/daemon/services/sdk-runner";
+} from "@/daemon/lib/agent-sdk/sdk-runner";
 
 // -- Test helpers --
 

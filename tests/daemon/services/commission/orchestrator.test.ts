@@ -30,7 +30,7 @@ import type { CommissionOrchestratorDeps } from "@/daemon/services/commission/or
 import { createCommissionLifecycle, type CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
 import { createCommissionRecordOps } from "@/daemon/services/commission/record";
 import type { WorkspaceOps, FinalizeResult } from "@/daemon/services/workspace";
-import type { SessionPrepDeps } from "@/daemon/services/sdk-runner";
+import type { SessionPrepDeps } from "@/daemon/lib/agent-sdk/sdk-runner";
 import type { EventBus, SystemEvent } from "@/daemon/lib/event-bus";
 import type { GitOps } from "@/daemon/lib/git";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";

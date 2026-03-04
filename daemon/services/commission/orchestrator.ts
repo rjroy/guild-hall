@@ -73,7 +73,7 @@ import {
   type SessionPrepDeps,
   type SdkRunnerOutcome,
   type SdkQueryOptions,
-} from "@/daemon/services/sdk-runner";
+} from "@/daemon/lib/agent-sdk/sdk-runner";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { isAtCapacity } from "@/daemon/services/commission/capacity";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";

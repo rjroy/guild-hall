@@ -18,7 +18,7 @@ import type {
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import { translateSdkMessage } from "@/daemon/services/event-translator";
+import { translateSdkMessage } from "@/daemon/lib/agent-sdk/event-translator";
 import { logSdkMessage } from "./sdk-logging";
 
 export type SdkRunnerEvent =

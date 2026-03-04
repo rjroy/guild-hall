@@ -38,7 +38,7 @@ import {
   type SessionPrepSpec,
   type SessionPrepDeps,
   type SdkQueryOptions,
-} from "@/daemon/services/sdk-runner";
+} from "@/daemon/lib/agent-sdk/sdk-runner";
 import type { GuildHallEvent, MeetingId, MeetingStatus, SdkSessionId } from "@/daemon/types";
 import { asMeetingId, asSdkSessionId } from "@/daemon/types";
 import {
@@ -89,7 +89,7 @@ const DEFAULT_MEETING_CAP = 5;
 // reaching into sdk-runner. Remove once those modules migrate (Task 008).
 
 export type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
-export type { SdkQueryOptions as QueryOptions } from "@/daemon/services/sdk-runner";
+export type { SdkQueryOptions as QueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
 
 // -- Dependency types --
 
