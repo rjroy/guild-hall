@@ -26,7 +26,7 @@ import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import { createCommissionRecordOps } from "@/daemon/services/commission/record";
 import { resolveWritePath, errorMessage } from "@/daemon/lib/toolbox-utils";
 import { commissionArtifactPath } from "@/lib/paths";
-import type { GuildHallToolboxDeps, ToolboxFactory } from "./toolbox-types";
+import type { GuildHallToolboxDeps, ToolboxFactory } from "@/daemon/services/toolbox-types";
 
 /**
  * Callbacks invoked by commission tools to notify the caller of

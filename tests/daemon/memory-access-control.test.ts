@@ -8,7 +8,7 @@ import {
   createBaseToolbox,
 } from "@/daemon/services/base-toolbox";
 import type { GuildHallToolboxDeps } from "@/daemon/services/toolbox-types";
-import { noopEventBus } from "@/daemon/services/event-bus";
+import { noopEventBus } from "@/daemon/lib/event-bus";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import type { WorkerMetadata } from "@/lib/types";
 

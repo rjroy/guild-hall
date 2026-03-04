@@ -4,7 +4,7 @@ import {
   createCommissionLifecycle,
 } from "@/daemon/services/commission/lifecycle";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
-import type { SystemEvent } from "@/daemon/services/event-bus";
+import type { SystemEvent } from "@/daemon/lib/event-bus";
 import { asCommissionId } from "@/daemon/types";
 
 // -- Test helpers --

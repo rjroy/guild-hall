@@ -16,7 +16,7 @@ import type { MeetingMeta } from "@/lib/meetings";
 import {
   MANAGER_PACKAGE_NAME,
   MANAGER_WORKER_NAME,
-} from "@/daemon/services/manager-worker";
+} from "@/daemon/services/manager/worker";
 import { isNodeError } from "@/lib/types";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { loadMemories } from "@/daemon/services/memory-injector";

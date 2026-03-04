@@ -15,7 +15,7 @@
  */
 
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { SdkRunnerEvent } from "@/daemon/services/sdk-runner";
+import type { SdkRunnerEvent } from "@/daemon/lib/agent-sdk/sdk-runner";
 
 // -- Local type projections for SDK message shapes --
 //

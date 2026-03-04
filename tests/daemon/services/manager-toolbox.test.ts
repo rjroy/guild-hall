@@ -5,8 +5,8 @@ import * as os from "node:os";
 import type { CommissionId } from "@/daemon/types";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { GitOps } from "@/daemon/lib/git";
-import type { ManagerToolboxDeps } from "@/daemon/services/manager-toolbox";
-import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
+import type { ManagerToolboxDeps } from "@/daemon/services/manager/toolbox";
+import type { EventBus, SystemEvent } from "@/daemon/lib/event-bus";
 import {
   makeCreateCommissionHandler,
   makeDispatchCommissionHandler,
@@ -15,7 +15,7 @@ import {
   makeInitiateMeetingHandler,
   makeAddCommissionNoteHandler,
   createManagerToolbox,
-} from "@/daemon/services/manager-toolbox";
+} from "@/daemon/services/manager/toolbox";
 
 let tmpDir: string;
 let guildHallHome: string;

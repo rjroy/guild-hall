@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import type { EventBus } from "@/daemon/services/event-bus";
+import type { EventBus } from "@/daemon/lib/event-bus";
 
 export interface EventRoutesDeps {
   eventBus: EventBus;

@@ -13,7 +13,7 @@ import { createBriefingRoutes } from "./routes/briefing";
 import type { DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
-import type { EventBus } from "@/daemon/services/event-bus";
+import type { EventBus } from "@/daemon/lib/event-bus";
 import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 
@@ -102,7 +102,7 @@ export async function createProductionApp(options?: {
     "@/daemon/services/memory-compaction"
   );
 
-  const { createEventBus } = await import("@/daemon/services/event-bus");
+  const { createEventBus } = await import("@/daemon/lib/event-bus");
 
   const config = await readConfig();
   const guildHallHome = getGuildHallHome();
@@ -155,7 +155,7 @@ export async function createProductionApp(options?: {
   // Prepend the built-in Guild Master worker package to the packages list
   // so it appears in worker listings and can be selected for meetings.
   const { createManagerPackage } = await import(
-    "@/daemon/services/manager-worker"
+    "@/daemon/services/manager/worker"
   );
   const managerPkg = createManagerPackage();
   const allPackages = [managerPkg, ...discoveredPackages];
@@ -214,7 +214,7 @@ export async function createProductionApp(options?: {
   const { resolveToolSet } = await import("@/daemon/services/toolbox-resolver");
   const { loadMemories } = await import("@/daemon/services/memory-injector");
   const { activateWorker: activateWorkerFn } = await import(
-    "@/daemon/services/manager-worker"
+    "@/daemon/services/manager/worker"
   );
 
   const prepDeps = {

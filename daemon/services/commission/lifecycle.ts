@@ -23,7 +23,7 @@
 
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import type { CommissionId, CommissionStatus } from "@/daemon/types";
-import type { SystemEvent } from "@/daemon/services/event-bus";
+import type { SystemEvent } from "@/daemon/lib/event-bus";
 
 // -- Result type --
 

@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { createApp } from "@/daemon/app";
-import { createEventBus, type SystemEvent } from "@/daemon/services/event-bus";
+import { createEventBus, type SystemEvent } from "@/daemon/lib/event-bus";
 
 function makeTestApp() {
   const eventBus = createEventBus();

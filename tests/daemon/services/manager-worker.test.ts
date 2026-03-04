@@ -4,7 +4,7 @@ import {
   MANAGER_PACKAGE_NAME,
   createManagerPackage,
   activateManager,
-} from "@/daemon/services/manager-worker";
+} from "@/daemon/services/manager/worker";
 import { workerMetadataSchema } from "@/lib/packages";
 import type {
   ActivationContext,

@@ -12,7 +12,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { readTranscript } from "@/daemon/services/transcript";
+import { readTranscript } from "@/daemon/services/meeting/transcript";
 import { readLinkedArtifacts } from "@/daemon/services/meeting/record";
 import type { MeetingId } from "@/daemon/types";
 import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";

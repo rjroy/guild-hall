@@ -7,7 +7,7 @@ import type {
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
-import { noopEventBus } from "@/daemon/services/event-bus";
+import { noopEventBus } from "@/daemon/lib/event-bus";
 import {
   runSdkSession,
   drainSdkSession,
@@ -17,7 +17,7 @@ import {
   type SdkQueryOptions,
   type SessionPrepSpec,
   type SessionPrepDeps,
-} from "@/daemon/services/sdk-runner";
+} from "@/daemon/lib/agent-sdk/sdk-runner";
 
 // -- Test helpers --
 

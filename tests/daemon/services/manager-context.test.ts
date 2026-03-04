@@ -5,8 +5,8 @@ import * as os from "node:os";
 import {
   buildManagerContext,
   type ManagerContextDeps,
-} from "@/daemon/services/manager-context";
-import { MANAGER_PACKAGE_NAME } from "@/daemon/services/manager-worker";
+} from "@/daemon/services/manager/context";
+import { MANAGER_PACKAGE_NAME } from "@/daemon/services/manager/worker";
 import type { DiscoveredPackage, WorkerMetadata } from "@/lib/types";
 import type { CommissionMeta } from "@/lib/commissions";
 import type { MeetingMeta } from "@/lib/meetings";
@@ -523,7 +523,7 @@ describe("buildManagerContext - meeting session integration", () => {
     // to activateManager via activationContext.managerContext, and it appears
     // in the system prompt. We test this end-to-end without the meeting session
     // machinery by calling buildManagerContext and then activateManager directly.
-    const { activateManager } = await import("@/daemon/services/manager-worker");
+    const { activateManager } = await import("@/daemon/services/manager/worker");
 
     const context = await buildManagerContext(makeDeps({
       scanCommissionsFn: async () => [

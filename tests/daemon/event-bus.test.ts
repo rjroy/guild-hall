@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { createEventBus, type SystemEvent } from "@/daemon/services/event-bus";
+import { createEventBus, type SystemEvent } from "@/daemon/lib/event-bus";
 
 describe("createEventBus", () => {
   test("subscriber receives emitted events", () => {

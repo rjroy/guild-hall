@@ -6,7 +6,7 @@ import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   generateMeetingNotes,
   type NotesResult,
-} from "@/daemon/services/notes-generator";
+} from "@/daemon/services/meeting/notes-generator";
 import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
 import type { GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";

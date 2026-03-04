@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { translateSdkMessage } from "@/daemon/services/event-translator";
+import { translateSdkMessage } from "@/daemon/lib/agent-sdk/event-translator";
 import type { GuildHallEvent, MeetingId, SdkSessionId } from "@/daemon/types";
 import { asMeetingId, asSdkSessionId } from "@/daemon/types";
 

@@ -6,7 +6,7 @@ import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { GitOps } from "@/daemon/lib/git";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
-import { createEventBus } from "@/daemon/services/event-bus";
+import { createEventBus } from "@/daemon/lib/event-bus";
 import type {
   WorkerMetadata,
   DiscoveredPackage,

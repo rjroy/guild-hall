@@ -1,7 +1,8 @@
 ---
 title: Show full file content in artifact editor
 date: 2026-02-27
-status: draft
+updated: 2026-03-03
+status: approved
 tags: [bug-fix, ui, artifacts, editor, frontmatter]
 modules: [artifact-content, api-artifacts, artifacts-lib]
 related: [.lore/issues/artifact-editor-frontmatter.md]
@@ -17,24 +18,24 @@ The artifact editor at `/projects/[name]/artifacts/[...path]` should display and
 
 **Current data flow (read path):**
 
-1. `readArtifact()` in `lib/artifacts.ts:131-160` reads the file, parses with `gray-matter`, returns `content` (body only) and `meta` (parsed frontmatter). The raw file string is available as a local variable but discarded.
-2. The artifact page (`app/projects/[name]/artifacts/[...path]/page.tsx:29`) calls `readArtifact()`, passes `artifact.content` as the `body` prop to `ArtifactContent`.
-3. `ArtifactContent.tsx:17-125` shows `body` in both view mode (ReactMarkdown) and edit mode (textarea). For frontmatter-only files, `body` is empty or whitespace.
+1. `readArtifact()` in `lib/artifacts.ts:131` reads the file, parses with `gray-matter`, returns `content` (body only) and `meta` (parsed frontmatter). The raw file string is available as a local variable but discarded.
+2. The artifact page (`web/app/projects/[name]/artifacts/[...path]/page.tsx:67`) calls `readArtifact()`, passes `artifact.content` as the `body` prop to `ArtifactContent`.
+3. `web/components/artifact/ArtifactContent.tsx:9` shows `body` in both view mode (ReactMarkdown) and edit mode (textarea). For frontmatter-only files, `body` is empty or whitespace.
 
 **Current data flow (write path):**
 
-1. `ArtifactContent.tsx:46-53` POSTs `{ projectName, artifactPath, content: editContent }` to `PUT /api/artifacts`. `editContent` is the body-only text.
-2. `PUT /api/artifacts` (`app/api/artifacts/route.ts:8-77`) calls `writeArtifactContent()`.
-3. `writeArtifactContent()` in `lib/artifacts.ts:170-180` uses `spliceBody()` to find the frontmatter delimiters in the existing file and replace only the body portion, preserving raw frontmatter bytes.
+1. `ArtifactContent.tsx` POSTs `{ projectName, artifactPath, content: editContent }` to `PUT /api/artifacts`. `editContent` is the body-only text.
+2. `PUT /api/artifacts` (`web/app/api/artifacts/route.ts`) calls `writeArtifactContent()`.
+3. `writeArtifactContent()` in `lib/artifacts.ts:170` uses `spliceBody()` to find the frontmatter delimiters in the existing file and replace only the body portion, preserving raw frontmatter bytes.
 
 **Key types:**
 
 | Location | Type | Relevant fields |
 |----------|------|-----------------|
-| `lib/types.ts:31-37` | `Artifact` | `content: string` (body only), `meta: ArtifactMeta` |
-| `components/artifact/ArtifactContent.tsx:9-15` | `ArtifactContentProps` | `body: string` (body only) |
+| `lib/types.ts:31` | `Artifact` | `content: string` (body only), `meta: ArtifactMeta` |
+| `web/components/artifact/ArtifactContent.tsx:9` | `ArtifactContentProps` | `body: string` (body only) |
 
-**Consumers of `readArtifact`:** The artifact page and the meeting page. The meeting page (`app/projects/[name]/meetings/[id]/page.tsx:86`) reads `meta` fields from the artifact but does not use `content` for editing. Changes to `readArtifact` won't affect it.
+**Consumers of `readArtifact`:** The artifact page and the meeting page. The meeting page reads `meta` fields from the artifact but does not use `content` for editing. Changes to `readArtifact` won't affect it.
 
 **Consumers of `writeArtifactContent`:** Only `PUT /api/artifacts`. Only consumer of `PUT /api/artifacts` is `ArtifactContent.tsx`. Single consumer chain, safe to change behavior.
 
@@ -63,18 +64,7 @@ export interface Artifact {
 
 **File:** `lib/artifacts.ts`
 
-`readArtifact()` already reads the raw file into a local `raw` variable (line 138). Add `rawContent: raw` to the returned object. No second file read needed.
-
-```typescript
-return {
-  meta,
-  filePath,
-  relativePath,
-  content,
-  rawContent: raw,
-  lastModified: stat.mtime,
-};
-```
+`readArtifact()` already reads the raw file into a local variable. Add `rawContent: raw` to the returned object. No second file read needed.
 
 ### Step 3: Add `writeRawArtifactContent` function
 
@@ -97,23 +87,17 @@ This is the simplest possible write function. Path validation guards against tra
 
 ### Step 4: Update the API route to write raw content
 
-**File:** `app/api/artifacts/route.ts`
+**File:** `web/app/api/artifacts/route.ts`
 
 Replace the call to `writeArtifactContent` with `writeRawArtifactContent`. The `content` field in the request body now carries the full raw file text instead of just the body.
-
-```typescript
-import { writeRawArtifactContent } from "@/lib/artifacts";
-// ...
-await writeRawArtifactContent(lorePath, artifactPath, content);
-```
 
 No changes to the request schema (`{ projectName, artifactPath, content }`). The field name stays `content` but its semantics change from "body only" to "full raw file." Since the only consumer (`ArtifactContent.tsx`) changes in step 5 to send raw content, this is safe.
 
 ### Step 5: Update `ArtifactContent` to show full raw content
 
-**File:** `components/artifact/ArtifactContent.tsx`
+**File:** `web/components/artifact/ArtifactContent.tsx`
 
-This is the core UI change. Two new props, behavior changes in both modes.
+This is the core UI change. One new prop, behavior changes in both modes.
 
 **Props change:**
 
@@ -145,7 +129,7 @@ The `handleSave` function already sends `editContent` as `content`. Since `editC
 
 ### Step 6: Update the artifact page to pass `rawContent`
 
-**File:** `app/projects/[name]/artifacts/[...path]/page.tsx`
+**File:** `web/app/projects/[name]/artifacts/[...path]/page.tsx`
 
 Pass the new prop from the `readArtifact` result.
 

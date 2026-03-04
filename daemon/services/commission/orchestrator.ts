@@ -57,7 +57,7 @@ import {
   escapeYamlValue,
 } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
-import type { EventBus } from "@/daemon/services/event-bus";
+import type { EventBus } from "@/daemon/lib/event-bus";
 import type { CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
 import { replaceYamlField } from "@/daemon/lib/record-utils";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
@@ -73,9 +73,9 @@ import {
   type SessionPrepDeps,
   type SdkRunnerOutcome,
   type SdkQueryOptions,
-} from "@/daemon/services/sdk-runner";
+} from "@/daemon/lib/agent-sdk/sdk-runner";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { isAtCapacity } from "@/daemon/services/commission-capacity";
+import { isAtCapacity } from "@/daemon/services/commission/capacity";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
 
 // -- CommissionSessionForRoutes interface --

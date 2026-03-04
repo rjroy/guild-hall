@@ -25,12 +25,12 @@ import type {
 import { getWorkerByName } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
-import { noopEventBus, type EventBus } from "@/daemon/services/event-bus";
+import { noopEventBus, type EventBus } from "@/daemon/lib/event-bus";
 import {
   MANAGER_PACKAGE_NAME,
   activateWorker as activateWorkerShared,
-} from "@/daemon/services/manager-worker";
-import { buildManagerContext } from "@/daemon/services/manager-context";
+} from "@/daemon/services/manager/worker";
+import { buildManagerContext } from "@/daemon/services/manager/context";
 import {
   prepareSdkSession,
   runSdkSession,
@@ -38,7 +38,7 @@ import {
   type SessionPrepSpec,
   type SessionPrepDeps,
   type SdkQueryOptions,
-} from "@/daemon/services/sdk-runner";
+} from "@/daemon/lib/agent-sdk/sdk-runner";
 import type { GuildHallEvent, MeetingId, MeetingStatus, SdkSessionId } from "@/daemon/types";
 import { asMeetingId, asSdkSessionId } from "@/daemon/types";
 import {
@@ -49,7 +49,7 @@ import {
   truncateTranscript,
   appendAssistantTurnSafe,
   type ToolUseEntry,
-} from "@/daemon/services/transcript";
+} from "@/daemon/services/meeting/transcript";
 import {
   getGuildHallHome,
   meetingWorktreePath as meetingWorktreePathFn,
@@ -71,7 +71,7 @@ import {
 } from "@/daemon/services/meeting/record";
 import {
   generateMeetingNotes,
-} from "@/daemon/services/notes-generator";
+} from "@/daemon/services/meeting/notes-generator";
 import { isNodeError } from "@/lib/types";
 import { loadMemories } from "@/daemon/services/memory-injector";
 import { triggerCompaction } from "@/daemon/services/memory-compaction";
@@ -89,7 +89,7 @@ const DEFAULT_MEETING_CAP = 5;
 // reaching into sdk-runner. Remove once those modules migrate (Task 008).
 
 export type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
-export type { SdkQueryOptions as QueryOptions } from "@/daemon/services/sdk-runner";
+export type { SdkQueryOptions as QueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
 
 // -- Dependency types --
 

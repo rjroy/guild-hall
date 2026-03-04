@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { isAtCapacity } from "@/daemon/services/commission-capacity";
+import { isAtCapacity } from "@/daemon/services/commission/capacity";
 import type { AppConfig } from "@/lib/types";
 
 function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {

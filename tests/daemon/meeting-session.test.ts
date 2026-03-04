@@ -2920,7 +2920,7 @@ meeting_log:
 import {
   MANAGER_PACKAGE_NAME,
   createManagerPackage,
-} from "@/daemon/services/manager-worker";
+} from "@/daemon/services/manager/worker";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 
 /* eslint-disable @typescript-eslint/require-await */

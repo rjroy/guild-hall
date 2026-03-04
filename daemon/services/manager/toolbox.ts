@@ -26,14 +26,14 @@ import { asCommissionId } from "@/daemon/types";
 import type { ToolResult } from "@/daemon/types";
 import { formatTimestamp, escapeYamlValue, errorMessage } from "@/daemon/lib/toolbox-utils";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
-import type { EventBus } from "@/daemon/services/event-bus";
+import type { EventBus } from "@/daemon/lib/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import { hasActiveActivities, syncProject } from "@/cli/rebase";
 import type { SyncResult } from "@/cli/rebase";
 import type { ProjectConfig } from "@/lib/types";
 import { integrationWorktreePath } from "@/lib/paths";
-import type { ToolboxFactory } from "./toolbox-types";
+import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 
 export interface ManagerToolboxDeps {
   projectName: string;

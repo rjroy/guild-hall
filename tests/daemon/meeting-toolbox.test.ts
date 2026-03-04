@@ -2,12 +2,12 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
-import type { MeetingToolboxDeps } from "@/daemon/services/meeting-toolbox";
+import type { MeetingToolboxDeps } from "@/daemon/services/meeting/toolbox";
 import {
   makeLinkArtifactHandler,
   makeProposeFollowupHandler,
   makeSummarizeProgressHandler,
-} from "@/daemon/services/meeting-toolbox";
+} from "@/daemon/services/meeting/toolbox";
 import { meetingWorktreePath, integrationWorktreePath } from "@/lib/paths";
 
 let tmpDir: string;
