@@ -2,7 +2,7 @@
 title: "Plan: Abandoned commission state"
 date: 2026-02-27
 updated: 2026-03-03
-status: draft
+status: approved
 tags: [commissions, lifecycle, abandoned, terminal-state]
 modules: [commission/lifecycle, commission/orchestrator, commission-routes, manager-toolbox, commission-actions]
 related: [.lore/specs/guild-hall-commissions.md]
