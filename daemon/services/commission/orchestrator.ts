@@ -75,7 +75,7 @@ import {
   type SdkQueryOptions,
 } from "@/daemon/services/sdk-runner";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { isAtCapacity } from "@/daemon/services/commission-capacity";
+import { isAtCapacity } from "@/daemon/services/commission/capacity";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
 
 // -- CommissionSessionForRoutes interface --
