@@ -25,7 +25,7 @@ import type {
 import { getWorkerByName } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
-import { noopEventBus, type EventBus } from "@/daemon/services/event-bus";
+import { noopEventBus, type EventBus } from "@/daemon/lib/event-bus";
 import {
   MANAGER_PACKAGE_NAME,
   activateWorker as activateWorkerShared,

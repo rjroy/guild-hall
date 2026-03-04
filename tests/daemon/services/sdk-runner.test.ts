@@ -7,7 +7,7 @@ import type {
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
-import { noopEventBus } from "@/daemon/services/event-bus";
+import { noopEventBus } from "@/daemon/lib/event-bus";
 import {
   runSdkSession,
   drainSdkSession,

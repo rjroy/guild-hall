@@ -10,7 +10,7 @@
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type { AppConfig } from "@/lib/types";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
-import type { EventBus } from "./event-bus";
+import type { EventBus } from "@/daemon/lib/event-bus";
 
 export interface GuildHallToolboxDeps {
   guildHallHome: string;

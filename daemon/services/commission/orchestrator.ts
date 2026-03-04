@@ -57,7 +57,7 @@ import {
   escapeYamlValue,
 } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
-import type { EventBus } from "@/daemon/services/event-bus";
+import type { EventBus } from "@/daemon/lib/event-bus";
 import type { CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
 import { replaceYamlField } from "@/daemon/lib/record-utils";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";

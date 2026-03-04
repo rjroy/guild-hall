@@ -15,8 +15,8 @@ import {
   type CommissionToolCallbacks,
 } from "@/daemon/services/commission/toolbox";
 import { parseActivityTimeline } from "@/lib/commissions";
-import { createEventBus } from "@/daemon/services/event-bus";
-import type { EventBus, SystemEvent } from "@/daemon/services/event-bus";
+import { createEventBus } from "@/daemon/lib/event-bus";
+import type { EventBus, SystemEvent } from "@/daemon/lib/event-bus";
 import { commissionWorktreePath } from "@/lib/paths";
 
 let tmpDir: string;
