@@ -49,7 +49,7 @@ import {
   truncateTranscript,
   appendAssistantTurnSafe,
   type ToolUseEntry,
-} from "@/daemon/services/transcript";
+} from "@/daemon/services/meeting/transcript";
 import {
   getGuildHallHome,
   meetingWorktreePath as meetingWorktreePathFn,
@@ -71,7 +71,7 @@ import {
 } from "@/daemon/services/meeting/record";
 import {
   generateMeetingNotes,
-} from "@/daemon/services/notes-generator";
+} from "@/daemon/services/meeting/notes-generator";
 import { isNodeError } from "@/lib/types";
 import { loadMemories } from "@/daemon/services/memory-injector";
 import { triggerCompaction } from "@/daemon/services/memory-compaction";

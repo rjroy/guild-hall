@@ -12,7 +12,7 @@ import {
   removeTranscript,
   transcriptPath,
   type ToolUseEntry,
-} from "@/daemon/services/transcript";
+} from "@/daemon/services/meeting/transcript";
 
 // -- Test state --
 

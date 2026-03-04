@@ -8,7 +8,7 @@ import {
   createTranscript,
   readTranscript,
   TRANSCRIPT_MAX_CHARS,
-} from "@/daemon/services/transcript";
+} from "@/daemon/services/meeting/transcript";
 
 // -- truncateTranscript --
 
