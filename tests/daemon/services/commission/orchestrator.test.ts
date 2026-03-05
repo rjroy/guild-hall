@@ -1790,3 +1790,92 @@ describe("cancel during workspace preparation (Fix 15)", () => {
     orchestrator.shutdown();
   });
 });
+
+// -- Regression: no infinite event loop --
+
+describe("commission_progress does not cause infinite event loop", () => {
+  test("toolbox-emitted progress event is not re-emitted by lifecycle", async () => {
+    const commissionId = asCommissionId("commission-loop-progress-001");
+    const eventBus = createTestEventBus();
+    const mockQueryFn = createMockQueryFn({
+      eventBus,
+      commissionId: commissionId as string,
+      resolveAfterMs: -1,
+    });
+    const workspace = createMockWorkspace();
+    const { orchestrator, lifecycle } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+    });
+
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+    await orchestrator.dispatchCommission(commissionId);
+
+    // Wait for session to start
+    await new Promise<void>((r) => setTimeout(r, 50));
+    expect(lifecycle.getStatus(commissionId)).toBe("in_progress");
+
+    // Record event count before emitting progress
+    const countBefore = eventBus.events.length;
+
+    // Simulate what the toolbox does: emit commission_progress to EventBus.
+    // Before the fix, lifecycle.progressReported() would re-emit the same
+    // event, causing an infinite synchronous recursion (stack overflow).
+    eventBus.emit({
+      type: "commission_progress",
+      commissionId: commissionId as string,
+      summary: "Step 1 complete",
+    });
+
+    // Exactly one new event should exist (the one we just emitted).
+    // Before the fix, this would be infinite (stack overflow).
+    const progressEvents = eventBus.events
+      .slice(countBefore)
+      .filter((e) => e.type === "commission_progress");
+    expect(progressEvents).toHaveLength(1);
+
+    // Clean up
+    mockQueryFn.resolve({ aborted: true });
+    await new Promise<void>((r) => setTimeout(r, 50));
+    orchestrator.shutdown();
+  });
+
+  test("toolbox-emitted question event is not re-emitted by lifecycle", async () => {
+    const commissionId = asCommissionId("commission-loop-question-001");
+    const eventBus = createTestEventBus();
+    const mockQueryFn = createMockQueryFn({
+      eventBus,
+      commissionId: commissionId as string,
+      resolveAfterMs: -1,
+    });
+    const workspace = createMockWorkspace();
+    const { orchestrator, lifecycle } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+    });
+
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+    await orchestrator.dispatchCommission(commissionId);
+    await new Promise<void>((r) => setTimeout(r, 50));
+    expect(lifecycle.getStatus(commissionId)).toBe("in_progress");
+
+    const countBefore = eventBus.events.length;
+
+    eventBus.emit({
+      type: "commission_question",
+      commissionId: commissionId as string,
+      question: "Which approach?",
+    });
+
+    const questionEvents = eventBus.events
+      .slice(countBefore)
+      .filter((e) => e.type === "commission_question");
+    expect(questionEvents).toHaveLength(1);
+
+    mockQueryFn.resolve({ aborted: true });
+    await new Promise<void>((r) => setTimeout(r, 50));
+    orchestrator.shutdown();
+  });
+});

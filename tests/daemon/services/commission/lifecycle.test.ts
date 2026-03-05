@@ -411,44 +411,27 @@ describe("event emission", () => {
     expect(emittedEvents).toHaveLength(0);
   });
 
-  test("progressReported emits commission_progress event", async () => {
+  test("progressReported does not re-emit (toolbox already emitted)", async () => {
     lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
     await lifecycle.progressReported(TEST_ID, "50% done");
 
-    expect(emittedEvents).toHaveLength(1);
-    const event = emittedEvents[0];
-    expect(event.type).toBe("commission_progress");
-    if (event.type === "commission_progress") {
-      expect(event.commissionId).toBe(TEST_ID);
-      expect(event.summary).toBe("50% done");
-    }
+    // The toolbox emits commission_progress to the EventBus before calling
+    // lifecycle. Re-emitting here would cause an infinite loop.
+    expect(emittedEvents).toHaveLength(0);
   });
 
-  test("resultSubmitted emits commission_result event", async () => {
+  test("resultSubmitted does not re-emit (toolbox already emitted)", async () => {
     lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
     await lifecycle.resultSubmitted(TEST_ID, "All done", ["file.md"]);
 
-    expect(emittedEvents).toHaveLength(1);
-    const event = emittedEvents[0];
-    expect(event.type).toBe("commission_result");
-    if (event.type === "commission_result") {
-      expect(event.commissionId).toBe(TEST_ID);
-      expect(event.summary).toBe("All done");
-      expect(event.artifacts).toEqual(["file.md"]);
-    }
+    expect(emittedEvents).toHaveLength(0);
   });
 
-  test("questionLogged emits commission_question event", async () => {
+  test("questionLogged does not re-emit (toolbox already emitted)", async () => {
     lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
     await lifecycle.questionLogged(TEST_ID, "Which approach?");
 
-    expect(emittedEvents).toHaveLength(1);
-    const event = emittedEvents[0];
-    expect(event.type).toBe("commission_question");
-    if (event.type === "commission_question") {
-      expect(event.commissionId).toBe(TEST_ID);
-      expect(event.question).toBe("Which approach?");
-    }
+    expect(emittedEvents).toHaveLength(0);
   });
 });
 
@@ -724,12 +707,11 @@ describe("full lifecycle", () => {
 
     expect(lifecycle.getStatus(TEST_ID)).toBe("completed");
 
-    // Events: dispatch, in_progress, result, completed
-    expect(emittedEvents).toHaveLength(4);
+    // Events: dispatch, in_progress, completed (result no longer re-emitted by lifecycle)
+    expect(emittedEvents).toHaveLength(3);
     expect(emittedEvents[0].type).toBe("commission_status");
     expect(emittedEvents[1].type).toBe("commission_status");
-    expect(emittedEvents[2].type).toBe("commission_result");
-    expect(emittedEvents[3].type).toBe("commission_status");
+    expect(emittedEvents[2].type).toBe("commission_status");
   });
 
   test("pending -> dispatched -> failed -> pending -> dispatched (redispatch)", async () => {
