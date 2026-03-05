@@ -208,6 +208,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       worktreeDir: meeting.worktreeDir,
       branchName: meeting.branchName,
       status,
+      scope: meeting.scope,
     };
   }
 
@@ -262,6 +263,17 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       return workerPkg.metadata.checkoutScope;
     }
     return "full";
+  }
+
+  /**
+   * Resolves the meeting scope from a worker package's metadata.
+   * Called once at meeting creation time; the result is stored on the entry.
+   */
+  function resolveMeetingScope(workerPkg: DiscoveredPackage): "project" | "activity" {
+    if ("meetingScope" in workerPkg.metadata) {
+      return workerPkg.metadata.meetingScope ?? "activity";
+    }
+    return "activity";
   }
 
   // -- Open flow: shared between acceptMeetingRequest and createMeeting --
@@ -324,7 +336,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
    */
   async function cleanupFailedEntry(entry: ActiveMeetingEntry, projectPath: string): Promise<void> {
     registry.deregister(entry.meetingId);
-    if (entry.worktreeDir) {
+    if (entry.worktreeDir && entry.scope === "activity") {
       try {
         const workspace = await getWorkspace();
         await workspace.removeWorktree(entry.worktreeDir, projectPath);
@@ -335,6 +347,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         );
       }
     }
+    // Project scope: deregister only. The integration worktree is never removed.
   }
 
   // -- SDK session preparation --
@@ -650,7 +663,10 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         prompt += `\n\n${message}`;
       }
 
-      // h. Create the entry and register with the registry. Registration
+      // h. Resolve scope from worker metadata
+      const scope = resolveMeetingScope(workerPkg);
+
+      // i. Create the entry and register with the registry. Registration
       // under lock ensures cap enforcement is atomic.
       const entry: ActiveMeetingEntry = {
         meetingId,
@@ -658,10 +674,11 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         workerName,
         packageName: workerPkg.name,
         sdkSessionId: null,
-        worktreeDir: "", // Populated by provisionWorkspace
-        branchName: "",  // Populated by provisionWorkspace
+        worktreeDir: "", // Populated by provisionWorkspace (activity) or set to integration path (project)
+        branchName: "",  // Populated by provisionWorkspace (activity) or stays empty (project)
         abortController: new AbortController(),
         status: "requested",
+        scope,
       };
       registry.register(meetingId, entry);
 
@@ -687,14 +704,25 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     }
 
     try {
-      // 1. Provision workspace (creates branch + worktree + sparse checkout)
-      await provisionWorkspace(entry, project.path);
+      if (entry.scope === "project") {
+        // Project scope: no workspace provisioning. Use the integration worktree directly.
+        entry.worktreeDir = integrationWorktreePathFn(ghHome, projectName);
+        entry.branchName = "";
+        entry.status = "open";
 
-      // 2. Update artifact: status to "open" + log entry (on the activity worktree)
-      await updateArtifactStatus(entry.worktreeDir, meetingId, "open");
-      await appendMeetingLog(entry.worktreeDir, meetingId, "opened", "User accepted meeting request");
+        // Update artifact status on integration worktree (artifact already exists there)
+        await updateArtifactStatus(entry.worktreeDir, meetingId, "open");
+        await appendMeetingLog(entry.worktreeDir, meetingId, "opened", "User accepted meeting request");
+      } else {
+        // Activity scope: existing path (creates branch + worktree + sparse checkout)
+        await provisionWorkspace(entry, project.path);
 
-      // 3. Set up transcript and state file
+        // Update artifact: status to "open" + log entry (on the activity worktree)
+        await updateArtifactStatus(entry.worktreeDir, meetingId, "open");
+        await appendMeetingLog(entry.worktreeDir, meetingId, "opened", "User accepted meeting request");
+      }
+
+      // Set up transcript and state file (both scopes)
       await setupTranscriptAndState(entry, prompt);
     } catch (err: unknown) {
       await cleanupFailedEntry(entry, project.path);
@@ -783,17 +811,21 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         return { ok: false, errors };
       }
 
-      // e. Create the entry and register with the registry.
+      // e. Resolve scope from worker metadata
+      const scope = resolveMeetingScope(workerPkg);
+
+      // f. Create the entry and register with the registry.
       const entry: ActiveMeetingEntry = {
         meetingId,
         projectName,
         workerName: workerMeta.identity.name,
         packageName: workerName,
         sdkSessionId: null,
-        worktreeDir: "", // Populated by provisionWorkspace
-        branchName: "",  // Populated by provisionWorkspace
+        worktreeDir: "", // Populated by provisionWorkspace (activity) or set to integration path (project)
+        branchName: "",  // Populated by provisionWorkspace (activity) or stays empty (project)
         abortController: new AbortController(),
         status: "open",
+        scope,
       };
       registry.register(meetingId, entry);
 
@@ -819,24 +851,32 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     }
 
     try {
-      // 1. Provision workspace (creates branch + worktree + sparse checkout)
-      await provisionWorkspace(entry, project.path);
+      if (entry.scope === "project") {
+        // Project scope: no workspace provisioning. Use the integration worktree directly.
+        // The artifact was already written to the integration worktree inside the lock (step d).
+        // No second write needed (REQ-PSM-4).
+        entry.worktreeDir = integrationWorktreePathFn(ghHome, projectName);
+        entry.branchName = "";
+      } else {
+        // Activity scope: existing path (creates branch + worktree + sparse checkout)
+        await provisionWorkspace(entry, project.path);
 
-      // 2. Write artifact to activity worktree (for direct creation)
-      const workerPkg = getWorkerByName(deps.packages, workerName);
-      if (workerPkg) {
-        const wMeta = workerPkg.metadata as WorkerMetadata;
-        await writeMeetingArtifact(
-          entry.worktreeDir,
-          entry.meetingId,
-          wMeta.identity.displayTitle,
-          prompt,
-          wMeta.identity.name,
-          "open",
-        );
+        // Write artifact to activity worktree (for direct creation)
+        const workerPkg = getWorkerByName(deps.packages, workerName);
+        if (workerPkg) {
+          const wMeta = workerPkg.metadata as WorkerMetadata;
+          await writeMeetingArtifact(
+            entry.worktreeDir,
+            entry.meetingId,
+            wMeta.identity.displayTitle,
+            prompt,
+            wMeta.identity.name,
+            "open",
+          );
+        }
       }
 
-      // 3. Set up transcript and state file
+      // Set up transcript and state file (both scopes)
       await setupTranscriptAndState(entry, prompt);
     } catch (err: unknown) {
       await cleanupFailedEntry(entry, project.path);
@@ -1056,9 +1096,42 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         );
       }
 
-      // 5. Finalize workspace (squash-merge into integration worktree)
-      let merged = false;
-      if (meeting.worktreeDir && meeting.branchName) {
+      // 5. Scope-aware finalization
+      if (meeting.scope === "project") {
+        // Project scope: commit artifact changes directly to integration worktree
+        // under the project lock. No squash-merge, no worktree removal.
+        try {
+          await withProjectLock(meeting.projectName, async () => {
+            await git.commitAll(
+              meeting.worktreeDir,
+              `Meeting closed: ${meetingId as string}`,
+            );
+          });
+        } catch (err: unknown) {
+          console.error(
+            `[meeting] Direct commit failed for project-scoped meeting "${meetingId as string}":`,
+            errorMessage(err),
+          );
+        }
+
+        // Check dependency transitions (new artifacts may unblock commissions)
+        if (deps.commissionSession) {
+          try {
+            await deps.commissionSession.checkDependencyTransitions(meeting.projectName);
+          } catch (err: unknown) {
+            console.warn(
+              `[meeting] Dependency transition check failed after close for "${meetingId as string}":`,
+              errorMessage(err),
+            );
+          }
+        }
+
+        console.log(
+          `[meeting] "${meetingId as string}" project-scoped meeting closed and committed`,
+        );
+      } else if (meeting.worktreeDir && meeting.branchName) {
+        // Activity scope: existing workspace.finalize() path (squash-merge)
+        let merged = false;
         const project = findProject(meeting.projectName);
         if (project) {
           const workspace = await getWorkspace();
@@ -1087,102 +1160,73 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
             `[meeting] "${meetingId as string}" closed but project "${meeting.projectName}" not found, skipping merge`,
           );
         }
+
+        if (merged) {
+          // After merge, new artifacts may satisfy blocked commission dependencies
+          if (deps.commissionSession) {
+            try {
+              await deps.commissionSession.checkDependencyTransitions(meeting.projectName);
+            } catch (err: unknown) {
+              console.warn(
+                `[meeting] Dependency transition check failed after merge for "${meetingId as string}":`,
+                errorMessage(err),
+              );
+            }
+          }
+
+          console.log(
+            `[meeting] "${meetingId as string}" squash-merged to claude and cleaned up`,
+          );
+        } else {
+          // Merge failed (non-.lore/ conflicts) or skipped. Escalate.
+          if (deps.createMeetingRequestFn && meeting.branchName) {
+            await escalateMergeConflict({
+              activityType: "meeting",
+              activityId: meetingId as string,
+              branchName: meeting.branchName,
+              projectName: meeting.projectName,
+              createMeetingRequest: deps.createMeetingRequestFn,
+              managerPackageName: MANAGER_PACKAGE_NAME,
+            });
+          }
+
+          console.log(
+            `[meeting] "${meetingId as string}" merge failed: non-.lore/ conflicts. Branch preserved.`,
+          );
+        }
       } else {
         console.warn(
           `[meeting] "${meetingId as string}" closed but missing worktree/branch info, skipping merge`,
         );
       }
 
-      // 6. Handle merge result
-      if (merged) {
-        // Success: clean up state file
+      // 6. Post-finalization cleanup (all scopes)
+      // Remove transcript if notes generated successfully
+      if (notesResult.success) {
         try {
-          await deleteStateFile(meetingId);
+          await removeTranscript(meetingId, ghHome);
         } catch (err: unknown) {
-          console.warn(
-            `[meeting] Failed to delete state file for "${meetingId as string}":`,
-            errorMessage(err),
+          console.debug(
+            `[meeting] Transcript removal skipped for "${meetingId as string}":`,
+            err instanceof Error ? err.message : String(err),
           );
-        }
-
-        // After merge, new artifacts may satisfy blocked commission dependencies
-        if (deps.commissionSession) {
-          try {
-            await deps.commissionSession.checkDependencyTransitions(meeting.projectName);
-          } catch (err: unknown) {
-            console.warn(
-              `[meeting] Dependency transition check failed after merge for "${meetingId as string}":`,
-              errorMessage(err),
-            );
-          }
-        }
-
-        console.log(
-          `[meeting] "${meetingId as string}" squash-merged to claude and cleaned up`,
-        );
-
-        // Only remove transcript if notes generated successfully
-        if (notesResult.success) {
-          try {
-            await removeTranscript(meetingId, ghHome);
-          } catch (err: unknown) {
-            console.debug(
-              `[meeting] Transcript removal skipped for "${meetingId as string}":`,
-              err instanceof Error ? err.message : String(err),
-            );
-          }
-        }
-      } else {
-        // Merge failed (non-.lore/ conflicts) or skipped. Escalate.
-        if (deps.createMeetingRequestFn && meeting.branchName) {
-          await escalateMergeConflict({
-            activityType: "meeting",
-            activityId: meetingId as string,
-            branchName: meeting.branchName,
-            projectName: meeting.projectName,
-            createMeetingRequest: deps.createMeetingRequestFn,
-            managerPackageName: MANAGER_PACKAGE_NAME,
-          });
-        }
-
-        console.log(
-          `[meeting] "${meetingId as string}" merge failed: non-.lore/ conflicts. Branch preserved.`,
-        );
-
-        // Remove transcript on successful notes even when merge fails
-        if (notesResult.success) {
-          try {
-            await removeTranscript(meetingId, ghHome);
-          } catch (err: unknown) {
-            console.debug(
-              `[meeting] Transcript removal skipped for "${meetingId as string}":`,
-              err instanceof Error ? err.message : String(err),
-            );
-          }
         }
       }
 
-      // Always emit event and delete state file (regardless of merge result)
+      // Delete state file, emit event, deregister (all scopes)
+      try {
+        await deleteStateFile(meetingId);
+      } catch (err: unknown) {
+        console.warn(
+          `[meeting] Failed to delete state file for "${meetingId as string}":`,
+          errorMessage(err),
+        );
+      }
+
       eventBus.emit({ type: "meeting_ended", meetingId: meetingId as string });
-
-      // Delete state file for non-merged meetings too (they are terminal)
-      if (!merged) {
-        try {
-          await deleteStateFile(meetingId);
-        } catch (err: unknown) {
-          console.warn(
-            `[meeting] Failed to delete state file for "${meetingId as string}":`,
-            errorMessage(err),
-          );
-        }
-      }
-
-      // 7. Deregister from registry
       registry.deregister(meetingId);
 
-      // 8. Return the notes generated in step 2. Using the in-memory value
-      // instead of re-reading from the integration worktree because the merge
-      // may have failed, leaving notes only on the activity branch.
+      // Return the notes generated in step 2
       return { notes: notesText || "Meeting closed." };
     } catch (err: unknown) {
       // If close fails for any reason, release the close guard so it can be retried
@@ -1291,6 +1335,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         worktreeDir: string;
         branchName?: string;
         status: string;
+        scope?: string;
       };
 
       try {
@@ -1324,34 +1369,38 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       const packageName = state.packageName ?? state.workerName;
       const branchName = typeof state.branchName === "string" ? state.branchName : "";
 
-      // With git integration, worktrees are not temp dirs. If the worktree
-      // is gone (reboot, manual cleanup), close the meeting rather than
-      // recreating a temp dir that won't have the git state.
+      // Resolve scope from state file. Absent means "activity" (backward compatible).
+      const scope: "project" | "activity" = state.scope === "project" ? "project" : "activity";
+
+      // Activity-scoped: check worktree existence. If gone, close the meeting.
+      // Project-scoped: skip the check (integration worktree is always present).
       const worktreeDir = state.worktreeDir;
-      try {
-        await fs.access(worktreeDir);
-      } catch {
-        console.warn(`[recoverMeetings] Worktree missing for meeting ${meetingId}, closing`);
+      if (scope === "activity") {
         try {
-          const iPath = integrationWorktreePathFn(ghHome, state.projectName);
-          await updateArtifactStatus(iPath, meetingId, "closed");
-          await appendMeetingLog(iPath, meetingId, "closed", "Stale worktree detected on recovery");
-        } catch (err: unknown) {
-          console.warn(
-            `[recoverMeetings] Failed to update artifact for stale meeting "${meetingId as string}":`,
-            err instanceof Error ? err.message : String(err),
-          );
+          await fs.access(worktreeDir);
+        } catch {
+          console.warn(`[recoverMeetings] Worktree missing for meeting ${meetingId}, closing`);
+          try {
+            const iPath = integrationWorktreePathFn(ghHome, state.projectName);
+            await updateArtifactStatus(iPath, meetingId, "closed");
+            await appendMeetingLog(iPath, meetingId, "closed", "Stale worktree detected on recovery");
+          } catch (err: unknown) {
+            console.warn(
+              `[recoverMeetings] Failed to update artifact for stale meeting "${meetingId as string}":`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+          eventBus.emit({ type: "meeting_ended", meetingId: meetingId as string });
+          try {
+            await deleteStateFile(meetingId);
+          } catch (err: unknown) {
+            console.warn(
+              `[recoverMeetings] Failed to delete state file for stale meeting "${meetingId as string}":`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+          continue;
         }
-        eventBus.emit({ type: "meeting_ended", meetingId: meetingId as string });
-        try {
-          await deleteStateFile(meetingId);
-        } catch (err: unknown) {
-          console.warn(
-            `[recoverMeetings] Failed to delete state file for stale meeting "${meetingId as string}":`,
-            err instanceof Error ? err.message : String(err),
-          );
-        }
-        continue;
       }
 
       // SDK session is lost on reboot. Set to null so sendMessage starts
@@ -1367,6 +1416,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         branchName,
         abortController: new AbortController(),
         status: "open",
+        scope,
       };
 
       registry.register(meetingId, entry);

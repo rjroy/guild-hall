@@ -2051,6 +2051,7 @@ meeting_log:
         branchName: "claude/meeting/" + meetingId,
         abortController: new AbortController(),
         status: "open",
+        scope: "activity",
       });
 
       // Write a state file so state updates succeed
@@ -2131,6 +2132,7 @@ meeting_log:
         branchName: "claude/meeting/" + meetingId,
         abortController: new AbortController(),
         status: "open",
+        scope: "activity",
       });
 
       // Write state file so state updates succeed
@@ -2241,6 +2243,7 @@ meeting_log:
         branchName: "claude/meeting/" + meetingId,
         abortController: new AbortController(),
         status: "open",
+        scope: "activity",
       });
 
       // Write meeting artifact to worktreeDir for appendMeetingLog
@@ -2352,6 +2355,7 @@ meeting_log:
         branchName: "claude/meeting/" + meetingId,
         abortController: new AbortController(),
         status: "open",
+        scope: "activity",
       });
 
       // Write meeting artifact to worktreeDir for appendMeetingLog
@@ -2464,6 +2468,7 @@ meeting_log:
         branchName: "claude/meeting/" + meetingId,
         abortController: new AbortController(),
         status: "open",
+        scope: "activity",
       });
 
       const session = createMeetingSession({

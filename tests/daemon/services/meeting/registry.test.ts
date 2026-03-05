@@ -15,6 +15,7 @@ function makeEntry(overrides: Partial<ActiveMeetingEntry> = {}): ActiveMeetingEn
     branchName: "meeting/mtg-default",
     abortController: new AbortController(),
     status: "open",
+    scope: "activity",
     ...overrides,
   };
 }

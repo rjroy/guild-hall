@@ -22,6 +22,8 @@ export type ActiveMeetingEntry = {
   branchName: string;
   abortController: AbortController;
   status: MeetingStatus;
+  /** Git isolation model. "project" operates in the integration worktree; "activity" (default) gets its own branch/worktree. */
+  scope: "project" | "activity";
 };
 
 export class MeetingRegistry {

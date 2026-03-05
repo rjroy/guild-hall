@@ -1,7 +1,7 @@
 ---
 title: Organize modules by capability, not by consumer
 date: 2026-02-28
-status: open
+status: closed
 tags: [architecture, refactor, separation-of-concerns, toolbox]
 modules: [daemon-services, manager-toolbox, commission-session]
 ---
@@ -31,3 +31,9 @@ Continue the refactoring trajectory already underway (unified `GuildHallToolboxD
 4. **Surface decisions are wrappers, not implementations.** A capability module exports functions. A toolbox wraps those as agent tools. A route handler wraps those as API endpoints. The capability doesn't know or care which surface uses it.
 
 This is not a rewrite. It's naming the pattern that recent refactoring is already moving toward, so future work follows the same direction intentionally.
+
+## Resolution
+
+The commission layer was fully refactored into a 5-layer architecture under `daemon/services/commission/` (PR #59, commit `b7845f6`). The layers (capacity, lifecycle, orchestrator, record, toolbox) decompose the former monolithic `commission_session.ts` along capability boundaries, which was the primary pain point motivating this issue. That file no longer exists.
+
+The broader principle, organizing modules by capability rather than by consumer, remains a sound architectural direction for future work. The CLAUDE.md "Five Concerns" section now codifies these boundaries (Session, Activity, Artifact, Toolbox, Worker) as a standing design constraint. Future capability additions should follow the same pattern: write the capability, then decide which surfaces expose it.

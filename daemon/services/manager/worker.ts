@@ -47,6 +47,7 @@ export function createManagerPackage(): DiscoveredPackage {
     domainToolboxes: [],
     builtInTools: ["Read", "Glob", "Grep"],
     checkoutScope: "full",
+    meetingScope: "project",
     resourceDefaults: {
       maxTurns: 200,
     },
