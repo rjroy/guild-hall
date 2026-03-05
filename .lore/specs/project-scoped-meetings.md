@@ -1,7 +1,7 @@
 ---
 title: Project-Scoped Meetings
 date: 2026-03-03
-status: draft
+status: approved
 tags: [architecture, meetings, git, integration-worktree, guild-master]
 modules: [meeting-session, meeting-handlers, workspace, meeting-toolbox]
 related:

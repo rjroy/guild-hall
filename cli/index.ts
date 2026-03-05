@@ -2,6 +2,7 @@
 import { register } from "./register";
 import { rebase, sync } from "./rebase";
 import { validate } from "./validate";
+import { migrateContentToBody } from "./migrate-content-to-body";
 
 const USAGE = `Guild Hall CLI
 
@@ -10,6 +11,8 @@ Commands:
   rebase [name]           Rebase claude branch onto master
   sync [name]             Fetch + smart sync (detects merged PRs, resets or rebases)
   validate                Validate config and projects
+  migrate-content         Migrate result_summary from frontmatter to body (dry-run)
+  migrate-content --apply Migrate result_summary from frontmatter to body (write)
   help                    Show this help message`;
 
 async function main(): Promise<void> {
@@ -42,6 +45,13 @@ async function main(): Promise<void> {
 
     case "validate": {
       const exitCode = await validate();
+      process.exit(exitCode);
+      break;
+    }
+
+    case "migrate-content": {
+      const applyFlag = args.includes("--apply");
+      const exitCode = await migrateContentToBody(applyFlag);
       process.exit(exitCode);
       break;
     }

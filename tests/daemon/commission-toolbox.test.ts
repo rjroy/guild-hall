@@ -85,7 +85,6 @@ async function writeCommissionArtifact(
     linked_artifacts: string;
     activity_timeline: string;
     current_progress: string;
-    result_summary: string;
   }>,
 ): Promise<void> {
   const status = overrides?.status ?? "in_progress";
@@ -96,7 +95,6 @@ async function writeCommissionArtifact(
     event: created
     reason: "User created commission"`;
   const progress = overrides?.current_progress ?? 'current_progress: ""';
-  const result = overrides?.result_summary ?? 'result_summary: ""';
 
   const content = `---
 title: "Commission: Research OAuth patterns"
@@ -113,7 +111,6 @@ resource_overrides:
   maxBudgetUsd: 1.00
 ${timeline}
 ${progress}
-${result}
 projectName: guild-hall
 ---
 `;
@@ -216,10 +213,10 @@ describe("submit_result", () => {
     expect(results).toHaveLength(1);
     expect(results[0].summary).toBe("Found 3 viable OAuth patterns");
 
-    // Verify result_summary was set
+    // Verify result_summary was written to the body
     const raw = await fs.readFile(artifactPath(), "utf-8");
     const parsed = matter(raw);
-    expect(parsed.data.result_summary).toBe("Found 3 viable OAuth patterns");
+    expect(parsed.content.trim()).toBe("Found 3 viable OAuth patterns");
 
     // Verify timeline entry
     const timeline = await readTimeline();

@@ -33,6 +33,7 @@ export interface Artifact {
   filePath: string;
   relativePath: string;
   content: string;
+  rawContent?: string;
   lastModified: Date;
 }
 

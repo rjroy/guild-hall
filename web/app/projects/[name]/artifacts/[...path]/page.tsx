@@ -66,6 +66,7 @@ export default async function ArtifactPage({
         )}
         <ArtifactContent
           body={artifact.content}
+          rawContent={artifact.rawContent ?? ""}
           projectName={projectName}
           artifactPath={artifact.relativePath}
         />

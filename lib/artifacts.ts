@@ -155,6 +155,7 @@ export async function readArtifact(
     filePath,
     relativePath,
     content,
+    rawContent: raw,
     lastModified: stat.mtime,
   };
 }
@@ -180,6 +181,20 @@ export async function writeArtifactContent(
 }
 
 /**
+ * Writes raw content directly to an artifact file, bypassing frontmatter
+ * splice logic. Use this when you already have the complete file content
+ * (frontmatter + body) and want to write it as-is.
+ */
+export async function writeRawArtifactContent(
+  lorePath: string,
+  relativePath: string,
+  rawContent: string
+): Promise<void> {
+  const filePath = validatePath(lorePath, relativePath);
+  await fs.writeFile(filePath, rawContent, "utf-8");
+}
+
+/**
  * Returns the top N most recently modified artifacts.
  */
 export async function recentArtifacts(
@@ -199,7 +214,7 @@ export async function recentArtifacts(
  * Frontmatter is delimited by opening and closing '---' lines.
  * Everything after the closing delimiter is the body.
  */
-function spliceBody(raw: string, newBody: string): string {
+export function spliceBody(raw: string, newBody: string): string {
   // Check if file starts with frontmatter delimiter
   if (!raw.startsWith("---")) {
     // No frontmatter, replace entire content

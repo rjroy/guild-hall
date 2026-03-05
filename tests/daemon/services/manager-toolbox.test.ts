@@ -203,7 +203,6 @@ activity_timeline:
     event: created
     reason: "Commission created"
 current_progress: ""
-result_summary: ""
 projectName: test-project
 ---
 `;
