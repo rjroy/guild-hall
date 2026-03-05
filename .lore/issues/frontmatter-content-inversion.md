@@ -1,44 +1,32 @@
 ---
-title: Meeting artifacts store notes_summary in frontmatter instead of body
+title: Artifacts stored user-facing content in frontmatter instead of body
 date: 2026-02-27
-status: open
-tags: [artifacts, frontmatter, meetings, data-model]
-modules: [meeting-artifact-helpers, notes-generator]
+status: closed
+tags: [artifacts, frontmatter, meetings, commissions, data-model]
+modules: [meeting-artifact-helpers, notes-generator, commission-artifact]
 related:
   - .lore/issues/artifact-editor-frontmatter.md
   - .lore/plans/frontmatter-content-to-body.md
 ---
 
-# Meeting artifacts store notes_summary in frontmatter instead of body
+# Artifacts stored user-facing content in frontmatter instead of body
 
 ## What Happened
 
-Meeting artifacts store the entire `notes_summary` as a YAML block scalar in frontmatter. The content the user actually reads is metadata, and the content area goes unused.
+Meeting and commission artifacts stored user-facing content as YAML block scalars in frontmatter. The content the user actually read was metadata, and the content area went unused.
 
-A completed meeting's `notes_summary` is a full markdown document: headers, horizontal rules, paragraphs, bullet lists. That's a markdown file embedded in YAML embedded as frontmatter in a markdown file. Three levels of nesting for content that should just be the document body.
+A completed meeting's `notes_summary` was a full markdown document: headers, horizontal rules, paragraphs, bullet lists. That was a markdown file embedded in YAML embedded as frontmatter in a markdown file. Three levels of nesting for content that should have just been the document body. Commission `result_summary` had the same problem.
 
 ## Why It Matters
 
-Displaying frontmatter content in the web UI requires special extraction and rendering. The whole point of markdown artifact files is that the body is renderable content. Storing the primary user-facing data in frontmatter defeats that purpose and forces every consumer to parse YAML to get at what should be plain markdown.
+Displaying frontmatter content in the web UI required special extraction and rendering. The whole point of markdown artifact files is that the body is renderable content. Storing the primary user-facing data in frontmatter defeated that purpose and forced every consumer to parse YAML to get at what should be plain markdown.
 
-The `notes_summary` field is particularly fragile. YAML block scalars have whitespace sensitivity, and the generated notes contain markdown formatting that can collide with YAML parsing (colons in headers, quotes in text, indentation). Any YAML parser hiccup corrupts the most valuable part of the artifact.
+The `notes_summary` field was particularly fragile. YAML block scalars have whitespace sensitivity, and the generated notes contained markdown formatting that could collide with YAML parsing (colons in headers, quotes in text, indentation). Any YAML parser hiccup corrupted the most valuable part of the artifact.
 
-This also connects to the artifact editor issue: the editor hides frontmatter, so users can't see or edit the summary through the normal artifact editing flow.
+This also connected to the artifact editor issue: the editor hid frontmatter, so users couldn't see or edit the summary through the normal artifact editing flow.
 
-## Partial Resolution
+## Resolution
 
-Commission `result_summary` was migrated from frontmatter to the markdown body in PR #67 (commit `1d5df14`). New commission artifacts store the result as body content. The artifact editor now shows the full result text. Commission-side code paths (`updateResultSummary()`, `lib/commissions.ts`, commission view components) have been updated.
+Both sides of this issue have been resolved. User-facing content now lives in the markdown body where it belongs. Frontmatter retains only structured data: status, dates, worker, timeline entries, linked artifacts.
 
-Meeting `notes_summary` remains in frontmatter. This is the remaining half of the issue.
-
-## Fix Direction
-
-Move `notes_summary` from frontmatter to the markdown body. Frontmatter retains only structured data: status, dates, worker, timeline entries, linked artifacts.
-
-The body becomes the user-facing content. Notes appear below the frontmatter delimiter as rendered markdown. Standard markdown rendering works without special extraction.
-
-Remaining affected code paths:
-- `daemon/services/notes-generator.ts`: writes `notes_summary` to frontmatter on meeting close
-- `daemon/services/meeting-artifact-helpers.ts`: `appendMeetingLog()` uses `notes_summary:` as a positional anchor
-- `lib/meetings.ts`: reads `notes_summary` from parsed frontmatter for display
-- Meeting view components that render the summary
+Commission `result_summary` was migrated from frontmatter to the markdown body in PR #67 (commit `1d5df14`). Meeting `notes_summary` was also migrated to the body. The artifact editor now shows full content for both artifact types through standard markdown rendering, without special extraction.
