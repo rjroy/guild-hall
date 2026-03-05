@@ -68,6 +68,8 @@ export interface WorkerMetadata {
   builtInTools: string[];
   checkoutScope: CheckoutScope;
   resourceDefaults?: ResourceDefaults;
+  /** Determines git isolation for meetings. "project" runs in the integration worktree; "activity" (default) gets its own branch/worktree. */
+  meetingScope?: "project" | "activity";
 }
 
 /**
