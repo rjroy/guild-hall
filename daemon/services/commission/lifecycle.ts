@@ -229,11 +229,10 @@ export class CommissionLifecycle {
 
       await this.recordOps.updateProgress(entry.artifactPath, summary);
 
-      return { outcome: "executed" as const, status: entry.status, deferredEvent: {
-        type: "commission_progress" as const,
-        commissionId: id,
-        summary,
-      }};
+      // No deferredEvent: the toolbox already emitted commission_progress
+      // to the EventBus before this method was called. Re-emitting would
+      // create an infinite loop (EventBus -> lifecycle -> EventBus -> ...).
+      return { outcome: "executed" as const, status: entry.status };
     });
   }
 
@@ -264,12 +263,10 @@ export class CommissionLifecycle {
       entry.resultSignalReceived = true;
       await this.recordOps.updateResult(entry.artifactPath, summary, artifacts);
 
-      return { outcome: "executed" as const, status: entry.status, deferredEvent: {
-        type: "commission_result" as const,
-        commissionId: id,
-        summary,
-        artifacts,
-      }};
+      // No deferredEvent: the toolbox already emitted commission_result
+      // to the EventBus. The resultSignalReceived guard above prevented
+      // an infinite loop, but the re-emission was still redundant.
+      return { outcome: "executed" as const, status: entry.status };
     });
   }
 
@@ -293,11 +290,9 @@ export class CommissionLifecycle {
         question,
       );
 
-      return { outcome: "executed" as const, status: entry.status, deferredEvent: {
-        type: "commission_question" as const,
-        commissionId: id,
-        question,
-      }};
+      // No deferredEvent: the toolbox already emitted commission_question
+      // to the EventBus before this method was called.
+      return { outcome: "executed" as const, status: entry.status };
     });
   }
 
