@@ -94,7 +94,6 @@ sequenceDiagram
     Orch->>Life: executionStarted(id)
     Life->>Life: validate: dispatched -> in_progress
     Life->>EB: commission_status: in_progress
-    Orch->>Orch: start heartbeat timer
     Orch-->>Routes: { status: accepted }
     Routes-->>User: 202 Accepted
 
@@ -109,7 +108,6 @@ sequenceDiagram
         EB->>Orch: commission tool event
         Orch->>Life: progressReported / questionLogged
         Life->>Life: append timeline, update progress
-        Orch->>Orch: reset heartbeat
     end
 
     SDK->>EB: submit_result event
@@ -142,13 +140,11 @@ What happens when things go wrong. Three failure paths converge on the same pres
 flowchart TD
     subgraph Failure Triggers
         A[Session error / SDK crash]
-        B[Heartbeat timeout]
         C[Merge conflict]
         D[Daemon crash + restart]
     end
 
     A --> F[executionFailed]
-    B --> F
     C --> F
     D --> R[Crash recovery scan]
 
@@ -269,7 +265,7 @@ The failure flowchart shows that all failure paths converge: commit partial work
 - **Result submission is the fork.** The session ending with `resultSubmitted = true` goes to `completed`; without it, `failed`. The worker must explicitly call `submit_result` for success.
 - **Merge conflict is a failure, not a block.** When a squash-merge has non-`.lore/` conflicts, the commission fails and the Guild Master is asked to help. The branch is preserved for manual resolution.
 - **Crash recovery is pessimistic.** On restart, every interrupted commission becomes `failed`. No attempt to resume. The user can redispatch, which creates a fresh branch (with attempt suffix) while preserving the old one.
-- **Heartbeat prevents zombies.** A 3-minute timeout (reset on any tool call) catches sessions where the SDK hangs or the worker loops without producing output.
+- **SDK manages timeouts.** The SDK handles its own timeouts for hung API calls. The commission system does not independently kill sessions based on inactivity.
 
 ## Not Shown
 

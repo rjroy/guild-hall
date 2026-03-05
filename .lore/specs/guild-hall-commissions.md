@@ -108,8 +108,6 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-COM-13: The commission system tracks a `lastActivity` timestamp per session, updated whenever the session emits SDK events or the worker calls report_progress (REQ-COM-18). This timestamp is available for observability (e.g., "last active 2m ago" in the dashboard) but is not used for automated liveness decisions. The SDK manages its own timeouts for hung API calls; the commission system does not independently kill sessions based on inactivity.
 
-  > **History (2026-03):** Originally specified a heartbeat staleness threshold (default 180s) that would transition commissions to failed. Removed because in-process sessions don't need external liveness checks: the SDK handles its own timeouts, and workers performing long operations (file reads, test runs) would trigger false kills.
-
 - REQ-COM-14: When a session ends:
   - Normal completion with submitted result: transition to completed. Commit any pending changes on the integration worktree, then squash-merge the commission branch back to `claude` (see REQ-COM-31 for conflict handling). Clean up the worktree and remove the machine-local state file.
   - Normal completion without submitted result: transition to failed with reason "completed without submitting result."
@@ -131,7 +129,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - REQ-COM-17: The commission toolbox is a system toolbox injected when a worker executes a commission (fulfilling REQ-WKR-10). Workers do not declare it; the commission system provides it automatically alongside the base toolbox.
 
 - REQ-COM-18: Commission toolbox tools:
-  - **report_progress**: Update the commission's progress summary. Visible in the commission view and the manager's briefing. Also serves as an implicit heartbeat signal.
+  - **report_progress**: Update the commission's progress summary. Visible in the commission view and the manager's briefing.
   - **submit_result**: Declare the commission complete. Accepts a summary and an optional list of artifact paths produced. This is the explicit result channel. Tool calls are mechanisms; prompt instructions are hopes.
   - **log_question**: Record a question the worker cannot resolve autonomously. Questions surface to the user through the commission view and manager.
 
@@ -173,8 +171,6 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   > **History (2026-03):** Originally specified PID-based liveness checks on restart (check if process is alive, reattach if so). Rewritten because in-process sessions do not survive daemon restart. All active commissions are failed on startup; there is no reattach path.
 
 - REQ-COM-28: During operation, session liveness is managed by the SDK's built-in timeout mechanisms. The `lastActivity` timestamp (REQ-COM-13) provides observability but does not trigger automated failure transitions. If the SDK session hangs beyond its configured timeout, the session ends with an error and follows the normal error path (REQ-COM-14).
-
-  > **History (2026-03):** Originally specified daemon-side heartbeat monitoring with a staleness threshold. Removed because in-process sessions delegate timeout handling to the SDK, and the original heartbeat design caused false kills during legitimate long-running operations.
 
 - REQ-COM-29: Failed commissions preserve all state per REQ-COM-14a: the commission branch (not merged, not deleted), all committed artifacts, progress reports, questions, decisions, and the full activity timeline.
 

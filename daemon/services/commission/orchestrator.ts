@@ -9,13 +9,12 @@
  *
  * Implements CommissionSessionForRoutes so routes and manager toolbox
  * continue to work unchanged. Manages ExecutionContext per running
- * commission, heartbeat timers, auto-dispatch queue, and dependency
- * auto-transitions.
+ * commission, auto-dispatch queue, and dependency auto-transitions.
  *
  * Six flows:
  *   1. Dispatch: validate -> capacity -> lifecycle.dispatch -> workspace.prepare
  *      -> lifecycle.executionStarted -> fire-and-forget session
- *   2. Session completion: clear heartbeat -> lifecycle signals -> workspace
+ *   2. Session completion: lifecycle signals -> workspace
  *      finalize/preserve -> cleanup -> auto-dispatch + dependency check
  *   3. Cancel: lifecycle.cancel -> abort + workspace.preserve -> cleanup
  *   4. Recovery: scan state files + orphaned worktrees -> lifecycle.register
@@ -118,8 +117,6 @@ export interface CommissionSessionForRoutes {
 
 // -- Constants --
 
-const DEFAULT_HEARTBEAT_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes (REQ-COM-13)
-
 // -- ExecutionContext --
 
 export type ExecutionContext = {
@@ -131,7 +128,6 @@ export type ExecutionContext = {
   abortController: AbortController;
   attempt: number;
   checkoutScope: "full" | "sparse";
-  heartbeatTimer: ReturnType<typeof setTimeout> | null;
 };
 
 // -- Dependency types --
@@ -147,8 +143,6 @@ export interface CommissionOrchestratorDeps {
   packages: DiscoveredPackage[];
   guildHallHome: string;
   gitOps: GitOps;
-  /** Heartbeat timeout in ms. Defaults to 5 minutes. */
-  heartbeatTimeoutMs?: number;
   /**
    * DI seam for file existence checks. Tests pass a mock to control which
    * paths appear to exist. Defaults to fs.access check.
@@ -186,7 +180,6 @@ export function createCommissionOrchestrator(
     gitOps,
   } = deps;
 
-  const heartbeatTimeoutMs = deps.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS;
   const managerPackageName = deps.managerPackageName ?? "guild-hall-manager";
   const fileExists = deps.fileExists ?? (async (filePath: string): Promise<boolean> => {
     try {
@@ -313,39 +306,6 @@ export function createCommissionOrchestrator(
     return timeline.filter((e) => e.event === "status_failed" || e.event === "status_cancelled").length;
   }
 
-  // -- Heartbeat --
-
-  function createHeartbeat(ctx: ExecutionContext): void {
-    clearHeartbeat(ctx);
-    ctx.heartbeatTimer = setTimeout(() => {
-      console.warn(
-        `[orchestrator] heartbeat timeout for "${ctx.commissionId as string}" (${heartbeatTimeoutMs}ms)`,
-      );
-      lifecycle.executionFailed(
-        ctx.commissionId,
-        "Process unresponsive (heartbeat timeout)",
-      ).then((result) => {
-        if (result.outcome === "executed") {
-          ctx.abortController.abort();
-        }
-      }).catch((err: unknown) => {
-        console.error(`[orchestrator] heartbeat executionFailed threw for "${ctx.commissionId as string}":`, errorMessage(err));
-        ctx.abortController.abort(); // Safety abort
-      });
-    }, heartbeatTimeoutMs);
-  }
-
-  function resetHeartbeat(ctx: ExecutionContext): void {
-    createHeartbeat(ctx);
-  }
-
-  function clearHeartbeat(ctx: ExecutionContext): void {
-    if (ctx.heartbeatTimer !== null) {
-      clearTimeout(ctx.heartbeatTimer);
-      ctx.heartbeatTimer = null;
-    }
-  }
-
   // -- Auto-dispatch --
 
   function enqueueAutoDispatch(): void {
@@ -458,8 +418,6 @@ export function createCommissionOrchestrator(
     outcome: SdkRunnerOutcome,
     resultSubmitted: boolean,
   ): Promise<void> {
-    clearHeartbeat(ctx);
-
     // If the commission was already cancelled/aborted, the cancel flow
     // handles cleanup. Just exit.
     const currentStatus = lifecycle.getStatus(ctx.commissionId);
@@ -583,8 +541,6 @@ export function createCommissionOrchestrator(
   }
 
   async function handleSessionError(ctx: ExecutionContext, error: unknown): Promise<void> {
-    clearHeartbeat(ctx);
-
     const currentStatus = lifecycle.getStatus(ctx.commissionId);
     if (!currentStatus || currentStatus === "cancelled" || currentStatus === "failed") {
       executions.delete(ctx.commissionId);
@@ -1294,7 +1250,7 @@ projectName: ${projectName}
       return { status: "accepted" };
     }
 
-    // 9. Create execution context + heartbeat
+    // 9. Create execution context
     const abortController = new AbortController();
     const execCtx: ExecutionContext = {
       commissionId,
@@ -1305,10 +1261,8 @@ projectName: ${projectName}
       abortController,
       attempt: dispatchAttempt,
       checkoutScope,
-      heartbeatTimer: null,
     };
     executions.set(commissionId, execCtx);
-    createHeartbeat(execCtx);
 
     // 10. Fire-and-forget: run the session via sdk-runner
     console.log(
@@ -1373,19 +1327,16 @@ projectName: ${projectName}
         lifecycle.resultSubmitted(ctx.commissionId, e.summary, e.artifacts).catch((err: unknown) => {
           console.warn(`[orchestrator] resultSubmitted failed for "${ctx.commissionId as string}":`, errorMessage(err));
         });
-        resetHeartbeat(ctx);
       } else if (event.type === "commission_progress") {
         const e = event as typeof event & { summary: string };
         lifecycle.progressReported(ctx.commissionId, e.summary).catch((err: unknown) => {
           console.warn(`[orchestrator] progressReported failed for "${ctx.commissionId as string}":`, errorMessage(err));
         });
-        resetHeartbeat(ctx);
       } else if (event.type === "commission_question") {
         const e = event as typeof event & { question: string };
         lifecycle.questionLogged(ctx.commissionId, e.question).catch((err: unknown) => {
           console.warn(`[orchestrator] questionLogged failed for "${ctx.commissionId as string}":`, errorMessage(err));
         });
-        resetHeartbeat(ctx);
       }
     });
 
@@ -1424,8 +1375,7 @@ projectName: ${projectName}
     const ctx = executions.get(commissionId);
 
     if (ctx) {
-      // Active commission: abort + clear heartbeat + preserve + cleanup
-      clearHeartbeat(ctx);
+      // Active commission: abort + preserve + cleanup
       ctx.abortController.abort();
 
       try {
@@ -1598,7 +1548,6 @@ projectName: ${projectName}
 
   function shutdown(): void {
     for (const [, ctx] of executions) {
-      clearHeartbeat(ctx);
       ctx.abortController.abort();
     }
   }
