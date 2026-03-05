@@ -1,7 +1,7 @@
 ---
 title: Artifact editor hides frontmatter content
 date: 2026-02-27
-status: open
+status: closed
 tags: [bug, ui, artifacts, editor, frontmatter]
 modules: [artifact-content, api-artifacts]
 related: [.lore/plans/artifact-editor-full-content.md]
@@ -27,3 +27,7 @@ The editor shows the full raw file content (frontmatter + body). Saving writes t
 ## Context
 
 Discovered during Phase 7 implementation. Not a regression — this has been the behavior since Phase 1. The gray-matter reformatting concern is real but shouldn't mean "hide frontmatter entirely."
+
+## Resolution
+
+Fixed in PR #67 (commit `1d5df14`). The fix added `rawContent?: string` to the `Artifact` interface in `lib/types.ts` and populated it with the full raw file content in `readArtifact()`. A new `writeRawArtifactContent()` function in `lib/artifacts.ts` writes raw content directly, bypassing `spliceBody()` and gray-matter `stringify()` to avoid reformatting noise in git diffs. The `ArtifactContent` component was updated to display the full file content (frontmatter + body), so frontmatter-heavy files like commission artifacts no longer appear empty in the editor.
