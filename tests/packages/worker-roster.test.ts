@@ -140,12 +140,10 @@ describe("worker roster packages", () => {
 
   test("each roster posture has exactly three explicit sections", async () => {
     for (const packageName of expectedRosterPackageNames) {
-      const packageJsonPath = path.join(PACKAGES_DIR, packageName, "package.json");
-      const packageJson = await Bun.file(packageJsonPath).json() as {
-        guildHall: WorkerMetadata;
-      };
+      const postureFilePath = path.join(PACKAGES_DIR, packageName, "posture.md");
+      const posture = await Bun.file(postureFilePath).text();
 
-      const sections = extractPostureSections(packageJson.guildHall.posture);
+      const sections = extractPostureSections(posture.trim());
       expect(sections).toEqual([
         "Principles",
         "Workflow",
@@ -157,12 +155,8 @@ describe("worker roster packages", () => {
 
   test("each role posture encodes Phase 3 guardrails", async () => {
     for (const packageName of expectedRosterPackageNames) {
-      const packageJsonPath = path.join(PACKAGES_DIR, packageName, "package.json");
-      const packageJson = await Bun.file(packageJsonPath).json() as {
-        guildHall: WorkerMetadata;
-      };
-
-      const posture = packageJson.guildHall.posture;
+      const postureFilePath = path.join(PACKAGES_DIR, packageName, "posture.md");
+      const posture = (await Bun.file(postureFilePath).text()).trim();
       const expectedGuardrails = expectedPostureGuardrails[packageName];
 
       expect(expectedGuardrails).toBeDefined();

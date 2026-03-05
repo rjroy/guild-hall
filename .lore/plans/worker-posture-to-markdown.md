@@ -1,7 +1,7 @@
 ---
 title: Move worker posture prompts from JSON to markdown files
 date: 2026-03-04
-status: draft
+status: implemented
 tags: [worker-packages, authoring, developer-experience, refactor]
 modules: [packages, daemon, lib]
 related: [.lore/issues/worker-posture-to-markdown.md, .lore/specs/guild-hall-workers.md, .lore/specs/guild-hall-worker-roster.md]

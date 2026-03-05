@@ -33,16 +33,19 @@ async function readWorkerMetadata(packageName: string): Promise<{
   posture: string;
   builtInTools: string[];
 }> {
-  const packageJsonPath = path.join(PACKAGES_DIR, packageName, "package.json");
+  const pkgDir = path.join(PACKAGES_DIR, packageName);
+  const packageJsonPath = path.join(pkgDir, "package.json");
   const packageJson = await Bun.file(packageJsonPath).json() as {
     guildHall: {
-      posture: string;
       builtInTools: string[];
     };
   };
 
+  const postureFilePath = path.join(pkgDir, "posture.md");
+  const posture = await Bun.file(postureFilePath).text();
+
   return {
-    posture: packageJson.guildHall.posture,
+    posture: posture.trim(),
     builtInTools: packageJson.guildHall.builtInTools,
   };
 }

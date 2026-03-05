@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { z } from "zod";
 import type {
   PackageMetadata,
+  WorkerMetadata,
   DiscoveredPackage,
 } from "@/lib/types";
 
@@ -47,7 +48,7 @@ export const workerIdentitySchema = z.object({
 export const workerMetadataSchema = z.object({
   type: z.union([z.literal("worker"), workerToolboxTuple]),
   identity: workerIdentitySchema,
-  posture: z.string(),
+  posture: z.string().optional(),
   systemToolboxes: z.array(z.string()).default([]),
   domainToolboxes: z.array(z.string()),
   builtInTools: z.array(z.string()),
@@ -154,10 +155,33 @@ export async function discoverPackages(
         continue;
       }
 
+      // Resolve posture from posture.md for worker packages
+      const metadata = result.data;
+      if ("identity" in metadata) {
+        let postureContent: string | undefined;
+
+        try {
+          const postureFilePath = path.join(pkgDir, "posture.md");
+          postureContent = (await fs.readFile(postureFilePath, "utf-8")).trim();
+        } catch {
+          // No posture.md, fall back to JSON field
+        }
+
+        const resolvedPosture = postureContent || metadata.posture;
+        if (!resolvedPosture) {
+          console.warn(
+            `Skipping ${pkgDir}: worker has no posture.md and no guildHall.posture`
+          );
+          continue;
+        }
+
+        (metadata as WorkerMetadata).posture = resolvedPosture;
+      }
+
       seen.set(pkgName, {
         name: pkgName,
         path: pkgDir,
-        metadata: result.data as PackageMetadata,
+        metadata: metadata as PackageMetadata,
       });
     }
   }

@@ -1,7 +1,7 @@
 ---
 title: Move worker posture prompts from JSON to markdown files
 date: 2026-03-03
-status: open
+status: closed
 tags: [worker-packages, authoring, developer-experience]
 modules: [packages, daemon]
 ---
@@ -27,3 +27,15 @@ Add a `posture.md` (or similar) file to each worker package directory. The worke
 Affected workers: `guild-hall-developer`, `guild-hall-researcher`, `guild-hall-reviewer`, `guild-hall-test-engineer`, `guild-hall-writer`.
 
 The loader change lives in the daemon's worker/package resolution code. The markdown file becomes the source of truth for prompt content, while `package.json` retains identity, tools, checkout scope, and resource defaults.
+
+## Resolution
+
+Implemented per plan at `.lore/plans/worker-posture-to-markdown.md`. Changes:
+
+1. Created `posture.md` files for all five workers with content matching the original JSON posture strings.
+2. Made `posture` optional in the Zod `workerMetadataSchema` (`z.string().optional()`).
+3. Updated `discoverPackages()` in `lib/packages.ts` to read `posture.md` from the package directory, falling back to `guildHall.posture` in JSON, and skipping workers with neither source.
+4. Removed `guildHall.posture` from all five worker `package.json` files.
+5. Updated three test files: `tests/lib/packages.test.ts` (new tests for markdown loading, precedence, fallback, and no-source skip), `tests/packages/worker-roster.test.ts` and `tests/packages/worker-role-smoke.test.ts` (read posture from `posture.md` instead of JSON).
+
+The Guild Master, `sdk-runner.ts`, and `worker-activation.ts` are unchanged. All 1768 tests pass. Typecheck clean.
