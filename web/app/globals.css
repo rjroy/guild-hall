@@ -68,6 +68,11 @@
   --gem-blocked: hue-rotate(-140deg) saturate(2) brightness(0.85);
   --gem-info: none;
 
+  /* Breakpoints (reference only -- CSS custom properties
+     cannot be used in @media conditions) */
+  --breakpoint-tablet: 768px;
+  --breakpoint-phone: 480px;
+
   /* Typography */
   --font-body: "Ysabeau Office", Georgia, serif;
   --font-code: "Source Code Pro", "Courier New", monospace;

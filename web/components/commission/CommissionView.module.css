@@ -31,3 +31,9 @@
     width: 100%;
   }
 }
+
+@media (max-width: 480px) {
+  .content {
+    gap: var(--space-sm);
+  }
+}

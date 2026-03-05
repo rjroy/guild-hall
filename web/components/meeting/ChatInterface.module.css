@@ -50,3 +50,12 @@
 .messageArea::-webkit-scrollbar-thumb:hover {
   background-color: rgba(184, 134, 11, 0.5);
 }
+
+/* --- Responsive --- */
+
+@media (max-width: 480px) {
+  .chatInterface::before {
+    border-width: 24px;
+    border-image-width: 24px;
+  }
+}

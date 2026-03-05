@@ -22,3 +22,19 @@
   display: flex;
   justify-content: flex-start;
 }
+
+/* --- Responsive --- */
+
+@media (max-width: 768px) {
+  .projectView {
+    padding: var(--space-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .projectView {
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+    max-width: 100%;
+  }
+}

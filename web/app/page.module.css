@@ -42,3 +42,26 @@
 .audiences {
   grid-area: audiences;
 }
+
+/* --- Responsive --- */
+
+@media (max-width: 768px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    grid-template-areas:
+      "sidebar"
+      "briefing"
+      "depMap"
+      "audiences"
+      "recent";
+    padding: var(--space-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard {
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+  }
+}
