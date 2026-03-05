@@ -472,13 +472,15 @@ result_summary: ""
 // -- updateResult --
 
 describe("updateResult", () => {
-  test("sets result_summary field", async () => {
+  test("writes result summary to markdown body", async () => {
     await writeArtifact();
 
     await ops.updateResult(artifactPath, "Found 3 viable OAuth patterns");
 
     const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain('result_summary: "Found 3 viable OAuth patterns"');
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.content).toContain("Found 3 viable OAuth patterns");
   });
 
   test("overwrites previous result", async () => {
@@ -492,30 +494,28 @@ describe("updateResult", () => {
     expect(raw).not.toContain("First result");
   });
 
-  test("escapes newlines in result value", async () => {
+  test("preserves newlines in result body", async () => {
     await writeArtifact();
 
-    await ops.updateResult(artifactPath, "Line 1\nLine 2\n---\nLine 3");
+    await ops.updateResult(artifactPath, "Line 1\nLine 2\nLine 3");
 
     const raw = await fs.readFile(artifactPath, "utf-8");
-    // Result should be on a single line
-    const resultLine = raw.split("\n").find((l) => l.startsWith("result_summary:"));
-    expect(resultLine).toBeDefined();
-    expect(resultLine!.includes("\n", "result_summary:".length)).toBe(false);
-    // Subsequent fields should still be parseable
-    expect(raw).toContain("projectName: guild-hall");
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.content).toContain("Line 1\nLine 2\nLine 3");
+    // Frontmatter should still be parseable
+    expect(parsed.data.projectName).toBe("guild-hall");
   });
 
-  test("escapes quotes and backslashes in result", async () => {
+  test("preserves quotes and backslashes in result body", async () => {
     await writeArtifact();
 
     await ops.updateResult(artifactPath, 'Path is C:\\Users\\test and "quoted"');
 
     const raw = await fs.readFile(artifactPath, "utf-8");
-    // gray-matter should parse correctly
     const matter = (await import("gray-matter")).default;
     const parsed = matter(raw);
-    expect(parsed.data.result_summary).toBe('Path is C:\\Users\\test and "quoted"');
+    expect(parsed.content).toContain('Path is C:\\Users\\test and "quoted"');
   });
 
   test("appends linked artifacts when provided", async () => {
@@ -530,7 +530,9 @@ describe("updateResult", () => {
     const raw = await fs.readFile(artifactPath, "utf-8");
     expect(raw).toContain("specs/oauth-report.md");
     expect(raw).toContain("notes/findings.md");
-    expect(raw).toContain('result_summary: "Research complete"');
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.content).toContain("Research complete");
   });
 
   test("appends to existing linked artifacts list", async () => {
@@ -574,7 +576,9 @@ describe("updateResult", () => {
     await ops.updateResult(artifactPath, "Done, no artifacts");
 
     const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain('result_summary: "Done, no artifacts"');
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.content).toContain("Done, no artifacts");
     expect(raw).toContain("linked_artifacts: []");
   });
 
@@ -595,7 +599,7 @@ describe("updateResult", () => {
     await expect(ops.updateResult(missing, "test")).rejects.toThrow(/artifact not found/);
   });
 
-  test("throws when no result_summary field exists", async () => {
+  test("works even without result_summary field in frontmatter", async () => {
     await fs.writeFile(artifactPath, `---
 title: "No result field"
 status: pending
@@ -603,7 +607,11 @@ current_progress: ""
 linked_artifacts: []
 ---
 `, "utf-8");
-    await expect(ops.updateResult(artifactPath, "Done")).rejects.toThrow(/no "result_summary" field found/);
+    await ops.updateResult(artifactPath, "Done");
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    const matter = (await import("gray-matter")).default;
+    const parsed = matter(raw);
+    expect(parsed.content).toContain("Done");
   });
 });
 
@@ -643,7 +651,8 @@ describe("frontmatter integrity", () => {
     const raw = await fs.readFile(artifactPath, "utf-8");
     const matter = (await import("gray-matter")).default;
     const parsed = matter(raw);
-    expect(parsed.data.result_summary).toContain("Multi");
+    expect(parsed.content).toContain("Multi");
+    expect(parsed.content).toContain("line\nresult");
     expect(parsed.data.title).toBe("Commission: Research OAuth patterns");
     expect(parsed.data.linked_artifacts).toContain("specs/output.md");
   });
@@ -659,7 +668,7 @@ describe("frontmatter integrity", () => {
     expect(parsed.data.activity_timeline).toHaveLength(2);
   });
 
-  test("markdown body is preserved through all operations", async () => {
+  test("updateResult replaces markdown body with result summary", async () => {
     await writeArtifact();
 
     await ops.writeStatus(artifactPath, "in_progress");
@@ -668,8 +677,13 @@ describe("frontmatter integrity", () => {
     await ops.updateResult(artifactPath, "Done", ["specs/output.md"]);
 
     const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("# Commission Body");
-    expect(raw).toContain("Some markdown content here.");
+    // updateResult replaces the body with the result summary
+    expect(raw).toContain("Done");
+    // Original body is replaced
+    expect(raw).not.toContain("# Commission Body");
+    // Frontmatter is preserved
+    expect(raw).toContain("status: in_progress");
+    expect(raw).toContain("specs/output.md");
   });
 });
 

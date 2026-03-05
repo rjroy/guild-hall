@@ -30,7 +30,6 @@ timeline:
     event: created
     reason: "Initial creation"
 current_progress: "Working on implementation"
-result_summary: ""
 linked_artifacts: []
 ---
 
@@ -186,7 +185,8 @@ describe("readYamlField", () => {
   });
 
   test("reads a field with empty quoted value", () => {
-    const result = readYamlField(COMMISSION_CONTENT, "result_summary");
+    const content = `---\nempty_field: ""\nother: value\n---\n`;
+    const result = readYamlField(content, "empty_field");
     expect(result).toBe("");
   });
 

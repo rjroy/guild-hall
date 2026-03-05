@@ -9,6 +9,8 @@ import styles from "./ArtifactContent.module.css";
 interface ArtifactContentProps {
   /** The markdown body (frontmatter already stripped by the server component) */
   body: string;
+  /** The full raw file content including frontmatter */
+  rawContent: string;
   projectName: string;
   /** Relative path within .lore/ used as the artifact identifier for saves */
   artifactPath: string;
@@ -16,25 +18,26 @@ interface ArtifactContentProps {
 
 export default function ArtifactContent({
   body,
+  rawContent,
   projectName,
   artifactPath,
 }: ArtifactContentProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState(body);
+  const [editContent, setEditContent] = useState(rawContent);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const hasUnsavedChanges = editContent !== body;
+  const hasUnsavedChanges = editContent !== rawContent;
 
   const handleEdit = () => {
-    setEditContent(body);
+    setEditContent(rawContent);
     setSaveError(null);
     setIsEditing(true);
   };
 
   const handleCancel = () => {
-    setEditContent(body);
+    setEditContent(rawContent);
     setSaveError(null);
     setIsEditing(false);
   };
@@ -118,7 +121,11 @@ export default function ArtifactContent({
         </button>
       </div>
       <div className={styles.markdownContent}>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+        {body.trim() ? (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+        ) : (
+          <pre className={styles.rawFallback}>{rawContent}</pre>
+        )}
       </div>
     </div>
   );

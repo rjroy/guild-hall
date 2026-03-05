@@ -66,7 +66,7 @@ afterEach(async () => {
 });
 
 describe("PUT /api/artifacts", () => {
-  test("saves artifact content preserving frontmatter", async () => {
+  test("saves artifact content with full raw text", async () => {
     const artifactPath = path.join(loreDir, "specs", "test.md");
     await fs.mkdir(path.dirname(artifactPath), { recursive: true });
     await fs.writeFile(
@@ -75,10 +75,11 @@ describe("PUT /api/artifacts", () => {
       "utf-8"
     );
 
+    const newRawContent = "---\ntitle: Test\nstatus: draft\ntags: []\n---\nNew body content.";
     const request = makePutRequest({
       projectName: "test-project",
       artifactPath: "specs/test.md",
-      content: "\nNew body content.",
+      content: newRawContent,
     });
 
     const response = await PUT(request);
@@ -88,9 +89,27 @@ describe("PUT /api/artifacts", () => {
     expect(data.success).toBe(true);
 
     const result = await fs.readFile(artifactPath, "utf-8");
-    expect(result).toContain("title: Test");
-    expect(result).toContain("New body content.");
-    expect(result).not.toContain("Old body content.");
+    expect(result).toBe(newRawContent);
+  });
+
+  test("saves frontmatter-only file", async () => {
+    const artifactPath = path.join(loreDir, "commissions", "test.md");
+    await fs.mkdir(path.dirname(artifactPath), { recursive: true });
+    const original = "---\ntitle: Commission\nstatus: active\ntags: []\n---\n";
+    await fs.writeFile(artifactPath, original, "utf-8");
+
+    const edited = "---\ntitle: Commission\nstatus: complete\ntags: [commission]\n---\n";
+    const request = makePutRequest({
+      projectName: "test-project",
+      artifactPath: "commissions/test.md",
+      content: edited,
+    });
+
+    const response = await PUT(request);
+    expect(response.status).toBe(200);
+
+    const result = await fs.readFile(artifactPath, "utf-8");
+    expect(result).toBe(edited);
   });
 
   test("returns 400 for missing projectName", async () => {

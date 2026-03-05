@@ -6,6 +6,7 @@ import {
   scanArtifacts,
   readArtifact,
   writeArtifactContent,
+  writeRawArtifactContent,
   recentArtifacts,
 } from "@/lib/artifacts";
 
@@ -155,6 +156,9 @@ describe("readArtifact", () => {
     expect(artifact.content).toContain("Full content here.");
     expect(artifact.relativePath).toBe("specs/system.md");
     expect(artifact.filePath).toBe(path.join(tmpDir, "specs/system.md"));
+    expect(artifact.rawContent).toContain("---");
+    expect(artifact.rawContent).toContain("title: System");
+    expect(artifact.rawContent).toContain("Full content here.");
   });
 
   test("throws on path traversal attempt", async () => {
@@ -182,6 +186,16 @@ describe("readArtifact", () => {
     const artifact = await readArtifact(tmpDir, "plain.md");
     expect(artifact.meta.title).toBe("");
     expect(artifact.content).toContain("Just text.");
+  });
+
+  test("returns rawContent for frontmatter-only file", async () => {
+    const fullPath = path.join(tmpDir, "commission.md");
+    await fs.writeFile(fullPath, "---\ntitle: Commission\nstatus: complete\ntags: []\n---\n", "utf-8");
+
+    const artifact = await readArtifact(tmpDir, "commission.md");
+    expect(artifact.content.trim()).toBe("");
+    expect(artifact.rawContent).toContain("title: Commission");
+    expect(artifact.rawContent).toContain("---");
   });
 });
 
@@ -256,6 +270,46 @@ Old body here.`;
     await expect(
       writeArtifactContent(tmpDir, "../../../tmp/evil.md", "hacked")
     ).rejects.toThrow("Path traversal detected");
+  });
+});
+
+describe("writeRawArtifactContent", () => {
+  test("writes full raw content including frontmatter", async () => {
+    const rawContent = "---\ntitle: Test\nstatus: draft\ntags: []\n---\nBody content.";
+    await writeTestArtifact("doc.md", "title: Old", "Old body");
+
+    await writeRawArtifactContent(tmpDir, "doc.md", rawContent);
+
+    const result = await fs.readFile(path.join(tmpDir, "doc.md"), "utf-8");
+    expect(result).toBe(rawContent);
+  });
+
+  test("overwrites entire file content", async () => {
+    await writeTestArtifact("doc.md", "title: Original\nstatus: draft\ntags: [spec]", "Original body");
+
+    const newContent = "---\ntitle: Replaced\ntags: []\n---\nNew body.";
+    await writeRawArtifactContent(tmpDir, "doc.md", newContent);
+
+    const result = await fs.readFile(path.join(tmpDir, "doc.md"), "utf-8");
+    expect(result).toBe(newContent);
+    expect(result).not.toContain("Original");
+  });
+
+  test("throws on path traversal attempt", async () => {
+    await expect(
+      writeRawArtifactContent(tmpDir, "../../../tmp/evil.md", "hacked")
+    ).rejects.toThrow("Path traversal detected");
+  });
+
+  test("writes file with no frontmatter", async () => {
+    const plainContent = "# Just a heading\n\nNo frontmatter here.";
+    const filePath = path.join(tmpDir, "plain.md");
+    await fs.writeFile(filePath, "old content", "utf-8");
+
+    await writeRawArtifactContent(tmpDir, "plain.md", plainContent);
+
+    const result = await fs.readFile(filePath, "utf-8");
+    expect(result).toBe(plainContent);
   });
 });
 

@@ -193,9 +193,8 @@ tags: [commission]
 worker: architect
 workerDisplayTitle: System Architect
 prompt: Review the module design
-result_summary: Design approved with minor changes.
 ---
-Commission body.`,
+Design approved with minor changes.`,
     "utf-8"
   );
 

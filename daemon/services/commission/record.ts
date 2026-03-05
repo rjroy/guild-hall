@@ -15,6 +15,7 @@
 import * as fs from "node:fs/promises";
 import { replaceYamlField, appendLogEntry } from "@/daemon/lib/record-utils";
 import { escapeYamlValue } from "@/daemon/lib/toolbox-utils";
+import { spliceBody } from "@/lib/artifacts";
 import { isNodeError } from "@/lib/types";
 
 // -- Interface --
@@ -166,7 +167,6 @@ function createRecordOps(): CommissionRecordOps {
       artifacts?: string[],
     ): Promise<void> {
       let raw = await readArtifact(artifactPath, "updateResult");
-      raw = replaceYamlField(raw, "result_summary", `"${escapeYamlValue(summary)}"`);
 
       if (artifacts && artifacts.length > 0) {
         for (const artifact of artifacts) {
@@ -206,6 +206,7 @@ function createRecordOps(): CommissionRecordOps {
         }
       }
 
+      raw = spliceBody(raw, "\n" + summary + "\n");
       await fs.writeFile(artifactPath, raw, "utf-8");
     },
   };

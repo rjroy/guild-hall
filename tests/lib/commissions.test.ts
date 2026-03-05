@@ -56,7 +56,6 @@ activity_timeline:
     event: created
     reason: "User created commission"
 current_progress: "Analyzing patterns"
-result_summary: ""
 projectName: guild-hall`;
 
 // -- readCommissionMeta --
@@ -133,6 +132,38 @@ describe("readCommissionMeta", () => {
     });
     expect(meta.current_progress).toBe("");
     expect(meta.result_summary).toBe("");
+  });
+
+  test("reads result_summary from body when present", async () => {
+    const filePath = await writeCommission(
+      "commission-body-result.md",
+      `title: Body Result\nstatus: completed\nworker: researcher`,
+      "\nTask completed successfully.\n",
+    );
+
+    const meta = await readCommissionMeta(filePath, "test-project");
+    expect(meta.result_summary).toBe("Task completed successfully.");
+  });
+
+  test("falls back to frontmatter result_summary when body is empty", async () => {
+    const filePath = await writeCommission(
+      "commission-legacy.md",
+      `title: Legacy Commission\nstatus: completed\nworker: researcher\nresult_summary: "Completed via legacy format"`,
+    );
+
+    const meta = await readCommissionMeta(filePath, "test-project");
+    expect(meta.result_summary).toBe("Completed via legacy format");
+  });
+
+  test("prefers body over frontmatter result_summary", async () => {
+    const filePath = await writeCommission(
+      "commission-both.md",
+      `title: Both Sources\nstatus: completed\nworker: researcher\nresult_summary: "Old frontmatter value"`,
+      "\nNew body value.\n",
+    );
+
+    const meta = await readCommissionMeta(filePath, "test-project");
+    expect(meta.result_summary).toBe("New body value.");
   });
 });
 

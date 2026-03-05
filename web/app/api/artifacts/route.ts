@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProject } from "@/lib/config";
-import { writeArtifactContent } from "@/lib/artifacts";
+import { writeRawArtifactContent } from "@/lib/artifacts";
 import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { createGitOps } from "@/daemon/lib/git";
 import { daemonFetch, isDaemonError } from "@/lib/daemon-client";
@@ -42,7 +42,7 @@ export async function PUT(request: NextRequest) {
   const lorePath = projectLorePath(integrationPath);
 
   try {
-    await writeArtifactContent(lorePath, artifactPath, content);
+    await writeRawArtifactContent(lorePath, artifactPath, content);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to save";

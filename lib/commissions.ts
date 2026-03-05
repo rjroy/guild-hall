@@ -59,6 +59,7 @@ function parseCommissionData(
   data: Record<string, unknown>,
   commissionId: string,
   projectName: string,
+  body: string,
 ): CommissionMeta {
   const resourceOverrides = (
     typeof data.resource_overrides === "object" && data.resource_overrides !== null
@@ -98,9 +99,8 @@ function parseCommissionData(
     current_progress: typeof data.current_progress === "string"
       ? data.current_progress
       : "",
-    result_summary: typeof data.result_summary === "string"
-      ? data.result_summary
-      : "",
+    result_summary: body.trim()
+      || (typeof data.result_summary === "string" ? data.result_summary : ""),
     projectName,
     date,
     relevantDate: extractRelevantDate(status, date, timeline),
@@ -121,10 +121,16 @@ export async function readCommissionMeta(
 
   try {
     const parsed = matter(raw);
+    // Only treat body as result_summary when the file had valid frontmatter.
+    // Without this check, files with no frontmatter delimiters would have their
+    // entire content interpreted as result_summary (gray-matter puts everything
+    // in `content` when there's no `---` block).
+    const body = parsed.matter ? parsed.content : "";
     return parseCommissionData(
       parsed.data as Record<string, unknown>,
       commissionId,
       projectName,
+      body,
     );
   } catch {
     // Malformed frontmatter: return empty defaults
