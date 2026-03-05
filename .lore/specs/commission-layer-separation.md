@@ -91,7 +91,7 @@ This refactor also replaces the shared ActivityMachine for commissions with a co
 
   | Signal | Semantics |
   |--------|-----------|
-  | progressReported(summary) | Updates current progress, appends timeline entry. Valid in: in_progress. Also resets the heartbeat timer (REQ-CLS-31a). |
+  | progressReported(summary) | Updates current progress, appends timeline entry. Valid in: in_progress. |
   | resultSubmitted(summary, artifacts) | Records result summary and linked artifacts, appends timeline entry. Valid in: in_progress. Can only be called once per execution. |
   | questionLogged(question) | Appends question to timeline. Valid in: in_progress. |
   | executionStarted() | Appends timeline entry noting execution began. Triggers dispatched -> in_progress transition. |
@@ -153,10 +153,6 @@ This refactor also replaces the shared ActivityMachine for commissions with a co
 - REQ-CLS-30b: Layer 4 owns terminal-state artifact visibility. After a commission reaches a terminal state and the activity worktree is cleaned up, Layer 4 ensures the commission artifact on the integration worktree reflects the final status. This replaces the current `syncStatusToIntegration` pattern.
 
   > **Implementation (2026-03):** Verified. Terminal artifact visibility is implemented via `syncStatusToIntegration` in the orchestrator, writing final status to the integration worktree after cleanup.
-
-### Heartbeat and Liveness
-
-- REQ-CLS-31a: Layer 4 owns heartbeat monitoring for in-flight commissions. Each progressReported signal resets a per-commission timer. If no signal arrives within the staleness threshold (configurable, default 180 seconds per REQ-COM-13), Layer 4 sends executionFailed("process unresponsive") to Layer 2. The heartbeat timer is started when executionStarted is signaled and cleared when the commission leaves in_progress.
 
 ### Behavioral Preservation
 

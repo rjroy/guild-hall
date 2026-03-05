@@ -11,7 +11,6 @@
  * - Full dispatch-through-completion wiring
  * - Race condition: concurrent completion and cancellation
  * - Crash recovery: stale state files and orphaned worktrees
- * - Heartbeat timeout triggers executionFailed and abort
  * - Merge conflict escalation via meeting request
  * - Cancel during workspace preparation
  * - Dependency auto-transitions: blocked -> pending when deps satisfied
@@ -417,7 +416,6 @@ function buildDeps(overrides?: Partial<{
   mockQueryFn: ReturnType<typeof createMockQueryFn>;
   eventBus: ReturnType<typeof createTestEventBus>;
   gitOps: ReturnType<typeof createMockGitOps>;
-  heartbeatTimeoutMs: number;
   fileExists: (p: string) => Promise<boolean>;
   createMeetingRequestFn: CommissionOrchestratorDeps["createMeetingRequestFn"];
 }>): {
@@ -450,7 +448,6 @@ function buildDeps(overrides?: Partial<{
     packages: [makeWorkerPackage()],
     guildHallHome: ghHome,
     gitOps,
-    heartbeatTimeoutMs: overrides?.heartbeatTimeoutMs ?? 60000, // Long default for tests
     fileExists: overrides?.fileExists,
     createMeetingRequestFn: overrides?.createMeetingRequestFn,
   });
@@ -744,84 +741,6 @@ describe("cancel flow", () => {
       expect(cancelEvent.oldStatus).toBe("pending");
       expect(cancelEvent.projectName).toBe(TEST_PROJECT);
     }
-  });
-});
-
-describe("heartbeat", () => {
-  test("heartbeat timeout triggers executionFailed and abort", async () => {
-    const eventBus = createTestEventBus();
-    const commissionId = asCommissionId("commission-test-heartbeat-001");
-    const mockQueryFn = createMockQueryFn({
-      resolveAfterMs: -1,
-      eventBus,
-      commissionId: commissionId as string,
-    });
-    const workspace = createMockWorkspace();
-    const { orchestrator, eventBus: _eb, lifecycle } = buildDeps({
-      workspace,
-      mockQueryFn,
-      eventBus,
-      heartbeatTimeoutMs: 100, // 100ms for fast test
-    });
-
-    await writeCommissionArtifact(integrationPath, commissionId as string);
-
-    await orchestrator.dispatchCommission(commissionId);
-
-    // Wait for heartbeat timeout to fire
-    await new Promise<void>((r) => setTimeout(r, 300));
-
-    // lifecycle should have received executionFailed
-    const status = lifecycle.getStatus(commissionId);
-    expect(status).toBe("failed");
-
-    // Resolve session so it doesn't leak
-    mockQueryFn.resolve({ aborted: true });
-  });
-
-  test("progress resets heartbeat timer", async () => {
-    const eventBus = createTestEventBus();
-    const commissionId = asCommissionId("commission-test-heartbeat-reset-001");
-    const mockQueryFn = createMockQueryFn({
-      resolveAfterMs: -1,
-      eventBus,
-      commissionId: commissionId as string,
-    });
-    const workspace = createMockWorkspace();
-    const { orchestrator, lifecycle } = buildDeps({
-      workspace,
-      mockQueryFn,
-      eventBus,
-      heartbeatTimeoutMs: 150,
-    });
-
-    await writeCommissionArtifact(integrationPath, commissionId as string);
-
-    await orchestrator.dispatchCommission(commissionId);
-
-    // Wait 100ms (before timeout), then emit progress via EventBus to reset heartbeat
-    await new Promise<void>((r) => setTimeout(r, 100));
-
-    // Emit a commission_progress event to reset the heartbeat timer
-    eventBus.emit({
-      type: "commission_progress",
-      commissionId: commissionId as string,
-      summary: "Making progress",
-    });
-
-    // Wait another 100ms. Without heartbeat reset, this would be 200ms total
-    // and the 150ms timer would have fired. With reset, it starts fresh from
-    // the last progress event, so 100ms after that is still within the 150ms window.
-    await new Promise<void>((r) => setTimeout(r, 100));
-
-    // Should still be in_progress (heartbeat was reset)
-    const status = lifecycle.getStatus(commissionId);
-    expect(status).toBe("in_progress");
-
-    // Clean up: resolve session and wait for cleanup
-    mockQueryFn.resolve({ aborted: true });
-    await new Promise<void>((r) => setTimeout(r, 50));
-    orchestrator.shutdown();
   });
 });
 
@@ -1246,49 +1165,6 @@ describe("EventBus handler error resilience (Fix 1)", () => {
   });
 });
 
-describe("heartbeat error handling (Fix 2)", () => {
-  test("heartbeat skips abort when commission already terminal", async () => {
-    const eventBus = createTestEventBus();
-    const commissionId = asCommissionId("commission-test-hb-skip-001");
-    const mockQueryFn = createMockQueryFn({
-      resolveAfterMs: -1,
-      eventBus,
-      commissionId: commissionId as string,
-    });
-    const workspace = createMockWorkspace();
-    const recordOps = createCommissionRecordOps();
-    const lifecycle = createCommissionLifecycle({
-      recordOps,
-      emitEvent: (e) => eventBus.emit(e),
-    });
-
-    const { orchestrator } = buildDeps({
-      workspace,
-      mockQueryFn,
-      eventBus,
-      lifecycle,
-      heartbeatTimeoutMs: 100,
-    });
-
-    await writeCommissionArtifact(integrationPath, commissionId as string);
-
-    await orchestrator.dispatchCommission(commissionId);
-    await new Promise<void>((r) => setTimeout(r, 50));
-
-    // Cancel the commission before heartbeat fires
-    await orchestrator.cancelCommission(commissionId, "Cancelled early");
-
-    // Wait for heartbeat to fire (100ms timeout, we're at ~50ms already)
-    await new Promise<void>((r) => setTimeout(r, 200));
-
-    // The heartbeat executionFailed should return "skipped" since the
-    // commission is already cancelled, and abort should NOT be called again.
-    // No crash, no unhandled rejection.
-
-    mockQueryFn.resolve({ aborted: true });
-  });
-});
-
 describe("lifecycle.forget cleanup (Fix 3)", () => {
   test("lifecycle.forget is called after session completion", async () => {
     const workspace = createMockWorkspace();
@@ -1614,17 +1490,6 @@ describe("handleSuccessfulCompletion early return cleanup (Fix 8)", () => {
     // lifecycle.forget is called on this early return.
     expect(lifecycle.isTracked(commissionId)).toBe(false);
     expect(orchestrator.getActiveCommissions()).toBe(0);
-  });
-});
-
-describe("heartbeat default timeout (Fix 9)", () => {
-  test("default heartbeat timeout is 180 seconds", async () => {
-    // Verify the constant by creating an orchestrator without explicit timeout
-    // and checking the behavior. Since we can't directly read the constant,
-    // we verify it compiles and the test with 60000ms override still works.
-    const { orchestrator } = buildDeps();
-    // Default is used internally. Just verify no crash on creation.
-    expect(orchestrator).toBeDefined();
   });
 });
 
