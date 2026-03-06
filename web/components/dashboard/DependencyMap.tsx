@@ -5,42 +5,12 @@ import EmptyState from "@/web/components/ui/EmptyState";
 import CommissionGraph from "@/web/components/dashboard/CommissionGraph";
 import { statusToGem } from "@/lib/types";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
+import { sortCommissions } from "@/lib/commissions";
 import type { CommissionMeta } from "@/lib/commissions";
 import styles from "./DependencyMap.module.css";
 
 interface DependencyMapProps {
   commissions: CommissionMeta[];
-}
-
-/**
- * Sorting priority for commission statuses.
- * Running commissions (in_progress, dispatched) sort first,
- * then pending, then terminal states by date descending.
- */
-const STATUS_PRIORITY: Record<string, number> = {
-  in_progress: 0,
-  dispatched: 0,
-  pending: 1,
-  blocked: 1,
-  completed: 2,
-  failed: 2,
-  cancelled: 2,
-};
-
-function statusPriority(status: string): number {
-  return STATUS_PRIORITY[status.toLowerCase().trim()] ?? 2;
-}
-
-/**
- * Returns commissions sorted for display: running first, then pending,
- * then completed/failed/cancelled by date descending.
- */
-export function sortCommissions(commissions: CommissionMeta[]): CommissionMeta[] {
-  return [...commissions].sort((a, b) => {
-    const priorityDiff = statusPriority(a.status) - statusPriority(b.status);
-    if (priorityDiff !== 0) return priorityDiff;
-    return b.date.localeCompare(a.date);
-  });
 }
 
 /**

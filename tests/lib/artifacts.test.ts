@@ -8,7 +8,9 @@ import {
   writeArtifactContent,
   writeRawArtifactContent,
   recentArtifacts,
-  compareArtifacts,
+  compareArtifactsByStatusAndTitle,
+  compareArtifactsByRecency,
+  artifactStatusPriority,
 } from "@/lib/artifacts";
 
 let tmpDir: string;
@@ -114,17 +116,19 @@ describe("scanArtifacts", () => {
     expect(artifacts[0].content).toContain("Just Markdown");
   });
 
-  test("sorts by status, date, then title", async () => {
-    await writeTestArtifact("closed.md", "title: Closed Item\nstatus: closed\ndate: 2026-03-01", "Body");
+  test("sorts by five-group status model, date, then title", async () => {
+    await writeTestArtifact("impl.md", "title: Implemented Item\nstatus: implemented\ndate: 2026-03-01", "Body");
     await writeTestArtifact("draft.md", "title: Draft Item\nstatus: draft\ndate: 2026-01-01", "Body");
-    await writeTestArtifact("open.md", "title: Open Item\nstatus: open\ndate: 2026-02-01", "Body");
+    await writeTestArtifact("active.md", "title: Active Item\nstatus: active\ndate: 2026-02-01", "Body");
+    await writeTestArtifact("abandoned.md", "title: Abandoned Item\nstatus: abandoned\ndate: 2026-02-15", "Body");
 
     const artifacts = await scanArtifacts(tmpDir);
-    expect(artifacts).toHaveLength(3);
-    // Draft first (status priority 0), then open (1), then closed (2)
+    expect(artifacts).toHaveLength(4);
+    // Group 0 (active work) -> Group 1 (in progress) -> Group 2 (terminal) -> Group 3 (closed negative)
     expect(artifacts[0].meta.status).toBe("draft");
-    expect(artifacts[1].meta.status).toBe("open");
-    expect(artifacts[2].meta.status).toBe("closed");
+    expect(artifacts[1].meta.status).toBe("active");
+    expect(artifacts[2].meta.status).toBe("implemented");
+    expect(artifacts[3].meta.status).toBe("abandoned");
   });
 
   test("returns empty array for nonexistent directory", async () => {
@@ -314,16 +318,20 @@ describe("writeRawArtifactContent", () => {
 });
 
 describe("recentArtifacts", () => {
-  test("returns top N artifacts by sort order", async () => {
-    await writeTestArtifact("a.md", "title: Alpha\nstatus: closed\ndate: 2026-03-01", "Body");
+  test("returns top N artifacts by modification time (newest first)", async () => {
+    // Write files in sequence so their mtimes differ
+    await writeTestArtifact("a.md", "title: Alpha\nstatus: implemented\ndate: 2026-01-01", "Body");
+    // Small delay to ensure different mtime
+    await new Promise((r) => setTimeout(r, 50));
     await writeTestArtifact("b.md", "title: Beta\nstatus: draft\ndate: 2026-01-01", "Body");
-    await writeTestArtifact("c.md", "title: Gamma\nstatus: open\ndate: 2026-02-01", "Body");
+    await new Promise((r) => setTimeout(r, 50));
+    await writeTestArtifact("c.md", "title: Gamma\nstatus: abandoned\ndate: 2026-03-01", "Body");
 
     const recent = await recentArtifacts(tmpDir, 2);
     expect(recent).toHaveLength(2);
-    // Draft first, then open (closed is cut off by limit)
-    expect(recent[0].meta.title).toBe("Beta");
-    expect(recent[1].meta.title).toBe("Gamma");
+    // Newest mtime first, regardless of status or frontmatter date
+    expect(recent[0].meta.title).toBe("Gamma");
+    expect(recent[1].meta.title).toBe("Beta");
   });
 
   test("returns all when limit exceeds count", async () => {
@@ -358,11 +366,177 @@ describe("date parsing in frontmatter", () => {
   });
 });
 
-describe("compareArtifacts", () => {
+describe("artifactStatusPriority", () => {
+  test("all PENDING_STATUSES map to group 0 (active work)", () => {
+    const pendingStatuses = ["draft", "open", "pending", "requested", "blocked", "queued"];
+    for (const status of pendingStatuses) {
+      expect(artifactStatusPriority(status)).toBe(0);
+    }
+  });
+
+  test("all ACTIVE_STATUSES (in-progress) map to group 1", () => {
+    const activeStatuses = ["approved", "active", "current", "in_progress", "dispatched"];
+    for (const status of activeStatuses) {
+      expect(artifactStatusPriority(status)).toBe(1);
+    }
+  });
+
+  test("terminal statuses map to group 2", () => {
+    const terminalStatuses = ["complete", "resolved", "implemented"];
+    for (const status of terminalStatuses) {
+      expect(artifactStatusPriority(status)).toBe(2);
+    }
+  });
+
+  test("all BLOCKED_STATUSES map to group 3 (closed negative)", () => {
+    const blockedStatuses = ["superseded", "outdated", "wontfix", "declined", "failed", "cancelled", "abandoned"];
+    for (const status of blockedStatuses) {
+      expect(artifactStatusPriority(status)).toBe(3);
+    }
+  });
+
+  test("empty status maps to group 4 (unknown)", () => {
+    expect(artifactStatusPriority("")).toBe(4);
+  });
+
+  test("unrecognized status maps to group 4 (unknown)", () => {
+    expect(artifactStatusPriority("nonexistent")).toBe(4);
+  });
+
+  test("status matching is case-insensitive and trims whitespace", () => {
+    expect(artifactStatusPriority("Draft")).toBe(0);
+    expect(artifactStatusPriority("ACTIVE")).toBe(1);
+    expect(artifactStatusPriority(" implemented ")).toBe(2);
+  });
+});
+
+describe("compareArtifactsByStatusAndTitle", () => {
   function makeArtifact(overrides: {
     status?: string;
     date?: string;
     title?: string;
+    relativePath?: string;
+  }): import("@/lib/types").Artifact {
+    return {
+      meta: {
+        title: overrides.title ?? "",
+        date: overrides.date ?? "",
+        status: overrides.status ?? "",
+        tags: [],
+      },
+      filePath: "/tmp/test.md",
+      relativePath: overrides.relativePath ?? "test.md",
+      content: "",
+      lastModified: new Date(),
+    };
+  }
+
+  test("draft (group 0) sorts before active (group 1)", () => {
+    const draft = makeArtifact({ status: "draft" });
+    const active = makeArtifact({ status: "active" });
+
+    const sorted = [active, draft].sort(compareArtifactsByStatusAndTitle);
+    expect(sorted.map((a) => a.meta.status)).toEqual(["draft", "active"]);
+  });
+
+  test("active (group 1) sorts before implemented (group 2)", () => {
+    const active = makeArtifact({ status: "active" });
+    const impl = makeArtifact({ status: "implemented" });
+
+    const sorted = [impl, active].sort(compareArtifactsByStatusAndTitle);
+    expect(sorted.map((a) => a.meta.status)).toEqual(["active", "implemented"]);
+  });
+
+  test("implemented (group 2) sorts before abandoned (group 3)", () => {
+    const impl = makeArtifact({ status: "implemented" });
+    const abandoned = makeArtifact({ status: "abandoned" });
+
+    const sorted = [abandoned, impl].sort(compareArtifactsByStatusAndTitle);
+    expect(sorted.map((a) => a.meta.status)).toEqual(["implemented", "abandoned"]);
+  });
+
+  test("abandoned (group 3) sorts before unknown (group 4)", () => {
+    const abandoned = makeArtifact({ status: "abandoned" });
+    const unknown = makeArtifact({ status: "something_weird" });
+
+    const sorted = [unknown, abandoned].sort(compareArtifactsByStatusAndTitle);
+    expect(sorted.map((a) => a.meta.status)).toEqual(["abandoned", "something_weird"]);
+  });
+
+  test("empty status (group 4) sorts after all known statuses", () => {
+    const draft = makeArtifact({ status: "draft" });
+    const empty = makeArtifact({ status: "" });
+
+    const sorted = [empty, draft].sort(compareArtifactsByStatusAndTitle);
+    expect(sorted.map((a) => a.meta.status)).toEqual(["draft", ""]);
+  });
+
+  test("within same status group, newer date sorts first", () => {
+    const older = makeArtifact({ status: "open", date: "2026-01-01" });
+    const newer = makeArtifact({ status: "open", date: "2026-03-01" });
+
+    const sorted = [older, newer].sort(compareArtifactsByStatusAndTitle);
+    expect(sorted.map((a) => a.meta.date)).toEqual(["2026-03-01", "2026-01-01"]);
+  });
+
+  test("artifacts with date sort before those without", () => {
+    const withDate = makeArtifact({ status: "open", date: "2026-01-01" });
+    const noDate = makeArtifact({ status: "open", date: "" });
+
+    const sorted = [noDate, withDate].sort(compareArtifactsByStatusAndTitle);
+    expect(sorted[0].meta.date).toBe("2026-01-01");
+    expect(sorted[1].meta.date).toBe("");
+  });
+
+  test("title is alphabetical tiebreaker", () => {
+    const beta = makeArtifact({ status: "open", date: "2026-01-01", title: "Beta" });
+    const alpha = makeArtifact({ status: "open", date: "2026-01-01", title: "Alpha" });
+
+    const sorted = [beta, alpha].sort(compareArtifactsByStatusAndTitle);
+    expect(sorted.map((a) => a.meta.title)).toEqual(["Alpha", "Beta"]);
+  });
+
+  test("empty title falls back to relativePath for tiebreaker", () => {
+    const noTitleA = makeArtifact({ status: "open", date: "2026-01-01", title: "", relativePath: "specs/aaa.md" });
+    const noTitleB = makeArtifact({ status: "open", date: "2026-01-01", title: "", relativePath: "specs/zzz.md" });
+
+    const sorted = [noTitleB, noTitleA].sort(compareArtifactsByStatusAndTitle);
+    expect(sorted.map((a) => a.relativePath)).toEqual(["specs/aaa.md", "specs/zzz.md"]);
+  });
+
+  test("full five-group sort with mixed statuses", () => {
+    const artifacts = [
+      makeArtifact({ status: "abandoned", date: "2026-03-01", title: "Abandoned" }),
+      makeArtifact({ status: "draft", date: "2026-01-01", title: "Draft" }),
+      makeArtifact({ status: "active", date: "2026-02-15", title: "Active" }),
+      makeArtifact({ status: "implemented", date: "2026-02-01", title: "Implemented" }),
+      makeArtifact({ status: "pending", date: "2026-02-15", title: "Pending" }),
+    ];
+
+    const sorted = artifacts.sort(compareArtifactsByStatusAndTitle);
+    expect(sorted.map((a) => a.meta.title)).toEqual([
+      "Pending",       // group 0, 2026-02-15
+      "Draft",         // group 0, 2026-01-01
+      "Active",        // group 1, 2026-02-15
+      "Implemented",   // group 2, 2026-02-01
+      "Abandoned",     // group 3, 2026-03-01
+    ]);
+  });
+
+  test("handles all fields missing without crashing", () => {
+    const a = makeArtifact({});
+    const b = makeArtifact({});
+
+    expect(() => [a, b].sort(compareArtifactsByStatusAndTitle)).not.toThrow();
+  });
+});
+
+describe("compareArtifactsByRecency", () => {
+  function makeArtifact(overrides: {
+    status?: string;
+    date?: string;
+    title?: string;
+    lastModified?: Date;
   }): import("@/lib/types").Artifact {
     return {
       meta: {
@@ -374,102 +548,43 @@ describe("compareArtifacts", () => {
       filePath: "/tmp/test.md",
       relativePath: "test.md",
       content: "",
-      lastModified: new Date(),
+      lastModified: overrides.lastModified ?? new Date(),
     };
   }
 
-  test("draft sorts before open, open before closed", () => {
-    const draft = makeArtifact({ status: "draft" });
-    const open = makeArtifact({ status: "open" });
-    const closed = makeArtifact({ status: "closed" });
+  test("sorts by modification time descending (newest first)", () => {
+    const old = makeArtifact({ title: "Old", lastModified: new Date("2026-01-01") });
+    const mid = makeArtifact({ title: "Mid", lastModified: new Date("2026-02-01") });
+    const recent = makeArtifact({ title: "Recent", lastModified: new Date("2026-03-01") });
 
-    const sorted = [closed, open, draft].sort(compareArtifacts);
-    expect(sorted.map((a) => a.meta.status)).toEqual(["draft", "open", "closed"]);
+    const sorted = [old, recent, mid].sort(compareArtifactsByRecency);
+    expect(sorted.map((a) => a.meta.title)).toEqual(["Recent", "Mid", "Old"]);
   });
 
-  test("status comparison is case-insensitive", () => {
-    const draft = makeArtifact({ status: "Draft" });
-    const open = makeArtifact({ status: "OPEN" });
-    const closed = makeArtifact({ status: "Closed" });
+  test("ignores status and frontmatter date", () => {
+    const draftOldFile = makeArtifact({
+      title: "Draft",
+      status: "draft",
+      date: "2026-03-01",
+      lastModified: new Date("2026-01-01"),
+    });
+    const implNewFile = makeArtifact({
+      title: "Implemented",
+      status: "implemented",
+      date: "2026-01-01",
+      lastModified: new Date("2026-03-01"),
+    });
 
-    const sorted = [closed, open, draft].sort(compareArtifacts);
-    expect(sorted.map((a) => a.meta.status)).toEqual(["Draft", "OPEN", "Closed"]);
+    const sorted = [draftOldFile, implNewFile].sort(compareArtifactsByRecency);
+    expect(sorted[0].meta.title).toBe("Implemented");
+    expect(sorted[1].meta.title).toBe("Draft");
   });
 
-  test("unrecognized status sorts after closed", () => {
-    const draft = makeArtifact({ status: "draft" });
-    const custom = makeArtifact({ status: "implemented" });
-    const closed = makeArtifact({ status: "closed" });
+  test("equal modification times produce stable sort", () => {
+    const sameTime = new Date("2026-02-15");
+    const a = makeArtifact({ title: "A", lastModified: sameTime });
+    const b = makeArtifact({ title: "B", lastModified: sameTime });
 
-    const sorted = [custom, closed, draft].sort(compareArtifacts);
-    expect(sorted.map((a) => a.meta.status)).toEqual(["draft", "closed", "implemented"]);
-  });
-
-  test("empty status sorts after closed", () => {
-    const draft = makeArtifact({ status: "draft" });
-    const empty = makeArtifact({ status: "" });
-
-    const sorted = [empty, draft].sort(compareArtifacts);
-    expect(sorted.map((a) => a.meta.status)).toEqual(["draft", ""]);
-  });
-
-  test("within same status, newer date sorts first", () => {
-    const older = makeArtifact({ status: "open", date: "2026-01-01" });
-    const newer = makeArtifact({ status: "open", date: "2026-03-01" });
-
-    const sorted = [older, newer].sort(compareArtifacts);
-    expect(sorted.map((a) => a.meta.date)).toEqual(["2026-03-01", "2026-01-01"]);
-  });
-
-  test("artifacts with date sort before those without", () => {
-    const withDate = makeArtifact({ status: "open", date: "2026-01-01" });
-    const noDate = makeArtifact({ status: "open", date: "" });
-
-    const sorted = [noDate, withDate].sort(compareArtifacts);
-    expect(sorted[0].meta.date).toBe("2026-01-01");
-    expect(sorted[1].meta.date).toBe("");
-  });
-
-  test("title is alphabetical tiebreaker", () => {
-    const beta = makeArtifact({ status: "open", date: "2026-01-01", title: "Beta" });
-    const alpha = makeArtifact({ status: "open", date: "2026-01-01", title: "Alpha" });
-
-    const sorted = [beta, alpha].sort(compareArtifacts);
-    expect(sorted.map((a) => a.meta.title)).toEqual(["Alpha", "Beta"]);
-  });
-
-  test("artifacts with title sort before those without", () => {
-    const withTitle = makeArtifact({ status: "open", date: "2026-01-01", title: "Something" });
-    const noTitle = makeArtifact({ status: "open", date: "2026-01-01", title: "" });
-
-    const sorted = [noTitle, withTitle].sort(compareArtifacts);
-    expect(sorted[0].meta.title).toBe("Something");
-    expect(sorted[1].meta.title).toBe("");
-  });
-
-  test("full three-key sort with mixed data", () => {
-    const artifacts = [
-      makeArtifact({ status: "closed", date: "2026-03-01", title: "Closed New" }),
-      makeArtifact({ status: "draft", date: "2026-01-01", title: "Draft Old" }),
-      makeArtifact({ status: "open", date: "2026-02-15", title: "Open Mid" }),
-      makeArtifact({ status: "draft", date: "2026-02-01", title: "Draft Newer" }),
-      makeArtifact({ status: "open", date: "2026-02-15", title: "Open Alpha" }),
-    ];
-
-    const sorted = artifacts.sort(compareArtifacts);
-    expect(sorted.map((a) => a.meta.title)).toEqual([
-      "Draft Newer",   // draft, 2026-02-01
-      "Draft Old",     // draft, 2026-01-01
-      "Open Alpha",    // open, 2026-02-15, title tiebreaker
-      "Open Mid",      // open, 2026-02-15, title tiebreaker
-      "Closed New",    // closed, 2026-03-01
-    ]);
-  });
-
-  test("handles all fields missing without crashing", () => {
-    const a = makeArtifact({});
-    const b = makeArtifact({});
-
-    expect(() => [a, b].sort(compareArtifacts)).not.toThrow();
+    expect(() => [a, b].sort(compareArtifactsByRecency)).not.toThrow();
   });
 });

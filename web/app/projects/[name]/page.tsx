@@ -3,7 +3,7 @@ import { getProject } from "@/lib/config";
 import { scanArtifacts } from "@/lib/artifacts";
 import { scanCommissions } from "@/lib/commissions";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
-import { getActiveMeetingWorktrees } from "@/lib/meetings";
+import { getActiveMeetingWorktrees, sortMeetingArtifacts } from "@/lib/meetings";
 import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { notFound } from "next/navigation";
 import ProjectHeader from "@/web/components/project/ProjectHeader";
@@ -48,16 +48,11 @@ export default async function ProjectPage({
 
   // Merge, deduplicating by filename in case a meeting appears in both
   const seenIds = new Set(integrationMeetings.map((m) => m.relativePath));
-  const meetingArtifacts = [
+  const mergedMeetings = [
     ...integrationMeetings,
     ...activeMeetings.filter((m) => !seenIds.has(m.relativePath)),
-  ].sort((a, b) => {
-    // Open meetings first, then by date descending
-    const aOpen = a.meta.status === "open" ? 0 : 1;
-    const bOpen = b.meta.status === "open" ? 0 : 1;
-    if (aOpen !== bOpen) return aOpen - bOpen;
-    return (b.meta.date || "").localeCompare(a.meta.date || "");
-  });
+  ];
+  const meetingArtifacts = sortMeetingArtifacts(mergedMeetings);
 
   const commissions = await scanCommissions(lorePath, projectName);
   const commissionGraph = buildDependencyGraph(commissions);

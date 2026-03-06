@@ -69,29 +69,56 @@ function parseMeta(data: Record<string, unknown>): ArtifactMeta {
 // -- Sorting --
 
 /**
- * Status priority for artifact sorting. Lower number = sorts first.
- * Draft surfaces first, closed sinks to the bottom.
- * Unrecognized or missing statuses sort after closed.
+ * Five-group status priority for artifact browsing views.
+ * Groups are ordered by actionability: work needing attention surfaces first,
+ * completed work sinks below, closed/negative is near the bottom.
+ *
+ * This intentionally differs from gem color grouping (statusToGem). For example,
+ * "implemented" maps to the green gem (active) but sorts in the Terminal group
+ * (priority 2) because it's done and needs no action.
  */
-const STATUS_PRIORITY: Record<string, number> = {
+const ARTIFACT_STATUS_GROUP: Record<string, number> = {
+  // Group 0: Active work (needs attention)
   draft: 0,
-  open: 1,
-  closed: 2,
+  open: 0,
+  pending: 0,
+  requested: 0,
+  blocked: 0,
+  queued: 0,
+  // Group 1: In progress
+  approved: 1,
+  active: 1,
+  current: 1,
+  in_progress: 1,
+  dispatched: 1,
+  // Group 2: Terminal (done, no action needed)
+  complete: 2,
+  resolved: 2,
+  implemented: 2,
+  // Group 3: Closed negative
+  superseded: 3,
+  outdated: 3,
+  wontfix: 3,
+  declined: 3,
+  failed: 3,
+  cancelled: 3,
+  abandoned: 3,
 };
-const DEFAULT_STATUS_PRIORITY = 3;
+const UNKNOWN_STATUS_PRIORITY = 4;
 
-function statusPriority(status: string): number {
-  return STATUS_PRIORITY[status.toLowerCase()] ?? DEFAULT_STATUS_PRIORITY;
+export function artifactStatusPriority(status: string): number {
+  return ARTIFACT_STATUS_GROUP[status.toLowerCase().trim()] ?? UNKNOWN_STATUS_PRIORITY;
 }
 
 /**
- * Compare function for artifact lists.
- * Sorts by: status (draft > open > closed), date (newer first), title (alphabetical).
- * Missing fields sort after present ones.
+ * Compare function for artifact browsing views (Surface 2: tree view).
+ * Sorts by: status group (REQ-SORT-4), date descending, title/path alphabetical.
+ * Missing fields sort after present ones (REQ-SORT-3).
+ * Empty titles fall back to relativePath as tiebreaker (REQ-SORT-15).
  */
-export function compareArtifacts(a: Artifact, b: Artifact): number {
-  // 1. Status priority
-  const statusDiff = statusPriority(a.meta.status) - statusPriority(b.meta.status);
+export function compareArtifactsByStatusAndTitle(a: Artifact, b: Artifact): number {
+  // 1. Status group priority
+  const statusDiff = artifactStatusPriority(a.meta.status) - artifactStatusPriority(b.meta.status);
   if (statusDiff !== 0) return statusDiff;
 
   // 2. Date descending (newer first). Empty dates sort last.
@@ -104,16 +131,19 @@ export function compareArtifacts(a: Artifact, b: Artifact): number {
     if (dateCmp !== 0) return dateCmp;
   }
 
-  // 3. Title alphabetical tiebreaker. Empty titles sort last.
-  const aTitle = a.meta.title;
-  const bTitle = b.meta.title;
-  if (aTitle && !bTitle) return -1;
-  if (!aTitle && bTitle) return 1;
-  if (aTitle && bTitle) {
-    return aTitle.localeCompare(bTitle);
-  }
+  // 3. Title alphabetical tiebreaker. Empty titles fall back to relativePath.
+  const aTitle = a.meta.title || a.relativePath;
+  const bTitle = b.meta.title || b.relativePath;
+  return aTitle.localeCompare(bTitle);
+}
 
-  return 0;
+/**
+ * Compare function for recency feeds (Surface 1: Dashboard Recent Scrolls).
+ * Sorts by filesystem modification time descending (newest first).
+ * REQ-SORT-5, REQ-SORT-7
+ */
+export function compareArtifactsByRecency(a: Artifact, b: Artifact): number {
+  return b.lastModified.getTime() - a.lastModified.getTime();
 }
 
 // -- Public API --
@@ -171,7 +201,7 @@ export async function scanArtifacts(lorePath: string): Promise<Artifact[]> {
     }
   }
 
-  artifacts.sort(compareArtifacts);
+  artifacts.sort(compareArtifactsByStatusAndTitle);
   return artifacts;
 }
 
@@ -246,13 +276,15 @@ export async function writeRawArtifactContent(
 }
 
 /**
- * Returns the top N artifacts by status/date/title sort order.
+ * Returns the top N artifacts by filesystem modification time (newest first).
+ * REQ-SORT-5: Dashboard "Recent Scrolls" sorts by recency, not status.
  */
 export async function recentArtifacts(
   lorePath: string,
   limit: number
 ): Promise<Artifact[]> {
   const all = await scanArtifacts(lorePath);
+  all.sort(compareArtifactsByRecency);
   return all.slice(0, limit);
 }
 

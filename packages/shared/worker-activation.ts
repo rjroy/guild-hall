@@ -1,17 +1,28 @@
 import type { ActivationContext, ActivationResult } from "@/lib/types";
 
 function buildSystemPrompt(context: ActivationContext): string {
-  const parts: string[] = [context.posture];
+  const parts: string[] = [];
 
+  // 1. Soul (personality, voice, vibe) — if present
+  if (context.soul) {
+    parts.push(context.soul);
+  }
+
+  // 2. Identity metadata — always present
   if (context.identity) {
     parts.push(
-      `Your name is: ${context.identity.name}`,
-      `Your title is: ${context.identity.displayTitle}`,
-      `You are described as: ${context.identity.description}`,
-      ''
+      [
+        `Your name is: ${context.identity.name}`,
+        `Your title is: ${context.identity.displayTitle}`,
+        `You are described as: ${context.identity.description}`,
+      ].join("\n"),
     );
   }
 
+  // 3. Posture (principles, workflow, quality standards) — always present
+  parts.push(context.posture);
+
+  // 4. Injected memory — if present
   if (context.injectedMemory) {
     parts.push(context.injectedMemory);
   }
