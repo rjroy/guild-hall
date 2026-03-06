@@ -8,7 +8,11 @@ import {
   readMeetingMeta,
   getActiveMeetingWorktrees,
   parseTranscriptToMessages,
+  sortMeetingArtifacts,
+  sortMeetingRequests,
 } from "@/lib/meetings";
+import type { MeetingMeta } from "@/lib/meetings";
+import type { Artifact } from "@/lib/types";
 
 // -- Test state --
 
@@ -345,6 +349,137 @@ describe("scanMeetingRequests", () => {
     expect(requests.every((r) => r.status === "requested")).toBe(true);
     const ids = requests.map((r) => r.meetingId).sort();
     expect(ids).toEqual(["meeting-a", "meeting-b", "meeting-c", "meeting-d"]);
+  });
+});
+
+// -- sortMeetingArtifacts tests --
+
+function makeMeetingArtifact(overrides: {
+  title?: string;
+  status?: string;
+  date?: string;
+}): Artifact {
+  return {
+    meta: {
+      title: overrides.title ?? "",
+      date: overrides.date ?? "",
+      status: overrides.status ?? "",
+      tags: [],
+    },
+    filePath: "/tmp/meeting.md",
+    relativePath: "meeting.md",
+    content: "",
+    lastModified: new Date(),
+  };
+}
+
+describe("sortMeetingArtifacts", () => {
+  test("open meetings sort before non-open meetings", () => {
+    const closed = makeMeetingArtifact({ title: "Closed", status: "closed", date: "2026-03-01" });
+    const open = makeMeetingArtifact({ title: "Open", status: "open", date: "2026-01-01" });
+    const requested = makeMeetingArtifact({ title: "Requested", status: "requested", date: "2026-02-01" });
+
+    const sorted = sortMeetingArtifacts([closed, open, requested]);
+    expect(sorted[0].meta.status).toBe("open");
+    expect(sorted[1].meta.status).toBe("closed");
+    expect(sorted[2].meta.status).toBe("requested");
+  });
+
+  test("within same status group, newer dates sort first", () => {
+    const older = makeMeetingArtifact({ title: "Older", status: "closed", date: "2026-01-01" });
+    const newer = makeMeetingArtifact({ title: "Newer", status: "closed", date: "2026-03-01" });
+
+    const sorted = sortMeetingArtifacts([older, newer]);
+    expect(sorted[0].meta.title).toBe("Newer");
+    expect(sorted[1].meta.title).toBe("Older");
+  });
+
+  test("missing dates sort after present dates", () => {
+    const withDate = makeMeetingArtifact({ title: "With Date", status: "closed", date: "2026-01-01" });
+    const noDate = makeMeetingArtifact({ title: "No Date", status: "closed", date: "" });
+
+    const sorted = sortMeetingArtifacts([noDate, withDate]);
+    expect(sorted[0].meta.title).toBe("With Date");
+    expect(sorted[1].meta.title).toBe("No Date");
+  });
+
+  test("empty array returns empty array", () => {
+    expect(sortMeetingArtifacts([])).toEqual([]);
+  });
+
+  test("does not mutate input array", () => {
+    const meetings = [
+      makeMeetingArtifact({ title: "B", status: "closed", date: "2026-01-01" }),
+      makeMeetingArtifact({ title: "A", status: "open", date: "2026-01-01" }),
+    ];
+    const original = [...meetings];
+    sortMeetingArtifacts(meetings);
+    expect(meetings.map((m) => m.meta.title)).toEqual(original.map((m) => m.meta.title));
+  });
+});
+
+// -- sortMeetingRequests tests --
+
+function makeMeetingRequest(overrides: {
+  date?: string;
+  deferred_until?: string;
+  title?: string;
+}): MeetingMeta {
+  return {
+    meetingId: "test-meeting",
+    title: overrides.title ?? "",
+    status: "requested",
+    worker: "Assistant",
+    agenda: "",
+    date: overrides.date ?? "2026-02-01",
+    deferred_until: overrides.deferred_until ?? "",
+    linked_artifacts: [],
+    notes: "",
+    workerDisplayTitle: "",
+    projectName: "test",
+  };
+}
+
+describe("sortMeetingRequests", () => {
+  test("non-deferred requests sort before deferred requests", () => {
+    const deferred = makeMeetingRequest({ title: "Deferred", deferred_until: "2026-04-01" });
+    const active = makeMeetingRequest({ title: "Active", deferred_until: "" });
+
+    const sorted = sortMeetingRequests([deferred, active]);
+    expect(sorted[0].title).toBe("Active");
+    expect(sorted[1].title).toBe("Deferred");
+  });
+
+  test("deferred requests sort by deferred_until ascending", () => {
+    const later = makeMeetingRequest({ title: "Later", deferred_until: "2026-06-01" });
+    const sooner = makeMeetingRequest({ title: "Sooner", deferred_until: "2026-04-01" });
+
+    const sorted = sortMeetingRequests([later, sooner]);
+    expect(sorted[0].title).toBe("Sooner");
+    expect(sorted[1].title).toBe("Later");
+  });
+
+  test("within same deferred group, newer dates sort first", () => {
+    const older = makeMeetingRequest({ title: "Older", date: "2026-01-01", deferred_until: "" });
+    const newer = makeMeetingRequest({ title: "Newer", date: "2026-03-01", deferred_until: "" });
+
+    const sorted = sortMeetingRequests([older, newer]);
+    expect(sorted[0].title).toBe("Newer");
+    expect(sorted[1].title).toBe("Older");
+  });
+
+  test("empty array returns empty array", () => {
+    expect(sortMeetingRequests([])).toEqual([]);
+  });
+
+  test("does not mutate input array", () => {
+    const requests = [
+      makeMeetingRequest({ title: "B", deferred_until: "2026-04-01" }),
+      makeMeetingRequest({ title: "A", deferred_until: "" }),
+    ];
+    const original = [...requests];
+    sortMeetingRequests(requests);
+    expect(requests.map((r) => r.title)).toEqual(original.map((r) => r.title));
   });
 });
 

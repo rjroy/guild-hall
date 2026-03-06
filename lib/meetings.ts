@@ -13,6 +13,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import matter from "gray-matter";
 import { isNodeError } from "@/lib/types";
+import type { Artifact } from "@/lib/types";
 
 // -- Types --
 
@@ -205,6 +206,44 @@ export async function getActiveMeetingWorktrees(
     }
   }
   return worktrees;
+}
+
+// -- Sorting --
+
+/**
+ * Sorts meeting artifacts for the project Meetings tab (Surface 4).
+ * Open meetings first, then by date descending.
+ * REQ-SORT-10
+ */
+export function sortMeetingArtifacts(meetings: Artifact[]): Artifact[] {
+  return [...meetings].sort((a, b) => {
+    const aOpen = a.meta.status === "open" ? 0 : 1;
+    const bOpen = b.meta.status === "open" ? 0 : 1;
+    if (aOpen !== bOpen) return aOpen - bOpen;
+    return (b.meta.date || "").localeCompare(a.meta.date || "");
+  });
+}
+
+/**
+ * Sorts meeting requests for the dashboard Pending Audiences (Surface 5).
+ * Non-deferred first, deferred by deferred_until ascending, then date descending.
+ * REQ-SORT-11
+ */
+export function sortMeetingRequests(requests: MeetingMeta[]): MeetingMeta[] {
+  return [...requests].sort((a, b) => {
+    const aDeferEmpty = !a.deferred_until;
+    const bDeferEmpty = !b.deferred_until;
+
+    if (aDeferEmpty && !bDeferEmpty) return -1;
+    if (!aDeferEmpty && bDeferEmpty) return 1;
+
+    if (!aDeferEmpty && !bDeferEmpty) {
+      const deferCmp = a.deferred_until.localeCompare(b.deferred_until);
+      if (deferCmp !== 0) return deferCmp;
+    }
+
+    return b.date.localeCompare(a.date);
+  });
 }
 
 // -- Transcript parsing for meeting resume --

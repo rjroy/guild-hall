@@ -1,4 +1,5 @@
 import type { Artifact } from "@/lib/types";
+import { compareArtifactsByStatusAndTitle } from "@/lib/artifacts";
 
 /**
  * Extracts the first directory segment from a relative path.
@@ -135,15 +136,30 @@ function insertArtifact(
 }
 
 /**
- * Sorts nodes in-place: alphabetical by name, with "root" always last.
+ * Sorts nodes in-place. Directories sort before leaves.
+ * Directories: alphabetical by name, with "root" always last.
+ * Leaves: status group (REQ-SORT-4) then title alphabetical (REQ-SORT-6).
  * Recurses into children.
  */
 function sortTreeLevel(nodes: TreeNode[]): void {
-  nodes.sort((a, b) => {
+  const dirs = nodes.filter((n) => !n.artifact);
+  const leaves = nodes.filter((n) => !!n.artifact);
+
+  dirs.sort((a, b) => {
     if (a.name === "root") return 1;
     if (b.name === "root") return -1;
     return a.name.localeCompare(b.name);
   });
+
+  leaves.sort((a, b) => {
+    // Leaf invariant: artifact is always defined
+    return compareArtifactsByStatusAndTitle(a.artifact!, b.artifact!);
+  });
+
+  // Rebuild the array: directories first, then leaves
+  nodes.length = 0;
+  nodes.push(...dirs, ...leaves);
+
   for (const node of nodes) {
     if (node.children.length > 0) {
       sortTreeLevel(node.children);

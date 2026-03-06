@@ -1,7 +1,7 @@
 import { readConfig } from "@/lib/config";
 import { recentArtifacts } from "@/lib/artifacts";
 import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
-import { scanMeetingRequests } from "@/lib/meetings";
+import { scanMeetingRequests, sortMeetingRequests } from "@/lib/meetings";
 import { scanCommissions } from "@/lib/commissions";
 import type { Artifact } from "@/lib/types";
 import type { MeetingMeta } from "@/lib/meetings";
@@ -48,22 +48,7 @@ export default async function DashboardPage({
     }),
   );
   const allRequests: MeetingMeta[] = requestsByProject.flat();
-
-  // Sort merged list: active (no deferred_until) first, then by date descending
-  allRequests.sort((a, b) => {
-    const aDeferEmpty = !a.deferred_until;
-    const bDeferEmpty = !b.deferred_until;
-
-    if (aDeferEmpty && !bDeferEmpty) return -1;
-    if (!aDeferEmpty && bDeferEmpty) return 1;
-
-    if (!aDeferEmpty && !bDeferEmpty) {
-      const deferCmp = a.deferred_until.localeCompare(b.deferred_until);
-      if (deferCmp !== 0) return deferCmp;
-    }
-
-    return b.date.localeCompare(a.date);
-  });
+  const sortedRequests = sortMeetingRequests(allRequests);
 
   return (
     <div className={styles.dashboard}>
@@ -86,7 +71,7 @@ export default async function DashboardPage({
         />
       </div>
       <div className={styles.audiences}>
-        <PendingAudiences requests={allRequests} />
+        <PendingAudiences requests={sortedRequests} />
       </div>
     </div>
   );

@@ -1,9 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import type { CommissionMeta } from "@/lib/commissions";
-import {
-  sortCommissions,
-  commissionHref,
-} from "@/web/components/dashboard/DependencyMap";
+import { sortCommissions } from "@/lib/commissions";
+import { commissionHref } from "@/web/components/dashboard/DependencyMap";
 import { buildDependencyGraph, getNeighborhood, layoutGraph } from "@/lib/dependency-graph";
 import { statusToGem } from "@/lib/types";
 
@@ -106,66 +104,60 @@ describe("commissionHref", () => {
   });
 });
 
-describe("sortCommissions", () => {
-  test("running commissions (in_progress) sort first", () => {
+describe("sortCommissions (consolidated from lib/commissions)", () => {
+  // lib/commissions uses a four-group model: idle(0), active(1), failed(2), completed(3)
+  // Idle/active/failed sort oldest first; completed sorts newest first.
+
+  test("idle commissions (pending) sort before active (in_progress)", () => {
     const commissions = [
-      makeCommission({ commissionId: "pending-1", status: "pending", date: "2026-02-21" }),
       makeCommission({ commissionId: "running-1", status: "in_progress", date: "2026-02-20" }),
-      makeCommission({ commissionId: "done-1", status: "completed", date: "2026-02-22" }),
-    ];
-
-    const sorted = sortCommissions(commissions);
-    expect(sorted[0].commissionId).toBe("running-1");
-  });
-
-  test("dispatched commissions also sort first (same as in_progress)", () => {
-    const commissions = [
       makeCommission({ commissionId: "pending-1", status: "pending", date: "2026-02-21" }),
-      makeCommission({ commissionId: "dispatched-1", status: "dispatched", date: "2026-02-19" }),
       makeCommission({ commissionId: "done-1", status: "completed", date: "2026-02-22" }),
     ];
 
     const sorted = sortCommissions(commissions);
-    expect(sorted[0].commissionId).toBe("dispatched-1");
+    expect(sorted[0].commissionId).toBe("pending-1");
+    expect(sorted[1].commissionId).toBe("running-1");
+    expect(sorted[2].commissionId).toBe("done-1");
   });
 
-  test("pending commissions sort after running, before completed", () => {
+  test("active group sorts oldest first", () => {
+    const commissions = [
+      makeCommission({ commissionId: "late", status: "in_progress", date: "2026-02-21" }),
+      makeCommission({ commissionId: "early", status: "dispatched", date: "2026-02-18" }),
+      makeCommission({ commissionId: "mid", status: "in_progress", date: "2026-02-20" }),
+    ];
+
+    const sorted = sortCommissions(commissions);
+    expect(sorted[0].commissionId).toBe("early");
+    expect(sorted[1].commissionId).toBe("mid");
+    expect(sorted[2].commissionId).toBe("late");
+  });
+
+  test("failed/cancelled sort after active, before completed", () => {
     const commissions = [
       makeCommission({ commissionId: "done-1", status: "completed", date: "2026-02-22" }),
-      makeCommission({ commissionId: "pending-1", status: "pending", date: "2026-02-20" }),
+      makeCommission({ commissionId: "failed-1", status: "failed", date: "2026-02-20" }),
       makeCommission({ commissionId: "running-1", status: "in_progress", date: "2026-02-19" }),
     ];
 
     const sorted = sortCommissions(commissions);
     expect(sorted[0].commissionId).toBe("running-1");
-    expect(sorted[1].commissionId).toBe("pending-1");
+    expect(sorted[1].commissionId).toBe("failed-1");
     expect(sorted[2].commissionId).toBe("done-1");
   });
 
-  test("terminal states sort by date descending", () => {
+  test("completed sorts newest first", () => {
     const commissions = [
       makeCommission({ commissionId: "old", status: "completed", date: "2026-02-18" }),
-      makeCommission({ commissionId: "new", status: "failed", date: "2026-02-21" }),
-      makeCommission({ commissionId: "mid", status: "cancelled", date: "2026-02-20" }),
+      makeCommission({ commissionId: "new", status: "completed", date: "2026-02-22" }),
+      makeCommission({ commissionId: "mid", status: "completed", date: "2026-02-20" }),
     ];
 
     const sorted = sortCommissions(commissions);
     expect(sorted[0].commissionId).toBe("new");
     expect(sorted[1].commissionId).toBe("mid");
     expect(sorted[2].commissionId).toBe("old");
-  });
-
-  test("same-priority commissions sort by date descending", () => {
-    const commissions = [
-      makeCommission({ commissionId: "early", status: "in_progress", date: "2026-02-18" }),
-      makeCommission({ commissionId: "late", status: "in_progress", date: "2026-02-21" }),
-      makeCommission({ commissionId: "mid", status: "dispatched", date: "2026-02-20" }),
-    ];
-
-    const sorted = sortCommissions(commissions);
-    expect(sorted[0].commissionId).toBe("late");
-    expect(sorted[1].commissionId).toBe("mid");
-    expect(sorted[2].commissionId).toBe("early");
   });
 
   test("does not mutate original array", () => {
@@ -179,7 +171,7 @@ describe("sortCommissions", () => {
     expect(commissions[0].commissionId).toBe(originalFirst);
   });
 
-  test("full sort order: running, pending, terminal", () => {
+  test("full sort order: idle, active, failed, completed", () => {
     const commissions = [
       makeCommission({ commissionId: "cancelled-1", status: "cancelled", date: "2026-02-15" }),
       makeCommission({ commissionId: "pending-1", status: "pending", date: "2026-02-18" }),
@@ -190,19 +182,21 @@ describe("sortCommissions", () => {
     ];
 
     const sorted = sortCommissions(commissions);
-    const ids = sorted.map((c) => c.commissionId);
+    const ids = sorted.map((c: CommissionMeta) => c.commissionId);
 
-    // Running (in_progress + dispatched) first, by date desc
-    expect(ids[0]).toBe("dispatched-1");
+    // Idle first (oldest first)
+    expect(ids[0]).toBe("pending-1");
+
+    // Active next (oldest first)
     expect(ids[1]).toBe("running-1");
+    expect(ids[2]).toBe("dispatched-1");
 
-    // Pending next
-    expect(ids[2]).toBe("pending-1");
+    // Failed group (oldest first)
+    expect(ids[3]).toBe("cancelled-1");
+    expect(ids[4]).toBe("failed-1");
 
-    // Terminal states by date desc
-    expect(ids[3]).toBe("failed-1");
-    expect(ids[4]).toBe("completed-1");
-    expect(ids[5]).toBe("cancelled-1");
+    // Completed last (newest first)
+    expect(ids[5]).toBe("completed-1");
   });
 });
 

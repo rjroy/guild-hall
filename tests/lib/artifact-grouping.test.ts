@@ -306,19 +306,72 @@ describe("buildArtifactTree", () => {
     expect(tree.map((n) => n.name)).toEqual(["alpha", "middle", "zebra", "root"]);
   });
 
-  test("children within a directory sort alphabetically", () => {
+  test("leaves within a directory sort by status group then title", () => {
     const artifacts = [
-      makeArtifact("specs/z-last.md"),
-      makeArtifact("specs/a-first.md"),
-      makeArtifact("specs/m-middle.md"),
+      makeArtifact("specs/z-last.md", "Z Last", "implemented"),
+      makeArtifact("specs/a-first.md", "A First", "draft"),
+      makeArtifact("specs/m-middle.md", "M Middle", "active"),
     ];
     const tree = buildArtifactTree(artifacts);
     const specsNode = tree[0];
 
+    // draft (group 0) -> active (group 1) -> implemented (group 2)
     expect(specsNode.children.map((c) => c.name)).toEqual([
-      "a-first.md",
-      "m-middle.md",
-      "z-last.md",
+      "a-first.md",  // draft = group 0
+      "m-middle.md", // active = group 1
+      "z-last.md",   // implemented = group 2
+    ]);
+  });
+
+  test("within same status group, leaves sort by title alphabetically", () => {
+    const artifacts = [
+      makeArtifact("specs/z.md", "Zulu", "draft"),
+      makeArtifact("specs/a.md", "Alpha", "draft"),
+      makeArtifact("specs/m.md", "Mike", "draft"),
+    ];
+    const tree = buildArtifactTree(artifacts);
+    const specsNode = tree[0];
+
+    expect(specsNode.children.map((c) => c.label)).toEqual([
+      "Alpha",
+      "Mike",
+      "Zulu",
+    ]);
+  });
+
+  test("directories sort before leaves within a level", () => {
+    // Create a mix of subdirectories and leaf files at the same level
+    const artifacts = [
+      makeArtifact("specs/overview.md", "Overview", "draft"),
+      makeArtifact("specs/sub/detail.md", "Detail", "draft"),
+    ];
+    const tree = buildArtifactTree(artifacts);
+    const specsNode = tree[0];
+
+    // "sub" (directory) should come before "overview.md" (leaf)
+    expect(specsNode.children[0].name).toBe("sub");
+    expect(specsNode.children[0].artifact).toBeUndefined();
+    expect(specsNode.children[1].name).toBe("overview.md");
+    expect(specsNode.children[1].artifact).toBeDefined();
+  });
+
+  test("mixed statuses within one directory sort correctly", () => {
+    const artifacts = [
+      makeArtifact("specs/cancelled-spec.md", "Cancelled Spec", "cancelled"),
+      makeArtifact("specs/draft-spec.md", "Draft Spec", "draft"),
+      makeArtifact("specs/active-spec.md", "Active Spec", "active"),
+      makeArtifact("specs/complete-spec.md", "Complete Spec", "complete"),
+      makeArtifact("specs/blocked-spec.md", "Blocked Spec", "blocked"),
+    ];
+    const tree = buildArtifactTree(artifacts);
+    const specsNode = tree[0];
+
+    expect(specsNode.children.map((c) => c.label)).toEqual([
+      "Blocked Spec",    // group 0 (pending)
+      "Draft Spec",      // group 0 (pending)
+      "Active Spec",     // group 1
+      "Complete Spec",   // group 2
+      "Cancelled Spec",  // group 3
     ]);
   });
 
