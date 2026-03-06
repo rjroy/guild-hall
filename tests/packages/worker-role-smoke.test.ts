@@ -20,6 +20,7 @@ function makeResolvedTools(): ResolvedToolSet {
 
 function makeActivationContext(posture: string): ActivationContext {
   return {
+    identity: { name: "Test Worker", description: "Test", displayTitle: "Test Worker" },
     posture,
     injectedMemory: "",
     resolvedTools: makeResolvedTools(),

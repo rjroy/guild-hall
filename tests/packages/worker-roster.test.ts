@@ -35,7 +35,7 @@ const expectedRoleProfiles: Record<string, {
     identityName: "Researcher",
     descriptionIntent: /investigates|evidence|synthesizes/i,
     checkoutScope: "sparse",
-    builtInTools: ["Read", "Glob", "Grep", "WebSearch", "WebFetch"],
+    builtInTools: ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
   },
   "guild-hall-writer": {
     identityName: "Writer",

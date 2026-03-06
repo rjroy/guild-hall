@@ -24,6 +24,7 @@ function makeContext(
   };
 
   return {
+    identity: { name: "Guild Master", description: "Test manager", displayTitle: "Guild Master" },
     posture: "Test posture text.",
     injectedMemory: "",
     resolvedTools: defaultTools,

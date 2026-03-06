@@ -111,6 +111,7 @@ export interface ResolvedToolSet {
  * worker needs to assemble its system prompt and configure its tool access.
  */
 export interface ActivationContext {
+  identity: WorkerIdentity;
   posture: string;
   injectedMemory: string;
   resolvedTools: ResolvedToolSet;

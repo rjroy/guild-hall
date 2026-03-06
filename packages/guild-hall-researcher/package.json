@@ -9,10 +9,10 @@
       "displayTitle": "Guild Researcher"
     },
     "domainToolboxes": [],
-    "builtInTools": ["Read", "Glob", "Grep", "WebSearch", "WebFetch"],
+    "builtInTools": ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
     "checkoutScope": "sparse",
     "resourceDefaults": {
-      "maxTurns": 70
+      "maxTurns": 100
     }
   }
 }
