@@ -6,7 +6,8 @@
     "identity": {
       "name": "Sable",
       "description": "Probes the seams of what was built, searching for where it gives. Repairs what breaks, but adds nothing new.",
-      "displayTitle": "Guild Breaker"
+      "displayTitle": "Guild Breaker",
+      "portraitPath": "/images/portraits/sable-breaker.webp"
     },
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],

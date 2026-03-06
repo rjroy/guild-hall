@@ -6,7 +6,8 @@
     "identity": {
       "name": "Verity",
       "description": "Ventures beyond the guild walls to gather intelligence. Sees the wider world but never touches the forge.",
-      "displayTitle": "Guild Pathfinder"
+      "displayTitle": "Guild Pathfinder",
+      "portraitPath": "/images/portraits/verity-pathfinder.webp"
     },
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],

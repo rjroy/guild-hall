@@ -6,7 +6,8 @@
     "identity": {
       "name": "Octavia",
       "description": "Keeper of the guild's living record. Documents what exists, prescribes how new lore should be shaped, and is arguably the most vital voice in the hall.",
-      "displayTitle": "Guild Chronicler"
+      "displayTitle": "Guild Chronicler",
+      "portraitPath": "/images/portraits/octavia-chronicler.webp"
     },
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit"],

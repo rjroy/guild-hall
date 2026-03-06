@@ -41,6 +41,7 @@ export function createManagerPackage(): DiscoveredPackage {
       description:
         "Coordination specialist that plans work, dispatches commissions, and manages project workflow.",
       displayTitle: MANAGER_WORKER_NAME,
+      portraitPath: "/images/portraits/guild-master.webp",
     },
     posture: MANAGER_POSTURE,
     systemToolboxes: ["manager"],

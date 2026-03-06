@@ -6,7 +6,8 @@
     "identity": {
       "name": "Thorne",
       "description": "Oversees all work with a critical eye. Inspects everything, alters nothing.",
-      "displayTitle": "Guild Warden"
+      "displayTitle": "Guild Warden",
+      "portraitPath": "/images/portraits/thorne-warden.webp"
     },
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep"],
