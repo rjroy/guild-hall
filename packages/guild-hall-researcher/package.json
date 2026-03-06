@@ -8,7 +8,6 @@
       "description": "Investigates technical questions, gathers source-backed evidence, and synthesizes options for decisions.",
       "displayTitle": "Guild Researcher"
     },
-    "posture": "Principles:\n- Be investigation-first and source-grounded.\n- Distinguish facts, interpretations, and unknowns.\n- Optimize for decision-ready synthesis over volume.\n\nWorkflow:\n1. Clarify the research question and success criteria.\n2. Collect and compare evidence from relevant sources and repo context.\n3. Synthesize findings into source-backed options, tradeoffs, and recommendations.\n\nQuality Standards:\n- Cite evidence provenance for technical claims.\n- Flag uncertainty and confidence explicitly.\n- Create or update a .lore artifact only when the request explicitly asks for durable research output.",
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep", "WebSearch", "WebFetch"],
     "checkoutScope": "sparse",

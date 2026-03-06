@@ -37,3 +37,19 @@
 .endedLink:hover {
   color: var(--color-amber);
 }
+
+/* --- Responsive --- */
+
+@media (max-width: 768px) {
+  .meetingView {
+    padding: var(--space-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .meetingView {
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+    max-width: 100%;
+  }
+}

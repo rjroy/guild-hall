@@ -92,6 +92,21 @@ async function writePackage(
   return pkgDir;
 }
 
+async function writePackageWithPosture(
+  scanDir: string,
+  dirName: string,
+  pkgJson: object,
+  postureContent: string
+): Promise<string> {
+  const pkgDir = await writePackage(scanDir, dirName, pkgJson);
+  await fs.writeFile(
+    path.join(pkgDir, "posture.md"),
+    postureContent,
+    "utf-8"
+  );
+  return pkgDir;
+}
+
 // -- Package name validation --
 
 describe("isValidPackageName", () => {
@@ -336,7 +351,7 @@ describe("discoverPackages", () => {
     }
   });
 
-  test("skips packages with missing required fields", async () => {
+  test("skips worker with no posture source", async () => {
     const warnMessages: string[] = [];
     const originalWarn = console.warn;
     console.warn = (...args: unknown[]) => {
@@ -344,7 +359,7 @@ describe("discoverPackages", () => {
     };
 
     try {
-      // Worker missing posture
+      // Worker missing posture in JSON and no posture.md
       const incomplete = validWorkerGuildHall() as Record<string, unknown>;
       delete incomplete.posture;
 
@@ -355,7 +370,7 @@ describe("discoverPackages", () => {
 
       const packages = await discoverPackages([tmpDir]);
       expect(packages).toHaveLength(0);
-      expect(warnMessages.length).toBeGreaterThan(0);
+      expect(warnMessages.some((m) => m.includes("no posture.md and no guildHall.posture"))).toBe(true);
     } finally {
       console.warn = originalWarn;
     }
@@ -506,6 +521,52 @@ describe("discoverPackages", () => {
     } finally {
       console.warn = originalWarn;
     }
+  });
+
+  test("discovers posture from posture.md file", async () => {
+    const guildHall = validWorkerGuildHall() as Record<string, unknown>;
+    delete guildHall.posture;
+
+    await writePackageWithPosture(
+      tmpDir,
+      "md-worker",
+      { name: "md-worker", guildHall },
+      "You are a markdown-based worker."
+    );
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+
+    const meta = packages[0].metadata as WorkerMetadata;
+    expect(meta.posture).toBe("You are a markdown-based worker.");
+  });
+
+  test("posture.md takes precedence over guildHall.posture", async () => {
+    await writePackageWithPosture(
+      tmpDir,
+      "both-worker",
+      { name: "both-worker", guildHall: validWorkerGuildHall() },
+      "Markdown posture wins."
+    );
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+
+    const meta = packages[0].metadata as WorkerMetadata;
+    expect(meta.posture).toBe("Markdown posture wins.");
+  });
+
+  test("falls back to guildHall.posture when no posture.md", async () => {
+    await writePackage(tmpDir, "json-worker", {
+      name: "json-worker",
+      guildHall: validWorkerGuildHall(),
+    });
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+
+    const meta = packages[0].metadata as WorkerMetadata;
+    expect(meta.posture).toBe("You are a careful researcher.");
   });
 });
 

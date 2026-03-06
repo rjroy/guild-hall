@@ -61,3 +61,13 @@
   color: var(--color-brass);
   margin: 0;
 }
+
+/* --- Responsive --- */
+
+@media (max-width: 480px) {
+  .panel {
+    border-width: 6px;
+    border-image-width: 18px;
+    border-radius: 18px;
+  }
+}

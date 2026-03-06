@@ -45,3 +45,9 @@
     width: 100%;
   }
 }
+
+@media (max-width: 480px) {
+  .artifactView {
+    gap: var(--space-sm);
+  }
+}

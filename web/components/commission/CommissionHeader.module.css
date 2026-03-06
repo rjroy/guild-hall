@@ -88,3 +88,10 @@
     border-radius: 12px;
   }
 }
+
+@media (max-width: 480px) {
+  .header {
+    border-image-width: 16px;
+    border-radius: 16px;
+  }
+}

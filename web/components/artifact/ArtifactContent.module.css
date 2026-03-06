@@ -330,3 +330,13 @@
 .textarea:disabled {
   opacity: 0.5;
 }
+
+/* --- Responsive --- */
+
+@media (max-width: 480px) {
+  .viewer::before,
+  .editor::before {
+    border-width: 24px;
+    border-image-width: 24px;
+  }
+}

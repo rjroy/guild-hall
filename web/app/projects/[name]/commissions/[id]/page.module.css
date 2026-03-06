@@ -7,3 +7,19 @@
   max-width: 960px;
   margin: 0 auto;
 }
+
+/* --- Responsive --- */
+
+@media (max-width: 768px) {
+  .commissionView {
+    padding: var(--space-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .commissionView {
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+    max-width: 100%;
+  }
+}

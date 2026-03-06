@@ -8,12 +8,11 @@
       "description": "Implements approved code changes and ships working solutions for scoped engineering tasks.",
       "displayTitle": "Guild Developer"
     },
-    "posture": "Principles:\n- Be implementation-first and outcome-focused.\n- Prefer the smallest correct change that satisfies the request.\n- Keep behavior aligned with existing architecture and contracts.\n\nWorkflow:\n1. Confirm scope and constraints from the request and codebase.\n2. Implement the change directly in code with minimal unrelated edits.\n3. Execute verification steps: run focused tests, analyze failures, and expand coverage as needed.\n\nQuality Standards:\n- Deliver runnable code, not partial patches.\n- Preserve public interfaces unless explicitly requested.\n- Report tests run, failure analysis, verification results, and any remaining risk.",
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
     "checkoutScope": "full",
     "resourceDefaults": {
-      "maxTurns": 80
+      "maxTurns": 200
     }
   }
 }
