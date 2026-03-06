@@ -180,9 +180,16 @@ describe("valid transitions", () => {
   // pending -> abandoned
   test("pending -> abandoned via abandon()", async () => {
     await createAt("pending");
-    const result = await lifecycle.abandon(TEST_ID);
+    const result = await lifecycle.abandon(TEST_ID, "No longer needed");
     expect(result.outcome).toBe("executed");
     expect(lifecycle.getStatus(TEST_ID)).toBe("abandoned");
+
+    // Verify reason is passed through to Layer 1
+    const writeCall = recordOps.calls.find(
+      (c) => c.method === "writeStatusAndTimeline" && c.args[1] === "abandoned",
+    );
+    expect(writeCall).toBeDefined();
+    expect(writeCall!.args[3]).toBe("No longer needed");
   });
 
   // blocked -> pending
@@ -204,7 +211,7 @@ describe("valid transitions", () => {
   // blocked -> abandoned
   test("blocked -> abandoned via abandon()", async () => {
     await createAt("blocked");
-    const result = await lifecycle.abandon(TEST_ID);
+    const result = await lifecycle.abandon(TEST_ID, "No longer needed");
     expect(result.outcome).toBe("executed");
     expect(lifecycle.getStatus(TEST_ID)).toBe("abandoned");
   });
@@ -277,7 +284,7 @@ describe("valid transitions", () => {
   // failed -> abandoned
   test("failed -> abandoned via abandon()", async () => {
     await createAt("failed");
-    const result = await lifecycle.abandon(TEST_ID);
+    const result = await lifecycle.abandon(TEST_ID, "No longer needed");
     expect(result.outcome).toBe("executed");
     expect(lifecycle.getStatus(TEST_ID)).toBe("abandoned");
   });
@@ -293,7 +300,7 @@ describe("valid transitions", () => {
   // cancelled -> abandoned
   test("cancelled -> abandoned via abandon()", async () => {
     await createAt("cancelled");
-    const result = await lifecycle.abandon(TEST_ID);
+    const result = await lifecycle.abandon(TEST_ID, "No longer needed");
     expect(result.outcome).toBe("executed");
     expect(lifecycle.getStatus(TEST_ID)).toBe("abandoned");
   });

@@ -14,9 +14,10 @@ interface CommissionActionsProps {
  * Action buttons for a commission. Which buttons appear depends on
  * the current status:
  *
- * - pending: Dispatch
+ * - pending: Dispatch, Abandon
  * - dispatched / in_progress: Cancel (with confirmation)
- * - failed / cancelled: Re-dispatch (with confirmation)
+ * - blocked: Abandon
+ * - failed / cancelled: Re-dispatch, Abandon (with reason textarea)
  *
  * All buttons are disabled when the daemon is offline.
  */
@@ -29,8 +30,9 @@ export default function CommissionActions({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [confirming, setConfirming] = useState<
-    "cancel" | "redispatch" | null
+    "cancel" | "redispatch" | "abandon" | null
   >(null);
+  const [abandonReason, setAbandonReason] = useState("");
 
   const encodedId = encodeURIComponent(commissionId);
 
@@ -98,10 +100,39 @@ export default function CommissionActions({
     }
   }, [encodedId, onStatusChange]);
 
+  const handleAbandon = useCallback(async () => {
+    setLoading(true);
+    setError(undefined);
+    setConfirming(null);
+    try {
+      const res = await fetch(`/api/commissions/${encodedId}/abandon`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: abandonReason }),
+      });
+      if (res.ok) {
+        onStatusChange?.("abandoned");
+        setAbandonReason("");
+      } else {
+        const data = (await res.json()) as { error?: string };
+        setError(data.error || "Abandon failed");
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }, [encodedId, onStatusChange, abandonReason]);
+
   const showDispatch = status === "pending";
   const showQueued = status === "queued";
   const showCancel = status === "dispatched" || status === "in_progress" || status === "queued";
   const showRedispatch = status === "failed" || status === "cancelled";
+  const showAbandon =
+    status === "pending" ||
+    status === "blocked" ||
+    status === "failed" ||
+    status === "cancelled";
   const offlineTitle = !isOnline ? "Daemon offline" : undefined;
 
   return (
@@ -194,6 +225,55 @@ export default function CommissionActions({
               type="button"
             >
               Re-dispatch Commission
+            </button>
+          )}
+        </>
+      )}
+
+      {showAbandon && (
+        <>
+          {confirming === "abandon" ? (
+            <div className={styles.confirmRow}>
+              <span className={styles.confirmText}>Abandon this commission?</span>
+              <textarea
+                className={styles.abandonReason}
+                placeholder="Why is this being abandoned?"
+                value={abandonReason}
+                onChange={(e) => setAbandonReason(e.target.value)}
+                rows={2}
+              />
+              <div className={styles.confirmButtons}>
+                <button
+                  className={styles.confirmYes}
+                  onClick={() => void handleAbandon()}
+                  disabled={loading || !isOnline || !abandonReason.trim()}
+                  title={offlineTitle}
+                  type="button"
+                >
+                  {loading ? "Abandoning..." : "Yes, Abandon"}
+                </button>
+                <button
+                  className={styles.confirmNo}
+                  onClick={() => {
+                    setConfirming(null);
+                    setAbandonReason("");
+                  }}
+                  disabled={loading}
+                  type="button"
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className={styles.abandonButton}
+              onClick={() => setConfirming("abandon")}
+              disabled={loading || !isOnline}
+              title={offlineTitle}
+              type="button"
+            >
+              Abandon
             </button>
           )}
         </>

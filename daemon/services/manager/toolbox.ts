@@ -1,10 +1,11 @@
 /**
  * Manager toolbox: exclusive tools for the Guild Master worker.
  *
- * Provides seven tools for project coordination:
+ * Provides eight tools for project coordination:
  * - create_commission: create (and optionally dispatch) a new commission
  * - dispatch_commission: dispatch an existing pending commission
  * - cancel_commission: cancel an active or pending commission
+ * - abandon_commission: abandon a commission with a required reason
  * - create_pr: push claude/main and open a PR on the hosting platform
  * - initiate_meeting: create a meeting request artifact
  * - add_commission_note: annotate a commission with a manager note
@@ -473,6 +474,47 @@ export function makeCancelCommissionHandler(
   };
 }
 
+export function makeAbandonCommissionHandler(
+  deps: ManagerToolboxDeps,
+) {
+  return async (args: {
+    commissionId: string;
+    reason: string;
+  }): Promise<ToolResult> => {
+    try {
+      const cid = asCommissionId(args.commissionId);
+      await deps.commissionSession.abandonCommission(cid, args.reason);
+
+      console.log(
+        `[manager-toolbox] Abandoned commission "${args.commissionId}"`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ commissionId: args.commissionId, status: "abandoned" }),
+          },
+        ],
+      };
+    } catch (err: unknown) {
+      console.error(
+        `[manager-toolbox] Failed to abandon commission "${args.commissionId}":`,
+        errorMessage(err),
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: errorMessage(err),
+          },
+        ],
+        isError: true,
+      };
+    }
+  };
+}
+
 // -- sync_project --
 
 /**
@@ -568,6 +610,7 @@ export function createManagerToolbox(
   const createCommission = makeCreateCommissionHandler(deps);
   const dispatchCommission = makeDispatchCommissionHandler(deps);
   const cancelCommission = makeCancelCommissionHandler(deps);
+  const abandonCommission = makeAbandonCommissionHandler(deps);
   const createPr = makeCreatePrHandler(deps);
   const initiateMeeting = makeInitiateMeetingHandler(deps);
   const addCommissionNote = makeAddCommissionNoteHandler(deps);
@@ -609,6 +652,15 @@ export function createManagerToolbox(
           reason: z.string().optional().describe("Why the commission is being cancelled (default: 'Commission cancelled by manager')"),
         },
         (args) => cancelCommission(args),
+      ),
+      tool(
+        "abandon_commission",
+        "Abandon a commission that won't be completed through the commission process. Use when work was done elsewhere, is no longer relevant, or isn't worth retrying. Valid from pending, blocked, failed, or cancelled states. Requires a reason for the audit trail.",
+        {
+          commissionId: z.string().describe("The commission ID to abandon"),
+          reason: z.string().describe("Why the commission is being abandoned"),
+        },
+        (args) => abandonCommission(args),
       ),
       tool(
         "create_pr",

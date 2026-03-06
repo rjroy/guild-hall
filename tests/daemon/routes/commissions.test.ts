@@ -61,6 +61,10 @@ function makeMockCommissionSession(
       calls.push({ method: "cancelCommission", args: [commissionId] });
       return Promise.resolve();
     },
+    abandonCommission(commissionId: CommissionId, reason: string) {
+      calls.push({ method: "abandonCommission", args: [commissionId, reason] });
+      return Promise.resolve();
+    },
     redispatchCommission(commissionId: CommissionId) {
       calls.push({ method: "redispatchCommission", args: [commissionId] });
       return Promise.resolve({ status: "accepted" as const });
@@ -487,5 +491,105 @@ describe("POST /commissions/:id/note", () => {
     expect(calls[0].method).toBe("addUserNote");
     expect(calls[0].args[0]).toBe("note-me-42");
     expect(calls[0].args[1]).toBe("Use the existing auth module");
+  });
+});
+
+describe("POST /commissions/:id/abandon", () => {
+  test("returns 200 on success with reason", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commissions/commission-test-001/abandon", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Work done elsewhere" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { status: string };
+    expect(body.status).toBe("ok");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("abandonCommission");
+    expect(calls[0].args[0]).toBe("commission-test-001");
+    expect(calls[0].args[1]).toBe("Work done elsewhere");
+  });
+
+  test("returns 400 when reason is missing", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commissions/commission-test-001/abandon", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("Missing required field: reason");
+  });
+
+  test("returns 400 on invalid JSON", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commissions/commission-test-001/abandon", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json",
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("Invalid JSON");
+  });
+
+  test("returns 404 when commission not found", async () => {
+    const { app } = makeTestApp({
+      abandonCommission() {
+        return Promise.reject(
+          new Error('Commission "ghost-001" not found in any project'),
+        );
+      },
+    });
+
+    const res = await app.request("/commissions/ghost-001/abandon", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Gone" }),
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  test("returns 409 on invalid transition", async () => {
+    const { app } = makeTestApp({
+      abandonCommission() {
+        return Promise.reject(
+          new Error('Cannot abandon commission "c1": it has an active session. Cancel it first.'),
+        );
+      },
+    });
+
+    const res = await app.request("/commissions/c1/abandon", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Test" }),
+    });
+
+    expect(res.status).toBe(409);
+  });
+
+  test("returns 500 on unexpected error", async () => {
+    const { app } = makeTestApp({
+      abandonCommission() {
+        return Promise.reject(new Error("Unexpected disk error"));
+      },
+    });
+
+    const res = await app.request("/commissions/c1/abandon", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Test" }),
+    });
+
+    expect(res.status).toBe(500);
   });
 });

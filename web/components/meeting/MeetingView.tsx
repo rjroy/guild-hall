@@ -14,6 +14,7 @@ interface MeetingViewProps {
   projectName: string;
   workerName: string;
   workerDisplayTitle: string;
+  workerPortraitUrl?: string;
   initialArtifacts: LinkedArtifact[];
   initialMessages?: ChatMessage[];
 }
@@ -31,6 +32,7 @@ export default function MeetingView({
   projectName,
   workerName,
   workerDisplayTitle,
+  workerPortraitUrl,
   initialArtifacts,
   initialMessages,
 }: MeetingViewProps) {
@@ -107,6 +109,7 @@ export default function MeetingView({
           projectName={projectName}
           workerName={workerName}
           workerDisplayTitle={workerDisplayTitle}
+          workerPortraitUrl={workerPortraitUrl}
           initialMessages={initialMessages}
           onArtifactLinked={handleArtifactLinked}
         />

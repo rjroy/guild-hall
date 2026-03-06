@@ -8,10 +8,6 @@ related:
   - .lore/brainstorm/meeting-infrastructure-convergence.md
   - .lore/specs/guild-hall-meetings.md
   - .lore/specs/commission-layer-separation.md
-  - .lore/specs/activity-state-machine.md
-  - .lore/design/activity-state-machine.md
-  - .lore/plans/extract-finalize-activity.md
-  - .lore/plans/unified-sdk-runner.md
   - .lore/retros/in-process-commissions.md
   - .lore/retros/phase-5-git-integration-data-loss.md
 req-prefix: MIC
@@ -148,10 +144,10 @@ The refactor extracts shared record utilities, migrates meetings to workspace.ts
 - [Brainstorm: Meeting Infrastructure Convergence](.lore/brainstorm/meeting-infrastructure-convergence.md): The source brainstorm. Identifies the "same things done differently" problem, proposes the active session registry, and rejects the five-layer pattern for meetings.
 - [Spec: Guild Hall Meetings](.lore/specs/guild-hall-meetings.md): The meeting behavioral contract (REQ-MTG-1 through REQ-MTG-30). All requirements carry forward unchanged.
 - [Spec: Commission Layer Separation](.lore/specs/commission-layer-separation.md): Commission's five-layer decomposition. Layer 3 (workspace.ts) is already commission-agnostic (REQ-CLS-19, CLS-21). Exit point `[STUB: meeting-layer-separation]` is what this spec addresses (as infrastructure convergence rather than layer mirroring).
-- [Spec: Activity State Machine](.lore/specs/activity-state-machine.md): The shared state machine spec being retired. Meeting handler semantics (REQ-ASM-23 through REQ-ASM-27) are absorbed into the orchestrator.
-- [Design: Activity State Machine](.lore/design/activity-state-machine.md): Documents ArtifactOps callbacks, TransitionContext, and re-entrant transitions. Historical context for what's being removed.
-- [Plan: Extract finalizeActivity](.lore/plans/extract-finalize-activity.md): Already unified the commit-merge-cleanup sequence. Meetings call finalizeActivity which delegates to workspace.finalize(). This convergence was a prerequisite.
-- [Plan: Extract query runner](.lore/plans/extract-query-runner.md): Extracted SDK query execution from meeting-session.ts into query-runner.ts as an intermediate step. This separated meeting lifecycle from SDK execution, making the orchestrator restructuring tractable. query-runner.ts was subsequently replaced by the shared `sdk-runner.ts` in the [unified SDK runner migration](.lore/plans/unified-sdk-runner.md).
+- Spec: Activity State Machine (removed in PR #58/#60): The shared state machine spec retired by this convergence. Meeting handler semantics (REQ-ASM-23 through REQ-ASM-27) were absorbed into the orchestrator.
+- Design: Activity State Machine (removed in PR #58/#60): Documented ArtifactOps callbacks, TransitionContext, and re-entrant transitions. Historical context for what was removed.
+- Plan: Extract finalizeActivity (removed in PR #62): Unified the commit-merge-cleanup sequence. Meetings called finalizeActivity which delegates to workspace.finalize(). This convergence was a prerequisite.
+- Plan: Extract query runner (removed in PR #62): Extracted SDK query execution from meeting-session.ts into query-runner.ts as an intermediate step. This separated meeting lifecycle from SDK execution, making the orchestrator restructuring tractable. query-runner.ts was subsequently replaced by the shared sdk-runner.ts in the unified SDK runner migration (also removed in PR #62).
 - [Retro: In-Process Commission Migration](.lore/retros/in-process-commissions.md): Terminal state guard pattern for cancel/completion races. The concurrent close guard (REQ-MIC-9) carries this lesson forward.
 - [Retro: Phase 5 Git Integration](.lore/retros/phase-5-git-integration-data-loss.md): cleanGitEnv() requirement. Meetings inherit this through workspace.ts (which uses GitOps that enforces it).
 - [Issue: Capability-Oriented Module Organization](.lore/issues/capability-oriented-module-organization.md): Identifies that shared infrastructure is duplicated across consumer modules. This spec resolves that for record ops and workspace usage.

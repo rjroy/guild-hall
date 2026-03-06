@@ -102,6 +102,12 @@ export default async function MeetingPage({
       ? meta.extras.workerDisplayTitle
       : "") || workerName;
 
+  // Portrait URL stored in frontmatter at meeting creation time.
+  const workerPortraitUrl =
+    typeof meta.extras?.workerPortraitUrl === "string"
+      ? meta.extras.workerPortraitUrl
+      : undefined;
+
   // Agenda lives in frontmatter, not the markdown body. The daemon writes
   // it as a frontmatter field at meeting creation time.
   const agenda =
@@ -123,6 +129,7 @@ export default async function MeetingPage({
           projectName={projectName}
           workerName={workerName}
           workerDisplayTitle={workerDisplayTitle}
+          workerPortraitUrl={workerPortraitUrl}
           agenda={agenda}
         />
         <Panel size="full">
@@ -154,6 +161,7 @@ export default async function MeetingPage({
         projectName={projectName}
         workerName={workerName}
         workerDisplayTitle={workerDisplayTitle}
+        workerPortraitUrl={workerPortraitUrl}
         agenda={agenda}
       />
       <MeetingView
@@ -161,6 +169,7 @@ export default async function MeetingPage({
         projectName={projectName}
         workerName={workerName}
         workerDisplayTitle={workerDisplayTitle}
+        workerPortraitUrl={workerPortraitUrl}
         initialArtifacts={initialArtifacts}
         initialMessages={transcriptMessages}
       />

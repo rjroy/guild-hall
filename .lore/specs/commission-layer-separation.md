@@ -7,12 +7,9 @@ modules: [commission-record, commission-lifecycle, commission-orchestrator, sdk-
 related:
   - .lore/brainstorm/commission-layer-separation.md
   - .lore/specs/guild-hall-commissions.md
-  - .lore/specs/activity-state-machine.md
-  - .lore/design/activity-state-machine.md
   - .lore/reference/commissions.md
   - .lore/retros/in-process-commissions.md
   - .lore/retros/phase-5-git-integration-data-loss.md
-  - .lore/issues/commission-meeting-state-ownership.md
 req-prefix: CLS
 ---
 
@@ -176,7 +173,7 @@ This refactor also replaces the shared ActivityMachine for commissions with a co
 | Exit | Triggers When | Target |
 |------|---------------|--------|
 | Meeting layer migration | Commission layers proven, ready to apply pattern to meetings | [STUB: meeting-layer-separation] |
-| Commission UI | Frontend reads commission state through Layer 2's public interface | [Spec: guild-hall-views](.lore/_archive/specs/guild-hall-views.md) |
+| Commission UI | Frontend reads commission state through Layer 2's public interface | [Spec: guild-hall-views](.lore/specs/guild-hall-views.md) |
 
 ## Success Criteria
 
@@ -222,11 +219,11 @@ This refactor also replaces the shared ActivityMachine for commissions with a co
 ## Context
 
 - [Brainstorm: Commission Layer Separation](.lore/brainstorm/commission-layer-separation.md): The source brainstorm that explored this decomposition. The five-layer model and hard boundary concept originate here.
-- [Spec: Guild Hall Commissions](.lore/_archive/specs/guild-hall-commissions.md): The original commission spec (REQ-COM-1 through REQ-COM-32). All behavioral requirements carry forward.
-- [Spec: Activity State Machine](.lore/_archive/specs/activity-state-machine.md): The current shared state machine spec (REQ-ASM-1 through REQ-ASM-31). Layer 2 replaces this for commissions; meetings continue using it.
-- [Design: Activity State Machine](.lore/_archive/design/activity-state-machine.md): The current implementation design. Documents ArtifactOps callbacks, TransitionContext, and the re-entrant transition pattern.
+- [Spec: Guild Hall Commissions](.lore/specs/guild-hall-commissions.md): The original commission spec (REQ-COM-1 through REQ-COM-32). All behavioral requirements carry forward.
+- Spec: Activity State Machine (removed in PR #58/#60): The shared state machine spec (REQ-ASM-1 through REQ-ASM-31). Layer 2 replaced this for commissions; meetings continued using it until the meeting infrastructure convergence.
+- Design: Activity State Machine (removed in PR #58/#60): The implementation design. Documented ArtifactOps callbacks, TransitionContext, and the re-entrant transition pattern.
 - [Reference: Commissions](.lore/reference/commissions.md): Current-state reference documenting routes, file roles, and data locations.
-- [Retro: In-Process Commission Migration](.lore/_archive/retros/in-process-commissions.md): Terminal state guard pattern for cancel/completion races. DI wiring gaps caught by fresh-eyes review.
-- [Retro: Phase 5 Git Integration](.lore/_archive/retros/phase-5-git-integration-data-loss.md): cleanGitEnv() requirement for all git subprocess invocations.
-- [Issue: Commission/Meeting State Ownership](.lore/_archive/issues/commission-meeting-state-ownership.md): Documented the three-location artifact problem. The hard boundary (REQ-CLS-16) resolves this for commissions.
-- [Retro: Phase 4 Commissions](.lore/_archive/retros/phase-4-commissions.md): "Spec validation catches capability, not assembly." Integration tests across layer boundaries are essential.
+- [Retro: In-Process Commission Migration](.lore/retros/in-process-commissions.md): Terminal state guard pattern for cancel/completion races. DI wiring gaps caught by fresh-eyes review.
+- [Retro: Phase 5 Git Integration](.lore/retros/phase-5-git-integration-data-loss.md): cleanGitEnv() requirement for all git subprocess invocations.
+- Issue: Commission/Meeting State Ownership (removed in PR #64): Documented the three-location artifact problem. The hard boundary (REQ-CLS-16) resolves this for commissions.
+- [Retro: Phase 4 Commissions](.lore/retros/phase-4-commissions.md): "Spec validation catches capability, not assembly." Integration tests across layer boundaries are essential.

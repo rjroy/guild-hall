@@ -74,6 +74,7 @@ export type SessionPrepDeps = {
       contextId: string;
       contextType: "meeting" | "commission";
       workerName: string;
+      workerPortraitUrl?: string;
       eventBus: EventBus;
       config: AppConfig;
       services?: GuildHallToolServices;
@@ -201,6 +202,7 @@ export async function prepareSdkSession(
       contextId: spec.contextId,
       contextType: spec.contextType,
       workerName: workerMeta.identity.name,
+      workerPortraitUrl: workerMeta.identity.portraitPath,
       eventBus: spec.eventBus,
       config: spec.config,
       services: spec.services,

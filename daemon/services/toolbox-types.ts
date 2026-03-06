@@ -18,6 +18,7 @@ export interface GuildHallToolboxDeps {
   contextId: string;
   contextType: "meeting" | "commission";
   workerName: string;
+  workerPortraitUrl?: string;
   eventBus: EventBus;
   config: AppConfig;
   services?: GuildHallToolServices;
