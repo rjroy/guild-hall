@@ -1,7 +1,7 @@
 ---
 title: "Plan: Guild Master PR during meeting"
 date: 2026-03-06
-status: draft
+status: implemented
 tags: [plan, meetings, pr, guild-master, toolbox]
 modules: [cli-rebase, manager-toolbox]
 related:
@@ -151,3 +151,14 @@ No additional handling is needed, but this should be noted for reviewer awarenes
 3. **Step 3**: Tests for `rebaseProject` and `makeCreatePrHandler` with project-scoped meetings.
 
 All steps can be done in a single commit. The change is small enough that phased delivery adds no value.
+
+## Resolution
+
+Implemented exactly as planned on 2026-03-06. One production code change in `cli/rebase.ts`: added `scope?: string` to the parsed meeting state type and a `state.scope !== "project"` condition to the meeting loop in `hasActiveActivities()`. Absent scope defaults to activity scope (blocking), preserving backward compatibility with pre-existing state files.
+
+Five new tests added:
+- `tests/cli/rebase.test.ts`: project-scoped meeting doesn't block (3 tests covering project-only, explicit activity, and mixed scopes)
+- `tests/cli/rebase.test.ts`: project-scoped meeting doesn't block rebase (1 test in `rebaseProject` block)
+- `tests/daemon/services/manager-toolbox.test.ts`: PR creation allowed with project-scoped meeting (1 test)
+
+All 1787 tests pass, including the existing "returns true when an open meeting exists" test (no scope field = activity scope, still blocks).

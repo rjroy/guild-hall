@@ -57,8 +57,13 @@ export async function hasActiveActivities(
         const state = JSON.parse(raw) as {
           projectName?: string;
           status?: string;
+          scope?: string;
         };
-        if (state.projectName === projectName && state.status === "open") {
+        if (
+          state.projectName === projectName &&
+          state.status === "open" &&
+          state.scope !== "project"
+        ) {
           return true;
         }
       } catch {

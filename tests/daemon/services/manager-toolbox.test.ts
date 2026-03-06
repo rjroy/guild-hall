@@ -572,6 +572,26 @@ describe("create_pr", () => {
     expect(result.content[0].text).toContain("active commissions");
   });
 
+  test("allows PR creation when only project-scoped meetings are open", async () => {
+    // Write a meeting state file with project scope
+    const stateDir = path.join(guildHallHome, "state", "meetings");
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, "meeting-guildmaster.json"),
+      JSON.stringify({ projectName: "test-project", status: "open", scope: "project" }),
+    );
+
+    const deps = makeDeps();
+    const handler = makeCreatePrHandler(deps);
+
+    const result = await handler({ title: "PR during Guild Master meeting" });
+
+    expect(result.isError).toBeUndefined();
+
+    const parsed = JSON.parse(result.content[0].text) as { url?: string };
+    expect(parsed.url).toBeDefined();
+  });
+
   test("succeeds when no activities: fetches, pushes, then creates PR", async () => {
     const callOrder: string[] = [];
     const pushCalls: string[][] = [];

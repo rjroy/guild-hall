@@ -259,6 +259,46 @@ describe("hasActiveActivities", () => {
     expect(result).toBe(false);
   });
 
+  test("returns false when only project-scoped meetings are open", async () => {
+    const stateDir = path.join(ghHome, "state", "meetings");
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, "meet-project.json"),
+      JSON.stringify({ projectName: "my-project", status: "open", scope: "project" }),
+    );
+
+    const result = await hasActiveActivities(ghHome, "my-project");
+    expect(result).toBe(false);
+  });
+
+  test("returns true when activity-scoped meetings are open", async () => {
+    const stateDir = path.join(ghHome, "state", "meetings");
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, "meet-activity.json"),
+      JSON.stringify({ projectName: "my-project", status: "open", scope: "activity" }),
+    );
+
+    const result = await hasActiveActivities(ghHome, "my-project");
+    expect(result).toBe(true);
+  });
+
+  test("returns true when both scopes exist and activity-scoped is open", async () => {
+    const stateDir = path.join(ghHome, "state", "meetings");
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, "meet-project.json"),
+      JSON.stringify({ projectName: "my-project", status: "open", scope: "project" }),
+    );
+    await fs.writeFile(
+      path.join(stateDir, "meet-activity.json"),
+      JSON.stringify({ projectName: "my-project", status: "open", scope: "activity" }),
+    );
+
+    const result = await hasActiveActivities(ghHome, "my-project");
+    expect(result).toBe(true);
+  });
+
   test("ignores non-json files in state directory", async () => {
     const stateDir = path.join(ghHome, "state", "commissions");
     await fs.mkdir(stateDir, { recursive: true });
@@ -349,6 +389,27 @@ describe("rebaseProject", () => {
     expect(result).toBe(false);
     const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
     expect(rebaseCalls).toHaveLength(0);
+  });
+
+  test("proceeds when only project-scoped meetings are open", async () => {
+    const stateDir = path.join(ghHome, "state", "meetings");
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, "project-meeting.json"),
+      JSON.stringify({ projectName: "my-project", status: "open", scope: "project" }),
+    );
+
+    const result = await rebaseProject(
+      "/fake/project",
+      "my-project",
+      ghHome,
+      mockGit,
+      "main",
+    );
+
+    expect(result).toBe(true);
+    const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
+    expect(rebaseCalls).toHaveLength(1);
   });
 
   test("proceeds when only closed/completed activities exist", async () => {
