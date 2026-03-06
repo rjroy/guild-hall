@@ -66,11 +66,62 @@ function parseMeta(data: Record<string, unknown>): ArtifactMeta {
   };
 }
 
+// -- Sorting --
+
+/**
+ * Status priority for artifact sorting. Lower number = sorts first.
+ * Draft surfaces first, closed sinks to the bottom.
+ * Unrecognized or missing statuses sort after closed.
+ */
+const STATUS_PRIORITY: Record<string, number> = {
+  draft: 0,
+  open: 1,
+  closed: 2,
+};
+const DEFAULT_STATUS_PRIORITY = 3;
+
+function statusPriority(status: string): number {
+  return STATUS_PRIORITY[status.toLowerCase()] ?? DEFAULT_STATUS_PRIORITY;
+}
+
+/**
+ * Compare function for artifact lists.
+ * Sorts by: status (draft > open > closed), date (newer first), title (alphabetical).
+ * Missing fields sort after present ones.
+ */
+export function compareArtifacts(a: Artifact, b: Artifact): number {
+  // 1. Status priority
+  const statusDiff = statusPriority(a.meta.status) - statusPriority(b.meta.status);
+  if (statusDiff !== 0) return statusDiff;
+
+  // 2. Date descending (newer first). Empty dates sort last.
+  const aDate = a.meta.date;
+  const bDate = b.meta.date;
+  if (aDate && !bDate) return -1;
+  if (!aDate && bDate) return 1;
+  if (aDate && bDate) {
+    const dateCmp = bDate.localeCompare(aDate);
+    if (dateCmp !== 0) return dateCmp;
+  }
+
+  // 3. Title alphabetical tiebreaker. Empty titles sort last.
+  const aTitle = a.meta.title;
+  const bTitle = b.meta.title;
+  if (aTitle && !bTitle) return -1;
+  if (!aTitle && bTitle) return 1;
+  if (aTitle && bTitle) {
+    return aTitle.localeCompare(bTitle);
+  }
+
+  return 0;
+}
+
 // -- Public API --
 
 /**
  * Recursively finds all .md files in lorePath, parses frontmatter,
- * and returns Artifact[] sorted by lastModified descending.
+ * and returns Artifact[] sorted by status (active first), then date
+ * descending, then title ascending.
  *
  * Files with malformed frontmatter are included with empty meta.
  */
@@ -120,7 +171,7 @@ export async function scanArtifacts(lorePath: string): Promise<Artifact[]> {
     }
   }
 
-  artifacts.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+  artifacts.sort(compareArtifacts);
   return artifacts;
 }
 
@@ -195,7 +246,7 @@ export async function writeRawArtifactContent(
 }
 
 /**
- * Returns the top N most recently modified artifacts.
+ * Returns the top N artifacts by status/date/title sort order.
  */
 export async function recentArtifacts(
   lorePath: string,

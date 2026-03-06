@@ -5,7 +5,6 @@ import type { ToolUseEntry } from "@/lib/types";
 import GemIndicator from "@/web/components/ui/GemIndicator";
 import styles from "./ToolUseIndicator.module.css";
 
-export type { ToolUseEntry };
 
 interface ToolUseIndicatorProps {
   tool: ToolUseEntry;

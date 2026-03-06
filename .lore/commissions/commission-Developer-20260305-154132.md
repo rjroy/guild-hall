@@ -1,7 +1,7 @@
 ---
 title: "Commission: Implement: Abandoned Commission State"
 date: 2026-03-05
-status: failed
+status: abandoned
 tags: [commission]
 worker: Developer
 workerDisplayTitle: "Guild Developer"
@@ -21,6 +21,11 @@ activity_timeline:
   - timestamp: 2026-03-05T23:52:22.142Z
     event: status_failed
     reason: "Session error: error_max_turns"
+  - timestamp: 2026-03-06T16:27:58.399Z
+    event: status_abandoned
+    reason: "The original worker is gone and we already did this work. "
+    from: "failed"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---

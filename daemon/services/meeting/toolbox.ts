@@ -24,7 +24,7 @@ import {
   appendMeetingLog,
   addLinkedArtifact,
 } from "@/daemon/services/meeting/record";
-import { validateContainedPath, formatTimestamp, resolveWritePath } from "@/daemon/lib/toolbox-utils";
+import { validateContainedPath, formatTimestamp, resolveWritePath, escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 
@@ -126,7 +126,7 @@ export function makeProposeFollowupHandler(deps: MeetingToolboxDeps) {
 
     // Portrait URL line: only include when a portrait exists.
     const portraitLine = deps.workerPortraitUrl
-      ? `\nworkerPortraitUrl: "${deps.workerPortraitUrl.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+      ? `\nworkerPortraitUrl: "${escapeYamlValue(deps.workerPortraitUrl)}"`
       : "";
 
     // Use the same template literal format as writeMeetingArtifact in

@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import MeetingHeader from "@/web/components/meeting/MeetingHeader";
 import ErrorMessage from "@/web/components/meeting/ErrorMessage";
-import type { ToolUseEntry } from "@/web/components/meeting/ToolUseIndicator";
+import type { ToolUseEntry } from "@/lib/types";
 import type { ChatMessage } from "@/web/components/meeting/types";
 
 /**
@@ -341,7 +341,7 @@ describe("MessageBubble", () => {
     expect(portraits[0].props.size).toBe("sm");
   });
 
-  test("message with tool uses renders ToolUseIndicator elements", async () => {
+  test("message with tool uses renders CollapsibleToolList", async () => {
     const { default: MB } = await import("@/web/components/meeting/MessageBubble");
     const tools: ToolUseEntry[] = [
       { name: "read_file", status: "complete", output: "content" },
@@ -357,21 +357,21 @@ describe("MessageBubble", () => {
       },
     }) as AnyElement;
 
-    const indicators = findComponentElements(el, "ToolUseIndicator");
-    expect(indicators).toHaveLength(2);
-    expect(indicators[0].props.tool).toEqual(tools[0]);
-    expect(indicators[1].props.tool).toEqual(tools[1]);
+    const collapsible = findComponentElements(el, "CollapsibleToolList");
+    expect(collapsible).toHaveLength(1);
+    expect(collapsible[0].props.tools).toEqual(tools);
+    expect(collapsible[0].props.isStreaming).toBe(false);
   });
 
-  test("message without tool uses does not render ToolUseIndicator", async () => {
+  test("message without tool uses does not render CollapsibleToolList", async () => {
     const { default: MB } = await import("@/web/components/meeting/MessageBubble");
 
     const el = MB({
       message: { id: "msg-4", role: "assistant", content: "Plain" },
     }) as AnyElement;
 
-    const indicators = findComponentElements(el, "ToolUseIndicator");
-    expect(indicators).toHaveLength(0);
+    const collapsible = findComponentElements(el, "CollapsibleToolList");
+    expect(collapsible).toHaveLength(0);
   });
 
   test("renders ReactMarkdown for message content", async () => {
@@ -436,7 +436,7 @@ describe("StreamingMessage", () => {
     expect(ariaHidden.length).toBeGreaterThanOrEqual(1);
   });
 
-  test("renders ToolUseIndicator for active tools", async () => {
+  test("renders CollapsibleToolList for active tools", async () => {
     const { default: SM } = await import("@/web/components/meeting/StreamingMessage");
     const tools: ToolUseEntry[] = [
       { name: "search_code", status: "running" },
@@ -447,9 +447,10 @@ describe("StreamingMessage", () => {
       tools,
     }) as AnyElement;
 
-    const indicators = findComponentElements(el, "ToolUseIndicator");
-    expect(indicators).toHaveLength(1);
-    expect(indicators[0].props.tool).toEqual(tools[0]);
+    const collapsible = findComponentElements(el, "CollapsibleToolList");
+    expect(collapsible).toHaveLength(1);
+    expect(collapsible[0].props.tools).toEqual(tools);
+    expect(collapsible[0].props.isStreaming).toBe(true);
   });
 
   test("renders cursor even with empty content and no tools", async () => {
