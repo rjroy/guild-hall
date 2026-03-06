@@ -1,7 +1,7 @@
 ---
 title: "Commission: Implement: Abandoned Commission State"
 date: 2026-03-05
-status: dispatched
+status: failed
 tags: [commission]
 worker: Developer
 workerDisplayTitle: "Guild Developer"
@@ -18,6 +18,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-05T23:52:22.142Z
+    event: status_failed
+    reason: "Session error: error_max_turns"
 current_progress: ""
 projectName: guild-hall
 ---
