@@ -120,7 +120,8 @@ export function compareArtifacts(a: Artifact, b: Artifact): number {
 
 /**
  * Recursively finds all .md files in lorePath, parses frontmatter,
- * and returns Artifact[] sorted by lastModified descending.
+ * and returns Artifact[] sorted by status (active first), then date
+ * descending, then title ascending.
  *
  * Files with malformed frontmatter are included with empty meta.
  */
@@ -245,7 +246,7 @@ export async function writeRawArtifactContent(
 }
 
 /**
- * Returns the top N most recently modified artifacts.
+ * Returns the top N artifacts by status/date/title sort order.
  */
 export async function recentArtifacts(
   lorePath: string,

@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import MeetingHeader from "@/web/components/meeting/MeetingHeader";
 import ErrorMessage from "@/web/components/meeting/ErrorMessage";
-import type { ToolUseEntry } from "@/web/components/meeting/ToolUseIndicator";
+import type { ToolUseEntry } from "@/lib/types";
 import type { ChatMessage } from "@/web/components/meeting/types";
 
 /**
