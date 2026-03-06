@@ -104,6 +104,17 @@ describe("meetingHref", () => {
     );
   });
 
+  test("closed meeting prepends meetings/ when relativePath is just a filename", () => {
+    const href = meetingHref(
+      "closed",
+      "my-project",
+      "audience-Assistant-20260221-120000.md",
+    );
+    expect(href).toBe(
+      "/projects/my-project/artifacts/meetings/audience-Assistant-20260221-120000.md",
+    );
+  });
+
   test("normalizes status case and whitespace", () => {
     expect(
       meetingHref("  Closed  ", "proj", "meetings/abc.md"),
