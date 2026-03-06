@@ -106,17 +106,6 @@ export default function CommissionView({
             break;
           }
 
-          case "commission_question": {
-            setTimeline((prev) => [
-              ...prev,
-              {
-                timestamp: ts,
-                event: "question",
-                reason: data.question || data.reason || "",
-              } as TimelineEntry,
-            ]);
-            break;
-          }
 
           case "commission_result": {
             setTimeline((prev) => [

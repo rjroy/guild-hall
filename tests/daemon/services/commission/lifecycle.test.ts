@@ -427,12 +427,6 @@ describe("event emission", () => {
     expect(emittedEvents).toHaveLength(0);
   });
 
-  test("questionLogged does not re-emit (toolbox already emitted)", async () => {
-    lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
-    await lifecycle.questionLogged(TEST_ID, "Which approach?");
-
-    expect(emittedEvents).toHaveLength(0);
-  });
 });
 
 // -- Layer 1 calls --
@@ -477,15 +471,6 @@ describe("Layer 1 calls", () => {
     expect(calls[0].args).toEqual([TEST_ARTIFACT, "Done", ["a.md", "b.md"]]);
   });
 
-  test("questionLogged calls appendTimeline with question event", async () => {
-    lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
-    await lifecycle.questionLogged(TEST_ID, "What now?");
-
-    const calls = recordOps.calls.filter((c) => c.method === "appendTimeline");
-    expect(calls).toHaveLength(1);
-    expect(calls[0].args[1]).toBe("question");
-    expect(calls[0].args[2]).toBe("What now?");
-  });
 });
 
 // -- In-progress signal validation --
@@ -510,15 +495,6 @@ describe("signal state validation", () => {
     }
   });
 
-  test("questionLogged on dispatched is rejected", async () => {
-    lifecycle.register(TEST_ID, TEST_PROJECT, "dispatched", TEST_ARTIFACT);
-    const result = await lifecycle.questionLogged(TEST_ID, "nope");
-    expect(result.outcome).toBe("skipped");
-    if (result.outcome === "skipped") {
-      expect(result.reason).toContain("dispatched");
-    }
-  });
-
   test("signals on untracked commission are rejected", async () => {
     const nope = asCommissionId("nope");
     const r1 = await lifecycle.progressReported(nope, "x");
@@ -530,8 +506,6 @@ describe("signal state validation", () => {
     const r2 = await lifecycle.resultSubmitted(nope, "x");
     expect(r2.outcome).toBe("skipped");
 
-    const r3 = await lifecycle.questionLogged(nope, "x");
-    expect(r3.outcome).toBe("skipped");
   });
 });
 

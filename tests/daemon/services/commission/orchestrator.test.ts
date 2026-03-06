@@ -1149,12 +1149,6 @@ describe("EventBus handler error resilience (Fix 1)", () => {
       commissionId: commissionId as string,
       summary: "test result",
     });
-    eventBus.emit({
-      type: "commission_question",
-      commissionId: commissionId as string,
-      question: "test question",
-    });
-
     // Wait for .catch() handlers to execute
     await new Promise<void>((r) => setTimeout(r, 50));
 
@@ -1705,41 +1699,4 @@ describe("commission_progress does not cause infinite event loop", () => {
     orchestrator.shutdown();
   });
 
-  test("toolbox-emitted question event is not re-emitted by lifecycle", async () => {
-    const commissionId = asCommissionId("commission-loop-question-001");
-    const eventBus = createTestEventBus();
-    const mockQueryFn = createMockQueryFn({
-      eventBus,
-      commissionId: commissionId as string,
-      resolveAfterMs: -1,
-    });
-    const workspace = createMockWorkspace();
-    const { orchestrator, lifecycle } = buildDeps({
-      workspace,
-      mockQueryFn,
-      eventBus,
-    });
-
-    await writeCommissionArtifact(integrationPath, commissionId as string);
-    await orchestrator.dispatchCommission(commissionId);
-    await new Promise<void>((r) => setTimeout(r, 50));
-    expect(lifecycle.getStatus(commissionId)).toBe("in_progress");
-
-    const countBefore = eventBus.events.length;
-
-    eventBus.emit({
-      type: "commission_question",
-      commissionId: commissionId as string,
-      question: "Which approach?",
-    });
-
-    const questionEvents = eventBus.events
-      .slice(countBefore)
-      .filter((e) => e.type === "commission_question");
-    expect(questionEvents).toHaveLength(1);
-
-    mockQueryFn.resolve({ aborted: true });
-    await new Promise<void>((r) => setTimeout(r, 50));
-    orchestrator.shutdown();
-  });
 });

@@ -572,13 +572,6 @@ describe("CommissionView type contract", () => {
     };
     expect(progressEvent.type).toBe("commission_progress");
 
-    const questionEvent = {
-      type: "commission_question" as const,
-      commissionId: "commission-researcher-20260221",
-      question: "Which API version?",
-    };
-    expect(questionEvent.type).toBe("commission_question");
-
     const resultEvent = {
       type: "commission_result" as const,
       commissionId: "commission-researcher-20260221",

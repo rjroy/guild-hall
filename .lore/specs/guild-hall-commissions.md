@@ -49,7 +49,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-COM-3: The agentic prompt is the primary input to the worker. It describes the desired outcome, not the steps to achieve it. The worker's posture and expertise shape how it approaches the prompt. Prompts should include verification criteria when possible: how the worker can self-assess whether it achieved the desired outcome. Completion is not just making an attempt; it's validating the result is correct.
 
-- REQ-COM-3a: When a worker cannot verify its own output (no verification criteria provided, or criteria require judgment beyond its context), it should log the gap via log_question (REQ-COM-18) before calling submit_result. The question surfaces to the user through the commission view and the manager, who can initiate a meeting for clarification if needed. Self-verification behavior is encoded in worker posture, not enforced by the system.
+- REQ-COM-3a: When a worker cannot verify its own output (no verification criteria provided, or criteria require judgment beyond its context), it should state its interpretation and proceed. Commissions are designed to be self-sufficient. Self-verification behavior is encoded in worker posture, not enforced by the system.
 
 - REQ-COM-4: Commission creation follows the parity principle (REQ-SYS-39): the user creates commissions through the UI, the manager creates them programmatically, both produce the same artifact file.
 
@@ -131,7 +131,6 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - REQ-COM-18: Commission toolbox tools:
   - **report_progress**: Update the commission's progress summary. Visible in the commission view and the manager's briefing.
   - **submit_result**: Declare the commission complete. Accepts a summary and an optional list of artifact paths produced. This is the explicit result channel. Tool calls are mechanisms; prompt instructions are hopes.
-  - **log_question**: Record a question the worker cannot resolve autonomously. Questions surface to the user through the commission view and manager.
 
 - REQ-COM-19: submit_result can only be called once per commission. Calling it registers the result; the completion transition happens when the session ends (normally or with error, per REQ-COM-14). If the worker continues after submit_result (cleanup, final memory writes), additional artifacts are still captured.
 
@@ -152,7 +151,6 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - REQ-COM-24: Each commission maintains an activity timeline: a chronological log of events. Events include:
   - Status transitions (from/to state, timestamp, reason)
   - Progress reports (from report_progress)
-  - Questions logged (from log_question)
   - Decisions recorded (from base toolbox decision recording)
   - Artifacts produced (path, timestamp)
   - Session activity updates (last activity timestamp changes)
@@ -200,7 +198,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - [ ] Status transitions follow the defined state machine; invalid transitions are rejected
 - [ ] Dependency checking auto-transitions commissions between blocked and pending when artifacts appear or disappear
 - [ ] Dispatch creates activity branch, worktree, and launches async session within the daemon
-- [ ] Commission toolbox (report_progress, submit_result, log_question) is injected into worker sessions
+- [ ] Commission toolbox (report_progress, submit_result) is injected into worker sessions
 - [ ] submit_result is the explicit result channel; clean exit without it is failure; crash after submit_result is still completion
 - [ ] Concurrent limits enforced per-project and globally; excess commissions queue
 - [ ] Activity timeline records all lifecycle events with timestamps
@@ -222,7 +220,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - Dependency test: create commissions with dependencies, verify blocked/pending auto-transitions when artifacts appear/disappear
 - Dispatch sequence test: dispatch a commission, verify worktree creation, branch creation, session launch, status progression through dispatched to in_progress
 - Activation failure test: dispatch with missing toolbox or invalid worker package, verify clean transition to failed with descriptive reason
-- Toolbox test: report_progress, submit_result, log_question write to correct locations and update commission state correctly
+- Toolbox test: report_progress, submit_result write to correct locations and update commission state correctly
 - Concurrent limit test: dispatch commissions up to and beyond limits, verify queuing and FIFO dispatch
 - Crash recovery test: simulate daemon restart with active commissions, verify startup scan fails them, preserves partial results
 - Cancellation test: cancel running commission via AbortController, verify session stops, branch preserved, worktree cleaned up

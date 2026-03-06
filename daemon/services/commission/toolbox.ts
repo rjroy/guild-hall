@@ -4,7 +4,7 @@
  * Provides three tools that operate on the current commission's artifact:
  * - report_progress: update current progress and log a progress report
  * - submit_result: record the final result (one-shot, cannot be called twice)
- * - log_question: record a question in the activity timeline
+ * - (log_question was removed to make commissions self-sufficient)
  *
  * Uses callbacks to notify the caller (session runner or orchestrator) of
  * tool invocations. File writes for durability happen within each handler;
@@ -36,7 +36,6 @@ import type { GuildHallToolboxDeps, ToolboxFactory } from "@/daemon/services/too
 export type SessionCallbacks = {
   onProgress: (summary: string) => void;
   onResult: (summary: string, artifacts?: string[]) => void;
-  onQuestion: (question: string) => void;
 };
 
 type CommissionToolboxDeps = Pick<GuildHallToolboxDeps, "guildHallHome" | "projectName" | "contextId" | "eventBus">;
@@ -149,29 +148,6 @@ export function makeSubmitResultHandler(
   };
 }
 
-export function makeLogQuestionHandler(
-  deps: CommissionToolboxDeps,
-  callbacks: SessionCallbacks,
-  resources?: ToolboxResources,
-) {
-  const cid = asCommissionId(deps.contextId);
-  const { recordOps, writePathPromise } = resources ?? createToolboxResources(deps);
-
-  return async (args: { question: string }): Promise<ToolResult> => {
-    const writePath = await writePathPromise;
-    const artifactPath = commissionArtifactPath(writePath, cid);
-    await recordOps.appendTimeline(artifactPath, "question", args.question);
-
-    callbacks.onQuestion(args.question);
-
-    return {
-      content: [
-        { type: "text", text: `Question logged: ${args.question}` },
-      ],
-    };
-  };
-}
-
 // -- MCP server factory --
 
 /**
@@ -190,8 +166,6 @@ export function createCommissionToolboxWithCallbacks(
 
   const reportProgress = makeReportProgressHandler(deps, callbacks, resources);
   const submitResult = makeSubmitResultHandler(deps, callbacks, resources);
-  const logQuestion = makeLogQuestionHandler(deps, callbacks, resources);
-
   return createSdkMcpServer({
     name: "guild-hall-commission",
     version: "0.1.0",
@@ -212,14 +186,6 @@ export function createCommissionToolboxWithCallbacks(
           artifacts: z.array(z.string()).optional(),
         },
         (args) => submitResult(args),
-      ),
-      tool(
-        "log_question",
-        "Log a question that arose during commission work. Records the question in the activity timeline for the user to review.",
-        {
-          question: z.string(),
-        },
-        (args) => logQuestion(args),
       ),
     ],
   });
@@ -247,12 +213,6 @@ export const commissionToolboxFactory: ToolboxFactory = (deps) => ({
         commissionId: deps.contextId,
         summary,
         artifacts,
-      }),
-    onQuestion: (question) =>
-      deps.eventBus.emit({
-        type: "commission_question",
-        commissionId: deps.contextId,
-        question,
       }),
   }),
 });

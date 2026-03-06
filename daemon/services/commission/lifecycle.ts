@@ -270,31 +270,6 @@ export class CommissionLifecycle {
     });
   }
 
-  async questionLogged(id: CommissionId, question: string): Promise<TransitionResult> {
-    const entry = this.tracked.get(id);
-    if (!entry) {
-      return { outcome: "skipped", reason: `Commission "${id}" is not tracked` };
-    }
-
-    return this.withLock(id, entry, async () => {
-      if (entry.status !== "in_progress") {
-        return {
-          outcome: "skipped" as const,
-          reason: `Cannot log question: current state is "${entry.status}", expected "in_progress"`,
-        };
-      }
-
-      await this.recordOps.appendTimeline(
-        entry.artifactPath,
-        "question",
-        question,
-      );
-
-      // No deferredEvent: the toolbox already emitted commission_question
-      // to the EventBus before this method was called.
-      return { outcome: "executed" as const, status: entry.status };
-    });
-  }
 
   // -- Queries --
 

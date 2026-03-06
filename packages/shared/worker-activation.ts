@@ -27,7 +27,7 @@ function buildSystemPrompt(context: ActivationContext): string {
         "Commission protocol:",
         "- Use report_progress to log what you're doing as you work. This keeps the user informed.",
         "- When finished, you MUST call submit_result with a summary of what you accomplished and any artifact paths you created or modified.",
-        "- If you have questions or encounter gaps in the requirements, use log_question to record them.",
+        "- If you encounter gaps in the requirements, state your interpretation and proceed. You are expected to be self-sufficient.",
         "- The commission is not considered complete unless you call submit_result. Just responding with text is not enough.",
       ].join("\n"),
     );

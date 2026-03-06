@@ -11,7 +11,6 @@ import {
   commissionToolboxFactory,
   makeReportProgressHandler,
   makeSubmitResultHandler,
-  makeLogQuestionHandler,
   type CommissionToolCallbacks,
 } from "@/daemon/services/commission/toolbox";
 import { parseActivityTimeline } from "@/lib/commissions";
@@ -46,7 +45,6 @@ function makeCallbacks(overrides?: Partial<CommissionToolCallbacks>): Commission
   return {
     onProgress: overrides?.onProgress ?? (() => {}),
     onResult: overrides?.onResult ?? (() => {}),
-    onQuestion: overrides?.onQuestion ?? (() => {}),
   };
 }
 
@@ -271,51 +269,6 @@ describe("submit_result", () => {
   });
 });
 
-// -- log_question --
-
-describe("log_question", () => {
-  test("appends question to timeline", async () => {
-    await writeCommissionArtifact();
-
-    const questions: string[] = [];
-    const callbacks = makeCallbacks({
-      onQuestion: (q) => questions.push(q),
-    });
-    const handler = makeLogQuestionHandler(makeDeps(), callbacks);
-
-    const result = await handler({
-      question: "Should I include deprecated patterns?",
-    });
-
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toBe(
-      "Question logged: Should I include deprecated patterns?",
-    );
-
-    // Verify callback
-    expect(questions).toEqual(["Should I include deprecated patterns?"]);
-
-    const timeline = await readTimeline();
-    const questionEntries = timeline.filter((e) => e.event === "question");
-    expect(questionEntries).toHaveLength(1);
-    expect(questionEntries[0].reason).toBe(
-      "Should I include deprecated patterns?",
-    );
-  });
-
-  test("multiple questions accumulate in timeline", async () => {
-    await writeCommissionArtifact();
-
-    const handler = makeLogQuestionHandler(makeDeps(), makeCallbacks());
-    await handler({ question: "First question?" });
-    await handler({ question: "Second question?" });
-
-    const timeline = await readTimeline();
-    const questionEntries = timeline.filter((e) => e.event === "question");
-    expect(questionEntries).toHaveLength(2);
-  });
-});
-
 // -- commissionToolboxFactory (EventBus bridge) --
 //
 // These tests verify the factory wires callbacks to EventBus correctly.
@@ -337,7 +290,6 @@ describe("commissionToolboxFactory", () => {
           summary,
         }),
       onResult: () => {},
-      onQuestion: () => {},
     });
 
     await handler({ summary: "Progress update" });
@@ -364,7 +316,6 @@ describe("commissionToolboxFactory", () => {
           summary,
           artifacts,
         }),
-      onQuestion: () => {},
     });
 
     await handler({
@@ -395,7 +346,6 @@ describe("commissionToolboxFactory", () => {
           summary,
           artifacts,
         }),
-      onQuestion: () => {},
     });
 
     await handler({ summary: "No artifacts" });
@@ -408,32 +358,6 @@ describe("commissionToolboxFactory", () => {
       expect(evt.summary).toBe("No artifacts");
       expect(evt.artifacts).toBeUndefined();
     }
-  });
-
-  test("log_question emits commission_question event", async () => {
-    await writeCommissionArtifact();
-
-    const deps = makeDeps();
-    const handler = makeLogQuestionHandler(deps, {
-      onProgress: () => {},
-      onResult: () => {},
-      onQuestion: (question) =>
-        deps.eventBus.emit({
-          type: "commission_question",
-          commissionId: deps.contextId,
-          question,
-        }),
-    });
-
-    await handler({ question: "A question?" });
-
-    const questionEvents = emittedEvents.filter((e) => e.type === "commission_question");
-    expect(questionEvents).toHaveLength(1);
-    expect(questionEvents[0]).toEqual({
-      type: "commission_question",
-      commissionId: commissionId as string,
-      question: "A question?",
-    });
   });
 
   test("second submit_result does not emit event", async () => {
@@ -449,7 +373,6 @@ describe("commissionToolboxFactory", () => {
           summary,
           artifacts,
         }),
-      onQuestion: () => {},
     });
 
     await handler({ summary: "First" });

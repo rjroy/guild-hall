@@ -128,7 +128,7 @@ Reference mockup: `.lore/prototypes/agentic-ux/view-task-commission_0.webp`
 
 - REQ-VIEW-23: Linked Artifacts section lists artifacts this commission has produced or references. Each links to the Artifact view.
 
-- REQ-VIEW-24: Comment Thread with three tabs: Worker Notes, User Notes, Manager Notes. These are filtered views of the commission's activity timeline. Worker notes come from report_progress and log_question. Manager notes come from the manager's observations. Users can post notes directly.
+- REQ-VIEW-24: Comment Thread with three tabs: Worker Notes, User Notes, Manager Notes. These are filtered views of the commission's activity timeline. Worker notes come from report_progress. Manager notes come from the manager's observations. Users can post notes directly.
 
 - REQ-VIEW-25: Activity Timeline shows all lifecycle events chronologically: status transitions, artifact creation, progress reports, questions, dispatch/completion/failure events, and user/manager notes.
 
