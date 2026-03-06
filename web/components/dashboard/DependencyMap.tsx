@@ -7,20 +7,13 @@ import { statusToGem } from "@/lib/types";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
 import { sortCommissions } from "@/lib/commissions";
 import type { CommissionMeta } from "@/lib/commissions";
+import { commissionHref } from "@/lib/commission-href";
 import styles from "./DependencyMap.module.css";
+
+export { commissionHref };
 
 interface DependencyMapProps {
   commissions: CommissionMeta[];
-}
-
-/**
- * Constructs the href for a commission detail view.
- */
-export function commissionHref(
-  projectName: string,
-  commissionId: string,
-): string {
-  return `/projects/${encodeURIComponent(projectName)}/commissions/${encodeURIComponent(commissionId)}`;
 }
 
 /**

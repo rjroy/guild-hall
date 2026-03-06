@@ -6,7 +6,17 @@
  * to render interactive dependency graphs.
  */
 
-import type { CommissionMeta } from "@/lib/commissions";
+// Minimal subset of CommissionMeta needed for graph building.
+// Defined locally to avoid importing from commissions.ts, which pulls in
+// node:fs/promises and breaks client-side bundling via Turbopack.
+interface CommissionGraphInput {
+  commissionId: string;
+  title: string;
+  status: string;
+  worker: string;
+  dependencies: string[];
+  projectName: string;
+}
 
 // -- Types --
 
@@ -89,7 +99,7 @@ function extractCommissionId(dependencyPath: string): string | null {
  * Edge direction: from the dependency (upstream) to the dependent (downstream).
  * If commission B depends on commission A, the edge goes from A to B.
  */
-export function buildDependencyGraph(commissions: CommissionMeta[]): DependencyGraph {
+export function buildDependencyGraph(commissions: CommissionGraphInput[]): DependencyGraph {
   const nodeMap = new Map<string, GraphNode>();
 
   // Build nodes from all commissions
