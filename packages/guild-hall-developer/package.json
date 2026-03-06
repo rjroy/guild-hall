@@ -12,7 +12,7 @@
     "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
     "checkoutScope": "full",
     "resourceDefaults": {
-      "maxTurns": 80
+      "maxTurns": 200
     }
   }
 }
