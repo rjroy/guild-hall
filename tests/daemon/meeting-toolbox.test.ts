@@ -286,6 +286,46 @@ describe("propose_followup", () => {
 
     expect(raw).toContain("linked_artifacts: []");
   });
+
+  test("includes workerPortraitUrl when provided in deps", async () => {
+    const handler = makeProposeFollowupHandler(
+      makeDeps({ workerPortraitUrl: "/images/portraits/test-worker.webp" }),
+    );
+    const result = await handler({
+      reason: "Need to review API changes",
+    });
+
+    const followupId = result.content[0].text.replace(
+      "Follow-up meeting proposed: ",
+      "",
+    );
+    const intPath = derivedIntegrationPath();
+    const raw = await fs.readFile(
+      path.join(intPath, ".lore", "meetings", `${followupId}.md`),
+      "utf-8",
+    );
+
+    expect(raw).toContain('workerPortraitUrl: "/images/portraits/test-worker.webp"');
+  });
+
+  test("omits workerPortraitUrl when not provided in deps", async () => {
+    const handler = makeProposeFollowupHandler(makeDeps());
+    const result = await handler({
+      reason: "Need to review API changes",
+    });
+
+    const followupId = result.content[0].text.replace(
+      "Follow-up meeting proposed: ",
+      "",
+    );
+    const intPath = derivedIntegrationPath();
+    const raw = await fs.readFile(
+      path.join(intPath, ".lore", "meetings", `${followupId}.md`),
+      "utf-8",
+    );
+
+    expect(raw).not.toContain("workerPortraitUrl");
+  });
 });
 
 // -- summarize_progress tests --
