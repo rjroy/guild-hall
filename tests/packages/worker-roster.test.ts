@@ -20,32 +20,32 @@ const expectedRoleProfiles: Record<string, {
   builtInTools: string[];
 }> = {
   "guild-hall-developer": {
-    identityName: "Developer",
-    descriptionIntent: /implement/i,
+    identityName: "Dalton",
+    descriptionIntent: /craftsman|builds|commissioned/i,
     checkoutScope: "full",
     builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
   },
   "guild-hall-reviewer": {
-    identityName: "Reviewer",
-    descriptionIntent: /analyzes|findings|patch/i,
+    identityName: "Thorne",
+    descriptionIntent: /critical eye|inspects|alters nothing/i,
     checkoutScope: "full",
     builtInTools: ["Read", "Glob", "Grep"],
   },
   "guild-hall-researcher": {
-    identityName: "Researcher",
-    descriptionIntent: /investigates|evidence|synthesizes/i,
+    identityName: "Verity",
+    descriptionIntent: /beyond the guild walls|intelligence|never touches the forge/i,
     checkoutScope: "sparse",
     builtInTools: ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
   },
   "guild-hall-writer": {
-    identityName: "Writer",
-    descriptionIntent: /documentation|verified|claims/i,
+    identityName: "Octavia",
+    descriptionIntent: /living record|documents|lore/i,
     checkoutScope: "full",
     builtInTools: ["Read", "Glob", "Grep", "Write", "Edit"],
   },
   "guild-hall-test-engineer": {
-    identityName: "Test Engineer",
-    descriptionIntent: /verification|reproduces|test results/i,
+    identityName: "Sable",
+    descriptionIntent: /probes|seams|repairs what breaks/i,
     checkoutScope: "full",
     builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
   },
