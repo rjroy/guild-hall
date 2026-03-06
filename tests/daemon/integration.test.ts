@@ -25,6 +25,7 @@ import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { createApp } from "@/daemon/app";
 import {
+  MEETING_GREETING_PROMPT,
   createMeetingSession,
   type MeetingSessionDeps,
   type QueryOptions,
@@ -503,7 +504,7 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
 
     expect(queryMock.calls).toHaveLength(1);
     const call = queryMock.calls[0];
-    expect(call.prompt).toBe("Explain the config");
+    expect(call.prompt).toBe(MEETING_GREETING_PROMPT);
     expect(call.options.systemPrompt).toEqual({
       type: "preset",
       preset: "claude_code",

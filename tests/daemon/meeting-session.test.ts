@@ -5,6 +5,7 @@ import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   createMeetingSession,
+  MEETING_GREETING_PROMPT,
   type MeetingSessionDeps,
   type QueryOptions,
 } from "@/daemon/services/meeting/orchestrator";
@@ -494,7 +495,7 @@ describe("createMeetingSession", () => {
 
       expect(mock.calls).toHaveLength(1);
       const call = mock.calls[0];
-      expect(call.prompt).toBe("Hello");
+      expect(call.prompt).toBe(MEETING_GREETING_PROMPT);
       expect(call.options.systemPrompt).toEqual({
         type: "preset",
         preset: "claude_code",
@@ -1724,8 +1725,7 @@ meeting_log:
       );
 
       expect(mock.calls).toHaveLength(1);
-      expect(mock.calls[0].prompt).toContain("Review code quality");
-      expect(mock.calls[0].prompt).toContain("Focus on the auth module please");
+      expect(mock.calls[0].prompt).toBe(MEETING_GREETING_PROMPT);
     });
 
     test("writes state file with meeting info", async () => {

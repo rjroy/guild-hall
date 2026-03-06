@@ -13,12 +13,16 @@ function buildSystemPrompt(context: ActivationContext): string {
 
   if (context.commissionContext) {
     parts.push(
-      `You are executing a commission (an async work item). Your task:\n\n${context.commissionContext.prompt}`,
+      'You are executing a commission (an async work item). Your task:',
+      '',
+      context.commissionContext.prompt,
+      '',
     );
 
     if (context.commissionContext.dependencies.length > 0) {
       parts.push(
-        `Dependencies (artifacts to reference):\n${context.commissionContext.dependencies.map((dependency) => `- ${dependency}`).join("\n")}`,
+        'Dependencies (artifacts to reference):',
+        context.commissionContext.dependencies.map((dependency) => `- ${dependency}`).join("\n"),
       );
     }
 
