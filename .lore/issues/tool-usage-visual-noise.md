@@ -1,7 +1,7 @@
 ---
 title: Tool usage list creates visual noise in meeting view
 date: 2026-03-06
-status: open
+status: resolved
 tags: [ux, meetings, ui]
 modules: [StreamingMessage, MessageBubble, ToolUseIndicator]
 ---

@@ -3,9 +3,9 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
-import ToolUseIndicator from "./ToolUseIndicator";
-import type { ToolUseEntry } from "./ToolUseIndicator";
+import CollapsibleToolList from "./CollapsibleToolList";
 import styles from "./StreamingMessage.module.css";
+import type { ToolUseEntry } from "@/lib/types";
 
 interface StreamingMessageProps {
   content: string;
@@ -32,9 +32,7 @@ export default function StreamingMessage({
       <div className={styles.bubble}>
         {tools.length > 0 && (
           <div className={styles.tools}>
-            {tools.map((tool, i) => (
-              <ToolUseIndicator key={`${tool.name}-${i}`} tool={tool} />
-            ))}
+            <CollapsibleToolList tools={tools} isStreaming={true} />
           </div>
         )}
         {content && (

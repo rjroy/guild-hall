@@ -3,7 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
-import ToolUseIndicator from "./ToolUseIndicator";
+import CollapsibleToolList from "./CollapsibleToolList";
 import type { ChatMessage } from "./types";
 import styles from "./MessageBubble.module.css";
 
@@ -49,9 +49,7 @@ export default function MessageBubble({
         </div>
         {message.toolUses && message.toolUses.length > 0 && (
           <div className={styles.tools}>
-            {message.toolUses.map((tool, i) => (
-              <ToolUseIndicator key={`${tool.name}-${i}`} tool={tool} />
-            ))}
+            <CollapsibleToolList tools={message.toolUses} isStreaming={false} />
           </div>
         )}
       </div>
