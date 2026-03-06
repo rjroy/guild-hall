@@ -53,31 +53,31 @@ const expectedRoleProfiles: Record<string, {
 
 const expectedPostureGuardrails: Record<string, RegExp[]> = {
   "guild-hall-reviewer": [
-    /non-mutating mode/i,
-    /never perform direct file edits/i,
-    /findings first/i,
-    /explicit patch text/i,
+    /read-only/i,
+    /never modify/i,
+    /priority order/i,
+    /evidence for every finding/i,
   ],
   "guild-hall-researcher": [
-    /source-backed/i,
-    /uncertainty and confidence explicitly/i,
-    /\.lore artifact/i,
-    /only when the request explicitly asks/i,
+    /investigation-first and source-grounded/i,
+    /confidence levels/i,
+    /every claim needs a source/i,
+    /check.*\.lore\/research/i,
   ],
   "guild-hall-writer": [
-    /verify technical statements against current repository code and config before asserting claims/i,
-    /must be verified against repository sources before publication/i,
+    /never modify source code/i,
+    /must be verified against repository sources/i,
+    /stay in the current phase/i,
   ],
   "guild-hall-developer": [
-    /execute verification steps/i,
-    /run focused tests/i,
-    /analyze failures/i,
-    /failure analysis/i,
+    /follow the plan/i,
+    /write tests alongside/i,
+    /run the full test suite/i,
   ],
   "guild-hall-test-engineer": [
-    /failure analysis/i,
-    /reproduction steps, diagnosis, and impact/i,
-    /executed verification steps/i,
+    /read the code under test/i,
+    /repeatable on a clean checkout/i,
+    /never use `mock\.module\(\)`/i,
   ],
 };
 
