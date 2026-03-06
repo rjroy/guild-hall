@@ -20,6 +20,7 @@ function makeResolvedTools(): ResolvedToolSet {
 
 function makeActivationContext(posture: string): ActivationContext {
   return {
+    identity: { name: "Test Worker", description: "Test", displayTitle: "Test Worker" },
     posture,
     injectedMemory: "",
     resolvedTools: makeResolvedTools(),
@@ -62,8 +63,8 @@ describe("worker role smoke tests", () => {
     const metadata = await readWorkerMetadata("guild-hall-reviewer");
     const result = activateReviewer(makeActivationContext(metadata.posture));
 
-    expect(result.systemPrompt).toContain("non-mutating mode");
-    expect(result.systemPrompt).toContain("never perform direct file edits");
+    expect(result.systemPrompt).toContain("read-only");
+    expect(result.systemPrompt).toContain("never modify");
     expect(metadata.builtInTools).not.toContain("Write");
     expect(metadata.builtInTools).not.toContain("Edit");
     expect(metadata.builtInTools).not.toContain("Bash");
@@ -80,14 +81,14 @@ describe("worker role smoke tests", () => {
     const metadata = await readWorkerMetadata("guild-hall-writer");
     const result = activateWriter(makeActivationContext(metadata.posture));
 
-    expect(result.systemPrompt).toContain("Verify technical statements against current repository code and config before asserting claims");
+    expect(result.systemPrompt).toContain("documentation-first and reader-oriented");
   });
 
   test("test engineer posture is present in activation output", async () => {
     const metadata = await readWorkerMetadata("guild-hall-test-engineer");
     const result = activateTestEngineer(makeActivationContext(metadata.posture));
 
-    expect(result.systemPrompt).toContain("verification-first and reproducibility-focused");
+    expect(result.systemPrompt).toContain("verification-first and evidence-based");
   });
 
   test("activation pass-through keeps resolved tool list unchanged", async () => {

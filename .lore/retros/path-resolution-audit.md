@@ -179,7 +179,7 @@ Factory-driven assembly (line ~40). The resolver receives pre-bound `ToolboxFact
 
 ### `daemon/services/commission-toolbox.ts`
 
-All three tool handlers (`report_progress`, `submit_result`, `log_question`) call `resolveWritePath(deps.guildHallHome, deps.projectName, deps.contextId, "commission")` to determine where to write. The internal `CommissionToolboxDeps` holds `guildHallHome`, `projectName`, `contextId`, and `eventBus`. The public adapter `createCommissionToolboxFactory(eventBus)` binds the EventBus and returns a `ToolboxFactory`. Correct: writes land in the activity worktree when active, integration worktree otherwise.
+All three tool handlers (`report_progress`, `submit_result`) call `resolveWritePath(deps.guildHallHome, deps.projectName, deps.contextId, "commission")` to determine where to write. The internal `CommissionToolboxDeps` holds `guildHallHome`, `projectName`, `contextId`, and `eventBus`. The public adapter `createCommissionToolboxFactory(eventBus)` binds the EventBus and returns a `ToolboxFactory`. Correct: writes land in the activity worktree when active, integration worktree otherwise.
 
 ### `daemon/services/meeting-toolbox.ts`
 

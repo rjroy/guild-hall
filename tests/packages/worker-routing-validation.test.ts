@@ -138,11 +138,11 @@ async function readWorkerDescription(role: RoleLabel): Promise<string> {
 describe("worker routing deterministic validation", () => {
   test("description-quality rubric: role descriptions include clear routing anchors", async () => {
     const expectedAnchors: Record<RoleLabel, RegExp[]> = {
-      developer: [/\bimplements\b/i, /\bengineering tasks\b/i],
-      reviewer: [/\banalyzes\b/i, /\bfindings\b/i, /\bwithout editing files\b/i],
-      researcher: [/\binvestigates\b/i, /\bsource-backed\b/i, /\bsynthesizes\b/i],
-      writer: [/\bdocumentation\b/i, /\bverified\b/i],
-      "test-engineer": [/\bverification\b/i, /\breproduces\b/i, /\btest results\b/i],
+      developer: [/\bcraftsman\b/i, /\bbuilds\b/i, /\bcommissioned\b/i],
+      reviewer: [/\bcritical eye\b/i, /\binspects\b/i, /\balters nothing\b/i],
+      researcher: [/\bbeyond the guild walls\b/i, /\bintelligence\b/i, /\bforge\b/i],
+      writer: [/\bliving record\b/i, /\bdocuments\b/i, /\blore\b/i],
+      "test-engineer": [/\bprobes\b/i, /\bseams\b/i, /\brepairs\b/i],
     };
 
     for (const role of roleOrder) {

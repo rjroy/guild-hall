@@ -1,7 +1,4 @@
 import { describe, test, expect } from "bun:test";
-import * as fs from "node:fs/promises";
-import * as os from "node:os";
-import * as path from "node:path";
 import { createApp } from "@/daemon/app";
 import type { DiscoveredPackage, WorkerMetadata, ToolboxMetadata } from "@/lib/types";
 
@@ -137,50 +134,9 @@ describe("GET /workers", () => {
   });
 
   test("includes portrait as base64 data URI when file exists", async () => {
-    // Create a temp directory with a portrait file
-    const tmpDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), "worker-portrait-test-"),
-    );
-
-    try {
-      // Create a minimal 1x1 PNG (smallest valid PNG: 67 bytes)
-      const pngHeader = Buffer.from([
-        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // PNG signature
-        0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
-        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
-        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, // RGB, etc
-        0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, // IDAT chunk
-        0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00, // compressed
-        0x00, 0x00, 0x02, 0x00, 0x01, 0xe2, 0x21, 0xbc, // data
-        0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, // IEND chunk
-        0x44, 0xae, 0x42, 0x60, 0x82,
-      ]);
-      await fs.writeFile(path.join(tmpDir, "portrait.png"), pngHeader);
-
-      const app = makeTestApp([
-        makeWorkerPackage({
-          path: tmpDir,
-          portraitPath: "portrait.png",
-        }),
-      ]);
-
-      const res = await app.request("/workers");
-
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.workers[0].portraitUrl).toMatch(
-        /^data:image\/png;base64,.+$/,
-      );
-    } finally {
-      await fs.rm(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  test("returns null portrait when file does not exist", async () => {
     const app = makeTestApp([
       makeWorkerPackage({
-        path: "/nonexistent/path",
-        portraitPath: "missing-portrait.png",
+        portraitPath: "/images/portraits/test-worker.webp",
       }),
     ]);
 
@@ -188,32 +144,19 @@ describe("GET /workers", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.workers[0].portraitUrl).toBeNull();
+    expect(body.workers[0].portraitUrl).toBe("/images/portraits/test-worker.webp");
   });
 
-  test("returns null portrait for unsupported file formats", async () => {
-    const tmpDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), "worker-portrait-unsupported-"),
-    );
+  test("returns null portrait when portraitPath is not set", async () => {
+    const app = makeTestApp([
+      makeWorkerPackage({}),
+    ]);
 
-    try {
-      await fs.writeFile(path.join(tmpDir, "portrait.bmp"), "fake bmp data");
+    const res = await app.request("/workers");
 
-      const app = makeTestApp([
-        makeWorkerPackage({
-          path: tmpDir,
-          portraitPath: "portrait.bmp",
-        }),
-      ]);
-
-      const res = await app.request("/workers");
-
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.workers[0].portraitUrl).toBeNull();
-    } finally {
-      await fs.rm(tmpDir, { recursive: true, force: true });
-    }
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.workers[0].portraitUrl).toBeNull();
   });
 
   test("returns application/json content type", async () => {

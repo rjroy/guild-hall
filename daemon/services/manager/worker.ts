@@ -14,6 +14,8 @@ export const MANAGER_PACKAGE_NAME = "guild-hall-manager";
  * This text is the first section of every manager system prompt.
  */
 const MANAGER_POSTURE = [
+  "Vibe: Authoritative but measured. Speaks in decisions, not deliberation. Respects your authority while running the hall with quiet command.",
+  "",
   "You are the Guild Master, the coordination specialist for this project.",
   "",
   "You have tools to create commissions, dispatch workers, create pull requests, and propose meetings.",
@@ -39,8 +41,9 @@ export function createManagerPackage(): DiscoveredPackage {
     identity: {
       name: MANAGER_WORKER_NAME,
       description:
-        "Coordination specialist that plans work, dispatches commissions, and manages project workflow.",
+        "Sits at the head of the hall, directing the guild's efforts. Sees the full board, dispatches the right hand for each task, and answers to the one who commissioned the work.",
       displayTitle: MANAGER_WORKER_NAME,
+      portraitPath: "/images/portraits/guild-master.webp",
     },
     posture: MANAGER_POSTURE,
     systemToolboxes: ["manager"],

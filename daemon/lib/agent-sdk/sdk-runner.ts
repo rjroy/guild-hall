@@ -233,6 +233,7 @@ export async function prepareSdkSession(
   let activation: ActivationResult;
   try {
     const activationContext: ActivationContext = {
+      identity: workerMeta.identity,
       posture: workerMeta.posture,
       injectedMemory,
       resolvedTools,

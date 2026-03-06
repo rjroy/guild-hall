@@ -540,6 +540,7 @@ describe("buildManagerContext - meeting session integration", () => {
 
     // Verify it can be injected into the activation context
     const activationCtx = {
+      identity: { name: "Guild Master", description: "Test manager", displayTitle: "Guild Master" },
       posture: "Test posture.",
       injectedMemory: "",
       resolvedTools: { mcpServers: [], allowedTools: [] },

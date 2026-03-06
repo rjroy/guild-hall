@@ -123,10 +123,13 @@ function buildWorkerSection(packages: DiscoveredPackage[]): string {
   const lines = ["## Available Workers\n"];
   for (const w of workers) {
     const meta = w.metadata as WorkerMetadata;
-    lines.push(`- **${meta.identity.displayTitle}** (${w.name})`);
-    lines.push(`  ${meta.identity.description}`);
+    lines.push(`- **${meta.identity.name}** (${w.name})`);
+    lines.push(`  ${meta.identity.displayTitle}: ${meta.identity.description}`);
     if (meta.checkoutScope) {
       lines.push(`  Checkout: ${meta.checkoutScope}`);
+    }
+    if (meta.domainToolboxes.length > 0) {
+      lines.push(`  Domain toolboxes: ${meta.domainToolboxes.join(", ")}`);
     }
     if (meta.builtInTools.length > 0) {
       lines.push(`  Built-in tools: ${meta.builtInTools.join(", ")}`);

@@ -3,6 +3,15 @@ import type { ActivationContext, ActivationResult } from "@/lib/types";
 function buildSystemPrompt(context: ActivationContext): string {
   const parts: string[] = [context.posture];
 
+  if (context.identity) {
+    parts.push(
+      `Your name is: ${context.identity.name}`,
+      `Your title is: ${context.identity.displayTitle}`,
+      `You are described as: ${context.identity.description}`,
+      ''
+    );
+  }
+
   if (context.injectedMemory) {
     parts.push(context.injectedMemory);
   }
@@ -13,12 +22,16 @@ function buildSystemPrompt(context: ActivationContext): string {
 
   if (context.commissionContext) {
     parts.push(
-      `You are executing a commission (an async work item). Your task:\n\n${context.commissionContext.prompt}`,
+      'You are executing a commission (an async work item). Your task:',
+      '',
+      context.commissionContext.prompt,
+      '',
     );
 
     if (context.commissionContext.dependencies.length > 0) {
       parts.push(
-        `Dependencies (artifacts to reference):\n${context.commissionContext.dependencies.map((dependency) => `- ${dependency}`).join("\n")}`,
+        'Dependencies (artifacts to reference):',
+        context.commissionContext.dependencies.map((dependency) => `- ${dependency}`).join("\n"),
       );
     }
 
@@ -27,7 +40,7 @@ function buildSystemPrompt(context: ActivationContext): string {
         "Commission protocol:",
         "- Use report_progress to log what you're doing as you work. This keeps the user informed.",
         "- When finished, you MUST call submit_result with a summary of what you accomplished and any artifact paths you created or modified.",
-        "- If you have questions or encounter gaps in the requirements, use log_question to record them.",
+        "- If you encounter gaps in the requirements, state your interpretation and proceed. You are expected to be self-sufficient.",
         "- The commission is not considered complete unless you call submit_result. Just responding with text is not enough.",
       ].join("\n"),
     );

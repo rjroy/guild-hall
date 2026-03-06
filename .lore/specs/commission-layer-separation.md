@@ -93,7 +93,6 @@ This refactor also replaces the shared ActivityMachine for commissions with a co
   |--------|-----------|
   | progressReported(summary) | Updates current progress, appends timeline entry. Valid in: in_progress. |
   | resultSubmitted(summary, artifacts) | Records result summary and linked artifacts, appends timeline entry. Valid in: in_progress. Can only be called once per execution. |
-  | questionLogged(question) | Appends question to timeline. Valid in: in_progress. |
   | executionStarted() | Appends timeline entry noting execution began. Triggers dispatched -> in_progress transition. |
   | executionFailed(reason) | Triggers transition to failed with the given reason. |
   | executionCompleted() | Triggers transition to completed. Layer 4 only sends this signal when a result was submitted (tracked via EventBus). Layer 2 does not independently verify result submission; it trusts the orchestrator's routing. |

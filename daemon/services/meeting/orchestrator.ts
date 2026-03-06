@@ -82,6 +82,8 @@ import { escalateMergeConflict } from "@/daemon/lib/escalation";
 // -- Constants --
 
 const DEFAULT_MEETING_CAP = 5;
+export const MEETING_GREETING_PROMPT =
+  "Briefly introduce yourself and summarize your understanding of the meeting agenda, then ask how the user would like to proceed.";
 
 // -- Re-exports for backward compatibility --
 // QueryOptions re-exported so notes-generator, briefing-generator, and
@@ -535,6 +537,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
   async function* startSession(
     meeting: ActiveMeetingEntry,
     prompt: string,
+    opts?: { isInitial?: boolean },
   ): AsyncGenerator<GuildHallEvent> {
     if (!deps.queryFn) {
       yield { type: "error", reason: "No queryFn provided" };
@@ -553,7 +556,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       return;
     }
 
-    yield* iterateSession(meeting, prompt, prep.result.options, false);
+    const sdkPrompt = opts?.isInitial ? MEETING_GREETING_PROMPT : prompt;
+    yield* iterateSession(meeting, sdkPrompt, prep.result.options, false);
 
     // Update state file with captured session ID
     try {
@@ -742,7 +746,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     );
 
     // Start the SDK session (outside lock, streaming can take arbitrarily long)
-    yield* startSession(entry, prompt);
+    yield* startSession(entry, prompt, { isInitial: true });
   }
 
   async function* createMeeting(
@@ -896,7 +900,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     );
 
     // Start the SDK session (outside lock, streaming can take arbitrarily long)
-    yield* startSession(entry, prompt);
+    yield* startSession(entry, prompt, { isInitial: true });
   }
 
   async function* sendMessage(

@@ -1332,11 +1332,6 @@ projectName: ${projectName}
         lifecycle.progressReported(ctx.commissionId, e.summary).catch((err: unknown) => {
           console.warn(`[orchestrator] progressReported failed for "${ctx.commissionId as string}":`, errorMessage(err));
         });
-      } else if (event.type === "commission_question") {
-        const e = event as typeof event & { question: string };
-        lifecycle.questionLogged(ctx.commissionId, e.question).catch((err: unknown) => {
-          console.warn(`[orchestrator] questionLogged failed for "${ctx.commissionId as string}":`, errorMessage(err));
-        });
       }
     });
 

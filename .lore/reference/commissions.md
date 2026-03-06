@@ -129,7 +129,7 @@ State files at `~/.guild-hall/state/commissions/{commissionId}.json` track activ
 
 ### Dependencies
 
-- Uses: [workers/toolbox](./workers-toolbox.md) (commission toolbox provides report_progress, submit_result, log_question)
+- Uses: [workers/toolbox](./workers-toolbox.md) (commission toolbox provides report_progress, submit_result)
 - Uses: [dependency-graph](./dependency-graph.md) (neighborhood visualization on commission detail page)
 - Uses: EventBus (SSE event delivery to browser)
 - Uses: ActivityMachine (generic state machine shared with meetings)

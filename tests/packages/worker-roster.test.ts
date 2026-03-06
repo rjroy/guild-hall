@@ -20,32 +20,32 @@ const expectedRoleProfiles: Record<string, {
   builtInTools: string[];
 }> = {
   "guild-hall-developer": {
-    identityName: "Developer",
-    descriptionIntent: /implement/i,
+    identityName: "Dalton",
+    descriptionIntent: /craftsman|builds|commissioned/i,
     checkoutScope: "full",
     builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
   },
   "guild-hall-reviewer": {
-    identityName: "Reviewer",
-    descriptionIntent: /analyzes|findings|patch/i,
+    identityName: "Thorne",
+    descriptionIntent: /critical eye|inspects|alters nothing/i,
     checkoutScope: "full",
     builtInTools: ["Read", "Glob", "Grep"],
   },
   "guild-hall-researcher": {
-    identityName: "Researcher",
-    descriptionIntent: /investigates|evidence|synthesizes/i,
+    identityName: "Verity",
+    descriptionIntent: /beyond the guild walls|intelligence|never touches the forge/i,
     checkoutScope: "sparse",
-    builtInTools: ["Read", "Glob", "Grep", "WebSearch", "WebFetch"],
+    builtInTools: ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
   },
   "guild-hall-writer": {
-    identityName: "Writer",
-    descriptionIntent: /documentation|verified|claims/i,
+    identityName: "Octavia",
+    descriptionIntent: /living record|documents|lore/i,
     checkoutScope: "full",
     builtInTools: ["Read", "Glob", "Grep", "Write", "Edit"],
   },
   "guild-hall-test-engineer": {
-    identityName: "Test Engineer",
-    descriptionIntent: /verification|reproduces|test results/i,
+    identityName: "Sable",
+    descriptionIntent: /probes|seams|repairs what breaks/i,
     checkoutScope: "full",
     builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
   },
@@ -53,31 +53,31 @@ const expectedRoleProfiles: Record<string, {
 
 const expectedPostureGuardrails: Record<string, RegExp[]> = {
   "guild-hall-reviewer": [
-    /non-mutating mode/i,
-    /never perform direct file edits/i,
-    /findings first/i,
-    /explicit patch text/i,
+    /read-only/i,
+    /never modify/i,
+    /priority order/i,
+    /evidence for every finding/i,
   ],
   "guild-hall-researcher": [
-    /source-backed/i,
-    /uncertainty and confidence explicitly/i,
-    /\.lore artifact/i,
-    /only when the request explicitly asks/i,
+    /investigation-first and source-grounded/i,
+    /confidence levels/i,
+    /every claim needs a source/i,
+    /check.*\.lore\/research/i,
   ],
   "guild-hall-writer": [
-    /verify technical statements against current repository code and config before asserting claims/i,
-    /must be verified against repository sources before publication/i,
+    /never modify source code/i,
+    /must be verified against repository sources/i,
+    /stay in the current phase/i,
   ],
   "guild-hall-developer": [
-    /execute verification steps/i,
-    /run focused tests/i,
-    /analyze failures/i,
-    /failure analysis/i,
+    /follow the plan/i,
+    /write tests alongside/i,
+    /run the full test suite/i,
   ],
   "guild-hall-test-engineer": [
-    /failure analysis/i,
-    /reproduction steps, diagnosis, and impact/i,
-    /executed verification steps/i,
+    /read the code under test/i,
+    /repeatable on a clean checkout/i,
+    /never use `mock\.module\(\)`/i,
   ],
 };
 

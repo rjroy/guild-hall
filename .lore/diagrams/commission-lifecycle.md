@@ -104,9 +104,9 @@ sequenceDiagram
     Orch->>SDK: runSdkSession(prompt, options)
 
     loop Worker executing
-        SDK->>EB: tool events (progress, result, question)
+        SDK->>EB: tool events (progress, result)
         EB->>Orch: commission tool event
-        Orch->>Life: progressReported / questionLogged
+        Orch->>Life: progressReported
         Life->>Life: append timeline, update progress
     end
 
