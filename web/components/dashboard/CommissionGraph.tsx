@@ -4,7 +4,7 @@ import { useId } from "react";
 import { useRouter } from "next/navigation";
 import { statusToGem } from "@/lib/types";
 import { layoutGraph, type DependencyGraph, type LayoutNode } from "@/lib/dependency-graph";
-import { commissionHref } from "./DependencyMap";
+import { commissionHref } from "@/lib/commission-href";
 import styles from "./CommissionGraph.module.css";
 
 interface CommissionGraphProps {

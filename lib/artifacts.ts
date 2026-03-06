@@ -3,6 +3,9 @@ import * as path from "node:path";
 import matter from "gray-matter";
 import { isNodeError } from "@/lib/types";
 import type { Artifact, ArtifactMeta } from "@/lib/types";
+import { artifactStatusPriority, compareArtifactsByStatusAndTitle } from "@/lib/artifact-sorting";
+
+export { artifactStatusPriority, compareArtifactsByStatusAndTitle };
 
 // -- Path validation --
 
@@ -66,76 +69,7 @@ function parseMeta(data: Record<string, unknown>): ArtifactMeta {
   };
 }
 
-// -- Sorting --
-
-/**
- * Five-group status priority for artifact browsing views.
- * Groups are ordered by actionability: work needing attention surfaces first,
- * completed work sinks below, closed/negative is near the bottom.
- *
- * This intentionally differs from gem color grouping (statusToGem). For example,
- * "implemented" maps to the green gem (active) but sorts in the Terminal group
- * (priority 2) because it's done and needs no action.
- */
-const ARTIFACT_STATUS_GROUP: Record<string, number> = {
-  // Group 0: Active work (needs attention)
-  draft: 0,
-  open: 0,
-  pending: 0,
-  requested: 0,
-  blocked: 0,
-  queued: 0,
-  // Group 1: In progress
-  approved: 1,
-  active: 1,
-  current: 1,
-  in_progress: 1,
-  dispatched: 1,
-  // Group 2: Terminal (done, no action needed)
-  complete: 2,
-  resolved: 2,
-  implemented: 2,
-  // Group 3: Closed negative
-  superseded: 3,
-  outdated: 3,
-  wontfix: 3,
-  declined: 3,
-  failed: 3,
-  cancelled: 3,
-  abandoned: 3,
-};
-const UNKNOWN_STATUS_PRIORITY = 4;
-
-export function artifactStatusPriority(status: string): number {
-  return ARTIFACT_STATUS_GROUP[status.toLowerCase().trim()] ?? UNKNOWN_STATUS_PRIORITY;
-}
-
-/**
- * Compare function for artifact browsing views (Surface 2: tree view).
- * Sorts by: status group (REQ-SORT-4), date descending, title/path alphabetical.
- * Missing fields sort after present ones (REQ-SORT-3).
- * Empty titles fall back to relativePath as tiebreaker (REQ-SORT-15).
- */
-export function compareArtifactsByStatusAndTitle(a: Artifact, b: Artifact): number {
-  // 1. Status group priority
-  const statusDiff = artifactStatusPriority(a.meta.status) - artifactStatusPriority(b.meta.status);
-  if (statusDiff !== 0) return statusDiff;
-
-  // 2. Date descending (newer first). Empty dates sort last.
-  const aDate = a.meta.date;
-  const bDate = b.meta.date;
-  if (aDate && !bDate) return -1;
-  if (!aDate && bDate) return 1;
-  if (aDate && bDate) {
-    const dateCmp = bDate.localeCompare(aDate);
-    if (dateCmp !== 0) return dateCmp;
-  }
-
-  // 3. Title alphabetical tiebreaker. Empty titles fall back to relativePath.
-  const aTitle = a.meta.title || a.relativePath;
-  const bTitle = b.meta.title || b.relativePath;
-  return aTitle.localeCompare(bTitle);
-}
+// -- Sorting (re-exported from artifact-sorting.ts for client-safety) --
 
 /**
  * Compare function for recency feeds (Surface 1: Dashboard Recent Scrolls).
