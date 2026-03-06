@@ -1,7 +1,7 @@
 ---
 title: "Commission: Review: Tool Usage Collapse in Meeting View"
 date: 2026-03-06
-status: pending
+status: dispatched
 tags: [commission]
 worker: Thorne
 workerDisplayTitle: "Guild Warden"
@@ -13,6 +13,11 @@ activity_timeline:
   - timestamp: 2026-03-06T20:39:51.843Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-06T20:41:12.511Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
