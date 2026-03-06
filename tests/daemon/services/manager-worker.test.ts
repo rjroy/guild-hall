@@ -95,6 +95,14 @@ describe("createManagerPackage", () => {
     const meta = pkg.metadata as WorkerMetadata;
     expect(meta.posture.length).toBeGreaterThan(0);
   });
+
+  test("manager metadata has soul field", () => {
+    const pkg = createManagerPackage();
+    const meta = pkg.metadata as WorkerMetadata;
+    expect(meta.soul).toBeDefined();
+    expect(typeof meta.soul).toBe("string");
+    expect(meta.soul!.length).toBeGreaterThan(0);
+  });
 });
 
 describe("MANAGER constants", () => {
@@ -156,8 +164,9 @@ describe("activateManager", () => {
       injectedMemory: "",
     });
     const result = activateManager(context);
-    // System prompt should just be the posture
-    expect(result.systemPrompt).toBe(context.posture);
+    // System prompt now includes identity lines between soul and posture
+    expect(result.systemPrompt).toContain("Your name is:");
+    expect(result.systemPrompt).toContain(context.posture);
   });
 
   test("passes through resolvedTools unchanged", () => {
@@ -190,12 +199,55 @@ describe("activateManager", () => {
 
   test("system prompt sections are separated by double newlines", () => {
     const context = makeContext({
+      soul: "SOUL",
       posture: "POSTURE",
       injectedMemory: "MEMORY",
       managerContext: "CONTEXT",
     });
     const result = activateManager(context);
-    expect(result.systemPrompt).toBe("POSTURE\n\nMEMORY\n\nCONTEXT");
+    // Soul, identity, posture, memory, context all separated by \n\n
+    expect(result.systemPrompt).toContain("SOUL\n\n");
+    expect(result.systemPrompt).toContain("POSTURE\n\nMEMORY\n\nCONTEXT");
+  });
+
+  test("activateManager includes soul in system prompt", () => {
+    const context = makeContext({
+      soul: "MANAGER_SOUL_CONTENT",
+    });
+    const result = activateManager(context);
+    expect(result.systemPrompt).toContain("MANAGER_SOUL_CONTENT");
+  });
+
+  test("activateManager includes identity metadata", () => {
+    const context = makeContext({
+      identity: { name: "Guild Master", displayTitle: "Guild Master", description: "Runs the hall." },
+    });
+    const result = activateManager(context);
+    expect(result.systemPrompt).toContain("Your name is: Guild Master");
+    expect(result.systemPrompt).toContain("Your title is: Guild Master");
+    expect(result.systemPrompt).toContain("You are described as: Runs the hall.");
+  });
+
+  test("activateManager assembly order: soul, identity, posture, memory, context", () => {
+    const context = makeContext({
+      soul: "SOUL",
+      posture: "POSTURE",
+      injectedMemory: "MEMORY",
+      managerContext: "CONTEXT",
+    });
+    const result = activateManager(context);
+
+    const soulIdx = result.systemPrompt.indexOf("SOUL");
+    const identityIdx = result.systemPrompt.indexOf("Your name is:");
+    const postureIdx = result.systemPrompt.indexOf("POSTURE");
+    const memoryIdx = result.systemPrompt.indexOf("MEMORY");
+    const contextIdx = result.systemPrompt.indexOf("CONTEXT");
+
+    expect(soulIdx).toBeGreaterThanOrEqual(0);
+    expect(identityIdx).toBeGreaterThan(soulIdx);
+    expect(postureIdx).toBeGreaterThan(identityIdx);
+    expect(memoryIdx).toBeGreaterThan(postureIdx);
+    expect(contextIdx).toBeGreaterThan(memoryIdx);
   });
 });
 
@@ -216,10 +268,10 @@ describe("manager posture content", () => {
     expect(meta.posture).toContain("domain knowledge");
   });
 
-  test("contains coordination role statement", () => {
+  test("contains coordination role statement in soul", () => {
     const pkg = createManagerPackage();
     const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.posture).toContain("coordination specialist");
+    expect(meta.soul).toContain("coordination specialist");
   });
 
   test("contains working style directive", () => {
@@ -227,5 +279,24 @@ describe("manager posture content", () => {
     const meta = pkg.metadata as WorkerMetadata;
     expect(meta.posture).toContain("Be direct");
     expect(meta.posture).toContain("execute when authorized");
+  });
+
+  test("manager soul contains personality content", () => {
+    const pkg = createManagerPackage();
+    const meta = pkg.metadata as WorkerMetadata;
+    expect(meta.soul).toContain("## Character");
+    expect(meta.soul).toContain("## Voice");
+    expect(meta.soul).toContain("## Vibe");
+    expect(meta.soul).toContain("Guild Master");
+  });
+
+  test("manager posture contains only operational content", () => {
+    const pkg = createManagerPackage();
+    const meta = pkg.metadata as WorkerMetadata;
+    // Posture should not contain Vibe or soul section headers
+    expect(meta.posture).not.toContain("Vibe:");
+    expect(meta.posture).not.toContain("## Character");
+    expect(meta.posture).not.toContain("## Voice");
+    expect(meta.posture).not.toContain("## Vibe");
   });
 });

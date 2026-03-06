@@ -63,6 +63,7 @@ export interface WorkerMetadata {
   type: "worker" | ["worker", "toolbox"];
   identity: WorkerIdentity;
   posture: string;
+  soul?: string;
   systemToolboxes?: string[];
   domainToolboxes: string[];
   builtInTools: string[];
@@ -113,6 +114,7 @@ export interface ResolvedToolSet {
 export interface ActivationContext {
   identity: WorkerIdentity;
   posture: string;
+  soul?: string;
   injectedMemory: string;
   resolvedTools: ResolvedToolSet;
   resourceDefaults: {

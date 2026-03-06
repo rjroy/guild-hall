@@ -206,6 +206,35 @@ describe("Zod schemas", () => {
     expect(result.success).toBe(true);
   });
 
+  test("workerMetadataSchema accepts soul field when present", () => {
+    const data = { ...validWorkerGuildHall(), soul: "You are a steadfast craftsman." } as Record<string, unknown>;
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.soul).toBe("You are a steadfast craftsman.");
+    }
+  });
+
+  test("workerMetadataSchema validates successfully with soul absent", () => {
+    const data = validWorkerGuildHall() as Record<string, unknown>;
+    delete data.soul;
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.soul).toBeUndefined();
+    }
+  });
+
+  test("workerMetadataSchema rejects soul with wrong type", () => {
+    const data = { ...validWorkerGuildHall(), soul: 42 } as Record<string, unknown>;
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(false);
+
+    const data2 = { ...validWorkerGuildHall(), soul: { nested: "object" } } as Record<string, unknown>;
+    const result2 = workerMetadataSchema.safeParse(data2);
+    expect(result2.success).toBe(false);
+  });
+
   test("workerMetadataSchema rejects missing identity", () => {
     const data = validWorkerGuildHall() as Record<string, unknown>;
     delete data.identity;
@@ -567,6 +596,80 @@ describe("discoverPackages", () => {
 
     const meta = packages[0].metadata as WorkerMetadata;
     expect(meta.posture).toBe("You are a careful researcher.");
+  });
+
+  test("discovers soul from soul.md file", async () => {
+    const guildHall = validWorkerGuildHall() as Record<string, unknown>;
+    delete guildHall.posture;
+
+    const pkgDir = await writePackageWithPosture(
+      tmpDir,
+      "soul-worker",
+      { name: "soul-worker", guildHall },
+      "Worker posture here."
+    );
+    await fs.writeFile(
+      path.join(pkgDir, "soul.md"),
+      "## Character\n\nYou are the soul.\n\n## Voice\n\nSpeak plainly.\n\n## Vibe\n\nSteady.",
+      "utf-8"
+    );
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+
+    const meta = packages[0].metadata as WorkerMetadata;
+    expect(meta.soul).toContain("You are the soul.");
+    expect(meta.soul).toContain("## Character");
+  });
+
+  test("worker without soul.md is still valid", async () => {
+    const warnMessages: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnMessages.push(args.map(String).join(" "));
+    };
+
+    try {
+      await writePackageWithPosture(
+        tmpDir,
+        "no-soul",
+        { name: "no-soul", guildHall: validWorkerGuildHall() },
+        "Posture only."
+      );
+
+      const packages = await discoverPackages([tmpDir]);
+      expect(packages).toHaveLength(1);
+
+      const meta = packages[0].metadata as WorkerMetadata;
+      expect(meta.soul).toBeUndefined();
+      expect(warnMessages.some((m) => m.includes("no soul.md found"))).toBe(true);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  test("soul.md loading does not affect posture loading", async () => {
+    const guildHall = validWorkerGuildHall() as Record<string, unknown>;
+    delete guildHall.posture;
+
+    const pkgDir = await writePackageWithPosture(
+      tmpDir,
+      "both-files",
+      { name: "both-files", guildHall },
+      "Posture content here."
+    );
+    await fs.writeFile(
+      path.join(pkgDir, "soul.md"),
+      "Soul content here.",
+      "utf-8"
+    );
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+
+    const meta = packages[0].metadata as WorkerMetadata;
+    expect(meta.posture).toBe("Posture content here.");
+    expect(meta.soul).toBe("Soul content here.");
   });
 });
 

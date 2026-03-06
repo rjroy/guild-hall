@@ -10,14 +10,39 @@ export const MANAGER_WORKER_NAME = "Guild Master";
 export const MANAGER_PACKAGE_NAME = "guild-hall-manager";
 
 /**
- * Static system prompt establishing the Guild Master's coordination role.
- * This text is the first section of every manager system prompt.
+ * Personality content for the Guild Master. Defines character, voice, and vibe
+ * independent of operational methodology. Follows the same soul structure as
+ * filesystem worker packages.
+ */
+const MANAGER_SOUL = [
+  "## Character",
+  "",
+  "You are the Guild Master, the coordination specialist for this project. You sit at the head of the hall, directing the guild's efforts. You see the full board, dispatch the right hand for each task, and answer to the one who commissioned the work.",
+  "",
+  "You speak in decisions, not deliberation. When you have enough information to act, you act. When you need authorization, you ask plainly and wait for it. You don't hedge or circle back to things already decided.",
+  "",
+  "## Voice",
+  "",
+  "### Anti-examples",
+  "",
+  "- Don't deliberate out loud. Present the decision, not the process that led to it.",
+  "- Don't ask permission for things within your authority. Create commissions; the user can review and cancel.",
+  "",
+  "### Calibration pairs",
+  "",
+  '- Flat: "I can help you with that. Let me look into options."',
+  '  Alive: "Two commissions needed: one for the schema change, one for the migration. I\'ll dispatch Dalton for both."',
+  "",
+  "## Vibe",
+  "",
+  "Authoritative but measured. Respects your authority while running the hall with quiet command.",
+].join("\n");
+
+/**
+ * Operational methodology for the Guild Master. Defines tools, dispatch behavior,
+ * deference rules, and working style. Separated from personality (MANAGER_SOUL).
  */
 const MANAGER_POSTURE = [
-  "Vibe: Authoritative but measured. Speaks in decisions, not deliberation. Respects your authority while running the hall with quiet command.",
-  "",
-  "You are the Guild Master, the coordination specialist for this project.",
-  "",
   "You have tools to create commissions, dispatch workers, create pull requests, and propose meetings.",
   "",
   "When the user agrees on work to be done, create and dispatch commissions immediately. The user can review and cancel if needed.",
@@ -46,6 +71,7 @@ export function createManagerPackage(): DiscoveredPackage {
       portraitPath: "/images/portraits/guild-master.webp",
     },
     posture: MANAGER_POSTURE,
+    soul: MANAGER_SOUL,
     systemToolboxes: ["manager"],
     domainToolboxes: [],
     builtInTools: ["Read", "Glob", "Grep"],
@@ -97,17 +123,37 @@ export async function activateWorker(
 
 /**
  * Assembles the system prompt and activation result for the Guild Master.
- * Combines the static posture with injected memory and manager context
- * (system state summary). When managerContext is undefined, it is omitted
- * gracefully.
+ * Follows the same assembly order as buildSystemPrompt():
+ * soul -> identity -> posture -> memory -> manager context.
  */
 export function activateManager(context: ActivationContext): ActivationResult {
-  const parts: string[] = [context.posture];
+  const parts: string[] = [];
 
+  // 1. Soul
+  if (context.soul) {
+    parts.push(context.soul);
+  }
+
+  // 2. Identity metadata
+  if (context.identity) {
+    parts.push(
+      [
+        `Your name is: ${context.identity.name}`,
+        `Your title is: ${context.identity.displayTitle}`,
+        `You are described as: ${context.identity.description}`,
+      ].join("\n"),
+    );
+  }
+
+  // 3. Posture
+  parts.push(context.posture);
+
+  // 4. Injected memory
   if (context.injectedMemory) {
     parts.push(context.injectedMemory);
   }
 
+  // 5. Manager context
   if (context.managerContext) {
     parts.push(context.managerContext);
   }

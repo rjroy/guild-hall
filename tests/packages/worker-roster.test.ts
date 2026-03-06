@@ -165,4 +165,72 @@ describe("worker roster packages", () => {
       }
     }
   });
+
+  test("each roster package has a soul.md file", async () => {
+    for (const packageName of expectedRosterPackageNames) {
+      const soulFilePath = path.join(PACKAGES_DIR, packageName, "soul.md");
+      const file = Bun.file(soulFilePath);
+      expect(await file.exists()).toBe(true);
+    }
+  });
+
+  test("each roster soul.md has three sections (Character, Voice, Vibe)", async () => {
+    for (const packageName of expectedRosterPackageNames) {
+      const soulFilePath = path.join(PACKAGES_DIR, packageName, "soul.md");
+      const soul = await Bun.file(soulFilePath).text();
+
+      expect(soul).toContain("## Character");
+      expect(soul).toContain("## Voice");
+      expect(soul).toContain("## Vibe");
+    }
+  });
+
+  test("soul files are under 80 lines", async () => {
+    for (const packageName of expectedRosterPackageNames) {
+      const soulFilePath = path.join(PACKAGES_DIR, packageName, "soul.md");
+      const soul = await Bun.file(soulFilePath).text();
+      const lineCount = soul.split("\n").length;
+      expect(lineCount).toBeLessThan(80);
+    }
+  });
+
+  test("soul files contain no operational content", async () => {
+    for (const packageName of expectedRosterPackageNames) {
+      const soulFilePath = path.join(PACKAGES_DIR, packageName, "soul.md");
+      const soul = await Bun.file(soulFilePath).text();
+
+      // These are posture section headers that should not appear in soul files
+      expect(soul).not.toContain("Principles:");
+      expect(soul).not.toContain("Workflow:");
+      expect(soul).not.toContain("Quality Standards:");
+    }
+  });
+
+  test("posture files contain no personality content", async () => {
+    for (const packageName of expectedRosterPackageNames) {
+      const postureFilePath = path.join(PACKAGES_DIR, packageName, "posture.md");
+      const posture = await Bun.file(postureFilePath).text();
+
+      // No Vibe line should remain in posture
+      expect(posture).not.toMatch(/^Vibe:/m);
+      // No soul section headers should appear in posture
+      expect(posture).not.toContain("## Character");
+      expect(posture).not.toContain("## Voice");
+      expect(posture).not.toContain("## Vibe");
+    }
+  });
+
+  test("discovery populates soul field for all roster workers", async () => {
+    const packages = await discoverPackages([PACKAGES_DIR]);
+    const rosterPackages = packages.filter((pkg) =>
+      expectedRosterPackageNames.includes(pkg.name),
+    );
+
+    for (const pkg of rosterPackages) {
+      const meta = pkg.metadata as WorkerMetadata;
+      expect(meta.soul).toBeDefined();
+      expect(typeof meta.soul).toBe("string");
+      expect(meta.soul!.length).toBeGreaterThan(0);
+    }
+  });
 });

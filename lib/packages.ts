@@ -49,6 +49,7 @@ export const workerMetadataSchema = z.object({
   type: z.union([z.literal("worker"), workerToolboxTuple]),
   identity: workerIdentitySchema,
   posture: z.string().optional(),
+  soul: z.string().optional(),
   systemToolboxes: z.array(z.string()).default([]),
   domainToolboxes: z.array(z.string()),
   builtInTools: z.array(z.string()),
@@ -176,6 +177,14 @@ export async function discoverPackages(
         }
 
         (metadata as WorkerMetadata).posture = resolvedPosture;
+
+        // Load soul.md (optional: missing soul produces a warning, not a skip)
+        try {
+          const soulFilePath = path.join(pkgDir, "soul.md");
+          (metadata as WorkerMetadata).soul = (await fs.readFile(soulFilePath, "utf-8")).trim();
+        } catch {
+          console.warn(`${pkgDir}: no soul.md found (worker will activate without personality)`);
+        }
       }
 
       seen.set(pkgName, {

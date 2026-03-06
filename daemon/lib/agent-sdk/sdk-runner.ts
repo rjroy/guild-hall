@@ -237,6 +237,7 @@ export async function prepareSdkSession(
     const activationContext: ActivationContext = {
       identity: workerMeta.identity,
       posture: workerMeta.posture,
+      soul: workerMeta.soul,
       injectedMemory,
       resolvedTools,
       resourceDefaults: {
