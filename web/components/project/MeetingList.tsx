@@ -67,7 +67,12 @@ export function meetingHref(
   }
 
   if (normalized === "closed") {
-    return `/projects/${encodedName}/artifacts/${relativePath}`;
+    // relativePath from scanArtifacts is relative to the meetings/ dir,
+    // but the artifact route expects paths relative to .lore/
+    const artifactPath = relativePath.startsWith("meetings/")
+      ? relativePath
+      : `meetings/${relativePath}`;
+    return `/projects/${encodedName}/artifacts/${artifactPath}`;
   }
 
   return null;

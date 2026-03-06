@@ -187,7 +187,7 @@ describe("MeetingList", () => {
     expect(meetingLink!.props.href).toContain("test-project");
   });
 
-  test("closed meeting does not render as a link", () => {
+  test("closed meeting links to artifact view, not live meeting view", () => {
     const meetings = [
       makeMeetingArtifact({
         meta: {
@@ -204,18 +204,27 @@ describe("MeetingList", () => {
       projectName: "test-project",
     }) as AnyElement;
 
-    // Should not have any Link elements pointing to meetings
     const links = findElements(
       el,
       (e) => typeof e.props.href === "string",
     );
 
-    const meetingLink = links.find(
+    // Closed meetings should link to the artifact view, not the live meeting view
+    const liveMeetingLink = links.find(
       (l) =>
         typeof l.props.href === "string" &&
-        l.props.href.includes("/meetings/"),
+        l.props.href.includes("/meetings/") &&
+        !l.props.href.includes("/artifacts/"),
     );
-    expect(meetingLink).toBeUndefined();
+    expect(liveMeetingLink).toBeUndefined();
+
+    // Should have an artifact link instead
+    const artifactLink = links.find(
+      (l) =>
+        typeof l.props.href === "string" &&
+        l.props.href.includes("/artifacts/meetings/"),
+    );
+    expect(artifactLink).toBeDefined();
   });
 
   test("renders GemIndicator with active status for open meeting", () => {
