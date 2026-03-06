@@ -25,22 +25,27 @@
 
 .sidebar {
   grid-area: sidebar;
+  min-width: 0;
 }
 
 .briefing {
   grid-area: briefing;
+  min-width: 0;
 }
 
 .depMap {
   grid-area: depMap;
+  min-width: 0;
 }
 
 .recentArtifacts {
   grid-area: recent;
+  min-width: 0;
 }
 
 .audiences {
   grid-area: audiences;
+  min-width: 0;
 }
 
 /* --- Responsive --- */
