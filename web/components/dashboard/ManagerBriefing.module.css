@@ -13,6 +13,15 @@
   line-height: 1.6;
   margin: 0;
   padding: 0 var(--space-xs);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+@media (max-width: 480px) {
+  .briefingText {
+    font-size: 0.88rem;
+    padding: 0 var(--space-sm);
+  }
 }
 
 .meta {
