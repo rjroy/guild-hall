@@ -1022,6 +1022,90 @@ describe("redispatchCommission", () => {
   });
 });
 
+describe("abandonCommission", () => {
+  test("abandons a pending commission (never dispatched)", async () => {
+    const { orchestrator, eventBus } = buildDeps();
+
+    const commissionId = asCommissionId("commission-test-abandon-pending-001");
+    await writeCommissionArtifact(integrationPath, commissionId as string, {
+      status: "pending",
+    });
+
+    await orchestrator.abandonCommission(commissionId, "Work done elsewhere");
+
+    // Abandoned event emitted
+    const abandonedEvents = eventBus.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "abandoned",
+    );
+    expect(abandonedEvents.length).toBeGreaterThanOrEqual(1);
+    const ev = abandonedEvents[0];
+    if (ev.type === "commission_status") {
+      expect(ev.oldStatus).toBe("pending");
+      expect(ev.reason).toBe("Work done elsewhere");
+    }
+  });
+
+  test("abandons a failed commission", async () => {
+    const { orchestrator } = buildDeps();
+
+    const commissionId = asCommissionId("commission-test-abandon-failed-001");
+    await writeCommissionArtifact(integrationPath, commissionId as string, {
+      status: "failed",
+    });
+
+    await orchestrator.abandonCommission(commissionId, "Not worth retrying");
+
+    // No active commissions
+    expect(orchestrator.getActiveCommissions()).toBe(0);
+  });
+
+  test("abandons a cancelled commission", async () => {
+    const { orchestrator } = buildDeps();
+
+    const commissionId = asCommissionId("commission-test-abandon-cancelled-001");
+    await writeCommissionArtifact(integrationPath, commissionId as string, {
+      status: "cancelled",
+    });
+
+    await orchestrator.abandonCommission(commissionId, "No longer relevant");
+  });
+
+  test("rejects abandon when commission has active execution context", async () => {
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-abandon-active-001");
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const workspace = createMockWorkspace();
+    const { orchestrator } = buildDeps({ workspace, mockQueryFn, eventBus });
+
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+    await orchestrator.dispatchCommission(commissionId);
+    await new Promise<void>((r) => setTimeout(r, 50));
+
+    await expect(
+      orchestrator.abandonCommission(commissionId, "Trying to abandon active"),
+    ).rejects.toThrow(/Cannot abandon.*active session/);
+
+    // Clean up
+    await orchestrator.cancelCommission(commissionId);
+    mockQueryFn.resolve({ aborted: true });
+  });
+
+  test("rejects abandon when commission not found", async () => {
+    const { orchestrator } = buildDeps();
+
+    await expect(
+      orchestrator.abandonCommission(
+        asCommissionId("nonexistent-commission"),
+        "Test",
+      ),
+    ).rejects.toThrow(/not found/);
+  });
+});
+
 describe("race condition", () => {
   test("concurrent completion and cancellation: exactly one succeeds", async () => {
     const eventBus = createTestEventBus();

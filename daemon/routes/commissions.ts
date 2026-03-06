@@ -16,6 +16,7 @@ export interface CommissionRoutesDeps {
  * POST   /commissions/:id/dispatch         - Dispatch commission to worker
  * DELETE /commissions/:id             - Cancel commission
  * POST   /commissions/:id/redispatch  - Re-dispatch failed/cancelled commission
+ * POST   /commissions/:id/abandon     - Abandon a commission
  * POST   /commissions/:id/note        - User adds note
  */
 export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
@@ -174,6 +175,43 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       if (
         message.includes("must be \"failed\" or \"cancelled\"") ||
         message.includes("Cannot redispatch")
+      ) {
+        return c.json({ error: message }, 409);
+      }
+      return c.json({ error: message }, 500);
+    }
+  });
+
+  // POST /commissions/:id/abandon - Abandon a commission
+  routes.post("/commissions/:id/abandon", async (c) => {
+    const commissionId = asCommissionId(c.req.param("id"));
+
+    let body: { reason?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    const { reason } = body;
+    if (!reason) {
+      return c.json({ error: "Missing required field: reason" }, 400);
+    }
+
+    try {
+      console.log(
+        `[route] POST /commissions/${commissionId as string}/abandon`,
+      );
+      await deps.commissionSession.abandonCommission(commissionId, reason);
+      return c.json({ status: "ok" });
+    } catch (err: unknown) {
+      const message = errorMessage(err);
+      if (message.includes("not found")) {
+        return c.json({ error: message }, 404);
+      }
+      if (
+        message.includes("Invalid commission transition") ||
+        message.includes("Cannot abandon")
       ) {
         return c.json({ error: message }, 409);
       }

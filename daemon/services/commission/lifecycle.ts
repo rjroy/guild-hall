@@ -146,8 +146,8 @@ export class CommissionLifecycle {
     return this.transition(id, "cancelled", reason);
   }
 
-  async abandon(id: CommissionId): Promise<TransitionResult> {
-    return this.transition(id, "abandoned", "Commission abandoned");
+  async abandon(id: CommissionId, reason: string): Promise<TransitionResult> {
+    return this.transition(id, "abandoned", reason);
   }
 
   async redispatch(id: CommissionId): Promise<TransitionResult> {

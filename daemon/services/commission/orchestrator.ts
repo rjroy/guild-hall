@@ -105,6 +105,7 @@ export interface CommissionSessionForRoutes {
     commissionId: CommissionId,
   ): Promise<{ status: "accepted" | "queued" }>;
   cancelCommission(commissionId: CommissionId, reason?: string): Promise<void>;
+  abandonCommission(commissionId: CommissionId, reason: string): Promise<void>;
   redispatchCommission(
     commissionId: CommissionId,
   ): Promise<{ status: "accepted" | "queued" }>;
@@ -1441,6 +1442,57 @@ projectName: ${projectName}
     lifecycle.forget(commissionId);
   }
 
+  async function abandonCommission(
+    commissionId: CommissionId,
+    reason: string,
+  ): Promise<void> {
+    // Reject if commission has an active execution context
+    if (executions.has(commissionId)) {
+      throw new Error(
+        `Cannot abandon commission "${commissionId as string}": it has an active session. Cancel it first.`,
+      );
+    }
+
+    // Check if tracked in lifecycle
+    const status = lifecycle.getStatus(commissionId);
+    if (status !== undefined) {
+      await lifecycle.abandon(commissionId, reason);
+      lifecycle.forget(commissionId);
+
+      const projectName = lifecycle.getProjectName(commissionId);
+      if (projectName) {
+        await checkDependencyTransitions(projectName);
+      }
+      return;
+    }
+
+    // Not tracked: find in integration worktree
+    const found = await findProjectForCommission(commissionId);
+    if (!found) {
+      throw new Error(
+        `Commission "${commissionId as string}" not found in any project`,
+      );
+    }
+
+    let abandonStatus: string;
+    try {
+      abandonStatus = await recordOps.readStatus(
+        commissionArtifactPath(found.integrationPath, commissionId),
+      );
+    } catch {
+      throw new Error(
+        `Cannot abandon commission "${commissionId as string}": unable to read status`,
+      );
+    }
+
+    const abandonArtifactPath = commissionArtifactPath(found.integrationPath, commissionId);
+    lifecycle.register(commissionId, found.projectName, abandonStatus as CommissionStatus, abandonArtifactPath);
+    await lifecycle.abandon(commissionId, reason);
+    lifecycle.forget(commissionId);
+
+    await checkDependencyTransitions(found.projectName);
+  }
+
   async function redispatchCommission(
     commissionId: CommissionId,
   ): Promise<{ status: "accepted" | "queued" }> {
@@ -1558,6 +1610,7 @@ projectName: ${projectName}
     updateCommission,
     dispatchCommission,
     cancelCommission,
+    abandonCommission,
     redispatchCommission,
     addUserNote,
     checkDependencyTransitions,

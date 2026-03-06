@@ -27,6 +27,7 @@ describe("statusToGem", () => {
     ["outdated", "blocked"],
     ["wontfix", "blocked"],
     ["declined", "blocked"],
+    ["abandoned", "blocked"],
     ["Superseded", "blocked"],
     ["Declined", "blocked"],
 

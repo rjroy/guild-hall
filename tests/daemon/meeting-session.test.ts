@@ -2935,6 +2935,7 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     async updateCommission() {},
     async dispatchCommission() { return { status: "accepted" as const }; },
     async cancelCommission() {},
+    async abandonCommission() {},
     async redispatchCommission() { return { status: "accepted" as const }; },
     async addUserNote() {},
     async checkDependencyTransitions() {},

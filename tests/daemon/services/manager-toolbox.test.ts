@@ -11,6 +11,7 @@ import {
   makeCreateCommissionHandler,
   makeDispatchCommissionHandler,
   makeCancelCommissionHandler,
+  makeAbandonCommissionHandler,
   makeCreatePrHandler,
   makeInitiateMeetingHandler,
   makeAddCommissionNoteHandler,
@@ -87,6 +88,10 @@ function makeMockCommissionSession(
     async updateCommission() {},
     async cancelCommission(cid: CommissionId, reason?: string) {
       calls.cancelCommission.push([cid, reason]);
+    },
+    async abandonCommission(cid: CommissionId, reason: string) {
+      if (!calls.abandonCommission) calls.abandonCommission = [];
+      calls.abandonCommission.push([cid, reason]);
     },
     async redispatchCommission() {
       return { status: "accepted" as const };
@@ -473,6 +478,75 @@ describe("cancel_commission", () => {
     expect(mockSession.calls.cancelCommission[0][1]).toBe(
       "Commission cancelled by manager",
     );
+  });
+});
+
+// -- abandon_commission --
+
+describe("abandon_commission", () => {
+  test("abandons commission with reason and returns success", async () => {
+    const mockSession = makeMockCommissionSession();
+    const deps = makeDeps({ commissionSession: mockSession });
+    const handler = makeAbandonCommissionHandler(deps);
+
+    const result = await handler({
+      commissionId: "commission-researcher-20260223-140000",
+      reason: "Work completed outside commission process",
+    });
+
+    expect(result.isError).toBeUndefined();
+
+    const parsed = JSON.parse(result.content[0].text) as {
+      commissionId?: string;
+      status?: string;
+    };
+    expect(parsed.commissionId).toBe("commission-researcher-20260223-140000");
+    expect(parsed.status).toBe("abandoned");
+
+    expect(mockSession.calls.abandonCommission).toHaveLength(1);
+    expect(mockSession.calls.abandonCommission[0][1]).toBe(
+      "Work completed outside commission process",
+    );
+  });
+
+  test("returns error when commission not found", async () => {
+    const mockSession = makeMockCommissionSession({
+      abandonCommission() {
+        return Promise.reject(
+          new Error('Commission "xyz" not found in any project'),
+        );
+      },
+    });
+    const deps = makeDeps({ commissionSession: mockSession });
+    const handler = makeAbandonCommissionHandler(deps);
+
+    const result = await handler({
+      commissionId: "xyz",
+      reason: "Test reason",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not found");
+  });
+
+  test("returns error on invalid transition", async () => {
+    const mockSession = makeMockCommissionSession({
+      abandonCommission() {
+        return Promise.reject(
+          new Error('Cannot abandon commission "c1": it has an active session. Cancel it first.'),
+        );
+      },
+    });
+    const deps = makeDeps({ commissionSession: mockSession });
+    const handler = makeAbandonCommissionHandler(deps);
+
+    const result = await handler({
+      commissionId: "c1",
+      reason: "Test reason",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Cannot abandon");
   });
 });
 

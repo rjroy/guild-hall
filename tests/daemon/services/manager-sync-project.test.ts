@@ -40,6 +40,7 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     },
     async updateCommission() {},
     async cancelCommission() {},
+    async abandonCommission() {},
     async redispatchCommission() {
       return { status: "accepted" as const };
     },

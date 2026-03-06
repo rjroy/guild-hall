@@ -168,6 +168,7 @@ const BLOCKED_STATUSES = new Set([
   "declined",
   "failed",
   "cancelled",
+  "abandoned",
 ]);
 
 /**
