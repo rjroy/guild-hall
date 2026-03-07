@@ -1,7 +1,7 @@
 ---
 title: Worker Identity and Personality
 date: 2026-03-06
-status: draft
+status: implemented
 tags: [workers, personality, identity, posture, soul, system-prompt]
 modules: [guild-hall-workers]
 related:

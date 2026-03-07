@@ -1,7 +1,7 @@
 ---
 title: Artifact Sorting Across Views
 date: 2026-03-06
-status: draft
+status: implemented
 tags: [sorting, artifacts, commissions, meetings, ui]
 modules: [artifact-list, commission-list, meeting-list, dashboard]
 related:
