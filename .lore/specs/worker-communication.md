@@ -39,12 +39,14 @@ Depends on: [Spec: Guild Hall Commissions](guild-hall-commissions.md) for commis
 
 - REQ-MAIL-2: New transitions in the commission lifecycle state machine (`daemon/services/commission/lifecycle.ts:47-56`):
   - `in_progress -> sleeping` (commission sends mail)
-  - `sleeping -> in_progress` (mail reply received, commission wakes)
+  - `sleeping -> in_progress` (mail reply received or reader completed/errored, commission wakes)
   - `sleeping -> cancelled` (user or manager cancels)
   - `sleeping -> abandoned` (user or manager abandons)
-  - `sleeping -> failed` (sleep timeout, mail reader error, daemon restart)
+  - `sleeping -> failed` (worktree lost during daemon restart recovery)
 
   The existing `TRANSITIONS` table gains a `sleeping` entry: `sleeping: ["in_progress", "cancelled", "abandoned", "failed"]`. The `in_progress` entry gains `"sleeping"` as a valid target.
+
+  Note: The `abandoned` state exists in implementation (`daemon/types.ts:43`, `lifecycle.ts:55`) and is formalized in [Spec: Guild Hall Commissions](guild-hall-commissions.md) REQ-COM-5. It is terminal: unlike `cancelled`, an abandoned commission cannot be redispatched.
 
 - REQ-MAIL-3: When a commission enters sleeping:
   1. The SDK session drains. `drainSdkSession()` returns `SdkRunnerOutcome`, which includes `sessionId` (string or null). If the session ID is null (session was aborted before the SDK emitted a session event), the sleep transition fails: the commission transitions to `failed` with reason "Sleep failed: no session ID available for resume." This is a safety valve, not an expected path. The `send_mail` tool result is processed by the SDK before the abort, so a session event should have been emitted.
@@ -68,11 +70,9 @@ Depends on: [Spec: Guild Hall Commissions](guild-hall-commissions.md) for commis
      ```
      The `readerActive` field is set to `true` when the mail reader session starts and `false` when it ends. Used by recovery (REQ-MAIL-23) to determine whether a reader was running when the daemon stopped.
   3. The execution context is removed from the orchestrator's `executions` Map. The commission no longer counts as an active session.
-  4. The worktree and branch remain on disk. No cleanup, no commit of partial work. The commission will resume in the same worktree with the same uncommitted state.
+  4. The commission's pending changes are committed to the commission branch with `--no-verify` (intermediate checkpoint, not a deliverable). This ensures the mail reader starts from a clean working tree rather than working on top of uncommitted files. The worktree and branch remain on disk.
 
 - REQ-MAIL-4: Commissions can sleep multiple times. Each sleep/wake cycle is a separate consultation. The session ID chain flows naturally: each `drainSdkSession()` returns a new session ID, and each `prepareSdkSession({ resume: savedSessionId })` reconnects to the prior conversation. The worker's conversation history accumulates across sleep/wake cycles.
-
-- REQ-MAIL-5: Sleeping commissions have a configurable timeout (default: 24 hours, stored in `config.yaml` as `sleepTimeoutHours`). The sleep start time is recorded in the commission state file's `sleepStartedAt` field (see REQ-MAIL-3). Full timeout behavior, including clock reset semantics and the abort procedure, is specified in REQ-MAIL-21.
 
 ### Mail Context Type
 
@@ -110,7 +110,7 @@ Depends on: [Spec: Guild Hall Commissions](guild-hall-commissions.md) for commis
 
   The reader CAN browse `.lore/` in the worktree (via base toolbox artifact tools) and read source files (via SDK built-in tools). Access to the project is not restricted, only the commission-specific context.
 
-- REQ-MAIL-12: `reply` can only be called once per mail session, enforced the same way `submit_result` is enforced for commissions (a `replyReceived` flag checked before processing). If the mail session ends without a reply call, the commission wakes with an error message: "Mail reader completed without replying."
+- REQ-MAIL-12: `reply` can only be called once per mail session, enforced the same way `submit_result` is enforced for commissions (a `replyReceived` flag checked before processing). If the mail session ends without a reply call, the commission still wakes (see REQ-MAIL-14 step 10 and REQ-MAIL-19 for the specific wake-up prompts, which distinguish resource exhaustion from normal completion).
 
 ### The Send-Mail-Sleep-Wake Flow
 
@@ -129,42 +129,45 @@ Depends on: [Spec: Guild Hall Commissions](guild-hall-commissions.md) for commis
   1. Commission worker calls `send_mail(to: "Thorne", subject: "Review this spec", message: "...")`.
   2. The commission toolbox handler:
      a. Validates the target worker exists in discovered packages.
-     b. Writes the mail file to `.lore/mail/<commission-id>/` (see REQ-MAIL-17).
-     c. Commits the mail file to the commission branch.
-     d. Emits a `commission_mail_sent` event on the EventBus with the commission ID, mail sequence number, and target worker name.
-     e. Returns tool result: `"Mail sent to Thorne. Entering sleep state until reply arrives."`
-     f. Sets a `mailSent` flag on the execution context (parallel to the `resultSubmitted` flag).
+     b. Writes the mail file to `.lore/mail/<commission-id>/` with status `sent` (see REQ-MAIL-17, REQ-MAIL-18).
+     c. Emits a `commission_mail_sent` event on the EventBus with the commission ID, mail sequence number, and target worker name.
+     d. Returns tool result: `"Mail sent to Thorne. Entering sleep state until reply arrives."`
+     e. Sets a `mailSent` flag on the execution context (parallel to the `resultSubmitted` flag).
   3. The orchestrator detects `mailSent` after the SDK processes the tool result. It aborts the session via AbortController.
   4. `drainSdkSession()` returns `{ sessionId, aborted: true }`.
-  5. The orchestrator's completion handler sees `mailSent` is true and `aborted` is true. Instead of the normal completion/failure path, it:
+  5. The orchestrator commits the commission's pending changes (including the mail file) to the commission branch with `--no-verify`. This is an intermediate checkpoint, not a deliverable. The commit ensures the mail reader starts from a clean working tree.
+  6. The orchestrator's completion handler sees `mailSent` is true and `aborted` is true. Instead of the normal completion/failure path, it:
      a. Transitions `in_progress -> sleeping` via the lifecycle.
      b. Saves the state file with `status: "sleeping"`, `sessionId`, `worktreeDir`, `branchName`, and `pendingMail` (mail file path, reader worker name).
      c. Removes the execution context from `executions`.
 
   **Phase 2: Mail Reader**
-  6. The orchestrator activates the mail reader:
-     a. Resolves the reader worker's package and metadata.
-     b. Calls `prepareSdkSession()` with `contextType: "mail"`, the reader's worker name, and the commission's worktree as `workspaceDir`.
-     c. The activation prompt includes: the mail message, the commission title (not the full artifact), and instructions to read, work, and reply.
-     d. Runs the SDK session (same `runSdkSession()` and `drainSdkSession()` pattern as commissions).
-  7. The reader does its work: reads files, writes notes, modifies code, and calls the `reply` tool.
-  8. The `reply` tool handler:
-     a. Writes the reply (summary + details) to the mail file.
+  7. The orchestrator activates the mail reader:
+     a. Checks the mail reader concurrency cap (REQ-MAIL-20). If at capacity, queues the activation until a slot opens.
+     b. Updates the mail file status from `sent` to `open`.
+     c. Resolves the reader worker's package and metadata.
+     d. Calls `prepareSdkSession()` with `contextType: "mail"`, the reader's worker name, and the commission's worktree as `workspaceDir`.
+     e. The activation prompt includes: the mail message, the commission title (not the full artifact), and instructions to read, work, and reply.
+     f. Sets `pendingMail.readerActive: true` in the state file.
+     g. Runs the SDK session (same `runSdkSession()` and `drainSdkSession()` pattern as commissions).
+  8. The reader does its work: reads files, writes notes, modifies code, and calls the `reply` tool.
+  9. The `reply` tool handler:
+     a. Writes the reply (summary + details) to the mail file and updates its status to `replied`.
      b. If `files_modified` was provided, records them. Otherwise, the daemon runs `git status` on the worktree after the session ends.
-     c. Commits the updated mail file and any worktree changes to the commission branch.
-     d. Emits a `mail_reply_received` event.
+     c. Emits a `mail_reply_received` event.
 
   **Phase 3: Wake**
-  9. When the mail session completes:
-     a. If `replyReceived` is true: transition `sleeping -> in_progress`.
-     b. If `replyReceived` is false (reader never called reply): transition `sleeping -> in_progress` with error context in the wake prompt.
-     c. If the mail session errored: transition `sleeping -> in_progress` with error context.
-  10. The orchestrator resumes the commission:
+  10. When the mail session completes, the orchestrator commits any pending worktree changes to the commission branch with `--no-verify` (preserving the reader's work). Sets `pendingMail.readerActive: false` in the state file. Then:
+      a. If `replyReceived` is true: transition `sleeping -> in_progress`.
+      b. If `replyReceived` is false and the session ended due to `maxTurns` exhaustion: transition `sleeping -> in_progress` with resource exhaustion context in the wake prompt (REQ-MAIL-19).
+      c. If `replyReceived` is false and the reader ended normally: transition `sleeping -> in_progress` with "completed without replying" context in the wake prompt.
+      d. If the mail session errored: transition `sleeping -> in_progress` with error context.
+  11. The orchestrator resumes the commission:
       a. Creates a new execution context in `executions`.
       b. Calls `prepareSdkSession()` with `resume: savedSessionId`.
       c. The resume prompt includes the wake-up content (REQ-MAIL-19).
       d. Updates the state file: `status: "in_progress"`, clears `pendingMail`, saves new session state.
-  11. The commission worker continues where it left off, now with the mail reply in its conversation context.
+  12. The commission worker continues where it left off, now with the mail reply in its conversation context.
 
 - REQ-MAIL-15: The mail reader does NOT get its own worktree or branch. It runs in the commission's existing worktree on the commission's branch. All changes the reader makes are committed to the commission branch. This is consistent with the brainstorm's design: "the reader works in the same space."
 
@@ -215,7 +218,12 @@ Depends on: [Spec: Guild Hall Commissions](guild-hall-commissions.md) for commis
   - path/to/file2.md
   ```
 
-  The `status` field tracks the mail state: `sent` (waiting for reader) or `replied` (reader has responded). The daemon uses this field during recovery to determine whether a sleeping commission's mail was answered.
+  The `status` field tracks the mail state through three stages:
+  - `sent`: Mail created, reader not yet started.
+  - `open`: Reader session is active.
+  - `replied`: Reader completed with a reply.
+
+  The daemon uses this field for cancellation cleanup (REQ-MAIL-22) and crash recovery (REQ-MAIL-23). The mail file status is the authoritative source for the reader's lifecycle state.
 
 ### Wake-Up Prompt Content
 
@@ -240,7 +248,12 @@ Depends on: [Spec: Guild Hall Commissions](guild-hall-commissions.md) for commis
   The full reply with details is at .lore/mail/[commission-id]/[sequence]-to-[reader].md
   ```
 
-  If the mail reader completed without replying, the prompt says:
+  If the mail reader exhausted its `maxTurns` without replying, the prompt says:
+  ```
+  Mail to [reader name] was delivered but [reader name] ran out of turns before sending a reply. The reader may have partial work in the worktree. You may re-send the mail (consider simplifying the request) or proceed without a response.
+  ```
+
+  If the mail reader completed normally without replying, the prompt says:
   ```
   Mail to [reader name] was delivered but [reader name] completed without sending a reply. You may re-send the mail or proceed without a response.
   ```
@@ -256,34 +269,37 @@ Depends on: [Spec: Guild Hall Commissions](guild-hall-commissions.md) for commis
 
   The mail reader's session counts as its own execution for capacity purposes but does NOT count against the commission cap. Mail sessions are short-lived (single session, bounded by the reader's resource defaults) and managed separately. The daemon tracks active mail sessions independently. Rationale: mail is a lightweight consultation, not a full commission. Counting it against the commission cap would unnecessarily block other commissions from dispatching.
 
+  Mail reader sessions have a configurable concurrency cap (default: 5, stored in `config.yaml` as `maxConcurrentMailReaders`), separate from the commission cap. When the cap is reached, new mail reader activations are queued and dispatched FIFO as active readers complete. This prevents a burst of sleeping commissions from overwhelming the system with simultaneous reader sessions. The cap does not block the commission from sleeping; it only delays the reader's start.
+
   A sleeping commission does hold a worktree and branch on disk. If worktree resource limits become a concern, that is a separate capacity dimension (disk, git namespace) outside the scope of the current commission cap model.
 
-- REQ-MAIL-21: Sleeping commissions timeout after a configurable period (default: 24 hours). The timeout starts when the commission enters sleeping. The timeout clock resets if the commission wakes and sleeps again (each sleep cycle gets its own timeout). On timeout:
-  1. If a mail reader is active, abort its session.
-  2. Transition `sleeping -> failed` with reason "Sleep timeout exceeded after [duration]."
-  3. Preserve partial results per REQ-COM-14a.
+- REQ-MAIL-22: When a sleeping commission is cancelled or abandoned, the procedure depends on the mail artifact's status (REQ-MAIL-18):
 
-  The sleep start time is stored in the commission state file. The daemon checks for expired sleepers on the same periodic interval it uses for other housekeeping (heartbeat monitoring, dependency checks).
+  **Mail status `sent`** (reader not yet started):
+  1. No reader to worry about. If the reader activation is queued behind the concurrency cap, dequeue it.
+  2. Transition the commission to `cancelled` (or `abandoned`).
+  3. Preserve the branch and clean up the worktree per REQ-COM-15.
 
-- REQ-MAIL-22: When a sleeping commission is cancelled while its mail reader is running:
+  **Mail status `open`** (reader is active):
   1. Abort the mail reader's session via its AbortController.
-  2. Wait for the mail reader's session to end (the abort is asynchronous; the drain loop must complete).
-  3. Commit any changes the mail reader made to the commission branch (partial work preservation).
-  4. Transition the commission from `sleeping` to `cancelled`.
+  2. Wait for the reader's session to drain (the abort is asynchronous; the drain loop must complete).
+  3. Commit any changes the reader made to the commission branch with `--no-verify` (partial work preservation).
+  4. Transition the commission to `cancelled` (or `abandoned`).
   5. Preserve the branch and clean up the worktree per REQ-COM-15.
 
-  The cancel flow for a sleeping commission checks whether a mail reader is active and handles the abort before proceeding. This is a new code path in the orchestrator's `cancelCommission()` method.
+  **Mail status `replied`** (reader completed with reply):
+  1. A wake transition is already pending. Cancel it.
+  2. Transition the commission to `cancelled` (or `abandoned`).
+  3. Preserve the branch and clean up the worktree per REQ-COM-15.
 
-  Abandoning a sleeping commission (`sleeping -> abandoned`) follows the same procedure as cancellation (abort reader, commit partial work, clean up worktree) but transitions to `abandoned` instead of `cancelled`. The `abandoned` state is terminal; unlike `cancelled`, it cannot be redispatched.
+  The cancel and abandon flows check the mail artifact status to determine the correct cleanup procedure. The `abandoned` state is terminal; unlike `cancelled`, an abandoned commission cannot be redispatched.
 
-- REQ-MAIL-23: On daemon restart, sleeping commissions are recovered from their state files:
-  1. State file exists with `status: "sleeping"` and `pendingMail.readerActive: false` (mail reader was not running): the commission is waiting for a reply that was never started, or the reply completed but wake didn't happen. Check the mail file's status field:
-     - If `status: replied`: wake the commission normally (resume with the reply).
-     - If `status: sent`: re-activate the mail reader (the message exists on disk, the reader can be re-created).
-  2. State file exists with `status: "sleeping"` and `pendingMail.readerActive: true` (mail reader was running when daemon stopped): the mail reader's session is lost. Check the mail file:
-     - If `status: replied` (reader finished and wrote reply before crash): wake the commission normally.
-     - If `status: sent` (reader was mid-session): re-activate the mail reader. The worktree may contain partial changes from the lost reader session, but this is the same trade-off as any crash recovery.
-  3. State file exists with `status: "sleeping"`, worktree missing: transition to `failed` with reason "Worktree lost during sleep." Preserve the branch.
+- REQ-MAIL-23: On daemon restart, sleeping commissions are recovered from their state files. The daemon reads both the state file and the mail file's status field to determine the correct recovery path:
+
+  1. **Worktree missing**: Transition to `failed` with reason "Worktree lost during sleep." Preserve the branch.
+  2. **Mail status `replied`**: The reader completed and wrote a reply. Wake the commission normally (resume with the reply). This is the clean case regardless of the `readerActive` flag in the state file.
+  3. **Mail status `open`**: The reader was mid-session when the daemon stopped. The reader's session is lost. Commit any partial work in the worktree with `--no-verify`, reset the mail status to `sent`, and re-activate the mail reader. The worktree may contain partial changes from the lost reader session, but this is the same trade-off as any crash recovery.
+  4. **Mail status `sent`**: The reader was never started, or was queued behind the concurrency cap. Activate the mail reader.
 
 ### Commission Toolbox Extension
 
@@ -328,7 +344,6 @@ None. This spec fully defines worker-to-worker communication. The sleeping state
 - [ ] `in_progress -> sleeping` transition drains the SDK session and preserves worktree
 - [ ] `sleeping -> in_progress` transition resumes the SDK session with the saved session ID
 - [ ] Commissions can sleep and wake multiple times in a single execution
-- [ ] Sleep timeout transitions sleeping commissions to failed after the configured period
 - [ ] `send_mail` tool is available in commission context and validates the target worker
 - [ ] Mail file is written to `.lore/mail/<commission-id>/` with correct format
 - [ ] Mail reader activates in the sender's worktree with the reader's own posture and tools
@@ -337,7 +352,11 @@ None. This spec fully defines worker-to-worker communication. The sleeping state
 - [ ] Wake-up prompt includes reply summary, modified files, and reader identity
 - [ ] `send_mail` and `submit_result` are mutually exclusive within a session
 - [ ] Sleeping commissions do not count against the concurrent commission cap
-- [ ] Cancelling a sleeping commission aborts any active mail reader
+- [ ] Mail artifact tracks states: `sent`, `open`, `replied` through the reader lifecycle
+- [ ] Cancelling a sleeping commission uses mail state to determine cleanup procedure
+- [ ] Mail reader concurrency cap is enforced; excess activations queue
+- [ ] Resource exhaustion wake-up prompt distinguishes "ran out of turns" from "chose not to reply"
+- [ ] Commission work is committed before mail reader starts (clean working tree)
 - [ ] Daemon restart recovers sleeping commissions correctly (re-reads mail state, re-activates readers or wakes commissions as appropriate)
 - [ ] Mail files merge to `claude` branch with the commission on completion
 - [ ] Activity timeline records mail events (sent, sleeping, reply received, woke)
@@ -354,10 +373,13 @@ None. This spec fully defines worker-to-worker communication. The sleeping state
 - Send-mail flow test: commission calls `send_mail`, verify mail file written, session aborted, status transitions to sleeping, state file saved with session ID
 - Mail reader activation test: verify reader gets mail toolbox (not commission toolbox), fresh session (not resumed), reader's own posture
 - Reply flow test: reader calls `reply`, verify mail file updated, commission wakes with correct prompt content
-- No-reply test: reader completes without calling `reply`, verify commission wakes with error message
+- No-reply test: reader completes without calling `reply`, verify commission wakes with appropriate error message
+- Resource exhaustion test: reader exhausts `maxTurns` without calling `reply`, verify distinct "ran out of turns" wake-up prompt
 - Multiple sleep test: commission sleeps, wakes, sleeps again with different target, wakes again; session IDs chain correctly
-- Sleep timeout test: simulate timeout expiry, verify transition to failed, worktree cleanup
-- Cancel-while-sleeping test: cancel with active mail reader, verify reader aborted, commission cancelled, worktree cleaned up
+- Mail state lifecycle test: verify mail file transitions through `sent` -> `open` -> `replied`
+- Cancel-by-mail-state test: cancel sleeping commission in each mail state (`sent`, `open`, `replied`), verify correct cleanup for each
+- Cancel-while-sleeping test: cancel with active mail reader, verify reader aborted, partial work committed, commission cancelled, worktree cleaned up
+- Mail reader concurrency test: activate readers beyond the cap, verify queuing and FIFO dispatch as slots open
 - Recovery test: simulate daemon restart with sleeping commissions in various states (reader active, reply received, reader not started), verify correct recovery path for each
 - Mutual exclusion test: `send_mail` after `submit_result` (and vice versa) in the same session is rejected
 - Capacity test: sleeping commissions don't count toward concurrent cap; verify dispatch of new commissions while one is sleeping

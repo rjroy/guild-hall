@@ -55,7 +55,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 ### Status Transitions
 
-- REQ-COM-5: Commissions have seven states:
+- REQ-COM-5: Commissions have eight states:
   - **pending**: Created, dependencies satisfied, not yet dispatched.
   - **blocked**: Created, but one or more dependency artifacts don't exist yet.
   - **dispatched**: Dispatch initiated. Worktree, branch, and worker process being set up. Short-lived transitional state.
@@ -63,19 +63,26 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   - **completed**: Worker submitted results successfully.
   - **failed**: Worker process crashed, exhausted resources, or was marked failed by crash recovery.
   - **cancelled**: User or manager explicitly cancelled the commission.
+  - **abandoned**: User or manager permanently discarded the commission. Terminal: cannot be redispatched. Unlike `cancelled`, abandonment signals the work is no longer worth pursuing.
 
 - REQ-COM-6: Valid transitions:
   - pending -> dispatched (user or manager dispatches)
   - pending -> blocked (dependency artifact removed)
   - pending -> cancelled
+  - pending -> abandoned
   - blocked -> pending (all dependency artifacts now exist)
   - blocked -> cancelled
+  - blocked -> abandoned
   - dispatched -> in_progress (worker process starts)
   - dispatched -> failed (activation failed, process failed to start)
   - dispatched -> cancelled (user or manager cancels during workspace preparation)
   - in_progress -> completed (worker calls submit_result, then exits cleanly)
   - in_progress -> failed (session error, budget exhaustion, daemon restart)
   - in_progress -> cancelled (user or manager cancels)
+  - failed -> pending (redispatch, see REQ-COM-30)
+  - failed -> abandoned
+  - cancelled -> pending (redispatch, see REQ-COM-30)
+  - cancelled -> abandoned
 
 - REQ-COM-7: Dependency checking runs when artifacts are created or removed in the workspace. When all of a blocked commission's dependency artifacts exist, it auto-transitions to pending. When a pending commission loses a dependency artifact, it auto-transitions to blocked. This is existence checking ("does the file exist?"), not content validation.
 
@@ -191,6 +198,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 | Exit | Triggers When | Target |
 |------|---------------|--------|
 | Commission UI | Need to present commissions in the frontend | [Spec: guild-hall-views](guild-hall-views.md) |
+| Sleeping commissions / Mail | Commission sends mail, sleeps, wakes on reply; `sleeping` and `abandoned` states extend this lifecycle | [Spec: Worker-to-Worker Communication](worker-communication.md) |
 
 ## Success Criteria
 
@@ -230,10 +238,10 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 ## Constraints
 
 - No database. All commission state is files.
-- One session per commission, one worktree per commission, one branch per commission.
+- One worktree per commission, one branch per commission. One session at a time per commission (the mail reader in [Spec: Worker-to-Worker Communication](worker-communication.md) runs a separate session in the same worktree while the commission sleeps, but the two sessions never overlap).
 - Workers don't manage their own lifecycle (REQ-SYS-9). The commission system manages everything outside the SDK session boundary.
 - Agent SDK session details (model, tool configuration, streaming) belong to the Worker spec. This spec covers the session boundary.
-- No worker-to-worker communication. Commissions coordinate through artifact dependencies.
+- No direct worker-to-worker communication within a commission session. Commissions coordinate through artifact dependencies. (The mail system in [Spec: Worker-to-Worker Communication](worker-communication.md) extends this: a commission worker can send mail to another worker, but the interaction happens across sleep/wake cycles, not within a single session.)
 - Resource budget defaults need real-workload validation (lesson: 30 turns failed every real task, increased to 150).
 
 ## Context
