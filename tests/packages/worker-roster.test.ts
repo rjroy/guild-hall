@@ -83,7 +83,7 @@ const expectedPostureGuardrails: Record<string, RegExp[]> = {
 
 function extractPostureSections(posture: string): string[] {
   return Array.from(
-    posture.matchAll(/(?:^|\n\n)(Principles|Workflow|Quality Standards):/g),
+    posture.matchAll(/^## (Principles|Workflow|Quality Standards)$/gm),
   ).map((match) => match[1]);
 }
 
