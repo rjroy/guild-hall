@@ -48,6 +48,9 @@ activity_timeline:
     reason: "Execution completed"
     from: "in_progress"
     to: "completed"
+  - timestamp: 2026-03-07T16:02:21.338Z
+    event: status_completed
+    reason: "Execution completed"
 current_progress: "Implementation complete: 7a (cancel/abandon sleeping) and 7b (crash recovery for sleeping). Typecheck passes. Moving to tests."
 projectName: guild-hall
 ---
