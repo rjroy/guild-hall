@@ -56,6 +56,9 @@ activity_timeline:
     reason: "Execution completed"
     from: "in_progress"
     to: "completed"
+  - timestamp: 2026-03-07T16:37:10.159Z
+    event: status_completed
+    reason: "Execution completed"
 current_progress: "All four defect fixes implemented and typechecking. DEFECT-1: threaded mailFilePath/commissionId through ToolboxResolverContext, SessionPrepSpec, and SessionPrepDeps. DEFECT-2: added registerExecution/unregisterExecution callbacks to MailOrchestratorCallbacks, wired in commission orchestrator. DEFECT-3: added checkDependencyTransitions after sleeping commission abandon. DEFECT-4: added reason field to SdkRunnerOutcome, counting turn_end events in drainSdkSession. Now writing tests."
 projectName: guild-hall
 ---
