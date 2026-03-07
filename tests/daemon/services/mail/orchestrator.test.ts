@@ -44,9 +44,9 @@ import type { CommissionId } from "@/daemon/types";
 import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { MailOrchestrator } from "@/daemon/services/mail/orchestrator";
-import { createMailOrchestrator, type MailOrchestratorCallbacks, type SleepContext, type PendingReaderActivation } from "@/daemon/services/mail/orchestrator";
+import { createMailOrchestrator, type MailOrchestratorCallbacks, type SleepContext } from "@/daemon/services/mail/orchestrator";
 import type { MailRecordOps, ParsedMailFile } from "@/daemon/services/mail/record";
-import type { SleepingCommissionState, PendingMail } from "@/daemon/services/mail/types";
+import type { SleepingCommissionState } from "@/daemon/services/mail/types";
 
 // -- Test helpers --
 
@@ -2513,6 +2513,7 @@ describe("Resumed session execution registration (DEFECT-2)", () => {
     // Reader emits reply so the wake path fires
     let isReaderSession = true;
     const queryFn: (params: { prompt: string; options: Record<string, unknown> }) => AsyncGenerator<SDKMessage> =
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       function(params) {
         if (isReaderSession) {
           isReaderSession = false;
