@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { isAtCapacity } from "@/daemon/services/commission/capacity";
+import { isAtCapacity, isMailReaderAtCapacity, DEFAULT_MAIL_READER_CAP } from "@/daemon/services/commission/capacity";
 import type { AppConfig } from "@/lib/types";
 
 function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -104,5 +104,31 @@ describe("isAtCapacity", () => {
     }));
     const result = isAtCapacity("alpha", makeActiveMap(entries), makeConfig());
     expect(result.atLimit).toBe(false);
+  });
+});
+
+describe("isMailReaderAtCapacity", () => {
+  test("not at capacity when under default limit", () => {
+    expect(isMailReaderAtCapacity(0, makeConfig())).toBe(false);
+    expect(isMailReaderAtCapacity(4, makeConfig())).toBe(false);
+  });
+
+  test("at capacity when at default limit", () => {
+    expect(isMailReaderAtCapacity(DEFAULT_MAIL_READER_CAP, makeConfig())).toBe(true);
+  });
+
+  test("at capacity when above default limit", () => {
+    expect(isMailReaderAtCapacity(DEFAULT_MAIL_READER_CAP + 1, makeConfig())).toBe(true);
+  });
+
+  test("respects custom maxConcurrentMailReaders", () => {
+    const config = makeConfig({ maxConcurrentMailReaders: 2 });
+    expect(isMailReaderAtCapacity(1, config)).toBe(false);
+    expect(isMailReaderAtCapacity(2, config)).toBe(true);
+    expect(isMailReaderAtCapacity(3, config)).toBe(true);
+  });
+
+  test("DEFAULT_MAIL_READER_CAP is 5", () => {
+    expect(DEFAULT_MAIL_READER_CAP).toBe(5);
   });
 });

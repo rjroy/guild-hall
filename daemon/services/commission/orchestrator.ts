@@ -76,6 +76,7 @@ import {
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { isAtCapacity } from "@/daemon/services/commission/capacity";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
+import { createMailOrchestrator, type MailOrchestrator } from "@/daemon/services/mail/orchestrator";
 
 // -- CommissionSessionForRoutes interface --
 
@@ -161,6 +162,8 @@ export interface CommissionOrchestratorDeps {
   }) => Promise<void>;
   /** Manager worker package name for escalation references. */
   managerPackageName?: string;
+  /** Optional pre-built mail orchestrator (DI seam for testing). */
+  mailOrchestrator?: MailOrchestrator;
 }
 
 // -- Factory --
@@ -198,6 +201,10 @@ export function createCommissionOrchestrator(
 
   /** Serialization lock for auto-dispatch. */
   let autoDispatchChain: Promise<void> = Promise.resolve();
+
+  // Mail orchestrator is instantiated after helper functions are defined.
+  // Declared here (assigned below) so runCommissionSession can reference it.
+  let mailOrchestrator: MailOrchestrator;
 
   // -- Helpers --
 
@@ -317,6 +324,43 @@ export function createCommissionOrchestrator(
       );
     });
   }
+
+  // -- Mail orchestrator initialization --
+
+  // eslint-disable-next-line prefer-const -- forward-declared at line 207 for function ordering
+  mailOrchestrator = deps.mailOrchestrator ?? createMailOrchestrator(
+    {
+      lifecycle,
+      recordOps,
+      prepDeps,
+      queryFn,
+      eventBus,
+      config,
+      packages,
+      guildHallHome,
+      gitOps,
+    },
+    {
+      writeStateFile,
+      commissionStatePath,
+      enqueueAutoDispatch,
+      async onResumeCompleted(commissionId, projectName, workerName, worktreeDir, branchName, outcome, resultSubmitted) {
+        // Reconstruct a temporary ExecutionContext for the finalize flow
+        const ctx: ExecutionContext = {
+          commissionId,
+          projectName,
+          workerName,
+          worktreeDir,
+          branchName,
+          abortController: new AbortController(),
+          attempt: 0,
+          checkoutScope: "full",
+        };
+        executions.set(commissionId, ctx);
+        await handleSessionCompletion(ctx, outcome, resultSubmitted);
+      },
+    },
+  );
 
   /**
    * Scans pending commissions across all projects and returns them sorted
@@ -1310,6 +1354,11 @@ projectName: ${projectName}
    * Runs a commission session: prepare, subscribe to EventBus, drain the
    * SDK generator, unsubscribe, and handle completion. Fire-and-forget
    * from the dispatch flow.
+   *
+   * When send_mail is detected via commission_mail_sent, the session is
+   * aborted and routed to the mail orchestrator's sleep path instead of
+   * handleSessionCompletion. Sleeping commissions are removed from
+   * executions so they don't count against the commission cap.
    */
   async function runCommissionSession(
     ctx: ExecutionContext,
@@ -1317,6 +1366,8 @@ projectName: ${projectName}
     prompt: string,
   ): Promise<void> {
     let resultSubmitted = false;
+    let mailSent = false;
+    let mailSentData: { targetWorker: string; mailSequence: number; mailPath: string } | null = null;
 
     // Subscribe to EventBus for tool events matching this commission
     const unsubscribe = eventBus.subscribe((event) => {
@@ -1333,6 +1384,12 @@ projectName: ${projectName}
         lifecycle.progressReported(ctx.commissionId, e.summary).catch((err: unknown) => {
           console.warn(`[orchestrator] progressReported failed for "${ctx.commissionId as string}":`, errorMessage(err));
         });
+      } else if (event.type === "commission_mail_sent") {
+        mailSent = true;
+        const e = event as typeof event & { targetWorker: string; mailSequence: number; mailPath: string };
+        mailSentData = { targetWorker: e.targetWorker, mailSequence: e.mailSequence, mailPath: e.mailPath };
+        // Abort the session so it drains and we can enter the sleep path
+        ctx.abortController.abort();
       }
     });
 
@@ -1348,7 +1405,36 @@ projectName: ${projectName}
       const { options } = prepResult.result;
       const outcome = await drainSdkSession(runSdkSession(queryFn, prompt, options));
 
-      // 3. Handle completion
+      // 3. Check mailSent BEFORE handleSessionCompletion.
+      // If mail was sent, route to the sleep path. The abort guard in
+      // handleSessionCompletion would silently discard the commission.
+      if (mailSent && mailSentData) {
+        const { targetWorker, mailSequence, mailPath } = mailSentData;
+        const sleepSuccess = await mailOrchestrator.handleSleep({
+          commissionId: ctx.commissionId,
+          projectName: ctx.projectName,
+          workerName: ctx.workerName,
+          worktreeDir: ctx.worktreeDir,
+          branchName: ctx.branchName,
+          targetWorker,
+          mailSequence,
+          mailPath,
+          outcome,
+        });
+
+        // Remove from executions: sleeping commissions don't count
+        // against the commission cap (REQ-MAIL-20).
+        executions.delete(ctx.commissionId);
+
+        if (!sleepSuccess) {
+          lifecycle.forget(ctx.commissionId);
+        }
+
+        enqueueAutoDispatch();
+        return;
+      }
+
+      // 4. Normal completion path
       await handleSessionCompletion(ctx, outcome, resultSubmitted);
     } catch (err: unknown) {
       try {
@@ -1597,6 +1683,7 @@ projectName: ${projectName}
     for (const [, ctx] of executions) {
       ctx.abortController.abort();
     }
+    mailOrchestrator.shutdownReaders();
   }
 
   // Self-reference for passing as services to the toolbox resolver.
