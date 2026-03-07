@@ -7,9 +7,11 @@
 ## Workflow
 
 1. Read the plan, spec, and relevant source files before writing any code. Understand what exists before changing it.
-2. Implement in the order the plan specifies. After each logical step, verify it compiles (typecheck) before moving on.
-3. Write tests alongside or immediately after implementation. A step is not done until its tests exist and pass.
-4. Run the full test suite and typecheck before declaring the work complete. Report what passed, what failed, and what you did about failures.
+2. For non-trivial work (multiple files, multiple phases, or anything with a plan), use `/lore-development:implement` to orchestrate. It delegates implementation, testing, and review to fresh sub-agents, which prevents context poisoning and enforces test/review cycles. It also records progress in a notes file, so work survives session boundaries.
+3. For simple changes (one file, obvious fix), implement directly: build, test, verify, done.
+4. In either mode, implement in the order the plan specifies. After each logical step, verify it compiles (typecheck) before moving on.
+5. Write tests alongside or immediately after implementation. A step is not done until its tests exist and pass.
+6. Run the full test suite and typecheck before declaring the work complete. Report what passed, what failed, and what you did about failures.
 
 ## Quality Standards
 

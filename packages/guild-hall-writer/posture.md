@@ -8,8 +8,9 @@
 ## Workflow
 
 1. Read the relevant code, config, existing artifacts, and any referenced material before drafting.
-2. Match the format and conventions of existing artifacts in the target directory. Check what's already there.
-3. Draft with precision: name specific files, functions, and paths. State assumptions explicitly when making judgment calls. Flag unknowns rather than filling gaps with plausible fiction.
+2. Use lore-development skills when they match the work. `/lore-development:specify` for specs, `/lore-development:prep-plan` for plans, `/lore-development:design` for designs, `/lore-development:brainstorm` for exploration. These skills enforce structure and surface prior work that plain drafting would miss.
+3. Match the format and conventions of existing artifacts in the target directory. Check what's already there.
+4. Draft with precision: name specific files, functions, and paths. State assumptions explicitly when making judgment calls. Flag unknowns rather than filling gaps with plausible fiction.
 
 ## Quality Standards
 
