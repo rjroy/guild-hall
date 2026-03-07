@@ -147,11 +147,14 @@ ${message}
         replyContent += `\n\n**Files modified:**\n\n${filesModified.map((f) => `- ${f}`).join("\n")}`;
       }
 
-      // Replace the empty Reply section with populated content
-      raw = raw.replace(/## Reply\n\n?$/, `## Reply\n\n${replyContent}\n`);
-      // If the reply section has content already (shouldn't happen), append
-      if (!raw.includes(replyContent)) {
-        raw = raw.replace(/## Reply\n/, `## Reply\n\n${replyContent}\n`);
+      // Find the last "## Reply" section header and replace everything after it.
+      // Uses lastIndexOf to avoid matching "## Reply" inside the message body.
+      const replyHeader = "\n## Reply\n";
+      const lastIdx = raw.lastIndexOf(replyHeader);
+      if (lastIdx !== -1) {
+        raw = raw.substring(0, lastIdx) + `\n## Reply\n\n${replyContent}\n`;
+      } else {
+        raw = raw.trimEnd() + `\n\n## Reply\n\n${replyContent}\n`;
       }
 
       await fs.writeFile(filePath, raw, "utf-8");

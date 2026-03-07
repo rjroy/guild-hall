@@ -119,6 +119,40 @@ describe("writeReply", () => {
     expect(raw).toContain("Token expiry too long");
   });
 
+  test("does not corrupt message body containing '## Reply' text", async () => {
+    const filePath = await ops.createMailFile(
+      mailDir, 1, "Dalton", "Thorne", "cid", "subj",
+      "The user mentioned ## Reply in their message.\n\nSee the ## Reply section.",
+    );
+
+    await ops.writeReply(filePath, "Acknowledged the reply references.");
+
+    const raw = await fs.readFile(filePath, "utf-8");
+    // Message body should be preserved intact
+    expect(raw).toContain("The user mentioned ## Reply in their message.");
+    expect(raw).toContain("See the ## Reply section.");
+    // Reply content should appear after the last ## Reply header
+    expect(raw).toContain("**Summary:** Acknowledged the reply references.");
+    expect(raw).toContain("status: replied");
+  });
+
+  test("handles trailing whitespace/newlines after Reply header", async () => {
+    const filePath = await ops.createMailFile(
+      mailDir, 1, "Dalton", "Thorne", "cid", "subj", "msg",
+    );
+
+    // Manually append trailing whitespace after the Reply section
+    let raw = await fs.readFile(filePath, "utf-8");
+    raw = raw + "  \n\n";
+    await fs.writeFile(filePath, raw, "utf-8");
+
+    await ops.writeReply(filePath, "Still works with trailing whitespace.");
+
+    const result = await fs.readFile(filePath, "utf-8");
+    expect(result).toContain("**Summary:** Still works with trailing whitespace.");
+    expect(result).toContain("status: replied");
+  });
+
   test("writes summary with files_modified", async () => {
     const filePath = await ops.createMailFile(
       mailDir, 1, "Dalton", "Thorne", "cid", "subj", "msg",
