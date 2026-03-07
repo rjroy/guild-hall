@@ -92,6 +92,23 @@ export type MailOrchestrator = {
 
   /** Shut down all active mail readers. */
   shutdownReaders(): void;
+
+  /**
+   * Cancel the mail reader associated with a sleeping commission.
+   * If the reader is queued behind the concurrency cap, dequeues it.
+   * If the reader is active, aborts it and waits for drain.
+   * Returns true if a reader was found and cancelled/dequeued.
+   */
+  cancelReaderForCommission(commissionId: CommissionId): Promise<boolean>;
+
+  /**
+   * Recover a sleeping commission on daemon restart.
+   * Reads the mail file status and takes the appropriate action:
+   * - `replied`: wakes the commission normally
+   * - `open`: commits partial work, resets to `sent`, re-activates reader
+   * - `sent`: activates reader
+   */
+  recoverSleepingCommission(state: SleepingCommissionState): Promise<void>;
 };
 
 export type MailOrchestratorCallbacks = {
@@ -135,6 +152,9 @@ export function createMailOrchestrator(
 
   /** Active mail reader sessions, keyed by contextId (mail-<cid>-<seq>). */
   const activeReaders = new Map<string, { abortController: AbortController; commissionId: CommissionId }>();
+
+  /** Completion promises for active reader sessions, keyed by commissionId string. */
+  const readerCompletions = new Map<string, Promise<void>>();
 
   /** Queue for pending reader activations when at capacity. */
   const readerQueue: PendingReaderActivation[] = [];
@@ -255,7 +275,16 @@ export function createMailOrchestrator(
       return;
     }
 
-    void runMailReaderSession(activation);
+    startReaderSession(activation);
+  }
+
+  function startReaderSession(activation: PendingReaderActivation): void {
+    const cidStr = activation.commissionId as string;
+    const completion = runMailReaderSession(activation);
+    readerCompletions.set(cidStr, completion);
+    void completion.finally(() => {
+      readerCompletions.delete(cidStr);
+    });
   }
 
   async function runMailReaderSession(activation: PendingReaderActivation): Promise<void> {
@@ -366,7 +395,7 @@ export function createMailOrchestrator(
     const next = readerQueue.shift();
     if (next) {
       console.log(`[mail-orchestrator] dequeuing mail reader for "${next.commissionId as string}"`);
-      void runMailReaderSession(next);
+      startReaderSession(next);
     }
   }
 
@@ -686,6 +715,114 @@ export function createMailOrchestrator(
     }
   }
 
+  // -- Cancel support --
+
+  async function cancelReaderForCommission(commissionId: CommissionId): Promise<boolean> {
+    const cidStr = commissionId as string;
+
+    // 1. Check if queued behind concurrency cap
+    const queueIdx = readerQueue.findIndex((a) => a.commissionId === commissionId);
+    if (queueIdx !== -1) {
+      readerQueue.splice(queueIdx, 1);
+      console.log(`[mail-orchestrator] dequeued pending reader for "${cidStr}"`);
+      return true;
+    }
+
+    // 2. Check if an active reader exists for this commission
+    for (const [, reader] of activeReaders) {
+      if (reader.commissionId === commissionId) {
+        reader.abortController.abort();
+        // Wait for the reader session to fully drain
+        const completion = readerCompletions.get(cidStr);
+        if (completion) {
+          try {
+            await completion;
+          } catch {
+            // The session itself may throw; that's handled internally.
+          }
+        }
+        console.log(`[mail-orchestrator] aborted active reader for "${cidStr}"`);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // -- Recovery support --
+
+  async function recoverSleepingCommission(state: SleepingCommissionState): Promise<void> {
+    const { commissionId: cidStr, pendingMail, projectName, workerName, worktreeDir, branchName } = state;
+
+    // Read the mail file to determine recovery action
+    let mailStatus: string;
+    try {
+      const mailData = await mailRecordOps.readMailFile(pendingMail.mailFilePath);
+      mailStatus = mailData.status;
+    } catch (err: unknown) {
+      // Mail file unreadable: treat as sent (re-activate reader)
+      console.warn(`[mail-orchestrator] recovery: cannot read mail file for "${cidStr}":`, errorMessage(err));
+      mailStatus = "sent";
+    }
+
+    if (mailStatus === "replied") {
+      // Clean case: reader finished before crash. Wake normally.
+      console.log(`[mail-orchestrator] recovery: "${cidStr}" has replied mail, waking`);
+      const activation: PendingReaderActivation = {
+        commissionId: cidStr as CommissionId,
+        projectName,
+        workerName,
+        worktreeDir,
+        branchName,
+        mailFilePath: pendingMail.mailFilePath,
+        readerWorkerName: pendingMail.readerWorkerName,
+        mailSequence: 1,
+      };
+
+      // Read the mail file for the wake prompt
+      const mailData = await mailRecordOps.readMailFile(pendingMail.mailFilePath);
+      const wakePrompt = buildReplyWakePrompt(mailData, pendingMail.readerWorkerName, pendingMail.mailFilePath);
+      await wakeCommission(activation, wakePrompt);
+    } else if (mailStatus === "open") {
+      // Reader was mid-session when daemon stopped. Commit partial work,
+      // reset mail status to sent, and re-activate.
+      console.log(`[mail-orchestrator] recovery: "${cidStr}" has open mail, committing partial work and re-activating reader`);
+      try {
+        await gitOps.commitAll(worktreeDir, `Recovery: partial mail reader work for ${cidStr}`);
+      } catch (err: unknown) {
+        console.warn(`[mail-orchestrator] recovery commit failed for "${cidStr}":`, errorMessage(err));
+      }
+      try {
+        await mailRecordOps.updateMailStatus(pendingMail.mailFilePath, "sent");
+      } catch (err: unknown) {
+        console.warn(`[mail-orchestrator] recovery: failed to reset mail status for "${cidStr}":`, errorMessage(err));
+      }
+      activateMailReader({
+        commissionId: cidStr as CommissionId,
+        projectName,
+        workerName,
+        worktreeDir,
+        branchName,
+        mailFilePath: pendingMail.mailFilePath,
+        readerWorkerName: pendingMail.readerWorkerName,
+        mailSequence: 1,
+      });
+    } else {
+      // sent: reader never started or was queued. Activate it.
+      console.log(`[mail-orchestrator] recovery: "${cidStr}" has sent mail, activating reader`);
+      activateMailReader({
+        commissionId: cidStr as CommissionId,
+        projectName,
+        workerName,
+        worktreeDir,
+        branchName,
+        mailFilePath: pendingMail.mailFilePath,
+        readerWorkerName: pendingMail.readerWorkerName,
+        mailSequence: 1,
+      });
+    }
+  }
+
   // -- Public API --
 
   return {
@@ -697,5 +834,7 @@ export function createMailOrchestrator(
         reader.abortController.abort();
       }
     },
+    cancelReaderForCommission,
+    recoverSleepingCommission,
   };
 }

@@ -77,6 +77,7 @@ import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { isAtCapacity } from "@/daemon/services/commission/capacity";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
 import { createMailOrchestrator, type MailOrchestrator } from "@/daemon/services/mail/orchestrator";
+import type { SleepingCommissionState } from "@/daemon/services/mail/types";
 
 // -- CommissionSessionForRoutes interface --
 
@@ -661,6 +662,86 @@ export function createCommissionOrchestrator(
     }
   }
 
+  // -- Sleeping commission cancel/abandon --
+
+  /**
+   * Cancel or abandon a sleeping commission with mail-aware cleanup.
+   * Reads the state file to find the worktree and mail info, cancels/dequeues
+   * the mail reader if needed, then transitions and cleans up.
+   */
+  async function cancelSleepingCommission(
+    commissionId: CommissionId,
+    reason: string,
+    targetState: "cancelled" | "abandoned",
+  ): Promise<void> {
+    const projectName = lifecycle.getProjectName(commissionId);
+
+    // 1. Transition the lifecycle first so wake attempts are rejected
+    if (targetState === "cancelled") {
+      try {
+        await lifecycle.cancel(commissionId, reason);
+      } catch (err: unknown) {
+        console.warn(`[orchestrator] lifecycle.cancel failed for sleeping "${commissionId as string}":`, errorMessage(err));
+      }
+    } else {
+      try {
+        await lifecycle.abandon(commissionId, reason);
+      } catch (err: unknown) {
+        console.warn(`[orchestrator] lifecycle.abandon failed for sleeping "${commissionId as string}":`, errorMessage(err));
+      }
+    }
+
+    // 2. Cancel/abort the mail reader if queued or active
+    await mailOrchestrator.cancelReaderForCommission(commissionId);
+
+    // 3. Read state file for worktree info
+    const statePath = commissionStatePath(commissionId);
+    let stateData: { worktreeDir?: string; branchName?: string; workerName?: string; projectName?: string } = {};
+    try {
+      const raw = await fs.readFile(statePath, "utf-8");
+      stateData = JSON.parse(raw) as typeof stateData;
+    } catch {
+      // State file missing or corrupt; best-effort cleanup
+    }
+
+    const workerName = stateData.workerName ?? "";
+    const worktreeDir = stateData.worktreeDir;
+    const branchName = stateData.branchName ?? "";
+    const resolvedProjectName = projectName ?? stateData.projectName ?? "";
+
+    // 4. Preserve branch and clean up worktree
+    if (worktreeDir) {
+      const exists = await fileExists(worktreeDir);
+      if (exists) {
+        const project = findProject(resolvedProjectName);
+        try {
+          await workspace.preserveAndCleanup({
+            worktreeDir,
+            branchName,
+            commitMessage: `Partial work preserved (${targetState}): ${commissionId as string}`,
+            projectPath: project?.path,
+          });
+        } catch (err: unknown) {
+          console.warn(`[orchestrator] preserveAndCleanup failed for sleeping "${commissionId as string}":`, errorMessage(err));
+        }
+      }
+    }
+
+    // 5. Sync status to integration and write state file
+    if (resolvedProjectName) {
+      await syncStatusToIntegration(commissionId, resolvedProjectName, targetState, reason);
+    }
+    await writeStateFile(commissionId, {
+      commissionId: commissionId as string,
+      projectName: resolvedProjectName,
+      workerName,
+      status: targetState,
+    });
+
+    lifecycle.forget(commissionId);
+    enqueueAutoDispatch();
+  }
+
   // -- Dependency auto-transitions --
 
   async function checkDependencyTransitions(projectName: string): Promise<void> {
@@ -812,6 +893,88 @@ export function createCommissionOrchestrator(
       }
 
       stateFileCommissionIds.add(state.commissionId);
+
+      // Recover sleeping commissions via mail orchestrator
+      if (state.status === "sleeping") {
+        const sleepingState = state as unknown as SleepingCommissionState;
+        const cId = asCommissionId(state.commissionId);
+
+        if (lifecycle.isTracked(cId)) continue;
+
+        const project = config.projects.find((p) => p.name === state.projectName);
+        if (!project) {
+          console.warn(
+            `[orchestrator-recovery] Sleeping commission "${state.commissionId}" references unknown project "${state.projectName}", skipping.`,
+          );
+          continue;
+        }
+
+        // Check if worktree still exists
+        const worktreeDir = sleepingState.worktreeDir;
+        const worktreeExists = worktreeDir ? await fileExists(worktreeDir) : false;
+
+        if (!worktreeExists) {
+          // Worktree lost: transition to failed, preserve branch
+          console.log(
+            `[orchestrator-recovery] Sleeping commission "${state.commissionId}" has no worktree, transitioning to failed.`,
+          );
+          const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+          const artifactPath = commissionArtifactPath(iPath, cId);
+          lifecycle.register(cId, state.projectName, "sleeping", artifactPath);
+          try {
+            await lifecycle.executionFailed(cId, "Worktree lost during sleep.");
+          } catch (err: unknown) {
+            console.error(
+              `[orchestrator-recovery] Failed to transition sleeping "${state.commissionId}" to failed:`,
+              errorMessage(err),
+            );
+          }
+          await syncStatusToIntegration(cId, state.projectName, "failed", "Worktree lost during sleep.");
+          await writeStateFile(cId, {
+            commissionId: state.commissionId,
+            projectName: state.projectName,
+            workerName: state.workerName,
+            status: "failed",
+          });
+          lifecycle.forget(cId);
+          recovered++;
+          continue;
+        }
+
+        // Worktree exists: register lifecycle and delegate to mail orchestrator
+        const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+        const artifactPath = commissionArtifactPath(iPath, cId);
+        lifecycle.register(cId, state.projectName, "sleeping", artifactPath);
+
+        console.log(
+          `[orchestrator-recovery] Recovering sleeping commission "${state.commissionId}".`,
+        );
+
+        try {
+          await mailOrchestrator.recoverSleepingCommission(sleepingState);
+        } catch (err: unknown) {
+          console.error(
+            `[orchestrator-recovery] Failed to recover sleeping "${state.commissionId}":`,
+            errorMessage(err),
+          );
+          try {
+            await lifecycle.executionFailed(cId, `Recovery failed: ${errorMessage(err)}`);
+          } catch {
+            // Already logged
+          }
+          await syncStatusToIntegration(cId, state.projectName, "failed", `Recovery failed: ${errorMessage(err)}`);
+          await writeStateFile(cId, {
+            commissionId: state.commissionId,
+            projectName: state.projectName,
+            workerName: state.workerName,
+            status: "failed",
+          });
+          lifecycle.forget(cId);
+        }
+
+        recovered++;
+        continue;
+      }
 
       // Only recover active commissions (dispatched or in_progress)
       if (state.status !== "dispatched" && state.status !== "in_progress") {
@@ -1481,8 +1644,14 @@ projectName: ${projectName}
       return;
     }
 
-    // Pending/blocked commission: cancel via lifecycle, then forget
+    // Sleeping commission: cancel with mail-aware cleanup
     const status = lifecycle.getStatus(commissionId);
+    if (status === "sleeping") {
+      await cancelSleepingCommission(commissionId, reason, "cancelled");
+      return;
+    }
+
+    // Pending/blocked commission: cancel via lifecycle, then forget
     if (status !== undefined) {
       await lifecycle.cancel(commissionId, reason);
 
@@ -1539,8 +1708,14 @@ projectName: ${projectName}
       );
     }
 
-    // Check if tracked in lifecycle
+    // Sleeping commission: abandon with mail-aware cleanup
     const status = lifecycle.getStatus(commissionId);
+    if (status === "sleeping") {
+      await cancelSleepingCommission(commissionId, reason, "abandoned");
+      return;
+    }
+
+    // Check if tracked in lifecycle
     if (status !== undefined) {
       await lifecycle.abandon(commissionId, reason);
       lifecycle.forget(commissionId);
