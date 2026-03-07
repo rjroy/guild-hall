@@ -2,7 +2,7 @@
 title: Commission lifecycle
 date: 2026-03-03
 status: current
-tags: [commission, lifecycle, state-machine, architecture]
+tags: [commissions, lifecycle, state-machine, architecture]
 modules: [commission-orchestrator, commission-lifecycle, commission-workspace, sdk-runner]
 related:
   - .lore/specs/commissions.md

@@ -1,8 +1,8 @@
 ---
 title: "Plan: Guild Master PR during meeting"
 date: 2026-03-06
-status: implemented
-tags: [plan, meetings, pr, guild-master, toolbox]
+status: executed
+tags: [meetings, pr, guild-master, toolbox]
 modules: [cli-rebase, manager-toolbox]
 related:
   - .lore/issues/guild-master-pr-during-meeting.md

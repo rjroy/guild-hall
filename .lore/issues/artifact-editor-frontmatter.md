@@ -1,8 +1,8 @@
 ---
 title: Artifact editor hides frontmatter content
 date: 2026-02-27
-status: closed
-tags: [bug, ui, artifacts, editor, frontmatter]
+status: resolved
+tags: [bug-fix, ui, artifacts, editor, frontmatter]
 modules: [artifact-content, api-artifacts]
 related: [.lore/plans/artifact-editor-full-content.md]
 ---

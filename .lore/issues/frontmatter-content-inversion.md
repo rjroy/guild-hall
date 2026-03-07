@@ -1,7 +1,7 @@
 ---
 title: Artifacts stored user-facing content in frontmatter instead of body
 date: 2026-02-27
-status: closed
+status: resolved
 tags: [artifacts, frontmatter, meetings, commissions, data-model]
 modules: [meeting-artifact-helpers, notes-generator, commission-artifact]
 related:

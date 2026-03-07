@@ -1,7 +1,7 @@
 ---
 title: Worker-to-Worker Communication
 date: 2026-03-06
-status: draft
+status: implemented
 tags: [architecture, workers, communication, mail, sleep, async]
 modules: [commission-orchestrator, sdk-runner, workspace, daemon, toolbox-resolver, lifecycle]
 related:

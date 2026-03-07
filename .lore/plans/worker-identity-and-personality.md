@@ -1,8 +1,8 @@
 ---
 title: "Plan: Worker Identity and Personality"
 date: 2026-03-06
-status: completed
-tags: [plan, workers, personality, identity, soul, system-prompt]
+status: executed
+tags: [workers, personality, identity, soul, system-prompt]
 modules: [packages, daemon, lib]
 related:
   - .lore/specs/worker-identity-and-personality.md

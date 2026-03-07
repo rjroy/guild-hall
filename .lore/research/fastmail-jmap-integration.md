@@ -1,3 +1,11 @@
+---
+title: Fastmail JMAP Integration Research
+date: 2026-03-06
+status: active
+tags: [jmap, fastmail, email, toolbox, mcp, integration]
+modules: [packages]
+---
+
 # Fastmail JMAP Integration Research
 
 Research for building a Guild Hall email toolbox connecting to Fastmail via JMAP.

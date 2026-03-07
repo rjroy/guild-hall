@@ -2,7 +2,7 @@
 title: Show full file content in artifact editor
 date: 2026-02-27
 updated: 2026-03-03
-status: implemented
+status: executed
 tags: [bug-fix, ui, artifacts, editor, frontmatter]
 modules: [artifact-content, api-artifacts, artifacts-lib]
 related: [.lore/issues/artifact-editor-frontmatter.md]

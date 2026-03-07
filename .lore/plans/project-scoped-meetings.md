@@ -1,8 +1,8 @@
 ---
 title: "Plan: Project-Scoped Meetings"
 date: 2026-03-04
-status: implemented
-tags: [plan, meetings, git, guild-master, integration-worktree]
+status: executed
+tags: [meetings, git, guild-master, integration-worktree]
 modules: [meeting-orchestrator, meeting-registry, workspace, manager-worker]
 related:
   - .lore/specs/project-scoped-meetings.md

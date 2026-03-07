@@ -1,7 +1,7 @@
 ---
 title: "Plan: Worker-to-worker communication"
 date: 2026-03-07
-status: draft
+status: executed
 tags: [architecture, workers, communication, mail, sleep, async, orchestration]
 modules: [commission/lifecycle, commission/orchestrator, commission/toolbox, toolbox-resolver, sdk-runner, event-bus, config, capacity]
 related:

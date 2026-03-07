@@ -1,7 +1,7 @@
 ---
 title: Dashboard and project pages not responsive on mobile/tablet
 date: 2026-02-25
-status: closed
+status: resolved
 tags: [ui, layout, responsive, css]
 modules: [next-app, css-design-system]
 related: [.lore/plans/responsive-layout.md]

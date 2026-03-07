@@ -1,8 +1,8 @@
 ---
 title: Worker portrait not displayed during meetings
 date: 2026-03-06
-status: closed
-tags: [bug, meetings, ui, worker-identity]
+status: resolved
+tags: [bug-fix, meetings, ui, worker-identity]
 modules: [meeting-record, meeting-page, meeting-view]
 ---
 

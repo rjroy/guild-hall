@@ -1,8 +1,8 @@
 ---
 title: Worker-to-worker communication
 date: 2026-03-06
-status: open
-tags: [architecture, workers, communication, mailbox, sleep, async]
+status: resolved
+tags: [architecture, workers, communication, mail, sleep, async]
 modules: [commission-orchestrator, sdk-runner, workspace, daemon, toolbox-resolver, lifecycle]
 related:
   - .lore/specs/guild-hall-workers.md
