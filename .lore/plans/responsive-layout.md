@@ -1,7 +1,7 @@
 ---
 title: Responsive layout for dashboard and project pages
 date: 2026-03-04
-status: implemented
+status: executed
 tags: [css, responsive, layout, breakpoints, design-system]
 modules: [next-app, css-design-system]
 related: [.lore/issues/responsive-layout.md, .lore/retros/mobile-roster-layout-fix.md, .lore/retros/dialog-scroll-mobile-fix.md, .lore/retros/ui-redesign-fantasy-theme.md]

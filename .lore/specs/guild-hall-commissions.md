@@ -2,7 +2,7 @@
 title: Guild Hall Commissions
 date: 2026-02-20
 status: implemented
-tags: [architecture, commissions, dispatch, process-lifecycle, async-work, crash-recovery]
+tags: [architecture, commissions, dispatch, process-lifecycle, async, crash-recovery]
 modules: [guild-hall-core]
 related:
   - .lore/brainstorm/agentic-work-ux.md

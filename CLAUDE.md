@@ -18,14 +18,14 @@ Next.js App Router serves the UI from `web/`, reading config and artifacts from 
 
 `@/` resolves to the repo root everywhere. Root `tsconfig.json` maps `@/*` to `./*`; `web/tsconfig.json` extends root with `baseUrl: ".."` and the same `@/*` to `./*` mapping. Both resolve identically: `@/lib/types`, `@/daemon/lib/git`, `@/web/components/ui/Panel`. The `baseUrl` approach is required because bun resolves the nearest `tsconfig.json` per file, and relative `../*` paths break when `extends` is involved.
 
-For deeper architectural context, see `.lore/design/process-architecture.md` and `.lore/design/pr-strategy.md`.
+For deeper architectural context, see `.lore/specs/guild-hall-system.md` and `.lore/specs/guild-hall-commissions.md`.
 
 ## Documentation Map
 
 | Directory | Contents | Consult when... |
 |-----------|----------|-----------------|
 | `.lore/specs/` | System, workers, commissions, meetings, views, worker roster specs | Understanding requirements or checking REQ IDs |
-| `.lore/design/` | Process architecture, PR/sync strategy | Understanding how subsystems work |
+| `.lore/reference/` | Excavated feature documentation | Understanding existing system capabilities |
 | `.lore/plans/` | Implementation plans (current and historical) | Planning new work or understanding what was built when |
 | `.lore/retros/` | Post-mortems with lessons learned | Avoiding repeated mistakes |
 | `.lore/research/` | Claude Agent SDK, MCP protocol, plugin systems | Working with external dependencies |

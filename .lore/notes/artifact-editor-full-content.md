@@ -2,7 +2,7 @@
 title: "Implementation notes: artifact-editor-full-content"
 date: 2026-03-04
 status: complete
-tags: [implementation, notes]
+tags: [bug-fix, ui, artifacts]
 source: .lore/plans/artifact-editor-full-content.md
 modules: [artifact-content, api-artifacts, artifacts-lib]
 ---

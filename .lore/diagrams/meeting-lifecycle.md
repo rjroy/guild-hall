@@ -2,7 +2,7 @@
 title: Meeting lifecycle
 date: 2026-03-03
 status: current
-tags: [meeting, lifecycle, state-machine, architecture, streaming]
+tags: [meetings, lifecycle, state-machine, architecture, streaming]
 modules: [meeting-orchestrator, meeting-registry, workspace, sdk-runner]
 related:
   - .lore/specs/meetings.md

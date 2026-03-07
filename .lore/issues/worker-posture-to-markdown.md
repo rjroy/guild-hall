@@ -1,7 +1,7 @@
 ---
 title: Move worker posture prompts from JSON to markdown files
 date: 2026-03-03
-status: closed
+status: resolved
 tags: [worker-packages, authoring, developer-experience]
 modules: [packages, daemon]
 ---
