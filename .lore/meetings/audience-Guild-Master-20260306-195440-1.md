@@ -19,4 +19,7 @@ meeting_log:
   - timestamp: 2026-03-07T04:45:25.227Z
     event: progress_summary
     reason: "Decisions recorded from Thorne's review:\n- G2 dismissed (SDK resume after abort verified working)\n- G6 dismissed (non-sequitur)\n- G1: commit before reader starts, --no-verify allowed\n- G5: mail artifact states (sent/open/replied) for cancellation cleanup instead of circuit breaker\n- Timeout system (REQ-MAIL-21) removed as unnecessary complexity\n- D1, D2, G3, G4, G7 addressed directly\nOctavia commissioned (commission-Octavia-20260306-204519) for spec revisions."
+  - timestamp: 2026-03-07T05:26:21.285Z
+    event: progress_summary
+    reason: "Plan approved and Commission A dispatched. Dalton (commission-Dalton-20260306-212617) is building the foundation: type changes, lifecycle state machine, mail infrastructure, and commission toolbox extension (Steps 1-4). Commissions B (orchestrator) and C (edge cases) will follow after review checkpoint 1."
 ---
