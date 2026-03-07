@@ -1,7 +1,7 @@
 ---
 title: Guild Master cannot create PR while own meeting is active
 date: 2026-03-06
-status: open
+status: closed
 tags: [bug, meetings, pr, guild-master, toolbox]
 modules: [manager-toolbox, cli-rebase]
 ---

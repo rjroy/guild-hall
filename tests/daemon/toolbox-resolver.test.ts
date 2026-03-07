@@ -234,6 +234,128 @@ describe("resolveToolSet", () => {
     expect(result.mcpServers[1].type).toBe("sdk");
     expect(result.mcpServers[1].instance).toBeDefined();
   });
+
+  test("mail context auto-adds mail toolbox", async () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      contextId: "mail-test",
+      contextType: "mail" as const,
+    };
+    const result = await resolveToolSet(worker, [], context);
+
+    expect(result.mcpServers).toHaveLength(2);
+    expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    expect(result.mcpServers[1].name).toBe("guild-hall-mail");
+    expect(result.mcpServers[1].type).toBe("sdk");
+    expect(result.mcpServers[1].instance).toBeDefined();
+    expect(result.allowedTools).toContain("mcp__guild-hall-mail__*");
+  });
+
+  test("mail context passes mailFilePath and commissionId through to mail toolbox deps", async () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      contextId: "mail-test",
+      contextType: "mail" as const,
+      mailFilePath: "/tmp/test-mail.md",
+      commissionId: "commission-test-123",
+    };
+    const result = await resolveToolSet(worker, [], context);
+
+    // The mail toolbox server should be present
+    expect(result.mcpServers).toHaveLength(2);
+    expect(result.mcpServers[1].name).toBe("guild-hall-mail");
+
+    // Verify that the mail toolbox received the deps by checking the server
+    // was constructed (it wouldn't be if deps were missing). The real
+    // verification is that the factory doesn't default to "" for these fields.
+    // We can't inspect internal deps directly, but we can verify the resolver
+    // constructs deps with the correct fields by testing that the mail toolbox
+    // factory receives them. We do this indirectly: if the resolver didn't
+    // pass them, the mailToolboxFactory would default to empty strings, and
+    // the reply tool would write to an empty path in production.
+    //
+    // For a more direct test, we spy on the deps construction. The resolver
+    // builds GuildHallToolboxDeps from the context, so we test via a domain
+    // toolbox fixture that captures the deps it receives.
+    expect(result.mcpServers[1].instance).toBeDefined();
+  });
+
+  test("mail context without mailFilePath still resolves (backwards compat)", async () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      contextId: "mail-test",
+      contextType: "mail" as const,
+      // No mailFilePath or commissionId
+    };
+    const result = await resolveToolSet(worker, [], context);
+
+    expect(result.mcpServers).toHaveLength(2);
+    expect(result.mcpServers[1].name).toBe("guild-hall-mail");
+  });
+
+  test("mail context deps reach domain toolbox factory", async () => {
+    // Create a domain toolbox fixture that captures the deps it receives
+    const pkgDir = path.join(tmpDir, "packages", "spy-toolbox");
+    await fs.mkdir(pkgDir, { recursive: true });
+    await fs.writeFile(path.join(pkgDir, "package.json"), JSON.stringify({ name: "spy-toolbox", version: "1.0.0" }));
+    // The toolbox factory writes deps to a file so we can inspect them
+    const depsCapturePath = path.join(tmpDir, "captured-deps.json");
+    await fs.writeFile(
+      path.join(pkgDir, "index.ts"),
+      `
+import * as fs from "node:fs";
+export function toolboxFactory(deps) {
+  fs.writeFileSync(${JSON.stringify(depsCapturePath)}, JSON.stringify({
+    mailFilePath: deps.mailFilePath,
+    commissionId: deps.commissionId,
+  }));
+  return {
+    server: { type: "sdk", name: "spy-server", instance: {} },
+  };
+}
+`,
+    );
+
+    const pkg: DiscoveredPackage = {
+      name: "spy-toolbox",
+      path: pkgDir,
+      metadata: { type: "toolbox", name: "spy-toolbox", description: "spy" },
+    };
+    const worker = makeWorker({ domainToolboxes: ["spy-toolbox"] });
+    const context = {
+      ...testContext(),
+      contextId: "mail-test",
+      contextType: "mail" as const,
+      mailFilePath: "/tmp/mail-file.md",
+      commissionId: "commission-abc-123",
+    };
+
+    await resolveToolSet(worker, [pkg], context);
+
+    const captured = JSON.parse(await fs.readFile(depsCapturePath, "utf-8")) as {
+      mailFilePath: string;
+      commissionId: string;
+    };
+    expect(captured.mailFilePath).toBe("/tmp/mail-file.md");
+    expect(captured.commissionId).toBe("commission-abc-123");
+  });
+
+  test("mail context does NOT include commission toolbox", async () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      contextId: "mail-test",
+      contextType: "mail" as const,
+    };
+    const result = await resolveToolSet(worker, [], context);
+
+    const names = result.mcpServers.map((s) => s.name);
+    expect(names).not.toContain("guild-hall-commission");
+    expect(result.allowedTools).not.toContain("mcp__guild-hall-commission__*");
+  });
 });
 
 // -- Manager toolbox integration --

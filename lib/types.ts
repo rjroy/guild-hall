@@ -15,6 +15,7 @@ export interface AppConfig {
   projects: ProjectConfig[];
   settings?: Record<string, unknown>;
   maxConcurrentCommissions?: number;
+  maxConcurrentMailReaders?: number;
 }
 
 export interface ArtifactMeta {
@@ -130,6 +131,11 @@ export interface ActivationContext {
     commissionId: string;
     prompt: string;
     dependencies: string[];
+  };
+  mailContext?: {
+    subject: string;
+    message: string;
+    commissionTitle: string;
   };
   /** System state summary for the Guild Master. Populated by the daemon when activating the manager worker. */
   managerContext?: string;

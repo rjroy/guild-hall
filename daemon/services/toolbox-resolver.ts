@@ -12,6 +12,7 @@ import { baseToolboxFactory } from "./base-toolbox";
 import { meetingToolboxFactory } from "./meeting/toolbox";
 import { commissionToolboxFactory } from "./commission/toolbox";
 import { managerToolboxFactory } from "./manager/toolbox";
+import { mailToolboxFactory } from "./mail/toolbox";
 import type {
   GuildHallToolboxDeps,
   ToolboxFactory,
@@ -24,6 +25,7 @@ const SYSTEM_TOOLBOX_REGISTRY: Record<string, ToolboxFactory> = {
   meeting: meetingToolboxFactory,
   commission: commissionToolboxFactory,
   manager: managerToolboxFactory,
+  mail: mailToolboxFactory,
 };
 
 // -- Types --
@@ -32,13 +34,17 @@ export interface ToolboxResolverContext {
   projectName: string;
   guildHallHome: string;
   contextId: string;
-  contextType: "meeting" | "commission";
+  contextType: "meeting" | "commission" | "mail";
   workerName: string;
   workerPortraitUrl?: string;
   eventBus: EventBus;
   config: AppConfig;
   /** Services for the manager toolbox (commission session + git ops). */
   services?: GuildHallToolServices;
+  /** Path to the mail file for the mail toolbox (mail context only). */
+  mailFilePath?: string;
+  /** Commission ID for the mail toolbox (mail context only). */
+  commissionId?: string;
 }
 
 // -- Resolver --
@@ -73,6 +79,12 @@ export async function resolveToolSet(
     eventBus: context.eventBus,
     config: context.config,
     services: context.services,
+    knownWorkerNames: packages
+      .filter(isWorkerPackage)
+      .map((p) => (p.metadata as WorkerMetadata).identity?.name)
+      .filter((name): name is string => typeof name === "string"),
+    mailFilePath: context.mailFilePath,
+    commissionId: context.commissionId,
   };
 
   // 1. Base toolbox (always present: memory + decision tools)
@@ -157,6 +169,11 @@ async function loadDomainToolbox(
   }
 
   return (mod.toolboxFactory as ToolboxFactory)(deps);
+}
+
+function isWorkerPackage(pkg: DiscoveredPackage): boolean {
+  const type = pkg.metadata.type;
+  return type === "worker" || (Array.isArray(type) && type.includes("worker"));
 }
 
 function isToolboxPackage(pkg: DiscoveredPackage): boolean {

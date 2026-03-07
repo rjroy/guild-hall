@@ -54,7 +54,7 @@ export type SessionPrepSpec = {
   projectPath: string;
   workspaceDir: string;
   contextId: string;
-  contextType: "commission" | "meeting";
+  contextType: "commission" | "meeting" | "mail";
   eventBus: EventBus;
   services?: GuildHallToolServices;
   activationExtras?: Partial<ActivationContext>;
@@ -62,6 +62,10 @@ export type SessionPrepSpec = {
   includePartialMessages?: boolean;
   resume?: string;
   resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+  /** Path to the mail file (mail context only). */
+  mailFilePath?: string;
+  /** Commission ID for the mail toolbox (mail context only). */
+  commissionId?: string;
 };
 
 export type SessionPrepDeps = {
@@ -72,12 +76,14 @@ export type SessionPrepDeps = {
       projectName: string;
       guildHallHome: string;
       contextId: string;
-      contextType: "meeting" | "commission";
+      contextType: "meeting" | "commission" | "mail";
       workerName: string;
       workerPortraitUrl?: string;
       eventBus: EventBus;
       config: AppConfig;
       services?: GuildHallToolServices;
+      mailFilePath?: string;
+      commissionId?: string;
     },
   ) => Promise<ResolvedToolSet>;
 
@@ -103,7 +109,13 @@ export type SessionPrepDeps = {
 
 export type SessionPrepResult = { options: SdkQueryOptions };
 
-export type SdkRunnerOutcome = { sessionId: string | null; aborted: boolean; error?: string };
+export type SdkRunnerOutcome = {
+  sessionId: string | null;
+  aborted: boolean;
+  error?: string;
+  /** How the session ended. Populated by drainSdkSession when maxTurns is provided. */
+  reason?: "completed" | "maxTurns" | "maxBudget";
+};
 
 /** Detects expired/not-found SDK session from error strings. */
 export function isSessionExpiryError(reason: string): boolean {
@@ -157,10 +169,12 @@ export async function* runSdkSession(
 /** Exhausts a generator fully, returns summary outcome. */
 export async function drainSdkSession(
   generator: AsyncGenerator<SdkRunnerEvent>,
+  opts?: { maxTurns?: number },
 ): Promise<SdkRunnerOutcome> {
   let sessionId: string | null = null;
   let aborted = false;
   let firstError: string | undefined;
+  let turnCount = 0;
 
   for await (const event of generator) {
     if (event.type === "session") {
@@ -169,10 +183,23 @@ export async function drainSdkSession(
       aborted = true;
     } else if (event.type === "error" && firstError === undefined) {
       firstError = event.reason;
+    } else if (event.type === "turn_end") {
+      turnCount++;
     }
   }
 
-  return { sessionId, aborted, error: firstError };
+  let reason: SdkRunnerOutcome["reason"];
+  if (aborted) {
+    // Aborted sessions don't get a reason
+  } else if (firstError) {
+    // Error sessions don't get a reason
+  } else if (opts?.maxTurns && turnCount >= opts.maxTurns) {
+    reason = "maxTurns";
+  } else {
+    reason = "completed";
+  }
+
+  return { sessionId, aborted, error: firstError, reason };
 }
 
 /** 5-step setup: find worker, resolve tools, load memories, activate, build options. */
@@ -206,6 +233,8 @@ export async function prepareSdkSession(
       eventBus: spec.eventBus,
       config: spec.config,
       services: spec.services,
+      mailFilePath: spec.mailFilePath,
+      commissionId: spec.commissionId,
     });
   } catch (err: unknown) {
     return { ok: false, error: `Tool resolution failed: ${errorMessage(err)}` };

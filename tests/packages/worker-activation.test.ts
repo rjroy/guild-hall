@@ -138,3 +138,66 @@ describe("buildSystemPrompt assembly order", () => {
     expect(result.systemPrompt).toContain("THE_MEMORY");
   });
 });
+
+describe("mail context rendering", () => {
+  test("mail context renders subject, message, and commission title", () => {
+    const context = makeContext({
+      mailContext: {
+        subject: "Review this spec",
+        message: "Please check the types section for correctness.",
+        commissionTitle: "Commission: Implement worker communication",
+      },
+    });
+    const result = activateWorkerWithSharedPattern(context);
+
+    expect(result.systemPrompt).toContain("Review this spec");
+    expect(result.systemPrompt).toContain("Please check the types section for correctness.");
+    expect(result.systemPrompt).toContain("Commission: Implement worker communication");
+  });
+
+  test("mail context includes reply tool instructions", () => {
+    const context = makeContext({
+      mailContext: {
+        subject: "Help needed",
+        message: "What do you think?",
+        commissionTitle: "Test commission",
+      },
+    });
+    const result = activateWorkerWithSharedPattern(context);
+
+    expect(result.systemPrompt).toContain("reply");
+    expect(result.systemPrompt).toContain("only be called once");
+  });
+
+  test("mail context appears after memory", () => {
+    const context = makeContext({
+      injectedMemory: "MEMORY_CONTENT",
+      mailContext: {
+        subject: "Review",
+        message: "Please review.",
+        commissionTitle: "Test",
+      },
+    });
+    const result = activateWorkerWithSharedPattern(context);
+
+    const memoryIndex = result.systemPrompt.indexOf("MEMORY_CONTENT");
+    const mailIndex = result.systemPrompt.indexOf("Please review.");
+
+    expect(memoryIndex).toBeGreaterThan(0);
+    expect(mailIndex).toBeGreaterThan(memoryIndex);
+  });
+
+  test("mail context does NOT include commission protocol", () => {
+    const context = makeContext({
+      mailContext: {
+        subject: "Review",
+        message: "Please review.",
+        commissionTitle: "Test",
+      },
+    });
+    const result = activateWorkerWithSharedPattern(context);
+
+    expect(result.systemPrompt).not.toContain("submit_result");
+    expect(result.systemPrompt).not.toContain("Commission protocol:");
+  });
+});

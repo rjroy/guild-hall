@@ -1,7 +1,7 @@
 ---
 title: "Plan: Worker Identity and Personality"
 date: 2026-03-06
-status: draft
+status: completed
 tags: [plan, workers, personality, identity, soul, system-prompt]
 modules: [packages, daemon, lib]
 related:

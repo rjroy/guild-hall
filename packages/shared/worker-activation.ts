@@ -33,6 +33,24 @@ function buildSystemPrompt(context: ActivationContext): string {
     parts.push(`# Meeting Context\n\nAgenda: ${context.meetingContext.agenda}`);
   }
 
+  if (context.mailContext) {
+    parts.push(
+      [
+        `You are responding to a mail consultation for commission: ${context.mailContext.commissionTitle}`,
+        "",
+        `Subject: ${context.mailContext.subject}`,
+        "",
+        context.mailContext.message,
+        "",
+        "Mail protocol:",
+        "- Read the message and do the work requested.",
+        "- When finished, call the `reply` tool with a summary of your findings.",
+        "- You may read and modify files in the worktree as needed.",
+        "- The `reply` tool can only be called once.",
+      ].join("\n"),
+    );
+  }
+
   if (context.commissionContext) {
     parts.push(
       '# Commission Context',
