@@ -234,6 +234,37 @@ describe("resolveToolSet", () => {
     expect(result.mcpServers[1].type).toBe("sdk");
     expect(result.mcpServers[1].instance).toBeDefined();
   });
+
+  test("mail context auto-adds mail toolbox", async () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      contextId: "mail-test",
+      contextType: "mail" as const,
+    };
+    const result = await resolveToolSet(worker, [], context);
+
+    expect(result.mcpServers).toHaveLength(2);
+    expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    expect(result.mcpServers[1].name).toBe("guild-hall-mail");
+    expect(result.mcpServers[1].type).toBe("sdk");
+    expect(result.mcpServers[1].instance).toBeDefined();
+    expect(result.allowedTools).toContain("mcp__guild-hall-mail__*");
+  });
+
+  test("mail context does NOT include commission toolbox", async () => {
+    const worker = makeWorker();
+    const context = {
+      ...testContext(),
+      contextId: "mail-test",
+      contextType: "mail" as const,
+    };
+    const result = await resolveToolSet(worker, [], context);
+
+    const names = result.mcpServers.map((s) => s.name);
+    expect(names).not.toContain("guild-hall-commission");
+    expect(result.allowedTools).not.toContain("mcp__guild-hall-commission__*");
+  });
 });
 
 // -- Manager toolbox integration --

@@ -23,6 +23,8 @@ export interface GuildHallToolboxDeps {
   config: AppConfig;
   services?: GuildHallToolServices;
   knownWorkerNames?: string[];
+  mailFilePath?: string;
+  commissionId?: string;
 }
 
 export interface ToolboxOutput {

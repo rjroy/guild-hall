@@ -108,12 +108,12 @@ export function createMailToolboxWithCallbacks(
  * ToolboxFactory for the system toolbox registry. When used through the
  * toolbox resolver, callbacks route events through the EventBus.
  *
- * The mail file path is expected in deps.config.settings?.mailFilePath
- * (set by the orchestrator before session prep). If not available,
- * uses a placeholder path (the orchestrator will set it properly).
+ * The mail file path is expected in deps.mailFilePath (set by the
+ * orchestrator before session prep). If not available, uses a
+ * placeholder path (the orchestrator will set it properly).
  */
 export const mailToolboxFactory: ToolboxFactory = (deps: GuildHallToolboxDeps) => {
-  const mailFilePath = (deps.config.settings?.mailFilePath as string) ?? "";
+  const mailFilePath = deps.mailFilePath ?? "";
 
   return {
     server: createMailToolboxWithCallbacks(mailFilePath, {
@@ -121,7 +121,7 @@ export const mailToolboxFactory: ToolboxFactory = (deps: GuildHallToolboxDeps) =
         deps.eventBus.emit({
           type: "mail_reply_received",
           contextId: deps.contextId,
-          commissionId: (deps.config.settings?.commissionId as string) ?? "",
+          commissionId: deps.commissionId ?? "",
           summary,
         }),
     }),
