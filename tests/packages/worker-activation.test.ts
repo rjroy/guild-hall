@@ -126,14 +126,15 @@ describe("buildSystemPrompt assembly order", () => {
 
   test("sections separated by double newlines", () => {
     const context = makeContext({
-      soul: "SOUL",
-      posture: "POSTURE",
-      injectedMemory: "MEMORY",
+      soul: "THE_SOUL",
+      posture: "THE_POSTURE",
+      injectedMemory: "THE_MEMORY",
     });
     const result = activateWorkerWithSharedPattern(context);
 
     // Soul, identity, posture, memory should all be separated by \n\n
-    expect(result.systemPrompt).toContain("SOUL\n\n");
-    expect(result.systemPrompt).toContain("POSTURE\n\nMEMORY");
+    expect(result.systemPrompt).toContain("THE_SOUL\n\n");
+    expect(result.systemPrompt).toContain("THE_POSTURE\n\n");
+    expect(result.systemPrompt).toContain("THE_MEMORY");
   });
 });

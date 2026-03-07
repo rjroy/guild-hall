@@ -131,13 +131,14 @@ export function activateManager(context: ActivationContext): ActivationResult {
 
   // 1. Soul
   if (context.soul) {
-    parts.push(context.soul);
+    parts.push(`# Soul\n\n${context.soul}`);
   }
 
   // 2. Identity metadata
   if (context.identity) {
     parts.push(
       [
+        '# Identity\n',
         `Your name is: ${context.identity.name}`,
         `Your title is: ${context.identity.displayTitle}`,
         `You are described as: ${context.identity.description}`,
@@ -146,16 +147,16 @@ export function activateManager(context: ActivationContext): ActivationResult {
   }
 
   // 3. Posture
-  parts.push(context.posture);
+  parts.push(`# Posture\n\n${context.posture}`);
 
   // 4. Injected memory
   if (context.injectedMemory) {
-    parts.push(context.injectedMemory);
+    parts.push(`# Injected Memory\n\n${context.injectedMemory}`);
   }
 
   // 5. Manager context
   if (context.managerContext) {
-    parts.push(context.managerContext);
+    parts.push(`# Manager Context\n\n${context.managerContext}`);
   }
 
   return {

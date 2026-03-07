@@ -199,15 +199,17 @@ describe("activateManager", () => {
 
   test("system prompt sections are separated by double newlines", () => {
     const context = makeContext({
-      soul: "SOUL",
-      posture: "POSTURE",
-      injectedMemory: "MEMORY",
-      managerContext: "CONTEXT",
+      soul: "THE_SOUL",
+      posture: "THE_POSTURE",
+      injectedMemory: "THE_MEMORY",
+      managerContext: "THE_CONTEXT",
     });
     const result = activateManager(context);
     // Soul, identity, posture, memory, context all separated by \n\n
-    expect(result.systemPrompt).toContain("SOUL\n\n");
-    expect(result.systemPrompt).toContain("POSTURE\n\nMEMORY\n\nCONTEXT");
+    expect(result.systemPrompt).toContain("THE_SOUL\n\n");
+    expect(result.systemPrompt).toContain("THE_POSTURE\n\n");
+    expect(result.systemPrompt).toContain("THE_MEMORY\n\n");
+    expect(result.systemPrompt).toContain("THE_CONTEXT");
   });
 
   test("activateManager includes soul in system prompt", () => {

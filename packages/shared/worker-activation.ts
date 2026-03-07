@@ -5,13 +5,15 @@ function buildSystemPrompt(context: ActivationContext): string {
 
   // 1. Soul (personality, voice, vibe) — if present
   if (context.soul) {
-    parts.push(context.soul);
+    parts.push(`# Soul\n\n${context.soul}`);
   }
 
   // 2. Identity metadata — always present
   if (context.identity) {
     parts.push(
       [
+        '# Identity',
+        '',
         `Your name is: ${context.identity.name}`,
         `Your title is: ${context.identity.displayTitle}`,
         `You are described as: ${context.identity.description}`,
@@ -20,20 +22,24 @@ function buildSystemPrompt(context: ActivationContext): string {
   }
 
   // 3. Posture (principles, workflow, quality standards) — always present
-  parts.push(context.posture);
+  parts.push(`# Posture\n\n${context.posture}`);
 
   // 4. Injected memory — if present
   if (context.injectedMemory) {
-    parts.push(context.injectedMemory);
+    parts.push(`# Injected Memory\n\n${context.injectedMemory}`);
   }
 
   if (context.meetingContext) {
-    parts.push(`Meeting agenda: ${context.meetingContext.agenda}`);
+    parts.push(`# Meeting Context\n\nAgenda: ${context.meetingContext.agenda}`);
   }
 
   if (context.commissionContext) {
     parts.push(
-      'You are executing a commission (an async work item). Your task:',
+      '# Commission Context',
+      '',
+      'You are executing a commission (an async work item).',
+      '',
+      '## Task',
       '',
       context.commissionContext.prompt,
       '',
@@ -41,14 +47,15 @@ function buildSystemPrompt(context: ActivationContext): string {
 
     if (context.commissionContext.dependencies.length > 0) {
       parts.push(
-        'Dependencies (artifacts to reference):',
+        '## Dependencies (artifacts to reference):',
         context.commissionContext.dependencies.map((dependency) => `- ${dependency}`).join("\n"),
       );
     }
 
     parts.push(
       [
-        "Commission protocol:",
+        "## Commission protocol",
+        "",
         "- Use report_progress to log what you're doing as you work. This keeps the user informed.",
         "- When finished, you MUST call submit_result with a summary of what you accomplished and any artifact paths you created or modified.",
         "- If you encounter gaps in the requirements, state your interpretation and proceed. You are expected to be self-sufficient.",
