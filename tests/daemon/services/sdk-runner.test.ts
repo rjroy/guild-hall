@@ -269,7 +269,74 @@ describe("drainSdkSession", () => {
     }
     const outcome = await drainSdkSession(empty());
 
-    expect(outcome).toEqual({ sessionId: null, aborted: false, error: undefined });
+    expect(outcome.sessionId).toBeNull();
+    expect(outcome.aborted).toBe(false);
+    expect(outcome.error).toBeUndefined();
+  });
+
+  test("reason is 'completed' on normal completion", async () => {
+    const gen = runSdkSession(makeQueryFn([initMessage, turnEndMessage]), "test", {});
+    const outcome = await drainSdkSession(gen);
+
+    expect(outcome.reason).toBe("completed");
+    expect(outcome.aborted).toBe(false);
+  });
+
+  test("reason is 'maxTurns' when turn count reaches maxTurns", async () => {
+    async function* maxTurnsGen(): AsyncGenerator<SdkRunnerEvent> {
+      yield { type: "session", sessionId: "s-max" };
+      yield { type: "turn_end", cost: 0.01 };
+      yield { type: "turn_end", cost: 0.01 };
+      yield { type: "turn_end", cost: 0.01 };
+    }
+    const outcome = await drainSdkSession(maxTurnsGen(), { maxTurns: 3 });
+
+    expect(outcome.reason).toBe("maxTurns");
+    expect(outcome.sessionId).toBe("s-max");
+  });
+
+  test("reason is 'completed' when turn count is below maxTurns", async () => {
+    async function* belowMaxGen(): AsyncGenerator<SdkRunnerEvent> {
+      yield { type: "session", sessionId: "s-below" };
+      yield { type: "turn_end", cost: 0.01 };
+      yield { type: "turn_end", cost: 0.01 };
+    }
+    const outcome = await drainSdkSession(belowMaxGen(), { maxTurns: 5 });
+
+    expect(outcome.reason).toBe("completed");
+  });
+
+  test("reason is undefined when aborted", async () => {
+    async function* abortedGen(): AsyncGenerator<SdkRunnerEvent> {
+      yield { type: "session", sessionId: "s-abort" };
+      yield { type: "turn_end", cost: 0.01 };
+      yield { type: "aborted" };
+    }
+    const outcome = await drainSdkSession(abortedGen(), { maxTurns: 1 });
+
+    expect(outcome.aborted).toBe(true);
+    expect(outcome.reason).toBeUndefined();
+  });
+
+  test("reason is undefined when error occurs", async () => {
+    async function* errorGen(): AsyncGenerator<SdkRunnerEvent> {
+      yield { type: "session", sessionId: "s-err" };
+      yield { type: "error", reason: "boom" };
+    }
+    const outcome = await drainSdkSession(errorGen());
+
+    expect(outcome.error).toBe("boom");
+    expect(outcome.reason).toBeUndefined();
+  });
+
+  test("reason works without maxTurns opt (always completed on success)", async () => {
+    async function* normalGen(): AsyncGenerator<SdkRunnerEvent> {
+      yield { type: "session", sessionId: "s-no-opt" };
+      yield { type: "turn_end", cost: 0.01 };
+    }
+    const outcome = await drainSdkSession(normalGen());
+
+    expect(outcome.reason).toBe("completed");
   });
 });
 
@@ -549,6 +616,28 @@ describe("prepareSdkSession", () => {
     const servers = result.result.options.mcpServers as Record<string, unknown>;
     expect("server-a" in servers).toBe(true);
     expect("server-b" in servers).toBe(true);
+  });
+
+  test("mailFilePath and commissionId passed through to resolveToolSet context", async () => {
+    let capturedContext: Record<string, unknown> = {};
+
+    const result = await prepareSdkSession(
+      makeSpec({
+        contextType: "mail",
+        mailFilePath: "/tmp/mail/test-mail.md",
+        commissionId: "commission-test-abc",
+      }),
+      makeDeps({
+        resolveToolSet: async (_worker, _packages, context) => {
+          capturedContext = context as unknown as Record<string, unknown>;
+          return mockResolvedTools;
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(capturedContext.mailFilePath).toBe("/tmp/mail/test-mail.md");
+    expect(capturedContext.commissionId).toBe("commission-test-abc");
   });
 
   test("no model in activation omits model from options", async () => {

@@ -360,6 +360,22 @@ export function createCommissionOrchestrator(
         executions.set(commissionId, ctx);
         await handleSessionCompletion(ctx, outcome, resultSubmitted);
       },
+      registerExecution(commissionId, projectName, workerName, worktreeDir, branchName, abortController) {
+        const ctx: ExecutionContext = {
+          commissionId,
+          projectName,
+          workerName,
+          worktreeDir,
+          branchName,
+          abortController,
+          attempt: 0,
+          checkoutScope: "full",
+        };
+        executions.set(commissionId, ctx);
+      },
+      unregisterExecution(commissionId) {
+        executions.delete(commissionId);
+      },
     },
   );
 
@@ -739,6 +755,12 @@ export function createCommissionOrchestrator(
     });
 
     lifecycle.forget(commissionId);
+
+    // Unblock dependents when abandoning a sleeping commission
+    if (targetState === "abandoned" && resolvedProjectName) {
+      await checkDependencyTransitions(resolvedProjectName);
+    }
+
     enqueueAutoDispatch();
   }
 
@@ -1566,7 +1588,10 @@ projectName: ${projectName}
 
       // 2. Run and drain the SDK session
       const { options } = prepResult.result;
-      const outcome = await drainSdkSession(runSdkSession(queryFn, prompt, options));
+      const outcome = await drainSdkSession(
+        runSdkSession(queryFn, prompt, options),
+        { maxTurns: options.maxTurns },
+      );
 
       // 3. Check mailSent BEFORE handleSessionCompletion.
       // If mail was sent, route to the sleep path. The abort guard in

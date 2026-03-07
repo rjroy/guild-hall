@@ -128,6 +128,22 @@ export type MailOrchestratorCallbacks = {
     outcome: SdkRunnerOutcome,
     resultSubmitted: boolean,
   ) => Promise<void>;
+  /**
+   * Register a resumed session's AbortController in the executions map
+   * so the cancel path can find and abort it.
+   */
+  registerExecution?: (
+    commissionId: CommissionId,
+    projectName: string,
+    workerName: string,
+    worktreeDir: string,
+    branchName: string,
+    abortController: AbortController,
+  ) => void;
+  /**
+   * Remove a resumed session from the executions map on completion.
+   */
+  unregisterExecution?: (commissionId: CommissionId) => void;
 };
 
 export function createMailOrchestrator(
@@ -353,6 +369,8 @@ export function createMailOrchestrator(
             },
           },
           abortController,
+          mailFilePath,
+          commissionId: commissionId as string,
         };
 
         const prepResult = await prepareSdkSession(prepSpec, prepDeps);
@@ -365,7 +383,10 @@ export function createMailOrchestrator(
 
         // 9. Run and drain the SDK session
         const { options } = prepResult.result;
-        const outcome = await drainSdkSession(runSdkSession(queryFn, activationPrompt, options));
+        const outcome = await drainSdkSession(
+          runSdkSession(queryFn, activationPrompt, options),
+          { maxTurns: options.maxTurns },
+        );
 
         // 10. Handle reader completion
         await handleReaderCompletion(activation, contextId, outcome, replyReceived, mailData);
@@ -430,7 +451,9 @@ export function createMailOrchestrator(
     } else if (outcome.error) {
       wakePrompt = buildErrorWakePrompt(readerWorkerName, outcome.error);
     } else if (outcome.aborted) {
-      wakePrompt = buildNoReplyWakePrompt(readerWorkerName, "was stopped before completing (may have run out of turns)");
+      wakePrompt = buildNoReplyWakePrompt(readerWorkerName, "was stopped before completing");
+    } else if (outcome.reason === "maxTurns") {
+      wakePrompt = buildNoReplyWakePrompt(readerWorkerName, "ran out of turns before sending a reply");
     } else {
       wakePrompt = buildNoReplyWakePrompt(readerWorkerName, "completed without sending a reply");
     }
@@ -539,6 +562,11 @@ export function createMailOrchestrator(
 
     const abortController = new AbortController();
 
+    // Register in the executions map so cancel can find and abort this session
+    callbacks.registerExecution?.(
+      commissionId, projectName, workerName, worktreeDir, branchName, abortController,
+    );
+
     // Subscribe to EventBus for tool events
     const unsubscribe = eventBus.subscribe((event) => {
       if (!("commissionId" in event) || event.commissionId !== (commissionId as string)) return;
@@ -598,7 +626,10 @@ export function createMailOrchestrator(
       }
 
       const { options } = prepResult.result;
-      const outcome = await drainSdkSession(runSdkSession(queryFn, wakePrompt, options));
+      const outcome = await drainSdkSession(
+        runSdkSession(queryFn, wakePrompt, options),
+        { maxTurns: options.maxTurns },
+      );
 
       // Handle outcome
       if (flags.mailSent && flags.mailSentData) {
@@ -640,6 +671,7 @@ export function createMailOrchestrator(
       }
       lifecycle.forget(commissionId);
     } finally {
+      callbacks.unregisterExecution?.(commissionId);
       unsubscribe();
     }
   }

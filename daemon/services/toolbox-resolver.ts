@@ -41,6 +41,10 @@ export interface ToolboxResolverContext {
   config: AppConfig;
   /** Services for the manager toolbox (commission session + git ops). */
   services?: GuildHallToolServices;
+  /** Path to the mail file for the mail toolbox (mail context only). */
+  mailFilePath?: string;
+  /** Commission ID for the mail toolbox (mail context only). */
+  commissionId?: string;
 }
 
 // -- Resolver --
@@ -79,6 +83,8 @@ export async function resolveToolSet(
       .filter(isWorkerPackage)
       .map((p) => (p.metadata as WorkerMetadata).identity?.name)
       .filter((name): name is string => typeof name === "string"),
+    mailFilePath: context.mailFilePath,
+    commissionId: context.commissionId,
   };
 
   // 1. Base toolbox (always present: memory + decision tools)
