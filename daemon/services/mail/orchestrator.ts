@@ -391,27 +391,25 @@ export function createMailOrchestrator(
     // 2. Build the wake-up prompt based on outcome
     let wakePrompt: string;
 
+    // Cache the updated mail file if a reply was received; used for both
+    // the wake prompt and the timeline event below.
+    let updatedMail: ParsedMailFile | null = null;
+
     if (replyReceived) {
-      // Re-read the mail file to get the reply content
-      const updatedMail = await mailRecordOps.readMailFile(mailFilePath);
+      updatedMail = await mailRecordOps.readMailFile(mailFilePath);
       wakePrompt = buildReplyWakePrompt(updatedMail, readerWorkerName, mailFilePath);
     } else if (outcome.error) {
       wakePrompt = buildErrorWakePrompt(readerWorkerName, outcome.error);
     } else if (outcome.aborted) {
-      // maxTurns exhaustion presents as aborted in some SDK versions;
-      // but normally it ends without abort. Use the "no reply" prompt.
-      wakePrompt = buildNoReplyWakePrompt(readerWorkerName, "completed without sending a reply");
+      wakePrompt = buildNoReplyWakePrompt(readerWorkerName, "was stopped before completing (may have run out of turns)");
     } else {
-      // Normal end without reply: could be maxTurns or voluntary
-      // Check if the session had an error indicating maxTurns
       wakePrompt = buildNoReplyWakePrompt(readerWorkerName, "completed without sending a reply");
     }
 
     // 3. Append timeline event
     const artifactPath = commissionArtifactPath(worktreeDir, commissionId);
     try {
-      if (replyReceived) {
-        const updatedMail = await mailRecordOps.readMailFile(mailFilePath);
+      if (replyReceived && updatedMail) {
         const truncatedSummary = (updatedMail.reply?.summary ?? "").slice(0, 200);
         await recordOps.appendTimeline(artifactPath, "mail_reply_received", truncatedSummary, {
           readerWorker: readerWorkerName,
@@ -510,6 +508,8 @@ export function createMailOrchestrator(
       mailSentData: null as { targetWorker: string; mailSequence: number; mailPath: string } | null,
     };
 
+    const abortController = new AbortController();
+
     // Subscribe to EventBus for tool events
     const unsubscribe = eventBus.subscribe((event) => {
       if (!("commissionId" in event) || event.commissionId !== (commissionId as string)) return;
@@ -529,10 +529,9 @@ export function createMailOrchestrator(
         flags.mailSent = true;
         const e = event as typeof event & { targetWorker: string; mailSequence: number; mailPath: string };
         flags.mailSentData = { targetWorker: e.targetWorker, mailSequence: e.mailSequence, mailPath: e.mailPath };
+        abortController.abort();
       }
     });
-
-    const abortController = new AbortController();
 
     try {
       const prepSpec: SessionPrepSpec = {
@@ -569,17 +568,8 @@ export function createMailOrchestrator(
         return;
       }
 
-      // If mailSent detected during session, abort to trigger sleep
-      const mailSentUnsubscribe = eventBus.subscribe((event) => {
-        if (event.type === "commission_mail_sent" && "commissionId" in event && event.commissionId === (commissionId as string)) {
-          abortController.abort();
-        }
-      });
-
       const { options } = prepResult.result;
       const outcome = await drainSdkSession(runSdkSession(queryFn, wakePrompt, options));
-
-      mailSentUnsubscribe();
 
       // Handle outcome
       if (flags.mailSent && flags.mailSentData) {
