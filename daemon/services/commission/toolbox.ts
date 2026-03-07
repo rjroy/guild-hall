@@ -4,7 +4,9 @@
  * Provides three tools that operate on the current commission's artifact:
  * - report_progress: update current progress and log a progress report
  * - submit_result: record the final result (one-shot, cannot be called twice)
- * - (log_question was removed to make commissions self-sufficient)
+ * - send_mail: send mail to another worker and sleep until reply arrives
+ *
+ * submit_result and send_mail are mutually exclusive per session (REQ-MAIL-24).
  *
  * Uses callbacks to notify the caller (session runner or orchestrator) of
  * tool invocations. File writes for durability happen within each handler;
@@ -14,6 +16,7 @@
  * meeting-toolbox.ts.
  */
 
+import * as path from "node:path";
 import {
   createSdkMcpServer,
   tool,
@@ -24,6 +27,8 @@ import { asCommissionId } from "@/daemon/types";
 import type { ToolResult } from "@/daemon/types";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import { createCommissionRecordOps } from "@/daemon/services/commission/record";
+import { createMailRecordOps } from "@/daemon/services/mail/record";
+import type { MailRecordOps } from "@/daemon/services/mail/record";
 import { resolveWritePath, errorMessage } from "@/daemon/lib/toolbox-utils";
 import { commissionArtifactPath } from "@/lib/paths";
 import type { GuildHallToolboxDeps, ToolboxFactory } from "@/daemon/services/toolbox-types";
@@ -36,9 +41,21 @@ import type { GuildHallToolboxDeps, ToolboxFactory } from "@/daemon/services/too
 export type SessionCallbacks = {
   onProgress: (summary: string) => void;
   onResult: (summary: string, artifacts?: string[]) => void;
+  onMailSent?: (to: string, subject: string, mailPath: string, sequence: number) => void;
 };
 
-type CommissionToolboxDeps = Pick<GuildHallToolboxDeps, "guildHallHome" | "projectName" | "contextId" | "eventBus">;
+/**
+ * Session-scoped state shared between submit_result and send_mail
+ * for mutual exclusion (REQ-MAIL-24).
+ */
+export type SessionState = {
+  resultSubmitted: boolean;
+  mailSent: boolean;
+};
+
+type CommissionToolboxDeps = Pick<GuildHallToolboxDeps,
+  "guildHallHome" | "projectName" | "contextId" | "eventBus" | "workerName" | "knownWorkerNames"
+>;
 
 /**
  * Alias kept for backward compatibility with existing tests.
@@ -52,18 +69,20 @@ export type CommissionToolCallbacks = SessionCallbacks;
  */
 type ToolboxResources = {
   recordOps: CommissionRecordOps;
+  mailRecordOps: MailRecordOps;
   /** Lazily resolved on first use, then cached for the toolbox lifetime. */
   writePathPromise: Promise<string>;
 };
 
 function createToolboxResources(deps: CommissionToolboxDeps): ToolboxResources {
   const recordOps = createCommissionRecordOps();
+  const mailRecordOps = createMailRecordOps();
   // Resolve write path once and cache the promise. All handlers await
   // the same promise, so the fs.access() call happens at most once.
   const writePathPromise = resolveWritePath(
     deps.guildHallHome, deps.projectName, deps.contextId, "commission",
   );
-  return { recordOps, writePathPromise };
+  return { recordOps, mailRecordOps, writePathPromise };
 }
 
 // -- Handler factories --
@@ -95,22 +114,34 @@ export function makeReportProgressHandler(
 export function makeSubmitResultHandler(
   deps: CommissionToolboxDeps,
   callbacks: SessionCallbacks,
+  sessionState: SessionState = { resultSubmitted: false, mailSent: false },
   resources?: ToolboxResources,
 ) {
   const cid = asCommissionId(deps.contextId);
   const { recordOps, writePathPromise } = resources ?? createToolboxResources(deps);
-  let resultSubmitted = false;
 
   return async (args: {
     summary: string;
     artifacts?: string[];
   }): Promise<ToolResult> => {
-    if (resultSubmitted) {
+    if (sessionState.resultSubmitted) {
       return {
         content: [
           {
             type: "text",
             text: "Result already submitted. submit_result can only be called once per commission.",
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    if (sessionState.mailSent) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Cannot submit result after sending mail.",
           },
         ],
         isError: true,
@@ -137,7 +168,7 @@ export function makeSubmitResultHandler(
     }
 
     // Only mark as submitted after successful file write
-    resultSubmitted = true;
+    sessionState.resultSubmitted = true;
     callbacks.onResult(args.summary, args.artifacts);
 
     return {
@@ -145,6 +176,79 @@ export function makeSubmitResultHandler(
         { type: "text", text: `Result submitted: ${args.summary}` },
       ],
     };
+  };
+}
+
+export function makeSendMailHandler(
+  deps: CommissionToolboxDeps,
+  callbacks: SessionCallbacks,
+  sessionState: SessionState = { resultSubmitted: false, mailSent: false },
+  resources?: ToolboxResources,
+) {
+  const cid = asCommissionId(deps.contextId);
+  const { mailRecordOps, writePathPromise } = resources ?? createToolboxResources(deps);
+
+  return async (args: {
+    to: string;
+    subject: string;
+    message: string;
+  }): Promise<ToolResult> => {
+    // Mutual exclusion: can't send mail after submitting result (REQ-MAIL-24)
+    if (sessionState.resultSubmitted) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Cannot send mail after submitting result.",
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    // Validate target worker exists (REQ-MAIL-16)
+    if (deps.knownWorkerNames && !deps.knownWorkerNames.includes(args.to)) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Worker "${args.to}" not found. Available workers: ${deps.knownWorkerNames.join(", ")}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    try {
+      const writePath = await writePathPromise;
+      const mailDir = path.join(writePath, ".lore", "mail", cid);
+      const sequence = await mailRecordOps.getMailSequence(mailDir);
+      const mailPath = await mailRecordOps.createMailFile(
+        mailDir, sequence, deps.workerName, args.to, cid, args.subject, args.message,
+      );
+
+      sessionState.mailSent = true;
+      callbacks.onMailSent?.(args.to, args.subject, mailPath, sequence);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Mail sent to ${args.to}. Entering sleep state until reply arrives.`,
+          },
+        ],
+      };
+    } catch (err: unknown) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to send mail: ${errorMessage(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
   };
 }
 
@@ -157,15 +261,18 @@ export function makeSubmitResultHandler(
  *
  * Creates a single CommissionRecordOps instance and resolves the write
  * path once, sharing them across all handlers for the toolbox lifetime.
+ * submit_result and send_mail share a SessionState for mutual exclusion.
  */
 export function createCommissionToolboxWithCallbacks(
   deps: CommissionToolboxDeps,
   callbacks: SessionCallbacks,
 ): McpSdkServerConfigWithInstance {
   const resources = createToolboxResources(deps);
+  const sessionState: SessionState = { resultSubmitted: false, mailSent: false };
 
   const reportProgress = makeReportProgressHandler(deps, callbacks, resources);
-  const submitResult = makeSubmitResultHandler(deps, callbacks, resources);
+  const submitResult = makeSubmitResultHandler(deps, callbacks, sessionState, resources);
+  const sendMail = makeSendMailHandler(deps, callbacks, sessionState, resources);
   return createSdkMcpServer({
     name: "guild-hall-commission",
     version: "0.1.0",
@@ -186,6 +293,16 @@ export function createCommissionToolboxWithCallbacks(
           artifacts: z.array(z.string()).optional(),
         },
         (args) => submitResult(args),
+      ),
+      tool(
+        "send_mail",
+        "Send mail to another worker and sleep until the reply arrives. The commission will enter a sleeping state while waiting for the reply. This cannot be called after submitting a result.",
+        {
+          to: z.string().describe("Name of the worker to consult"),
+          subject: z.string().describe("Short description of the consultation request"),
+          message: z.string().describe("Full message with enough context for the reader"),
+        },
+        (args) => sendMail(args),
       ),
     ],
   });
@@ -213,6 +330,14 @@ export const commissionToolboxFactory: ToolboxFactory = (deps) => ({
         commissionId: deps.contextId,
         summary,
         artifacts,
+      }),
+    onMailSent: (to, _subject, mailPath, sequence) =>
+      deps.eventBus.emit({
+        type: "commission_mail_sent",
+        commissionId: deps.contextId,
+        targetWorker: to,
+        mailSequence: sequence,
+        mailPath,
       }),
   }),
 });

@@ -54,7 +54,7 @@ export type SessionPrepSpec = {
   projectPath: string;
   workspaceDir: string;
   contextId: string;
-  contextType: "commission" | "meeting";
+  contextType: "commission" | "meeting" | "mail";
   eventBus: EventBus;
   services?: GuildHallToolServices;
   activationExtras?: Partial<ActivationContext>;
@@ -72,7 +72,7 @@ export type SessionPrepDeps = {
       projectName: string;
       guildHallHome: string;
       contextId: string;
-      contextType: "meeting" | "commission";
+      contextType: "meeting" | "commission" | "mail";
       workerName: string;
       workerPortraitUrl?: string;
       eventBus: EventBus;

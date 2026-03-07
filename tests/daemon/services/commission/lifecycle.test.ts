@@ -786,3 +786,161 @@ describe("duplicate ID guards", () => {
     expect(lifecycle.getStatus(TEST_ID)).toBe("dispatched");
   });
 });
+
+// -- Sleeping state transitions --
+
+describe("sleeping transitions", () => {
+  // in_progress -> sleeping via sleep()
+  test("in_progress -> sleeping via sleep()", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
+    const result = await lifecycle.sleep(TEST_ID, "Waiting for mail reply from Thorne");
+    expect(result.outcome).toBe("executed");
+    expect(lifecycle.getStatus(TEST_ID)).toBe("sleeping");
+  });
+
+  // sleeping -> in_progress via wake()
+  test("sleeping -> in_progress via wake()", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "sleeping", TEST_ARTIFACT);
+    const result = await lifecycle.wake(TEST_ID, "Mail reply received from Thorne");
+    expect(result.outcome).toBe("executed");
+    expect(lifecycle.getStatus(TEST_ID)).toBe("in_progress");
+  });
+
+  // sleeping -> cancelled
+  test("sleeping -> cancelled via cancel()", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "sleeping", TEST_ARTIFACT);
+    const result = await lifecycle.cancel(TEST_ID, "User cancelled sleeping commission");
+    expect(result.outcome).toBe("executed");
+    expect(lifecycle.getStatus(TEST_ID)).toBe("cancelled");
+  });
+
+  // sleeping -> abandoned
+  test("sleeping -> abandoned via abandon()", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "sleeping", TEST_ARTIFACT);
+    const result = await lifecycle.abandon(TEST_ID, "No longer needed");
+    expect(result.outcome).toBe("executed");
+    expect(lifecycle.getStatus(TEST_ID)).toBe("abandoned");
+  });
+
+  // sleeping -> failed
+  test("sleeping -> failed via executionFailed()", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "sleeping", TEST_ARTIFACT);
+    const result = await lifecycle.executionFailed(TEST_ID, "Worktree lost during sleep");
+    expect(result.outcome).toBe("executed");
+    expect(lifecycle.getStatus(TEST_ID)).toBe("failed");
+  });
+
+  // Invalid: sleeping -> completed
+  test("sleeping -> completed is rejected", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "sleeping", TEST_ARTIFACT);
+    const result = await lifecycle.executionCompleted(TEST_ID);
+    expect(result.outcome).toBe("skipped");
+    if (result.outcome === "skipped") {
+      expect(result.reason).toContain("sleeping");
+      expect(result.reason).toContain("completed");
+    }
+  });
+
+  // Invalid: sleeping -> dispatched
+  test("sleeping -> dispatched is rejected", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "sleeping", TEST_ARTIFACT);
+    const result = await lifecycle.dispatch(TEST_ID);
+    expect(result.outcome).toBe("skipped");
+  });
+
+  // Invalid: sleeping -> pending
+  test("sleeping -> pending via redispatch is rejected", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "sleeping", TEST_ARTIFACT);
+    const result = await lifecycle.redispatch(TEST_ID);
+    expect(result.outcome).toBe("skipped");
+  });
+
+  // sleep() and wake() emit correct events
+  test("sleep() emits commission_status event with reason", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
+    await lifecycle.sleep(TEST_ID, "Waiting for mail reply from Thorne");
+
+    expect(emittedEvents).toHaveLength(1);
+    const event = emittedEvents[0];
+    expect(event.type).toBe("commission_status");
+    if (event.type === "commission_status") {
+      expect(event.commissionId).toBe(TEST_ID);
+      expect(event.status).toBe("sleeping");
+      expect(event.oldStatus).toBe("in_progress");
+      expect(event.reason).toBe("Waiting for mail reply from Thorne");
+    }
+  });
+
+  test("wake() emits commission_status event with reason", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "sleeping", TEST_ARTIFACT);
+    await lifecycle.wake(TEST_ID, "Mail reply received from Thorne");
+
+    expect(emittedEvents).toHaveLength(1);
+    const event = emittedEvents[0];
+    expect(event.type).toBe("commission_status");
+    if (event.type === "commission_status") {
+      expect(event.commissionId).toBe(TEST_ID);
+      expect(event.status).toBe("in_progress");
+      expect(event.oldStatus).toBe("sleeping");
+      expect(event.reason).toBe("Mail reply received from Thorne");
+    }
+  });
+
+  // Concurrent sleep + sleep: second is rejected because sleeping -> sleeping is invalid
+  test("concurrent sleep + sleep: second is rejected", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
+
+    const [r1, r2] = await Promise.all([
+      lifecycle.sleep(TEST_ID, "Waiting for mail 1"),
+      lifecycle.sleep(TEST_ID, "Waiting for mail 2"),
+    ]);
+
+    const executed = [r1, r2].filter((r) => r.outcome === "executed");
+    const rejected = [r1, r2].filter((r) => r.outcome === "skipped");
+
+    expect(executed).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(lifecycle.getStatus(TEST_ID)).toBe("sleeping");
+  });
+
+  // Concurrent sleep + cancel both succeed because sleeping -> cancelled is valid
+  test("concurrent sleep + cancel both succeed (sleeping -> cancelled is valid)", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
+
+    const [r1, r2] = await Promise.all([
+      lifecycle.sleep(TEST_ID, "Waiting for mail"),
+      lifecycle.cancel(TEST_ID, "User cancelled"),
+    ]);
+
+    // sleep goes first: in_progress -> sleeping (valid)
+    // cancel goes second: sleeping -> cancelled (valid)
+    // Both succeed, final state is cancelled
+    expect(r1.outcome).toBe("executed");
+    expect(r2.outcome).toBe("executed");
+    expect(lifecycle.getStatus(TEST_ID)).toBe("cancelled");
+  });
+
+  // Full lifecycle: in_progress -> sleeping -> in_progress -> completed
+  test("full sleep/wake cycle: in_progress -> sleeping -> in_progress -> completed", async () => {
+    lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
+
+    await lifecycle.sleep(TEST_ID, "Waiting for mail");
+    expect(lifecycle.getStatus(TEST_ID)).toBe("sleeping");
+
+    await lifecycle.wake(TEST_ID, "Mail reply received");
+    expect(lifecycle.getStatus(TEST_ID)).toBe("in_progress");
+
+    await lifecycle.executionCompleted(TEST_ID);
+    expect(lifecycle.getStatus(TEST_ID)).toBe("completed");
+  });
+
+  // Sleeping commissions do NOT count as active
+  test("sleeping commissions do not count as active", () => {
+    lifecycle.register(asCommissionId("c1"), "p1", "in_progress", "/a");
+    lifecycle.register(asCommissionId("c2"), "p1", "sleeping", "/b");
+    lifecycle.register(asCommissionId("c3"), "p1", "dispatched", "/c");
+
+    // Only in_progress and dispatched count
+    expect(lifecycle.activeCount).toBe(2);
+  });
+});

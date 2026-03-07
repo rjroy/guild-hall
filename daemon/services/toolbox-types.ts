@@ -16,12 +16,13 @@ export interface GuildHallToolboxDeps {
   guildHallHome: string;
   projectName: string;
   contextId: string;
-  contextType: "meeting" | "commission";
+  contextType: "meeting" | "commission" | "mail";
   workerName: string;
   workerPortraitUrl?: string;
   eventBus: EventBus;
   config: AppConfig;
   services?: GuildHallToolServices;
+  knownWorkerNames?: string[];
 }
 
 export interface ToolboxOutput {

@@ -23,6 +23,7 @@ export const appConfigSchema = z.object({
   projects: z.array(projectConfigSchema),
   settings: z.record(z.string(), z.unknown()).optional(),
   maxConcurrentCommissions: z.number().optional(),
+  maxConcurrentMailReaders: z.number().optional(),
 });
 
 // -- Functions --
