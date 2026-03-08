@@ -640,6 +640,153 @@ describe("prepareSdkSession", () => {
     expect(capturedContext.commissionId).toBe("commission-test-abc");
   });
 
+  test("worker with domainPlugins where package has pluginPath produces options.plugins", async () => {
+    const pluginWorkerMeta: WorkerMetadata = {
+      ...mockWorkerMeta,
+      domainPlugins: ["pkg-a"],
+    };
+    const pluginWorkerPkg: DiscoveredPackage = {
+      name: "@guild-hall/test-worker",
+      path: "/tmp/packages/test-worker",
+      metadata: pluginWorkerMeta,
+    };
+    const pluginPkg: DiscoveredPackage = {
+      name: "pkg-a",
+      path: "/tmp/packages/pkg-a",
+      metadata: { type: "toolbox", name: "pkg-a", description: "A plugin package" },
+      pluginPath: "/tmp/packages/pkg-a",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ packages: [pluginWorkerPkg, pluginPkg] }),
+      makeDeps(),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.plugins).toEqual([
+      { type: "local", path: "/tmp/packages/pkg-a" },
+    ]);
+  });
+
+  test("worker with domainPlugins where package is missing returns error", async () => {
+    const pluginWorkerMeta: WorkerMetadata = {
+      ...mockWorkerMeta,
+      domainPlugins: ["pkg-a"],
+    };
+    const pluginWorkerPkg: DiscoveredPackage = {
+      name: "@guild-hall/test-worker",
+      path: "/tmp/packages/test-worker",
+      metadata: pluginWorkerMeta,
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ packages: [pluginWorkerPkg] }),
+      makeDeps(),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("no matching package was found");
+    expect(result.error).toContain("pkg-a");
+  });
+
+  test("worker with domainPlugins where package exists but has no pluginPath returns error", async () => {
+    const pluginWorkerMeta: WorkerMetadata = {
+      ...mockWorkerMeta,
+      domainPlugins: ["pkg-a"],
+    };
+    const pluginWorkerPkg: DiscoveredPackage = {
+      name: "@guild-hall/test-worker",
+      path: "/tmp/packages/test-worker",
+      metadata: pluginWorkerMeta,
+    };
+    const pkgNoPlugin: DiscoveredPackage = {
+      name: "pkg-a",
+      path: "/tmp/packages/pkg-a",
+      metadata: { type: "toolbox", name: "pkg-a", description: "No plugin" },
+      // no pluginPath
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ packages: [pluginWorkerPkg, pkgNoPlugin] }),
+      makeDeps(),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("does not contain a plugin");
+    expect(result.error).toContain("pkg-a");
+  });
+
+  test("worker with no domainPlugins produces no plugins in options", async () => {
+    const result = await prepareSdkSession(makeSpec(), makeDeps());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.plugins).toBeUndefined();
+  });
+
+  test("worker with domainPlugins referencing its own package works", async () => {
+    const selfPluginMeta: WorkerMetadata = {
+      ...mockWorkerMeta,
+      domainPlugins: ["@guild-hall/test-worker"],
+    };
+    const selfPluginPkg: DiscoveredPackage = {
+      name: "@guild-hall/test-worker",
+      path: "/tmp/packages/test-worker",
+      metadata: selfPluginMeta,
+      pluginPath: "/tmp/packages/test-worker",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ packages: [selfPluginPkg] }),
+      makeDeps(),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.plugins).toEqual([
+      { type: "local", path: "/tmp/packages/test-worker" },
+    ]);
+  });
+
+  test("worker with multiple domainPlugins produces multiple plugin entries", async () => {
+    const multiPluginMeta: WorkerMetadata = {
+      ...mockWorkerMeta,
+      domainPlugins: ["pkg-a", "pkg-b"],
+    };
+    const multiPluginWorkerPkg: DiscoveredPackage = {
+      name: "@guild-hall/test-worker",
+      path: "/tmp/packages/test-worker",
+      metadata: multiPluginMeta,
+    };
+    const pkgA: DiscoveredPackage = {
+      name: "pkg-a",
+      path: "/tmp/packages/pkg-a",
+      metadata: { type: "toolbox", name: "pkg-a", description: "Plugin A" },
+      pluginPath: "/tmp/packages/pkg-a",
+    };
+    const pkgB: DiscoveredPackage = {
+      name: "pkg-b",
+      path: "/tmp/packages/pkg-b",
+      metadata: { type: "toolbox", name: "pkg-b", description: "Plugin B" },
+      pluginPath: "/tmp/packages/pkg-b",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ packages: [multiPluginWorkerPkg, pkgA, pkgB] }),
+      makeDeps(),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.plugins).toEqual([
+      { type: "local", path: "/tmp/packages/pkg-a" },
+      { type: "local", path: "/tmp/packages/pkg-b" },
+    ]);
+  });
+
   test("no model in activation omits model from options", async () => {
     const noModelActivation: ActivationResult = {
       ...mockActivation,

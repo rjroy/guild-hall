@@ -52,6 +52,7 @@ export const workerMetadataSchema = z.object({
   soul: z.string().optional(),
   systemToolboxes: z.array(z.string()).default([]),
   domainToolboxes: z.array(z.string()),
+  domainPlugins: z.array(z.string()).optional(),
   builtInTools: z.array(z.string()),
   checkoutScope: z.union([z.literal("sparse"), z.literal("full")]),
   resourceDefaults: resourceDefaultsSchema.optional(),
@@ -187,10 +188,20 @@ export async function discoverPackages(
         }
       }
 
+      // Check for domain plugin (.claude-plugin/plugin.json)
+      let pluginPath: string | undefined;
+      try {
+        await fs.access(path.join(pkgDir, ".claude-plugin", "plugin.json"));
+        pluginPath = pkgDir;
+      } catch {
+        // No plugin present, leave undefined
+      }
+
       seen.set(pkgName, {
         name: pkgName,
         path: pkgDir,
         metadata: metadata as PackageMetadata,
+        ...(pluginPath !== undefined && { pluginPath }),
       });
     }
   }

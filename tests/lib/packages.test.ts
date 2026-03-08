@@ -235,6 +235,17 @@ describe("Zod schemas", () => {
     expect(result2.success).toBe(false);
   });
 
+  test("workerMetadataSchema accepts domainPlugins", () => {
+    const data = { ...validWorkerGuildHall(), domainPlugins: ["pkg-name"] };
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(true);
+  });
+
+  test("workerMetadataSchema accepts missing domainPlugins (optional)", () => {
+    const result = workerMetadataSchema.safeParse(validWorkerGuildHall());
+    expect(result.success).toBe(true);
+  });
+
   test("workerMetadataSchema rejects missing identity", () => {
     const data = validWorkerGuildHall() as Record<string, unknown>;
     delete data.identity;
@@ -646,6 +657,46 @@ describe("discoverPackages", () => {
     } finally {
       console.warn = originalWarn;
     }
+  });
+
+  test("package with .claude-plugin/plugin.json gets pluginPath populated", async () => {
+    const pkgDir = await writePackage(tmpDir, "plugin-worker", {
+      name: "plugin-worker",
+      guildHall: validWorkerGuildHall(),
+    });
+    await fs.mkdir(path.join(pkgDir, ".claude-plugin"), { recursive: true });
+    await fs.writeFile(
+      path.join(pkgDir, ".claude-plugin", "plugin.json"),
+      "{}",
+      "utf-8"
+    );
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+    expect(packages[0].pluginPath).toBe(pkgDir);
+  });
+
+  test("package without .claude-plugin/plugin.json gets pluginPath undefined", async () => {
+    await writePackage(tmpDir, "no-plugin-worker", {
+      name: "no-plugin-worker",
+      guildHall: validWorkerGuildHall(),
+    });
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+    expect(packages[0].pluginPath).toBeUndefined();
+  });
+
+  test("discovery does not fail if .claude-plugin/ exists without plugin.json", async () => {
+    const pkgDir = await writePackage(tmpDir, "partial-plugin", {
+      name: "partial-plugin",
+      guildHall: validWorkerGuildHall(),
+    });
+    await fs.mkdir(path.join(pkgDir, ".claude-plugin"), { recursive: true });
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+    expect(packages[0].pluginPath).toBeUndefined();
   });
 
   test("soul.md loading does not affect posture loading", async () => {
