@@ -1,7 +1,7 @@
 ---
 title: Worker domain plugins
 date: 2026-03-07
-status: draft
+status: complete
 tags: [architecture, workers, plugins, skills, agent-sdk, packages]
 modules: [sdk-runner, packages, toolbox-resolver]
 related:

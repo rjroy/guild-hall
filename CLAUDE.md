@@ -8,7 +8,7 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 ## Status
 
-Core systems are built: UI, daemon, meetings, commissions, git isolation, worker packages, Guild Master coordination. 1706 tests pass. Active development is issue-driven.
+Core systems are built: UI, daemon, meetings, commissions, git isolation, worker packages, Guild Master coordination, worker-to-worker mail, project briefings, and worker domain plugins. 1982 tests pass. Active development is issue-driven.
 
 ## Architecture
 
@@ -24,7 +24,8 @@ For deeper architectural context, see `.lore/specs/guild-hall-system.md` and `.l
 
 | Directory | Contents | Consult when... |
 |-----------|----------|-----------------|
-| `.lore/specs/` | System, workers, commissions, meetings, views, worker roster specs | Understanding requirements or checking REQ IDs |
+| `.lore/specs/` | System, workers, commissions, meetings, views, worker roster, domain plugins, worker communication specs | Understanding requirements or checking REQ IDs |
+| `.lore/design/` | Technical design documents for specific features | Understanding design decisions for a feature |
 | `.lore/reference/` | Excavated feature documentation | Understanding existing system capabilities |
 | `.lore/plans/` | Implementation plans (current and historical) | Planning new work or understanding what was built when |
 | `.lore/retros/` | Post-mortems with lessons learned | Avoiding repeated mistakes |
@@ -58,10 +59,12 @@ bun run lint                   # ESLint
 bun run typecheck              # TypeScript type checking
 bun test                       # run all tests
 bun test tests/lib/config.test.ts  # run a single test file
+bun test --coverage            # run tests with coverage report
 bun run guild-hall register <name> <path>  # register a project
 bun run guild-hall validate                # validate config
 bun run guild-hall rebase [project-name]   # rebase claude onto master
-bun run guild-hall sync [project-name]    # post-merge sync (detect merged PRs, reset claude)
+bun run guild-hall sync [project-name]     # post-merge sync (detect merged PRs, reset claude)
+bun run guild-hall migrate-content         # migrate result_summary from frontmatter to body
 ```
 
 ## Key Paths
@@ -98,6 +101,14 @@ Commissions and meetings are orchestrators that compose these concerns. They seq
 
 **Toolbox resolver.** Uses a name-based `SYSTEM_TOOLBOX_REGISTRY` mapping names to `ToolboxFactory` functions. All factories receive `GuildHallToolboxDeps` (includes eventBus). The resolver runs: (1) `baseToolboxFactory`, (2) context toolbox auto-added by `contextType` from the registry, (3) system toolboxes from `worker.systemToolboxes` (e.g. `["manager"]`), (4) domain toolboxes from packages. Manager toolbox requires `services` in deps.
 
+**Worker mail.** Workers communicate via `send_mail` tool, which triggers recipient activation as a mail reader session. Concurrency is capped by `maxConcurrentMailReaders` in config. The mail system handles sleep/wake transitions, reply tracking via EventBus, queue management at capacity, and recovery on daemon restart. Implementation lives in `daemon/services/mail/`.
+
+**Briefing generator.** Project status briefings run through the full SDK session pipeline (`prepareSdkSession` + `runSdkSession`) with Guild Master identity and read-only tools. Cached by integration worktree HEAD commit with 1-hour TTL. Falls back to single-turn query, then static template. Route: `GET /briefing/:projectName`.
+
+**Worker domain plugins.** Worker packages can ship Claude Code plugins in `plugin/.claude-plugin/`. Workers declare `domainPlugins` referencing package names; plugin paths are resolved during `prepareSdkSession` and passed to the SDK. The guild-hall-writer package contains a `cleanup-commissions` skill as the first domain plugin.
+
+**Memory compaction.** Long-running sessions get async memory summarization via `daemon/services/memory-compaction.ts`, preventing context window exhaustion.
+
 **Type boundaries.** Daemon-specific types live in `daemon/` (e.g., `GuildHallEvent`, `MeetingId`, `CommissionId`, `SystemEvent`, `AppDeps`). Shared types used by both daemon and Next.js live in `lib/types.ts` (including `ChatMessage` and `ToolUseEntry`). The daemon imports from `lib/` via `@/lib/` path alias; `lib/` never imports from `daemon/` or `web/`.
 
 **Component model.** Server components in `web/app/` read from the filesystem, pass data as props to client components in `web/components/`. Client components handle local UI state only. Catch-all route `web/app/projects/[name]/artifacts/[...path]/` handles deep artifact hierarchies. Pages use `await searchParams` (Next.js 15 async params pattern).
@@ -115,6 +126,10 @@ Commissions and meetings are orchestrators that compose these concerns. They seq
 - **No `mock.module()`**. It causes infinite loops in bun. All code uses dependency injection: functions accept path/config parameters with defaults, tests pass temp directories.
 - Tests use `fs.mkdtemp()` for temp directories, clean up in `afterEach`. Override `GUILD_HALL_HOME` env var for config path isolation.
 - Daemon tests use Hono's `app.request()` test client with injected deps.
+
+## Changelog
+
+`CHANGELOG.md` follows the [Common Changelog](https://common-changelog.org/) format. Update it when adding, changing, removing, or fixing user-facing behavior.
 
 ## Lessons from Retros
 

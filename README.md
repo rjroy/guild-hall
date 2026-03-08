@@ -2,7 +2,7 @@
 
 A multi-agent workspace for delegating work to AI specialists and reviewing their output. Fantasy guild aesthetic, file-based state, no database.
 
-Guild Hall treats AI collaboration as a structured process: register a project, browse its artifacts, hold meetings with specialist workers, and dispatch commissions for async work. Workers are Claude Agent SDK sessions with distinct identities and toolboxes. A three-tier git branch strategy isolates AI work from your codebase.
+Guild Hall treats AI collaboration as a structured process: register a project, browse its artifacts, hold meetings with specialist workers, and dispatch commissions for async work. Workers are Claude Agent SDK sessions with distinct identities, toolboxes, and domain plugins. Workers communicate with each other via a mail system, and the Guild Master generates project briefings through the SDK pipeline. A three-tier git branch strategy isolates AI work from your codebase.
 
 ## Prerequisites
 
@@ -32,6 +32,8 @@ bun run dev:daemon             # start daemon only (watch mode)
 bun run dev:next               # start Next.js only (turbopack)
 bun run build                  # production build
 bun run start                  # start daemon + Next.js (production)
+bun run start:daemon           # start daemon only (~/.guild-hall/packages/)
+bun run start:next             # start Next.js only (production)
 bun run lint                   # ESLint
 bun run typecheck              # TypeScript type checking
 bun test                       # run all tests
@@ -49,11 +51,11 @@ The repo is a monorepo with four top-level systems:
 - **`web/`** -- Next.js App Router UI (server components for reads, client components for interaction)
 - **`daemon/`** -- Hono server on a Unix socket (`~/.guild-hall/guild-hall.sock`), owns all write operations, meeting/commission sessions, and the EventBus
 - **`cli/`** -- Bun scripts for project registration, config validation, and git operations
-- **`packages/`** -- Worker and toolbox packages (developer, researcher, reviewer, test-engineer, writer)
+- **`packages/`** -- Worker and toolbox packages (developer, researcher, reviewer, test-engineer, writer, shared)
 - **`lib/`** -- Shared business logic (artifacts, config, paths, types)
 - **`tests/`** -- Mirrors source structure
 
-Meetings and commissions run as Claude Agent SDK sessions inside the daemon. A three-tier git branch strategy (`master` / `claude` / activity branches) isolates AI work: the UI reads from integration worktrees on `claude`, active sessions get their own worktrees with sparse checkout.
+Meetings and commissions run as Claude Agent SDK sessions inside the daemon. A three-tier git branch strategy (`master` / `claude` / activity branches) isolates AI work: the UI reads from integration worktrees on `claude`, active sessions get their own worktrees with sparse checkout. Workers communicate via a mail system with sleep/wake transitions and concurrency management. The Guild Master generates project briefings through the full SDK pipeline with caching. Worker packages can ship Claude Code domain plugins that extend worker capabilities.
 
 ## Tech Stack
 
