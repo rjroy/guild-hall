@@ -239,6 +239,7 @@ export function createMailOrchestrator(
       mailFilePath: mailPath,
       readerWorkerName: targetWorker,
       readerActive: false,
+      mailSequence,
     };
 
     await callbacks.writeStateFile(commissionId, {
@@ -786,6 +787,10 @@ export function createMailOrchestrator(
   async function recoverSleepingCommission(state: SleepingCommissionState): Promise<void> {
     const { commissionId: cidStr, pendingMail, projectName, workerName, worktreeDir, branchName } = state;
 
+    // Recover the mail sequence from the state file. Old state files written
+    // before this field existed won't have it, so fall back to 1.
+    const recoveredSequence = pendingMail.mailSequence ?? 1;
+
     // Read the mail file to determine recovery action
     let mailStatus: string;
     try {
@@ -808,7 +813,7 @@ export function createMailOrchestrator(
         branchName,
         mailFilePath: pendingMail.mailFilePath,
         readerWorkerName: pendingMail.readerWorkerName,
-        mailSequence: 1,
+        mailSequence: recoveredSequence,
       };
 
       // Read the mail file for the wake prompt
@@ -837,7 +842,7 @@ export function createMailOrchestrator(
         branchName,
         mailFilePath: pendingMail.mailFilePath,
         readerWorkerName: pendingMail.readerWorkerName,
-        mailSequence: 1,
+        mailSequence: recoveredSequence,
       });
     } else {
       // sent: reader never started or was queued. Activate it.
@@ -850,7 +855,7 @@ export function createMailOrchestrator(
         branchName,
         mailFilePath: pendingMail.mailFilePath,
         readerWorkerName: pendingMail.readerWorkerName,
-        mailSequence: 1,
+        mailSequence: recoveredSequence,
       });
     }
   }
