@@ -834,6 +834,53 @@ describe("getWorkerByName", () => {
     expect(found).toBeUndefined();
   });
 
+  test("finds worker by identity name when package name differs", () => {
+    const packages: DiscoveredPackage[] = [
+      {
+        name: "guild-hall-writer",
+        path: "/packages/guild-hall-writer",
+        metadata: {
+          ...validWorkerGuildHall(),
+          identity: {
+            name: "Scribe",
+            description: "Writes documents",
+            displayTitle: "The Scribe",
+          },
+        } as WorkerMetadata,
+      },
+    ];
+
+    const found = getWorkerByName(packages, "Scribe");
+    expect(found).toBeDefined();
+    expect(found!.name).toBe("guild-hall-writer");
+  });
+
+  test("prefers package name over identity name", () => {
+    const packages: DiscoveredPackage[] = [
+      {
+        name: "researcher",
+        path: "/packages/researcher",
+        metadata: { ...validWorkerGuildHall() } as WorkerMetadata,
+      },
+      {
+        name: "guild-hall-writer",
+        path: "/packages/guild-hall-writer",
+        metadata: {
+          ...validWorkerGuildHall(),
+          identity: {
+            name: "researcher",
+            description: "Writes documents",
+            displayTitle: "The Writer",
+          },
+        } as WorkerMetadata,
+      },
+    ];
+
+    const found = getWorkerByName(packages, "researcher");
+    expect(found).toBeDefined();
+    expect(found!.path).toBe("/packages/researcher");
+  });
+
   test("returns undefined when name matches a toolbox, not a worker", () => {
     const packages: DiscoveredPackage[] = [
       {

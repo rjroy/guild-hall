@@ -237,10 +237,18 @@ export function getToolboxes(
   return packages.filter((p) => isToolboxType(p.metadata.type));
 }
 
-/** Finds a specific worker package by name. Returns undefined if not found. */
+/**
+ * Finds a specific worker package by package name or worker identity name.
+ * Package name is checked first; if no match, falls back to identity name.
+ * Returns undefined if not found.
+ */
 export function getWorkerByName(
   packages: DiscoveredPackage[],
   name: string
 ): DiscoveredPackage | undefined {
-  return packages.find((p) => p.name === name && isWorkerType(p.metadata.type));
+  const workers = packages.filter((p) => isWorkerType(p.metadata.type));
+  return (
+    workers.find((p) => p.name === name) ??
+    workers.find((p) => (p.metadata as WorkerMetadata).identity.name === name)
+  );
 }
