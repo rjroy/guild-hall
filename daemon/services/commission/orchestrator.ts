@@ -565,14 +565,13 @@ export function createCommissionOrchestrator(
     }
 
     if (finalizeResult.merged) {
-      // Clean merge
+      // Clean merge — status already in integration via squash-merge
       eventBus.emit({
         type: "commission_status",
         commissionId: ctx.commissionId as string,
         status: "completed",
         reason: "Execution completed",
       });
-      await syncStatusToIntegration(ctx.commissionId, ctx.projectName, "completed", "Execution completed");
       await deleteStateFile(ctx.commissionId);
       console.log(
         `[orchestrator] "${ctx.commissionId as string}" squash-merged to claude and cleaned up`,

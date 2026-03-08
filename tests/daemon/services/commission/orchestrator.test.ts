@@ -605,6 +605,32 @@ describe("session completion flow", () => {
     expect(completedEvents.length).toBeGreaterThanOrEqual(1);
   });
 
+  test("successful completion does not write duplicate status_completed to integration", async () => {
+    const workspace = createMockWorkspace();
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-no-double-001");
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: true,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const { orchestrator } = buildDeps({ workspace, mockQueryFn, eventBus });
+
+    const artifactPath = await writeCommissionArtifact(integrationPath, commissionId as string);
+
+    await orchestrator.dispatchCommission(commissionId);
+    await new Promise<void>((r) => setTimeout(r, 200));
+
+    // Read the integration artifact and count status_completed timeline entries.
+    // The mock finalize returns merged: true but doesn't actually squash-merge,
+    // so the only way status_completed appears is via syncStatusToIntegration.
+    // After the fix, it should not be called on the merged path.
+    const content = await fs.readFile(artifactPath, "utf-8");
+    const statusCompletedCount = (content.match(/event: status_completed/g) ?? []).length;
+    expect(statusCompletedCount).toBe(0);
+  });
+
   test("no result submitted: transitions to failed", async () => {
     const eventBus = createTestEventBus();
     const commissionId = asCommissionId("commission-test-noresult-001");
