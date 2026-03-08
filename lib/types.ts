@@ -67,6 +67,7 @@ export interface WorkerMetadata {
   soul?: string;
   systemToolboxes?: string[];
   domainToolboxes: string[];
+  domainPlugins?: string[];
   builtInTools: string[];
   checkoutScope: CheckoutScope;
   resourceDefaults?: ResourceDefaults;
@@ -94,6 +95,7 @@ export interface DiscoveredPackage {
   name: string;
   path: string;
   metadata: PackageMetadata;
+  pluginPath?: string;
 }
 
 // -- Activation types (Phase 2, Task 003) --

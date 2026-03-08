@@ -36,6 +36,7 @@ export type SdkQueryOptions = {
   permissionMode?: string;
   mcpServers?: Record<string, unknown>;
   allowedTools?: string[];
+  plugins?: Array<{ type: "local"; path: string }>;
   settingSources?: string[];
   cwd?: string;
   maxTurns?: number;
@@ -240,6 +241,27 @@ export async function prepareSdkSession(
     return { ok: false, error: `Tool resolution failed: ${errorMessage(err)}` };
   }
 
+  // 2b. Resolve domain plugins
+  const resolvedPlugins: Array<{ type: "local"; path: string }> = [];
+  if (workerMeta.domainPlugins && workerMeta.domainPlugins.length > 0) {
+    for (const pluginName of workerMeta.domainPlugins) {
+      const pkg = spec.packages.find((p) => p.name === pluginName);
+      if (!pkg) {
+        return {
+          ok: false,
+          error: `Worker "${spec.workerName}" requires domain plugin "${pluginName}" but no matching package was found`,
+        };
+      }
+      if (pkg.pluginPath === undefined) {
+        return {
+          ok: false,
+          error: `Worker "${spec.workerName}" requires domain plugin "${pluginName}" but package "${pluginName}" does not contain a plugin (no plugin/.claude-plugin/plugin.json)`,
+        };
+      }
+      resolvedPlugins.push({ type: "local" as const, path: pkg.pluginPath });
+    }
+  }
+
   // 3. Load memories and trigger compaction if needed
   let injectedMemory = "";
   try {
@@ -296,6 +318,7 @@ export async function prepareSdkSession(
     cwd: spec.workspaceDir,
     mcpServers,
     allowedTools: activation.tools.allowedTools,
+    ...(resolvedPlugins.length > 0 ? { plugins: resolvedPlugins } : {}),
     ...(activation.model ? { model: activation.model } : {}),
     ...(maxTurns ? { maxTurns } : {}),
     ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
