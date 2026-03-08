@@ -139,6 +139,8 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
 
 - REQ-SYS-26c: While a commission or meeting is active, the activity worktree contains the authoritative copy of its tracking artifact. Both the daemon and the worker write to this copy. The integration worktree's (`claude` branch) copy is stale during the activity and gets replaced on squash-merge at close. For all non-activity artifacts, the integration worktree is authoritative and merge resolution handles conflicts normally.
 
+- REQ-SYS-26d: The integration worktree's committed state is the source of truth for branching. Any tool or daemon operation that writes a file to the integration worktree must commit it to `claude/main` before returning success. Uncommitted files on the integration worktree are not visible to activity branches created from `claude/main`, so an uncommitted write is an incomplete write. This applies to artifact creation (meeting requests, commission artifacts) and any other file the daemon or a tool places on the integration worktree outside of an activity context.
+
 - REQ-SYS-27: Project artifacts live in `<project-worktree>/.lore/` within the project's git worktree. The existing lore document schema is preserved unchanged.
 
 - REQ-SYS-28: Guild Hall maintains its own git worktree of each project's repo under `~/.guild-hall/projects/<name>/`. Workers read and write `.lore/` in the worktree, not in the user's working directory. Worker-produced artifacts stay out of the user's `git status` and don't conflict with uncommitted changes.
