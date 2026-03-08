@@ -72,16 +72,22 @@
 
 .viewProjectLink {
   display: block;
-  padding: 0 var(--space-sm) var(--space-xs);
-  padding-left: calc(var(--space-sm) + 16px + var(--space-sm));
+  margin-left: calc(var(--space-sm) + 16px + var(--space-sm));
+  margin-bottom: var(--space-xs);
+  padding: 2px var(--space-sm);
   font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-weight: 600;
+  color: var(--color-brass);
   text-decoration: none;
-  transition: color 0.15s ease;
+  border: 1px solid var(--color-brass);
+  border-radius: 3px;
+  width: fit-content;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .viewProjectLink:hover {
-  color: var(--color-brass);
+  color: var(--color-parchment);
+  background-color: rgba(184, 134, 11, 0.2);
 }
 
 /* --- Responsive --- */
@@ -100,6 +106,9 @@
 
   .projectItem {
     flex: 0 1 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
   }
 
   .projectDescription {
@@ -107,6 +116,9 @@
   }
 
   .viewProjectLink {
-    display: none;
+    margin-left: 0;
+    margin-bottom: 0;
+    font-size: 0.7rem;
+    white-space: nowrap;
   }
 }
