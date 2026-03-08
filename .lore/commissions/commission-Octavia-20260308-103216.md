@@ -1,7 +1,7 @@
 ---
 title: "Commission: Specify mail reader toolbox from JMAP research"
 date: 2026-03-08
-status: pending
+status: dispatched
 tags: [commission]
 worker: Octavia
 workerDisplayTitle: "Guild Chronicler"
@@ -13,6 +13,11 @@ activity_timeline:
   - timestamp: 2026-03-08T17:32:16.239Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-08T17:37:22.983Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
