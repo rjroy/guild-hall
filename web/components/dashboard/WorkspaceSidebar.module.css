@@ -83,3 +83,30 @@
 .viewProjectLink:hover {
   color: var(--color-brass);
 }
+
+/* --- Responsive --- */
+
+@media (max-width: 1200px) {
+  .guildTitle {
+    font-size: 1.2rem;
+    margin-bottom: var(--space-sm);
+  }
+
+  .projectList {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .projectItem {
+    flex: 0 1 auto;
+  }
+
+  .projectDescription {
+    display: none;
+  }
+
+  .viewProjectLink {
+    display: none;
+  }
+}

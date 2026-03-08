@@ -64,6 +64,22 @@
 
 /* --- Responsive --- */
 
+@media (max-width: 1200px) {
+  .panel {
+    border-width: 8px;
+    border-image-width: 22px;
+    border-radius: 22px;
+  }
+
+  .title {
+    font-size: 1.1rem;
+  }
+
+  .header {
+    margin-bottom: var(--space-sm);
+  }
+}
+
 @media (max-width: 480px) {
   .panel {
     border-width: 6px;
