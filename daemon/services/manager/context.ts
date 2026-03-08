@@ -123,7 +123,7 @@ function buildWorkerSection(packages: DiscoveredPackage[]): string {
   const lines = ["## Available Workers\n"];
   for (const w of workers) {
     const meta = w.metadata as WorkerMetadata;
-    lines.push(`- **${meta.identity.name}** (${w.name})`);
+    lines.push(`- **${meta.identity.name}** — package: \`${w.name}\``);
     lines.push(`  ${meta.identity.displayTitle}: ${meta.identity.description}`);
     if (meta.checkoutScope) {
       lines.push(`  Checkout: ${meta.checkoutScope}`);
