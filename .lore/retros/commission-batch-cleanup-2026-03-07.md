@@ -1,67 +1,58 @@
 ---
 title: "Retro: Commission Batch Cleanup (March 3-7, 2026)"
 date: 2026-03-07
-status: open
+status: complete
 tags: [retro, commissions, infrastructure]
 ---
 
 ## Context
 
-Reviewed all 56 commission artifacts from the first week of Guild Hall's commission system being active. Five workers produced commissions: Dalton (18), Thorne (11), Octavia (11), Writer (7), Developer (7), Verity (3). This retro captures cross-cutting lessons before deleting the commission files (git history preserves the originals).
+Reviewed 57 commission artifacts from the first week of Guild Hall's commission system being active. Five worker packages produced commissions: Dalton (18), Thorne (11), Octavia (11), Developer (7), Writer (7), Verity (3). "Writer" and "Developer" were the pre-rename generic names for the Octavia and Dalton packages respectively. All commission files were deleted after review; git history preserves the originals.
 
-## What Worked
+## What We Learned
 
-**The implement-review-fix cycle caught real bugs.** Thorne's checkpoint reviews of the W2W communication feature escalated a toolbox resolver wiring gap from "untyped settings bag" (Checkpoint 1) to "critical production defect" (Step 8 validation). Tests passed because they mocked the resolver; only a fresh-eyes review caught that production wiring was broken. This pattern (Dalton implements, Thorne reviews, Dalton fixes) is the strongest quality signal the commission system produced.
+### The implement-review-fix cycle is the system's strongest quality signal
 
-**Worker role separation is clean.** Writer specs and plans, Octavia handles lore/issue management, Developer and Dalton implement, Thorne reviews, Verity researches. No worker stepped outside its role. The pipeline (issue, spec, plan, implement, review, fix) ran without confusion about who does what.
+Thorne's checkpoint reviews of W2W communication caught a toolbox resolver wiring gap that unit tests missed. Tests passed because they mocked the resolver; the production wiring was broken. Only a fresh-eyes review with no implementation context surfaced it. The pattern (Dalton implements, Thorne reviews, Dalton fixes) repeated across the batch and consistently found real issues.
 
-**Review findings were mostly consumed.** Of the dozens of findings across Thorne's 11 review commissions, the vast majority were addressed by subsequent Dalton fix commissions. The few that weren't were explicitly triaged in Dalton commission #17 ("Reassess Deferred Review Findings") with documented reasoning for each skip.
+Lesson: fresh-context review catches what tests don't. Tests prove the pieces work; review proves they're assembled.
 
-## Loose Threads
+### A triage commission after a review cycle closes the loop
 
-### W2W Communication Gaps (from Thorne reviews, not tracked as issues)
+Dalton #17 ("Reassess Deferred Review Findings") went through 23 deferred items from Thorne's reviews and made a documented call on each. This is worth repeating as a pattern: after a feature's review cycle completes, dispatch one final commission to triage all remaining findings and either file issues or document why they were skipped. Without this step, deferred findings live only in commission artifacts and vanish on cleanup.
 
-These are known gaps in the worker-to-worker communication feature, surfaced during checkpoint reviews. They live only in the commission artifacts being deleted. If W2W is considered in-progress, these need to land somewhere.
+### Commission artifacts are receipts, not products
 
-1. **Unfixed lint errors.** Dalton #18 (the final commission) crashed before doing any work. The branch likely has lint violations from W2W.
-2. **No test for multiple sleep/wake cycles** (REQ-MAIL-4). Code paths exist but no dedicated test proves a second cycle works.
-3. **No test for cancel during active mail reader** (mail status `open`). The most complex cancel path has no end-to-end test.
-4. **No circuit breaker for repeated sleep/wake cycles.** A buggy worker could loop, burning tokens before anyone notices.
-5. **Sleep timeout feature (REQ-MAIL-21) not implemented.** Referenced in spec but not in the implementation plan.
-6. **No UI for mail/sleeping commissions.** No views spec exit point, no browser representation.
-7. **EventBus event payloads not formally typed.** Events use ad-hoc shapes; subscribers assume structure without validation.
-8. **Recovery hardcodes `mailSequence: 1`.** Multi-cycle commissions that crash will recover with wrong sequence numbers.
+The value commissions produce lands in specs, plans, code, issues, and reviews. The commission file itself is an audit trail. Once the work chain completes, the commission has no ongoing utility beyond forensics. Future cleanup should be routine, not a special event.
 
-### Minor Code Quality (addressed by Dalton #7, confirming the chain works)
+### Worker role boundaries held without enforcement
 
-Stale JSDoc, YAML escaping inconsistency, stale type re-export in ToolUseIndicator were all raised by Thorne and fixed in a single cleanup commission. No loose threads here.
+No worker stepped outside its role across 57 commissions. Octavia/Writer handled specs, plans, and lore. Dalton/Developer handled implementation. Thorne reviewed. Verity researched. The pipeline (issue, spec, plan, implement, review, fix) ran without confusion. The role separation is declared in worker posture files and the workers respected it, but nothing in the system enforces it. Worth watching whether this holds as commission volume grows.
 
-## Commission Infrastructure Bugs
+### Research commissions are forward-looking by design
 
-These are bugs in the commission system itself, observed across multiple workers and commissions.
+Verity's three research commissions (SOUL.md personality, notification channels, Fastmail JMAP) produced `.lore/research/` artifacts and have no follow-up. That's expected. Research feeds future decisions. Don't treat "no follow-up" as a loose thread for research work.
 
-1. **Double `status_completed` events.** Every commission has two consecutive `status_completed` entries in its activity timeline (seconds apart). Systematic, not worker-specific.
+### Retros written from commission artifacts drift from reality
 
-2. **Result body truncation.** Several commissions (Developer D1, D3, Octavia #11) have their body or `result_summary` showing the first progress report instead of the final result. The `result_submitted` event in the timeline has the correct content, but the field that populates the commission file body captures the wrong text.
+This retro was initially written from the commission files (what reviewers said they found) without verifying against the current codebase. Several claims turned out to be wrong: events described as "not formally typed" are actually a discriminated union, `linked_artifacts` described as "duplicate" is guarded by a dedup check, lint errors described as "unfixed" don't exist. Commission artifacts record what an LLM said it saw at a point in time. That's not the same as what the code says now. Validate claims against the source before recording them as findings.
 
-3. **Duplicate `linked_artifacts` entries.** Writer W3, W4, Developer D3, D5, D6 all have their linked artifacts list duplicated (same paths appear twice). Likely the artifact-writing code appends links during both research and implementation phases without deduplication.
+## Issues Filed
 
-4. **Failed commissions give no diagnostics.** Dalton #18 went from `dispatched` to `failed` in 4 seconds with "Claude Code process exited with code 1" and empty `current_progress`. No stack trace, no stderr capture, no indication of what went wrong.
+Confirmed issues extracted to `.lore/issues/`:
 
-5. **Duplicate dispatch.** Dalton #5 was dispatched to fix a bug that Dalton #2 had already fixed. The Guild Master didn't check prior completions before dispatching. Dalton recognized the duplicate and completed without changes, but it still consumed a commission slot and API tokens.
+- `double-status-completed.md`: lifecycle.ts and orchestrator.ts both write `status_completed` to the timeline during commission completion
+- `w2w-mail-test-gaps.md`: multiple sleep/wake cycles and cancel-during-active-reader lack dedicated tests; recovery hardcodes `mailSequence: 1`
 
-6. **Review file write blocked by permissions.** Thorne commission #7 (W2W spec review) attempted to write to `.lore/reviews/` but was blocked by permission restrictions. The full review content was embedded in the commission result instead, but the intended file was never created.
+## Claims Not Filed (Investigated, Not Confirmed)
 
-## Lessons
+These were in the original draft of this retro. Investigation found them unsupported or wrong.
 
-**Commission artifacts are receipts, not products.** The value commissions produce lands in specs, plans, code, issues, and reviews. The commission file itself is an audit trail. Once the work chain completes, the commission has no ongoing utility. Future cleanup should be routine, not a special event.
-
-**The triage commission pattern works.** Dalton #17 ("Reassess Deferred Review Findings") explicitly went through 23 deferred items and made a documented call on each one. This is worth repeating: after a feature's review cycle completes, dispatch one final commission to triage all deferred findings and either file issues or document why they were skipped.
-
-**Research commissions are forward-looking by design.** Verity's three research commissions (SOUL.md personality, notification channels, Fastmail JMAP) have no follow-up and that's expected. Research produces `.lore/research/` artifacts that await future decisions. Don't treat "no follow-up" as a loose thread for research work.
-
-**Result capture needs fixing.** The truncated result bodies make commissions unreliable as records without cross-referencing the activity timeline. The `result_submitted` event has the right content; the file body doesn't always match. This is the highest-priority infrastructure fix.
-
-## Cleanup Decision
-
-Delete all 56 commission files. Git history preserves them. The loose threads from W2W communication are captured in this retro and should be filed as issues if the feature moves forward.
+- **Result body truncation**: `updateResult()` splices the body correctly. `updateProgress()` only touches `current_progress` in frontmatter. No code path where progress overwrites the body. May have been a one-off data issue in deleted artifacts; can't reproduce from code.
+- **Duplicate linked_artifacts**: `record.ts:192` has an `includes()` dedup check before appending. The retro claimed this was systematic across 5+ commissions, but the code prevents it.
+- **EventBus events not formally typed**: `SystemEvent` is a discriminated union with explicitly typed variants for every event type including all mail events.
+- **REQ-MAIL-21 not implemented**: deliberately removed during the W2W meeting as unnecessary complexity. The meeting timeline records the decision.
+- **Reviewer blocked from writing files**: the reviewer worker's `builtInTools` are `["Read", "Glob", "Grep"]` by design. This is working as intended, not a permission bug.
+- **Unfixed lint errors**: `bun run lint` runs clean. No violations exist.
+- **Failed commission diagnostics**: the error reason is written to the timeline via `lifecycle.executionFailed()`. The complaint was about empty `current_progress`, but that's expected when a process crashes before reporting any progress. The diagnostic information that exists (error string, status transition) is captured.
+- **Duplicate dispatch**: the Guild Master dispatched a fix for something already fixed. This is an LLM judgment issue (it didn't check prior completions), not a system bug. The worker recognized the duplicate and completed without changes.
