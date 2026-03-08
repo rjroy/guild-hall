@@ -255,7 +255,7 @@ export async function prepareSdkSession(
       if (pkg.pluginPath === undefined) {
         return {
           ok: false,
-          error: `Worker "${spec.workerName}" requires domain plugin "${pluginName}" but package "${pluginName}" does not contain a plugin (no .claude-plugin/plugin.json)`,
+          error: `Worker "${spec.workerName}" requires domain plugin "${pluginName}" but package "${pluginName}" does not contain a plugin (no plugin/.claude-plugin/plugin.json)`,
         };
       }
       resolvedPlugins.push({ type: "local" as const, path: pkg.pluginPath });

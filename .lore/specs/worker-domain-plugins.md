@@ -32,13 +32,13 @@ This gives workers access to skills and commands during commissions and meetings
 
 ### Plugin in Packages
 
-- REQ-DPL-1: A package may optionally contain a Claude Code plugin. The plugin is identified by the presence of a `.claude-plugin/plugin.json` file at the package root. The plugin follows the standard Claude Code plugin structure: `skills/*/SKILL.md`, `commands/*.md`, `agents/*.md`, `hooks/hooks.json`, `.mcp.json`.
+- REQ-DPL-1: A package may optionally contain a Claude Code plugin inside a `plugin/` subdirectory. The plugin is identified by the presence of `plugin/.claude-plugin/plugin.json` relative to the package root. The plugin follows the standard Claude Code plugin structure: `skills/*/SKILL.md`, `commands/*.md`, `agents/*.md`, `hooks/hooks.json`, `.mcp.json`, all relative to the `plugin/` directory. The `plugin/` subdirectory prevents plugin concerns (skills, hooks, commands, agents) from mixing with package concerns (posture.md, soul.md, index.ts).
 
 - REQ-DPL-2: A package contains at most one plugin. The plugin is the package's plugin. There is no mechanism for a package to contain multiple plugins.
 
-- REQ-DPL-3: Plugin presence is detected during package discovery (`lib/packages.ts`). When a package directory contains `.claude-plugin/plugin.json`, the discovery result records that a plugin is available and stores the absolute path to the package root directory. The SDK's `plugins` option expects this root path and locates `.claude-plugin/plugin.json` relative to it.
+- REQ-DPL-3: Plugin presence is detected during package discovery (`lib/packages.ts`). When a package directory contains `plugin/.claude-plugin/plugin.json`, the discovery result records that a plugin is available and stores the absolute path to the `plugin/` directory. The SDK's `plugins` option expects this path and locates `.claude-plugin/plugin.json` relative to it.
 
-- REQ-DPL-4: Plugin detection does not validate plugin contents. The SDK handles validation when the plugin is loaded. Discovery only checks for the existence of `.claude-plugin/plugin.json`.
+- REQ-DPL-4: Plugin detection does not validate plugin contents. The SDK handles validation when the plugin is loaded. Discovery only checks for the existence of `plugin/.claude-plugin/plugin.json`.
 
 ### Worker Declaration
 
@@ -58,7 +58,7 @@ This gives workers access to skills and commands during commissions and meetings
 
 - REQ-DPL-7: If a declared domain plugin references a package that does not exist among discovered packages, activation fails with a clear error identifying the missing package. This matches the behavior of missing domain toolboxes (REQ-WKR-13).
 
-- REQ-DPL-8: If a declared domain plugin references a package that exists but does not contain a plugin (no `.claude-plugin/plugin.json`), activation fails with a clear error distinguishing "package not found" from "package has no plugin."
+- REQ-DPL-8: If a declared domain plugin references a package that exists but does not contain a plugin (no `plugin/.claude-plugin/plugin.json`), activation fails with a clear error distinguishing "package not found" from "package has no plugin."
 
 ### Plugin Resolution
 
@@ -80,11 +80,11 @@ This gives workers access to skills and commands during commissions and meetings
 
 ### Package Discovery Updates
 
-- REQ-DPL-16: The `DiscoveredPackage` type gains an optional `pluginPath?: string` field. When a package has a plugin, this is the absolute path to the package root directory.
+- REQ-DPL-16: The `DiscoveredPackage` type gains an optional `pluginPath?: string` field. When a package has a plugin, this is the absolute path to the `plugin/` subdirectory (the directory the SDK receives as the plugin root).
 
 - REQ-DPL-17: The `WorkerMetadata` Zod schema (`workerMetadataSchema`) gains an optional `domainPlugins` field: `z.array(z.string()).optional()`.
 
-- REQ-DPL-18: The package discovery function checks for `.claude-plugin/plugin.json` existence using `fs.existsSync` (or equivalent). No file content is read. This keeps discovery fast.
+- REQ-DPL-18: The package discovery function checks for `plugin/.claude-plugin/plugin.json` existence using `fs.access` (async, matching the file's import style). No file content is read. This keeps discovery fast.
 
 ## Exit Points
 
@@ -95,7 +95,7 @@ This gives workers access to skills and commands during commissions and meetings
 
 ## Success Criteria
 
-- [ ] Packages with `.claude-plugin/plugin.json` are detected during discovery
+- [ ] Packages with `plugin/.claude-plugin/plugin.json` are detected during discovery
 - [ ] `pluginPath` is populated on `DiscoveredPackage` when a plugin exists
 - [ ] Workers can declare `domainPlugins` in package.json metadata
 - [ ] Missing domain plugin package fails activation with clear error

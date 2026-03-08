@@ -188,11 +188,11 @@ export async function discoverPackages(
         }
       }
 
-      // Check for domain plugin (.claude-plugin/plugin.json)
+      // Check for domain plugin (plugin/.claude-plugin/plugin.json)
       let pluginPath: string | undefined;
       try {
-        await fs.access(path.join(pkgDir, ".claude-plugin", "plugin.json"));
-        pluginPath = pkgDir;
+        await fs.access(path.join(pkgDir, "plugin", ".claude-plugin", "plugin.json"));
+        pluginPath = path.join(pkgDir, "plugin");
       } catch {
         // No plugin present, leave undefined
       }

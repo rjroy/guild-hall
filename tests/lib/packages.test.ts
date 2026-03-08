@@ -659,24 +659,24 @@ describe("discoverPackages", () => {
     }
   });
 
-  test("package with .claude-plugin/plugin.json gets pluginPath populated", async () => {
+  test("package with plugin/.claude-plugin/plugin.json gets pluginPath populated", async () => {
     const pkgDir = await writePackage(tmpDir, "plugin-worker", {
       name: "plugin-worker",
       guildHall: validWorkerGuildHall(),
     });
-    await fs.mkdir(path.join(pkgDir, ".claude-plugin"), { recursive: true });
+    await fs.mkdir(path.join(pkgDir, "plugin", ".claude-plugin"), { recursive: true });
     await fs.writeFile(
-      path.join(pkgDir, ".claude-plugin", "plugin.json"),
+      path.join(pkgDir, "plugin", ".claude-plugin", "plugin.json"),
       "{}",
       "utf-8"
     );
 
     const packages = await discoverPackages([tmpDir]);
     expect(packages).toHaveLength(1);
-    expect(packages[0].pluginPath).toBe(pkgDir);
+    expect(packages[0].pluginPath).toBe(path.join(pkgDir, "plugin"));
   });
 
-  test("package without .claude-plugin/plugin.json gets pluginPath undefined", async () => {
+  test("package without plugin/.claude-plugin/plugin.json gets pluginPath undefined", async () => {
     await writePackage(tmpDir, "no-plugin-worker", {
       name: "no-plugin-worker",
       guildHall: validWorkerGuildHall(),
@@ -687,12 +687,12 @@ describe("discoverPackages", () => {
     expect(packages[0].pluginPath).toBeUndefined();
   });
 
-  test("discovery does not fail if .claude-plugin/ exists without plugin.json", async () => {
+  test("discovery does not fail if plugin/.claude-plugin/ exists without plugin.json", async () => {
     const pkgDir = await writePackage(tmpDir, "partial-plugin", {
       name: "partial-plugin",
       guildHall: validWorkerGuildHall(),
     });
-    await fs.mkdir(path.join(pkgDir, ".claude-plugin"), { recursive: true });
+    await fs.mkdir(path.join(pkgDir, "plugin", ".claude-plugin"), { recursive: true });
 
     const packages = await discoverPackages([tmpDir]);
     expect(packages).toHaveLength(1);
