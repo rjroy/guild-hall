@@ -549,3 +549,36 @@ describe("SSE event format", () => {
     expect(lines).toHaveLength(1);
   });
 });
+
+// -- MessageInput enter key logic --
+// MessageInput is a client component with hooks, so we test the key handler
+// decision logic as a pure function matching the component's condition.
+
+describe("MessageInput enter key behavior", () => {
+  // Mirrors the condition in handleKeyDown: send only when
+  // Enter && !shiftKey && !isTouchDevice
+  function shouldSend(key: string, shiftKey: boolean, isTouchDevice: boolean) {
+    return key === "Enter" && !shiftKey && !isTouchDevice;
+  }
+
+  test("desktop: enter sends message", () => {
+    expect(shouldSend("Enter", false, false)).toBe(true);
+  });
+
+  test("desktop: shift+enter does not send (inserts newline)", () => {
+    expect(shouldSend("Enter", true, false)).toBe(false);
+  });
+
+  test("mobile: enter does not send (inserts newline)", () => {
+    expect(shouldSend("Enter", false, true)).toBe(false);
+  });
+
+  test("mobile: shift+enter does not send", () => {
+    expect(shouldSend("Enter", true, true)).toBe(false);
+  });
+
+  test("non-enter keys never send", () => {
+    expect(shouldSend("a", false, false)).toBe(false);
+    expect(shouldSend("Tab", false, false)).toBe(false);
+  });
+});

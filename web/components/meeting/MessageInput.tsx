@@ -21,6 +21,13 @@ export default function MessageInput({
 }: MessageInputProps) {
   const { isOnline } = useDaemonStatus();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Touch capability doesn't change during a session; compute once and cache.
+  const isTouchDevice = useRef<boolean | null>(null);
+  if (isTouchDevice.current === null) {
+    isTouchDevice.current =
+      typeof window !== "undefined" &&
+      ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+  }
 
   const adjustHeight = useCallback(() => {
     const textarea = textareaRef.current;
@@ -37,7 +44,9 @@ export default function MessageInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // On mobile/touch devices, enter inserts a newline (no shift+enter available).
+    // On desktop, enter sends and shift+enter inserts a newline.
+    if (e.key === "Enter" && !e.shiftKey && !isTouchDevice.current) {
       e.preventDefault();
       if (value.trim() && !isStreaming && isOnline) {
         onSend(value.trim());
