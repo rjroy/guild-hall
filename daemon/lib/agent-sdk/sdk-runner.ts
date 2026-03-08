@@ -32,7 +32,6 @@ export type SdkRunnerEvent =
 
 export type SdkQueryOptions = {
   systemPrompt?: string | { type: "preset"; preset: "claude_code"; append?: string };
-  includePartialMessages?: boolean;
   permissionMode?: string;
   mcpServers?: Record<string, unknown>;
   allowedTools?: string[];
@@ -55,12 +54,11 @@ export type SessionPrepSpec = {
   projectPath: string;
   workspaceDir: string;
   contextId: string;
-  contextType: "commission" | "meeting" | "mail";
+  contextType: "commission" | "meeting" | "mail" | "briefing";
   eventBus: EventBus;
   services?: GuildHallToolServices;
   activationExtras?: Partial<ActivationContext>;
   abortController: AbortController;
-  includePartialMessages?: boolean;
   resume?: string;
   resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
   /** Path to the mail file (mail context only). */
@@ -77,7 +75,7 @@ export type SessionPrepDeps = {
       projectName: string;
       guildHallHome: string;
       contextId: string;
-      contextType: "meeting" | "commission" | "mail";
+      contextType: "meeting" | "commission" | "mail" | "briefing";
       workerName: string;
       workerPortraitUrl?: string;
       eventBus: EventBus;
@@ -134,9 +132,16 @@ export async function* runSdkSession(
   prompt: string,
   options: SdkQueryOptions,
 ): AsyncGenerator<SdkRunnerEvent> {
+  // The event translator extracts text from stream_event messages, not from
+  // assistant messages (to avoid double-emitting when both are present).
+  // Without includePartialMessages, the SDK only emits assistant messages,
+  // which means the translator produces no text_delta events at all.
+  // Force it on so callers can't silently get empty results.
+  const resolvedOptions = { ...options, includePartialMessages: true };
+
   let generator: AsyncGenerator<SDKMessage>;
   try {
-    generator = queryFn({ prompt, options });
+    generator = queryFn({ prompt, options: resolvedOptions });
   } catch (err: unknown) {
     if (err instanceof Error && err.name === "AbortError") {
       yield { type: "aborted" };
@@ -324,7 +329,6 @@ export async function prepareSdkSession(
     ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
     permissionMode: "dontAsk",
     settingSources: ["local", "project", "user"],
-    includePartialMessages: spec.includePartialMessages ?? false,
     abortController: spec.abortController,
     ...(spec.resume ? { resume: spec.resume } : {}),
   };

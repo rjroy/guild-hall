@@ -510,7 +510,6 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
       preset: "claude_code",
       append: WORKER_META.posture,
     });
-    expect(call.options.includePartialMessages).toBe(true);
     expect(call.options.permissionMode).toBe("dontAsk");
     expect(call.options.maxTurns).toBe(30);
   });

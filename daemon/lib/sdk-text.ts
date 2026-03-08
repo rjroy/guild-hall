@@ -1,15 +1,15 @@
 /**
- * Shared SDK text extraction for single-turn, no-tool invocations.
+ * Shared SDK text extraction utilities.
  *
- * Both notes-generator and briefing-generator call the SDK with maxTurns: 1
- * and no streaming (no includePartialMessages). The SDK emits a single
- * assistant message with text content blocks. This function iterates the
- * generator and collects those text blocks.
+ * collectSdkText: For single-turn, no-tool invocations where the SDK emits
+ * raw SDKMessage objects. Used by notes-generator.
  *
- * Extracted here to avoid duplication between the two generators.
+ * collectRunnerText: For multi-turn invocations that go through runSdkSession,
+ * which yields SdkRunnerEvent. Used by briefing-generator.
  */
 
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { SdkRunnerEvent } from "@/daemon/lib/agent-sdk/sdk-runner";
 
 /**
  * Collects text from an SDK async generator for a single-turn invocation.
@@ -41,4 +41,20 @@ export async function collectSdkText(
   }
 
   return textParts.join("");
+}
+
+/**
+ * Collects text from a runSdkSession generator (SdkRunnerEvent stream).
+ * Extracts text_delta events and concatenates them.
+ */
+export async function collectRunnerText(
+  generator: AsyncGenerator<SdkRunnerEvent>,
+): Promise<string> {
+  const parts: string[] = [];
+  for await (const event of generator) {
+    if (event.type === "text_delta") {
+      parts.push(event.text);
+    }
+  }
+  return parts.join("");
 }

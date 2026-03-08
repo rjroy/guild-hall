@@ -9,10 +9,84 @@ import {
   type BriefingGeneratorDeps,
   type BriefingQueryFn,
 } from "@/daemon/services/briefing-generator";
-import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import type { SessionPrepDeps } from "@/daemon/lib/agent-sdk/sdk-runner";
+import type {
+  AppConfig,
+  DiscoveredPackage,
+  WorkerMetadata,
+  ActivationContext,
+} from "@/lib/types";
 
 let tmpDir: string;
 let guildHallHome: string;
+
+/**
+ * Initializes a git repo with one commit at the given path.
+ * Returns the HEAD commit hash.
+ */
+async function initGitRepo(repoPath: string): Promise<string> {
+  const run = async (args: string[]) => {
+    const proc = Bun.spawn(["git", ...args], {
+      cwd: repoPath,
+      env: {
+        ...process.env,
+        GIT_DIR: undefined,
+        GIT_WORK_TREE: undefined,
+        GIT_INDEX_FILE: undefined,
+        GIT_AUTHOR_NAME: "Test",
+        GIT_AUTHOR_EMAIL: "test@test.com",
+        GIT_COMMITTER_NAME: "Test",
+        GIT_COMMITTER_EMAIL: "test@test.com",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const text = await new Response(proc.stdout).text();
+    await proc.exited;
+    return text.trim();
+  };
+
+  await run(["init"]);
+  await fs.writeFile(path.join(repoPath, ".gitkeep"), "");
+  await run(["add", "."]);
+  await run(["commit", "-m", "initial"]);
+  return run(["rev-parse", "HEAD"]);
+}
+
+/**
+ * Creates a new commit in an existing git repo, advancing HEAD.
+ * Returns the new HEAD commit hash.
+ */
+async function advanceHead(repoPath: string): Promise<string> {
+  const run = async (args: string[]) => {
+    const proc = Bun.spawn(["git", ...args], {
+      cwd: repoPath,
+      env: {
+        ...process.env,
+        GIT_DIR: undefined,
+        GIT_WORK_TREE: undefined,
+        GIT_INDEX_FILE: undefined,
+        GIT_AUTHOR_NAME: "Test",
+        GIT_AUTHOR_EMAIL: "test@test.com",
+        GIT_COMMITTER_NAME: "Test",
+        GIT_COMMITTER_EMAIL: "test@test.com",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const text = await new Response(proc.stdout).text();
+    await proc.exited;
+    return text.trim();
+  };
+
+  await fs.writeFile(
+    path.join(repoPath, `change-${Date.now()}.txt`),
+    `change at ${Date.now()}`,
+  );
+  await run(["add", "."]);
+  await run(["commit", "-m", "advance"]);
+  return run(["rev-parse", "HEAD"]);
+}
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-briefing-"));
@@ -29,6 +103,9 @@ beforeEach(async () => {
   await fs.mkdir(path.join(guildHallHome, "state", "meetings"), {
     recursive: true,
   });
+
+  // Initialize a git repo so readHeadCommit works for cache validation
+  await initGitRepo(projectIntegration);
 });
 
 afterEach(async () => {
@@ -36,6 +113,24 @@ afterEach(async () => {
 });
 
 // -- Helpers --
+
+function makeManagerWorkerPackage(): DiscoveredPackage {
+  const metadata: WorkerMetadata = {
+    type: "worker",
+    identity: {
+      name: "Guild Master",
+      description: "The Guild Master",
+      displayTitle: "Guild Master",
+    },
+    posture: "Guild Master posture",
+    soul: "Guild Master soul",
+    domainToolboxes: [],
+    builtInTools: ["Read", "Glob", "Grep"],
+    systemToolboxes: ["manager"],
+    checkoutScope: "sparse",
+  };
+  return { name: "guild-master", path: "/fake/guild-master", metadata };
+}
 
 function makeWorkerPackage(name: string): DiscoveredPackage {
   const metadata: WorkerMetadata = {
@@ -64,9 +159,45 @@ function makeConfig(): AppConfig {
   };
 }
 
+/**
+ * Creates mock SessionPrepDeps for testing the full SDK path.
+ * Tracks calls to resolveToolSet for assertions.
+ */
+function makeMockPrepDeps() {
+  let resolveToolSetCalls = 0;
+  const capturedWorkerOverrides: WorkerMetadata[] = [];
+
+  const prepDeps: SessionPrepDeps = {
+    resolveToolSet: async (worker, _packages, _context) => {
+      resolveToolSetCalls++;
+      capturedWorkerOverrides.push(worker);
+      return {
+        mcpServers: [],
+        allowedTools: ["Read", "Glob", "Grep"],
+      };
+    },
+    loadMemories: async () => ({
+      memoryBlock: "",
+      needsCompaction: false,
+    }),
+    activateWorker: async (_pkg, context: ActivationContext) => ({
+      systemPrompt: `You are ${context.identity.name}`,
+      tools: { mcpServers: [], allowedTools: [] },
+      resourceBounds: { maxTurns: 30 },
+      model: "opus",
+    }),
+  };
+
+  return {
+    prepDeps,
+    getResolveToolSetCalls: () => resolveToolSetCalls,
+    getCapturedWorkerOverrides: () => capturedWorkerOverrides,
+  };
+}
+
 function makeDeps(overrides: Partial<BriefingGeneratorDeps> = {}): BriefingGeneratorDeps {
   return {
-    packages: [makeWorkerPackage("test-worker")],
+    packages: [makeManagerWorkerPackage(), makeWorkerPackage("test-worker")],
     config: makeConfig(),
     guildHallHome,
     ...overrides,
@@ -74,8 +205,12 @@ function makeDeps(overrides: Partial<BriefingGeneratorDeps> = {}): BriefingGener
 }
 
 /**
- * Creates a mock queryFn that yields a single assistant message with the
- * given text. Tracks call count and captured prompts for assertions.
+ * Creates a mock queryFn that yields SDK messages matching what the real SDK
+ * produces. For the single-turn path (collectSdkText), it yields an "assistant"
+ * message. For the full SDK path (runSdkSession -> translateSdkMessage ->
+ * collectRunnerText), it yields "stream_event" deltas + a "result" message.
+ *
+ * Tracks call count and captured prompts for assertions.
  */
 function createMockQueryFn(responseText: string) {
   let callCount = 0;
@@ -85,12 +220,30 @@ function createMockQueryFn(responseText: string) {
     callCount++;
     capturedPrompts.push(params.prompt);
 
+    // Yield stream_event with text_delta (consumed by runSdkSession path)
+    if (responseText) {
+      yield {
+        type: "stream_event",
+        event: {
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: responseText },
+        },
+      } as never;
+    }
+
+    // Also yield assistant message (consumed by single-turn collectSdkText path)
     yield {
       type: "assistant",
       message: {
         content: [{ type: "text", text: responseText }],
       },
-    } as never; // Cast to satisfy SDKMessage type without importing internals
+    } as never;
+
+    // Yield result to signal turn_end
+    yield {
+      type: "result",
+      subtype: "success",
+    } as never;
   };
 
   return {
@@ -102,19 +255,118 @@ function createMockQueryFn(responseText: string) {
 
 // -- Tests --
 
-describe("createBriefingGenerator - SDK path", () => {
-  test("generates briefing using SDK queryFn with correct prompt", async () => {
-    const mock = createMockQueryFn("The project has 2 active commissions and 1 pending request.");
+describe("createBriefingGenerator - full SDK path", () => {
+  test("uses prepareSdkSession + runSdkSession when prepDeps is present", async () => {
+    const mock = createMockQueryFn("Multi-turn briefing from Guild Master.");
+    const mockPrep = makeMockPrepDeps();
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, prepDeps: mockPrep.prepDeps }),
+    );
+
+    const result = await generator.generateBriefing("test-project");
+
+    expect(result.briefing).toBe("Multi-turn briefing from Guild Master.");
+    expect(result.cached).toBe(false);
+    expect(mock.getCallCount()).toBe(1);
+    expect(mockPrep.getResolveToolSetCalls()).toBe(1);
+  });
+
+  test("strips manager system toolbox from worker", async () => {
+    const mock = createMockQueryFn("Briefing text.");
+    const mockPrep = makeMockPrepDeps();
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, prepDeps: mockPrep.prepDeps }),
+    );
+
+    await generator.generateBriefing("test-project");
+
+    // The resolveToolSet wrapper should have overridden systemToolboxes to []
+    const overrides = mockPrep.getCapturedWorkerOverrides();
+    expect(overrides.length).toBe(1);
+    expect(overrides[0].systemToolboxes).toEqual([]);
+  });
+
+  test("uses briefing prompt (not context-stuffed prompt)", async () => {
+    const mock = createMockQueryFn("Briefing.");
+    const mockPrep = makeMockPrepDeps();
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, prepDeps: mockPrep.prepDeps }),
+    );
+
+    await generator.generateBriefing("test-project");
+
+    // The prompt should direct exploration, not stuff context inline
+    const prompt = mock.getCapturedPrompts()[0];
+    expect(prompt).toContain("project status briefing");
+    expect(prompt).toContain(".lore/");
+    expect(prompt).not.toContain("Current Project State");
+  });
+
+  test("falls back to template when session prep fails", async () => {
+    const mock = createMockQueryFn("Should not appear.");
+    const failingPrepDeps: SessionPrepDeps = {
+      resolveToolSet: async () => {
+        throw new Error("Resolution failed");
+      },
+      loadMemories: async () => ({ memoryBlock: "", needsCompaction: false }),
+      activateWorker: async () => {
+        throw new Error("Should not reach activation");
+      },
+    };
+
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, prepDeps: failingPrepDeps }),
+    );
+
+    const result = await generator.generateBriefing("test-project");
+
+    // Should fall back to template, not throw
+    expect(result.briefing.length).toBeGreaterThan(0);
+    expect(result.briefing).not.toBe("Should not appear.");
+    expect(result.cached).toBe(false);
+  });
+
+  test("falls back to template when SDK returns empty text", async () => {
+    const mock = createMockQueryFn("");
+    const mockPrep = makeMockPrepDeps();
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, prepDeps: mockPrep.prepDeps }),
+    );
+
+    const result = await generator.generateBriefing("test-project");
+
+    expect(result.briefing.length).toBeGreaterThan(0);
+    expect(result.briefing).not.toBe("");
+  });
+
+  test("falls back to template when SDK throws during session", async () => {
+    const throwingQueryFn: BriefingQueryFn = async function* () {
+      throw new Error("SDK connection failed");
+    };
+    const mockPrep = makeMockPrepDeps();
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: throwingQueryFn, prepDeps: mockPrep.prepDeps }),
+    );
+
+    const result = await generator.generateBriefing("test-project");
+
+    expect(result.briefing.length).toBeGreaterThan(0);
+    expect(result.cached).toBe(false);
+  });
+});
+
+describe("createBriefingGenerator - single-turn SDK path (backwards compat)", () => {
+  test("uses single-turn path when queryFn present but prepDeps missing", async () => {
+    const mock = createMockQueryFn("Single-turn briefing.");
     const generator = createBriefingGenerator(makeDeps({ queryFn: mock.queryFn }));
 
     const result = await generator.generateBriefing("test-project");
 
-    expect(result.briefing).toBe("The project has 2 active commissions and 1 pending request.");
+    expect(result.briefing).toBe("Single-turn briefing.");
     expect(result.cached).toBe(false);
-    expect(result.generatedAt).toBeTruthy();
     expect(mock.getCallCount()).toBe(1);
 
-    // Verify the prompt contains project state context
+    // Single-turn path includes context in the prompt
     const prompt = mock.getCapturedPrompts()[0];
     expect(prompt).toContain("Current Project State");
     expect(prompt).toContain("concise briefing");
@@ -126,7 +378,6 @@ describe("createBriefingGenerator - SDK path", () => {
 
     const result = await generator.generateBriefing("test-project");
 
-    // generatedAt should be a valid ISO date
     const date = new Date(result.generatedAt);
     expect(date.getTime()).not.toBeNaN();
   });
@@ -137,7 +388,6 @@ describe("createBriefingGenerator - SDK path", () => {
 
     const result = await generator.generateBriefing("test-project");
 
-    // Template fallback should produce something non-empty
     expect(result.briefing.length).toBeGreaterThan(0);
     expect(result.briefing).not.toBe("");
   });
@@ -150,14 +400,13 @@ describe("createBriefingGenerator - SDK path", () => {
 
     const result = await generator.generateBriefing("test-project");
 
-    // Should not throw, should return a template briefing
     expect(result.briefing.length).toBeGreaterThan(0);
     expect(result.cached).toBe(false);
   });
 });
 
 describe("createBriefingGenerator - cache behavior", () => {
-  test("cache hit returns cached text without triggering SDK call", async () => {
+  test("cache hit when HEAD unchanged", async () => {
     const mock = createMockQueryFn("Cached briefing text.");
     const generator = createBriefingGenerator(makeDeps({ queryFn: mock.queryFn }));
 
@@ -166,74 +415,86 @@ describe("createBriefingGenerator - cache behavior", () => {
     expect(first.cached).toBe(false);
     expect(mock.getCallCount()).toBe(1);
 
-    // Second call: hit
+    // Second call: HEAD hasn't moved, should be a cache hit
     const second = await generator.generateBriefing("test-project");
     expect(second.cached).toBe(true);
     expect(second.briefing).toBe("Cached briefing text.");
-    expect(mock.getCallCount()).toBe(1); // No additional SDK call
+    expect(mock.getCallCount()).toBe(1);
   });
 
-  test("cache expires after TTL, triggering new generation", async () => {
-    const mock = createMockQueryFn("Fresh briefing.");
+  test("cache miss when HEAD advances", async () => {
+    const mock = createMockQueryFn("Briefing text.");
     const generator = createBriefingGenerator(makeDeps({ queryFn: mock.queryFn }));
 
-    // First call
-    await generator.generateBriefing("test-project");
+    // First call: miss
+    const first = await generator.generateBriefing("test-project");
+    expect(first.cached).toBe(false);
     expect(mock.getCallCount()).toBe(1);
 
-    // Manually expire the cache by manipulating the internal state.
-    // The cache is a Map inside the closure. We can't access it directly,
-    // but we can test the invalidation path instead. For TTL testing,
-    // we verify that invalidateCache forces a new generation.
-    await generator.invalidateCache("test-project");
+    // Advance HEAD (simulates a commission merge or sync)
+    const integrationPath = path.join(guildHallHome, "projects", "test-project");
+    await advanceHead(integrationPath);
 
-    // Next call should be a cache miss
-    const result = await generator.generateBriefing("test-project");
-    expect(result.cached).toBe(false);
+    // Second call: HEAD moved, should be a cache miss
+    const second = await generator.generateBriefing("test-project");
+    expect(second.cached).toBe(false);
     expect(mock.getCallCount()).toBe(2);
   });
 
-  test("cache expires after 1 hour TTL", async () => {
+  test("cache miss when TTL expires even if HEAD unchanged", async () => {
     let currentTime = 1_000_000;
     const mock = createMockQueryFn("Briefing text.");
     const generator = createBriefingGenerator(
       makeDeps({ queryFn: mock.queryFn, clock: () => currentTime }),
     );
 
-    // First call: cache miss
+    // First call: miss
     const first = await generator.generateBriefing("test-project");
     expect(first.cached).toBe(false);
     expect(mock.getCallCount()).toBe(1);
 
-    // Advance past 1 hour TTL (3_600_001 ms)
+    // Advance past 1 hour TTL (HEAD unchanged)
     currentTime += 3_600_001;
 
-    // Second call: cache should be expired, triggering a new SDK call
+    // Second call: TTL expired, should regenerate
     const second = await generator.generateBriefing("test-project");
     expect(second.cached).toBe(false);
     expect(mock.getCallCount()).toBe(2);
   });
 
-  test("cache hit within TTL returns cached result", async () => {
+  test("cache hit when both HEAD unchanged and within TTL", async () => {
     let currentTime = 1_000_000;
     const mock = createMockQueryFn("Cached within TTL.");
     const generator = createBriefingGenerator(
       makeDeps({ queryFn: mock.queryFn, clock: () => currentTime }),
     );
 
-    // First call: cache miss
     const first = await generator.generateBriefing("test-project");
     expect(first.cached).toBe(false);
     expect(mock.getCallCount()).toBe(1);
 
-    // Advance by 30 minutes (1_800_000 ms), still within 1 hour TTL
+    // Advance 30 minutes (within TTL), HEAD unchanged
     currentTime += 1_800_000;
 
-    // Second call: cache should still be valid
     const second = await generator.generateBriefing("test-project");
     expect(second.cached).toBe(true);
     expect(second.briefing).toBe("Cached within TTL.");
-    expect(mock.getCallCount()).toBe(1); // No additional SDK call
+    expect(mock.getCallCount()).toBe(1);
+  });
+
+  test("invalidateCache forces regeneration", async () => {
+    const mock = createMockQueryFn("Fresh briefing.");
+    const generator = createBriefingGenerator(makeDeps({ queryFn: mock.queryFn }));
+
+    await generator.generateBriefing("test-project");
+    expect(mock.getCallCount()).toBe(1);
+
+    await generator.invalidateCache("test-project");
+
+    // Next call should be a cache miss (file deleted)
+    const result = await generator.generateBriefing("test-project");
+    expect(result.cached).toBe(false);
+    expect(mock.getCallCount()).toBe(2);
   });
 
   test("invalidateCache clears the entry for the specific project", async () => {
@@ -245,7 +506,7 @@ describe("createBriefingGenerator - cache behavior", () => {
       ],
     };
 
-    // Create integration paths for both projects
+    // Create integration paths with git repos for both projects
     for (const name of ["project-a", "project-b"]) {
       const integrationPath = path.join(guildHallHome, "projects", name);
       await fs.mkdir(path.join(integrationPath, ".lore", "commissions"), {
@@ -254,6 +515,7 @@ describe("createBriefingGenerator - cache behavior", () => {
       await fs.mkdir(path.join(integrationPath, ".lore", "meetings"), {
         recursive: true,
       });
+      await initGitRepo(integrationPath);
     }
 
     const generator = createBriefingGenerator(makeDeps({
@@ -276,7 +538,7 @@ describe("createBriefingGenerator - cache behavior", () => {
 
     const resultB = await generator.generateBriefing("project-b");
     expect(resultB.cached).toBe(true);
-    expect(mock.getCallCount()).toBe(3); // No additional call
+    expect(mock.getCallCount()).toBe(3);
   });
 });
 
@@ -294,7 +556,7 @@ describe("createBriefingGenerator - file-based cache persistence", () => {
     const mock2 = createMockQueryFn("Second instance briefing.");
     const gen2 = createBriefingGenerator(makeDeps({ queryFn: mock2.queryFn }));
 
-    // Should read from disk cache, not call SDK
+    // Should read from disk cache (HEAD hasn't moved), not call SDK
     const second = await gen2.generateBriefing("test-project");
     expect(second.cached).toBe(true);
     expect(second.briefing).toBe("First instance briefing.");
@@ -310,7 +572,6 @@ describe("createBriefingGenerator - fallback without queryFn", () => {
 
     expect(result.briefing.length).toBeGreaterThan(0);
     expect(result.cached).toBe(false);
-    // Template should mention something about the project state
     expect(typeof result.briefing).toBe("string");
   });
 
@@ -343,7 +604,6 @@ describe("createBriefingGenerator - edge cases", () => {
     const result = await generator.generateBriefing("test-project");
 
     expect(result.briefing.length).toBeGreaterThan(0);
-    // Should indicate the project is quiet
     expect(
       result.briefing.includes("No commissions") ||
       result.briefing.includes("quiet"),
@@ -357,5 +617,29 @@ describe("createBriefingGenerator - edge cases", () => {
 
     const parsed = new Date(result.generatedAt);
     expect(parsed.toISOString()).toBe(result.generatedAt);
+  });
+
+  test("cache miss when integration worktree has no git repo", async () => {
+    // Create a project with no git repo in its integration worktree
+    const noGitIntegration = path.join(guildHallHome, "projects", "no-git-project");
+    await fs.mkdir(path.join(noGitIntegration, ".lore", "commissions"), { recursive: true });
+    await fs.mkdir(path.join(noGitIntegration, ".lore", "meetings"), { recursive: true });
+
+    const config: AppConfig = {
+      projects: [{ name: "no-git-project", path: "/tmp/no-git" }],
+    };
+
+    const mock = createMockQueryFn("Briefing for no-git project.");
+    const generator = createBriefingGenerator(makeDeps({ queryFn: mock.queryFn, config }));
+
+    // First call: generates
+    const first = await generator.generateBriefing("no-git-project");
+    expect(first.cached).toBe(false);
+    expect(mock.getCallCount()).toBe(1);
+
+    // Second call: no HEAD to compare, always regenerates
+    const second = await generator.generateBriefing("no-git-project");
+    expect(second.cached).toBe(false);
+    expect(mock.getCallCount()).toBe(2);
   });
 });

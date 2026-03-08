@@ -18,7 +18,7 @@ import type { ToolboxFactory } from "./toolbox-types";
 
 interface BaseToolboxDeps {
   contextId: string;                          // meetingId or commissionId
-  contextType: "meeting" | "commission" | "mail";  // determines storage path
+  contextType: "meeting" | "commission" | "mail" | "briefing";  // determines storage path
   workerName: string;                         // identity of the active worker (enforces worker scope)
   projectName: string;                        // active project name (enforces project scope)
   guildHallHome: string;
@@ -93,9 +93,9 @@ export function makeWriteMemoryHandler(
 export function makeRecordDecisionHandler(
   guildHallHome: string,
   contextId: string,
-  contextType: "meeting" | "commission" | "mail",
+  contextType: "meeting" | "commission" | "mail" | "briefing",
 ) {
-  const stateSubdir = contextType === "meeting" ? "meetings" : "commissions";
+  const stateSubdir = contextType === "meeting" ? "meetings" : contextType === "briefing" ? "briefings" : "commissions";
   return async (args: {
     question: string;
     decision: string;

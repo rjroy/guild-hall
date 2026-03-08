@@ -437,7 +437,6 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         : undefined,
       activationExtras,
       abortController: meeting.abortController,
-      includePartialMessages: true,
       ...(resumeSessionId ? { resume: resumeSessionId as string } : {}),
     };
 
