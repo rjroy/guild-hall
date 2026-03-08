@@ -289,6 +289,7 @@ export async function createProductionApp(options?: {
   );
   const briefingGenerator = makeBriefingGenerator({
     queryFn,
+    prepDeps,
     packages: allPackages,
     config,
     guildHallHome,

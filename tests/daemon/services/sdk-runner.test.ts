@@ -424,7 +424,6 @@ describe("prepareSdkSession", () => {
     expect(opts.maxBudgetUsd).toBe(1.0);
     expect(opts.permissionMode).toBe("dontAsk");
     expect(opts.settingSources).toEqual(["local", "project", "user"]);
-    expect(opts.includePartialMessages).toBe(false);
   });
 
   test("worker not found returns error", async () => {
@@ -544,17 +543,6 @@ describe("prepareSdkSession", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.result.options.resume).toBe("sess-old");
-  });
-
-  test("includePartialMessages passed through to options", async () => {
-    const result = await prepareSdkSession(
-      makeSpec({ includePartialMessages: true }),
-      makeDeps(),
-    );
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.result.options.includePartialMessages).toBe(true);
   });
 
   test("activationExtras are spread into activation context", async () => {

@@ -501,7 +501,6 @@ describe("createMeetingSession", () => {
         preset: "claude_code",
         append: "You are a helpful assistant.",
       });
-      expect(call.options.includePartialMessages).toBe(true);
       expect(call.options.permissionMode).toBe("dontAsk");
       expect(call.options.settingSources).toEqual(["local", "project", "user"]);
       expect(call.options.maxTurns).toBe(30);

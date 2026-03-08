@@ -164,6 +164,10 @@ function translateAssistantMessage(
   // message. We use the streaming path for both text and tool_use events,
   // so the assistant message is fully redundant. Return empty to prevent
   // duplicate tool indicators in the UI.
+  //
+  // This means the translator only produces text_delta events from
+  // stream_event messages. runSdkSession enforces includePartialMessages
+  // to guarantee those messages are present.
   return [];
 }
 

@@ -16,7 +16,7 @@ export interface GuildHallToolboxDeps {
   guildHallHome: string;
   projectName: string;
   contextId: string;
-  contextType: "meeting" | "commission" | "mail";
+  contextType: "meeting" | "commission" | "mail" | "briefing";
   workerName: string;
   workerPortraitUrl?: string;
   eventBus: EventBus;

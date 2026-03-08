@@ -34,7 +34,7 @@ export interface ToolboxResolverContext {
   projectName: string;
   guildHallHome: string;
   contextId: string;
-  contextType: "meeting" | "commission" | "mail";
+  contextType: "meeting" | "commission" | "mail" | "briefing";
   workerName: string;
   workerPortraitUrl?: string;
   eventBus: EventBus;
@@ -91,9 +91,11 @@ export async function resolveToolSet(
   const baseOutput = baseToolboxFactory(deps);
   mcpServers.push(baseOutput.server);
 
-  // 2. Context toolbox (auto-added based on context type)
+  // 2. Context toolbox (auto-added based on context type, if one exists)
   const contextFactory = SYSTEM_TOOLBOX_REGISTRY[context.contextType];
-  mcpServers.push(contextFactory(deps).server);
+  if (contextFactory) {
+    mcpServers.push(contextFactory(deps).server);
+  }
 
   // 3. Worker's system toolboxes (e.g. manager)
   for (const name of worker.systemToolboxes ?? []) {
