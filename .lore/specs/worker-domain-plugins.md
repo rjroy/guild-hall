@@ -74,7 +74,7 @@ This gives workers access to skills and commands during commissions and meetings
 
 - REQ-DPL-13: `prepareSdkSession()` populates `options.plugins` from the resolved plugin paths. If the worker declares no `domainPlugins`, the field is omitted or empty.
 
-- REQ-DPL-14: Plugins loaded via `domainPlugins` are additive. They do not replace or interfere with plugins that the SDK loads from other sources (e.g., `settingSources`). If a skill appears in both a domain plugin and in the project's `.claude/` directory (via `settingSources`), behavior is undefined. Avoid overlapping skill definitions across these two mechanisms.
+- REQ-DPL-14: Plugins loaded via `domainPlugins` are additive. They do not replace or interfere with plugins that the SDK loads from other sources (e.g., via `settingSources`). If a skill appears in both a domain plugin and in the project's `.claude/` directory, behavior is undefined. Avoid overlapping skill definitions across these two mechanisms.
 
 - REQ-DPL-15: The worker's commission prompt can reference skills by their slash command name (e.g., "Run `/cleanup-commissions`"). The SDK makes the skill available; the commission prompt tells the worker to use it. No changes to commission context injection are required.
 
@@ -91,7 +91,7 @@ This gives workers access to skills and commands during commissions and meetings
 | Exit | Triggers When | Target |
 |------|---------------|--------|
 | Spec update: guild-hall-workers | REQ-WKR-2 and REQ-WKR-12 need to include `domainPlugins` | [Spec: guild-hall-workers](guild-hall-workers.md) |
-| Spec update: REQ-WKR-18 | `settingSources` contradiction needs resolution | [Spec: guild-hall-workers](guild-hall-workers.md) |
+| Spec update: REQ-WKR-18 | Clarified: `settingSources` is SDK infrastructure, not worker config. REQ-WKR-18 updated. | [Spec: guild-hall-workers](guild-hall-workers.md) |
 
 ## Success Criteria
 
@@ -122,13 +122,13 @@ This gives workers access to skills and commands during commissions and meetings
 - Plugin contents are opaque to Guild Hall. The daemon does not parse, validate, or transform plugin files. It resolves paths and passes them to the SDK.
 - Plugin resolution uses the same discovered-packages set as toolbox resolution. Cross-project plugin references are not supported until the package distribution model is resolved (see `.lore/issues/package-distribution-model.md`).
 - This spec does not address the lore-development dependency problem. Workers that need lore-development skills currently get them via `settingSources`. Migrating that dependency to `domainPlugins` is a separate decision.
-- This spec does not change how `settingSources` works. The REQ-WKR-18 contradiction (spec says no filesystem settings, implementation loads them) is noted but not resolved here.
+- This spec does not change how `settingSources` works. `settingSources` is SDK infrastructure that Guild Hall controls; it is not worker-level configuration (see REQ-WKR-18).
 
 ## Context
 
 ### Lore Researcher Findings
 
-The lore-researcher surfaced a critical finding: REQ-WKR-18 says workers should not load filesystem settings, but the implementation sets `settingSources: ["local", "project", "user"]`. This means workers already have implicit access to project-level skills via the filesystem. The `domainPlugins` mechanism provides explicit, per-worker control over which plugins are loaded, regardless of how the `settingSources` contradiction is eventually resolved.
+The lore-researcher originally flagged `settingSources: ["local", "project", "user"]` as contradicting REQ-WKR-18. This was a misreading: `settingSources` is SDK infrastructure that Guild Hall controls, not worker-level filesystem access. REQ-WKR-18 has been clarified to make this distinction explicit. The `domainPlugins` mechanism provides explicit, per-worker control over which plugins are loaded, complementing the SDK's own settings loading.
 
 ### Related Prior Work
 

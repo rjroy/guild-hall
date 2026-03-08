@@ -105,7 +105,7 @@ Tests:
 Launch a sub-agent that reads the spec at `.lore/specs/worker-domain-plugins.md`, reviews the implementation, and flags any requirements not met. This step is not optional.
 
 Two things the validator should specifically check:
-1. Setting `plugins` in `SdkQueryOptions` does not affect `settingSources` or other existing options (REQ-DPL-14)
+1. Setting `plugins` in `SdkQueryOptions` does not affect other existing options (REQ-DPL-14)
 2. Both commission and meeting code paths reach `prepareSdkSession`, confirming plugin resolution covers both session types
 
 ## Delegation Guide
@@ -116,5 +116,5 @@ Review strategy: Run the `plan-reviewer` agent after saving this plan, and use f
 
 ## Open Questions
 
-- The spec notes REQ-WKR-18 (`settingSources` contradiction) as an exit point but explicitly defers resolution. No action needed here, but skills that appear in both a domain plugin and project `.claude/` directory will have undefined behavior. Avoid overlap.
+- Skills that appear in both a domain plugin and the project's `.claude/` directory (loaded via `settingSources`) will have undefined behavior. Avoid overlap.
 - The first real consumer will be `guild-hall-writer` with `domainPlugins: ["guild-hall-writer"]` (self-reference). Creating the `.claude-plugin/` directory and packaging the cleanup-commissions skill is a separate task after this infrastructure lands.

@@ -93,7 +93,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 
 - REQ-WKR-17: Workers run with full tool permissions within their declared tool set. No per-invocation approval prompts. The trust boundary is the tool set itself, not runtime permission checks.
 
-- REQ-WKR-18: Workers do not load external filesystem settings. All configuration comes from Guild Hall (posture, tools, memory), not from `.claude/` directories or project-level settings files. This prevents workers from inheriting unexpected behaviors from the user's Claude Code configuration.
+- REQ-WKR-18: Worker configuration comes from Guild Hall (posture, tools, memory). Workers do not read arbitrary filesystem paths to configure themselves. The Claude Agent SDK's `settingSources` option (e.g., `["user", "project", "local"]`) controls what the SDK itself loads and is SDK infrastructure, not worker configuration. Guild Hall may set `settingSources` to allow the SDK to function normally (loading CLAUDE.md, skills, settings), but the worker's identity, capabilities, and behavior are defined by its package metadata and what Guild Hall provides, not by files the worker discovers on its own.
 
 - REQ-WKR-19: Resource bounds (maxTurns, maxBudgetUsd) are set per invocation. The worker's package metadata provides defaults. The invoking context (commission or meeting) can override. Resource defaults must be validated against real workloads before declaring them production-ready (lesson: the Phase 1 researcher's 30-turn default failed every real commission and was increased to 150).
 
@@ -177,7 +177,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 - Workers are definitions, not processes. Lifecycle management belongs to the Tasks and Meeting specs.
 - No worker-to-worker communication in this version. All coordination flows through the manager or shared artifacts/memory.
 - The SDK's built-in system prompt is not used. Guild Hall provides its own via worker posture + memory injection.
-- Workers do not load filesystem settings. All configuration flows through Guild Hall.
+- Worker configuration flows through Guild Hall. The SDK's `settingSources` is SDK infrastructure that Guild Hall controls; it is not worker-level configuration.
 - Resource budget defaults in package metadata are starting points. Real-workload validation is required before production use.
 
 ## Context
