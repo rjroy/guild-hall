@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Pre-commit hook: Run typecheck, lint, and unit tests.
+# Pre-commit hook: Run typecheck, lint, unit tests, and production build.
 # Output is suppressed on success; shown in full on failure.
 #
 # Install: git config core.hooksPath .git-hooks
@@ -44,6 +44,10 @@ if ! run_quiet "lint" bun run lint; then
 fi
 
 if ! run_quiet "test" bun test; then
+    FAILED=1
+fi
+
+if ! run_quiet "build" bun run build; then
     FAILED=1
 fi
 

@@ -12,7 +12,6 @@ export async function POST(
     `/commissions/${commissionId}/schedule-status`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     },
   );
