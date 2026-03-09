@@ -14,14 +14,26 @@ import type { TimelineEntry } from "@/lib/commissions";
 import type { CommissionArtifact } from "./CommissionLinkedArtifacts";
 import styles from "./CommissionView.module.css";
 
+export interface RecentRun {
+  commissionId: string;
+  status: string;
+  date: string;
+}
+
 export interface ScheduleInfo {
   cron: string;
+  /** Human-readable description of the cron expression */
+  cronDescription: string;
   /** null means indefinite */
   repeat: number | null;
   runsCompleted: number;
   /** ISO timestamp, or null if never run */
   lastRun: string | null;
   lastSpawnedId: string | null;
+  /** ISO timestamp of the next expected run, or null */
+  nextRun: string | null;
+  /** Recent spawned commissions from this schedule */
+  recentRuns: RecentRun[];
 }
 
 interface CommissionViewProps {
@@ -258,10 +270,14 @@ export default function CommissionView({
         {commissionType === "scheduled" && scheduleInfo ? (
           <>
             <Panel size="sm">
-              <CommissionScheduleInfo schedule={scheduleInfo} />
+              <CommissionScheduleInfo schedule={scheduleInfo} projectName={projectName} />
             </Panel>
             <Panel size="sm">
-              <CommissionScheduleActions status={status} />
+              <CommissionScheduleActions
+                status={status}
+                commissionId={commissionId}
+                onStatusChange={handleStatusChange}
+              />
             </Panel>
           </>
         ) : (

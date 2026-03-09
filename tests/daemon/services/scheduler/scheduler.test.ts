@@ -269,6 +269,12 @@ function createMockCommissionSession(): MockCommissionSession {
       return { status: "accepted" };
     },
     async addUserNote(): Promise<void> {},
+    async createScheduledCommission(): Promise<{ commissionId: string }> {
+      return { commissionId: "schedule-test-001" };
+    },
+    async updateScheduleStatus(): Promise<{ outcome: string; status?: string }> {
+      return { outcome: "executed", status: "paused" };
+    },
     async checkDependencyTransitions(): Promise<void> {},
     async recoverCommissions(): Promise<number> { return 0; },
     getActiveCommissions(): number { return 0; },
@@ -281,16 +287,24 @@ type MockScheduleLifecycle = {
   complete(id: CommissionId, reason: string): Promise<TransitionResult>;
   fail(id: CommissionId, reason: string): Promise<TransitionResult>;
   register(id: CommissionId, projectName: string, status: ScheduledCommissionStatus, artifactPath: string): void;
+  isTracked(id: CommissionId): boolean;
   getStatus(id: CommissionId): ScheduledCommissionStatus | undefined;
+  registeredIds: Set<string>;
 };
 
 function createMockScheduleLifecycle(): MockScheduleLifecycle {
   const calls: Array<{ method: string; args: unknown[] }> = [];
+  const registeredIds = new Set<string>();
 
   return {
     calls,
+    registeredIds,
     register(id: CommissionId, projectName: string, status: ScheduledCommissionStatus, artifactPath: string): void {
       calls.push({ method: "register", args: [id, projectName, status, artifactPath] });
+      registeredIds.add(id as string);
+    },
+    isTracked(id: CommissionId): boolean {
+      return registeredIds.has(id as string);
     },
     async complete(id: CommissionId, reason: string): Promise<TransitionResult> {
       calls.push({ method: "complete", args: [id, reason] });

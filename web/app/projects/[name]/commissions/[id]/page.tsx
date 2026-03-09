@@ -8,7 +8,9 @@ import {
   readCommissionMeta,
   scanCommissions,
   parseActivityTimeline,
+  type CommissionMeta,
 } from "@/lib/commissions";
+import { nextOccurrence } from "@/daemon/services/scheduler/cron";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
 import { discoverPackages, getWorkerByName } from "@/lib/packages";
 import type { WorkerMetadata } from "@/lib/types";
@@ -18,6 +20,45 @@ import type { ScheduleInfo } from "@/web/components/commission/CommissionView";
 import NeighborhoodGraph from "@/web/components/commission/NeighborhoodGraph";
 import type { CommissionArtifact } from "@/web/components/commission/CommissionLinkedArtifacts";
 import styles from "./page.module.css";
+
+/** Maps common cron expressions to human-readable descriptions. */
+function describeCron(cron: string): string {
+  const common: Record<string, string> = {
+    "* * * * *": "Every minute",
+    "*/5 * * * *": "Every 5 minutes",
+    "*/15 * * * *": "Every 15 minutes",
+    "*/30 * * * *": "Every 30 minutes",
+    "0 * * * *": "Every hour",
+    "0 */2 * * *": "Every 2 hours",
+    "0 */6 * * *": "Every 6 hours",
+    "0 0 * * *": "Daily at midnight",
+    "0 9 * * *": "Daily at 9:00 AM",
+    "0 9 * * 1-5": "Weekdays at 9:00 AM",
+    "0 9 * * 1": "Every Monday at 9:00 AM",
+    "0 0 * * 0": "Every Sunday at midnight",
+    "0 0 1 * *": "First of every month",
+    "0 0 1 1 *": "Every January 1st",
+  };
+
+  if (common[cron]) return common[cron];
+
+  // Try to generate a basic description from fields
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return cron;
+
+  const [min, hour, dom, mon, dow] = parts;
+  const pieces: string[] = [];
+
+  if (min === "0" && hour !== "*" && dom === "*" && mon === "*") {
+    if (dow === "*") {
+      pieces.push(`Daily at ${hour}:00`);
+    } else if (dow === "1-5") {
+      pieces.push(`Weekdays at ${hour}:00`);
+    }
+  }
+
+  return pieces.length > 0 ? pieces.join(", ") : cron;
+}
 
 /**
  * Resolves linked artifact paths from commission frontmatter into
@@ -100,12 +141,27 @@ export default async function CommissionPage({
         lastRunStr = lastRun;
       }
 
+      const cronExpr = typeof sched.cron === "string" ? sched.cron : "";
+
+      // Compute next expected run
+      let nextRunStr: string | null = null;
+      if (cronExpr) {
+        const referenceDate = lastRunStr ? new Date(lastRunStr) : new Date(0);
+        const nextDate = nextOccurrence(cronExpr, referenceDate);
+        if (nextDate) {
+          nextRunStr = nextDate.toISOString();
+        }
+      }
+
       scheduleInfo = {
-        cron: typeof sched.cron === "string" ? sched.cron : "",
+        cron: cronExpr,
+        cronDescription: describeCron(cronExpr),
         repeat: typeof sched.repeat === "number" ? sched.repeat : null,
         runsCompleted: typeof sched.runs_completed === "number" ? sched.runs_completed : 0,
         lastRun: lastRunStr,
         lastSpawnedId: typeof sched.last_spawned_id === "string" ? sched.last_spawned_id : null,
+        nextRun: nextRunStr,
+        recentRuns: [], // populated below after allCommissions is scanned
       };
     }
   }
@@ -128,6 +184,20 @@ export default async function CommissionPage({
   const integrationLorePath = projectLorePath(integrationPath);
   const allCommissions = await scanCommissions(integrationLorePath, projectName);
   const graph = buildDependencyGraph(allCommissions);
+
+  // Populate recent runs for scheduled commissions
+  if (scheduleInfo) {
+    const spawned = allCommissions
+      .filter((c: CommissionMeta) => c.sourceSchedule === id)
+      .sort((a: CommissionMeta, b: CommissionMeta) => b.date.localeCompare(a.date))
+      .slice(0, 10);
+
+    scheduleInfo.recentRuns = spawned.map((c: CommissionMeta) => ({
+      commissionId: c.commissionId,
+      status: c.status,
+      date: c.date,
+    }));
+  }
 
   return (
     <div className={styles.commissionView}>

@@ -85,6 +85,14 @@ function makeMockCommissionSession(
     getActiveCommissions() {
       return 0;
     },
+    createScheduledCommission(params: { projectName: string; title: string; workerName: string; prompt: string; cron: string }) {
+      calls.push({ method: "createScheduledCommission", args: [params] });
+      return Promise.resolve({ commissionId: "schedule-test-worker-20260221-120000" });
+    },
+    updateScheduleStatus(commissionId: CommissionId, targetStatus: string) {
+      calls.push({ method: "updateScheduleStatus", args: [commissionId, targetStatus] });
+      return Promise.resolve({ outcome: "executed", status: targetStatus });
+    },
     shutdown() {
       // no-op
     },
@@ -616,8 +624,14 @@ describe("POST /commissions (scheduled)", () => {
 
     expect(res.status).toBe(201);
     expect(calls).toHaveLength(1);
-    expect(calls[0].method).toBe("createCommission");
-    expect(calls[0].args[6]).toEqual({ type: "scheduled" });
+    expect(calls[0].method).toBe("createScheduledCommission");
+    const params = calls[0].args[0] as Record<string, unknown>;
+    expect(params.projectName).toBe("test-project");
+    expect(params.title).toBe("Weekly report");
+    expect(params.workerName).toBe("writer");
+    expect(params.prompt).toBe("Write the weekly report");
+    expect(params.cron).toBe("0 9 * * 1");
+    expect(params.repeat).toBe(4);
   });
 
   test("returns 400 when type is scheduled but cron is missing", async () => {
@@ -676,6 +690,9 @@ describe("POST /commissions (scheduled)", () => {
 
     expect(res.status).toBe(201);
     expect(calls).toHaveLength(1);
-    expect(calls[0].args[6]).toEqual({ type: "scheduled" });
+    expect(calls[0].method).toBe("createScheduledCommission");
+    const params = calls[0].args[0] as Record<string, unknown>;
+    expect(params.cron).toBe("0 0 * * *");
+    expect(params.repeat).toBeUndefined();
   });
 });

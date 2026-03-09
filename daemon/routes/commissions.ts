@@ -60,29 +60,31 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       );
     }
 
-    // Build options when type is specified. The orchestrator's createCommission
-    // accepts type and sourceSchedule. Full schedule artifact creation (cron,
-    // repeat, schedule YAML block) is handled by the manager toolbox's
-    // create_scheduled_commission tool, which has access to gitOps and
-    // scheduleLifecycle. Until createScheduledCommission is exposed as a
-    // method on CommissionSessionForRoutes, the route passes type through
-    // but cron/repeat are not written to the artifact.
-    // TODO: wire createScheduledCommission into CommissionSessionForRoutes
-    const options = body.type === "scheduled"
-      ? { type: "scheduled" as const }
-      : undefined;
-
     try {
       console.log(`[route] POST /commissions project="${projectName}" worker="${workerName}" type="${body.type ?? "one-shot"}"`);
-      const result = await deps.commissionSession.createCommission(
-        projectName,
-        title,
-        workerName,
-        prompt,
-        body.dependencies,
-        body.resourceOverrides,
-        options,
-      );
+
+      let result: { commissionId: string };
+      if (body.type === "scheduled") {
+        result = await deps.commissionSession.createScheduledCommission({
+          projectName,
+          title,
+          workerName,
+          prompt,
+          cron: body.cron!,
+          repeat: body.repeat,
+          dependencies: body.dependencies,
+          resourceOverrides: body.resourceOverrides,
+        });
+      } else {
+        result = await deps.commissionSession.createCommission(
+          projectName,
+          title,
+          workerName,
+          prompt,
+          body.dependencies,
+          body.resourceOverrides,
+        );
+      }
       return c.json(result, 201);
     } catch (err: unknown) {
       const message = errorMessage(err);
@@ -237,6 +239,41 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
         message.includes("Cannot abandon")
       ) {
         return c.json({ error: message }, 409);
+      }
+      return c.json({ error: message }, 500);
+    }
+  });
+
+  // POST /commissions/:id/schedule-status - Update schedule status (pause/resume/complete)
+  routes.post("/commissions/:id/schedule-status", async (c) => {
+    const commissionId = asCommissionId(c.req.param("id"));
+
+    let body: { status?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    const { status } = body;
+    if (!status) {
+      return c.json({ error: "Missing required field: status" }, 400);
+    }
+
+    try {
+      console.log(`[route] POST /commissions/${commissionId as string}/schedule-status target="${status}"`);
+      const result = await deps.commissionSession.updateScheduleStatus(commissionId, status);
+      if (result.outcome === "skipped") {
+        return c.json({ error: result.reason }, 409);
+      }
+      return c.json({ status: result.status });
+    } catch (err: unknown) {
+      const message = errorMessage(err);
+      if (message.includes("Cannot transition") || message.includes("not a scheduled")) {
+        return c.json({ error: message }, 409);
+      }
+      if (message.includes("not found")) {
+        return c.json({ error: message }, 404);
       }
       return c.json({ error: message }, 500);
     }

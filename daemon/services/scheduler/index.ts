@@ -140,12 +140,14 @@ export class SchedulerService {
           if (failures >= CONSECUTIVE_FAILURE_THRESHOLD) {
             try {
               const cId = asCommissionId(scheduleId);
-              this.deps.scheduleLifecycle.register(
-                cId,
-                project.name,
-                "active",
-                artifactPath,
-              );
+              if (!this.deps.scheduleLifecycle.isTracked(cId)) {
+                this.deps.scheduleLifecycle.register(
+                  cId,
+                  project.name,
+                  "active",
+                  artifactPath,
+                );
+              }
               await this.deps.scheduleLifecycle.fail(
                 cId,
                 `${CONSECUTIVE_FAILURE_THRESHOLD} consecutive tick failures`,
@@ -319,7 +321,10 @@ export class SchedulerService {
               artifactPath,
               "escalation_created",
               `Stuck run escalated: ${metadata.lastSpawnedId}`,
-              { spawned_id: metadata.lastSpawnedId },
+              {
+                stuck_commission_id: metadata.lastSpawnedId,
+                running_since: spawnedStatus.toISOString(),
+              },
             );
 
             this.escalatedIds.add(metadata.lastSpawnedId);
@@ -375,15 +380,8 @@ export class SchedulerService {
     // Read optional fields for createCommission
     const dependencies = await recordOps.readDependencies(artifactPath);
 
-    // Read resource overrides from the raw artifact
-    const maxTurnsStr = this.readArtifactField(raw, "maxTurns");
-    const maxBudgetStr = this.readArtifactField(raw, "maxBudgetUsd");
-    const modelStr = this.readArtifactField(raw, "model");
-
-    const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string } = {};
-    if (maxTurnsStr) resourceOverrides.maxTurns = Number(maxTurnsStr);
-    if (maxBudgetStr) resourceOverrides.maxBudgetUsd = Number(maxBudgetStr);
-    if (modelStr) resourceOverrides.model = modelStr;
+    // Read resource overrides from the indented resource_overrides block
+    const resourceOverrides = this.readResourceOverrides(raw);
 
     // Create a one-shot commission
     const { commissionId: spawnedIdStr } = await commissionSession.createCommission(
@@ -410,12 +408,24 @@ export class SchedulerService {
       lastSpawnedId: spawnedIdStr,
     });
 
+    // Read previous run's outcome for the timeline entry (REQ-SCOM-16)
+    let previousRunOutcome: string | null = null;
+    if (metadata.lastSpawnedId) {
+      previousRunOutcome = await this.getSpawnedCommissionStatus(
+        metadata.lastSpawnedId,
+        projectName,
+      );
+    }
+
     // Timeline entry
     const timelineExtra: Record<string, unknown> = {
       spawned_id: spawnedIdStr,
       run_number: String(newRunsCompleted),
       ...extraTimelineFields,
     };
+    if (previousRunOutcome) {
+      timelineExtra.previous_run_outcome = previousRunOutcome;
+    }
     await recordOps.appendTimeline(
       artifactPath,
       eventType,
@@ -435,7 +445,9 @@ export class SchedulerService {
     // Auto-completion check
     if (metadata.repeat !== null && newRunsCompleted >= metadata.repeat) {
       const cId = asCommissionId(scheduleId);
-      scheduleLifecycle.register(cId, projectName, "active", artifactPath);
+      if (!scheduleLifecycle.isTracked(cId)) {
+        scheduleLifecycle.register(cId, projectName, "active", artifactPath);
+      }
       await scheduleLifecycle.complete(
         cId,
         `Repeat count reached: ${newRunsCompleted}/${metadata.repeat}`,
@@ -465,6 +477,27 @@ export class SchedulerService {
   }
 
   /**
+   * Reads the resource_overrides block from a schedule artifact.
+   * Fields are 2-space indented under "resource_overrides:".
+   */
+  private readResourceOverrides(raw: string): { maxTurns?: number; maxBudgetUsd?: number; model?: string } {
+    const result: { maxTurns?: number; maxBudgetUsd?: number; model?: string } = {};
+
+    if (!/^resource_overrides:$/m.test(raw)) return result;
+
+    const maxTurnsMatch = raw.match(/^ {2}maxTurns: (.+)$/m);
+    if (maxTurnsMatch) result.maxTurns = Number(maxTurnsMatch[1].trim());
+
+    const maxBudgetMatch = raw.match(/^ {2}maxBudgetUsd: (.+)$/m);
+    if (maxBudgetMatch) result.maxBudgetUsd = Number(maxBudgetMatch[1].trim());
+
+    const modelMatch = raw.match(/^ {2}model: (.+)$/m);
+    if (modelMatch) result.model = modelMatch[1].trim();
+
+    return result;
+  }
+
+  /**
    * Checks whether a spawned commission is still actively running.
    * "Still active" means dispatched, in_progress, or sleeping.
    */
@@ -487,6 +520,29 @@ export class SchedulerService {
     } catch {
       // Artifact not found or unreadable: treat as not active
       return false;
+    }
+  }
+
+  /**
+   * Returns the status string of a spawned commission, or null if unreadable.
+   */
+  private async getSpawnedCommissionStatus(
+    spawnedId: string,
+    projectName: string,
+  ): Promise<string | null> {
+    const { guildHallHome, recordOps } = this.deps;
+    const iPath = integrationWorktreePath(guildHallHome, projectName);
+    const artifactPath = path.join(
+      iPath,
+      ".lore",
+      "commissions",
+      `${spawnedId}.md`,
+    );
+
+    try {
+      return await recordOps.readStatus(artifactPath);
+    } catch {
+      return null;
     }
   }
 
