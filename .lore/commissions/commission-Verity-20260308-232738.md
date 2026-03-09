@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research: Personal Assistant AI Landscape"
 date: 2026-03-09
-status: dispatched
+status: failed
 tags: [commission]
 worker: Verity
 workerDisplayTitle: "Guild Pathfinder"
@@ -18,6 +18,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-09T06:30:47.475Z
+    event: status_failed
+    reason: "Session error: Claude Code process exited with code 1"
 current_progress: ""
 projectName: guild-hall
 ---
