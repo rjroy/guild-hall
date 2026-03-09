@@ -82,6 +82,7 @@ function makeMockGitOps(overrides?: Partial<GitOps>): GitOps {
     async listConflictedFiles() { return []; },
     async resolveConflictsTheirs() {},
     async mergeAbort() {},
+    async hasCommitsBeyond() { return false; },
     ...overrides,
   };
 }

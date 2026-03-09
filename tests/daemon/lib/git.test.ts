@@ -207,6 +207,64 @@ describe("configureSparseCheckout", () => {
   });
 });
 
+describe("hasCommitsBeyond", () => {
+  test("returns true when branch has commits beyond base", async () => {
+    const repoPath = await initTestRepo();
+
+    // Create a branch from HEAD, then add a commit on it
+    await git(repoPath, ["branch", "feature-branch", "HEAD"]);
+    await git(repoPath, ["checkout", "feature-branch"]);
+    fs.writeFileSync(path.join(repoPath, "feature.txt"), "feature work\n");
+    await git(repoPath, ["add", "-A"]);
+    await git(repoPath, ["commit", "-m", "Feature commit"]);
+
+    await git(repoPath, ["checkout", "master"]);
+
+    const result = await ops.hasCommitsBeyond(repoPath, "master", "feature-branch");
+    expect(result).toBe(true);
+  });
+
+  test("returns false when branch has no commits beyond base", async () => {
+    const repoPath = await initTestRepo();
+
+    // Create a branch at the same commit as master (no divergence)
+    await git(repoPath, ["branch", "empty-branch", "HEAD"]);
+
+    const result = await ops.hasCommitsBeyond(repoPath, "master", "empty-branch");
+    expect(result).toBe(false);
+  });
+
+  test("returns false when branch points to the same commit as base", async () => {
+    const repoPath = await initTestRepo();
+
+    // Both branches at HEAD
+    await git(repoPath, ["branch", "same-point", "HEAD"]);
+
+    const result = await ops.hasCommitsBeyond(repoPath, "master", "same-point");
+    expect(result).toBe(false);
+  });
+
+  test("returns true with multiple commits beyond base", async () => {
+    const repoPath = await initTestRepo();
+
+    await git(repoPath, ["branch", "multi-commit", "HEAD"]);
+    await git(repoPath, ["checkout", "multi-commit"]);
+
+    fs.writeFileSync(path.join(repoPath, "a.txt"), "a\n");
+    await git(repoPath, ["add", "-A"]);
+    await git(repoPath, ["commit", "-m", "First"]);
+
+    fs.writeFileSync(path.join(repoPath, "b.txt"), "b\n");
+    await git(repoPath, ["add", "-A"]);
+    await git(repoPath, ["commit", "-m", "Second"]);
+
+    await git(repoPath, ["checkout", "master"]);
+
+    const result = await ops.hasCommitsBeyond(repoPath, "master", "multi-commit");
+    expect(result).toBe(true);
+  });
+});
+
 describe("commitAll", () => {
   test("commits new file and returns true", async () => {
     const repoPath = await initTestRepo();

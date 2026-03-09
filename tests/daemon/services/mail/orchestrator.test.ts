@@ -148,6 +148,7 @@ function createMockGitOps(): GitOps & { calls: Array<{ method: string; args: unk
     listConflictedFiles: async (...args) => { track("listConflictedFiles", ...args); return []; },
     resolveConflictsTheirs: async (...args) => { track("resolveConflictsTheirs", ...args); },
     mergeAbort: async (...args) => { track("mergeAbort", ...args); },
+    hasCommitsBeyond: async (...args) => { track("hasCommitsBeyond", ...args); return false; },
   };
 }
 

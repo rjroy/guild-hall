@@ -251,6 +251,7 @@ function createMockGitOps(): GitOps {
     listConflictedFiles: () => Promise.resolve([]),
     resolveConflictsTheirs: () => Promise.resolve(),
     mergeAbort: () => Promise.resolve(),
+    hasCommitsBeyond: () => Promise.resolve(false),
   };
 }
 

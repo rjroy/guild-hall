@@ -355,6 +355,31 @@ meeting_log:
       const artifactPath = path.join(meetingsDir, `${meetingFilename}.md`);
       await fs.writeFile(artifactPath, content, "utf-8");
 
+      // Commit to claude/main under the project lock
+      const meetingId = meetingFilename;
+      try {
+        await withProjectLock(deps.projectName, async () => {
+          await deps.gitOps.commitAll(
+            intPath,
+            `Add meeting request: ${meetingId}`,
+          );
+        });
+      } catch (commitErr: unknown) {
+        console.error(
+          `[manager-toolbox] Failed to commit meeting request "${meetingId}":`,
+          errorMessage(commitErr),
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Meeting request file was written but commit failed: ${errorMessage(commitErr)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
       // Return path relative to integration worktree's .lore/
       const relativePath = path.relative(
         path.join(intPath, ".lore"),

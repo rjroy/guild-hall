@@ -112,6 +112,7 @@ function makeMockGitOps(overrides?: Partial<GitOps>): GitOps {
     async createBranch() {},
     async branchExists() { return false; },
     async deleteBranch() {},
+    async hasCommitsBeyond() { return false; },
     async createWorktree() {},
     async removeWorktree() {},
     async configureSparseCheckout() {},
@@ -731,6 +732,72 @@ describe("create_pr", () => {
 // -- initiate_meeting --
 
 describe("initiate_meeting", () => {
+  test("commits meeting request to integration worktree after writing artifact", async () => {
+    const commitAllCalls: Array<{ path: string; message: string }> = [];
+    const mockGit = makeMockGitOps({
+      commitAll(worktreePath: string, message: string) {
+        commitAllCalls.push({ path: worktreePath, message });
+        return Promise.resolve(true);
+      },
+    });
+    const deps = makeDeps({ gitOps: mockGit });
+    const handler = makeInitiateMeetingHandler(deps);
+
+    const result = await handler({
+      workerName: "research-specialist",
+      reason: "Discuss API design",
+    });
+
+    expect(result.isError).toBeUndefined();
+
+    // commitAll should have been called on the integration worktree path
+    expect(commitAllCalls).toHaveLength(1);
+    expect(commitAllCalls[0].path).toBe(derivedIntegrationPath());
+  });
+
+  test("commit message contains the meeting ID", async () => {
+    const commitAllCalls: Array<{ path: string; message: string }> = [];
+    const mockGit = makeMockGitOps({
+      commitAll(worktreePath: string, message: string) {
+        commitAllCalls.push({ path: worktreePath, message });
+        return Promise.resolve(true);
+      },
+    });
+    const deps = makeDeps({ gitOps: mockGit });
+    const handler = makeInitiateMeetingHandler(deps);
+
+    const result = await handler({
+      workerName: "research-specialist",
+      reason: "Discuss API design",
+    });
+
+    expect(result.isError).toBeUndefined();
+
+    // The commit message should contain the meeting ID (which is the filename sans .md)
+    expect(commitAllCalls).toHaveLength(1);
+    expect(commitAllCalls[0].message).toContain("meeting-request-");
+    expect(commitAllCalls[0].message).toContain("discuss-api-design");
+  });
+
+  test("commit failure returns error result", async () => {
+    const mockGit = makeMockGitOps({
+      commitAll() {
+        return Promise.reject(new Error("git commit failed"));
+      },
+    });
+    const deps = makeDeps({ gitOps: mockGit });
+    const handler = makeInitiateMeetingHandler(deps);
+
+    const result = await handler({
+      workerName: "research-specialist",
+      reason: "Discuss API design",
+    });
+
+    // REQ-SYS-26d: commitAll failure must return error
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("commit failed");
+  });
+
   test("creates meeting request artifact with correct frontmatter", async () => {
     const deps = makeDeps();
     const handler = makeInitiateMeetingHandler(deps);

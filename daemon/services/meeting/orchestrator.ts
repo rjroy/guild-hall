@@ -348,6 +348,27 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
           errorMessage(err),
         );
       }
+
+      // Delete the activity branch if it has no commits beyond the integration
+      // branch (empty orphan from a failed open). Branches with work are
+      // preserved for manual recovery.
+      if (entry.branchName !== "") {
+        try {
+          const hasWork = await git.hasCommitsBeyond(
+            projectPath,
+            CLAUDE_BRANCH,
+            entry.branchName,
+          );
+          if (!hasWork) {
+            await git.deleteBranch(projectPath, entry.branchName);
+          }
+        } catch (err: unknown) {
+          console.warn(
+            `[meeting] Failed to check/delete branch "${entry.branchName}" for "${entry.meetingId as string}":`,
+            errorMessage(err),
+          );
+        }
+      }
     }
     // Project scope: deregister only. The integration worktree is never removed.
   }
@@ -539,18 +560,21 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     opts?: { isInitial?: boolean },
   ): AsyncGenerator<GuildHallEvent> {
     if (!deps.queryFn) {
+      console.error(`[meeting-orchestrator] startSession failed for meeting ${meeting.meetingId as string}: No queryFn provided`);
       yield { type: "error", reason: "No queryFn provided" };
       return;
     }
 
     const prepSpecResult = await buildMeetingPrepSpec(meeting, prompt);
     if (!prepSpecResult.ok) {
+      console.error(`[meeting-orchestrator] startSession failed for meeting ${meeting.meetingId as string}: ${prepSpecResult.reason}`);
       yield { type: "error", reason: prepSpecResult.reason };
       return;
     }
 
     const prep = await prepareSdkSession(prepSpecResult.spec, prepDeps);
     if (!prep.ok) {
+      console.error(`[meeting-orchestrator] startSession failed for meeting ${meeting.meetingId as string}: ${prep.error}`);
       yield { type: "error", reason: prep.error };
       return;
     }
@@ -728,6 +752,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       // Set up transcript and state file (both scopes)
       await setupTranscriptAndState(entry, prompt);
     } catch (err: unknown) {
+      console.error(`[meeting-orchestrator] acceptMeetingRequest failed for meeting ${meetingId as string} (project: ${projectName}):`, err);
       await cleanupFailedEntry(entry, project.path);
       yield { type: "error", reason: errorMessage(err) };
       return;
@@ -884,6 +909,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       // Set up transcript and state file (both scopes)
       await setupTranscriptAndState(entry, prompt);
     } catch (err: unknown) {
+      console.error(`[meeting-orchestrator] createMeeting failed for meeting ${entry.meetingId as string} (project: ${projectName}, worker: ${workerName}):`, err);
       await cleanupFailedEntry(entry, project.path);
       yield { type: "error", reason: errorMessage(err) };
       return;
@@ -968,12 +994,14 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
 
     const resumePrepResult = await buildMeetingPrepSpec(meeting, message, meeting.sdkSessionId);
     if (!resumePrepResult.ok) {
+      console.error(`[meeting-orchestrator] sendMessage prep failed for meeting ${meetingId as string}:`, resumePrepResult.reason);
       yield { type: "error", reason: resumePrepResult.reason };
       return;
     }
 
     const resumePrep = await prepareSdkSession(resumePrepResult.spec, prepDeps);
     if (!resumePrep.ok) {
+      console.error(`[meeting-orchestrator] sendMessage prep failed for meeting ${meetingId as string}:`, resumePrep.error);
       yield { type: "error", reason: resumePrep.error };
       return;
     }
