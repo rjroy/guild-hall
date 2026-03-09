@@ -67,6 +67,10 @@ bun run guild-hall sync [project-name]     # post-merge sync (detect merged PRs,
 bun run guild-hall migrate-content         # migrate result_summary from frontmatter to body
 ```
 
+## Pre-commit Hook
+
+`.git-hooks/pre-commit.sh` runs typecheck, lint, tests, and production build on every commit. All four must pass. If a commit fails, fix the issue and create a new commit (do not amend). The hook is already configured via `core.hooksPath`.
+
 ## Key Paths
 
 | Path | Purpose |
