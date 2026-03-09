@@ -28,10 +28,12 @@ The same gap exists in `propose_followup` (meeting toolbox, `daemon/services/mee
 
 ## Fix Direction
 
-Two approaches:
+Two approaches were considered:
 
-1. **Store in frontmatter at creation time.** Add `workerPortraitUrl` to the meeting artifact frontmatter when the daemon creates or requests a meeting. The page already reads other worker identity fields from frontmatter, so adding one more field is consistent. This means the portrait URL is baked in at creation time and won't update if the worker package changes its portrait later, but that's an unlikely scenario and acceptable.
+1. **Store in frontmatter at creation time.** Add `workerPortraitUrl` to the meeting artifact frontmatter when the daemon creates or requests a meeting.
 
-2. **Look up at render time.** The meeting page fetches the worker list from the daemon (or reads packages directly, since it's a server component with filesystem access) and matches by worker name. More dynamic but adds a dependency: the page now needs the daemon running or package discovery working to render correctly.
+2. **Look up at render time.** The meeting page resolves the portrait from worker identity metadata (discovered packages), using the `worker` field in frontmatter as the lookup key.
 
-Option 1 is simpler and consistent with how `worker` and `workerDisplayTitle` already work. The frontmatter is the source of truth for meeting identity.
+Option 1 was implemented first (adding `workerPortraitUrl` to `writeMeetingArtifact` and `propose_followup`). However, three separate code paths create meeting artifacts, each with its own template. The third path (`makeInitiateMeetingHandler` in the manager toolbox) was never updated, producing artifacts without portraits. This demonstrated the structural weakness of Option 1: every creation path must carry the portrait, and new paths will miss it.
+
+**Decision reversed (2026-03-08).** Option 2 is the correct structural fix. Portrait is resolved at display time from worker identity, not stored on every artifact. The `worker` field in frontmatter provides the lookup key. This keeps worker identity metadata in a single source of truth (`package.json`) and eliminates the requirement for every artifact creation path to carry presentation data. See updated spec: `.lore/specs/worker-identity-and-personality.md`.

@@ -13,7 +13,7 @@ filename_exemptions:
 
 custom_fields:
   commissions: [worker, workerDisplayTitle, prompt, dependencies, linked_artifacts, resource_overrides, activity_timeline, current_progress, projectName]
-  meetings: [worker, workerDisplayTitle, workerPortraitUrl, agenda, deferred_until, linked_artifacts, meeting_log]
+  meetings: [worker, workerDisplayTitle, agenda, deferred_until, linked_artifacts, meeting_log]
 ---
 
 # Project Lore Configuration
