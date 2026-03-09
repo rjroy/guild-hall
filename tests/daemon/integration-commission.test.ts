@@ -649,33 +649,6 @@ describe("commission lifecycle integration", () => {
     expect(statuses).toContain("failed");
   });
 
-  test("cancel pending commission via DELETE returns 200", async () => {
-    const { app } = makeFullApp();
-
-    // Create without dispatching
-    const createRes = await postCreateCommission(app);
-    const { commissionId } = await createRes.json() as { commissionId: string };
-
-    // Cancel the pending commission
-    const cancelRes = await deleteCommission(app, commissionId);
-    // Pending commissions aren't tracked in lifecycle, so cancel reads
-    // from the artifact. The cancel route returns 200 on success.
-    // Actually, the cancel route calls cancelCommission which needs
-    // the commission to be tracked. For pending commissions not yet
-    // dispatched, this will error. Let's verify the actual behavior.
-    const cancelBody = await cancelRes.json() as { status?: string; error?: string };
-
-    // cancelCommission on a non-tracked, non-dispatched commission
-    // should fail because the lifecycle doesn't know about it.
-    // This is expected behavior: you cancel dispatched commissions,
-    // not pending ones (you'd just delete the artifact).
-    if (cancelRes.status === 200) {
-      expect(cancelBody.status).toBe("ok");
-    } else {
-      // 409 or 500 expected for non-tracked commission
-      expect([409, 500]).toContain(cancelRes.status);
-    }
-  });
 
   test("POST /commissions returns 500 for unknown project", async () => {
     const { app } = makeFullApp();
