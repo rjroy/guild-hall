@@ -62,10 +62,12 @@
   --space-xl: 32px;
   --space-2xl: 48px;
 
-  /* Gem status filters (applied to the blue base gem.webp) */
-  --gem-active: hue-rotate(100deg) saturate(1.5) brightness(0.9);
-  --gem-pending: hue-rotate(-70deg) saturate(2) brightness(1.1);
-  --gem-blocked: hue-rotate(-140deg) saturate(2) brightness(0.85);
+  /* Gem status filters (applied to the blue ~240° base gem.webp)
+     Target hues: active=120° (green), pending=45° (amber), blocked=0° (red)
+     Required rotations from 240°: green=-120°, amber=-195°, red=+120° */
+  --gem-active: hue-rotate(-120deg) saturate(1.5) brightness(0.9);
+  --gem-pending: hue-rotate(-195deg) saturate(2) brightness(1.1);
+  --gem-blocked: hue-rotate(120deg) saturate(2) brightness(0.85);
   --gem-info: none;
 
   /* Breakpoints (reference only -- CSS custom properties

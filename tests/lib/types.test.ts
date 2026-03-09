@@ -31,6 +31,15 @@ describe("statusToGem", () => {
     ["Superseded", "blocked"],
     ["Declined", "blocked"],
 
+    // Commission-specific statuses
+    ["dispatched", "active"],
+    ["in_progress", "active"],
+    ["sleeping", "active"],
+    ["completed", "active"],
+    ["failed", "blocked"],
+    ["cancelled", "blocked"],
+    ["blocked", "pending"],
+
     // Info (blue) - recognized
     ["implemented", "info"],
     ["archived", "info"],
