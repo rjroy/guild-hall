@@ -425,11 +425,16 @@ describe("SchedulerService", () => {
       expect(updates.runsCompleted).toBe(1);
       expect(updates.lastSpawnedId).toBe("spawned-commission-001");
 
-      // Verify timeline entry
+      // Verify timeline entry and its extra fields
       const timelineCalls = recordOps.calls.filter(
         (c) => c.method === "appendTimeline" && c.args[1] === "commission_spawned",
       );
       expect(timelineCalls).toHaveLength(1);
+      const extra = timelineCalls[0].args[3] as Record<string, unknown>;
+      expect(extra.spawned_id).toBe("spawned-commission-001");
+      expect(extra.run_number).toBe("1");
+      // No lastSpawnedId in this test, so previous_run_outcome should be absent
+      expect(extra.previous_run_outcome).toBeUndefined();
 
       // Verify event emission
       const spawnEvents = eventBus.events.filter((e) => e.type === "schedule_spawned");
@@ -439,6 +444,38 @@ describe("SchedulerService", () => {
         expect(spawnEvents[0].spawnedId).toBe("spawned-commission-001");
         expect(spawnEvents[0].runNumber).toBe(1);
       }
+    });
+
+    test("includes previous_run_outcome in timeline when prior run exists", async () => {
+      const previousSpawnedId = "commission-Sable-20260201-090000";
+
+      await writeScheduleArtifact(projectDir, "schedule-with-prior-run", {
+        cron: "* * * * *",
+        worker: "Sable",
+        prompt: "Generate weekly report",
+        date: "2025-01-01",
+        lastSpawnedId: previousSpawnedId,
+        lastRun: "2025-01-01T00:00:00.000Z",
+        runsCompleted: 1,
+      });
+
+      // Create the previous spawned commission as completed
+      await writeCommissionArtifact(projectDir, previousSpawnedId, {
+        status: "completed",
+      });
+
+      const scheduler = createScheduler();
+      await scheduler.tick();
+
+      // Verify timeline entry includes previous_run_outcome
+      const timelineCalls = recordOps.calls.filter(
+        (c) => c.method === "appendTimeline" && c.args[1] === "commission_spawned",
+      );
+      expect(timelineCalls).toHaveLength(1);
+      const extra = timelineCalls[0].args[3] as Record<string, unknown>;
+      expect(extra.spawned_id).toBe("spawned-commission-001");
+      expect(extra.run_number).toBe("2");
+      expect(extra.previous_run_outcome).toBe("completed");
     });
 
     test("skips schedules that are not yet due", async () => {
@@ -593,11 +630,17 @@ describe("SchedulerService", () => {
       expect(meetingRequests[0].workerName).toBe("Sable");
       expect(meetingRequests[0].reason).toContain("stuck run");
 
-      // Should have added escalation timeline entry
+      // Should have added escalation timeline entry with extra fields
       const escalationTimeline = recordOps.calls.filter(
         (c) => c.method === "appendTimeline" && c.args[1] === "escalation_created",
       );
       expect(escalationTimeline).toHaveLength(1);
+      const extra = escalationTimeline[0].args[3] as Record<string, unknown>;
+      expect(extra.stuck_commission_id).toBe(spawnedId);
+      expect(extra.running_since).toBeDefined();
+      expect(typeof extra.running_since).toBe("string");
+      // running_since should be a valid ISO timestamp
+      expect(new Date(extra.running_since as string).getTime()).not.toBeNaN();
 
       // No commission should be created (still overlapping)
       const createCalls = commissionSession.calls.filter((c) => c.method === "createCommission");

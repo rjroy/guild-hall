@@ -696,3 +696,110 @@ describe("POST /commissions (scheduled)", () => {
     expect(params.repeat).toBeUndefined();
   });
 });
+
+describe("POST /commissions/:id/schedule-status", () => {
+  test("returns 200 on successful status transition", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "paused" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { status: string };
+    expect(body.status).toBe("paused");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("updateScheduleStatus");
+    expect(calls[0].args[0]).toBe("schedule-test-001");
+    expect(calls[0].args[1]).toBe("paused");
+  });
+
+  test("returns 409 when transition is invalid (skipped outcome)", async () => {
+    const { app } = makeTestApp({
+      updateScheduleStatus() {
+        return Promise.resolve({ outcome: "skipped", reason: "Already paused" });
+      },
+    });
+
+    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "paused" }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("Already paused");
+  });
+
+  test("returns 409 when commission is not a scheduled type", async () => {
+    const { app } = makeTestApp({
+      updateScheduleStatus() {
+        return Promise.reject(
+          new Error('Commission "c-001" is not a scheduled commission'),
+        );
+      },
+    });
+
+    const res = await app.request("/commissions/c-001/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "paused" }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("not a scheduled");
+  });
+
+  test("returns 404 when commission is not found", async () => {
+    const { app } = makeTestApp({
+      updateScheduleStatus() {
+        return Promise.reject(
+          new Error('Commission "ghost-schedule" not found'),
+        );
+      },
+    });
+
+    const res = await app.request("/commissions/ghost-schedule/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "active" }),
+    });
+
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("not found");
+  });
+
+  test("returns 400 when status field is missing", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("Missing required field: status");
+  });
+
+  test("returns 400 on invalid JSON", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json",
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("Invalid JSON");
+  });
+});

@@ -11,6 +11,7 @@ import {
   type CommissionMeta,
 } from "@/lib/commissions";
 import { nextOccurrence } from "@/daemon/services/scheduler/cron";
+import { describeCron } from "@/lib/cron-utils";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
 import { discoverPackages, getWorkerByName } from "@/lib/packages";
 import type { WorkerMetadata } from "@/lib/types";
@@ -20,45 +21,6 @@ import type { ScheduleInfo } from "@/web/components/commission/CommissionView";
 import NeighborhoodGraph from "@/web/components/commission/NeighborhoodGraph";
 import type { CommissionArtifact } from "@/web/components/commission/CommissionLinkedArtifacts";
 import styles from "./page.module.css";
-
-/** Maps common cron expressions to human-readable descriptions. */
-function describeCron(cron: string): string {
-  const common: Record<string, string> = {
-    "* * * * *": "Every minute",
-    "*/5 * * * *": "Every 5 minutes",
-    "*/15 * * * *": "Every 15 minutes",
-    "*/30 * * * *": "Every 30 minutes",
-    "0 * * * *": "Every hour",
-    "0 */2 * * *": "Every 2 hours",
-    "0 */6 * * *": "Every 6 hours",
-    "0 0 * * *": "Daily at midnight",
-    "0 9 * * *": "Daily at 9:00 AM",
-    "0 9 * * 1-5": "Weekdays at 9:00 AM",
-    "0 9 * * 1": "Every Monday at 9:00 AM",
-    "0 0 * * 0": "Every Sunday at midnight",
-    "0 0 1 * *": "First of every month",
-    "0 0 1 1 *": "Every January 1st",
-  };
-
-  if (common[cron]) return common[cron];
-
-  // Try to generate a basic description from fields
-  const parts = cron.trim().split(/\s+/);
-  if (parts.length !== 5) return cron;
-
-  const [min, hour, dom, mon, dow] = parts;
-  const pieces: string[] = [];
-
-  if (min === "0" && hour !== "*" && dom === "*" && mon === "*") {
-    if (dow === "*") {
-      pieces.push(`Daily at ${hour}:00`);
-    } else if (dow === "1-5") {
-      pieces.push(`Weekdays at ${hour}:00`);
-    }
-  }
-
-  return pieces.length > 0 ? pieces.join(", ") : cron;
-}
 
 /**
  * Resolves linked artifact paths from commission frontmatter into
