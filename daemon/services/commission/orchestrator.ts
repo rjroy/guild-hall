@@ -38,7 +38,7 @@ import type {
   DiscoveredPackage,
   WorkerMetadata,
 } from "@/lib/types";
-import { isNodeError } from "@/lib/types";
+import { isNodeError, isValidModel } from "@/lib/types";
 import {
   integrationWorktreePath as integrationWorktreePathFn,
   commissionWorktreePath as commissionWorktreePathFn,
@@ -93,14 +93,14 @@ export interface CommissionSessionForRoutes {
     workerName: string,
     prompt: string,
     dependencies?: string[],
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
   ): Promise<{ commissionId: string }>;
   updateCommission(
     commissionId: CommissionId,
     updates: {
       prompt?: string;
       dependencies?: string[];
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
     },
   ): Promise<void>;
   dispatchCommission(
@@ -1162,7 +1162,7 @@ export function createCommissionOrchestrator(
     workerName: string,
     prompt: string,
     dependencies: string[] = [],
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
   ): Promise<{ commissionId: string }> {
     const project = findProject(projectName);
     if (!project) {
@@ -1201,7 +1201,7 @@ export function createCommissionOrchestrator(
         : " []";
 
     const resourceLines =
-      resourceOverrides && (resourceOverrides.maxTurns !== undefined || resourceOverrides.maxBudgetUsd !== undefined)
+      resourceOverrides && (resourceOverrides.maxTurns !== undefined || resourceOverrides.maxBudgetUsd !== undefined || resourceOverrides.model !== undefined)
         ? `\nresource_overrides:\n${
             resourceOverrides.maxTurns !== undefined
               ? `  maxTurns: ${resourceOverrides.maxTurns}\n`
@@ -1209,6 +1209,10 @@ export function createCommissionOrchestrator(
           }${
             resourceOverrides.maxBudgetUsd !== undefined
               ? `  maxBudgetUsd: ${resourceOverrides.maxBudgetUsd}\n`
+              : ""
+          }${
+            resourceOverrides.model !== undefined
+              ? `  model: ${resourceOverrides.model}\n`
               : ""
           }`
         : "";
@@ -1248,7 +1252,7 @@ projectName: ${projectName}
     updates: {
       prompt?: string;
       dependencies?: string[];
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
     },
   ): Promise<void> {
     const found = await findProjectForCommission(commissionId);
@@ -1298,19 +1302,25 @@ projectName: ${projectName}
       // Read existing overrides from raw content
       const existingMaxTurnsMatch = raw.match(/^ {2}maxTurns: (\d+)$/m);
       const existingMaxBudgetMatch = raw.match(/^ {2}maxBudgetUsd: ([\d.]+)$/m);
+      const existingModelMatch = raw.match(/^ {2}model: (\w+)$/m);
 
       const maxTurns = updates.resourceOverrides.maxTurns
         ?? (existingMaxTurnsMatch ? Number(existingMaxTurnsMatch[1]) : undefined);
       const maxBudgetUsd = updates.resourceOverrides.maxBudgetUsd
         ?? (existingMaxBudgetMatch ? Number(existingMaxBudgetMatch[1]) : undefined);
+      const model = updates.resourceOverrides.model
+        ?? (existingModelMatch ? existingModelMatch[1] : undefined);
 
-      if (maxTurns !== undefined || maxBudgetUsd !== undefined) {
+      if (maxTurns !== undefined || maxBudgetUsd !== undefined || model !== undefined) {
         let overrideBlock = "";
         if (maxTurns !== undefined) {
           overrideBlock += `\n  maxTurns: ${maxTurns}`;
         }
         if (maxBudgetUsd !== undefined) {
           overrideBlock += `\n  maxBudgetUsd: ${maxBudgetUsd}`;
+        }
+        if (model !== undefined) {
+          overrideBlock += `\n  model: ${model}`;
         }
 
         // Check if resource_overrides field already exists
@@ -1382,13 +1392,19 @@ projectName: ${projectName}
     const prompt = (data.prompt as string | undefined) ?? "";
     const workerName = (data.worker as string | undefined) ?? "";
     const commissionDeps = (data.dependencies as string[] | undefined) ?? [];
-    const overrides = data.resource_overrides as { maxTurns?: number; maxBudgetUsd?: number } | undefined;
-    const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number } = {};
+    const overrides = data.resource_overrides as { maxTurns?: number; maxBudgetUsd?: number; model?: string } | undefined;
+    const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string } = {};
     if (overrides?.maxTurns !== undefined) {
       resourceOverrides.maxTurns = Number(overrides.maxTurns);
     }
     if (overrides?.maxBudgetUsd !== undefined) {
       resourceOverrides.maxBudgetUsd = Number(overrides.maxBudgetUsd);
+    }
+    if (overrides?.model !== undefined) {
+      resourceOverrides.model = String(overrides.model);
+    }
+    if (resourceOverrides.model !== undefined && !isValidModel(resourceOverrides.model)) {
+      throw new Error(`Invalid model "${resourceOverrides.model}" in resource_overrides for commission "${commissionId as string}"`);
     }
 
     // Determine checkout scope

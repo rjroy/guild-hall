@@ -1811,3 +1811,246 @@ describe("commission_progress does not cause infinite event loop", () => {
   });
 
 });
+
+// -- Model selection tests --
+
+describe("createCommission with model override", () => {
+  test("writes model to resource_overrides in artifact YAML", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Model Test Commission",
+      "test-worker",
+      "Do the work",
+      [],
+      { model: "haiku" },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("resource_overrides:");
+    expect(raw).toContain("model: haiku");
+  });
+
+  test("writes model alongside maxTurns in resource_overrides", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Model and Turns",
+      "test-worker",
+      "Do the work",
+      [],
+      { model: "sonnet", maxTurns: 5 },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("resource_overrides:");
+    expect(raw).toContain("model: sonnet");
+    expect(raw).toContain("maxTurns: 5");
+  });
+
+  test("omits resource_overrides when no overrides provided", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "No Overrides",
+      "test-worker",
+      "Do the work",
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).not.toContain("resource_overrides:");
+  });
+});
+
+describe("dispatchCommission with model override", () => {
+  test("dispatches successfully with valid model in resource_overrides", async () => {
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-model-dispatch-001");
+
+    // Write artifact with model in resource_overrides
+    const now = new Date();
+    const content = `---
+title: "Commission: Model Test"
+date: ${now.toISOString().split("T")[0]}
+status: pending
+tags: [commission]
+worker: ${TEST_WORKER}
+workerDisplayTitle: "Test Worker Title"
+prompt: "Do model work"
+dependencies: []
+linked_artifacts: []
+resource_overrides:
+  model: haiku
+activity_timeline:
+  - timestamp: ${now.toISOString()}
+    event: created
+    reason: "Commission created"
+current_progress: ""
+projectName: ${TEST_PROJECT}
+---
+`;
+    const dir = path.join(integrationPath, ".lore", "commissions");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, `${commissionId as string}.md`), content, "utf-8");
+
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: true,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const { orchestrator } = buildDeps({ mockQueryFn, eventBus });
+
+    const result = await orchestrator.dispatchCommission(commissionId);
+    expect(result.status).toBe("accepted");
+
+    // Wait for session to complete
+    await new Promise<void>((r) => setTimeout(r, 200));
+
+    // Commission completed successfully (model was valid, no error thrown)
+    expect(orchestrator.getActiveCommissions()).toBe(0);
+  });
+
+  test("rejects invalid model in resource_overrides", async () => {
+    const { orchestrator } = buildDeps();
+
+    const commissionId = asCommissionId("commission-test-bad-model-001");
+
+    // Write artifact with invalid model
+    const now = new Date();
+    const content = `---
+title: "Commission: Bad Model"
+date: ${now.toISOString().split("T")[0]}
+status: pending
+tags: [commission]
+worker: ${TEST_WORKER}
+workerDisplayTitle: "Test Worker Title"
+prompt: "Do work"
+dependencies: []
+linked_artifacts: []
+resource_overrides:
+  model: gpt4
+activity_timeline:
+  - timestamp: ${now.toISOString()}
+    event: created
+    reason: "Commission created"
+current_progress: ""
+projectName: ${TEST_PROJECT}
+---
+`;
+    const dir = path.join(integrationPath, ".lore", "commissions");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, `${commissionId as string}.md`), content, "utf-8");
+
+    await expect(
+      orchestrator.dispatchCommission(commissionId),
+    ).rejects.toThrow(/Invalid model "gpt4"/);
+  });
+});
+
+describe("updateCommission with model override", () => {
+  test("adds model to existing resource_overrides", async () => {
+    const { orchestrator } = buildDeps();
+
+    // Create a commission with maxTurns but no model
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Update Model Test",
+      "test-worker",
+      "Do the work",
+      [],
+      { maxTurns: 10 },
+    );
+
+    const commissionId = asCommissionId(result.commissionId);
+
+    // Update to add model
+    await orchestrator.updateCommission(commissionId, {
+      resourceOverrides: { model: "haiku" },
+    });
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("model: haiku");
+    // Existing maxTurns should be preserved
+    expect(raw).toContain("maxTurns: 10");
+  });
+
+  test("sets model on commission with no existing resource_overrides", async () => {
+    const { orchestrator } = buildDeps();
+
+    const commissionId = asCommissionId("commission-test-update-model-new-001");
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+
+    await orchestrator.updateCommission(commissionId, {
+      resourceOverrides: { model: "opus" },
+    });
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${commissionId as string}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("resource_overrides:");
+    expect(raw).toContain("model: opus");
+  });
+
+  test("preserves existing model when updating other overrides", async () => {
+    const { orchestrator } = buildDeps();
+
+    // Create with model
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Preserve Model",
+      "test-worker",
+      "Do the work",
+      [],
+      { model: "sonnet" },
+    );
+
+    const commissionId = asCommissionId(result.commissionId);
+
+    // Update maxTurns only (model should be preserved)
+    await orchestrator.updateCommission(commissionId, {
+      resourceOverrides: { maxTurns: 20 },
+    });
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("model: sonnet");
+    expect(raw).toContain("maxTurns: 20");
+  });
+});

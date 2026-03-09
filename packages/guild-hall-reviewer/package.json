@@ -9,6 +9,7 @@
       "displayTitle": "Guild Warden",
       "portraitPath": "/images/portraits/thorne-warden.webp"
     },
+    "model": "opus",
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep"],
     "checkoutScope": "full",

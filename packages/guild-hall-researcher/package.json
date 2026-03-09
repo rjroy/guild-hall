@@ -9,6 +9,7 @@
       "displayTitle": "Guild Pathfinder",
       "portraitPath": "/images/portraits/verity-pathfinder.webp"
     },
+    "model": "opus",
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
     "checkoutScope": "sparse",

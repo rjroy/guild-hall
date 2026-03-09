@@ -9,6 +9,7 @@
       "displayTitle": "Guild Chronicler",
       "portraitPath": "/images/portraits/octavia-chronicler.webp"
     },
+    "model": "opus",
     "domainPlugins": ["guild-hall-writer"],
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit"],

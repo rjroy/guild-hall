@@ -25,7 +25,7 @@ export interface CommissionMeta {
   prompt: string;
   dependencies: string[];
   linked_artifacts: string[];
-  resource_overrides: { maxTurns?: number; maxBudgetUsd?: number };
+  resource_overrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
   current_progress: string;
   result_summary: string;
   projectName: string;
@@ -94,6 +94,9 @@ function parseCommissionData(
         : undefined,
       maxBudgetUsd: typeof resourceOverrides.maxBudgetUsd === "number"
         ? resourceOverrides.maxBudgetUsd
+        : undefined,
+      model: typeof resourceOverrides.model === "string"
+        ? resourceOverrides.model
         : undefined,
     },
     current_progress: typeof data.current_progress === "string"

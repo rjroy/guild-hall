@@ -381,7 +381,7 @@ async function generateWithFullSdk(
     contextType: "briefing",
     eventBus: noopEventBus,
     abortController,
-    resourceOverrides: { maxTurns: 200 },
+    resourceOverrides: { maxTurns: 200, model: "sonnet" },
     activationExtras: { managerContext: context },
   };
 
@@ -397,8 +397,7 @@ async function generateWithFullSdk(
       return generateTemplateBriefing(context);
     }
 
-    // Override model to sonnet (manager defaults to opus, briefings don't need it)
-    const options = { ...prepResult.result.options, model: "sonnet" };
+    const options = prepResult.result.options;
     const generator = runSdkSession(queryFn, BRIEFING_PROMPT, options);
     const text = await collectRunnerText(generator);
 

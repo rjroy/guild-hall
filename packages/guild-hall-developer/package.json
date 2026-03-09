@@ -9,6 +9,7 @@
       "displayTitle": "Guild Artificer",
       "portraitPath": "/images/portraits/dalton-artificer.webp"
     },
+    "model": "opus",
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
     "checkoutScope": "full",

@@ -264,3 +264,19 @@ describe("mail context rendering", () => {
     expect(result.systemPrompt).not.toContain("Commission protocol:");
   });
 });
+
+describe("model selection", () => {
+  test("context with explicit model passes it through to result", () => {
+    const context = makeContext({ model: "haiku" });
+    const result = activateWorkerWithSharedPattern(context);
+
+    expect(result.model).toBe("haiku");
+  });
+
+  test("context without model defaults to opus", () => {
+    const context = makeContext();
+    const result = activateWorkerWithSharedPattern(context);
+
+    expect(result.model).toBe("opus");
+  });
+});

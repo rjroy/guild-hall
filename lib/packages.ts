@@ -1,6 +1,9 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { z } from "zod";
+import {
+  isValidModel,
+} from "@/lib/types";
 import type {
   PackageMetadata,
   WorkerMetadata,
@@ -51,6 +54,7 @@ export const workerMetadataSchema = z.object({
   identity: workerIdentitySchema,
   posture: z.string().optional(),
   soul: z.string().optional(),
+  model: z.string().refine(isValidModel, { message: "Invalid model name" }).optional(),
   systemToolboxes: z.array(z.string()).default([]),
   domainToolboxes: z.array(z.string()),
   domainPlugins: z.array(z.string()).optional(),

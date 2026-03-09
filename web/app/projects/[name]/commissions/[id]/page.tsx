@@ -9,6 +9,8 @@ import {
   parseActivityTimeline,
 } from "@/lib/commissions";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
+import { discoverPackages, getWorkerByName } from "@/lib/packages";
+import type { WorkerMetadata } from "@/lib/types";
 import CommissionHeader from "@/web/components/commission/CommissionHeader";
 import CommissionView from "@/web/components/commission/CommissionView";
 import NeighborhoodGraph from "@/web/components/commission/NeighborhoodGraph";
@@ -82,6 +84,18 @@ export default async function CommissionPage({
     projectName,
   );
 
+  // Resolve the effective model for display. Commission override takes
+  // precedence over the worker's default, which falls back to "opus".
+  const defaultPackagesDir = path.join(ghHome, "packages");
+  const packages = await discoverPackages([defaultPackagesDir]);
+  const workerPkg = getWorkerByName(packages, commission.worker);
+  const workerDefaultModel = workerPkg
+    ? (workerPkg.metadata as WorkerMetadata).model
+    : undefined;
+  const effectiveModel = commission.resource_overrides.model ?? workerDefaultModel ?? "opus";
+  const isModelOverride = commission.resource_overrides.model != null
+    && commission.resource_overrides.model !== workerDefaultModel;
+
   // Build dependency graph from all commissions in the project
   // to show the neighborhood (direct deps and dependents) for this commission.
   const integrationPath = integrationWorktreePath(ghHome, projectName);
@@ -97,6 +111,8 @@ export default async function CommissionPage({
         worker={commission.worker}
         workerDisplayTitle={commission.workerDisplayTitle}
         projectName={projectName}
+        model={effectiveModel}
+        isModelOverride={isModelOverride}
       />
       <NeighborhoodGraph
         graph={graph}

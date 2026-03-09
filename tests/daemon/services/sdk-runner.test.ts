@@ -790,6 +790,80 @@ describe("prepareSdkSession", () => {
     if (!result.ok) return;
     expect(result.result.options.model).toBeUndefined();
   });
+
+  test("model from activation flows to options when no override present", async () => {
+    const modelActivation: ActivationResult = {
+      ...mockActivation,
+      model: "sonnet",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec(),
+      makeDeps({ activateWorker: async () => modelActivation }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.model).toBe("sonnet");
+  });
+
+  test("resourceOverrides.model overrides activation model", async () => {
+    const modelActivation: ActivationResult = {
+      ...mockActivation,
+      model: "sonnet",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ resourceOverrides: { model: "opus" } }),
+      makeDeps({ activateWorker: async () => modelActivation }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.model).toBe("opus");
+  });
+
+  test("no model in activation or overrides produces no model key in options", async () => {
+    const noModelActivation: ActivationResult = {
+      ...mockActivation,
+      model: undefined,
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ resourceOverrides: { maxTurns: 5 } }),
+      makeDeps({ activateWorker: async () => noModelActivation }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect("model" in result.result.options).toBe(false);
+  });
+
+  test("workerMeta.model is passed through to activation context", async () => {
+    let capturedModel: string | undefined;
+    const workerWithModel: WorkerMetadata = {
+      ...mockWorkerMeta,
+      model: "haiku",
+    };
+    const workerPkgWithModel: DiscoveredPackage = {
+      name: "@guild-hall/test-worker",
+      path: "/tmp/packages/test-worker",
+      metadata: workerWithModel,
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ packages: [workerPkgWithModel, mockToolboxPkg] }),
+      makeDeps({
+        activateWorker: async (_pkg, ctx) => {
+          capturedModel = ctx.model;
+          return mockActivation;
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(capturedModel).toBe("haiku");
+  });
 });
 
 // -- isSessionExpiryError tests --

@@ -108,7 +108,7 @@ export function activateWorkerWithSharedPattern(
 ): ActivationResult {
   return {
     systemPrompt: buildSystemPrompt(context),
-    model: "opus",
+    model: context.model ?? "opus",
     tools: context.resolvedTools,
     resourceBounds: {
       maxTurns: context.resourceDefaults.maxTurns,

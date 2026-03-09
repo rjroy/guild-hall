@@ -74,7 +74,7 @@ function makeMockCommissionSession(
       workerName: string,
       prompt: string,
       dependencies?: string[],
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
     ) {
       calls.createCommission.push([
         projectName, title, workerName, prompt, dependencies, resourceOverrides,
@@ -304,6 +304,23 @@ describe("create_commission", () => {
     const call = mockSession.calls.createCommission[0];
     expect(call[4]).toEqual(["commission-a", "commission-b"]);
     expect(call[5]).toEqual({ maxTurns: 50, maxBudgetUsd: 2.0 });
+  });
+
+  test("passes model in resourceOverrides through to createCommission", async () => {
+    const mockSession = makeMockCommissionSession();
+    const deps = makeDeps({ commissionSession: mockSession });
+    const handler = makeCreateCommissionHandler(deps);
+
+    await handler({
+      title: "Model override task",
+      workerName: "test-worker",
+      prompt: "Use a specific model",
+      resourceOverrides: { model: "haiku" },
+      dispatch: false,
+    });
+
+    const call = mockSession.calls.createCommission[0];
+    expect(call[5]).toEqual({ model: "haiku" });
   });
 
   test("returns error when createCommission throws", async () => {

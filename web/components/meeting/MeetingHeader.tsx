@@ -8,6 +8,7 @@ interface MeetingHeaderProps {
   workerDisplayTitle: string;
   workerPortraitUrl?: string;
   agenda: string;
+  model?: string;
 }
 
 export default function MeetingHeader({
@@ -16,6 +17,7 @@ export default function MeetingHeader({
   workerDisplayTitle,
   workerPortraitUrl,
   agenda,
+  model,
 }: MeetingHeaderProps) {
   const encodedName = encodeURIComponent(projectName);
 
@@ -54,6 +56,9 @@ export default function MeetingHeader({
 
           <h3 className={styles.agendaTitle}>Agenda</h3>
           <p className={styles.agendaText}>{agenda}</p>
+          {model && (
+            <span className={styles.modelLabel}>Model: {model}</span>
+          )}
         </div>
       </div>
     </div>

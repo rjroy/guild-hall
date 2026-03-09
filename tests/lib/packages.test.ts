@@ -236,6 +236,31 @@ describe("Zod schemas", () => {
     expect(result2.success).toBe(false);
   });
 
+  test("workerMetadataSchema accepts valid model name", () => {
+    const data = { ...validWorkerGuildHall(), model: "haiku" } as Record<string, unknown>;
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.model).toBe("haiku");
+    }
+  });
+
+  test("workerMetadataSchema validates successfully with model absent", () => {
+    const data = validWorkerGuildHall() as Record<string, unknown>;
+    delete data.model;
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.model).toBeUndefined();
+    }
+  });
+
+  test("workerMetadataSchema rejects invalid model name", () => {
+    const data = { ...validWorkerGuildHall(), model: "invalid" } as Record<string, unknown>;
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(false);
+  });
+
   test("workerMetadataSchema accepts domainPlugins", () => {
     const data = { ...validWorkerGuildHall(), domainPlugins: ["pkg-name"] };
     const result = workerMetadataSchema.safeParse(data);
@@ -698,6 +723,55 @@ describe("discoverPackages", () => {
     const packages = await discoverPackages([tmpDir]);
     expect(packages).toHaveLength(1);
     expect(packages[0].pluginPath).toBeUndefined();
+  });
+
+  test("discovers worker with model field in metadata", async () => {
+    const guildHall = { ...validWorkerGuildHall(), model: "haiku" };
+    await writePackage(tmpDir, "haiku-worker", {
+      name: "haiku-worker",
+      guildHall,
+    });
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+
+    const meta = packages[0].metadata as WorkerMetadata;
+    expect(meta.model).toBe("haiku");
+  });
+
+  test("worker without model field has model undefined in metadata", async () => {
+    await writePackage(tmpDir, "no-model-worker", {
+      name: "no-model-worker",
+      guildHall: validWorkerGuildHall(),
+    });
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+
+    const meta = packages[0].metadata as WorkerMetadata;
+    expect(meta.model).toBeUndefined();
+  });
+
+  test("skips worker with invalid model name", async () => {
+    const warnMessages: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnMessages.push(args.map(String).join(" "));
+    };
+
+    try {
+      const guildHall = { ...validWorkerGuildHall(), model: "invalid" };
+      await writePackage(tmpDir, "bad-model", {
+        name: "bad-model",
+        guildHall,
+      });
+
+      const packages = await discoverPackages([tmpDir]);
+      expect(packages).toHaveLength(0);
+      expect(warnMessages.some((m) => m.includes("invalid guildHall metadata"))).toBe(true);
+    } finally {
+      console.warn = originalWarn;
+    }
   });
 
   test("soul.md loading does not affect posture loading", async () => {

@@ -9,6 +9,8 @@ interface CommissionHeaderProps {
   worker: string;
   workerDisplayTitle: string;
   projectName: string;
+  model?: string;
+  isModelOverride?: boolean;
 }
 
 /**
@@ -22,6 +24,8 @@ export default function CommissionHeader({
   worker,
   workerDisplayTitle,
   projectName,
+  model,
+  isModelOverride,
 }: CommissionHeaderProps) {
   const encodedProject = encodeURIComponent(projectName);
   const gemStatus = statusToGem(status);
@@ -67,6 +71,11 @@ export default function CommissionHeader({
         {worker && (
           <span className={styles.workerLabel}>
             Assigned to: {workerDisplayTitle || worker}
+          </span>
+        )}
+        {model && (
+          <span className={styles.modelLabel}>
+            Model: {model}{isModelOverride ? " (override)" : ""}
           </span>
         )}
       </div>

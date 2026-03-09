@@ -32,6 +32,7 @@ import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import { hasActiveActivities, syncProject } from "@/cli/rebase";
 import type { SyncResult } from "@/cli/rebase";
+import { isValidModel } from "@/lib/types";
 import type { ProjectConfig } from "@/lib/types";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
@@ -70,7 +71,7 @@ export function makeCreateCommissionHandler(
     workerName: string;
     prompt: string;
     dependencies?: string[];
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
     dispatch?: boolean;
   }): Promise<ToolResult> => {
     try {
@@ -647,7 +648,7 @@ export function createManagerToolbox(
     tools: [
       tool(
         "create_commission",
-        "Create a new commission for a specialist worker. By default, the commission is dispatched immediately after creation. Set dispatch=false to create without dispatching.",
+        "Create a new commission for a specialist worker. By default, the commission is dispatched immediately after creation. Set dispatch=false to create without dispatching. Use resourceOverrides.model to override the worker's default model.",
         {
           title: z.string().describe("Short title for the commission"),
           workerName: z.string().describe("Name of the worker to assign"),
@@ -656,7 +657,8 @@ export function createManagerToolbox(
           resourceOverrides: z.object({
             maxTurns: z.number().optional(),
             maxBudgetUsd: z.number().optional(),
-          }).optional().describe("Override default resource limits"),
+            model: z.string().refine(isValidModel, { message: "Invalid model name" }).optional(),
+          }).optional().describe("Override default resource limits. Use model to override the worker's default model."),
           dispatch: z.boolean().optional().describe("Whether to dispatch immediately (default: true)"),
         },
         (args) => createCommission(args),

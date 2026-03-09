@@ -9,6 +9,7 @@
       "displayTitle": "Guild Breaker",
       "portraitPath": "/images/portraits/sable-breaker.webp"
     },
+    "model": "opus",
     "domainToolboxes": [],
     "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
     "checkoutScope": "full",
