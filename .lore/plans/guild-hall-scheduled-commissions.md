@@ -9,6 +9,8 @@ related:
   - .lore/brainstorm/scheduled-commissions.md
   - .lore/specs/guild-hall-commissions.md
   - .lore/specs/commission-layer-separation.md
+  - .lore/specs/model-selection.md
+  - .lore/plans/model-selection.md
 ---
 
 # Plan: Scheduled Commissions
@@ -47,6 +49,11 @@ Requirements addressed:
 - REQ-SCOM-26: Spawned commissions eligible for cleanup -> Step 2 (source_schedule field)
 - REQ-SCOM-27: Schedule artifacts NOT eligible for cleanup -> Step 9 (cleanup filter)
 - REQ-SCOM-28: Timeline compression (tend concern, not scheduler) -> no step (out of scope)
+
+Cross-cutting from [Plan: Model Selection](.lore/plans/model-selection.md):
+
+- REQ-MODEL-7: Commission `resource_overrides` accepts `model?: string` -> Steps 2, 5, 6
+- REQ-MODEL-10: Scheduled commission templates include `model` in `resource_overrides` -> Steps 5, 6, 9
 
 ## Codebase Context
 
@@ -103,11 +110,11 @@ createCommission(
   workerName: string,
   prompt: string,
   dependencies?: string[],
-  resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+  resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
   options?: { type?: CommissionType; sourceSchedule?: string },
 ): Promise<{ commissionId: string }>;
 ```
-Existing callers pass at most 6 arguments, so adding a 7th optional parameter is non-breaking.
+Existing callers pass at most 6 arguments, so adding a 7th optional parameter is non-breaking. The `model` field in `resourceOverrides` is added by the model selection feature (REQ-MODEL-7); the scheduled commissions plan assumes that type change is already in place.
 
 In `record.ts`, add a `readType()` function:
 - Parses the `type` field from frontmatter, returns `"one-shot"` when absent (backward compatibility).
@@ -173,17 +180,18 @@ Tests:
 Add two new tools to the manager toolbox.
 
 **`create_scheduled_commission`** handler (`makeCreateScheduledCommissionHandler`):
-- Parameters: `title`, `workerName`, `prompt`, `cron`, `repeat?`, `dependencies?`, `resourceOverrides?`.
+- Parameters: `title`, `workerName`, `prompt`, `cron`, `repeat?`, `dependencies?`, `resourceOverrides?` (includes `maxTurns?`, `maxBudgetUsd?`, `model?`).
 - Validates the worker exists via `getWorkerByName(packages, workerName)` (same check as `createCommission`).
+- If `resourceOverrides.model` is provided, validates it against `VALID_MODELS` from `lib/types.ts` using `isValidModel()`. Rejects invalid model names with `isError: true` (same pattern as the `create_commission` tool's model validation in `.lore/plans/model-selection.md` Step 7).
 - Validates the cron expression using `isValidCron()` from Step 10's cron wrapper. Rejects invalid expressions with `isError: true`.
-- Writes the schedule artifact directly to the integration worktree's `.lore/commissions/` directory (not through the orchestrator's `createCommission`, because schedule artifacts have a different shape: they include the `schedule` block and use a different status set). The artifact includes: `type: scheduled`, `status: active`, the `schedule` block with the cron expression and zeroed counters (`runs_completed: 0`, `last_run: null`, `last_spawned_id: null`), `tags: [commission, scheduled]`, and the initial timeline entry. The creation pattern follows the same template-string approach as `orchestrator.ts:1216-1234`.
+- Writes the schedule artifact directly to the integration worktree's `.lore/commissions/` directory (not through the orchestrator's `createCommission`, because schedule artifacts have a different shape: they include the `schedule` block and use a different status set). The artifact includes: `type: scheduled`, `status: active`, the `schedule` block with the cron expression and zeroed counters (`runs_completed: 0`, `last_run: null`, `last_spawned_id: null`), `resource_overrides` (with `maxTurns`, `maxBudgetUsd`, and `model` if provided), `tags: [commission, scheduled]`, and the initial timeline entry. The creation pattern follows the same template-string approach as `orchestrator.ts:1216-1234`.
 - Commits the artifact to the `claude` branch via project lock (same pattern as `makeInitiateMeetingHandler`).
 - Registers the schedule with `ScheduleLifecycle` so the scheduler picks it up on the next tick.
 - The tool description should include a note that the prompt must be self-contained since no human is present at spawn time (REQ-SCOM-3b).
 - Returns `{ commissionId, created: true, status: "active" }`.
 
 **`update_schedule`** handler (`makeUpdateScheduleHandler`):
-- Parameters: `commissionId`, `cron?`, `repeat?`, `prompt?`, `status?`.
+- Parameters: `commissionId`, `cron?`, `repeat?`, `prompt?`, `status?`, `resourceOverrides?` (includes `maxTurns?`, `maxBudgetUsd?`, `model?`).
 - Reads current schedule metadata via `recordOps.readScheduleMetadata()`. Validates the schedule exists and has `type: scheduled` via `recordOps.readType()`.
 - For `status` changes: map the requested status to the correct `ScheduleLifecycle` method based on current state:
   - Current `active` + requested `paused` -> `scheduleLifecycle.pause()`
@@ -193,6 +201,7 @@ Add two new tools to the manager toolbox.
   - Current `failed` + requested `active` -> `scheduleLifecycle.reactivate()`
   - Any invalid combination returns `isError: true` with the specific invalid transition.
 - For field updates (`cron`, `repeat`, `prompt`): writes via `recordOps.writeScheduleFields()` (extended Layer 1). If `repeat` is set lower than `runs_completed`, transitions to `completed` (REQ-SCOM-19 edge case).
+- For `resourceOverrides` updates: writes via regex-based YAML replacement on the `resource_overrides` block. If `resourceOverrides.model` is provided, validates against `VALID_MODELS` before writing. Future spawned commissions inherit the updated overrides; already-spawned commissions are unaffected.
 - Returns `{ commissionId, updated: true, status }`.
 
 The `ManagerToolboxDeps` interface gains two new optional fields: `scheduleLifecycle?: ScheduleLifecycle` and `recordOps?: CommissionRecordOps`. These are optional so existing tests that don't exercise schedule tools don't need to provide them.
@@ -206,6 +215,9 @@ Tests:
 - `update_schedule` with valid status transition succeeds.
 - `update_schedule` with invalid transition returns `isError: true`.
 - Setting `repeat` below `runs_completed` triggers auto-completion.
+- `create_scheduled_commission` with `resourceOverrides: { model: "haiku" }` writes `model: haiku` in the artifact's `resource_overrides`.
+- Invalid model name in `resourceOverrides` returns `isError: true`.
+- `update_schedule` with `resourceOverrides: { model: "sonnet" }` updates the model in the artifact.
 
 ### Step 6: Scheduler service
 
@@ -246,7 +258,7 @@ interface SchedulerDeps {
    c. **Overlap check** (REQ-SCOM-12 step 3): If `last_spawned_id` is set, read the spawned commission's status via `recordOps.readStatus()` from the same `.lore/commissions/` directory. A commission is "still active" if its status is `dispatched`, `in_progress`, or `sleeping` (these three `CommissionStatus` values from `daemon/types.ts`). If still active:
       - **Stuck run check** (REQ-SCOM-17): Compute the cadence interval from the cron expression. If the spawned commission has been active for more than 2x the interval, and we haven't already escalated for this `last_spawned_id` (tracked in-memory via a `Set<string>`), escalate by calling `createMeetingRequestFn` with a descriptive reason. Append `escalation_created` timeline entry. Mark as escalated in the in-memory set.
       - Skip this schedule for this tick (no overlapping runs).
-   d. **Spawn** (REQ-SCOM-12 steps 4-7): Create a one-shot commission by calling `commissionSession.createCommission()` with the schedule's `workerName` (the `worker` field from the artifact maps to the `workerName` parameter), `prompt`, `dependencies`, `tags`, and `resourceOverrides` (REQ-SCOM-11). Pass `options: { type: "one-shot", sourceSchedule: scheduleId }`. Tags on the spawned commission should be `[commission]` (standard one-shot tag), not `[commission, scheduled]`. This reuses the existing commission creation path, including worker validation and artifact writing.
+   d. **Spawn** (REQ-SCOM-12 steps 4-7): Create a one-shot commission by calling `commissionSession.createCommission()` with the schedule's `workerName` (the `worker` field from the artifact maps to the `workerName` parameter), `prompt`, `dependencies`, `tags`, and `resourceOverrides` (REQ-SCOM-11). The `resourceOverrides` object is copied in full from the schedule template, including `model` if present (REQ-MODEL-10). The spawned commission inherits the model through the standard commission override flow (REQ-MODEL-9: commission `resource_overrides.model` > worker default > fallback "opus"). Pass `options: { type: "one-shot", sourceSchedule: scheduleId }`. Tags on the spawned commission should be `[commission]` (standard one-shot tag), not `[commission, scheduled]`. This reuses the existing commission creation path, including worker validation and artifact writing.
    e. **Dispatch**: The spawned commission ID comes back from `createCommission()` as `{ commissionId: string }` (unbranded). Cast to branded type via `asCommissionId(commissionId)` from `@/daemon/types` before calling `commissionSession.dispatchCommission()`. This respects concurrent limits (REQ-SCOM-15). If at capacity, the commission stays `pending` and queues for auto-dispatch. The schedule artifact still records the spawn.
    f. **Update schedule artifact**: Increment `runs_completed`, set `last_run` to now, set `last_spawned_id` to the new commission ID. Write via `recordOps.writeScheduleFields()` (extended Layer 1 from Step 4).
    g. **Timeline**: Append `commission_spawned` event with `spawned_id`, `run_number`, and `previous_run_outcome`.
@@ -353,7 +365,7 @@ This step is the largest in surface area but has no backend dependencies beyond 
 
 **9d: Schedule creation form** (REQ-SCOM-25):
 - Add a type toggle or separate button in the Project view to switch between "Create Commission" and "Create Schedule."
-- The schedule form includes: title, worker selection, prompt textarea, cron expression input with human-readable preview, optional repeat count, dependency selection, optional resource overrides.
+- The schedule form includes: title, worker selection, prompt textarea, cron expression input with human-readable preview, optional repeat count, dependency selection, optional resource overrides (maxTurns, maxBudgetUsd, and model selection dropdown populated from `VALID_MODELS`).
 - On submit, POST to a daemon route that calls the same `create_scheduled_commission` logic as the manager toolbox. This can either be a new route or extend the existing `POST /commissions` route with a `type` field.
 
 **9e: Cleanup skill instructions** (REQ-SCOM-27):
@@ -409,6 +421,8 @@ Verification checklist from spec's Success Criteria:
 - [ ] Spawned commissions eligible for cleanup, schedules not
 - [ ] Timeline records all event types
 - [ ] UI distinguishes scheduled from one-shot everywhere
+- [ ] Schedule templates support `model` in `resource_overrides`; spawned commissions inherit it (REQ-MODEL-10)
+- [ ] Model names validated against `VALID_MODELS` during schedule creation and update
 
 ## Delegation Guide
 
@@ -431,3 +445,5 @@ These don't block starting but should be resolved during implementation:
 2. **Schedule-specific daemon route**: Should schedule status updates (pause/resume/complete) go through the existing `PUT /commissions/:id` route with type-aware logic, or a new `PUT /schedules/:id` route? The parity principle (REQ-SCOM-21) suggests the existing route extended with type awareness, since the artifacts live in the same directory. But a separate route is cleaner. Resolve during Step 9 when implementing the UI action buttons.
 
 3. **Consecutive failure threshold**: Step 6 mentions transitioning a schedule to `failed` after three consecutive tick failures. The spec doesn't specify this number. Three is a reasonable default but could be configurable. Start with a constant and promote to config if needed.
+
+4. **Model selection spec amendments**: The model selection spec (REQ-MODEL-10) calls out that REQ-SCOM-11 and REQ-SCOM-19 need amendments to explicitly include `model` in `resource_overrides` (they currently only list `maxTurns` and `maxBudgetUsd`). These are documentation updates to `.lore/specs/guild-hall-scheduled-commissions.md`, not code blockers. This plan already accounts for model in the implementation steps above. The spec amendments should happen alongside or after model selection lands.
