@@ -1,7 +1,7 @@
 ---
 title: Model selection implementation
 date: 2026-03-08
-status: ready
+status: approved
 tags: [model-selection, workers, commissions, cost-management]
 modules: [daemon, worker-activation, sdk-runner, commission-orchestrator, manager-toolbox, web-ui]
 related:

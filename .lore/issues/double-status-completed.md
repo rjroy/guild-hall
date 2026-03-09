@@ -1,7 +1,7 @@
 ---
 title: Double status_completed timeline entries on commission completion
 date: 2026-03-07
-status: open
+status: resolved
 tags: [bug, commissions, infrastructure]
 modules: [commission-lifecycle, commission-orchestrator]
 ---

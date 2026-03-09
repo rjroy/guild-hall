@@ -1,7 +1,7 @@
 ---
 title: Plan for scheduled commissions
 date: 2026-03-08
-status: draft
+status: approved
 tags: [plan, commissions, scheduling, cron, daemon]
 modules: [commission-orchestrator, daemon-scheduler, manager-toolbox, web-ui]
 related:

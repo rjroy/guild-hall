@@ -1,7 +1,7 @@
 ---
 title: "Commission: Implement Portrait Display-Time Resolution"
 date: 2026-03-09
-status: dispatched
+status: failed
 tags: [commission]
 worker: Dalton
 workerDisplayTitle: "Guild Artificer"
@@ -18,6 +18,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-09T03:21:38.635Z
+    event: status_failed
+    reason: "Session error: Claude Code process exited with code 1"
 current_progress: ""
 projectName: guild-hall
 ---
