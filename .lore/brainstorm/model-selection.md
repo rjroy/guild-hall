@@ -1,7 +1,7 @@
 ---
 title: Model selection architecture
 date: 2026-03-08
-status: open
+status: resolved
 tags: [model-selection, workers, commissions, cost-management, scheduled-commissions]
 modules: [daemon, worker-activation, sdk-runner, commission-orchestrator]
 related:
@@ -207,19 +207,24 @@ These were settled during the brainstorm and should carry forward into spec/desi
 
 **The briefing generator pattern generalizes.** The briefing generator already overrides model at the orchestrator level. The proposed design formalizes this into the `SessionPrepSpec.resourceOverrides` path so all orchestrators (commission, meeting, mail, briefing) use the same mechanism.
 
-## Open Questions
+## Resolved Questions
 
-**1. Valid model names.** What strings are valid for the model field? The SDK accepts `"opus"`, `"sonnet"`, `"haiku"`. Should the system validate against a known list, or pass through whatever the user provides? Validation catches typos. Pass-through is future-proof. **Needs user judgment.**
+**1. Valid model names.** Validate against a known list: `opus`, `sonnet`, `haiku`. Design the validation so the list is easy to extend (see `.lore/issues/` for Ollama/local model support). A central constant, not scattered string checks.
 
-**2. Meeting model selection.** This brainstorm focuses on commissions because that's where scheduled work drives the need. But meetings also hardcode Opus. Should meeting model selection follow the same pattern (worker default, meeting-level override)? Or are meetings always "bring your best" since the user is present? **Leaning toward: meetings always use the worker default. No override needed. But worth confirming.**
+**2. Meeting model selection.** Meetings always use the worker's default model. No override mechanism. The worker's default represents how the worker should appear most of the time, which is what meetings are.
 
-**3. Manager model for scheduled dispatch.** When the Guild Master creates a scheduled commission, how does it decide the model? Posture guidance ("use haiku for maintenance, opus for creative work") is soft. Should the `create_scheduled_commission` tool require a model parameter? Or default to the worker's model and let the user override in the schedule artifact? **Leaning toward: default to worker's model. The user or manager can override in the artifact. The schedule template preserves whatever was set at creation time.**
+**3. Model guidance for the manager.** Each model gets a one-sentence description to guide selection. The axis is convergence vs divergence, not simple vs complex:
+- **Haiku:** Use when the outcome is predictable, the task is bounded, and variance would be noise.
+- **Sonnet:** Use when variance is acceptable or desirable. Creative work, drafting, exploration where the model can surprise you.
+- **Opus:** Use when uncertainty is high and consistency matters. Deep reasoning, ambiguous problems, stakes where getting it wrong is costly.
 
-**4. Model display in the UI.** When the commission view shows a running commission, should it display which model is being used? This adds transparency ("this tend pass is running on Haiku, that's why it's cheaper"). **Leaning yes, but it's a views concern.**
+Default to the worker's declared model. The manager or user overrides when the task clearly fits a different tier.
 
-**5. Model in the worker roster view.** Should the roster display each worker's default model? This makes the cost profile visible without reading package.json. **Leaning yes.**
+**4. Model display in the UI.** Always display the model ID in commission and meeting views. Transparency about what's running and at what cost.
 
-**6. Posture adaptation by model.** If Octavia runs on Haiku, should her posture change? A posture written for Opus-level reasoning might set expectations the model can't meet ("iterate on this until you feel the design space is well-mapped"). Should the activation function inject a model-aware posture amendment ("You are running at reduced capability. Favor following instructions over independent judgment.")? **This is interesting but possibly over-engineered for now. Start without it, observe how workers perform on different models, then decide.**
+**5. Model in the worker roster view.** Yes. Which model a worker uses is important context. Display it alongside the worker's other metadata.
+
+**6. Posture adaptation by model.** No. Write posture as if it will be followed. Today is the worst version of each model. Maintaining model-specific and model-version-specific posture variants is not sustainable. What is sustainable is writing posture that describes the expected behavior and trusting that model improvements will close the gap.
 
 ## Next Steps
 
