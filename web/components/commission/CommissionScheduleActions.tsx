@@ -66,7 +66,7 @@ export default function CommissionScheduleActions({
           <button
             className={styles.resumeButton}
             disabled={loading}
-            onClick={() => handleAction("active")}
+            onClick={() => void handleAction("active")}
             type="button"
           >
             {loading ? "Resuming..." : "Resume Schedule"}
@@ -75,7 +75,7 @@ export default function CommissionScheduleActions({
           <button
             className={styles.pauseButton}
             disabled={loading}
-            onClick={() => handleAction("paused")}
+            onClick={() => void handleAction("paused")}
             type="button"
           >
             {loading ? "Pausing..." : "Pause Schedule"}
@@ -85,7 +85,7 @@ export default function CommissionScheduleActions({
         <button
           className={styles.completeButton}
           disabled={loading}
-          onClick={() => handleAction("completed")}
+          onClick={() => void handleAction("completed")}
           type="button"
         >
           {loading ? "Completing..." : "Complete Schedule"}

@@ -860,7 +860,7 @@ describe("readScheduleMetadata", () => {
 
 describe("writeScheduleFields", () => {
   test("updates only runs_completed, leaves other fields intact", async () => {
-    const original = await writeScheduleArtifact();
+    await writeScheduleArtifact();
     await ops.writeScheduleFields(artifactPath, { runsCompleted: 4 });
 
     const raw = await fs.readFile(artifactPath, "utf-8");

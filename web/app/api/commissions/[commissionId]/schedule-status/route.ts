@@ -6,7 +6,7 @@ export async function POST(
   { params }: { params: Promise<{ commissionId: string }> },
 ) {
   const { commissionId } = await params;
-  const body = await request.json();
+  const body = (await request.json()) as Record<string, unknown>;
 
   const result = await daemonFetch(
     `/commissions/${commissionId}/schedule-status`,

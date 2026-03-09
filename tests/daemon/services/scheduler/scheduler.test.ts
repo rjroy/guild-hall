@@ -18,7 +18,7 @@ import type { ScheduleLifecycle, TransitionResult } from "@/daemon/services/sche
 import type { SystemEvent, EventBus } from "@/daemon/lib/event-bus";
 import type { AppConfig } from "@/lib/types";
 import type { CommissionId, ScheduledCommissionStatus } from "@/daemon/types";
-import { asCommissionId } from "@/daemon/types";
+// asCommissionId not used directly in tests - IDs are created via artifact writes
 
 // -- Test helpers --
 
@@ -180,18 +180,20 @@ function createMockRecordOps(): MockRecordOps {
       calls.push({ method: "readType", args: [artifactPath] });
       return readTypeImpl(artifactPath);
     },
-    async writeStatus(artifactPath: string, status: string): Promise<void> {
+    writeStatus(artifactPath: string, status: string): Promise<void> {
       calls.push({ method: "writeStatus", args: [artifactPath, status] });
+      return Promise.resolve();
     },
-    async appendTimeline(
+    appendTimeline(
       artifactPath: string,
       event: string,
       reason: string,
       extra?: Record<string, unknown>,
     ): Promise<void> {
       calls.push({ method: "appendTimeline", args: [artifactPath, event, reason, extra] });
+      return Promise.resolve();
     },
-    async writeStatusAndTimeline(
+    writeStatusAndTimeline(
       artifactPath: string,
       status: string,
       event: string,
@@ -199,30 +201,34 @@ function createMockRecordOps(): MockRecordOps {
       extra?: Record<string, unknown>,
     ): Promise<void> {
       calls.push({ method: "writeStatusAndTimeline", args: [artifactPath, status, event, reason, extra] });
+      return Promise.resolve();
     },
-    async readDependencies(_artifactPath: string): Promise<string[]> {
+    readDependencies(_artifactPath: string): Promise<string[]> {
       calls.push({ method: "readDependencies", args: [_artifactPath] });
-      return [];
+      return Promise.resolve([]);
     },
-    async updateProgress(artifactPath: string, summary: string): Promise<void> {
+    updateProgress(artifactPath: string, summary: string): Promise<void> {
       calls.push({ method: "updateProgress", args: [artifactPath, summary] });
+      return Promise.resolve();
     },
-    async updateResult(
+    updateResult(
       artifactPath: string,
       summary: string,
       artifacts?: string[],
     ): Promise<void> {
       calls.push({ method: "updateResult", args: [artifactPath, summary, artifacts] });
+      return Promise.resolve();
     },
     async readScheduleMetadata(artifactPath: string): Promise<ScheduleMetadata> {
       calls.push({ method: "readScheduleMetadata", args: [artifactPath] });
       return readScheduleMetadataImpl(artifactPath);
     },
-    async writeScheduleFields(
+    writeScheduleFields(
       artifactPath: string,
       updates: Partial<{ runsCompleted: number; lastRun: string; lastSpawnedId: string; cron: string; repeat: number | null }>,
     ): Promise<void> {
       calls.push({ method: "writeScheduleFields", args: [artifactPath, updates] });
+      return Promise.resolve();
     },
   };
 
@@ -243,7 +249,7 @@ function createMockCommissionSession(): MockCommissionSession {
     createCommissionResult: { commissionId: "spawned-commission-001" },
     dispatchCommissionResult: { status: "accepted" },
 
-    async createCommission(
+    createCommission(
       projectName: string,
       title: string,
       workerName: string,
@@ -256,27 +262,27 @@ function createMockCommissionSession(): MockCommissionSession {
         method: "createCommission",
         args: [projectName, title, workerName, prompt, dependencies, resourceOverrides, options],
       });
-      return this.createCommissionResult;
+      return Promise.resolve(this.createCommissionResult);
     },
-    async updateCommission(): Promise<void> {},
-    async dispatchCommission(commissionId: CommissionId): Promise<{ status: "accepted" | "queued" }> {
+    updateCommission(): Promise<void> { return Promise.resolve(); },
+    dispatchCommission(commissionId: CommissionId): Promise<{ status: "accepted" | "queued" }> {
       calls.push({ method: "dispatchCommission", args: [commissionId] });
-      return this.dispatchCommissionResult;
+      return Promise.resolve(this.dispatchCommissionResult);
     },
-    async cancelCommission(): Promise<void> {},
-    async abandonCommission(): Promise<void> {},
-    async redispatchCommission(): Promise<{ status: "accepted" | "queued" }> {
-      return { status: "accepted" };
+    cancelCommission(): Promise<void> { return Promise.resolve(); },
+    abandonCommission(): Promise<void> { return Promise.resolve(); },
+    redispatchCommission(): Promise<{ status: "accepted" | "queued" }> {
+      return Promise.resolve({ status: "accepted" });
     },
-    async addUserNote(): Promise<void> {},
-    async createScheduledCommission(): Promise<{ commissionId: string }> {
-      return { commissionId: "schedule-test-001" };
+    addUserNote(): Promise<void> { return Promise.resolve(); },
+    createScheduledCommission(): Promise<{ commissionId: string }> {
+      return Promise.resolve({ commissionId: "schedule-test-001" });
     },
-    async updateScheduleStatus(): Promise<{ outcome: string; status?: string }> {
-      return { outcome: "executed", status: "paused" };
+    updateScheduleStatus(): Promise<{ outcome: string; status?: string }> {
+      return Promise.resolve({ outcome: "executed", status: "paused" });
     },
-    async checkDependencyTransitions(): Promise<void> {},
-    async recoverCommissions(): Promise<number> { return 0; },
+    checkDependencyTransitions(): Promise<void> { return Promise.resolve(); },
+    recoverCommissions(): Promise<number> { return Promise.resolve(0); },
     getActiveCommissions(): number { return 0; },
     shutdown(): void {},
   };
@@ -306,13 +312,13 @@ function createMockScheduleLifecycle(): MockScheduleLifecycle {
     isTracked(id: CommissionId): boolean {
       return registeredIds.has(id as string);
     },
-    async complete(id: CommissionId, reason: string): Promise<TransitionResult> {
+    complete(id: CommissionId, reason: string): Promise<TransitionResult> {
       calls.push({ method: "complete", args: [id, reason] });
-      return { outcome: "executed", status: "completed" };
+      return Promise.resolve({ outcome: "executed", status: "completed" });
     },
-    async fail(id: CommissionId, reason: string): Promise<TransitionResult> {
+    fail(id: CommissionId, reason: string): Promise<TransitionResult> {
       calls.push({ method: "fail", args: [id, reason] });
-      return { outcome: "executed", status: "failed" };
+      return Promise.resolve({ outcome: "executed", status: "failed" });
     },
     getStatus(_id: CommissionId): ScheduledCommissionStatus | undefined {
       return undefined;
@@ -373,8 +379,9 @@ function createScheduler(overrides: Partial<SchedulerDeps> = {}): SchedulerServi
     scheduleLifecycle: scheduleLifecycle as unknown as ScheduleLifecycle,
     recordOps,
     commissionSession,
-    createMeetingRequestFn: async (params) => {
+    createMeetingRequestFn: (params) => {
       meetingRequests.push(params);
+      return Promise.resolve();
     },
     eventBus,
     config,
@@ -682,8 +689,8 @@ describe("SchedulerService", () => {
       });
 
       // Make readScheduleMetadata throw to simulate failure
-      recordOps.readScheduleMetadataImpl = async () => {
-        throw new Error("Simulated metadata read failure");
+      recordOps.readScheduleMetadataImpl = () => {
+        return Promise.reject(new Error("Simulated metadata read failure"));
       };
 
       const scheduler = createScheduler();
@@ -713,8 +720,8 @@ describe("SchedulerService", () => {
 
       let shouldFail = true;
       const originalImpl = recordOps.readScheduleMetadataImpl;
-      recordOps.readScheduleMetadataImpl = async (artifactPath: string) => {
-        if (shouldFail) throw new Error("Temporary failure");
+      recordOps.readScheduleMetadataImpl = (artifactPath: string) => {
+        if (shouldFail) return Promise.reject(new Error("Temporary failure"));
         return originalImpl(artifactPath);
       };
 
@@ -760,9 +767,9 @@ describe("SchedulerService", () => {
 
       // Make readScheduleMetadata fail only for the first schedule
       const originalImpl = recordOps.readScheduleMetadataImpl;
-      recordOps.readScheduleMetadataImpl = async (artifactPath: string) => {
+      recordOps.readScheduleMetadataImpl = (artifactPath: string) => {
         if (artifactPath.includes("schedule-aaa-fails")) {
-          throw new Error("This schedule is broken");
+          return Promise.reject(new Error("This schedule is broken"));
         }
         return originalImpl(artifactPath);
       };
@@ -797,8 +804,6 @@ describe("SchedulerService", () => {
 
   describe("start and stop", () => {
     test("stop clears the interval", () => {
-      const scheduler = createScheduler();
-
       // Suppress the initial tick by mocking config with no projects
       const emptyScheduler = createScheduler({ config: { projects: [] } });
       emptyScheduler.start();

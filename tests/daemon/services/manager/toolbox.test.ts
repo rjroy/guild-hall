@@ -130,25 +130,25 @@ function createMockScheduleLifecycle(): ScheduleLifecycle & {
     ): void {
       calls.push({ method: "register", args: [id, projectName, status, artifactPath] });
     },
-    async pause(id: CommissionId): Promise<TransitionResult> {
+    pause(id: CommissionId): Promise<TransitionResult> {
       calls.push({ method: "pause", args: [id] });
-      return { outcome: "executed", status: "paused" };
+      return Promise.resolve({ outcome: "executed", status: "paused" });
     },
-    async resume(id: CommissionId): Promise<TransitionResult> {
+    resume(id: CommissionId): Promise<TransitionResult> {
       calls.push({ method: "resume", args: [id] });
-      return executedResult;
+      return Promise.resolve(executedResult);
     },
-    async complete(id: CommissionId, reason: string): Promise<TransitionResult> {
+    complete(id: CommissionId, reason: string): Promise<TransitionResult> {
       calls.push({ method: "complete", args: [id, reason] });
-      return { outcome: "executed", status: "completed" };
+      return Promise.resolve({ outcome: "executed", status: "completed" });
     },
-    async fail(id: CommissionId, reason: string): Promise<TransitionResult> {
+    fail(id: CommissionId, reason: string): Promise<TransitionResult> {
       calls.push({ method: "fail", args: [id, reason] });
-      return { outcome: "executed", status: "failed" };
+      return Promise.resolve({ outcome: "executed", status: "failed" });
     },
-    async reactivate(id: CommissionId): Promise<TransitionResult> {
+    reactivate(id: CommissionId): Promise<TransitionResult> {
       calls.push({ method: "reactivate", args: [id] });
-      return executedResult;
+      return Promise.resolve(executedResult);
     },
     getStatus(_id: CommissionId): ScheduledCommissionStatus | undefined {
       return "active";
@@ -170,25 +170,25 @@ function createMockGitOps() {
     commitAll: async (_worktreePath: string, _message: string) => {},
     fetch: async (_repoPath: string) => {},
     push: async (_repoPath: string, _branch: string) => {},
-    createPullRequest: async () => ({ url: "https://github.com/test/pr/1" }),
-    revParse: async () => "abc123",
+    createPullRequest: () => Promise.resolve({ url: "https://github.com/test/pr/1" }),
+    revParse: () => Promise.resolve("abc123"),
     createBranch: async () => {},
     createWorktree: async () => {},
     removeWorktree: async () => {},
     sparseCheckout: async () => {},
-    branchExists: async () => false,
+    branchExists: () => Promise.resolve(false),
     cherryPick: async () => {},
     merge: async () => {},
     rebase: async () => {},
-    log: async () => [],
-    diffStat: async () => "",
-    getRemoteUrl: async () => "https://github.com/test/repo.git",
+    log: () => Promise.resolve([]),
+    diffStat: () => Promise.resolve(""),
+    getRemoteUrl: () => Promise.resolve("https://github.com/test/repo.git"),
   };
 }
 
 function createMockCommissionSession() {
   return {
-    createCommission: async () => ({ commissionId: "test-id" }),
+    createCommission: () => Promise.resolve({ commissionId: "test-id" }),
     dispatchCommission: async () => {},
     cancelCommission: async () => {},
     abandonCommission: async () => {},
@@ -214,7 +214,7 @@ async function createBaseDeps(overrides?: {
     commissionSession: createMockCommissionSession() as never,
     eventBus: { emit: () => {}, subscribe: () => () => {} } as never,
     gitOps: createMockGitOps() as never,
-    getProjectConfig: async () => ({
+    getProjectConfig: () => Promise.resolve({
       name: "test-project",
       path: "/repos/test-project",
     }),

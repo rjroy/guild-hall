@@ -877,7 +877,7 @@ export function makeUpdateScheduleHandler(
       }
 
       const cid = asCommissionId(args.commissionId);
-      let currentStatus: ScheduledCommissionStatus | string;
+      let currentStatus: string;
 
       // Handle status transitions
       if (args.status) {
