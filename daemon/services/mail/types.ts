@@ -13,6 +13,10 @@ export type PendingMail = {
   mailFilePath: string;
   readerWorkerName: string;
   readerActive: boolean;
+  /** The mail sequence number for this sleep cycle. Added after initial release;
+   *  absent in state files written before this field existed. Recovery treats
+   *  missing values as 1 for backwards compatibility. */
+  mailSequence?: number;
 };
 
 export type SleepingCommissionState = {

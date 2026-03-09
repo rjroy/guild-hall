@@ -615,6 +615,7 @@ describe("Sleep flow (Step 5)", () => {
       mailFilePath: "/tmp/mail-001.md",
       readerWorkerName: TEST_READER,
       readerActive: false,
+      mailSequence: 1,
     });
 
     // Clean up background reader session fired by handleSleep
@@ -2801,5 +2802,660 @@ describe("maxTurns wake prompt distinction (DEFECT-4)", () => {
     expect(resumeWakePrompt!).toContain("ran out of turns");
     expect(resumeWakePrompt!).toContain(TEST_READER);
     expect(resumeWakePrompt!).not.toContain("completed without sending a reply");
+  });
+});
+
+// -- Multiple sleep/wake cycles (REQ-MAIL-4) --
+
+describe("Multiple sleep/wake cycles (REQ-MAIL-4)", () => {
+  test("session emitting commission_mail_sent with mailSequence 2 triggers handleSleep with that sequence", async () => {
+    // This tests the event -> handleSleep flow for a second sleep cycle.
+    // The first cycle (mailSequence: 1) is verified by existing tests.
+    // This test proves that a higher mailSequence flows through correctly.
+    const eventBus = createTestEventBus();
+    const recordOps = createCommissionRecordOps();
+    const lifecycle = createCommissionLifecycle({
+      recordOps,
+      emitEvent: (event: SystemEvent) => eventBus.emit(event),
+    });
+    const gitOps = createMockGitOps();
+
+    const handleSleepCalls: SleepContext[] = [];
+
+    const mockMailOrchestrator: MailOrchestrator = {
+      async handleSleep(ctx) {
+        handleSleepCalls.push(ctx);
+        return true;
+      },
+      activateMailReader() {},
+      getActiveReaderCount: () => 0,
+      shutdownReaders() {},
+      async cancelReaderForCommission() { return false; },
+      async recoverSleepingCommission() {},
+    };
+
+    const mockQueryFn = createMockQueryFn({
+      emitMailSent: true,
+      mailSentData: {
+        targetWorker: "Second Reader",
+        mailSequence: 2,
+        mailPath: "/tmp/mail-002.md",
+      },
+      eventBus,
+      commissionId: TEST_COMMISSION_ID as string,
+    });
+
+    const orchestrator = createCommissionOrchestrator({
+      lifecycle,
+      workspace: createMockWorkspace(),
+      prepDeps: createMockPrepDeps(),
+      queryFn: mockQueryFn.queryFn,
+      recordOps,
+      eventBus,
+      config: makeConfig(),
+      packages: [makeWorkerPackage()],
+      guildHallHome: ghHome,
+      gitOps,
+      mailOrchestrator: mockMailOrchestrator,
+    });
+
+    await writeCommissionArtifact(integrationPath, TEST_COMMISSION_ID as string);
+    const artifactPath = path.join(integrationPath, ".lore", "commissions", `${TEST_COMMISSION_ID as string}.md`);
+    lifecycle.register(TEST_COMMISSION_ID, TEST_PROJECT, "pending", artifactPath);
+    await orchestrator.dispatchCommission(TEST_COMMISSION_ID);
+
+    await new Promise<void>((r) => setTimeout(r, 50));
+
+    expect(handleSleepCalls.length).toBe(1);
+    expect(handleSleepCalls[0].mailSequence).toBe(2);
+    expect(handleSleepCalls[0].targetWorker).toBe("Second Reader");
+    expect(handleSleepCalls[0].mailPath).toBe("/tmp/mail-002.md");
+  });
+
+  test("handleSleep stores mailSequence 2 in state file for recovery", async () => {
+    // Proves that if handleSleep is called with mailSequence > 1,
+    // the state file correctly persists that sequence number.
+    const eventBus = createTestEventBus();
+    const recordOps = createCommissionRecordOps();
+    const lifecycle = createCommissionLifecycle({
+      recordOps,
+      emitEvent: (event: SystemEvent) => eventBus.emit(event),
+    });
+    const gitOps = createMockGitOps();
+
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, TEST_COMMISSION_ID as string);
+    await fs.mkdir(path.join(worktreeDir, ".lore"), { recursive: true });
+
+    let writtenData: Record<string, unknown> | null = null;
+
+    const callbacks: MailOrchestratorCallbacks = {
+      writeStateFile: async (_cid, data) => {
+        writtenData = data;
+      },
+      commissionStatePath: () => path.join(ghHome, "state", "commissions", `${TEST_COMMISSION_ID as string}.json`),
+      enqueueAutoDispatch: () => {},
+      onResumeCompleted: async () => {},
+    };
+
+    const mailOrch = createMailOrchestrator(
+      {
+        lifecycle,
+        recordOps,
+        prepDeps: createMockPrepDeps(),
+        queryFn: createMockQueryFn().queryFn,
+        eventBus,
+        config: makeConfig(),
+        packages: [makeWorkerPackage(), makeWorkerPackage(TEST_READER, "test-reader")],
+        guildHallHome: ghHome,
+        gitOps,
+      },
+      callbacks,
+    );
+
+    await setupLifecycleState(lifecycle, TEST_COMMISSION_ID, TEST_PROJECT, worktreeDir, "in_progress");
+
+    await mailOrch.handleSleep({
+      commissionId: TEST_COMMISSION_ID,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      worktreeDir,
+      branchName: "claude/commission/test",
+      targetWorker: TEST_READER,
+      mailSequence: 2,
+      mailPath: "/tmp/mail-002.md",
+      outcome: { sessionId: "session-2", aborted: true },
+    });
+
+    expect(writtenData).not.toBeNull();
+    const pendingMail = writtenData!.pendingMail as { mailSequence?: number; mailFilePath?: string };
+    expect(pendingMail.mailSequence).toBe(2);
+    expect(pendingMail.mailFilePath).toBe("/tmp/mail-002.md");
+
+    mailOrch.shutdownReaders();
+    await new Promise<void>((r) => setTimeout(r, 50));
+  });
+});
+
+// -- Cancel during active mail reader --
+
+describe("Cancel active mail reader (Step 7a active path)", () => {
+  test("cancelReaderForCommission aborts an actively running reader and waits for drain", async () => {
+    const eventBus = createTestEventBus();
+    const recordOps = createCommissionRecordOps();
+    const lifecycle = createCommissionLifecycle({
+      recordOps,
+      emitEvent: (event: SystemEvent) => eventBus.emit(event),
+    });
+    const gitOps = createMockGitOps();
+
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, TEST_COMMISSION_ID as string);
+    await fs.mkdir(path.join(worktreeDir, ".lore", "commissions"), { recursive: true });
+    await writeCommissionArtifact(worktreeDir, TEST_COMMISSION_ID as string, { status: "sleeping" });
+
+    const mailFilePath = path.join(worktreeDir, ".lore", "mail", "mail-001.md");
+    await writeMailFile(mailFilePath);
+
+    // Reader session blocks until aborted
+    let readerAborted = false;
+    let readerStarted = false;
+    const readerBlocker = new Promise<void>((resolve) => {
+      // This will be resolved when the abort is detected inside the generator
+      const checkInterval = setInterval(() => {
+        if (readerAborted) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 10);
+    });
+
+    const queryFn: (params: { prompt: string; options: Record<string, unknown> }) => AsyncGenerator<SDKMessage> =
+      function(_params) {
+        async function* gen(): AsyncGenerator<SDKMessage> {
+          yield { type: "system", subtype: "init", session_id: "reader-active" } as unknown as SDKMessage;
+          readerStarted = true;
+
+          // Block until aborted
+          try {
+            await readerBlocker;
+          } catch {
+            // abort
+          }
+          readerAborted = true;
+
+          yield { type: "result", subtype: "success" } as unknown as SDKMessage;
+        }
+        return gen();
+      };
+
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${TEST_COMMISSION_ID as string}.json`);
+    const callbacks: MailOrchestratorCallbacks = {
+      writeStateFile: async (_cid, data) => {
+        await fs.mkdir(path.dirname(stateFilePath), { recursive: true });
+        await fs.writeFile(stateFilePath, JSON.stringify(data, null, 2), "utf-8");
+      },
+      commissionStatePath: () => stateFilePath,
+      enqueueAutoDispatch: () => {},
+      onResumeCompleted: async () => {},
+    };
+
+    const mailOrch = createMailOrchestrator(
+      {
+        lifecycle,
+        recordOps,
+        prepDeps: createMockPrepDeps(),
+        queryFn,
+        eventBus,
+        config: makeConfig(),
+        packages: [makeWorkerPackage(), makeWorkerPackage(TEST_READER, "test-reader")],
+        guildHallHome: ghHome,
+        gitOps,
+      },
+      callbacks,
+    );
+
+    await setupLifecycleState(lifecycle, TEST_COMMISSION_ID, TEST_PROJECT, worktreeDir, "sleeping");
+
+    await callbacks.writeStateFile(TEST_COMMISSION_ID, {
+      commissionId: TEST_COMMISSION_ID as string,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      status: "sleeping",
+      worktreeDir,
+      branchName: "claude/commission/test",
+      sessionId: "original-session-id",
+      sleepStartedAt: new Date().toISOString(),
+      pendingMail: { mailFilePath, readerWorkerName: TEST_READER, readerActive: false },
+    });
+
+    // Activate the reader (it will block inside the session)
+    mailOrch.activateMailReader({
+      commissionId: TEST_COMMISSION_ID,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      worktreeDir,
+      branchName: "claude/commission/test",
+      mailFilePath,
+      readerWorkerName: TEST_READER,
+      mailSequence: 1,
+    });
+
+    // Wait for the reader to start
+    await new Promise<void>((r) => {
+      const check = setInterval(() => {
+        if (readerStarted) { clearInterval(check); r(); }
+      }, 10);
+    });
+
+    // Reader is now actively running; cancel it
+    expect(mailOrch.getActiveReaderCount()).toBe(1);
+
+    // Unblock the reader so the abort can propagate
+    readerAborted = true;
+
+    const cancelResult = await mailOrch.cancelReaderForCommission(TEST_COMMISSION_ID);
+
+    // Cancel should succeed and the reader should be cleaned up
+    expect(cancelResult).toBe(true);
+    expect(mailOrch.getActiveReaderCount()).toBe(0);
+  });
+});
+
+// -- Recovery uses persisted mailSequence --
+
+describe("Recovery uses persisted mailSequence", () => {
+  function createRecoveryMailRecordOps(overrides: {
+    status?: string;
+    sequence?: number;
+    reply?: { summary: string; filesModified?: string[] };
+    updateStatusCalls?: Array<{ path: string; status: string }>;
+  } = {}): MailRecordOps {
+    const updateStatusCalls = overrides.updateStatusCalls ?? [];
+    const mailData: ParsedMailFile = {
+      from: TEST_WORKER,
+      to: TEST_READER,
+      commission: TEST_COMMISSION_ID as string,
+      sequence: overrides.sequence ?? 3,
+      status: (overrides.status ?? "sent") as ParsedMailFile["status"],
+      subject: "Test subject",
+      message: "Test message",
+      reply: overrides.reply,
+    };
+    return {
+      async createMailFile() { return "/tmp/mail.md"; },
+      async updateMailStatus(filePath, status) {
+        updateStatusCalls.push({ path: filePath, status });
+        mailData.status = status;
+      },
+      async writeReply() {},
+      async readMailFile() { return mailData; },
+      async getMailSequence() { return overrides.sequence ?? 3; },
+    };
+  }
+
+  test("recovery with mail sent: reader contextId uses mailSequence from state file, not hardcoded 1", async () => {
+    const eventBus = createTestEventBus();
+    const recordOps = createCommissionRecordOps();
+    const lifecycle = createCommissionLifecycle({
+      recordOps,
+      emitEvent: (event: SystemEvent) => eventBus.emit(event),
+    });
+    const gitOps = createMockGitOps();
+
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, TEST_COMMISSION_ID as string);
+    await fs.mkdir(path.join(worktreeDir, ".lore", "commissions"), { recursive: true });
+    await writeCommissionArtifact(worktreeDir, TEST_COMMISSION_ID as string, { status: "sleeping" });
+
+    // Capture the contextId via resolveToolSet which receives it directly
+    const capturedContextIds: string[] = [];
+    const prepDeps = createMockPrepDeps({
+      resolveToolSet: async (_worker, _packages, context) => {
+        const ctx = context as { contextId?: string };
+        if (ctx.contextId) {
+          capturedContextIds.push(ctx.contextId);
+        }
+        return { mcpServers: [], allowedTools: [] };
+      },
+    });
+
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${TEST_COMMISSION_ID as string}.json`);
+    const callbacks: MailOrchestratorCallbacks = {
+      writeStateFile: async (_cid, data) => {
+        await fs.mkdir(path.dirname(stateFilePath), { recursive: true });
+        await fs.writeFile(stateFilePath, JSON.stringify(data, null, 2), "utf-8");
+      },
+      commissionStatePath: () => stateFilePath,
+      enqueueAutoDispatch: () => {},
+      onResumeCompleted: async () => {},
+    };
+
+    const mailOrch = createMailOrchestrator(
+      {
+        lifecycle,
+        recordOps,
+        prepDeps,
+        queryFn: createMockQueryFn().queryFn,
+        eventBus,
+        config: makeConfig(),
+        packages: [makeWorkerPackage(), makeWorkerPackage(TEST_READER, "test-reader")],
+        guildHallHome: ghHome,
+        gitOps,
+        mailRecordOps: createRecoveryMailRecordOps({ status: "sent", sequence: 3 }),
+      },
+      callbacks,
+    );
+
+    await setupLifecycleState(lifecycle, TEST_COMMISSION_ID, TEST_PROJECT, worktreeDir, "sleeping");
+
+    await callbacks.writeStateFile(TEST_COMMISSION_ID, {
+      commissionId: TEST_COMMISSION_ID as string,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      status: "sleeping",
+      worktreeDir,
+      branchName: "test-branch",
+      sessionId: "session-1",
+      sleepStartedAt: new Date().toISOString(),
+      pendingMail: {
+        mailFilePath: "/tmp/mail-003.md",
+        readerWorkerName: TEST_READER,
+        readerActive: false,
+        mailSequence: 3,
+      },
+    });
+
+    const sleepingState: SleepingCommissionState = {
+      commissionId: TEST_COMMISSION_ID as string,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      status: "sleeping",
+      worktreeDir,
+      branchName: "test-branch",
+      sessionId: "session-1",
+      sleepStartedAt: new Date().toISOString(),
+      pendingMail: {
+        mailFilePath: "/tmp/mail-003.md",
+        readerWorkerName: TEST_READER,
+        readerActive: false,
+        mailSequence: 3,
+      },
+    };
+
+    await mailOrch.recoverSleepingCommission(sleepingState);
+
+    // Wait for reader session to start
+    await new Promise<void>((r) => setTimeout(r, 100));
+
+    // The reader's contextId should contain "003" (sequence 3), not "001"
+    expect(capturedContextIds.length).toBeGreaterThanOrEqual(1);
+    expect(capturedContextIds[0]).toContain("003");
+    expect(capturedContextIds[0]).not.toContain("001");
+
+    mailOrch.shutdownReaders();
+    await new Promise<void>((r) => setTimeout(r, 50));
+  });
+
+  test("recovery with mail open: reader contextId uses mailSequence from state file", async () => {
+    const eventBus = createTestEventBus();
+    const recordOps = createCommissionRecordOps();
+    const lifecycle = createCommissionLifecycle({
+      recordOps,
+      emitEvent: (event: SystemEvent) => eventBus.emit(event),
+    });
+    const gitOps = createMockGitOps();
+
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, TEST_COMMISSION_ID as string);
+    await fs.mkdir(path.join(worktreeDir, ".lore", "commissions"), { recursive: true });
+    await writeCommissionArtifact(worktreeDir, TEST_COMMISSION_ID as string, { status: "sleeping" });
+
+    const updateStatusCalls: Array<{ path: string; status: string }> = [];
+    const capturedContextIds: string[] = [];
+    const prepDeps = createMockPrepDeps({
+      resolveToolSet: async (_worker, _packages, context) => {
+        const ctx = context as { contextId?: string };
+        if (ctx.contextId) {
+          capturedContextIds.push(ctx.contextId);
+        }
+        return { mcpServers: [], allowedTools: [] };
+      },
+    });
+
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${TEST_COMMISSION_ID as string}.json`);
+    const callbacks: MailOrchestratorCallbacks = {
+      writeStateFile: async (_cid, data) => {
+        await fs.mkdir(path.dirname(stateFilePath), { recursive: true });
+        await fs.writeFile(stateFilePath, JSON.stringify(data, null, 2), "utf-8");
+      },
+      commissionStatePath: () => stateFilePath,
+      enqueueAutoDispatch: () => {},
+      onResumeCompleted: async () => {},
+    };
+
+    const mailOrch = createMailOrchestrator(
+      {
+        lifecycle,
+        recordOps,
+        prepDeps,
+        queryFn: createMockQueryFn().queryFn,
+        eventBus,
+        config: makeConfig(),
+        packages: [makeWorkerPackage(), makeWorkerPackage(TEST_READER, "test-reader")],
+        guildHallHome: ghHome,
+        gitOps,
+        mailRecordOps: createRecoveryMailRecordOps({ status: "open", sequence: 2, updateStatusCalls }),
+      },
+      callbacks,
+    );
+
+    await setupLifecycleState(lifecycle, TEST_COMMISSION_ID, TEST_PROJECT, worktreeDir, "sleeping");
+
+    await callbacks.writeStateFile(TEST_COMMISSION_ID, {
+      commissionId: TEST_COMMISSION_ID as string,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      status: "sleeping",
+      worktreeDir,
+      branchName: "test-branch",
+      sessionId: "session-1",
+      sleepStartedAt: new Date().toISOString(),
+      pendingMail: {
+        mailFilePath: "/tmp/mail-002.md",
+        readerWorkerName: TEST_READER,
+        readerActive: false,
+        mailSequence: 2,
+      },
+    });
+
+    const sleepingState: SleepingCommissionState = {
+      commissionId: TEST_COMMISSION_ID as string,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      status: "sleeping",
+      worktreeDir,
+      branchName: "test-branch",
+      sessionId: "session-1",
+      sleepStartedAt: new Date().toISOString(),
+      pendingMail: {
+        mailFilePath: "/tmp/mail-002.md",
+        readerWorkerName: TEST_READER,
+        readerActive: false,
+        mailSequence: 2,
+      },
+    };
+
+    await mailOrch.recoverSleepingCommission(sleepingState);
+
+    // Wait for reader session to start
+    await new Promise<void>((r) => setTimeout(r, 100));
+
+    // Status should have been reset to "sent"
+    expect(updateStatusCalls[0].status).toBe("sent");
+    // The re-activated reader's contextId should contain "002" (sequence 2)
+    expect(capturedContextIds.length).toBeGreaterThanOrEqual(1);
+    expect(capturedContextIds[0]).toContain("002");
+
+    mailOrch.shutdownReaders();
+    await new Promise<void>((r) => setTimeout(r, 50));
+  });
+
+  test("recovery falls back to mailSequence 1 when state file lacks the field", async () => {
+    const eventBus = createTestEventBus();
+    const recordOps = createCommissionRecordOps();
+    const lifecycle = createCommissionLifecycle({
+      recordOps,
+      emitEvent: (event: SystemEvent) => eventBus.emit(event),
+    });
+    const gitOps = createMockGitOps();
+
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, TEST_COMMISSION_ID as string);
+    await fs.mkdir(path.join(worktreeDir, ".lore", "commissions"), { recursive: true });
+    await writeCommissionArtifact(worktreeDir, TEST_COMMISSION_ID as string, { status: "sleeping" });
+
+    const capturedContextIds: string[] = [];
+    const prepDeps = createMockPrepDeps({
+      resolveToolSet: async (_worker, _packages, context) => {
+        const ctx = context as { contextId?: string };
+        if (ctx.contextId) {
+          capturedContextIds.push(ctx.contextId);
+        }
+        return { mcpServers: [], allowedTools: [] };
+      },
+    });
+
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${TEST_COMMISSION_ID as string}.json`);
+    const callbacks: MailOrchestratorCallbacks = {
+      writeStateFile: async (_cid, data) => {
+        await fs.mkdir(path.dirname(stateFilePath), { recursive: true });
+        await fs.writeFile(stateFilePath, JSON.stringify(data, null, 2), "utf-8");
+      },
+      commissionStatePath: () => stateFilePath,
+      enqueueAutoDispatch: () => {},
+      onResumeCompleted: async () => {},
+    };
+
+    const mailOrch = createMailOrchestrator(
+      {
+        lifecycle,
+        recordOps,
+        prepDeps,
+        queryFn: createMockQueryFn().queryFn,
+        eventBus,
+        config: makeConfig(),
+        packages: [makeWorkerPackage(), makeWorkerPackage(TEST_READER, "test-reader")],
+        guildHallHome: ghHome,
+        gitOps,
+        mailRecordOps: createRecoveryMailRecordOps({ status: "sent" }),
+      },
+      callbacks,
+    );
+
+    await setupLifecycleState(lifecycle, TEST_COMMISSION_ID, TEST_PROJECT, worktreeDir, "sleeping");
+
+    await callbacks.writeStateFile(TEST_COMMISSION_ID, {
+      commissionId: TEST_COMMISSION_ID as string,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      status: "sleeping",
+      worktreeDir,
+      branchName: "test-branch",
+      sessionId: "session-1",
+      sleepStartedAt: new Date().toISOString(),
+      pendingMail: {
+        mailFilePath: "/tmp/mail-001.md",
+        readerWorkerName: TEST_READER,
+        readerActive: false,
+        // No mailSequence field (simulating old state file)
+      },
+    });
+
+    // Simulate an old state file that doesn't have mailSequence
+    const sleepingState: SleepingCommissionState = {
+      commissionId: TEST_COMMISSION_ID as string,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      status: "sleeping",
+      worktreeDir,
+      branchName: "test-branch",
+      sessionId: "session-1",
+      sleepStartedAt: new Date().toISOString(),
+      pendingMail: {
+        mailFilePath: "/tmp/mail-001.md",
+        readerWorkerName: TEST_READER,
+        readerActive: false,
+        // No mailSequence field (simulating old state file)
+      },
+    };
+
+    await mailOrch.recoverSleepingCommission(sleepingState);
+
+    // Wait for reader session to start
+    await new Promise<void>((r) => setTimeout(r, 100));
+
+    // Should fall back to sequence 1: contextId should contain "001"
+    expect(capturedContextIds.length).toBeGreaterThanOrEqual(1);
+    expect(capturedContextIds[0]).toContain("001");
+
+    mailOrch.shutdownReaders();
+    await new Promise<void>((r) => setTimeout(r, 50));
+  });
+
+  test("handleSleep persists mailSequence in state file", async () => {
+    const eventBus = createTestEventBus();
+    const recordOps = createCommissionRecordOps();
+    const lifecycle = createCommissionLifecycle({
+      recordOps,
+      emitEvent: (event: SystemEvent) => eventBus.emit(event),
+    });
+    const gitOps = createMockGitOps();
+
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, TEST_COMMISSION_ID as string);
+    await fs.mkdir(path.join(worktreeDir, ".lore"), { recursive: true });
+
+    let writtenData: Record<string, unknown> | null = null;
+
+    const callbacks: MailOrchestratorCallbacks = {
+      writeStateFile: async (_cid, data) => {
+        writtenData = data;
+      },
+      commissionStatePath: () => path.join(ghHome, "state", "commissions", `${TEST_COMMISSION_ID as string}.json`),
+      enqueueAutoDispatch: () => {},
+      onResumeCompleted: async () => {},
+    };
+
+    const mailOrch = createMailOrchestrator(
+      {
+        lifecycle,
+        recordOps,
+        prepDeps: createMockPrepDeps(),
+        queryFn: createMockQueryFn().queryFn,
+        eventBus,
+        config: makeConfig(),
+        packages: [makeWorkerPackage(), makeWorkerPackage(TEST_READER, "test-reader")],
+        guildHallHome: ghHome,
+        gitOps,
+      },
+      callbacks,
+    );
+
+    await setupLifecycleState(lifecycle, TEST_COMMISSION_ID, TEST_PROJECT, worktreeDir, "in_progress");
+
+    await mailOrch.handleSleep({
+      commissionId: TEST_COMMISSION_ID,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      worktreeDir,
+      branchName: "claude/commission/test",
+      targetWorker: TEST_READER,
+      mailSequence: 3,
+      mailPath: "/tmp/mail-003.md",
+      outcome: { sessionId: "test-session-1", aborted: true },
+    });
+
+    expect(writtenData).not.toBeNull();
+    const pendingMail = writtenData!.pendingMail as { mailSequence?: number };
+    expect(pendingMail.mailSequence).toBe(3);
+
+    // Clean up
+    mailOrch.shutdownReaders();
+    await new Promise<void>((r) => setTimeout(r, 50));
   });
 });

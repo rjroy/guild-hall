@@ -34,6 +34,9 @@ yarn-error.log*
 # env files
 .env*
 
+# playwright
+.playwright-mcp/
+
 # vercel
 .vercel
 
