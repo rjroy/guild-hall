@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { redirect } from "next/navigation";
+import matter from "gray-matter";
 import { getProject } from "@/lib/config";
 import { projectLorePath, getGuildHallHome, resolveCommissionBasePath, integrationWorktreePath } from "@/lib/paths";
 import {
@@ -13,6 +14,7 @@ import { discoverPackages, getWorkerByName } from "@/lib/packages";
 import type { WorkerMetadata } from "@/lib/types";
 import CommissionHeader from "@/web/components/commission/CommissionHeader";
 import CommissionView from "@/web/components/commission/CommissionView";
+import type { ScheduleInfo } from "@/web/components/commission/CommissionView";
 import NeighborhoodGraph from "@/web/components/commission/NeighborhoodGraph";
 import type { CommissionArtifact } from "@/web/components/commission/CommissionLinkedArtifacts";
 import styles from "./page.module.css";
@@ -84,6 +86,30 @@ export default async function CommissionPage({
     projectName,
   );
 
+  // Parse schedule metadata for scheduled commissions.
+  let scheduleInfo: ScheduleInfo | undefined;
+  if (commission.type === "scheduled") {
+    const parsed = matter(rawContent);
+    const sched = parsed.data.schedule as Record<string, unknown> | undefined;
+    if (sched && typeof sched === "object") {
+      const lastRun = sched.last_run;
+      let lastRunStr: string | null = null;
+      if (lastRun instanceof Date) {
+        lastRunStr = lastRun.toISOString();
+      } else if (typeof lastRun === "string" && lastRun) {
+        lastRunStr = lastRun;
+      }
+
+      scheduleInfo = {
+        cron: typeof sched.cron === "string" ? sched.cron : "",
+        repeat: typeof sched.repeat === "number" ? sched.repeat : null,
+        runsCompleted: typeof sched.runs_completed === "number" ? sched.runs_completed : 0,
+        lastRun: lastRunStr,
+        lastSpawnedId: typeof sched.last_spawned_id === "string" ? sched.last_spawned_id : null,
+      };
+    }
+  }
+
   // Resolve the effective model for display. Commission override takes
   // precedence over the worker's default, which falls back to "opus".
   const defaultPackagesDir = path.join(ghHome, "packages");
@@ -113,6 +139,7 @@ export default async function CommissionPage({
         projectName={projectName}
         model={effectiveModel}
         isModelOverride={isModelOverride}
+        commissionType={commission.type}
       />
       <NeighborhoodGraph
         graph={graph}
@@ -126,6 +153,8 @@ export default async function CommissionPage({
         initialStatus={commission.status}
         initialTimeline={timeline}
         initialArtifacts={linkedArtifacts}
+        commissionType={commission.type}
+        scheduleInfo={scheduleInfo}
       />
     </div>
   );

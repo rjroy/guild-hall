@@ -20,8 +20,12 @@ Commissions form work chains: issue, spec, plan, implement, review, fix. A findi
 ### 1. Inventory
 
 Scan all files in `.lore/commissions/`. For each, capture:
-- Worker name, date, title, status (from frontmatter)
+- Worker name, date, title, status, type (from frontmatter)
 - Whether it completed, failed, or was abandoned
+
+**Skip artifacts with `type: scheduled`.** Scheduled commission artifacts are recurring schedule definitions, not individual work units. Only `type: one-shot` (or no type field, which defaults to one-shot) artifacts are eligible for cleanup.
+
+Spawned commissions (one-shot artifacts with a `source_schedule` field) are eligible for cleanup. The `source_schedule` field provides provenance context, which is useful for grouping spawned commissions by their parent schedule when reviewing the batch.
 
 Group by chronological order. Commissions dispatched within minutes of each other are typically a batch from the Guild Master.
 

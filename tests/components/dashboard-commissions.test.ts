@@ -22,6 +22,8 @@ function makeCommission(overrides: Partial<CommissionMeta> = {}): CommissionMeta
     commissionId: "commission-test-20260221-120000",
     title: "Test Commission",
     status: "pending",
+    type: "one-shot",
+    sourceSchedule: "",
     worker: "researcher",
     workerDisplayTitle: "Research Specialist",
     prompt: "Investigate the thing",
@@ -74,10 +76,12 @@ describe("DependencyMap commission card data", () => {
     expect(statusToGem("dispatched")).toBe("active");
     expect(statusToGem("pending")).toBe("pending");
     expect(statusToGem("blocked")).toBe("pending");
-    // "completed" is not in ACTIVE_STATUSES ("complete" is); falls to "info"
-    expect(statusToGem("completed")).toBe("info");
+    expect(statusToGem("completed")).toBe("active");
     expect(statusToGem("failed")).toBe("blocked");
     expect(statusToGem("cancelled")).toBe("blocked");
+    // Scheduled commission statuses
+    expect(statusToGem("active")).toBe("active");
+    expect(statusToGem("paused")).toBe("pending");
   });
 });
 

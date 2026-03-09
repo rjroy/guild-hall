@@ -77,6 +77,8 @@ function makeCommission(overrides: Partial<CommissionMeta> = {}): CommissionMeta
     commissionId: "commission-test-20260223-120000",
     title: "Test Commission",
     status: "pending",
+    type: "one-shot",
+    sourceSchedule: "",
     worker: "Test Worker",
     workerDisplayTitle: "Test Worker",
     prompt: "Do the thing",

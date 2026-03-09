@@ -112,6 +112,8 @@ function makeCommission(overrides: Partial<CommissionMeta> = {}): CommissionMeta
     commissionId: "commission-researcher-20260221-143000",
     title: "Research API patterns",
     status: "pending",
+    type: "one-shot",
+    sourceSchedule: "",
     worker: "researcher",
     workerDisplayTitle: "Lead Researcher",
     prompt: "Investigate the best API patterns for our use case and document findings.",
@@ -427,5 +429,63 @@ describe("Commission API payload format", () => {
     const input = "specs/api.md, , , designs/schema.md";
     const deps = input.split(",").map((d) => d.trim()).filter(Boolean);
     expect(deps).toEqual(["specs/api.md", "designs/schema.md"]);
+  });
+
+  test("scheduled payload includes type, cron, and repeat", () => {
+    const payload: Record<string, unknown> = {
+      projectName: "test-project",
+      title: "Weekly report",
+      workerName: "writer",
+      prompt: "Write the weekly status report",
+      type: "scheduled",
+      cron: "0 9 * * 1",
+      repeat: 4,
+    };
+    expect(payload.type).toBe("scheduled");
+    expect(payload.cron).toBe("0 9 * * 1");
+    expect(payload.repeat).toBe(4);
+  });
+
+  test("scheduled payload without repeat omits the field", () => {
+    const payload: Record<string, unknown> = {
+      projectName: "test-project",
+      title: "Daily check",
+      workerName: "researcher",
+      prompt: "Run daily checks",
+      type: "scheduled",
+      cron: "0 8 * * *",
+    };
+    expect(payload.type).toBe("scheduled");
+    expect(payload.cron).toBe("0 8 * * *");
+    expect(payload).not.toHaveProperty("repeat");
+  });
+
+  test("one-shot payload does not include schedule fields", () => {
+    const payload: Record<string, unknown> = {
+      projectName: "test-project",
+      title: "One-time task",
+      workerName: "builder",
+      prompt: "Build the feature",
+    };
+    expect(payload).not.toHaveProperty("type");
+    expect(payload).not.toHaveProperty("cron");
+    expect(payload).not.toHaveProperty("repeat");
+  });
+
+  test("repeat is parsed from string input and only included when positive", () => {
+    // Simulates the form's repeat parsing logic
+    const parseRepeat = (input: string): number | undefined => {
+      if (!input.trim()) return undefined;
+      const parsed = parseInt(input, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+      return undefined;
+    };
+
+    expect(parseRepeat("4")).toBe(4);
+    expect(parseRepeat("")).toBeUndefined();
+    expect(parseRepeat("  ")).toBeUndefined();
+    expect(parseRepeat("0")).toBeUndefined();
+    expect(parseRepeat("-1")).toBeUndefined();
+    expect(parseRepeat("abc")).toBeUndefined();
   });
 });

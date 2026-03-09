@@ -2054,3 +2054,99 @@ describe("updateCommission with model override", () => {
     expect(raw).toContain("maxTurns: 20");
   });
 });
+
+// -- Commission type and source_schedule tests --
+
+describe("createCommission with type options", () => {
+  test("writes type: one-shot when no options provided", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Default Type Commission",
+      "test-worker",
+      "Do the work",
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("type: one-shot");
+    expect(raw).not.toContain("source_schedule:");
+  });
+
+  test("writes type: scheduled when options.type is scheduled", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Scheduled Commission",
+      "test-worker",
+      "Do the work",
+      [],
+      undefined,
+      { type: "scheduled" },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("type: scheduled");
+  });
+
+  test("writes source_schedule when provided", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Scheduled with Source",
+      "test-worker",
+      "Do the work",
+      [],
+      undefined,
+      { type: "scheduled", sourceSchedule: "schedule-nightly-20260309" },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("type: scheduled");
+    expect(raw).toContain("source_schedule: schedule-nightly-20260309");
+  });
+
+  test("does not write source_schedule when not provided", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "No Source Schedule",
+      "test-worker",
+      "Do the work",
+      [],
+      undefined,
+      { type: "one-shot" },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("type: one-shot");
+    expect(raw).not.toContain("source_schedule:");
+  });
+});

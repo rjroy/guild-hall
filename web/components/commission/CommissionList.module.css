@@ -65,3 +65,29 @@
   white-space: nowrap;
   max-width: 400px;
 }
+
+.recurringLabel {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  margin-left: var(--space-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sourceSchedule {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  /* Align with .info text: .link left padding + gem width (16px) + .link gap */
+  padding-left: calc(var(--space-md) + 16px + var(--space-md));
+  padding-bottom: var(--space-xs);
+}
+
+.sourceScheduleLink {
+  color: var(--color-brass);
+  text-decoration: none;
+}
+
+.sourceScheduleLink:hover {
+  text-decoration: underline;
+}

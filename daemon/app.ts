@@ -76,7 +76,7 @@ export function createApp(deps: AppDeps): Hono {
 export async function createProductionApp(options?: {
   packagesDir?: string;
   gitOps?: GitOps;
-}): Promise<Hono> {
+}): Promise<{ app: Hono; shutdown: () => void }> {
   const { readConfig } = await import("@/lib/config");
   const { discoverPackages } = await import("@/lib/packages");
   const { getGuildHallHome, integrationWorktreePath } = await import("@/lib/paths");
@@ -236,6 +236,10 @@ export async function createProductionApp(options?: {
     },
   };
 
+  // Lazy ref for schedule lifecycle: set after the scheduler is constructed.
+  // The orchestrator's services bag captures this ref at dispatch time.
+  const scheduleLifecycleRef: { current: undefined | Awaited<ReturnType<typeof import("@/daemon/services/scheduler/schedule-lifecycle").createScheduleLifecycle>> } = { current: undefined };
+
   // Layer 5: Orchestrator (coordinates all layers, implements CommissionSessionForRoutes)
   const commissionSession = createCommissionOrchestrator({
     lifecycle,
@@ -249,6 +253,7 @@ export async function createProductionApp(options?: {
     guildHallHome,
     gitOps: git,
     createMeetingRequestFn,
+    scheduleLifecycleRef,
   });
 
   // Meeting registry (singleton for the daemon process)
@@ -281,6 +286,37 @@ export async function createProductionApp(options?: {
   // with partial work committed.
   await commissionSession.recoverCommissions();
 
+  // -- Schedule lifecycle + scheduler service --
+  const { createScheduleLifecycle } = await import(
+    "@/daemon/services/scheduler/schedule-lifecycle"
+  );
+  const { SchedulerService } = await import(
+    "@/daemon/services/scheduler/index"
+  );
+
+  const scheduleLifecycle = createScheduleLifecycle({
+    recordOps,
+    emitEvent: (event) => eventBus.emit(event),
+  });
+  // Wire the lazy ref so the manager toolbox can access scheduleLifecycle
+  scheduleLifecycleRef.current = scheduleLifecycle;
+
+  const scheduler = new SchedulerService({
+    scheduleLifecycle,
+    recordOps,
+    commissionSession,
+    createMeetingRequestFn,
+    eventBus,
+    config,
+    guildHallHome,
+  });
+
+  // Catch-up: reconcile any missed scheduled runs during downtime
+  await scheduler.catchUp();
+
+  // Start the 60-second tick
+  scheduler.start();
+
   // Briefing generator: uses the same SDK query function as meetings/notes
   // for single-turn project status summaries. Falls back to template when
   // the SDK is not available.
@@ -297,18 +333,21 @@ export async function createProductionApp(options?: {
 
   const startTime = Date.now();
 
-  return createApp({
-    health: {
-      getMeetingCount: () => meetingSession.getActiveMeetings(),
-      getCommissionCount: () => commissionSession.getActiveCommissions(),
-      getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),
-    },
-    meetingSession,
-    commissionSession,
-    packages: allPackages,
-    eventBus,
-    briefingGenerator,
-  });
+  return {
+    app: createApp({
+      health: {
+        getMeetingCount: () => meetingSession.getActiveMeetings(),
+        getCommissionCount: () => commissionSession.getActiveCommissions(),
+        getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),
+      },
+      meetingSession,
+      commissionSession,
+      packages: allPackages,
+      eventBus,
+      briefingGenerator,
+    }),
+    shutdown: () => scheduler.stop(),
+  };
 }
 
 /**

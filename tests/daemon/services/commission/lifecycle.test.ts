@@ -20,6 +20,10 @@ function createMockRecordOps(): CommissionRecordOps & {
       calls.push({ method: "readStatus", args: [_artifactPath] });
       return Promise.resolve("pending");
     },
+    readType(_artifactPath: string): Promise<string> {
+      calls.push({ method: "readType", args: [_artifactPath] });
+      return Promise.resolve("one-shot");
+    },
     writeStatus(artifactPath: string, status: string): Promise<void> {
       calls.push({ method: "writeStatus", args: [artifactPath, status] });
       return Promise.resolve();
@@ -57,6 +61,29 @@ function createMockRecordOps(): CommissionRecordOps & {
       artifacts?: string[],
     ): Promise<void> {
       calls.push({ method: "updateResult", args: [artifactPath, summary, artifacts] });
+      return Promise.resolve();
+    },
+    readScheduleMetadata(_artifactPath: string) {
+      calls.push({ method: "readScheduleMetadata", args: [_artifactPath] });
+      return Promise.resolve({
+        cron: "0 9 * * 1",
+        repeat: null,
+        runsCompleted: 0,
+        lastRun: null,
+        lastSpawnedId: null,
+      });
+    },
+    writeScheduleFields(
+      artifactPath: string,
+      updates: Partial<{
+        runsCompleted: number;
+        lastRun: string;
+        lastSpawnedId: string;
+        cron: string;
+        repeat: number | null;
+      }>,
+    ): Promise<void> {
+      calls.push({ method: "writeScheduleFields", args: [artifactPath, updates] });
       return Promise.resolve();
     },
   };

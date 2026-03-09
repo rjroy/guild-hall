@@ -10,6 +10,21 @@ import {
 // -- Test data helpers --
 
 /**
+ * Creates a minimal GraphNode with sensible defaults.
+ * Keeps test node construction concise after adding type/sourceSchedule fields.
+ */
+function makeNode(overrides: Partial<import("@/lib/dependency-graph").GraphNode> & { id: string }): import("@/lib/dependency-graph").GraphNode {
+  return {
+    title: overrides.title ?? overrides.id.toUpperCase(),
+    status: overrides.status ?? "pending",
+    type: overrides.type ?? "one-shot",
+    sourceSchedule: overrides.sourceSchedule ?? "",
+    projectName: overrides.projectName ?? "p",
+    ...overrides,
+  };
+}
+
+/**
  * Creates a minimal CommissionMeta with sensible defaults.
  * Only the fields relevant to graph construction need overriding.
  */
@@ -17,6 +32,8 @@ function makeCommission(overrides: Partial<CommissionMeta> & { commissionId: str
   return {
     title: overrides.title ?? `Commission: ${overrides.commissionId}`,
     status: overrides.status ?? "pending",
+    type: overrides.type ?? "one-shot",
+    sourceSchedule: overrides.sourceSchedule ?? "",
     worker: overrides.worker ?? "researcher",
     workerDisplayTitle: overrides.workerDisplayTitle ?? "Researcher",
     prompt: overrides.prompt ?? "",
@@ -158,6 +175,96 @@ describe("buildDependencyGraph", () => {
 
     expect(graph.nodes[0].worker).toBeUndefined();
   });
+
+  test("preserves type and sourceSchedule fields on graph nodes", () => {
+    const commissions = [
+      makeCommission({
+        commissionId: "schedule-daily",
+        type: "scheduled",
+        sourceSchedule: "",
+      }),
+      makeCommission({
+        commissionId: "commission-spawned",
+        type: "one-shot",
+        sourceSchedule: "schedule-daily",
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+
+    const scheduleNode = graph.nodes.find((n) => n.id === "schedule-daily")!;
+    expect(scheduleNode.type).toBe("scheduled");
+    expect(scheduleNode.sourceSchedule).toBe("");
+
+    const spawnedNode = graph.nodes.find((n) => n.id === "commission-spawned")!;
+    expect(spawnedNode.type).toBe("one-shot");
+    expect(spawnedNode.sourceSchedule).toBe("schedule-daily");
+  });
+
+  test("creates edge from parent schedule to spawned commission via sourceSchedule", () => {
+    const commissions = [
+      makeCommission({
+        commissionId: "schedule-daily",
+        type: "scheduled",
+      }),
+      makeCommission({
+        commissionId: "commission-spawned-1",
+        sourceSchedule: "schedule-daily",
+      }),
+      makeCommission({
+        commissionId: "commission-spawned-2",
+        sourceSchedule: "schedule-daily",
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+
+    expect(graph.edges).toContainEqual({
+      from: "schedule-daily",
+      to: "commission-spawned-1",
+    });
+    expect(graph.edges).toContainEqual({
+      from: "schedule-daily",
+      to: "commission-spawned-2",
+    });
+  });
+
+  test("does not duplicate edges when sourceSchedule matches an existing dependency edge", () => {
+    const commissions = [
+      makeCommission({
+        commissionId: "schedule-daily",
+        type: "scheduled",
+      }),
+      makeCommission({
+        commissionId: "commission-spawned",
+        sourceSchedule: "schedule-daily",
+        // Also has an explicit dependency on the same commission
+        dependencies: ["commissions/schedule-daily.md"],
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+
+    // Should have exactly one edge, not two
+    const matchingEdges = graph.edges.filter(
+      (e) => e.from === "schedule-daily" && e.to === "commission-spawned",
+    );
+    expect(matchingEdges).toHaveLength(1);
+  });
+
+  test("ignores sourceSchedule when parent is not in the graph", () => {
+    const commissions = [
+      makeCommission({
+        commissionId: "commission-orphan",
+        sourceSchedule: "schedule-nonexistent",
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.edges).toHaveLength(0);
+  });
 });
 
 // -- getNeighborhood --
@@ -168,10 +275,10 @@ describe("getNeighborhood", () => {
     //        A -> C
     const graph: DependencyGraph = {
       nodes: [
-        { id: "a", title: "A", status: "completed", projectName: "p" },
-        { id: "b", title: "B", status: "completed", projectName: "p" },
-        { id: "c", title: "C", status: "pending", projectName: "p" },
-        { id: "d", title: "D", status: "pending", projectName: "p" },
+        makeNode({ id: "a", title: "A", status: "completed" }),
+        makeNode({ id: "b", title: "B", status: "completed" }),
+        makeNode({ id: "c", title: "C", status: "pending" }),
+        makeNode({ id: "d", title: "D", status: "pending" }),
       ],
       edges: [
         { from: "a", to: "b" },
@@ -201,8 +308,8 @@ describe("getNeighborhood", () => {
   test("isolated commission returns single-node graph", () => {
     const graph: DependencyGraph = {
       nodes: [
-        { id: "lone", title: "Lone Wolf", status: "pending", projectName: "p" },
-        { id: "other", title: "Other", status: "pending", projectName: "p" },
+        makeNode({ id: "lone", title: "Lone Wolf" }),
+        makeNode({ id: "other", title: "Other" }),
       ],
       edges: [],
     };
@@ -217,7 +324,7 @@ describe("getNeighborhood", () => {
   test("commission not in graph returns empty graph", () => {
     const graph: DependencyGraph = {
       nodes: [
-        { id: "a", title: "A", status: "pending", projectName: "p" },
+        makeNode({ id: "a", title: "A" }),
       ],
       edges: [],
     };
@@ -236,9 +343,9 @@ describe("layoutGraph", () => {
     // Three nodes in the same layer (no edges)
     const graph: DependencyGraph = {
       nodes: [
-        { id: "a", title: "A", status: "pending", projectName: "p" },
-        { id: "b", title: "B", status: "pending", projectName: "p" },
-        { id: "c", title: "C", status: "pending", projectName: "p" },
+        makeNode({ id: "a", title: "A" }),
+        makeNode({ id: "b", title: "B" }),
+        makeNode({ id: "c", title: "C" }),
       ],
       edges: [],
     };
@@ -266,9 +373,9 @@ describe("layoutGraph", () => {
     // A -> B -> C
     const graph: DependencyGraph = {
       nodes: [
-        { id: "a", title: "A", status: "completed", projectName: "p" },
-        { id: "b", title: "B", status: "in_progress", projectName: "p" },
-        { id: "c", title: "C", status: "pending", projectName: "p" },
+        makeNode({ id: "a", title: "A", status: "completed" }),
+        makeNode({ id: "b", title: "B", status: "in_progress" }),
+        makeNode({ id: "c", title: "C", status: "pending" }),
       ],
       edges: [
         { from: "a", to: "b" },
@@ -300,9 +407,9 @@ describe("layoutGraph", () => {
     // A -> B, A -> C (two nodes in layer 1, one in layer 0)
     const graph: DependencyGraph = {
       nodes: [
-        { id: "a", title: "A", status: "pending", projectName: "p" },
-        { id: "b", title: "B", status: "pending", projectName: "p" },
-        { id: "c", title: "C", status: "pending", projectName: "p" },
+        makeNode({ id: "a", title: "A" }),
+        makeNode({ id: "b", title: "B" }),
+        makeNode({ id: "c", title: "C" }),
       ],
       edges: [
         { from: "a", to: "b" },
@@ -324,7 +431,7 @@ describe("layoutGraph", () => {
   test("handles single-node graph", () => {
     const graph: DependencyGraph = {
       nodes: [
-        { id: "solo", title: "Solo", status: "pending", projectName: "p" },
+        makeNode({ id: "solo", title: "Solo" }),
       ],
       edges: [],
     };
@@ -345,10 +452,10 @@ describe("layoutGraph", () => {
     // No edges between components
     const graph: DependencyGraph = {
       nodes: [
-        { id: "a", title: "A", status: "pending", projectName: "p" },
-        { id: "b", title: "B", status: "pending", projectName: "p" },
-        { id: "c", title: "C", status: "pending", projectName: "p" },
-        { id: "d", title: "D", status: "pending", projectName: "p" },
+        makeNode({ id: "a", title: "A" }),
+        makeNode({ id: "b", title: "B" }),
+        makeNode({ id: "c", title: "C" }),
+        makeNode({ id: "d", title: "D" }),
       ],
       edges: [
         { from: "a", to: "b" },
@@ -380,9 +487,9 @@ describe("layoutGraph", () => {
     // A -> B -> C -> A (cycle)
     const graph: DependencyGraph = {
       nodes: [
-        { id: "a", title: "A", status: "pending", projectName: "p" },
-        { id: "b", title: "B", status: "pending", projectName: "p" },
-        { id: "c", title: "C", status: "pending", projectName: "p" },
+        makeNode({ id: "a", title: "A" }),
+        makeNode({ id: "b", title: "B" }),
+        makeNode({ id: "c", title: "C" }),
       ],
       edges: [
         { from: "a", to: "b" },
@@ -435,8 +542,8 @@ describe("layoutGraph", () => {
   test("respects custom layout options", () => {
     const graph: DependencyGraph = {
       nodes: [
-        { id: "a", title: "A", status: "pending", projectName: "p" },
-        { id: "b", title: "B", status: "pending", projectName: "p" },
+        makeNode({ id: "a", title: "A" }),
+        makeNode({ id: "b", title: "B" }),
       ],
       edges: [{ from: "a", to: "b" }],
     };
@@ -459,10 +566,10 @@ describe("layoutGraph", () => {
     //   D
     const graph: DependencyGraph = {
       nodes: [
-        { id: "a", title: "A", status: "completed", projectName: "p" },
-        { id: "b", title: "B", status: "completed", projectName: "p" },
-        { id: "c", title: "C", status: "completed", projectName: "p" },
-        { id: "d", title: "D", status: "pending", projectName: "p" },
+        makeNode({ id: "a", title: "A", status: "completed" }),
+        makeNode({ id: "b", title: "B", status: "completed" }),
+        makeNode({ id: "c", title: "C", status: "completed" }),
+        makeNode({ id: "d", title: "D", status: "pending" }),
       ],
       edges: [
         { from: "a", to: "b" },

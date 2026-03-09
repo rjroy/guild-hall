@@ -23,6 +23,7 @@ function makeMockCommissionSession(
       prompt: string,
       dependencies?: string[],
       resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+      options?: { type?: "one-shot" | "scheduled"; sourceSchedule?: string },
     ) {
       calls.push({
         method: "createCommission",
@@ -33,6 +34,7 @@ function makeMockCommissionSession(
           prompt,
           dependencies,
           resourceOverrides,
+          options,
         ],
       });
       return Promise.resolve({
@@ -591,5 +593,89 @@ describe("POST /commissions/:id/abandon", () => {
     });
 
     expect(res.status).toBe(500);
+  });
+});
+
+describe("POST /commissions (scheduled)", () => {
+  test("passes type option when type is scheduled", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Weekly report",
+        workerName: "writer",
+        prompt: "Write the weekly report",
+        type: "scheduled",
+        cron: "0 9 * * 1",
+        repeat: 4,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("createCommission");
+    expect(calls[0].args[6]).toEqual({ type: "scheduled" });
+  });
+
+  test("returns 400 when type is scheduled but cron is missing", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Weekly report",
+        workerName: "writer",
+        prompt: "Write the weekly report",
+        type: "scheduled",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("cron");
+  });
+
+  test("does not pass options for one-shot commissions", async () => {
+    const { app, calls } = makeTestApp();
+
+    await app.request("/commissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "One-time task",
+        workerName: "builder",
+        prompt: "Build the thing",
+      }),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args[6]).toBeUndefined();
+  });
+
+  test("scheduled commission with cron but no repeat succeeds", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Indefinite schedule",
+        workerName: "researcher",
+        prompt: "Run forever",
+        type: "scheduled",
+        cron: "0 0 * * *",
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args[6]).toEqual({ type: "scheduled" });
   });
 });

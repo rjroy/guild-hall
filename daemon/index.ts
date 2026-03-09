@@ -35,8 +35,11 @@ cleanStaleSocket(socketPath);
 // discovers packages, creates meeting session). Falls back to the
 // basic app if production setup fails.
 let app: { fetch: typeof fallbackApp.fetch };
+let schedulerShutdown: (() => void) | undefined;
 try {
-  app = await createProductionApp({ packagesDir });
+  const { app: prodApp, shutdown } = await createProductionApp({ packagesDir });
+  app = prodApp;
+  schedulerShutdown = shutdown;
   console.log("[daemon] production app initialized with meeting session and worker routes");
 } catch (err) {
   console.warn(
@@ -60,6 +63,7 @@ console.log(`[daemon] listening on ${socketPath} (PID ${process.pid})`);
 function shutdown() {
   console.log("[daemon] shutting down...");
   try {
+    schedulerShutdown?.();
     void server.stop();
   } finally {
     // PID and socket must be removed even if server.stop() throws,

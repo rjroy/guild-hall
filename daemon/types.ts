@@ -30,6 +30,10 @@ export function asCommissionId(id: string): CommissionId {
 
 export type MeetingStatus = "requested" | "open" | "closed" | "declined";
 
+// -- Commission types --
+
+export type CommissionType = "one-shot" | "scheduled";
+
 // -- Commission status --
 
 export type CommissionStatus =
@@ -42,6 +46,12 @@ export type CommissionStatus =
   | "failed"
   | "cancelled"
   | "abandoned";
+
+// -- Scheduled commission status --
+// Separate from CommissionStatus. Tracks the lifecycle of a recurring schedule,
+// not an individual commission run.
+
+export type ScheduledCommissionStatus = "active" | "paused" | "completed" | "failed";
 
 // -- Tool result type --
 

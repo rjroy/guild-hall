@@ -687,16 +687,306 @@ describe("frontmatter integrity", () => {
   });
 });
 
+// -- readType --
+
+describe("readType", () => {
+  test("returns 'one-shot' when type field is absent (backward compatibility)", async () => {
+    await writeArtifact();
+    const type = await ops.readType(artifactPath);
+    expect(type).toBe("one-shot");
+  });
+
+  test("returns 'one-shot' for artifacts with type: one-shot", async () => {
+    const content = `---
+title: "Commission: Test"
+date: 2026-03-09
+status: pending
+type: one-shot
+tags: [commission]
+worker: researcher
+current_progress: ""
+projectName: guild-hall
+---
+`;
+    await fs.writeFile(artifactPath, content, "utf-8");
+    const type = await ops.readType(artifactPath);
+    expect(type).toBe("one-shot");
+  });
+
+  test("returns 'scheduled' for artifacts with type: scheduled", async () => {
+    const content = `---
+title: "Commission: Scheduled task"
+date: 2026-03-09
+status: pending
+type: scheduled
+source_schedule: schedule-nightly-20260309
+tags: [commission]
+worker: researcher
+current_progress: ""
+projectName: guild-hall
+---
+`;
+    await fs.writeFile(artifactPath, content, "utf-8");
+    const type = await ops.readType(artifactPath);
+    expect(type).toBe("scheduled");
+  });
+
+  test("throws on nonexistent file", async () => {
+    const missing = path.join(tmpDir, "does-not-exist.md");
+    await expect(ops.readType(missing)).rejects.toThrow(/artifact not found/);
+  });
+});
+
+// -- readScheduleMetadata --
+
+/**
+ * Writes a scheduled commission artifact for schedule-related tests.
+ * Separate from the main writeArtifact helper because the frontmatter
+ * structure differs significantly (includes schedule block, type field).
+ */
+async function writeScheduleArtifact(
+  overrides?: Partial<{
+    cron: string;
+    repeat: string;
+    runs_completed: number;
+    last_run: string;
+    last_spawned_id: string;
+    status: string;
+    includeScheduleBlock: boolean;
+  }>,
+): Promise<string> {
+  const status = overrides?.status ?? "active";
+  const cron = overrides?.cron ?? "0 9 * * 1";
+  const repeat = overrides?.repeat ?? "null";
+  const runsCompleted = overrides?.runs_completed ?? 3;
+  const lastRun = overrides?.last_run ?? "2026-03-08T09:00:01.123Z";
+  const lastSpawnedId = overrides?.last_spawned_id ?? "commission-guild-hall-writer-20260308-090001";
+  const includeSchedule = overrides?.includeScheduleBlock ?? true;
+
+  const scheduleBlock = includeSchedule
+    ? `schedule:
+  cron: "${cron}"
+  repeat: ${repeat}
+  runs_completed: ${runsCompleted}
+  last_run: ${lastRun}
+  last_spawned_id: ${lastSpawnedId}
+`
+    : "";
+
+  const content = `---
+title: "Commission: Weekly maintenance"
+date: 2026-03-09
+status: ${status}
+type: scheduled
+tags: [commission, scheduled]
+worker: guild-hall-writer
+prompt: "Run tend skill"
+dependencies: []
+${scheduleBlock}activity_timeline:
+  - timestamp: 2026-03-01T09:00:00.000Z
+    event: created
+    reason: "Schedule created"
+current_progress: ""
+projectName: test-project
+---
+`;
+
+  await fs.writeFile(artifactPath, content, "utf-8");
+  return content;
+}
+
+describe("readScheduleMetadata", () => {
+  test("correctly parses all schedule block fields", async () => {
+    await writeScheduleArtifact();
+
+    const meta = await ops.readScheduleMetadata(artifactPath);
+    expect(meta.cron).toBe("0 9 * * 1");
+    expect(meta.repeat).toBeNull();
+    expect(meta.runsCompleted).toBe(3);
+    expect(meta.lastRun).toBe("2026-03-08T09:00:01.123Z");
+    expect(meta.lastSpawnedId).toBe("commission-guild-hall-writer-20260308-090001");
+  });
+
+  test("handles repeat: null", async () => {
+    await writeScheduleArtifact({ repeat: "null" });
+
+    const meta = await ops.readScheduleMetadata(artifactPath);
+    expect(meta.repeat).toBeNull();
+  });
+
+  test("handles repeat: 5 (numeric)", async () => {
+    await writeScheduleArtifact({ repeat: "5" });
+
+    const meta = await ops.readScheduleMetadata(artifactPath);
+    expect(meta.repeat).toBe(5);
+  });
+
+  test("handles last_run: null", async () => {
+    await writeScheduleArtifact({ last_run: "null" });
+
+    const meta = await ops.readScheduleMetadata(artifactPath);
+    expect(meta.lastRun).toBeNull();
+  });
+
+  test("handles last_run with ISO date", async () => {
+    await writeScheduleArtifact({ last_run: "2026-03-09T12:00:00.000Z" });
+
+    const meta = await ops.readScheduleMetadata(artifactPath);
+    expect(meta.lastRun).toBe("2026-03-09T12:00:00.000Z");
+  });
+
+  test("handles last_spawned_id: null", async () => {
+    await writeScheduleArtifact({ last_spawned_id: "null" });
+
+    const meta = await ops.readScheduleMetadata(artifactPath);
+    expect(meta.lastSpawnedId).toBeNull();
+  });
+
+  test("throws when schedule block is missing", async () => {
+    await writeScheduleArtifact({ includeScheduleBlock: false });
+
+    await expect(ops.readScheduleMetadata(artifactPath)).rejects.toThrow(
+      /no schedule block found/,
+    );
+  });
+
+  test("throws on nonexistent file", async () => {
+    const missing = path.join(tmpDir, "does-not-exist.md");
+    await expect(ops.readScheduleMetadata(missing)).rejects.toThrow(/artifact not found/);
+  });
+});
+
+// -- writeScheduleFields --
+
+describe("writeScheduleFields", () => {
+  test("updates only runs_completed, leaves other fields intact", async () => {
+    const original = await writeScheduleArtifact();
+    await ops.writeScheduleFields(artifactPath, { runsCompleted: 4 });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("  runs_completed: 4");
+    // Other schedule fields unchanged
+    expect(raw).toContain('  cron: "0 9 * * 1"');
+    expect(raw).toContain("  repeat: null");
+    expect(raw).toContain("  last_run: 2026-03-08T09:00:01.123Z");
+    expect(raw).toContain("  last_spawned_id: commission-guild-hall-writer-20260308-090001");
+    // Non-schedule fields unchanged
+    expect(raw).toContain("status: active");
+    expect(raw).toContain('title: "Commission: Weekly maintenance"');
+  });
+
+  test("updates last_run", async () => {
+    await writeScheduleArtifact();
+    await ops.writeScheduleFields(artifactPath, { lastRun: "2026-03-09T09:00:00.000Z" });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("  last_run: 2026-03-09T09:00:00.000Z");
+    // Previous value replaced
+    expect(raw).not.toContain("2026-03-08T09:00:01.123Z");
+  });
+
+  test("updates last_spawned_id", async () => {
+    await writeScheduleArtifact();
+    await ops.writeScheduleFields(artifactPath, {
+      lastSpawnedId: "commission-guild-hall-writer-20260309-090000",
+    });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("  last_spawned_id: commission-guild-hall-writer-20260309-090000");
+    expect(raw).not.toContain("commission-guild-hall-writer-20260308-090001");
+  });
+
+  test("updates cron expression", async () => {
+    await writeScheduleArtifact();
+    await ops.writeScheduleFields(artifactPath, { cron: "0 0 * * *" });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain('  cron: "0 0 * * *"');
+    expect(raw).not.toContain("0 9 * * 1");
+  });
+
+  test("sets repeat to null", async () => {
+    await writeScheduleArtifact({ repeat: "10" });
+    await ops.writeScheduleFields(artifactPath, { repeat: null });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("  repeat: null");
+    expect(raw).not.toContain("repeat: 10");
+  });
+
+  test("sets repeat to a number", async () => {
+    await writeScheduleArtifact({ repeat: "null" });
+    await ops.writeScheduleFields(artifactPath, { repeat: 5 });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("  repeat: 5");
+  });
+
+  test("updates multiple fields at once", async () => {
+    await writeScheduleArtifact();
+    await ops.writeScheduleFields(artifactPath, {
+      runsCompleted: 4,
+      lastRun: "2026-03-09T09:00:00.000Z",
+      lastSpawnedId: "commission-new-20260309-090000",
+    });
+
+    const meta = await ops.readScheduleMetadata(artifactPath);
+    expect(meta.runsCompleted).toBe(4);
+    expect(meta.lastRun).toBe("2026-03-09T09:00:00.000Z");
+    expect(meta.lastSpawnedId).toBe("commission-new-20260309-090000");
+    // Untouched fields
+    expect(meta.cron).toBe("0 9 * * 1");
+    expect(meta.repeat).toBeNull();
+  });
+
+  test("preserves non-schedule frontmatter and body", async () => {
+    await writeScheduleArtifact();
+    await ops.writeScheduleFields(artifactPath, { runsCompleted: 99 });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("type: scheduled");
+    expect(raw).toContain("worker: guild-hall-writer");
+    expect(raw).toContain("event: created");
+    expect(raw).toContain("projectName: test-project");
+  });
+
+  test("throws on nonexistent file", async () => {
+    const missing = path.join(tmpDir, "does-not-exist.md");
+    await expect(
+      ops.writeScheduleFields(missing, { runsCompleted: 1 }),
+    ).rejects.toThrow(/artifact not found/);
+  });
+});
+
+// -- Backward compatibility: readType without schedule block --
+
+describe("readType backward compatibility with schedule artifacts", () => {
+  test("readType works on artifacts without schedule block", async () => {
+    await writeArtifact();
+    const type = await ops.readType(artifactPath);
+    expect(type).toBe("one-shot");
+  });
+
+  test("readType returns scheduled for schedule artifacts", async () => {
+    await writeScheduleArtifact();
+    const type = await ops.readType(artifactPath);
+    expect(type).toBe("scheduled");
+  });
+});
+
 // -- Factory --
 
 describe("createCommissionRecordOps", () => {
-  test("returns an object implementing all six methods", () => {
+  test("returns an object implementing all nine methods", () => {
     const recordOps = createCommissionRecordOps();
     expect(typeof recordOps.readStatus).toBe("function");
+    expect(typeof recordOps.readType).toBe("function");
     expect(typeof recordOps.writeStatus).toBe("function");
     expect(typeof recordOps.appendTimeline).toBe("function");
     expect(typeof recordOps.readDependencies).toBe("function");
     expect(typeof recordOps.updateProgress).toBe("function");
     expect(typeof recordOps.updateResult).toBe("function");
+    expect(typeof recordOps.readScheduleMetadata).toBe("function");
+    expect(typeof recordOps.writeScheduleFields).toBe("function");
   });
 });

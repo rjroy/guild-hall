@@ -31,7 +31,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import matter from "gray-matter";
-import type { CommissionId, CommissionStatus } from "@/daemon/types";
+import type { CommissionId, CommissionStatus, CommissionType } from "@/daemon/types";
 import { asCommissionId } from "@/daemon/types";
 import type {
   AppConfig,
@@ -94,6 +94,7 @@ export interface CommissionSessionForRoutes {
     prompt: string,
     dependencies?: string[],
     resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
+    options?: { type?: CommissionType; sourceSchedule?: string },
   ): Promise<{ commissionId: string }>;
   updateCommission(
     commissionId: CommissionId,
@@ -165,6 +166,12 @@ export interface CommissionOrchestratorDeps {
   managerPackageName?: string;
   /** Optional pre-built mail orchestrator (DI seam for testing). */
   mailOrchestrator?: MailOrchestrator;
+  /**
+   * Lazy ref for the schedule lifecycle, set after the scheduler is
+   * constructed. The services bag captures this ref at dispatch time,
+   * breaking the circular ordering between orchestrator and scheduler.
+   */
+  scheduleLifecycleRef?: { current: import("@/daemon/services/scheduler/schedule-lifecycle").ScheduleLifecycle | undefined };
 }
 
 // -- Factory --
@@ -1163,6 +1170,7 @@ export function createCommissionOrchestrator(
     prompt: string,
     dependencies: string[] = [],
     resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
+    options?: { type?: CommissionType; sourceSchedule?: string },
   ): Promise<{ commissionId: string }> {
     const project = findProject(projectName);
     if (!project) {
@@ -1217,10 +1225,16 @@ export function createCommissionOrchestrator(
           }`
         : "";
 
+    const commissionType: CommissionType = options?.type ?? "one-shot";
+    const sourceScheduleLine = options?.sourceSchedule
+      ? `\nsource_schedule: ${options.sourceSchedule}`
+      : "";
+
     const content = `---
 title: "Commission: ${escapedTitle}"
 date: ${dateStr}
 status: pending
+type: ${commissionType}${sourceScheduleLine}
 tags: [commission]
 worker: ${workerMeta.identity.name}
 workerDisplayTitle: "${escapedDisplayTitle}"
@@ -1515,11 +1529,19 @@ projectName: ${projectName}
     );
 
     // The services bag is passed to the toolbox resolver so the manager
-    // toolbox can access the commission session and git ops. Only populated
-    // when the worker is the manager (identified by managerPackageName).
+    // toolbox can access the commission session, git ops, and schedule deps.
+    // Only populated when the worker is the manager (identified by
+    // managerPackageName). The scheduleLifecycleRef is set late by the caller
+    // (createProductionApp) after the scheduler is constructed.
     const isManager = workerPkg?.name === managerPackageName;
     const services = isManager && selfRef.current
-      ? { commissionSession: selfRef.current, gitOps: gitOps }
+      ? {
+          commissionSession: selfRef.current,
+          gitOps: gitOps,
+          scheduleLifecycle: deps.scheduleLifecycleRef?.current,
+          recordOps,
+          packages,
+        }
       : undefined;
 
     const prepSpec: SessionPrepSpec = {

@@ -31,6 +31,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       prompt?: string;
       dependencies?: string[];
       resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+      type?: string;
+      cron?: string;
+      repeat?: number;
     };
     try {
       body = await c.req.json();
@@ -50,8 +53,27 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       );
     }
 
+    if (body.type === "scheduled" && !body.cron) {
+      return c.json(
+        { error: "Missing required field for scheduled commission: cron" },
+        400,
+      );
+    }
+
+    // Build options when type is specified. The orchestrator's createCommission
+    // accepts type and sourceSchedule. Full schedule artifact creation (cron,
+    // repeat, schedule YAML block) is handled by the manager toolbox's
+    // create_scheduled_commission tool, which has access to gitOps and
+    // scheduleLifecycle. Until createScheduledCommission is exposed as a
+    // method on CommissionSessionForRoutes, the route passes type through
+    // but cron/repeat are not written to the artifact.
+    // TODO: wire createScheduledCommission into CommissionSessionForRoutes
+    const options = body.type === "scheduled"
+      ? { type: "scheduled" as const }
+      : undefined;
+
     try {
-      console.log(`[route] POST /commissions project="${projectName}" worker="${workerName}"`);
+      console.log(`[route] POST /commissions project="${projectName}" worker="${workerName}" type="${body.type ?? "one-shot"}"`);
       const result = await deps.commissionSession.createCommission(
         projectName,
         title,
@@ -59,6 +81,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
         prompt,
         body.dependencies,
         body.resourceOverrides,
+        options,
       );
       return c.json(result, 201);
     } catch (err: unknown) {
