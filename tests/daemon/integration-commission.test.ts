@@ -161,6 +161,7 @@ function createMockGitOps(): GitOps & { calls: string[] } {
     listConflictedFiles: async () => { calls.push("listConflictedFiles"); return []; },
     resolveConflictsTheirs: async () => { calls.push("resolveConflictsTheirs"); },
     mergeAbort: async () => { calls.push("mergeAbort"); },
+    hasCommitsBeyond: async () => { calls.push("hasCommitsBeyond"); return false; },
   };
 }
 
@@ -378,7 +379,7 @@ async function postDispatch(
   });
 }
 
-async function deleteCommission(
+async function _deleteCommission(
   app: ReturnType<typeof createApp>,
   commissionId: string,
 ): Promise<Response> {
