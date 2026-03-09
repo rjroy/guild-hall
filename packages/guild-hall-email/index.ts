@@ -159,7 +159,7 @@ export const toolboxFactory: ToolboxFactory = () => {
 
   // Kick off background connection. The promise is stored in the client;
   // tool handlers call ensureConnected() which awaits it.
-  void client.ensureConnected();
+  void client.ensureConnected().catch(() => {});
 
   return { server: createConfiguredServer(client) };
 };

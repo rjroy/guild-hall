@@ -30,7 +30,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       workerName?: string;
       prompt?: string;
       dependencies?: string[];
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
     };
     try {
       body = await c.req.json();
@@ -98,7 +98,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     let body: {
       prompt?: string;
       dependencies?: string[];
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
     };
     try {
       body = await c.req.json();

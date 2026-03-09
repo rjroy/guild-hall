@@ -13,6 +13,24 @@ import {
   makeSearchEmailsHandler,
 } from "@/packages/guild-hall-email/tools";
 
+// -- Internal type for testing tool invocation through MCP server --
+
+// The McpServer instance exposes _registeredTools and executeToolHandler,
+// which are internal but the only way to invoke tools without a transport.
+interface RegisteredTool {
+  handler: (...args: unknown[]) => unknown;
+  inputSchema?: unknown;
+}
+
+interface McpServerInstance {
+  _registeredTools: Record<string, RegisteredTool>;
+  executeToolHandler(
+    tool: RegisteredTool,
+    args: Record<string, unknown>,
+    context: Record<string, unknown>,
+  ): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }>;
+}
+
 // -- Mock data --
 
 const MOCK_SESSION: JmapSession = {
@@ -201,6 +219,31 @@ describe("email toolbox factory", () => {
     });
   });
 
+  describe("background connect failure", () => {
+    test("no unhandled rejection when background connect fails", async () => {
+      // Set up a token so the factory takes the configured path,
+      // but use a session URL that will fail.
+      process.env.FASTMAIL_API_TOKEN = "test-token-for-rejection";
+      process.env.FASTMAIL_SESSION_URL = "http://localhost:1/will-fail";
+
+      let unhandledRejection = false;
+      const handler = () => { unhandledRejection = true; };
+      process.on("unhandledRejection", handler);
+
+      try {
+        const factory = await loadFactory();
+        factory(makeDeps());
+
+        // Give the background connect time to fail and (not) propagate
+        await new Promise((r) => setTimeout(r, 200));
+
+        expect(unhandledRejection).toBe(false);
+      } finally {
+        process.off("unhandledRejection", handler);
+      }
+    });
+  });
+
   describe("FASTMAIL_SESSION_URL override", () => {
     test("custom session URL is passed to JmapClient", async () => {
       const customUrl = "https://custom.fastmail.example/jmap/session";
@@ -219,27 +262,30 @@ describe("email toolbox factory", () => {
 });
 
 describe("unconfigured tool behavior", () => {
-  /**
-   * Since we can't easily call MCP tools through the server directly,
-   * we test the unconfigured behavior by verifying that calling tools
-   * on a client that fails to connect produces the expected error
-   * pattern. The factory wires the same handler pattern.
-   *
-   * For completeness, we also verify the factory creates a server
-   * in both states.
-   */
-
-  test("search_emails returns configuration error when client cannot connect", async () => {
-    // Simulate the unconfigured path: no token means no client.
-    // The factory creates stub handlers that return the config error.
-    // We verify the error message matches expectations.
+  test("unconfigured server exists with correct name", async () => {
     delete process.env.FASTMAIL_API_TOKEN;
     const factory = await loadFactory();
     const result = factory(makeDeps());
 
-    // The server should exist with the right name
     expect(result.server.name).toBe("guild-hall-email");
     expect(result.server.instance).toBeDefined();
+  });
+
+  test("calling a tool on unconfigured server returns isError with config message", async () => {
+    delete process.env.FASTMAIL_API_TOKEN;
+    const factory = await loadFactory();
+    const result = factory(makeDeps());
+
+    // Access the registered tool and invoke its handler through the MCP server instance
+    const instance = result.server.instance as McpServerInstance;
+    const registeredTool = instance._registeredTools["list_mailboxes"];
+    expect(registeredTool).toBeDefined();
+
+    const toolResult = await instance.executeToolHandler(registeredTool, {}, {});
+    expect(toolResult.isError).toBe(true);
+    expect(toolResult.content[0].text).toContain(
+      "Email toolbox is not configured",
+    );
   });
 });
 
