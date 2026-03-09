@@ -1,6 +1,6 @@
 ---
 title: Improve Briefing Generator with Full SDK Pattern
-status: complete
+status: implemented
 ---
 
 # Improve Briefing Generator with Full SDK Pattern
