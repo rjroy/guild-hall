@@ -18,4 +18,7 @@ meeting_log:
   - timestamp: 2026-03-09T22:12:18.902Z
     event: progress_summary
     reason: "Found bug: scheduled commission worker discovery fails during Guild Master meetings because the meeting orchestrator (line 456) only wires commissionSession and gitOps into the manager's services, omitting packages, scheduleLifecycle, and recordOps. Dispatched commission-Dalton-20260309-151214 (Sonnet) to fix the wiring gap and add tests."
+  - timestamp: 2026-03-09T22:20:00.753Z
+    event: progress_summary
+    reason: "Dispatched commission-Octavia-20260309-151956 (Sonnet) to investigate the commission tab sorting and status gem issue. Scheduled commissions likely introduced statuses that the gem color mapping doesn't handle, defaulting everything to red."
 ---
