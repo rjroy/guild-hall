@@ -151,6 +151,7 @@ let tmpDir: string;
 let ghHome: string;
 let packagesDir: string;
 let savedGHHome: string | undefined;
+let shutdownFn: (() => void) | undefined;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-daemon-rebase-"));
@@ -165,6 +166,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  shutdownFn?.();
+  shutdownFn = undefined;
   if (savedGHHome !== undefined) {
     process.env.GUILD_HALL_HOME = savedGHHome;
   } else {
@@ -186,7 +189,7 @@ describe("createProductionApp startup sync", () => {
     await fs.mkdir(iPath, { recursive: true });
 
     const mockGit = createMockGitOps();
-    await createProductionApp({ packagesDir, gitOps: mockGit });
+    ({ shutdown: shutdownFn } = await createProductionApp({ packagesDir, gitOps: mockGit }));
 
     // syncProject fetches from origin first
     const fetchCalls = mockGit.calls.filter((c) => c.method === "fetch");
@@ -220,7 +223,7 @@ describe("createProductionApp startup sync", () => {
     );
 
     const mockGit = createMockGitOps();
-    await createProductionApp({ packagesDir, gitOps: mockGit });
+    ({ shutdown: shutdownFn } = await createProductionApp({ packagesDir, gitOps: mockGit }));
 
     const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
     expect(rebaseCalls).toHaveLength(0);
@@ -250,8 +253,9 @@ describe("createProductionApp startup sync", () => {
     };
 
     try {
-      const app = await createProductionApp({ packagesDir, gitOps: mockGit });
-      expect(app).toBeDefined();
+      const result = await createProductionApp({ packagesDir, gitOps: mockGit });
+      shutdownFn = result.shutdown;
+      expect(result.app).toBeDefined();
 
       const syncWarning = warnings.find(
         (w) =>
@@ -282,7 +286,7 @@ describe("createProductionApp startup sync", () => {
     }
 
     const mockGit = createMockGitOps();
-    await createProductionApp({ packagesDir, gitOps: mockGit });
+    ({ shutdown: shutdownFn } = await createProductionApp({ packagesDir, gitOps: mockGit }));
 
     // fetch should be called for each project
     const fetchCalls = mockGit.calls.filter((c) => c.method === "fetch");

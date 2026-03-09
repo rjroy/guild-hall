@@ -215,10 +215,12 @@ function makeDeps(overrides: Partial<BriefingGeneratorDeps> = {}): BriefingGener
 function createMockQueryFn(responseText: string) {
   let callCount = 0;
   const capturedPrompts: string[] = [];
+  const capturedOptions: Record<string, unknown>[] = [];
 
   const queryFn: BriefingQueryFn = async function* (params) {
     callCount++;
     capturedPrompts.push(params.prompt);
+    capturedOptions.push(params.options as Record<string, unknown>);
 
     // Yield stream_event with text_delta (consumed by runSdkSession path)
     if (responseText) {
@@ -250,6 +252,7 @@ function createMockQueryFn(responseText: string) {
     queryFn,
     getCallCount: () => callCount,
     getCapturedPrompts: () => capturedPrompts,
+    getCapturedOptions: () => capturedOptions,
   };
 }
 
@@ -284,6 +287,24 @@ describe("createBriefingGenerator - full SDK path", () => {
     const overrides = mockPrep.getCapturedWorkerOverrides();
     expect(overrides.length).toBe(1);
     expect(overrides[0].systemToolboxes).toEqual([]);
+  });
+
+  test("overrides model to sonnet via resourceOverrides (not post-prep spread)", async () => {
+    const mock = createMockQueryFn("Briefing text.");
+    const mockPrep = makeMockPrepDeps();
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, prepDeps: mockPrep.prepDeps }),
+    );
+
+    await generator.generateBriefing("test-project");
+
+    // The manager activation returns model: "opus", but the briefing prep spec
+    // sets resourceOverrides.model = "sonnet". prepareSdkSession resolves
+    // resourceOverrides.model over activation.model, so the queryFn should
+    // receive model: "sonnet" in its options.
+    const options = mock.getCapturedOptions();
+    expect(options.length).toBe(1);
+    expect(options[0].model).toBe("sonnet");
   });
 
   test("uses briefing prompt (not context-stuffed prompt)", async () => {

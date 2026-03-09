@@ -1,7 +1,7 @@
 ---
 title: W2W mail system has untested paths and a hardcoded recovery value
 date: 2026-03-07
-status: open
+status: resolved
 tags: [testing, w2w, mail]
 modules: [mail-orchestrator]
 ---

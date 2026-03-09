@@ -60,7 +60,7 @@ export type SessionPrepSpec = {
   activationExtras?: Partial<ActivationContext>;
   abortController: AbortController;
   resume?: string;
-  resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+  resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
   /** Path to the mail file (mail context only). */
   mailFilePath?: string;
   /** Commission ID for the mail toolbox (mail context only). */
@@ -77,7 +77,6 @@ export type SessionPrepDeps = {
       contextId: string;
       contextType: "meeting" | "commission" | "mail" | "briefing";
       workerName: string;
-      workerPortraitUrl?: string;
       eventBus: EventBus;
       config: AppConfig;
       services?: GuildHallToolServices;
@@ -235,7 +234,6 @@ export async function prepareSdkSession(
       contextId: spec.contextId,
       contextType: spec.contextType,
       workerName: workerMeta.identity.name,
-      workerPortraitUrl: workerMeta.identity.portraitPath,
       eventBus: spec.eventBus,
       config: spec.config,
       services: spec.services,
@@ -295,6 +293,7 @@ export async function prepareSdkSession(
       posture: workerMeta.posture,
       soul: workerMeta.soul,
       injectedMemory,
+      model: workerMeta.model,
       resolvedTools,
       resourceDefaults: {
         maxTurns: workerMeta.resourceDefaults?.maxTurns,
@@ -312,6 +311,7 @@ export async function prepareSdkSession(
   // 5. Build SDK query options
   const maxTurns = spec.resourceOverrides?.maxTurns ?? activation.resourceBounds.maxTurns;
   const maxBudgetUsd = spec.resourceOverrides?.maxBudgetUsd ?? activation.resourceBounds.maxBudgetUsd;
+  const resolvedModel = spec.resourceOverrides?.model ?? activation.model;
 
   const mcpServers: Record<string, unknown> = {};
   for (const server of activation.tools.mcpServers) {
@@ -324,7 +324,7 @@ export async function prepareSdkSession(
     mcpServers,
     allowedTools: activation.tools.allowedTools,
     ...(resolvedPlugins.length > 0 ? { plugins: resolvedPlugins } : {}),
-    ...(activation.model ? { model: activation.model } : {}),
+    ...(resolvedModel ? { model: resolvedModel } : {}),
     ...(maxTurns ? { maxTurns } : {}),
     ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
     permissionMode: "dontAsk",

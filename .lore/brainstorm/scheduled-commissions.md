@@ -1,7 +1,7 @@
 ---
 title: Scheduled commissions
 date: 2026-03-08
-status: specified
+status: resolved
 tags: [commissions, scheduling, cron, recurring-work, daemon]
 modules: [daemon, commission-orchestrator]
 related:

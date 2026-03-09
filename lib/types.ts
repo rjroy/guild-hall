@@ -44,6 +44,14 @@ export type GemStatus = "active" | "pending" | "blocked" | "info";
 
 export type CheckoutScope = "sparse" | "full";
 
+/** Single source of truth for valid model names (REQ-MODEL-4). */
+export const VALID_MODELS = ["opus", "sonnet", "haiku"] as const;
+export type ModelName = (typeof VALID_MODELS)[number];
+
+export function isValidModel(value: string): value is ModelName {
+  return (VALID_MODELS as readonly string[]).includes(value);
+}
+
 export interface ResourceDefaults {
   maxTurns?: number;
   maxBudgetUsd?: number;
@@ -65,6 +73,7 @@ export interface WorkerMetadata {
   identity: WorkerIdentity;
   posture: string;
   soul?: string;
+  model?: ModelName;
   systemToolboxes?: string[];
   domainToolboxes: string[];
   domainPlugins?: string[];
@@ -119,6 +128,7 @@ export interface ActivationContext {
   posture: string;
   soul?: string;
   injectedMemory: string;
+  model?: string;
   resolvedTools: ResolvedToolSet;
   resourceDefaults: {
     maxTurns?: number;
@@ -164,12 +174,13 @@ const ACTIVE_STATUSES = new Set([
   "active",
   "current",
   "complete",
+  "completed",
   "resolved",
   "in_progress",
   "dispatched",
 ]);
 
-const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested", "blocked", "queued"]);
+const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested", "blocked", "queued", "paused"]);
 
 const BLOCKED_STATUSES = new Set([
   "superseded",

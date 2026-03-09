@@ -103,6 +103,8 @@ function makeCommission(
     commissionId: "commission-researcher-20260221-143000",
     title: "Research API patterns",
     status: "pending",
+    type: "one-shot",
+    sourceSchedule: "",
     worker: "researcher",
     workerDisplayTitle: "Lead Researcher",
     prompt: "Investigate the best API patterns.",

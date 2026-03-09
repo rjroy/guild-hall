@@ -9,6 +9,9 @@ interface CommissionHeaderProps {
   worker: string;
   workerDisplayTitle: string;
   projectName: string;
+  model?: string;
+  isModelOverride?: boolean;
+  commissionType?: string;
 }
 
 /**
@@ -22,6 +25,9 @@ export default function CommissionHeader({
   worker,
   workerDisplayTitle,
   projectName,
+  model,
+  isModelOverride,
+  commissionType,
 }: CommissionHeaderProps) {
   const encodedProject = encodeURIComponent(projectName);
   const gemStatus = statusToGem(status);
@@ -60,6 +66,9 @@ export default function CommissionHeader({
       <div className={styles.titleRow}>
         <GemIndicator status={gemStatus} size="md" />
         <h1 className={styles.title}>{title || "Untitled Commission"}</h1>
+        {commissionType === "scheduled" && (
+          <span className={styles.scheduleLabel}>Schedule</span>
+        )}
       </div>
 
       <div className={styles.meta}>
@@ -67,6 +76,11 @@ export default function CommissionHeader({
         {worker && (
           <span className={styles.workerLabel}>
             Assigned to: {workerDisplayTitle || worker}
+          </span>
+        )}
+        {model && (
+          <span className={styles.modelLabel}>
+            Model: {model}{isModelOverride ? " (override)" : ""}
           </span>
         )}
       </div>

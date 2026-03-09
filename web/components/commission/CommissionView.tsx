@@ -7,10 +7,34 @@ import CommissionTimeline from "./CommissionTimeline";
 import CommissionActions from "./CommissionActions";
 import CommissionLinkedArtifacts from "./CommissionLinkedArtifacts";
 import CommissionNotes from "./CommissionNotes";
+import CommissionScheduleInfo from "./CommissionScheduleInfo";
+import CommissionScheduleActions from "./CommissionScheduleActions";
 import Panel from "@/web/components/ui/Panel";
 import type { TimelineEntry } from "@/lib/commissions";
 import type { CommissionArtifact } from "./CommissionLinkedArtifacts";
 import styles from "./CommissionView.module.css";
+
+export interface RecentRun {
+  commissionId: string;
+  status: string;
+  date: string;
+}
+
+export interface ScheduleInfo {
+  cron: string;
+  /** Human-readable description of the cron expression */
+  cronDescription: string;
+  /** null means indefinite */
+  repeat: number | null;
+  runsCompleted: number;
+  /** ISO timestamp, or null if never run */
+  lastRun: string | null;
+  lastSpawnedId: string | null;
+  /** ISO timestamp of the next expected run, or null */
+  nextRun: string | null;
+  /** Recent spawned commissions from this schedule */
+  recentRuns: RecentRun[];
+}
 
 interface CommissionViewProps {
   commissionId: string;
@@ -19,6 +43,8 @@ interface CommissionViewProps {
   initialStatus: string;
   initialTimeline: TimelineEntry[];
   initialArtifacts: CommissionArtifact[];
+  commissionType?: string;
+  scheduleInfo?: ScheduleInfo;
 }
 
 /**
@@ -36,6 +62,8 @@ export default function CommissionView({
   initialStatus,
   initialTimeline,
   initialArtifacts,
+  commissionType,
+  scheduleInfo,
 }: CommissionViewProps) {
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
@@ -239,13 +267,28 @@ export default function CommissionView({
       </div>
 
       <div className={styles.sidebar}>
-        <Panel size="sm">
-          <CommissionActions
-            status={status}
-            commissionId={commissionId}
-            onStatusChange={handleStatusChange}
-          />
-        </Panel>
+        {commissionType === "scheduled" && scheduleInfo ? (
+          <>
+            <Panel size="sm">
+              <CommissionScheduleInfo schedule={scheduleInfo} projectName={projectName} />
+            </Panel>
+            <Panel size="sm">
+              <CommissionScheduleActions
+                status={status}
+                commissionId={commissionId}
+                onStatusChange={handleStatusChange}
+              />
+            </Panel>
+          </>
+        ) : (
+          <Panel size="sm">
+            <CommissionActions
+              status={status}
+              commissionId={commissionId}
+              onStatusChange={handleStatusChange}
+            />
+          </Panel>
+        )}
 
         <Panel size="sm">
           <CommissionLinkedArtifacts artifacts={artifacts} />

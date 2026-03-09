@@ -31,14 +31,14 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import matter from "gray-matter";
-import type { CommissionId, CommissionStatus } from "@/daemon/types";
+import type { CommissionId, CommissionStatus, CommissionType } from "@/daemon/types";
 import { asCommissionId } from "@/daemon/types";
 import type {
   AppConfig,
   DiscoveredPackage,
   WorkerMetadata,
 } from "@/lib/types";
-import { isNodeError } from "@/lib/types";
+import { isNodeError, isValidModel } from "@/lib/types";
 import {
   integrationWorktreePath as integrationWorktreePathFn,
   commissionWorktreePath as commissionWorktreePathFn,
@@ -56,6 +56,7 @@ import {
   escapeYamlValue,
 } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
+import { isValidCron } from "@/daemon/services/scheduler/cron";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
 import { replaceYamlField } from "@/daemon/lib/record-utils";
@@ -93,14 +94,15 @@ export interface CommissionSessionForRoutes {
     workerName: string,
     prompt: string,
     dependencies?: string[],
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
+    options?: { type?: CommissionType; sourceSchedule?: string },
   ): Promise<{ commissionId: string }>;
   updateCommission(
     commissionId: CommissionId,
     updates: {
       prompt?: string;
       dependencies?: string[];
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
     },
   ): Promise<void>;
   dispatchCommission(
@@ -112,6 +114,20 @@ export interface CommissionSessionForRoutes {
     commissionId: CommissionId,
   ): Promise<{ status: "accepted" | "queued" }>;
   addUserNote(commissionId: CommissionId, content: string): Promise<void>;
+  createScheduledCommission(params: {
+    projectName: string;
+    title: string;
+    workerName: string;
+    prompt: string;
+    cron: string;
+    repeat?: number | null;
+    dependencies?: string[];
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+  }): Promise<{ commissionId: string }>;
+  updateScheduleStatus(
+    commissionId: CommissionId,
+    targetStatus: string,
+  ): Promise<{ outcome: string; status?: string; reason?: string }>;
   checkDependencyTransitions(projectName: string): Promise<void>;
   recoverCommissions(): Promise<number>;
   getActiveCommissions(): number;
@@ -165,6 +181,12 @@ export interface CommissionOrchestratorDeps {
   managerPackageName?: string;
   /** Optional pre-built mail orchestrator (DI seam for testing). */
   mailOrchestrator?: MailOrchestrator;
+  /**
+   * Lazy ref for the schedule lifecycle, set after the scheduler is
+   * constructed. The services bag captures this ref at dispatch time,
+   * breaking the circular ordering between orchestrator and scheduler.
+   */
+  scheduleLifecycleRef?: { current: import("@/daemon/services/scheduler/schedule-lifecycle").ScheduleLifecycle | undefined };
 }
 
 // -- Factory --
@@ -1162,7 +1184,8 @@ export function createCommissionOrchestrator(
     workerName: string,
     prompt: string,
     dependencies: string[] = [],
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
+    options?: { type?: CommissionType; sourceSchedule?: string },
   ): Promise<{ commissionId: string }> {
     const project = findProject(projectName);
     if (!project) {
@@ -1201,7 +1224,7 @@ export function createCommissionOrchestrator(
         : " []";
 
     const resourceLines =
-      resourceOverrides && (resourceOverrides.maxTurns !== undefined || resourceOverrides.maxBudgetUsd !== undefined)
+      resourceOverrides && (resourceOverrides.maxTurns !== undefined || resourceOverrides.maxBudgetUsd !== undefined || resourceOverrides.model !== undefined)
         ? `\nresource_overrides:\n${
             resourceOverrides.maxTurns !== undefined
               ? `  maxTurns: ${resourceOverrides.maxTurns}\n`
@@ -1210,13 +1233,23 @@ export function createCommissionOrchestrator(
             resourceOverrides.maxBudgetUsd !== undefined
               ? `  maxBudgetUsd: ${resourceOverrides.maxBudgetUsd}\n`
               : ""
+          }${
+            resourceOverrides.model !== undefined
+              ? `  model: ${resourceOverrides.model}\n`
+              : ""
           }`
         : "";
+
+    const commissionType: CommissionType = options?.type ?? "one-shot";
+    const sourceScheduleLine = options?.sourceSchedule
+      ? `\nsource_schedule: ${options.sourceSchedule}`
+      : "";
 
     const content = `---
 title: "Commission: ${escapedTitle}"
 date: ${dateStr}
 status: pending
+type: ${commissionType}${sourceScheduleLine}
 tags: [commission]
 worker: ${workerMeta.identity.name}
 workerDisplayTitle: "${escapedDisplayTitle}"
@@ -1243,12 +1276,186 @@ projectName: ${projectName}
     return { commissionId: commissionId as string };
   }
 
+  async function createScheduledCommission(params: {
+    projectName: string;
+    title: string;
+    workerName: string;
+    prompt: string;
+    cron: string;
+    repeat?: number | null;
+    dependencies?: string[];
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+  }): Promise<{ commissionId: string }> {
+    const { projectName, title, workerName, prompt, cron, dependencies = [] } = params;
+    const repeat = params.repeat ?? null;
+
+    const project = findProject(projectName);
+    if (!project) {
+      throw new Error(`Project "${projectName}" not found`);
+    }
+
+    if (!isValidCron(cron)) {
+      throw new Error(`Invalid cron expression: "${cron}"`);
+    }
+
+    const workerPkg = getWorkerByName(packages, workerName);
+    if (!workerPkg) {
+      throw new Error(`Worker "${workerName}" not found in discovered packages`);
+    }
+    const workerMeta = workerPkg.metadata as WorkerMetadata;
+
+    const commissionId = formatCommissionId(workerMeta.identity.name, new Date());
+    const iPath = integrationWorktreePathFn(guildHallHome, projectName);
+    const commissionsDir = path.join(iPath, ".lore", "commissions");
+    await fs.mkdir(commissionsDir, { recursive: true });
+
+    const now = new Date();
+    const dateStr = now.toISOString().split("T")[0];
+    const isoStr = now.toISOString();
+
+    const escapedTitle = escapeYamlValue(title);
+    const escapedPrompt = escapeYamlValue(prompt);
+    const escapedDisplayTitle = escapeYamlValue(workerMeta.identity.displayTitle);
+
+    const depsYaml = dependencies.length > 0
+      ? "\n" + dependencies.map((d) => `  - ${d}`).join("\n")
+      : " []";
+
+    const ro = params.resourceOverrides;
+    const resourceLines = ro && (ro.maxTurns !== undefined || ro.maxBudgetUsd !== undefined || ro.model !== undefined)
+      ? `resource_overrides:\n${ro.maxTurns !== undefined ? `  maxTurns: ${ro.maxTurns}\n` : ""}${ro.maxBudgetUsd !== undefined ? `  maxBudgetUsd: ${ro.maxBudgetUsd}\n` : ""}${ro.model !== undefined ? `  model: ${ro.model}\n` : ""}`
+      : "";
+
+    const content = `---
+title: "Commission: ${escapedTitle}"
+date: ${dateStr}
+status: active
+type: scheduled
+tags: [commission, scheduled]
+worker: ${workerMeta.identity.name}
+workerDisplayTitle: "${escapedDisplayTitle}"
+prompt: "${escapedPrompt}"
+dependencies:${depsYaml}
+linked_artifacts: []
+schedule:
+  cron: "${cron}"
+  repeat: ${repeat}
+  runs_completed: 0
+  last_run: null
+  last_spawned_id: null
+${resourceLines}activity_timeline:
+  - timestamp: ${isoStr}
+    event: created
+    reason: "Scheduled commission created"
+current_progress: ""
+projectName: ${projectName}
+---
+`;
+
+    const artifactPath = commissionArtifactPath(iPath, commissionId);
+    await fs.writeFile(artifactPath, content, "utf-8");
+
+    // Commit to claude branch under project lock
+    await withProjectLock(projectName, async () => {
+      await gitOps.commitAll(iPath, `Add commission: ${commissionId as string}`);
+    });
+
+    // Register with schedule lifecycle if available
+    if (deps.scheduleLifecycleRef?.current) {
+      deps.scheduleLifecycleRef.current.register(
+        commissionId,
+        projectName,
+        "active",
+        artifactPath,
+      );
+    }
+
+    console.log(
+      `[orchestrator] created scheduled commission "${commissionId as string}" for project "${projectName}" (worker: ${workerName})`,
+    );
+
+    return { commissionId: commissionId as string };
+  }
+
+  /**
+   * Transition a scheduled commission's status (pause, resume, complete).
+   * Finds the schedule artifact, validates the transition, delegates
+   * to the schedule lifecycle.
+   */
+  async function updateScheduleStatus(
+    commissionId: CommissionId,
+    targetStatus: string,
+  ): Promise<{ outcome: string; status?: string; reason?: string }> {
+    const scheduleLifecycle = deps.scheduleLifecycleRef?.current;
+    if (!scheduleLifecycle) {
+      throw new Error("Schedule lifecycle not available");
+    }
+
+    const found = await findProjectForCommission(commissionId);
+    if (!found) {
+      throw new Error(`Commission "${commissionId as string}" not found in any project`);
+    }
+
+    const iPath = integrationWorktreePathFn(guildHallHome, found.projectName);
+    const artifactPath = commissionArtifactPath(iPath, commissionId);
+    const currentStatus = await recordOps.readStatus(artifactPath);
+    const commissionType = await recordOps.readType(artifactPath);
+
+    if (commissionType !== "scheduled") {
+      throw new Error(`Commission "${commissionId as string}" is not a scheduled commission`);
+    }
+
+    // Map (currentStatus, targetStatus) to lifecycle action
+    const transitionMap: Record<string, Record<string, "pause" | "complete" | "resume" | "reactivate">> = {
+      active: { paused: "pause", completed: "complete" },
+      paused: { active: "resume", completed: "complete" },
+      failed: { active: "reactivate" },
+    };
+
+    const action = transitionMap[currentStatus]?.[targetStatus];
+    if (!action) {
+      throw new Error(`Cannot transition from "${currentStatus}" to "${targetStatus}"`);
+    }
+
+    // Ensure tracked before transitioning
+    if (!scheduleLifecycle.isTracked(commissionId)) {
+      scheduleLifecycle.register(
+        commissionId,
+        found.projectName,
+        currentStatus as import("@/daemon/types").ScheduledCommissionStatus,
+        artifactPath,
+      );
+    }
+
+    const reason = "Schedule updated via API";
+    let result;
+    switch (action) {
+      case "pause":
+        result = await scheduleLifecycle.pause(commissionId);
+        break;
+      case "complete":
+        result = await scheduleLifecycle.complete(commissionId, reason);
+        break;
+      case "resume":
+        result = await scheduleLifecycle.resume(commissionId);
+        break;
+      case "reactivate":
+        result = await scheduleLifecycle.reactivate(commissionId);
+        break;
+    }
+
+    if (result.outcome === "executed") {
+      return { outcome: "executed", status: result.status };
+    }
+    return { outcome: "skipped", reason: result.reason };
+  }
+
   async function updateCommission(
     commissionId: CommissionId,
     updates: {
       prompt?: string;
       dependencies?: string[];
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
     },
   ): Promise<void> {
     const found = await findProjectForCommission(commissionId);
@@ -1298,19 +1505,25 @@ projectName: ${projectName}
       // Read existing overrides from raw content
       const existingMaxTurnsMatch = raw.match(/^ {2}maxTurns: (\d+)$/m);
       const existingMaxBudgetMatch = raw.match(/^ {2}maxBudgetUsd: ([\d.]+)$/m);
+      const existingModelMatch = raw.match(/^ {2}model: (\w+)$/m);
 
       const maxTurns = updates.resourceOverrides.maxTurns
         ?? (existingMaxTurnsMatch ? Number(existingMaxTurnsMatch[1]) : undefined);
       const maxBudgetUsd = updates.resourceOverrides.maxBudgetUsd
         ?? (existingMaxBudgetMatch ? Number(existingMaxBudgetMatch[1]) : undefined);
+      const model = updates.resourceOverrides.model
+        ?? (existingModelMatch ? existingModelMatch[1] : undefined);
 
-      if (maxTurns !== undefined || maxBudgetUsd !== undefined) {
+      if (maxTurns !== undefined || maxBudgetUsd !== undefined || model !== undefined) {
         let overrideBlock = "";
         if (maxTurns !== undefined) {
           overrideBlock += `\n  maxTurns: ${maxTurns}`;
         }
         if (maxBudgetUsd !== undefined) {
           overrideBlock += `\n  maxBudgetUsd: ${maxBudgetUsd}`;
+        }
+        if (model !== undefined) {
+          overrideBlock += `\n  model: ${model}`;
         }
 
         // Check if resource_overrides field already exists
@@ -1382,13 +1595,19 @@ projectName: ${projectName}
     const prompt = (data.prompt as string | undefined) ?? "";
     const workerName = (data.worker as string | undefined) ?? "";
     const commissionDeps = (data.dependencies as string[] | undefined) ?? [];
-    const overrides = data.resource_overrides as { maxTurns?: number; maxBudgetUsd?: number } | undefined;
-    const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number } = {};
+    const overrides = data.resource_overrides as { maxTurns?: number; maxBudgetUsd?: number; model?: string } | undefined;
+    const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string } = {};
     if (overrides?.maxTurns !== undefined) {
       resourceOverrides.maxTurns = Number(overrides.maxTurns);
     }
     if (overrides?.maxBudgetUsd !== undefined) {
       resourceOverrides.maxBudgetUsd = Number(overrides.maxBudgetUsd);
+    }
+    if (overrides?.model !== undefined) {
+      resourceOverrides.model = String(overrides.model);
+    }
+    if (resourceOverrides.model !== undefined && !isValidModel(resourceOverrides.model)) {
+      throw new Error(`Invalid model "${resourceOverrides.model}" in resource_overrides for commission "${commissionId as string}"`);
     }
 
     // Determine checkout scope
@@ -1499,11 +1718,19 @@ projectName: ${projectName}
     );
 
     // The services bag is passed to the toolbox resolver so the manager
-    // toolbox can access the commission session and git ops. Only populated
-    // when the worker is the manager (identified by managerPackageName).
+    // toolbox can access the commission session, git ops, and schedule deps.
+    // Only populated when the worker is the manager (identified by
+    // managerPackageName). The scheduleLifecycleRef is set late by the caller
+    // (createProductionApp) after the scheduler is constructed.
     const isManager = workerPkg?.name === managerPackageName;
     const services = isManager && selfRef.current
-      ? { commissionSession: selfRef.current, gitOps: gitOps }
+      ? {
+          commissionSession: selfRef.current,
+          gitOps: gitOps,
+          scheduleLifecycle: deps.scheduleLifecycleRef?.current,
+          recordOps,
+          packages,
+        }
       : undefined;
 
     const prepSpec: SessionPrepSpec = {
@@ -1893,6 +2120,8 @@ projectName: ${projectName}
 
   const result: CommissionSessionForRoutes = {
     createCommission,
+    createScheduledCommission,
+    updateScheduleStatus,
     updateCommission,
     dispatchCommission,
     cancelCommission,

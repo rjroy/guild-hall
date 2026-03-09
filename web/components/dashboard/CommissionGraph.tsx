@@ -165,8 +165,14 @@ export default function CommissionGraph({
           const fillColor = GEM_FILL_COLORS[gemStatus] ?? GEM_FILL_COLORS.info;
           const strokeColor = GEM_STROKE_COLORS[gemStatus] ?? GEM_STROKE_COLORS.info;
           const isFocal = focalNodeId === node.id;
+          const isScheduled = node.type === "scheduled";
           const displayTitle = node.title || node.id;
           const label = truncateLabel(displayTitle, maxLabelChars);
+
+          // Scheduled nodes shift the main label up to make room for the badge
+          const labelY = isScheduled && !compact
+            ? node.y + nodeHeight / 2 - 6
+            : node.y + nodeHeight / 2;
 
           const nodeProject = node.projectName || projectName || "";
           const handleClick = () => {
@@ -180,7 +186,7 @@ export default function CommissionGraph({
               onClick={handleClick}
               role="link"
               tabIndex={0}
-              aria-label={`Commission: ${displayTitle}`}
+              aria-label={`Commission: ${displayTitle}${isScheduled ? " (recurring)" : ""}`}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
@@ -188,7 +194,19 @@ export default function CommissionGraph({
                 }
               }}
             >
-              <title>{displayTitle}</title>
+              <title>{displayTitle}{isScheduled ? " (recurring)" : ""}</title>
+              {/* Scheduled commissions get a double-border: outer rect as border effect */}
+              {isScheduled && (
+                <rect
+                  className={styles.scheduledOuterRect}
+                  x={node.x - 3}
+                  y={node.y - 3}
+                  width={nodeWidth + 6}
+                  height={nodeHeight + 6}
+                  rx={9}
+                  ry={9}
+                />
+              )}
               <rect
                 className={styles.nodeRect}
                 x={node.x}
@@ -204,10 +222,20 @@ export default function CommissionGraph({
               <text
                 className={styles.nodeLabel}
                 x={node.x + nodeWidth / 2}
-                y={node.y + nodeHeight / 2}
+                y={labelY}
               >
                 {label}
               </text>
+              {/* Small "Recurring" badge below the label for scheduled commissions */}
+              {isScheduled && !compact && (
+                <text
+                  className={styles.scheduledLabel}
+                  x={node.x + nodeWidth / 2}
+                  y={node.y + nodeHeight / 2 + 8}
+                >
+                  Recurring
+                </text>
+              )}
             </g>
           );
         })}

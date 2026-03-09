@@ -110,7 +110,6 @@ export async function writeMeetingArtifact(
   prompt: string,
   workerName: string,
   status: MeetingStatus = "open",
-  workerPortraitUrl?: string,
 ): Promise<void> {
   const artifactPath = meetingArtifactPath(projectPath, meetingId);
   await fs.mkdir(path.dirname(artifactPath), { recursive: true });
@@ -124,12 +123,6 @@ export async function writeMeetingArtifact(
     ? "Meeting requested"
     : "User started audience";
 
-  // Portrait URL line: only include when a portrait exists, to keep
-  // frontmatter clean for workers without portraits.
-  const portraitLine = workerPortraitUrl
-    ? `\nworkerPortraitUrl: "${escapeYamlValue(workerPortraitUrl)}"`
-    : "";
-
   // Write raw YAML frontmatter + empty body. Using template literal to
   // avoid gray-matter stringify reformatting (lesson from retros).
   const content = `---
@@ -138,7 +131,7 @@ date: ${dateStr}
 status: ${status}
 tags: [meeting]
 worker: ${workerName}
-workerDisplayTitle: "${escapeYamlValue(workerDisplayTitle)}"${portraitLine}
+workerDisplayTitle: "${escapeYamlValue(workerDisplayTitle)}"
 agenda: "${escapeYamlValue(prompt)}"
 deferred_until: ""
 linked_artifacts: []

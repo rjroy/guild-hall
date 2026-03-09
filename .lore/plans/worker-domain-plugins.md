@@ -1,7 +1,7 @@
 ---
 title: Worker domain plugins
 date: 2026-03-07
-status: complete
+status: executed
 tags: [plan, architecture, workers, plugins, packages]
 modules: [sdk-runner, packages, lib-types]
 related:

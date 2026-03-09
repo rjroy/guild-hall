@@ -1,7 +1,7 @@
 /**
  * Manager toolbox: exclusive tools for the Guild Master worker.
  *
- * Provides eight tools for project coordination:
+ * Provides ten tools for project coordination:
  * - create_commission: create (and optionally dispatch) a new commission
  * - dispatch_commission: dispatch an existing pending commission
  * - cancel_commission: cancel an active or pending commission
@@ -10,6 +10,8 @@
  * - initiate_meeting: create a meeting request artifact
  * - add_commission_note: annotate a commission with a manager note
  * - sync_project: post-merge sync (detect merged PRs, reset claude branch)
+ * - create_scheduled_commission: create a recurring scheduled commission
+ * - update_schedule: update schedule config or transition schedule status
  *
  * Follows the same MCP server factory pattern as commission-toolbox.ts and
  * meeting-toolbox.ts.
@@ -24,17 +26,22 @@ import {
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod/v4";
 import { asCommissionId } from "@/daemon/types";
-import type { ToolResult } from "@/daemon/types";
-import { formatTimestamp, escapeYamlValue, errorMessage } from "@/daemon/lib/toolbox-utils";
+import type { ToolResult, ScheduledCommissionStatus } from "@/daemon/types";
+import { formatTimestamp, escapeYamlValue, errorMessage, sanitizeForGitRef } from "@/daemon/lib/toolbox-utils";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import { hasActiveActivities, syncProject } from "@/cli/rebase";
 import type { SyncResult } from "@/cli/rebase";
-import type { ProjectConfig } from "@/lib/types";
+import { isValidModel } from "@/lib/types";
+import type { ProjectConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import { getWorkerByName } from "@/lib/packages";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
+import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
+import type { CommissionRecordOps } from "@/daemon/services/commission/record";
+import { isValidCron } from "@/daemon/services/scheduler/cron";
 
 export interface ManagerToolboxDeps {
   projectName: string;
@@ -43,6 +50,9 @@ export interface ManagerToolboxDeps {
   eventBus: EventBus;
   gitOps: GitOps;
   getProjectConfig: (name: string) => Promise<ProjectConfig | undefined>;
+  scheduleLifecycle?: ScheduleLifecycle;
+  recordOps?: CommissionRecordOps;
+  packages?: DiscoveredPackage[];
 }
 
 /**
@@ -70,7 +80,7 @@ export function makeCreateCommissionHandler(
     workerName: string;
     prompt: string;
     dependencies?: string[];
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
     dispatch?: boolean;
   }): Promise<ToolResult> => {
     try {
@@ -621,6 +631,460 @@ export function makeSyncProjectHandler(
   };
 }
 
+// -- Scheduled commission tools --
+
+export function makeCreateScheduledCommissionHandler(
+  deps: ManagerToolboxDeps,
+) {
+  return async (args: {
+    title: string;
+    workerName: string;
+    prompt: string;
+    cron: string;
+    repeat?: number | null;
+    dependencies?: string[];
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+  }): Promise<ToolResult> => {
+    try {
+      // Validate worker exists
+      const workerPkg = getWorkerByName(deps.packages ?? [], args.workerName);
+      if (!workerPkg) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Worker "${args.workerName}" not found in discovered packages`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      const workerMeta = workerPkg.metadata as WorkerMetadata;
+
+      // Validate model if provided
+      if (args.resourceOverrides?.model && !isValidModel(args.resourceOverrides.model)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Invalid model name: "${args.resourceOverrides.model}". Valid models: opus, sonnet, haiku`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Validate cron expression
+      if (!isValidCron(args.cron)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Invalid cron expression: "${args.cron}". Must be a valid 5-field cron expression.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Generate commission ID (same pattern as orchestrator.ts)
+      const now = new Date();
+      const safeName = sanitizeForGitRef(workerMeta.identity.name);
+      const ts = formatTimestamp(now);
+      const commissionId = `commission-${safeName}-${ts}`;
+
+      const dateStr = now.toISOString().split("T")[0];
+      const isoStr = now.toISOString();
+
+      const escapedTitle = escapeYamlValue(args.title);
+      const escapedPrompt = escapeYamlValue(args.prompt);
+      const escapedDisplayTitle = escapeYamlValue(workerMeta.identity.displayTitle);
+
+      const depsYaml =
+        args.dependencies && args.dependencies.length > 0
+          ? "\n" + args.dependencies.map((d) => `  - ${d}`).join("\n")
+          : " []";
+
+      const repeatValue = args.repeat ?? null;
+
+      const resourceLines =
+        args.resourceOverrides &&
+        (args.resourceOverrides.maxTurns !== undefined ||
+          args.resourceOverrides.maxBudgetUsd !== undefined ||
+          args.resourceOverrides.model !== undefined)
+          ? `resource_overrides:\n${
+              args.resourceOverrides.maxTurns !== undefined
+                ? `  maxTurns: ${args.resourceOverrides.maxTurns}\n`
+                : ""
+            }${
+              args.resourceOverrides.maxBudgetUsd !== undefined
+                ? `  maxBudgetUsd: ${args.resourceOverrides.maxBudgetUsd}\n`
+                : ""
+            }${
+              args.resourceOverrides.model !== undefined
+                ? `  model: ${args.resourceOverrides.model}\n`
+                : ""
+            }`
+          : "";
+
+      const content = `---
+title: "Commission: ${escapedTitle}"
+date: ${dateStr}
+status: active
+type: scheduled
+tags: [commission, scheduled]
+worker: ${workerMeta.identity.name}
+workerDisplayTitle: "${escapedDisplayTitle}"
+prompt: "${escapedPrompt}"
+dependencies:${depsYaml}
+linked_artifacts: []
+schedule:
+  cron: "${args.cron}"
+  repeat: ${repeatValue}
+  runs_completed: 0
+  last_run: null
+  last_spawned_id: null
+${resourceLines}activity_timeline:
+  - timestamp: ${isoStr}
+    event: created
+    reason: "Scheduled commission created"
+current_progress: ""
+projectName: ${deps.projectName}
+---
+`;
+
+      // Write to integration worktree
+      const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
+      const commissionsDir = path.join(intPath, ".lore", "commissions");
+      await fs.mkdir(commissionsDir, { recursive: true });
+
+      const artifactPath = path.join(commissionsDir, `${commissionId}.md`);
+      await fs.writeFile(artifactPath, content, "utf-8");
+
+      // Commit to claude branch under project lock
+      try {
+        await withProjectLock(deps.projectName, async () => {
+          await deps.gitOps.commitAll(
+            intPath,
+            `Add commission: ${commissionId}`,
+          );
+        });
+      } catch (commitErr: unknown) {
+        console.error(
+          `[manager-toolbox] Failed to commit scheduled commission "${commissionId}":`,
+          errorMessage(commitErr),
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Scheduled commission file was written but commit failed: ${errorMessage(commitErr)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Register with schedule lifecycle so the scheduler picks it up
+      if (deps.scheduleLifecycle) {
+        const cid = asCommissionId(commissionId);
+        deps.scheduleLifecycle.register(cid, deps.projectName, "active", artifactPath);
+      }
+
+      console.log(
+        `[manager-toolbox] Created scheduled commission "${args.title}" (id: ${commissionId})`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ commissionId, created: true, status: "active" }),
+          },
+        ],
+      };
+    } catch (err: unknown) {
+      console.error(
+        `[manager-toolbox] Failed to create scheduled commission "${args.title}":`,
+        errorMessage(err),
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: errorMessage(err),
+          },
+        ],
+        isError: true,
+      };
+    }
+  };
+}
+
+/**
+ * Valid status transitions for the update_schedule tool.
+ * Maps (currentStatus, requestedStatus) to the lifecycle method to call.
+ */
+const SCHEDULE_STATUS_ACTIONS: Record<
+  string,
+  Record<string, "pause" | "complete" | "resume" | "reactivate">
+> = {
+  active: {
+    paused: "pause",
+    completed: "complete",
+  },
+  paused: {
+    active: "resume",
+    completed: "complete",
+  },
+  failed: {
+    active: "reactivate",
+  },
+};
+
+export function makeUpdateScheduleHandler(
+  deps: ManagerToolboxDeps,
+) {
+  return async (args: {
+    commissionId: string;
+    cron?: string;
+    repeat?: number | null;
+    prompt?: string;
+    status?: string;
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+  }): Promise<ToolResult> => {
+    try {
+      const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
+      const artifactPath = path.join(
+        intPath,
+        ".lore",
+        "commissions",
+        `${args.commissionId}.md`,
+      );
+
+      // Validate it's a scheduled commission
+      const commissionType = await deps.recordOps!.readType(artifactPath);
+      if (commissionType !== "scheduled") {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Commission "${args.commissionId}" is type "${commissionType}", not "scheduled". Only scheduled commissions can be updated with this tool.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const cid = asCommissionId(args.commissionId);
+      let currentStatus: string;
+
+      // Handle status transitions
+      if (args.status) {
+        currentStatus = await deps.recordOps!.readStatus(artifactPath);
+        const actions = SCHEDULE_STATUS_ACTIONS[currentStatus];
+        const action = actions?.[args.status];
+
+        if (!action) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Cannot transition from "${currentStatus}" to "${args.status}": not a valid schedule status transition`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Ensure the schedule is tracked before transitioning. After daemon
+        // restart, schedules are only tracked by the scheduler tick; the
+        // lifecycle has no in-memory state for them.
+        if (!deps.scheduleLifecycle!.isTracked(cid)) {
+          deps.scheduleLifecycle!.register(
+            cid,
+            deps.projectName,
+            currentStatus as ScheduledCommissionStatus,
+            artifactPath,
+          );
+        }
+
+        // Execute the lifecycle transition
+        const reason = `Schedule updated via manager toolbox`;
+        let result;
+        switch (action) {
+          case "pause":
+            result = await deps.scheduleLifecycle!.pause(cid);
+            break;
+          case "complete":
+            result = await deps.scheduleLifecycle!.complete(cid, reason);
+            break;
+          case "resume":
+            result = await deps.scheduleLifecycle!.resume(cid);
+            break;
+          case "reactivate":
+            result = await deps.scheduleLifecycle!.reactivate(cid);
+            break;
+        }
+
+        if (result.outcome === "skipped") {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Status transition skipped: ${result.reason}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        currentStatus = args.status;
+      } else {
+        currentStatus = await deps.recordOps!.readStatus(artifactPath);
+      }
+
+      // Handle field updates (cron, repeat, prompt)
+      const scheduleUpdates: Partial<{
+        cron: string;
+        repeat: number | null;
+      }> = {};
+
+      if (args.cron !== undefined) {
+        if (!isValidCron(args.cron)) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Invalid cron expression: "${args.cron}". Must be a valid 5-field cron expression.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        scheduleUpdates.cron = args.cron;
+      }
+
+      if (args.repeat !== undefined) {
+        scheduleUpdates.repeat = args.repeat;
+
+        // If repeat is set and lower than runs_completed, auto-complete
+        if (args.repeat !== null) {
+          const metadata = await deps.recordOps!.readScheduleMetadata(artifactPath);
+          if (args.repeat <= metadata.runsCompleted && currentStatus !== "completed") {
+            const reason = `Repeat limit (${args.repeat}) reached: ${metadata.runsCompleted} runs already completed`;
+            await deps.scheduleLifecycle!.complete(cid, reason);
+            currentStatus = "completed";
+          }
+        }
+      }
+
+      if (Object.keys(scheduleUpdates).length > 0) {
+        await deps.recordOps!.writeScheduleFields(artifactPath, scheduleUpdates);
+      }
+
+      // Handle prompt update via regex replacement on artifact
+      if (args.prompt !== undefined) {
+        const raw = await fs.readFile(artifactPath, "utf-8");
+        const escaped = escapeYamlValue(args.prompt);
+        const updated = raw.replace(
+          /^prompt: ".*"$/m,
+          `prompt: "${escaped}"`,
+        );
+        await fs.writeFile(artifactPath, updated, "utf-8");
+      }
+
+      // Handle resource overrides update
+      if (args.resourceOverrides) {
+        if (args.resourceOverrides.model && !isValidModel(args.resourceOverrides.model)) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Invalid model name: "${args.resourceOverrides.model}". Valid models: opus, sonnet, haiku`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        let raw = await fs.readFile(artifactPath, "utf-8");
+
+        // Check if resource_overrides block already exists
+        if (/^resource_overrides:$/m.test(raw)) {
+          // Update existing fields or add new ones within the block
+          if (args.resourceOverrides.maxTurns !== undefined) {
+            if (/^  maxTurns: .+$/m.test(raw)) {
+              raw = raw.replace(/^  maxTurns: .+$/m, `  maxTurns: ${args.resourceOverrides.maxTurns}`);
+            } else {
+              raw = raw.replace(/^resource_overrides:$/m, `resource_overrides:\n  maxTurns: ${args.resourceOverrides.maxTurns}`);
+            }
+          }
+          if (args.resourceOverrides.maxBudgetUsd !== undefined) {
+            if (/^  maxBudgetUsd: .+$/m.test(raw)) {
+              raw = raw.replace(/^  maxBudgetUsd: .+$/m, `  maxBudgetUsd: ${args.resourceOverrides.maxBudgetUsd}`);
+            } else {
+              raw = raw.replace(/^resource_overrides:$/m, `resource_overrides:\n  maxBudgetUsd: ${args.resourceOverrides.maxBudgetUsd}`);
+            }
+          }
+          if (args.resourceOverrides.model !== undefined) {
+            if (/^  model: .+$/m.test(raw)) {
+              raw = raw.replace(/^  model: .+$/m, `  model: ${args.resourceOverrides.model}`);
+            } else {
+              raw = raw.replace(/^resource_overrides:$/m, `resource_overrides:\n  model: ${args.resourceOverrides.model}`);
+            }
+          }
+        } else {
+          // Insert a new resource_overrides block before activity_timeline
+          const overrideLines = [];
+          if (args.resourceOverrides.maxTurns !== undefined) {
+            overrideLines.push(`  maxTurns: ${args.resourceOverrides.maxTurns}`);
+          }
+          if (args.resourceOverrides.maxBudgetUsd !== undefined) {
+            overrideLines.push(`  maxBudgetUsd: ${args.resourceOverrides.maxBudgetUsd}`);
+          }
+          if (args.resourceOverrides.model !== undefined) {
+            overrideLines.push(`  model: ${args.resourceOverrides.model}`);
+          }
+          if (overrideLines.length > 0) {
+            const block = `resource_overrides:\n${overrideLines.join("\n")}\n`;
+            raw = raw.replace(/^activity_timeline:$/m, `${block}activity_timeline:`);
+          }
+        }
+
+        await fs.writeFile(artifactPath, raw, "utf-8");
+      }
+
+      console.log(
+        `[manager-toolbox] Updated schedule "${args.commissionId}" (status: ${currentStatus})`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ commissionId: args.commissionId, updated: true, status: currentStatus }),
+          },
+        ],
+      };
+    } catch (err: unknown) {
+      console.error(
+        `[manager-toolbox] Failed to update schedule "${args.commissionId}":`,
+        errorMessage(err),
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: errorMessage(err),
+          },
+        ],
+        isError: true,
+      };
+    }
+  };
+}
+
 // -- MCP server factory --
 
 /**
@@ -640,6 +1104,8 @@ export function createManagerToolbox(
   const initiateMeeting = makeInitiateMeetingHandler(deps);
   const addCommissionNote = makeAddCommissionNoteHandler(deps);
   const syncProjectTool = makeSyncProjectHandler(deps);
+  const createScheduledCommission = makeCreateScheduledCommissionHandler(deps);
+  const updateSchedule = makeUpdateScheduleHandler(deps);
 
   return createSdkMcpServer({
     name: "guild-hall-manager",
@@ -647,7 +1113,7 @@ export function createManagerToolbox(
     tools: [
       tool(
         "create_commission",
-        "Create a new commission for a specialist worker. By default, the commission is dispatched immediately after creation. Set dispatch=false to create without dispatching.",
+        "Create a new commission for a specialist worker. By default, the commission is dispatched immediately after creation. Set dispatch=false to create without dispatching. Use resourceOverrides.model to override the worker's default model.",
         {
           title: z.string().describe("Short title for the commission"),
           workerName: z.string().describe("Name of the worker to assign"),
@@ -656,7 +1122,8 @@ export function createManagerToolbox(
           resourceOverrides: z.object({
             maxTurns: z.number().optional(),
             maxBudgetUsd: z.number().optional(),
-          }).optional().describe("Override default resource limits"),
+            model: z.string().refine(isValidModel, { message: "Invalid model name" }).optional(),
+          }).optional().describe("Override default resource limits. Use model to override the worker's default model."),
           dispatch: z.boolean().optional().describe("Whether to dispatch immediately (default: true)"),
         },
         (args) => createCommission(args),
@@ -723,21 +1190,66 @@ export function createManagerToolbox(
         },
         (args) => syncProjectTool(args),
       ),
+      tool(
+        "create_scheduled_commission",
+        "Create a recurring scheduled commission that spawns one-shot commissions on a cron schedule. The schedule starts in 'active' status and the scheduler will dispatch commissions at each cron interval.",
+        {
+          title: z.string().describe("Short title for the scheduled commission"),
+          workerName: z.string().describe("Name of the worker to assign each run to"),
+          prompt: z.string().describe("The work prompt for each spawned commission"),
+          cron: z.string().describe("5-field cron expression (e.g. '0 9 * * 1' for every Monday at 9am UTC)"),
+          repeat: z.number().nullable().optional().describe("Max number of runs (null for unlimited)"),
+          dependencies: z.array(z.string()).optional().describe("Commission IDs this depends on"),
+          resourceOverrides: z.object({
+            maxTurns: z.number().optional(),
+            maxBudgetUsd: z.number().optional(),
+            model: z.string().optional(),
+          }).optional().describe("Override default resource limits for spawned commissions"),
+        },
+        (args) => createScheduledCommission(args),
+      ),
+      tool(
+        "update_schedule",
+        "Update a scheduled commission's configuration or status. Can change the cron expression, repeat limit, prompt, status (active/paused/completed), or resource overrides. Status transitions follow the schedule lifecycle state machine.",
+        {
+          commissionId: z.string().describe("The scheduled commission ID to update"),
+          cron: z.string().optional().describe("New 5-field cron expression"),
+          repeat: z.number().nullable().optional().describe("New repeat limit (null for unlimited)"),
+          prompt: z.string().optional().describe("New work prompt"),
+          status: z.string().optional().describe("New status: 'active', 'paused', or 'completed'"),
+          resourceOverrides: z.object({
+            maxTurns: z.number().optional(),
+            maxBudgetUsd: z.number().optional(),
+            model: z.string().optional(),
+          }).optional().describe("Updated resource overrides for spawned commissions"),
+        },
+        (args) => updateSchedule(args),
+      ),
     ],
   });
 }
 
 // -- Factory interface --
 
-/** Plain ToolboxFactory: reads services from GuildHallToolboxDeps.services. */
-export const managerToolboxFactory: ToolboxFactory = (ctx) => ({
-  server: createManagerToolbox({
-    projectName: ctx.projectName,
-    guildHallHome: ctx.guildHallHome,
-    eventBus: ctx.eventBus,
-    getProjectConfig: (name: string) =>
-      Promise.resolve(ctx.config.projects.find((p) => p.name === name)),
-    commissionSession: ctx.services!.commissionSession,
-    gitOps: ctx.services!.gitOps,
-  }),
-});
+/**
+ * Plain ToolboxFactory: reads services from GuildHallToolboxDeps.services.
+ *
+ * The scheduleLifecycle, recordOps, and packages fields are provided by
+ * the orchestrator's services bag (wired in createProductionApp).
+ */
+export const managerToolboxFactory: ToolboxFactory = (ctx) => {
+  return {
+    server: createManagerToolbox({
+      projectName: ctx.projectName,
+      guildHallHome: ctx.guildHallHome,
+      eventBus: ctx.eventBus,
+      getProjectConfig: (name: string) =>
+        Promise.resolve(ctx.config.projects.find((p) => p.name === name)),
+      commissionSession: ctx.services!.commissionSession,
+      gitOps: ctx.services!.gitOps,
+      scheduleLifecycle: ctx.services?.scheduleLifecycle,
+      recordOps: ctx.services?.recordOps,
+      packages: ctx.services?.packages,
+    }),
+  };
+};

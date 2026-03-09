@@ -8,6 +8,7 @@ import {
   getToolboxes,
   getWorkerByName,
   isValidPackageName,
+  resolveWorkerPortraits,
   packageMetadataSchema,
   workerMetadataSchema,
   toolboxMetadataSchema,
@@ -233,6 +234,31 @@ describe("Zod schemas", () => {
     const data2 = { ...validWorkerGuildHall(), soul: { nested: "object" } } as Record<string, unknown>;
     const result2 = workerMetadataSchema.safeParse(data2);
     expect(result2.success).toBe(false);
+  });
+
+  test("workerMetadataSchema accepts valid model name", () => {
+    const data = { ...validWorkerGuildHall(), model: "haiku" } as Record<string, unknown>;
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.model).toBe("haiku");
+    }
+  });
+
+  test("workerMetadataSchema validates successfully with model absent", () => {
+    const data = validWorkerGuildHall() as Record<string, unknown>;
+    delete data.model;
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.model).toBeUndefined();
+    }
+  });
+
+  test("workerMetadataSchema rejects invalid model name", () => {
+    const data = { ...validWorkerGuildHall(), model: "invalid" } as Record<string, unknown>;
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(false);
   });
 
   test("workerMetadataSchema accepts domainPlugins", () => {
@@ -699,6 +725,55 @@ describe("discoverPackages", () => {
     expect(packages[0].pluginPath).toBeUndefined();
   });
 
+  test("discovers worker with model field in metadata", async () => {
+    const guildHall = { ...validWorkerGuildHall(), model: "haiku" };
+    await writePackage(tmpDir, "haiku-worker", {
+      name: "haiku-worker",
+      guildHall,
+    });
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+
+    const meta = packages[0].metadata as WorkerMetadata;
+    expect(meta.model).toBe("haiku");
+  });
+
+  test("worker without model field has model undefined in metadata", async () => {
+    await writePackage(tmpDir, "no-model-worker", {
+      name: "no-model-worker",
+      guildHall: validWorkerGuildHall(),
+    });
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+
+    const meta = packages[0].metadata as WorkerMetadata;
+    expect(meta.model).toBeUndefined();
+  });
+
+  test("skips worker with invalid model name", async () => {
+    const warnMessages: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnMessages.push(args.map(String).join(" "));
+    };
+
+    try {
+      const guildHall = { ...validWorkerGuildHall(), model: "invalid" };
+      await writePackage(tmpDir, "bad-model", {
+        name: "bad-model",
+        guildHall,
+      });
+
+      const packages = await discoverPackages([tmpDir]);
+      expect(packages).toHaveLength(0);
+      expect(warnMessages.some((m) => m.includes("invalid guildHall metadata"))).toBe(true);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
   test("soul.md loading does not affect posture loading", async () => {
     const guildHall = validWorkerGuildHall() as Record<string, unknown>;
     delete guildHall.posture;
@@ -892,5 +967,84 @@ describe("getWorkerByName", () => {
 
     const found = getWorkerByName(packages, "web-search");
     expect(found).toBeUndefined();
+  });
+});
+
+// -- resolveWorkerPortraits --
+
+describe("resolveWorkerPortraits", () => {
+  test("returns name-to-portraitPath map for workers with portraits", async () => {
+    const ghHome = path.join(tmpDir, "gh-home");
+    const packagesDir = path.join(ghHome, "packages");
+
+    await writePackage(packagesDir, "researcher", {
+      name: "researcher",
+      guildHall: validWorkerGuildHall(),
+    });
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.size).toBe(1);
+    expect(portraits.get("researcher")).toBe("portrait.png");
+  });
+
+  test("omits workers without portraitPath", async () => {
+    const ghHome = path.join(tmpDir, "gh-home");
+    const packagesDir = path.join(ghHome, "packages");
+
+    const noPortrait = validWorkerGuildHall() as Record<string, unknown>;
+    (noPortrait.identity as Record<string, unknown>).portraitPath = undefined;
+
+    await writePackage(packagesDir, "plain-worker", {
+      name: "plain-worker",
+      guildHall: noPortrait,
+    });
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.size).toBe(0);
+  });
+
+  test("returns empty map when packages directory does not exist", async () => {
+    const ghHome = path.join(tmpDir, "no-packages");
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.size).toBe(0);
+  });
+
+  test("maps multiple workers by identity name", async () => {
+    const ghHome = path.join(tmpDir, "gh-home");
+    const packagesDir = path.join(ghHome, "packages");
+
+    await writePackage(packagesDir, "researcher", {
+      name: "researcher",
+      guildHall: validWorkerGuildHall(),
+    });
+
+    const secondWorker = validWorkerGuildHall() as Record<string, unknown>;
+    (secondWorker.identity as Record<string, unknown>).name = "architect";
+    (secondWorker.identity as Record<string, unknown>).displayTitle = "The Architect";
+    (secondWorker.identity as Record<string, unknown>).portraitPath = "arch.png";
+
+    await writePackage(packagesDir, "architect", {
+      name: "architect",
+      guildHall: secondWorker,
+    });
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.size).toBe(2);
+    expect(portraits.get("researcher")).toBe("portrait.png");
+    expect(portraits.get("architect")).toBe("arch.png");
+  });
+
+  test("skips toolbox packages", async () => {
+    const ghHome = path.join(tmpDir, "gh-home");
+    const packagesDir = path.join(ghHome, "packages");
+
+    await writePackage(packagesDir, "web-search", {
+      name: "web-search",
+      guildHall: validToolboxGuildHall(),
+    });
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.size).toBe(0);
   });
 });

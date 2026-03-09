@@ -58,6 +58,7 @@ let tmpDir: string;
 let ghHome: string;
 let packagesDir: string;
 let savedGHHome: string | undefined;
+let shutdownFn: (() => void) | undefined;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-app-test-"));
@@ -73,6 +74,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  shutdownFn?.();
+  shutdownFn = undefined;
   if (savedGHHome !== undefined) {
     process.env.GUILD_HALL_HOME = savedGHHome;
   } else {
@@ -91,7 +94,7 @@ describe("createProductionApp worktree verification", () => {
     );
 
     const mockGit = createMockGitOps();
-    await createProductionApp({ packagesDir, gitOps: mockGit });
+    ({ shutdown: shutdownFn } = await createProductionApp({ packagesDir, gitOps: mockGit }));
 
     // Should have called initClaudeBranch and createWorktree
     expect(mockGit.calls).toContain("initClaudeBranch");
@@ -111,7 +114,7 @@ describe("createProductionApp worktree verification", () => {
     await fs.mkdir(iPath, { recursive: true });
 
     const mockGit = createMockGitOps();
-    await createProductionApp({ packagesDir, gitOps: mockGit });
+    ({ shutdown: shutdownFn } = await createProductionApp({ packagesDir, gitOps: mockGit }));
 
     // No git calls should have been made for this project
     expect(mockGit.calls).not.toContain("initClaudeBranch");
@@ -140,8 +143,9 @@ describe("createProductionApp worktree verification", () => {
 
     try {
       // Should not throw, daemon stays up
-      const app = await createProductionApp({ packagesDir, gitOps: mockGit });
-      expect(app).toBeDefined();
+      const result = await createProductionApp({ packagesDir, gitOps: mockGit });
+      shutdownFn = result.shutdown;
+      expect(result.app).toBeDefined();
 
       // Should have logged a warning about the failure
       const worktreeWarning = warnings.find((w) =>

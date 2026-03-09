@@ -50,7 +50,13 @@ export default function DependencyMap({ commissions }: DependencyMapProps) {
         {sorted.map((commission) => {
           const gemStatus = statusToGem(commission.status);
           return (
-            <li key={`${commission.projectName}-${commission.commissionId}`} className={styles.card}>
+            <li
+              key={`${commission.projectName}-${commission.commissionId}`}
+              className={[
+                styles.card,
+                commission.type === "scheduled" ? styles.scheduledCard : "",
+              ].filter(Boolean).join(" ")}
+            >
               <Link
                 href={commissionHref(commission.projectName, commission.commissionId)}
                 className={styles.link}
@@ -59,6 +65,9 @@ export default function DependencyMap({ commissions }: DependencyMapProps) {
                 <div className={styles.info}>
                   <span className={styles.title}>
                     {commission.title || commission.commissionId}
+                    {commission.type === "scheduled" && (
+                      <span className={styles.scheduledBadge}>Recurring</span>
+                    )}
                   </span>
                   {commission.workerDisplayTitle && (
                     <span className={styles.worker}>

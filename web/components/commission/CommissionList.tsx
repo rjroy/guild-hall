@@ -90,7 +90,12 @@ export default function CommissionList({
               >
                 <GemIndicator status={gem} size="sm" />
                 <div className={styles.info}>
-                  <p className={styles.title}>{displayTitle}</p>
+                  <p className={styles.title}>
+                    {displayTitle}
+                    {commission.type === "scheduled" && (
+                      <span className={styles.recurringLabel}>Recurring</span>
+                    )}
+                  </p>
                   <div className={styles.meta}>
                     {commission.worker && (
                       <span className={styles.worker}>
@@ -108,6 +113,17 @@ export default function CommissionList({
                   </div>
                 </div>
               </Link>
+              {commission.sourceSchedule && (
+                <span className={styles.sourceSchedule}>
+                  from:{" "}
+                  <Link
+                    href={`/projects/${encodedName}/schedules/${encodeURIComponent(commission.sourceSchedule)}`}
+                    className={styles.sourceScheduleLink}
+                  >
+                    {commission.sourceSchedule}
+                  </Link>
+                </span>
+              )}
             </li>
           );
         })}

@@ -4,7 +4,10 @@ import { redirect } from "next/navigation";
 import { getProject } from "@/lib/config";
 import { readArtifact } from "@/lib/artifacts";
 import { projectLorePath, getGuildHallHome, resolveMeetingBasePath } from "@/lib/paths";
+import { resolveWorkerPortraits } from "@/lib/packages";
 import { parseTranscriptToMessages } from "@/lib/meetings";
+import { discoverPackages, getWorkerByName } from "@/lib/packages";
+import type { WorkerMetadata } from "@/lib/types";
 import MeetingHeader from "@/web/components/meeting/MeetingHeader";
 import MeetingView from "@/web/components/meeting/MeetingView";
 import Panel from "@/web/components/ui/Panel";
@@ -102,17 +105,24 @@ export default async function MeetingPage({
       ? meta.extras.workerDisplayTitle
       : "") || workerName;
 
-  // Portrait URL stored in frontmatter at meeting creation time.
-  const workerPortraitUrl =
-    typeof meta.extras?.workerPortraitUrl === "string"
-      ? meta.extras.workerPortraitUrl
-      : undefined;
+  // Portrait resolved at display time from worker packages (REQ-WID-10).
+  const portraits = await resolveWorkerPortraits(ghHome);
+  const workerPortraitUrl = portraits.get(workerName) ?? undefined;
 
   // Agenda lives in frontmatter, not the markdown body. The daemon writes
   // it as a frontmatter field at meeting creation time.
   const agenda =
     (typeof meta.extras?.agenda === "string" ? meta.extras.agenda : "") ||
     "No agenda provided.";
+
+  // Resolve the worker's model for display. Meetings use the worker's
+  // default model; there is no per-meeting override.
+  const defaultPackagesDir = path.join(ghHome, "packages");
+  const meetingPackages = await discoverPackages([defaultPackagesDir]);
+  const meetingWorkerPkg = getWorkerByName(meetingPackages, workerName);
+  const workerModel = meetingWorkerPkg
+    ? (meetingWorkerPkg.metadata as WorkerMetadata).model ?? "opus"
+    : "opus";
 
   // Linked artifacts from meeting frontmatter
   const linkedPaths = Array.isArray(meta.extras?.linked_artifacts)
@@ -131,6 +141,7 @@ export default async function MeetingPage({
           workerDisplayTitle={workerDisplayTitle}
           workerPortraitUrl={workerPortraitUrl}
           agenda={agenda}
+          model={workerModel}
         />
         <Panel size="full">
           <div className={styles.ended}>
@@ -163,6 +174,7 @@ export default async function MeetingPage({
         workerDisplayTitle={workerDisplayTitle}
         workerPortraitUrl={workerPortraitUrl}
         agenda={agenda}
+        model={workerModel}
       />
       <MeetingView
         meetingId={id}

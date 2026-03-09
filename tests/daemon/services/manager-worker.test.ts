@@ -103,6 +103,12 @@ describe("createManagerPackage", () => {
     expect(typeof meta.soul).toBe("string");
     expect(meta.soul!.length).toBeGreaterThan(0);
   });
+
+  test("metadata has model set to opus", () => {
+    const pkg = createManagerPackage();
+    const meta = pkg.metadata as WorkerMetadata;
+    expect(meta.model).toBe("opus");
+  });
 });
 
 describe("MANAGER constants", () => {
@@ -250,6 +256,18 @@ describe("activateManager", () => {
     expect(postureIdx).toBeGreaterThan(identityIdx);
     expect(memoryIdx).toBeGreaterThan(postureIdx);
     expect(contextIdx).toBeGreaterThan(memoryIdx);
+  });
+
+  test("uses context.model when provided", () => {
+    const context = makeContext({ model: "haiku" });
+    const result = activateManager(context);
+    expect(result.model).toBe("haiku");
+  });
+
+  test("defaults to opus when context.model is not provided", () => {
+    const context = makeContext();
+    const result = activateManager(context);
+    expect(result.model).toBe("opus");
   });
 });
 

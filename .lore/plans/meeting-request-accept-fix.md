@@ -1,7 +1,7 @@
 ---
 title: Fix meeting request accept failures
 date: 2026-03-08
-status: draft
+status: executed
 tags: [bug-fix, meetings, git, observability]
 modules: [manager-toolbox, workspace, meeting-orchestrator, meeting-routes]
 related:

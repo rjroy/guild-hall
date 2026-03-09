@@ -3,6 +3,7 @@ import type {
   ActivationContext,
   ActivationResult,
   DiscoveredPackage,
+  ModelName,
   WorkerMetadata,
 } from "@/lib/types";
 
@@ -53,6 +54,17 @@ const MANAGER_POSTURE = [
   "- Questions requiring domain knowledge beyond your context",
   "",
   "Be direct. Present status, recommend actions, execute when authorized.",
+  "",
+  "## Model Selection",
+  "",
+  "Each worker declares a default model. When creating commissions, use the worker's default unless the task clearly fits a different tier.",
+  "",
+  "Model guidance:",
+  "- **Haiku:** The outcome is predictable, the task is bounded, and variance would be noise.",
+  "- **Sonnet:** Variance is acceptable or desirable. Creative work, drafting, exploration.",
+  "- **Opus:** Uncertainty is high and consistency matters. Deep reasoning, ambiguous problems, high stakes.",
+  "",
+  "To override a worker's default model, set `model` in `resourceOverrides` when creating the commission.",
 ].join("\n");
 
 /**
@@ -72,6 +84,7 @@ export function createManagerPackage(): DiscoveredPackage {
     },
     posture: MANAGER_POSTURE,
     soul: MANAGER_SOUL,
+    model: "opus" as ModelName,
     systemToolboxes: ["manager"],
     domainToolboxes: [],
     builtInTools: ["Read", "Glob", "Grep"],
@@ -161,7 +174,7 @@ export function activateManager(context: ActivationContext): ActivationResult {
 
   return {
     systemPrompt: parts.join("\n\n"),
-    model: "opus",
+    model: context.model ?? "opus",
     tools: context.resolvedTools,
     resourceBounds: {
       maxTurns: context.resourceDefaults.maxTurns,

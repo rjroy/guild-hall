@@ -20,12 +20,16 @@ export interface CommissionMeta {
   commissionId: string;
   title: string;
   status: string;
+  /** "one-shot" (default) or "scheduled". */
+  type: string;
+  /** For spawned commissions, the ID of the parent schedule. */
+  sourceSchedule: string;
   worker: string;
   workerDisplayTitle: string;
   prompt: string;
   dependencies: string[];
   linked_artifacts: string[];
-  resource_overrides: { maxTurns?: number; maxBudgetUsd?: number };
+  resource_overrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
   current_progress: string;
   result_summary: string;
   projectName: string;
@@ -77,6 +81,8 @@ function parseCommissionData(
     commissionId,
     title: typeof data.title === "string" ? data.title : "",
     status,
+    type: typeof data.type === "string" ? data.type : "one-shot",
+    sourceSchedule: typeof data.source_schedule === "string" ? data.source_schedule : "",
     worker: typeof data.worker === "string" ? data.worker : "",
     workerDisplayTitle: typeof data.workerDisplayTitle === "string"
       ? data.workerDisplayTitle
@@ -94,6 +100,9 @@ function parseCommissionData(
         : undefined,
       maxBudgetUsd: typeof resourceOverrides.maxBudgetUsd === "number"
         ? resourceOverrides.maxBudgetUsd
+        : undefined,
+      model: typeof resourceOverrides.model === "string"
+        ? resourceOverrides.model
         : undefined,
     },
     current_progress: typeof data.current_progress === "string"
@@ -138,6 +147,8 @@ export async function readCommissionMeta(
       commissionId,
       title: "",
       status: "",
+      type: "one-shot",
+      sourceSchedule: "",
       worker: "",
       workerDisplayTitle: "",
       prompt: "",
@@ -237,8 +248,10 @@ export function parseActivityTimeline(raw: string): TimelineEntry[] {
 const STATUS_GROUP: Record<string, number> = {
   pending: 0,
   blocked: 0,
+  paused: 0,
   dispatched: 1,
   in_progress: 1,
+  active: 1,
   failed: 2,
   cancelled: 2,
   completed: 3,

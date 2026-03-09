@@ -8,7 +8,10 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
+import type { CommissionRecordOps } from "@/daemon/services/commission/record";
+import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
 import type { GitOps } from "@/daemon/lib/git";
+import type { DiscoveredPackage } from "@/lib/types";
 import {
   integrationWorktreePath,
   commissionWorktreePath,
@@ -18,10 +21,16 @@ import {
 /**
  * Services needed by the manager toolbox. Separated from GuildHallToolboxDeps
  * because only the manager worker needs them; other toolboxes don't.
+ *
+ * scheduleLifecycle, recordOps, and packages are optional because they're
+ * needed only for scheduled commission tools.
  */
 export interface GuildHallToolServices {
   commissionSession: CommissionSessionForRoutes;
   gitOps: GitOps;
+  scheduleLifecycle?: ScheduleLifecycle;
+  recordOps?: CommissionRecordOps;
+  packages?: DiscoveredPackage[];
 }
 
 /**

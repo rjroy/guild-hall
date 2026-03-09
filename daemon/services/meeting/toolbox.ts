@@ -24,7 +24,7 @@ import {
   appendMeetingLog,
   addLinkedArtifact,
 } from "@/daemon/services/meeting/record";
-import { validateContainedPath, formatTimestamp, resolveWritePath, escapeYamlValue } from "@/daemon/lib/toolbox-utils";
+import { validateContainedPath, formatTimestamp, resolveWritePath } from "@/daemon/lib/toolbox-utils";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 
@@ -33,7 +33,6 @@ export interface MeetingToolboxDeps {
   projectName: string;
   contextId: string;
   workerName: string;
-  workerPortraitUrl?: string;
 }
 
 // -- Tool handler factories --
@@ -124,11 +123,6 @@ export function makeProposeFollowupHandler(deps: MeetingToolboxDeps) {
 
     const reasonForLog = `Worker proposed follow-up from meeting ${deps.contextId}`;
 
-    // Portrait URL line: only include when a portrait exists.
-    const portraitLine = deps.workerPortraitUrl
-      ? `\nworkerPortraitUrl: "${escapeYamlValue(deps.workerPortraitUrl)}"`
-      : "";
-
     // Use the same template literal format as writeMeetingArtifact in
     // meeting/record.ts, with status: requested.
     const content = `---
@@ -137,7 +131,7 @@ date: ${dateStr}
 status: requested
 tags: [meeting]
 worker: ${deps.workerName}
-workerDisplayTitle: "${deps.workerName}"${portraitLine}
+workerDisplayTitle: "${deps.workerName}"
 agenda: "${args.reason.replace(/"/g, '\\"')}"
 deferred_until: ""
 ${linkedYaml}

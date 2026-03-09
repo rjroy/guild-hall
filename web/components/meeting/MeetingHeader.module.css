@@ -85,6 +85,11 @@
   white-space: pre-wrap;
 }
 
+.modelLabel {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
 /* --- Responsive --- */
 
 @media (max-width: 600px) {

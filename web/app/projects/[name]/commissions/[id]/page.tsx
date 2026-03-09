@@ -1,16 +1,23 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { redirect } from "next/navigation";
+import matter from "gray-matter";
 import { getProject } from "@/lib/config";
 import { projectLorePath, getGuildHallHome, resolveCommissionBasePath, integrationWorktreePath } from "@/lib/paths";
 import {
   readCommissionMeta,
   scanCommissions,
   parseActivityTimeline,
+  type CommissionMeta,
 } from "@/lib/commissions";
+import { nextOccurrence } from "@/daemon/services/scheduler/cron";
+import { describeCron } from "@/lib/cron-utils";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
+import { discoverPackages, getWorkerByName } from "@/lib/packages";
+import type { WorkerMetadata } from "@/lib/types";
 import CommissionHeader from "@/web/components/commission/CommissionHeader";
 import CommissionView from "@/web/components/commission/CommissionView";
+import type { ScheduleInfo } from "@/web/components/commission/CommissionView";
 import NeighborhoodGraph from "@/web/components/commission/NeighborhoodGraph";
 import type { CommissionArtifact } from "@/web/components/commission/CommissionLinkedArtifacts";
 import styles from "./page.module.css";
@@ -82,12 +89,77 @@ export default async function CommissionPage({
     projectName,
   );
 
+  // Parse schedule metadata for scheduled commissions.
+  let scheduleInfo: ScheduleInfo | undefined;
+  if (commission.type === "scheduled") {
+    const parsed = matter(rawContent);
+    const sched = parsed.data.schedule as Record<string, unknown> | undefined;
+    if (sched && typeof sched === "object") {
+      const lastRun = sched.last_run;
+      let lastRunStr: string | null = null;
+      if (lastRun instanceof Date) {
+        lastRunStr = lastRun.toISOString();
+      } else if (typeof lastRun === "string" && lastRun) {
+        lastRunStr = lastRun;
+      }
+
+      const cronExpr = typeof sched.cron === "string" ? sched.cron : "";
+
+      // Compute next expected run
+      let nextRunStr: string | null = null;
+      if (cronExpr) {
+        const referenceDate = lastRunStr ? new Date(lastRunStr) : new Date(0);
+        const nextDate = nextOccurrence(cronExpr, referenceDate);
+        if (nextDate) {
+          nextRunStr = nextDate.toISOString();
+        }
+      }
+
+      scheduleInfo = {
+        cron: cronExpr,
+        cronDescription: describeCron(cronExpr),
+        repeat: typeof sched.repeat === "number" ? sched.repeat : null,
+        runsCompleted: typeof sched.runs_completed === "number" ? sched.runs_completed : 0,
+        lastRun: lastRunStr,
+        lastSpawnedId: typeof sched.last_spawned_id === "string" ? sched.last_spawned_id : null,
+        nextRun: nextRunStr,
+        recentRuns: [], // populated below after allCommissions is scanned
+      };
+    }
+  }
+
+  // Resolve the effective model for display. Commission override takes
+  // precedence over the worker's default, which falls back to "opus".
+  const defaultPackagesDir = path.join(ghHome, "packages");
+  const packages = await discoverPackages([defaultPackagesDir]);
+  const workerPkg = getWorkerByName(packages, commission.worker);
+  const workerDefaultModel = workerPkg
+    ? (workerPkg.metadata as WorkerMetadata).model
+    : undefined;
+  const effectiveModel = commission.resource_overrides.model ?? workerDefaultModel ?? "opus";
+  const isModelOverride = commission.resource_overrides.model != null
+    && commission.resource_overrides.model !== workerDefaultModel;
+
   // Build dependency graph from all commissions in the project
   // to show the neighborhood (direct deps and dependents) for this commission.
   const integrationPath = integrationWorktreePath(ghHome, projectName);
   const integrationLorePath = projectLorePath(integrationPath);
   const allCommissions = await scanCommissions(integrationLorePath, projectName);
   const graph = buildDependencyGraph(allCommissions);
+
+  // Populate recent runs for scheduled commissions
+  if (scheduleInfo) {
+    const spawned = allCommissions
+      .filter((c: CommissionMeta) => c.sourceSchedule === id)
+      .sort((a: CommissionMeta, b: CommissionMeta) => b.date.localeCompare(a.date))
+      .slice(0, 10);
+
+    scheduleInfo.recentRuns = spawned.map((c: CommissionMeta) => ({
+      commissionId: c.commissionId,
+      status: c.status,
+      date: c.date,
+    }));
+  }
 
   return (
     <div className={styles.commissionView}>
@@ -97,6 +169,9 @@ export default async function CommissionPage({
         worker={commission.worker}
         workerDisplayTitle={commission.workerDisplayTitle}
         projectName={projectName}
+        model={effectiveModel}
+        isModelOverride={isModelOverride}
+        commissionType={commission.type}
       />
       <NeighborhoodGraph
         graph={graph}
@@ -110,6 +185,8 @@ export default async function CommissionPage({
         initialStatus={commission.status}
         initialTimeline={timeline}
         initialArtifacts={linkedArtifacts}
+        commissionType={commission.type}
+        scheduleInfo={scheduleInfo}
       />
     </div>
   );

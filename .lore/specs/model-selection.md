@@ -1,7 +1,7 @@
 ---
 title: Model selection
 date: 2026-03-08
-status: draft
+status: approved
 tags: [model-selection, workers, commissions, cost-management]
 modules: [daemon, worker-activation, sdk-runner, commission-orchestrator]
 req-prefix: MODEL

@@ -73,7 +73,7 @@ function makeRequest(overrides: Partial<MeetingMeta> = {}): MeetingMeta {
 
 describe("PendingAudiences", () => {
   test("renders empty state when no requests", () => {
-    const el = PendingAudiences({ requests: [] }) as AnyElement;
+    const el = PendingAudiences({ requests: [], workerPortraits: {} }) as AnyElement;
 
     const empties = findComponentElements(el, "EmptyState");
     expect(empties).toHaveLength(1);
@@ -81,7 +81,7 @@ describe("PendingAudiences", () => {
   });
 
   test("renders Panel with 'Pending Audiences' title", () => {
-    const el = PendingAudiences({ requests: [] }) as AnyElement;
+    const el = PendingAudiences({ requests: [], workerPortraits: {} }) as AnyElement;
 
     const panels = findComponentElements(el, "Panel");
     expect(panels).toHaveLength(1);
@@ -99,7 +99,7 @@ describe("PendingAudiences", () => {
       }),
     ];
 
-    const el = PendingAudiences({ requests }) as AnyElement;
+    const el = PendingAudiences({ requests, workerPortraits: {} }) as AnyElement;
 
     const cards = findComponentElements(el, "MeetingRequestCard");
     expect(cards).toHaveLength(2);
@@ -108,6 +108,7 @@ describe("PendingAudiences", () => {
   test("does not render EmptyState when requests exist", () => {
     const el = PendingAudiences({
       requests: [makeRequest()],
+      workerPortraits: {},
     }) as AnyElement;
 
     const empties = findComponentElements(el, "EmptyState");
@@ -120,7 +121,7 @@ describe("PendingAudiences", () => {
       workerDisplayTitle: "Guild Architect",
     });
 
-    const el = PendingAudiences({ requests: [request] }) as AnyElement;
+    const el = PendingAudiences({ requests: [request], workerPortraits: {} }) as AnyElement;
 
     const cards = findComponentElements(el, "MeetingRequestCard");
     expect(cards).toHaveLength(1);
@@ -144,7 +145,7 @@ describe("PendingAudiences", () => {
       }),
     ];
 
-    const el = PendingAudiences({ requests }) as AnyElement;
+    const el = PendingAudiences({ requests, workerPortraits: {} }) as AnyElement;
 
     const cards = findComponentElements(el, "MeetingRequestCard");
     expect(cards).toHaveLength(2);
@@ -155,6 +156,22 @@ describe("PendingAudiences", () => {
     );
     expect(projectNames).toContain("project-a");
     expect(projectNames).toContain("project-b");
+  });
+
+  test("passes portraitUrl from workerPortraits to MeetingRequestCard", () => {
+    const request = makeRequest({ worker: "Architect" });
+    const portraits = { Architect: "arch-portrait.png" };
+
+    const el = PendingAudiences({
+      requests: [request],
+      workerPortraits: portraits,
+    }) as AnyElement;
+
+    const cards = findComponentElements(el, "MeetingRequestCard");
+    expect(cards).toHaveLength(1);
+    expect((cards[0].props as { portraitUrl?: string }).portraitUrl).toBe(
+      "arch-portrait.png",
+    );
   });
 });
 
@@ -192,7 +209,7 @@ describe("MeetingRequestCard type contract", () => {
 
 describe("DashboardPage renders PendingAudiences", () => {
   test("PendingAudiences accepts empty requests array", () => {
-    const el = PendingAudiences({ requests: [] }) as AnyElement;
+    const el = PendingAudiences({ requests: [], workerPortraits: {} }) as AnyElement;
     // EmptyState is a function component boundary, so containsText won't
     // find the text inside it. Check via EmptyState's props instead.
     const empties = findComponentElements(el, "EmptyState");
@@ -207,7 +224,7 @@ describe("DashboardPage renders PendingAudiences", () => {
       makeRequest({ projectName: "alpha", meetingId: "mtg-3" }),
     ];
 
-    const el = PendingAudiences({ requests }) as AnyElement;
+    const el = PendingAudiences({ requests, workerPortraits: {} }) as AnyElement;
 
     const cards = findComponentElements(el, "MeetingRequestCard");
     expect(cards).toHaveLength(3);

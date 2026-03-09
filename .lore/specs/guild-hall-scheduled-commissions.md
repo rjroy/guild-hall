@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Scheduled Commissions
 date: 2026-03-08
-status: draft
+status: approved
 tags: [architecture, commissions, scheduling, cron, recurring-work, daemon]
 modules: [commission-orchestrator, daemon-scheduler, manager-toolbox]
 related:

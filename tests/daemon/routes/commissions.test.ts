@@ -23,6 +23,7 @@ function makeMockCommissionSession(
       prompt: string,
       dependencies?: string[],
       resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+      options?: { type?: "one-shot" | "scheduled"; sourceSchedule?: string },
     ) {
       calls.push({
         method: "createCommission",
@@ -33,6 +34,7 @@ function makeMockCommissionSession(
           prompt,
           dependencies,
           resourceOverrides,
+          options,
         ],
       });
       return Promise.resolve({
@@ -82,6 +84,14 @@ function makeMockCommissionSession(
     },
     getActiveCommissions() {
       return 0;
+    },
+    createScheduledCommission(params: { projectName: string; title: string; workerName: string; prompt: string; cron: string }) {
+      calls.push({ method: "createScheduledCommission", args: [params] });
+      return Promise.resolve({ commissionId: "schedule-test-worker-20260221-120000" });
+    },
+    updateScheduleStatus(commissionId: CommissionId, targetStatus: string) {
+      calls.push({ method: "updateScheduleStatus", args: [commissionId, targetStatus] });
+      return Promise.resolve({ outcome: "executed", status: targetStatus });
     },
     shutdown() {
       // no-op
@@ -591,5 +601,205 @@ describe("POST /commissions/:id/abandon", () => {
     });
 
     expect(res.status).toBe(500);
+  });
+});
+
+describe("POST /commissions (scheduled)", () => {
+  test("passes type option when type is scheduled", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Weekly report",
+        workerName: "writer",
+        prompt: "Write the weekly report",
+        type: "scheduled",
+        cron: "0 9 * * 1",
+        repeat: 4,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("createScheduledCommission");
+    const params = calls[0].args[0] as Record<string, unknown>;
+    expect(params.projectName).toBe("test-project");
+    expect(params.title).toBe("Weekly report");
+    expect(params.workerName).toBe("writer");
+    expect(params.prompt).toBe("Write the weekly report");
+    expect(params.cron).toBe("0 9 * * 1");
+    expect(params.repeat).toBe(4);
+  });
+
+  test("returns 400 when type is scheduled but cron is missing", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Weekly report",
+        workerName: "writer",
+        prompt: "Write the weekly report",
+        type: "scheduled",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("cron");
+  });
+
+  test("does not pass options for one-shot commissions", async () => {
+    const { app, calls } = makeTestApp();
+
+    await app.request("/commissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "One-time task",
+        workerName: "builder",
+        prompt: "Build the thing",
+      }),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args[6]).toBeUndefined();
+  });
+
+  test("scheduled commission with cron but no repeat succeeds", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Indefinite schedule",
+        workerName: "researcher",
+        prompt: "Run forever",
+        type: "scheduled",
+        cron: "0 0 * * *",
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("createScheduledCommission");
+    const params = calls[0].args[0] as Record<string, unknown>;
+    expect(params.cron).toBe("0 0 * * *");
+    expect(params.repeat).toBeUndefined();
+  });
+});
+
+describe("POST /commissions/:id/schedule-status", () => {
+  test("returns 200 on successful status transition", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "paused" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { status: string };
+    expect(body.status).toBe("paused");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("updateScheduleStatus");
+    expect(calls[0].args[0]).toBe("schedule-test-001");
+    expect(calls[0].args[1]).toBe("paused");
+  });
+
+  test("returns 409 when transition is invalid (skipped outcome)", async () => {
+    const { app } = makeTestApp({
+      updateScheduleStatus() {
+        return Promise.resolve({ outcome: "skipped", reason: "Already paused" });
+      },
+    });
+
+    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "paused" }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("Already paused");
+  });
+
+  test("returns 409 when commission is not a scheduled type", async () => {
+    const { app } = makeTestApp({
+      updateScheduleStatus() {
+        return Promise.reject(
+          new Error('Commission "c-001" is not a scheduled commission'),
+        );
+      },
+    });
+
+    const res = await app.request("/commissions/c-001/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "paused" }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("not a scheduled");
+  });
+
+  test("returns 404 when commission is not found", async () => {
+    const { app } = makeTestApp({
+      updateScheduleStatus() {
+        return Promise.reject(
+          new Error('Commission "ghost-schedule" not found'),
+        );
+      },
+    });
+
+    const res = await app.request("/commissions/ghost-schedule/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "active" }),
+    });
+
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("not found");
+  });
+
+  test("returns 400 when status field is missing", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("Missing required field: status");
+  });
+
+  test("returns 400 on invalid JSON", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json",
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("Invalid JSON");
   });
 });

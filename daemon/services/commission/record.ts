@@ -18,10 +18,21 @@ import { escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 import { spliceBody } from "@/lib/artifacts";
 import { isNodeError } from "@/lib/types";
 
+// -- Types --
+
+export interface ScheduleMetadata {
+  cron: string;
+  repeat: number | null;
+  runsCompleted: number;
+  lastRun: string | null; // ISO 8601 or null
+  lastSpawnedId: string | null;
+}
+
 // -- Interface --
 
 export interface CommissionRecordOps {
   readStatus(artifactPath: string): Promise<string>;
+  readType(artifactPath: string): Promise<string>;
   writeStatus(artifactPath: string, status: string): Promise<void>;
   appendTimeline(
     artifactPath: string,
@@ -43,6 +54,17 @@ export interface CommissionRecordOps {
     artifactPath: string,
     summary: string,
     artifacts?: string[],
+  ): Promise<void>;
+  readScheduleMetadata(artifactPath: string): Promise<ScheduleMetadata>;
+  writeScheduleFields(
+    artifactPath: string,
+    updates: Partial<{
+      runsCompleted: number;
+      lastRun: string;
+      lastSpawnedId: string;
+      cron: string;
+      repeat: number | null;
+    }>,
   ): Promise<void>;
 }
 
@@ -95,6 +117,14 @@ function createRecordOps(): CommissionRecordOps {
         throw new Error(`readStatus: no status field found in ${artifactPath}`);
       }
       return match[1];
+    },
+
+    async readType(artifactPath: string): Promise<string> {
+      const raw = await readArtifact(artifactPath, "readType");
+      const match = raw.match(/^type: (\S+)$/m);
+      // Default to "one-shot" for backward compatibility with artifacts
+      // created before the type field was introduced.
+      return match ? match[1] : "one-shot";
     },
 
     async writeStatus(artifactPath: string, status: string): Promise<void> {
@@ -207,6 +237,89 @@ function createRecordOps(): CommissionRecordOps {
       }
 
       raw = spliceBody(raw, "\n" + summary + "\n");
+      await fs.writeFile(artifactPath, raw, "utf-8");
+    },
+
+    async readScheduleMetadata(artifactPath: string): Promise<ScheduleMetadata> {
+      const raw = await readArtifact(artifactPath, "readScheduleMetadata");
+
+      // Check for the schedule block
+      if (!/^schedule:$/m.test(raw)) {
+        throw new Error(`readScheduleMetadata: no schedule block found in ${artifactPath}`);
+      }
+
+      // Parse individual fields within the schedule block (2-space indented)
+      const cronMatch = raw.match(/^  cron: "(.+)"$/m);
+      if (!cronMatch) {
+        throw new Error(`readScheduleMetadata: no cron field in schedule block of ${artifactPath}`);
+      }
+      const cron = cronMatch[1];
+
+      const repeatMatch = raw.match(/^  repeat: (.+)$/m);
+      const repeatValue = repeatMatch ? repeatMatch[1].trim() : "null";
+      const repeat = repeatValue === "null" ? null : Number(repeatValue);
+
+      const runsMatch = raw.match(/^  runs_completed: (.+)$/m);
+      const runsCompleted = runsMatch ? Number(runsMatch[1].trim()) : 0;
+
+      const lastRunMatch = raw.match(/^  last_run: (.+)$/m);
+      const lastRunValue = lastRunMatch ? lastRunMatch[1].trim() : "null";
+      const lastRun = lastRunValue === "null" ? null : lastRunValue;
+
+      const lastSpawnedMatch = raw.match(/^  last_spawned_id: (.+)$/m);
+      const lastSpawnedValue = lastSpawnedMatch ? lastSpawnedMatch[1].trim() : "null";
+      const lastSpawnedId = lastSpawnedValue === "null" ? null : lastSpawnedValue;
+
+      return { cron, repeat, runsCompleted, lastRun, lastSpawnedId };
+    },
+
+    async writeScheduleFields(
+      artifactPath: string,
+      updates: Partial<{
+        runsCompleted: number;
+        lastRun: string;
+        lastSpawnedId: string;
+        cron: string;
+        repeat: number | null;
+      }>,
+    ): Promise<void> {
+      let raw = await readArtifact(artifactPath, "writeScheduleFields");
+
+      if (updates.runsCompleted !== undefined) {
+        raw = raw.replace(
+          /^  runs_completed: .+$/m,
+          `  runs_completed: ${updates.runsCompleted}`,
+        );
+      }
+
+      if (updates.lastRun !== undefined) {
+        raw = raw.replace(
+          /^  last_run: .+$/m,
+          `  last_run: ${updates.lastRun}`,
+        );
+      }
+
+      if (updates.lastSpawnedId !== undefined) {
+        raw = raw.replace(
+          /^  last_spawned_id: .+$/m,
+          `  last_spawned_id: ${updates.lastSpawnedId}`,
+        );
+      }
+
+      if (updates.cron !== undefined) {
+        raw = raw.replace(
+          /^  cron: ".+"$/m,
+          `  cron: "${updates.cron}"`,
+        );
+      }
+
+      if (updates.repeat !== undefined) {
+        raw = raw.replace(
+          /^  repeat: .+$/m,
+          `  repeat: ${updates.repeat}`,
+        );
+      }
+
       await fs.writeFile(artifactPath, raw, "utf-8");
     },
   };

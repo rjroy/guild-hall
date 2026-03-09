@@ -5,6 +5,7 @@ import type { MeetingMeta } from "@/lib/meetings";
 
 interface PendingAudiencesProps {
   requests: MeetingMeta[];
+  workerPortraits: Record<string, string>;
 }
 
 /**
@@ -12,7 +13,7 @@ interface PendingAudiencesProps {
  * Server component that receives pre-scanned request data from the page.
  * Each request renders as a MeetingRequestCard with Open/Defer/Ignore actions.
  */
-export default function PendingAudiences({ requests }: PendingAudiencesProps) {
+export default function PendingAudiences({ requests, workerPortraits }: PendingAudiencesProps) {
   return (
     <Panel title="Pending Audiences">
       {requests.length === 0 ? (
@@ -22,6 +23,7 @@ export default function PendingAudiences({ requests }: PendingAudiencesProps) {
           <MeetingRequestCard
             key={`${request.projectName}-${request.meetingId}`}
             request={request}
+            portraitUrl={workerPortraits[request.worker]}
           />
         ))
       )}

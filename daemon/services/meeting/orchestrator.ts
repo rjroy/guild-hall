@@ -833,7 +833,6 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
           prompt,
           workerMeta.identity.name,
           "open",
-          workerMeta.identity.portraitPath,
         );
       } catch (err: unknown) {
         errors.push({ type: "error", reason: `Failed to write meeting artifact: ${errorMessage(err)}` });
@@ -901,7 +900,6 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
             prompt,
             wMeta.identity.name,
             "open",
-            wMeta.identity.portraitPath,
           );
         }
       }
@@ -1509,7 +1507,6 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       params.reason,
       workerMeta.identity.name,
       "requested",
-      workerMeta.identity.portraitPath,
     );
   }
 

@@ -38,6 +38,10 @@ export default function CommissionForm({
   const [maxBudgetUsd, setMaxBudgetUsd] = useState("");
   const [overridesOpen, setOverridesOpen] = useState(false);
 
+  const [commissionType, setCommissionType] = useState<"one-shot" | "scheduled">("one-shot");
+  const [cron, setCron] = useState("");
+  const [repeat, setRepeat] = useState("");
+
   const [workers, setWorkers] = useState<WorkerInfo[]>([]);
   const [loadingWorkers, setLoadingWorkers] = useState(true);
 
@@ -112,6 +116,16 @@ export default function CommissionForm({
     if (Object.keys(resourceOverrides).length > 0) {
       payload.resourceOverrides = resourceOverrides;
     }
+    if (commissionType === "scheduled") {
+      payload.type = "scheduled";
+      payload.cron = cron.trim();
+      if (repeat.trim()) {
+        const parsedRepeat = parseInt(repeat, 10);
+        if (!isNaN(parsedRepeat) && parsedRepeat > 0) {
+          payload.repeat = parsedRepeat;
+        }
+      }
+    }
 
     try {
       const response = await fetch("/api/commissions", {
@@ -144,17 +158,85 @@ export default function CommissionForm({
       setError(message);
       setSubmitting(false);
     }
-  }, [title, workerName, prompt, dependencies, maxTurns, maxBudgetUsd, projectName, onCreated]);
+  }, [title, workerName, prompt, dependencies, maxTurns, maxBudgetUsd, commissionType, cron, repeat, projectName, onCreated]);
 
   const canSubmit =
     title.trim().length > 0 &&
     workerName.length > 0 &&
     prompt.trim().length > 0 &&
+    (commissionType === "one-shot" || cron.trim().length > 0) &&
     !submitting &&
     isOnline;
 
   return (
     <div className={styles.form} role="form" aria-label="Create Commission">
+      <div className={styles.fieldGroup}>
+        <span className={styles.label}>Type</span>
+        <div className={styles.typeToggle} role="radiogroup" aria-label="Commission type">
+          <label className={`${styles.typeOption} ${commissionType === "one-shot" ? styles.typeOptionActive : ""}`}>
+            <input
+              type="radio"
+              name="commission-type"
+              value="one-shot"
+              checked={commissionType === "one-shot"}
+              onChange={() => setCommissionType("one-shot")}
+              className={styles.typeRadio}
+              disabled={submitting}
+            />
+            One-shot
+          </label>
+          <label className={`${styles.typeOption} ${commissionType === "scheduled" ? styles.typeOptionActive : ""}`}>
+            <input
+              type="radio"
+              name="commission-type"
+              value="scheduled"
+              checked={commissionType === "scheduled"}
+              onChange={() => setCommissionType("scheduled")}
+              className={styles.typeRadio}
+              disabled={submitting}
+            />
+            Schedule
+          </label>
+        </div>
+      </div>
+
+      {commissionType === "scheduled" && (
+        <div className={styles.scheduleFields}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="commission-cron">
+              Cron Expression
+            </label>
+            <input
+              id="commission-cron"
+              className={styles.textInput}
+              type="text"
+              value={cron}
+              onChange={(e) => setCron(e.target.value)}
+              placeholder="0 9 * * 1"
+              disabled={submitting}
+            />
+            <span className={styles.fieldHint}>
+              minute hour day-of-month month day-of-week
+            </span>
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="commission-repeat">
+              Repeat Count (optional)
+            </label>
+            <input
+              id="commission-repeat"
+              className={styles.numberInput}
+              type="number"
+              min="1"
+              value={repeat}
+              onChange={(e) => setRepeat(e.target.value)}
+              placeholder="Leave empty for indefinite"
+              disabled={submitting}
+            />
+          </div>
+        </div>
+      )}
+
       <div className={styles.fieldGroup}>
         <label className={styles.label} htmlFor="commission-title">
           Title
@@ -301,7 +383,11 @@ export default function CommissionForm({
           title={!isOnline ? "Daemon offline" : undefined}
           onClick={() => void handleSubmit()}
         >
-          {submitting ? "Creating..." : "Create Commission"}
+          {submitting
+            ? "Creating..."
+            : commissionType === "scheduled"
+              ? "Create Schedule"
+              : "Create Commission"}
         </button>
       </div>
     </div>

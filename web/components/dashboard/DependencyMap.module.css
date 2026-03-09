@@ -54,3 +54,22 @@
   white-space: nowrap;
   max-width: 100%;
 }
+
+.scheduledCard {
+  border-left: 3px solid var(--color-brass);
+}
+
+.scheduledBadge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-brass);
+  background: rgba(184, 134, 11, 0.12);
+  border: 1px solid rgba(184, 134, 11, 0.3);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: var(--space-xs);
+  vertical-align: middle;
+}
