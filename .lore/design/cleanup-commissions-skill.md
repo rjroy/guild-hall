@@ -1,7 +1,7 @@
 ---
 title: "Skill: Cleanup Commissions"
 date: 2026-03-07
-status: complete
+status: implemented
 tags: [skill, commissions, cleanup, writer]
 modules: [packages, guild-hall-writer]
 related:

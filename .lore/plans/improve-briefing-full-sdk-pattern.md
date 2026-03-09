@@ -1,6 +1,9 @@
 ---
 title: Improve Briefing Generator with Full SDK Pattern
-status: implemented
+date: 2026-02-27
+status: executed
+tags: [briefing, sdk, guild-master, infrastructure]
+modules: [briefing-generator, sdk-runner]
 ---
 
 # Improve Briefing Generator with Full SDK Pattern

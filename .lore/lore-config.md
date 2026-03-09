@@ -10,6 +10,7 @@ archive_directory: _abandoned
 filename_exemptions:
   - "^commission-.+-\\d{8}-\\d{6}\\.md$"
   - "^audience-.+-\\d{8}-\\d{6}(-\\d+)?\\.md$"
+  - "^meeting-request-\\d{8}-\\d{6}-.+\\.md$"
 
 custom_fields:
   commissions: [worker, workerDisplayTitle, prompt, dependencies, linked_artifacts, resource_overrides, activity_timeline, current_progress, projectName]
