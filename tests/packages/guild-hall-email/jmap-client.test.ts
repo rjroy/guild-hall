@@ -76,7 +76,7 @@ function mockFetch(
   const queue = [...responses];
   const calls: Array<{ url: string | URL | Request; init?: RequestInit }> = [];
 
-  const fn = async (
+  const fn = (
     url: string | URL | Request,
     init?: RequestInit,
   ): Promise<Response> => {
@@ -87,14 +87,14 @@ function mockFetch(
         `mockFetch: no more responses configured (call #${calls.length})`,
       );
     }
-    return new Response(
+    return Promise.resolve(new Response(
       next.body !== undefined ? JSON.stringify(next.body) : null,
       {
         status: next.status,
         statusText: next.statusText ?? "",
         headers: { "Content-Type": "application/json" },
       },
-    );
+    ));
   };
 
   // Expose calls for assertion

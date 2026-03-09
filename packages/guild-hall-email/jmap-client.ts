@@ -113,8 +113,8 @@ export class JmapClient {
     // Check for JMAP-level errors in the mailbox response
     const [responseName, responseArgs] = mailboxData.methodResponses[0];
     if (responseName.endsWith("/error")) {
-      const errorType = (responseArgs as Record<string, unknown>).type;
-      const errorDesc = (responseArgs as Record<string, unknown>).description;
+      const errorType = typeof responseArgs.type === "string" ? responseArgs.type : "unknownError";
+      const errorDesc = typeof responseArgs.description === "string" ? responseArgs.description : undefined;
       throw new Error(
         `JMAP mailbox fetch error: ${errorType}${errorDesc ? ` - ${errorDesc}` : ""}`,
       );
@@ -328,10 +328,8 @@ export class JmapClient {
   private checkForJmapErrors(data: JmapResponse): void {
     for (const [name, args] of data.methodResponses) {
       if (name.endsWith("/error")) {
-        const errorType = String(
-          (args as Record<string, unknown>).type ?? "unknownError",
-        );
-        const errorDesc = (args as Record<string, unknown>).description;
+        const errorType = typeof args.type === "string" ? args.type : "unknownError";
+        const errorDesc = typeof args.description === "string" ? args.description : undefined;
 
         // Check for rate limiting at the JMAP level
         if (errorType.toLowerCase().includes("toomanyrequests")) {
