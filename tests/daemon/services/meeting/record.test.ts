@@ -391,27 +391,10 @@ describe("closeArtifact", () => {
   });
 });
 
-// -- workerPortraitUrl in writeMeetingArtifact --
+// -- writeMeetingArtifact does not include workerPortraitUrl --
 
-describe("writeMeetingArtifact workerPortraitUrl", () => {
-  test("includes workerPortraitUrl when provided", async () => {
-    await writeMeetingArtifact(
-      tmpDir,
-      meetingId,
-      "The Researcher",
-      "Discuss architecture",
-      "researcher",
-      "open",
-      "/images/portraits/researcher.webp",
-    );
-
-    const artifactPath = meetingArtifactPath(tmpDir, meetingId);
-    const raw = await fs.readFile(artifactPath, "utf-8");
-
-    expect(raw).toContain('workerPortraitUrl: "/images/portraits/researcher.webp"');
-  });
-
-  test("omits workerPortraitUrl when not provided", async () => {
+describe("writeMeetingArtifact portrait removal", () => {
+  test("does not include workerPortraitUrl in frontmatter", async () => {
     await writeMeetingArtifact(
       tmpDir,
       meetingId,
@@ -425,43 +408,7 @@ describe("writeMeetingArtifact workerPortraitUrl", () => {
     const raw = await fs.readFile(artifactPath, "utf-8");
 
     expect(raw).not.toContain("workerPortraitUrl");
-  });
-
-  test("omits workerPortraitUrl when undefined", async () => {
-    await writeMeetingArtifact(
-      tmpDir,
-      meetingId,
-      "The Researcher",
-      "Discuss architecture",
-      "researcher",
-      "open",
-      undefined,
-    );
-
-    const artifactPath = meetingArtifactPath(tmpDir, meetingId);
-    const raw = await fs.readFile(artifactPath, "utf-8");
-
-    expect(raw).not.toContain("workerPortraitUrl");
-  });
-
-  test("workerPortraitUrl is parseable by gray-matter", async () => {
-    const matter = await import("gray-matter");
-
-    await writeMeetingArtifact(
-      tmpDir,
-      meetingId,
-      "The Researcher",
-      "Discuss architecture",
-      "researcher",
-      "open",
-      "/images/portraits/researcher.webp",
-    );
-
-    const artifactPath = meetingArtifactPath(tmpDir, meetingId);
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    const parsed = matter.default(raw);
-
-    expect(parsed.data.workerPortraitUrl).toBe("/images/portraits/researcher.webp");
+    expect(raw).not.toContain("portraitUrl");
   });
 });
 

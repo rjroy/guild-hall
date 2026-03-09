@@ -1,6 +1,7 @@
 import { readConfig } from "@/lib/config";
 import { recentArtifacts } from "@/lib/artifacts";
 import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
+import { resolveWorkerPortraits } from "@/lib/packages";
 import { scanMeetingRequests, sortMeetingRequests } from "@/lib/meetings";
 import { scanCommissions } from "@/lib/commissions";
 import type { Artifact } from "@/lib/types";
@@ -50,6 +51,11 @@ export default async function DashboardPage({
   const allRequests: MeetingMeta[] = requestsByProject.flat();
   const sortedRequests = sortMeetingRequests(allRequests);
 
+  // Resolve portraits once for all meeting request cards (REQ-WID-10).
+  // Convert Map to plain Record for server/client serialization.
+  const portraitMap = await resolveWorkerPortraits(ghHome);
+  const workerPortraits: Record<string, string> = Object.fromEntries(portraitMap);
+
   return (
     <div className={styles.dashboard}>
       <div className={styles.sidebar}>
@@ -71,7 +77,7 @@ export default async function DashboardPage({
         />
       </div>
       <div className={styles.audiences}>
-        <PendingAudiences requests={sortedRequests} />
+        <PendingAudiences requests={sortedRequests} workerPortraits={workerPortraits} />
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import {
   getToolboxes,
   getWorkerByName,
   isValidPackageName,
+  resolveWorkerPortraits,
   packageMetadataSchema,
   workerMetadataSchema,
   toolboxMetadataSchema,
@@ -892,5 +893,84 @@ describe("getWorkerByName", () => {
 
     const found = getWorkerByName(packages, "web-search");
     expect(found).toBeUndefined();
+  });
+});
+
+// -- resolveWorkerPortraits --
+
+describe("resolveWorkerPortraits", () => {
+  test("returns name-to-portraitPath map for workers with portraits", async () => {
+    const ghHome = path.join(tmpDir, "gh-home");
+    const packagesDir = path.join(ghHome, "packages");
+
+    await writePackage(packagesDir, "researcher", {
+      name: "researcher",
+      guildHall: validWorkerGuildHall(),
+    });
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.size).toBe(1);
+    expect(portraits.get("researcher")).toBe("portrait.png");
+  });
+
+  test("omits workers without portraitPath", async () => {
+    const ghHome = path.join(tmpDir, "gh-home");
+    const packagesDir = path.join(ghHome, "packages");
+
+    const noPortrait = validWorkerGuildHall() as Record<string, unknown>;
+    (noPortrait.identity as Record<string, unknown>).portraitPath = undefined;
+
+    await writePackage(packagesDir, "plain-worker", {
+      name: "plain-worker",
+      guildHall: noPortrait,
+    });
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.size).toBe(0);
+  });
+
+  test("returns empty map when packages directory does not exist", async () => {
+    const ghHome = path.join(tmpDir, "no-packages");
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.size).toBe(0);
+  });
+
+  test("maps multiple workers by identity name", async () => {
+    const ghHome = path.join(tmpDir, "gh-home");
+    const packagesDir = path.join(ghHome, "packages");
+
+    await writePackage(packagesDir, "researcher", {
+      name: "researcher",
+      guildHall: validWorkerGuildHall(),
+    });
+
+    const secondWorker = validWorkerGuildHall() as Record<string, unknown>;
+    (secondWorker.identity as Record<string, unknown>).name = "architect";
+    (secondWorker.identity as Record<string, unknown>).displayTitle = "The Architect";
+    (secondWorker.identity as Record<string, unknown>).portraitPath = "arch.png";
+
+    await writePackage(packagesDir, "architect", {
+      name: "architect",
+      guildHall: secondWorker,
+    });
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.size).toBe(2);
+    expect(portraits.get("researcher")).toBe("portrait.png");
+    expect(portraits.get("architect")).toBe("arch.png");
+  });
+
+  test("skips toolbox packages", async () => {
+    const ghHome = path.join(tmpDir, "gh-home");
+    const packagesDir = path.join(ghHome, "packages");
+
+    await writePackage(packagesDir, "web-search", {
+      name: "web-search",
+      guildHall: validToolboxGuildHall(),
+    });
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.size).toBe(0);
   });
 });

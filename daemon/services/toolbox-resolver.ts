@@ -36,7 +36,6 @@ export interface ToolboxResolverContext {
   contextId: string;
   contextType: "meeting" | "commission" | "mail" | "briefing";
   workerName: string;
-  workerPortraitUrl?: string;
   eventBus: EventBus;
   config: AppConfig;
   /** Services for the manager toolbox (commission session + git ops). */
@@ -75,7 +74,6 @@ export async function resolveToolSet(
     contextId: context.contextId,
     contextType: context.contextType,
     workerName: context.workerName,
-    workerPortraitUrl: context.workerPortraitUrl,
     eventBus: context.eventBus,
     config: context.config,
     services: context.services,

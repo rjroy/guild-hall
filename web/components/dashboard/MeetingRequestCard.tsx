@@ -8,10 +8,12 @@ import {
   storeFirstTurnMessages,
 } from "@/lib/sse-helpers";
 import type { MeetingMeta } from "@/lib/meetings";
+import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
 import styles from "./MeetingRequestCard.module.css";
 
 export interface MeetingRequestCardProps {
   request: MeetingMeta;
+  portraitUrl?: string;
 }
 
 /**
@@ -31,6 +33,7 @@ export interface MeetingRequestCardProps {
  */
 export default function MeetingRequestCard({
   request,
+  portraitUrl,
 }: MeetingRequestCardProps) {
   const router = useRouter();
   const { isOnline } = useDaemonStatus();
@@ -226,6 +229,11 @@ export default function MeetingRequestCard({
   return (
     <div className={styles.card} data-testid="meeting-request-card">
       <div className={styles.header}>
+        <WorkerPortrait
+          name={workerLabel}
+          portraitUrl={portraitUrl}
+          size="sm"
+        />
         <div>
           <p className={styles.workerName}>{workerLabel}</p>
           {request.workerDisplayTitle && request.worker && (

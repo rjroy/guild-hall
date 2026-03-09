@@ -6,6 +6,7 @@ import type {
   WorkerMetadata,
   DiscoveredPackage,
 } from "@/lib/types";
+import { getGuildHallHome } from "@/lib/paths";
 
 // -- Package name validation --
 
@@ -251,4 +252,32 @@ export function getWorkerByName(
     workers.find((p) => p.name === name) ??
     workers.find((p) => (p.metadata as WorkerMetadata).identity.name === name)
   );
+}
+
+// -- Portrait resolution --
+
+/**
+ * Builds a map from worker identity name to portrait path by scanning
+ * installed worker packages. Used by Next.js server components to resolve
+ * portraits at display time instead of storing them in artifacts.
+ *
+ * Returns an empty map if the packages directory doesn't exist (graceful
+ * degradation when no workers are installed).
+ */
+export async function resolveWorkerPortraits(
+  ghHome?: string,
+): Promise<Map<string, string>> {
+  const home = ghHome ?? getGuildHallHome();
+  const packagesDir = path.join(home, "packages");
+  const packages = await discoverPackages([packagesDir]);
+  const workers = getWorkers(packages);
+
+  const portraits = new Map<string, string>();
+  for (const w of workers) {
+    const meta = w.metadata as WorkerMetadata;
+    if (meta.identity.portraitPath) {
+      portraits.set(meta.identity.name, meta.identity.portraitPath);
+    }
+  }
+  return portraits;
 }

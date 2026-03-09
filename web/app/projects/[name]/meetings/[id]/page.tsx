@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getProject } from "@/lib/config";
 import { readArtifact } from "@/lib/artifacts";
 import { projectLorePath, getGuildHallHome, resolveMeetingBasePath } from "@/lib/paths";
+import { resolveWorkerPortraits } from "@/lib/packages";
 import { parseTranscriptToMessages } from "@/lib/meetings";
 import MeetingHeader from "@/web/components/meeting/MeetingHeader";
 import MeetingView from "@/web/components/meeting/MeetingView";
@@ -102,11 +103,9 @@ export default async function MeetingPage({
       ? meta.extras.workerDisplayTitle
       : "") || workerName;
 
-  // Portrait URL stored in frontmatter at meeting creation time.
-  const workerPortraitUrl =
-    typeof meta.extras?.workerPortraitUrl === "string"
-      ? meta.extras.workerPortraitUrl
-      : undefined;
+  // Portrait resolved at display time from worker packages (REQ-WID-10).
+  const portraits = await resolveWorkerPortraits(ghHome);
+  const workerPortraitUrl = portraits.get(workerName) ?? undefined;
 
   // Agenda lives in frontmatter, not the markdown body. The daemon writes
   // it as a frontmatter field at meeting creation time.
