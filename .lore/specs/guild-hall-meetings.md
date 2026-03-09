@@ -101,7 +101,7 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
   - **tool_use**: worker is using a tool (id, name, input). The `id` field carries the SDK's tool_use content block ID for matching tool_use to tool_result. Informational for UI rendering.
   - **tool_result**: tool completed (toolUseId, name, output summary). The `toolUseId` field references the originating tool_use's `id` for reliable matching (name-only matching fails when the same tool is invoked multiple times in one turn). Informational.
   - **turn_end**: the worker's response is complete
-  - **error**: something went wrong (reason string)
+  - **error**: something went wrong (reason string). Errors are also logged to the daemon's standard error output per REQ-MIC-11b.
 
   SDK-internal event types do not surface through the meeting interface. The daemon's event translator deduplicates both text and tool_use events: the SDK emits tool_use blocks during streaming (content_block_start) and again in the finalized assistant message; only the streaming emission is forwarded to the UI.
 

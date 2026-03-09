@@ -408,6 +408,7 @@ function makeMockGitOps(): GitOps {
     async listConflictedFiles() { return []; },
     async resolveConflictsTheirs() {},
     async mergeAbort() {},
+    async hasCommitsBeyond() { return false; },
   };
 }
 

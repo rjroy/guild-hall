@@ -146,6 +146,10 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "mergeAbort", args });
       return Promise.resolve();
     },
+    hasCommitsBeyond: (...args) => {
+      calls.push({ method: "hasCommitsBeyond", args });
+      return Promise.resolve(false);
+    },
   };
 }
 

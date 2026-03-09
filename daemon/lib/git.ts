@@ -104,6 +104,10 @@ export interface GitOps {
   createBranch(repoPath: string, branchName: string, baseRef: string): Promise<void>;
   branchExists(repoPath: string, branchName: string): Promise<boolean>;
   deleteBranch(repoPath: string, branchName: string): Promise<void>;
+
+  /** Returns true if branch has commits not reachable from baseBranch. */
+  hasCommitsBeyond(repoPath: string, baseBranch: string, branch: string): Promise<boolean>;
+
   createWorktree(repoPath: string, worktreePath: string, branchName: string): Promise<void>;
   removeWorktree(repoPath: string, worktreePath: string): Promise<void>;
   configureSparseCheckout(worktreePath: string, paths: string[]): Promise<void>;
@@ -211,6 +215,13 @@ export function createGitOps(): GitOps {
 
     async deleteBranch(repoPath, branchName) {
       await runGit(repoPath, ["branch", "-D", branchName]);
+    },
+
+    async hasCommitsBeyond(repoPath, baseBranch, branch) {
+      const { stdout } = await runGit(repoPath, [
+        "log", "--oneline", `${baseBranch}..${branch}`,
+      ]);
+      return stdout !== "";
     },
 
     async createWorktree(repoPath, worktreePath, branchName) {

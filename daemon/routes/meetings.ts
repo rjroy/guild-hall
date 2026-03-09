@@ -68,13 +68,20 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     }
 
     return streamSSE(c, async (stream) => {
-      const events = deps.meetingSession.createMeeting(
-        projectName,
-        workerName,
-        prompt,
-      );
-      for await (const event of events) {
-        await stream.writeSSE({ data: JSON.stringify(event) });
+      try {
+        const events = deps.meetingSession.createMeeting(
+          projectName,
+          workerName,
+          prompt,
+        );
+        for await (const event of events) {
+          await stream.writeSSE({ data: JSON.stringify(event) });
+        }
+      } catch (err: unknown) {
+        console.error(`[meeting-routes] Unexpected error in create stream for meeting (project: ${projectName}, worker: ${workerName}):`, err);
+        await stream.writeSSE({
+          data: JSON.stringify({ type: "error", reason: errorMessage(err) }),
+        });
       }
     });
   });
@@ -97,9 +104,16 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     }
 
     return streamSSE(c, async (stream) => {
-      const events = deps.meetingSession.sendMessage(meetingId, message);
-      for await (const event of events) {
-        await stream.writeSSE({ data: JSON.stringify(event) });
+      try {
+        const events = deps.meetingSession.sendMessage(meetingId, message);
+        for await (const event of events) {
+          await stream.writeSSE({ data: JSON.stringify(event) });
+        }
+      } catch (err: unknown) {
+        console.error(`[meeting-routes] Unexpected error in sendMessage stream for meeting ${meetingId as string}:`, err);
+        await stream.writeSSE({
+          data: JSON.stringify({ type: "error", reason: errorMessage(err) }),
+        });
       }
     });
   });
@@ -111,6 +125,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
       const { notes } = await deps.meetingSession.closeMeeting(meetingId);
       return c.json({ status: "ok", notes });
     } catch (err: unknown) {
+      console.error("[meeting-routes] close failed for meeting", meetingId, ":", err);
       const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);
@@ -152,13 +167,20 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     }
 
     return streamSSE(c, async (stream) => {
-      const events = deps.meetingSession.acceptMeetingRequest(
-        meetingId,
-        projectName,
-        message,
-      );
-      for await (const event of events) {
-        await stream.writeSSE({ data: JSON.stringify(event) });
+      try {
+        const events = deps.meetingSession.acceptMeetingRequest(
+          meetingId,
+          projectName,
+          message,
+        );
+        for await (const event of events) {
+          await stream.writeSSE({ data: JSON.stringify(event) });
+        }
+      } catch (err: unknown) {
+        console.error(`[meeting-routes] Unexpected error in accept stream for meeting ${meetingId as string} (project: ${projectName}):`, err);
+        await stream.writeSSE({
+          data: JSON.stringify({ type: "error", reason: errorMessage(err) }),
+        });
       }
     });
   });
@@ -184,6 +206,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
       await deps.meetingSession.declineMeeting(meetingId, projectName);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
+      console.error("[meeting-routes] decline failed for meeting", meetingId, ":", err);
       const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);
@@ -216,6 +239,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
       await deps.meetingSession.deferMeeting(meetingId, projectName, deferredUntil);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
+      console.error("[meeting-routes] defer failed for meeting", meetingId, ":", err);
       const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);
