@@ -56,6 +56,7 @@ export default async function ArtifactPage({
         <ArtifactProvenance
           projectName={projectName}
           artifactTitle={displayTitle}
+          artifactPath={relativePath}
         />
         {meetingLink && (
           <div className={styles.meetingBanner}>
