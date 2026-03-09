@@ -26,6 +26,8 @@ import { getWorkerByName } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import { noopEventBus, type EventBus } from "@/daemon/lib/event-bus";
+import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
+import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import {
   MANAGER_PACKAGE_NAME,
   activateWorker as activateWorkerShared,
@@ -165,6 +167,18 @@ export type MeetingSessionDeps = {
    * across all consumers.
    */
   registry?: MeetingRegistry;
+  /**
+   * Lazy ref for the schedule lifecycle. Set after the scheduler is
+   * constructed (after meetingSession is created). Read at session prep time
+   * so the value is always available by the time a meeting runs.
+   * Needed by the manager toolbox's create_scheduled_commission tool.
+   */
+  scheduleLifecycleRef?: { current: ScheduleLifecycle | undefined };
+  /**
+   * Commission record operations. Needed by the manager toolbox's
+   * update_schedule tool to read commission artifact types.
+   */
+  recordOps?: CommissionRecordOps;
 };
 
 // -- Factory --
@@ -454,7 +468,13 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       contextType: "meeting",
       eventBus,
       services: isManager && deps.commissionSession
-        ? { commissionSession: deps.commissionSession, gitOps: git }
+        ? {
+            commissionSession: deps.commissionSession,
+            gitOps: git,
+            packages: deps.packages,
+            scheduleLifecycle: deps.scheduleLifecycleRef?.current,
+            recordOps: deps.recordOps,
+          }
         : undefined,
       activationExtras,
       abortController: meeting.abortController,

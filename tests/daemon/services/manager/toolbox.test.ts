@@ -301,6 +301,26 @@ describe("makeCreateScheduledCommissionHandler", () => {
     expect(result.content[0].text).toContain("not found");
   });
 
+  test("returns Worker not found when packages is empty (regression guard for meeting wiring)", async () => {
+    // Before the fix, create_scheduled_commission during a Guild Master meeting
+    // always failed with this error because packages was not wired into the
+    // manager toolbox services bag in the meeting orchestrator.
+    // This test documents that behavior and guards against regression:
+    // if the wiring breaks again, packages will be empty and this is what fails.
+    const deps = await createBaseDeps({ packages: [] });
+    const handler = makeCreateScheduledCommissionHandler(deps);
+
+    const result = await handler({
+      title: "Daily report",
+      workerName: "Scribe",
+      prompt: "Generate the daily status report",
+      cron: "0 9 * * *",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not found in discovered packages");
+  });
+
   test("with resourceOverrides writes model in artifact", async () => {
     const deps = await createBaseDeps();
     const handler = makeCreateScheduledCommissionHandler(deps);

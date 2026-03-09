@@ -271,6 +271,8 @@ export async function createProductionApp(options?: {
     createMeetingRequestFn,
     workspace: workspaceOps,
     registry: meetingRegistry,
+    scheduleLifecycleRef,
+    recordOps,
   });
   meetingSessionRef = meetingSession;
 
