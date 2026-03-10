@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Panel from "@/web/components/ui/Panel";
-import GemIndicator from "@/web/components/ui/GemIndicator";
+import StatusBadge from "@/web/components/ui/StatusBadge";
 import EmptyState from "@/web/components/ui/EmptyState";
 import type { Artifact } from "@/lib/types";
 import { statusToGem } from "@/lib/types";
@@ -97,7 +97,7 @@ export default function RecentArtifacts({
                       <span className={styles.date}>{artifact.meta.date}</span>
                     )}
                   </div>
-                  <GemIndicator status={gemStatus} size="sm" />
+                  <StatusBadge gem={gemStatus} label={artifact.meta.status} size="sm" />
                 </Link>
               </li>
             );

@@ -227,7 +227,7 @@ describe("MeetingList", () => {
     expect(artifactLink).toBeDefined();
   });
 
-  test("renders GemIndicator with active status for open meeting", () => {
+  test("renders StatusBadge with active gem for open meeting", () => {
     const meetings = [makeMeetingArtifact()];
 
     const el = MeetingList({
@@ -235,13 +235,14 @@ describe("MeetingList", () => {
       projectName: "test-project",
     }) as AnyElement;
 
-    const gems = findComponentElements(el, "GemIndicator");
-    expect(gems).toHaveLength(1);
-    expect(gems[0].props.status).toBe("active");
-    expect(gems[0].props.size).toBe("sm");
+    const badges = findComponentElements(el, "StatusBadge");
+    expect(badges).toHaveLength(1);
+    expect(badges[0].props.gem).toBe("active");
+    expect(badges[0].props.label).toBe("open");
+    expect(badges[0].props.size).toBe("sm");
   });
 
-  test("renders GemIndicator with info status for closed meeting", () => {
+  test("renders StatusBadge with info gem for closed meeting", () => {
     const meetings = [
       makeMeetingArtifact({
         meta: {
@@ -258,9 +259,10 @@ describe("MeetingList", () => {
       projectName: "test-project",
     }) as AnyElement;
 
-    const gems = findComponentElements(el, "GemIndicator");
-    expect(gems).toHaveLength(1);
-    expect(gems[0].props.status).toBe("info");
+    const badges = findComponentElements(el, "StatusBadge");
+    expect(badges).toHaveLength(1);
+    expect(badges[0].props.gem).toBe("info");
+    expect(badges[0].props.label).toBe("closed");
   });
 
   test("renders meeting title from frontmatter", () => {
@@ -313,7 +315,7 @@ describe("MeetingList", () => {
     expect(containsText(el, "Researcher")).toBe(true);
   });
 
-  test("renders GemIndicator with pending status for requested meeting", () => {
+  test("renders StatusBadge with pending gem for requested meeting", () => {
     const meetings = [
       makeMeetingArtifact({
         meta: {
@@ -330,12 +332,13 @@ describe("MeetingList", () => {
       projectName: "test-project",
     }) as AnyElement;
 
-    const gems = findComponentElements(el, "GemIndicator");
-    expect(gems).toHaveLength(1);
-    expect(gems[0].props.status).toBe("pending");
+    const badges = findComponentElements(el, "StatusBadge");
+    expect(badges).toHaveLength(1);
+    expect(badges[0].props.gem).toBe("pending");
+    expect(badges[0].props.label).toBe("requested");
   });
 
-  test("renders GemIndicator with blocked status for declined meeting", () => {
+  test("renders StatusBadge with blocked gem for declined meeting", () => {
     const meetings = [
       makeMeetingArtifact({
         meta: {
@@ -352,9 +355,10 @@ describe("MeetingList", () => {
       projectName: "test-project",
     }) as AnyElement;
 
-    const gems = findComponentElements(el, "GemIndicator");
-    expect(gems).toHaveLength(1);
-    expect(gems[0].props.status).toBe("blocked");
+    const badges = findComponentElements(el, "StatusBadge");
+    expect(badges).toHaveLength(1);
+    expect(badges[0].props.gem).toBe("blocked");
+    expect(badges[0].props.label).toBe("declined");
   });
 
   test("requested meeting renders Accept link", () => {

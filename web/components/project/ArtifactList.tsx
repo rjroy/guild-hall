@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Panel from "@/web/components/ui/Panel";
-import GemIndicator from "@/web/components/ui/GemIndicator";
+import StatusBadge from "@/web/components/ui/StatusBadge";
 import EmptyState from "@/web/components/ui/EmptyState";
 import type { Artifact } from "@/lib/types";
 import { statusToGem } from "@/lib/types";
@@ -85,7 +85,7 @@ function TreeNodeRow({
               )}
             </div>
           </div>
-          <GemIndicator status={gemStatus} size="sm" />
+          <StatusBadge gem={gemStatus} label={node.artifact.meta.status} size="sm" />
         </Link>
       </li>
     );

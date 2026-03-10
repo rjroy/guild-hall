@@ -281,38 +281,41 @@ describe("CommissionList", () => {
     expect(containsText(el, "Short prompt")).toBe(true);
   });
 
-  test("renders GemIndicator with pending status for pending commission", () => {
+  test("renders StatusBadge with pending gem for pending commission", () => {
     const el = CommissionList({
       commissions: [makeCommission({ status: "pending" })],
       projectName: "test-project",
     }) as AnyElement;
 
-    const gems = findComponentElements(el, "GemIndicator");
-    expect(gems).toHaveLength(1);
-    expect(gems[0].props.status).toBe("pending");
-    expect(gems[0].props.size).toBe("sm");
+    const badges = findComponentElements(el, "StatusBadge");
+    expect(badges).toHaveLength(1);
+    expect(badges[0].props.gem).toBe("pending");
+    expect(badges[0].props.label).toBe("pending");
+    expect(badges[0].props.size).toBe("sm");
   });
 
-  test("renders GemIndicator with active status for in_progress commission", () => {
+  test("renders StatusBadge with active gem for in_progress commission", () => {
     const el = CommissionList({
       commissions: [makeCommission({ status: "in_progress" })],
       projectName: "test-project",
     }) as AnyElement;
 
-    const gems = findComponentElements(el, "GemIndicator");
-    expect(gems).toHaveLength(1);
-    expect(gems[0].props.status).toBe("active");
+    const badges = findComponentElements(el, "StatusBadge");
+    expect(badges).toHaveLength(1);
+    expect(badges[0].props.gem).toBe("active");
+    expect(badges[0].props.label).toBe("in_progress");
   });
 
-  test("renders GemIndicator with blocked status for failed commission", () => {
+  test("renders StatusBadge with blocked gem for failed commission", () => {
     const el = CommissionList({
       commissions: [makeCommission({ status: "failed" })],
       projectName: "test-project",
     }) as AnyElement;
 
-    const gems = findComponentElements(el, "GemIndicator");
-    expect(gems).toHaveLength(1);
-    expect(gems[0].props.status).toBe("blocked");
+    const badges = findComponentElements(el, "StatusBadge");
+    expect(badges).toHaveLength(1);
+    expect(badges[0].props.gem).toBe("blocked");
+    expect(badges[0].props.label).toBe("failed");
   });
 
   test("each commission links to its detail view", () => {

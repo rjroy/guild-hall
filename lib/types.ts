@@ -265,6 +265,16 @@ export function statusToGem(status: string): GemStatus {
   return "info";
 }
 
+/**
+ * Formats a raw status string for display. Replaces underscores with spaces
+ * and title-cases each word. "in_progress" -> "In Progress", "complete" -> "Complete".
+ */
+export function formatStatus(status: string): string {
+  return status
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // -- Error utilities --
 
 /**

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { statusToGem, VALID_MODELS, isValidModel, resolveModel } from "@/lib/types";
+import { statusToGem, formatStatus, VALID_MODELS, isValidModel, resolveModel } from "@/lib/types";
 import type { GemStatus, AppConfig, ModelDefinition } from "@/lib/types";
 
 describe("statusToGem", () => {
@@ -157,5 +157,35 @@ describe("resolveModel", () => {
 
   test("throws for local model name when config is omitted", () => {
     expect(() => resolveModel("llama3")).toThrow("Unknown model");
+  });
+});
+
+describe("formatStatus", () => {
+  test("single lowercase word is title-cased", () => {
+    expect(formatStatus("complete")).toBe("Complete");
+  });
+
+  test("underscores become spaces with title-casing", () => {
+    expect(formatStatus("in_progress")).toBe("In Progress");
+  });
+
+  test("single word without underscores", () => {
+    expect(formatStatus("wontfix")).toBe("Wontfix");
+  });
+
+  test("simple lowercase word", () => {
+    expect(formatStatus("open")).toBe("Open");
+  });
+
+  test("empty string returns empty string", () => {
+    expect(formatStatus("")).toBe("");
+  });
+
+  test("already-uppercase input is title-cased", () => {
+    expect(formatStatus("DONE")).toBe("DONE");
+  });
+
+  test("mixed case with underscores", () => {
+    expect(formatStatus("not_started")).toBe("Not Started");
   });
 });
