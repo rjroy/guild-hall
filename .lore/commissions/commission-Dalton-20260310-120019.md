@@ -1,7 +1,7 @@
 ---
 title: "Commission: Scheduled run of commission-Dalton-20260310-114942"
 date: 2026-03-10
-status: failed
+status: abandoned
 type: one-shot
 source_schedule: commission-Dalton-20260310-114942
 tags: [commission]
@@ -27,6 +27,11 @@ activity_timeline:
   - timestamp: 2026-03-10T19:00:27.126Z
     event: status_failed
     reason: "Session error: error_max_turns"
+  - timestamp: 2026-03-10T20:24:59.688Z
+    event: status_abandoned
+    reason: "Cannot finish"
+    from: "failed"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---

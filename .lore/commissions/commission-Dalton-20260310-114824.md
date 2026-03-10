@@ -1,7 +1,7 @@
 ---
 title: "Commission: Scheduled test: hello"
 date: 2026-03-10
-status: active
+status: completed
 type: scheduled
 tags: [commission, scheduled]
 worker: Dalton
@@ -27,6 +27,11 @@ activity_timeline:
     reason: "Spawned commission commission-Dalton-20260310-114919"
     spawned_id: "commission-Dalton-20260310-114919"
     run_number: "1"
+  - timestamp: 2026-03-10T20:24:41.447Z
+    event: schedule_completed
+    reason: "Schedule updated via API"
+    from: "active"
+    to: "completed"
 current_progress: ""
 projectName: guild-hall
 ---
