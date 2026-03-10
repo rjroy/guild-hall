@@ -1,7 +1,7 @@
 ---
 title: System model defaults implementation
 date: 2026-03-10
-status: draft
+status: implemented
 tags: [configuration, model-selection, daemon, memory-compaction, meeting-notes, briefing-generator, guild-master]
 modules: [config, daemon, memory-compaction, notes-generator, briefing-generator, manager]
 related:

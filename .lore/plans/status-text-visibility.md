@@ -1,7 +1,7 @@
 ---
 title: Status Text Visibility
 date: 2026-03-10
-status: draft
+status: approved
 tags: [ui, status, gem, list-views, accessibility]
 modules: [CommissionList, MeetingList, ArtifactList, RecentArtifacts, DependencyMap, StatusBadge]
 related:

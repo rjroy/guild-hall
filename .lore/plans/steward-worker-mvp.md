@@ -1,7 +1,7 @@
 ---
 title: "Plan: Steward Worker MVP"
 date: 2026-03-10
-status: draft
+status: approved
 tags: [workers, steward, email, packages, content]
 modules: [packages]
 related:
