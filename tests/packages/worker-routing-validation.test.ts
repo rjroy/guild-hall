@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as path from "node:path";
 
-type RoleLabel = "developer" | "reviewer" | "researcher" | "writer" | "test-engineer";
+type RoleLabel = "developer" | "reviewer" | "researcher" | "writer" | "test-engineer" | "steward";
 
 interface IntentFixture {
   name: string;
@@ -23,6 +23,7 @@ const roleOrder: RoleLabel[] = [
   "researcher",
   "writer",
   "test-engineer",
+  "steward",
 ];
 
 const rolePackageMap: Record<RoleLabel, string> = {
@@ -31,6 +32,7 @@ const rolePackageMap: Record<RoleLabel, string> = {
   researcher: "guild-hall-researcher",
   writer: "guild-hall-writer",
   "test-engineer": "guild-hall-test-engineer",
+  steward: "guild-hall-steward",
 };
 
 const routingSignals: Record<RoleLabel, Array<{ pattern: RegExp; weight: number }>> = {
@@ -53,6 +55,11 @@ const routingSignals: Record<RoleLabel, Array<{ pattern: RegExp; weight: number 
   "test-engineer": [
     { pattern: /\btest|verify|verification|regression|reproduce\b/i, weight: 3 },
     { pattern: /\bpass\/fail|failure|ci\b/i, weight: 2 },
+  ],
+  steward: [
+    { pattern: /\binbox|email|correspondence|triage\b/i, weight: 4 },
+    { pattern: /\bmeeting prep|briefing|thread\b/i, weight: 3 },
+    { pattern: /\bsender|mailbox|digest\b/i, weight: 2 },
   ],
 };
 
@@ -143,6 +150,7 @@ describe("worker routing deterministic validation", () => {
       researcher: [/\bbeyond the guild walls\b/i, /\bintelligence\b/i, /\bforge\b/i],
       writer: [/\bliving record\b/i, /\bdocuments\b/i, /\blore\b/i],
       "test-engineer": [/\bprobes\b/i, /\bseams\b/i, /\brepairs\b/i],
+      steward: [/\bhousehold\b/i, /\bcorrespondence\b/i, /\binbox\b/i],
     };
 
     for (const role of roleOrder) {

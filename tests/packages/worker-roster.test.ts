@@ -11,6 +11,7 @@ const expectedRosterPackageNames = [
   "guild-hall-researcher",
   "guild-hall-writer",
   "guild-hall-test-engineer",
+  "guild-hall-steward",
 ];
 
 const expectedRoleProfiles: Record<string, {
@@ -49,6 +50,12 @@ const expectedRoleProfiles: Record<string, {
     checkoutScope: "full",
     builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
   },
+  "guild-hall-steward": {
+    identityName: "Edmund",
+    descriptionIntent: /inbox|correspondence|household/i,
+    checkoutScope: "sparse",
+    builtInTools: ["Read", "Glob", "Grep", "Write", "Edit"],
+  },
 };
 
 const expectedPostureGuardrails: Record<string, RegExp[]> = {
@@ -79,6 +86,12 @@ const expectedPostureGuardrails: Record<string, RegExp[]> = {
     /repeatable on a clean checkout/i,
     /never use `mock\.module\(\)`/i,
   ],
+  "guild-hall-steward": [
+    /read before summarizing/i,
+    /advisory boundary/i,
+    /contacts\.md|preferences\.md|active-threads\.md/i,
+    /submit_result/i,
+  ],
 };
 
 function extractPostureSections(posture: string): string[] {
@@ -88,7 +101,7 @@ function extractPostureSections(posture: string): string[] {
 }
 
 describe("worker roster packages", () => {
-  test("discoverPackages finds all five default roster workers", async () => {
+  test("discoverPackages finds all six default roster workers", async () => {
     const packages = await discoverPackages([PACKAGES_DIR]);
     const discoveredNames = new Set(packages.map((pkg) => pkg.name));
 

@@ -6,8 +6,9 @@ import { activate as activateReviewer } from "@/packages/guild-hall-reviewer";
 import { activate as activateResearcher } from "@/packages/guild-hall-researcher";
 import { activate as activateWriter } from "@/packages/guild-hall-writer";
 import { activate as activateTestEngineer } from "@/packages/guild-hall-test-engineer";
+import { activate as activateSteward } from "@/packages/guild-hall-steward";
 
-type RoleLabel = "developer" | "reviewer" | "researcher" | "writer" | "test-engineer";
+type RoleLabel = "developer" | "reviewer" | "researcher" | "writer" | "test-engineer" | "steward";
 
 const PACKAGES_DIR = path.resolve(__dirname, "../../packages");
 
@@ -102,6 +103,17 @@ describe("worker role smoke tests", () => {
     expect(result.systemPrompt).toContain("verification-first and evidence-based");
   });
 
+  test("steward posture enforces advisory-only behavior", async () => {
+    const metadata = await readWorkerMetadata("guild-hall-steward");
+    const result = activateSteward(makeActivationContext(metadata.posture, metadata.soul));
+
+    expect(result.systemPrompt).toContain("advisory boundary");
+    expect(result.systemPrompt).toContain("submit_result");
+    expect(metadata.builtInTools).not.toContain("WebSearch");
+    expect(metadata.builtInTools).not.toContain("WebFetch");
+    expect(metadata.builtInTools).not.toContain("Bash");
+  });
+
   test("activation pass-through keeps resolved tool list unchanged", async () => {
     const metadataByRole: Record<RoleLabel, string> = {
       developer: "guild-hall-developer",
@@ -109,6 +121,7 @@ describe("worker role smoke tests", () => {
       researcher: "guild-hall-researcher",
       writer: "guild-hall-writer",
       "test-engineer": "guild-hall-test-engineer",
+      steward: "guild-hall-steward",
     };
 
     const activators: Record<RoleLabel, (context: ActivationContext) => ReturnType<typeof activateDeveloper>> = {
@@ -117,6 +130,7 @@ describe("worker role smoke tests", () => {
       researcher: activateResearcher,
       writer: activateWriter,
       "test-engineer": activateTestEngineer,
+      steward: activateSteward,
     };
 
     for (const role of Object.keys(metadataByRole) as RoleLabel[]) {
@@ -136,6 +150,7 @@ describe("worker role smoke tests", () => {
       researcher: "guild-hall-researcher",
       writer: "guild-hall-writer",
       "test-engineer": "guild-hall-test-engineer",
+      steward: "guild-hall-steward",
     };
 
     const activators: Record<RoleLabel, (context: ActivationContext) => ReturnType<typeof activateDeveloper>> = {
@@ -144,6 +159,7 @@ describe("worker role smoke tests", () => {
       researcher: activateResearcher,
       writer: activateWriter,
       "test-engineer": activateTestEngineer,
+      steward: activateSteward,
     };
 
     for (const role of Object.keys(roles) as RoleLabel[]) {
