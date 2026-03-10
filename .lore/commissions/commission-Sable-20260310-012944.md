@@ -1,7 +1,7 @@
 ---
 title: "Commission: Validate system model defaults tests and coverage"
 date: 2026-03-10
-status: cancelled
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Sable
@@ -23,6 +23,16 @@ activity_timeline:
   - timestamp: 2026-03-10T08:30:50.439Z
     event: status_cancelled
     reason: "Commission cancelled by user"
+  - timestamp: 2026-03-10T08:55:28.208Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "cancelled"
+    to: "pending"
+  - timestamp: 2026-03-10T08:55:28.209Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
