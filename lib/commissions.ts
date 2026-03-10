@@ -255,7 +255,7 @@ const STATUS_GROUP: Record<string, number> = {
   active: 1,
   failed: 2,
   cancelled: 2,
-  abandoned: 2,
+  abandoned: 3,
   completed: 3,
 };
 
