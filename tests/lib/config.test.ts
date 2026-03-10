@@ -290,6 +290,28 @@ describe("modelDefinitionSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  test("guidance is optional", () => {
+    const result = modelDefinitionSchema.safeParse({
+      name: "test",
+      modelId: "test",
+      baseUrl: "http://localhost:11434",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("accepts guidance string", () => {
+    const result = modelDefinitionSchema.safeParse({
+      name: "test",
+      modelId: "test",
+      baseUrl: "http://localhost:11434",
+      guidance: "Use for fast local inference on bounded tasks.",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.guidance).toBe("Use for fast local inference on bounded tasks.");
+    }
+  });
 });
 
 describe("appConfigSchema models validation", () => {

@@ -69,11 +69,13 @@ import {
   prepareSdkSession,
   drainSdkSession,
   runSdkSession,
+  prefixLocalModelError,
   type SessionPrepSpec,
   type SessionPrepDeps,
   type SdkRunnerOutcome,
   type SdkQueryOptions,
 } from "@/daemon/lib/agent-sdk/sdk-runner";
+import type { ResolvedModel } from "@/lib/types";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { isAtCapacity } from "@/daemon/services/commission/capacity";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
@@ -501,6 +503,7 @@ export function createCommissionOrchestrator(
     ctx: ExecutionContext,
     outcome: SdkRunnerOutcome,
     resultSubmitted: boolean,
+    resolvedModel?: ResolvedModel,
   ): Promise<void> {
     // If the commission was already cancelled/aborted, the cancel flow
     // handles cleanup. Just exit.
@@ -525,7 +528,7 @@ export function createCommissionOrchestrator(
       } else {
         // No result submitted: fail
         const reason = outcome.error
-          ? `Session error: ${outcome.error}`
+          ? `Session error: ${prefixLocalModelError(outcome.error, resolvedModel)}`
           : "Session completed without submitting result";
 
         await failAndCleanup(ctx, reason);
@@ -623,7 +626,7 @@ export function createCommissionOrchestrator(
     }
   }
 
-  async function handleSessionError(ctx: ExecutionContext, error: unknown): Promise<void> {
+  async function handleSessionError(ctx: ExecutionContext, error: unknown, resolvedModel?: ResolvedModel): Promise<void> {
     const currentStatus = lifecycle.getStatus(ctx.commissionId);
     if (!currentStatus || currentStatus === "cancelled" || currentStatus === "failed") {
       executions.delete(ctx.commissionId);
@@ -631,9 +634,8 @@ export function createCommissionOrchestrator(
       return;
     }
 
-    const reason = error instanceof Error
-      ? `Session error: ${error.message}`
-      : `Session error: ${String(error)}`;
+    const rawMsg = error instanceof Error ? error.message : String(error);
+    const reason = `Session error: ${prefixLocalModelError(rawMsg, resolvedModel)}`;
 
     try {
       await failAndCleanup(ctx, reason);
@@ -1805,6 +1807,8 @@ projectName: ${projectName}
       }
     });
 
+    let resolvedModel: ResolvedModel | undefined;
+
     try {
       // 1. Prepare the SDK session (resolve tools, load memory, activate worker)
       const prepResult = await prepareSdkSession(prepSpec, prepDeps);
@@ -1812,6 +1816,8 @@ projectName: ${projectName}
         await handleSessionError(ctx, new Error(prepResult.error));
         return;
       }
+
+      resolvedModel = prepResult.result.resolvedModel;
 
       // 2. Run and drain the SDK session
       const { options } = prepResult.result;
@@ -1850,10 +1856,10 @@ projectName: ${projectName}
       }
 
       // 4. Normal completion path
-      await handleSessionCompletion(ctx, outcome, resultSubmitted);
+      await handleSessionCompletion(ctx, outcome, resultSubmitted, resolvedModel);
     } catch (err: unknown) {
       try {
-        await handleSessionError(ctx, err);
+        await handleSessionError(ctx, err, resolvedModel);
       } catch (innerErr: unknown) {
         console.error(
           `[orchestrator] handleSessionError failed for ${ctx.commissionId as string}:`,

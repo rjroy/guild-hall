@@ -12,6 +12,7 @@ import type {
   ActivationResult,
   AppConfig,
   DiscoveredPackage,
+  ResolvedModel,
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
@@ -109,7 +110,7 @@ export type SessionPrepDeps = {
   memoryLimit?: number;
 };
 
-export type SessionPrepResult = { options: SdkQueryOptions };
+export type SessionPrepResult = { options: SdkQueryOptions; resolvedModel?: ResolvedModel };
 
 export type SdkRunnerOutcome = {
   sessionId: string | null;
@@ -222,6 +223,15 @@ export async function defaultCheckReachability(
   }
 }
 
+/** Prefixes an error message with local model context when applicable. */
+export function prefixLocalModelError(error: string, resolvedModel?: ResolvedModel): string {
+  if (resolvedModel?.type === "local") {
+    const { name, baseUrl } = resolvedModel.definition;
+    return `Local model "${name}" (${baseUrl}) error: ${error}`;
+  }
+  return error;
+}
+
 /** 5-step setup: find worker, resolve tools, load memories, activate, build options. */
 export async function prepareSdkSession(
   spec: SessionPrepSpec,
@@ -314,6 +324,7 @@ export async function prepareSdkSession(
         maxTurns: workerMeta.resourceDefaults?.maxTurns,
         maxBudgetUsd: workerMeta.resourceDefaults?.maxBudgetUsd,
       },
+      localModelDefinitions: spec.config.models,
       projectPath: spec.projectPath,
       workingDirectory: spec.workspaceDir,
       ...spec.activationExtras,
@@ -387,5 +398,5 @@ export async function prepareSdkSession(
   };
 
   log(`prepared session. systemPrompt length=${activation.systemPrompt.length}`);
-  return { ok: true, result: { options } };
+  return { ok: true, result: { options, resolvedModel: resolvedModelResult } };
 }

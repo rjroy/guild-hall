@@ -19,6 +19,7 @@ export interface ModelDefinition {
     token?: string;
     apiKey?: string;
   };
+  guidance?: string;
 }
 
 export interface AppConfig {
@@ -200,6 +201,8 @@ export interface ActivationContext {
   };
   /** System state summary for the Guild Master. Populated by the daemon when activating the manager worker. */
   managerContext?: string;
+  /** Local model definitions from config, for assembling model guidance (REQ-LOCAL-20). */
+  localModelDefinitions?: ModelDefinition[];
   projectPath: string;
   workingDirectory: string;
 }

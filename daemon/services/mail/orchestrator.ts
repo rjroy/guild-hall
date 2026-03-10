@@ -20,7 +20,8 @@ import { createMailRecordOps } from "@/daemon/services/mail/record";
 import type { MailRecordOps, ParsedMailFile } from "@/daemon/services/mail/record";
 import type { SleepingCommissionState, PendingMail } from "@/daemon/services/mail/types";
 import type { SdkRunnerOutcome, SessionPrepSpec, SessionPrepDeps, SdkQueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
-import { prepareSdkSession, runSdkSession, drainSdkSession } from "@/daemon/lib/agent-sdk/sdk-runner";
+import { prepareSdkSession, runSdkSession, drainSdkSession, prefixLocalModelError } from "@/daemon/lib/agent-sdk/sdk-runner";
+import type { ResolvedModel } from "@/lib/types";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { commissionArtifactPath } from "@/lib/paths";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
@@ -379,6 +380,8 @@ export function createMailOrchestrator(
           throw new Error(prepResult.error);
         }
 
+        const readerResolvedModel = prepResult.result.resolvedModel;
+
         // 8. Build the activation prompt (REQ-MAIL-25)
         const activationPrompt = buildReaderPrompt(mailData, commissionTitle, activation.workerName);
 
@@ -390,7 +393,7 @@ export function createMailOrchestrator(
         );
 
         // 10. Handle reader completion
-        await handleReaderCompletion(activation, contextId, outcome, replyReceived, mailData);
+        await handleReaderCompletion(activation, contextId, outcome, replyReceived, mailData, readerResolvedModel);
       } finally {
         unsubscribe();
       }
@@ -440,6 +443,7 @@ export function createMailOrchestrator(
     outcome: SdkRunnerOutcome,
     replyReceived: boolean,
     _mailData: ParsedMailFile,
+    resolvedModel?: ResolvedModel,
   ): Promise<void> {
     const { commissionId, worktreeDir, readerWorkerName, mailFilePath } = activation;
 
@@ -461,7 +465,7 @@ export function createMailOrchestrator(
       updatedMail = await mailRecordOps.readMailFile(mailFilePath);
       wakePrompt = buildReplyWakePrompt(updatedMail, readerWorkerName, mailFilePath);
     } else if (outcome.error) {
-      wakePrompt = buildErrorWakePrompt(readerWorkerName, outcome.error);
+      wakePrompt = buildErrorWakePrompt(readerWorkerName, prefixLocalModelError(outcome.error, resolvedModel));
     } else if (outcome.aborted) {
       wakePrompt = buildNoReplyWakePrompt(readerWorkerName, "was stopped before completing");
     } else if (outcome.reason === "maxTurns") {
@@ -602,6 +606,8 @@ export function createMailOrchestrator(
       }
     });
 
+    let resumeResolvedModel: ResolvedModel | undefined;
+
     try {
       const prepSpec: SessionPrepSpec = {
         workerName,
@@ -637,6 +643,7 @@ export function createMailOrchestrator(
         return;
       }
 
+      resumeResolvedModel = prepResult.result.resolvedModel;
       const { options } = prepResult.result;
       const outcome = await drainSdkSession(
         runSdkSession(queryFn, wakePrompt, options),
@@ -675,9 +682,10 @@ export function createMailOrchestrator(
         );
       }
     } catch (err: unknown) {
-      console.error(`[mail-orchestrator] resume session error for "${commissionId as string}":`, errorMessage(err));
+      const errMsg = prefixLocalModelError(errorMessage(err), resumeResolvedModel);
+      console.error(`[mail-orchestrator] resume session error for "${commissionId as string}":`, errMsg);
       try {
-        await lifecycle.executionFailed(commissionId, `Resume error: ${errorMessage(err)}`);
+        await lifecycle.executionFailed(commissionId, `Resume error: ${errMsg}`);
       } catch (innerErr: unknown) {
         console.error(`[mail-orchestrator] executionFailed threw:`, errorMessage(innerErr));
       }

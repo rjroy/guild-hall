@@ -44,6 +44,7 @@ export const modelDefinitionSchema = z.object({
     { message: "baseUrl must be a valid HTTP or HTTPS URL" },
   ),
   auth: modelAuthSchema.optional(),
+  guidance: z.string().optional(),
 });
 
 export const appConfigSchema = z.object({

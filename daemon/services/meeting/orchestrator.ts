@@ -37,10 +37,12 @@ import {
   prepareSdkSession,
   runSdkSession,
   isSessionExpiryError,
+  prefixLocalModelError,
   type SessionPrepSpec,
   type SessionPrepDeps,
   type SdkQueryOptions,
 } from "@/daemon/lib/agent-sdk/sdk-runner";
+import type { ResolvedModel } from "@/lib/types";
 import type { GuildHallEvent, MeetingId, MeetingStatus, SdkSessionId } from "@/daemon/types";
 import { asMeetingId, asSdkSessionId } from "@/daemon/types";
 import {
@@ -497,6 +499,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     prompt: string,
     options: SdkQueryOptions,
     suppressExpiryErrors: boolean,
+    resolvedModel?: ResolvedModel,
   ): AsyncGenerator<GuildHallEvent, { lastError: string | null; hasExpiryError: boolean }> {
     if (!deps.queryFn) {
       yield { type: "error", reason: "No queryFn provided" };
@@ -549,12 +552,13 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         yield { type: "error", reason: "Turn interrupted" };
       } else if (event.type === "error") {
         // Track for post-loop session expiry detection
-        lastError = event.reason;
+        const prefixed = prefixLocalModelError(event.reason, resolvedModel);
+        lastError = prefixed;
         if (isSessionExpiryError(event.reason)) {
           hasExpiryError = true;
         }
         if (!suppressExpiryErrors || !isSessionExpiryError(event.reason)) {
-          yield event;
+          yield { type: "error", reason: prefixed };
         }
       } else {
         // text_delta, tool_use, tool_result, turn_end pass through
@@ -601,7 +605,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     }
 
     const sdkPrompt = opts?.isInitial ? MEETING_GREETING_PROMPT : prompt;
-    yield* iterateSession(meeting, sdkPrompt, prep.result.options, false);
+    yield* iterateSession(meeting, sdkPrompt, prep.result.options, false, prep.result.resolvedModel);
 
     // Update state file with captured session ID
     try {
@@ -1030,6 +1034,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       message,
       resumePrep.result.options,
       true,
+      resumePrep.result.resolvedModel,
     );
 
     const needsRenewal = lastError !== null && hasExpiryError;

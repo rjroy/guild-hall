@@ -31,6 +31,7 @@ import { noopEventBus } from "@/daemon/lib/event-bus";
 import {
   prepareSdkSession,
   runSdkSession,
+  prefixLocalModelError,
   type SessionPrepDeps,
   type SessionPrepSpec,
 } from "@/daemon/lib/agent-sdk/sdk-runner";
@@ -397,6 +398,7 @@ async function generateWithFullSdk(
       return generateTemplateBriefing(context);
     }
 
+    const resolvedModel = prepResult.result.resolvedModel;
     const options = prepResult.result.options;
     const generator = runSdkSession(queryFn, BRIEFING_PROMPT, options);
     const text = await collectRunnerText(generator);
@@ -407,7 +409,7 @@ async function generateWithFullSdk(
     }
     return text;
   } catch (err: unknown) {
-    const reason = errorMessage(err);
+    const reason = prefixLocalModelError(errorMessage(err), undefined);
     console.error(`[briefing-generator] SDK session failed for "${projectName}": ${reason}`);
     return generateTemplateBriefing(context);
   }

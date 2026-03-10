@@ -4,10 +4,12 @@ import {
   MANAGER_PACKAGE_NAME,
   createManagerPackage,
   activateManager,
+  buildModelGuidance,
 } from "@/daemon/services/manager/worker";
 import { workerMetadataSchema } from "@/lib/packages";
 import type {
   ActivationContext,
+  ModelDefinition,
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
@@ -318,5 +320,126 @@ describe("manager posture content", () => {
     expect(meta.posture).not.toContain("## Character");
     expect(meta.posture).not.toContain("## Voice");
     expect(meta.posture).not.toContain("## Vibe");
+  });
+
+  test("manager posture base does not contain hardcoded model guidance", () => {
+    const pkg = createManagerPackage();
+    const meta = pkg.metadata as WorkerMetadata;
+    // Model guidance is now built dynamically in activateManager
+    expect(meta.posture).not.toContain("## Model Selection");
+    expect(meta.posture).not.toContain("Model guidance:");
+  });
+});
+
+// -- buildModelGuidance tests (REQ-LOCAL-20) --
+
+describe("buildModelGuidance", () => {
+  test("includes built-in model guidance for Haiku, Sonnet, and Opus", () => {
+    const guidance = buildModelGuidance();
+    expect(guidance).toContain("**Haiku:**");
+    expect(guidance).toContain("**Sonnet:**");
+    expect(guidance).toContain("**Opus:**");
+  });
+
+  test("includes Model Selection header and override instructions", () => {
+    const guidance = buildModelGuidance();
+    expect(guidance).toContain("## Model Selection");
+    expect(guidance).toContain("resourceOverrides");
+  });
+
+  test("includes local model guidance when provided", () => {
+    const localModels: ModelDefinition[] = [
+      {
+        name: "llama3",
+        modelId: "llama3:latest",
+        baseUrl: "http://localhost:11434",
+        guidance: "Fast local inference for simple tasks.",
+      },
+    ];
+    const guidance = buildModelGuidance(localModels);
+    expect(guidance).toContain("**llama3:**");
+    expect(guidance).toContain("Fast local inference for simple tasks.");
+  });
+
+  test("skips local models without guidance field", () => {
+    const localModels: ModelDefinition[] = [
+      {
+        name: "llama3",
+        modelId: "llama3:latest",
+        baseUrl: "http://localhost:11434",
+        // no guidance
+      },
+    ];
+    const guidance = buildModelGuidance(localModels);
+    expect(guidance).not.toContain("**llama3:**");
+  });
+
+  test("combines built-in and local model guidance", () => {
+    const localModels: ModelDefinition[] = [
+      {
+        name: "deepseek",
+        modelId: "deepseek-coder:latest",
+        baseUrl: "http://localhost:11434",
+        guidance: "Strong at code generation. Use for implementation tasks.",
+      },
+    ];
+    const guidance = buildModelGuidance(localModels);
+    // Built-in models present
+    expect(guidance).toContain("**Haiku:**");
+    expect(guidance).toContain("**Sonnet:**");
+    expect(guidance).toContain("**Opus:**");
+    // Local model present
+    expect(guidance).toContain("**deepseek:**");
+    expect(guidance).toContain("Strong at code generation.");
+  });
+
+  test("handles empty local models array", () => {
+    const guidance = buildModelGuidance([]);
+    expect(guidance).toContain("**Haiku:**");
+    expect(guidance).toContain("**Sonnet:**");
+    expect(guidance).toContain("**Opus:**");
+  });
+
+  test("handles undefined local models", () => {
+    const guidance = buildModelGuidance(undefined);
+    expect(guidance).toContain("**Haiku:**");
+  });
+});
+
+describe("activateManager model guidance integration", () => {
+  test("system prompt includes built-in model guidance", () => {
+    const context = makeContext({ posture: "Test posture." });
+    const result = activateManager(context);
+    expect(result.systemPrompt).toContain("## Model Selection");
+    expect(result.systemPrompt).toContain("**Haiku:**");
+    expect(result.systemPrompt).toContain("**Sonnet:**");
+    expect(result.systemPrompt).toContain("**Opus:**");
+  });
+
+  test("system prompt includes local model guidance from context", () => {
+    const localModels: ModelDefinition[] = [
+      {
+        name: "llama3",
+        modelId: "llama3:latest",
+        baseUrl: "http://localhost:11434",
+        guidance: "Use for bounded, predictable local tasks.",
+      },
+    ];
+    const context = makeContext({
+      posture: "Test posture.",
+      localModelDefinitions: localModels,
+    });
+    const result = activateManager(context);
+    expect(result.systemPrompt).toContain("**llama3:**");
+    expect(result.systemPrompt).toContain("Use for bounded, predictable local tasks.");
+  });
+
+  test("model guidance appears after posture base in system prompt", () => {
+    const context = makeContext({ posture: "POSTURE_BASE_TEXT" });
+    const result = activateManager(context);
+    const postureIdx = result.systemPrompt.indexOf("POSTURE_BASE_TEXT");
+    const guidanceIdx = result.systemPrompt.indexOf("## Model Selection");
+    expect(postureIdx).toBeGreaterThanOrEqual(0);
+    expect(guidanceIdx).toBeGreaterThan(postureIdx);
   });
 });
