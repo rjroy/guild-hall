@@ -23,6 +23,7 @@ import {
   meetingArtifactPath,
   appendMeetingLog,
   addLinkedArtifact,
+  renameMeetingArtifact,
 } from "@/daemon/services/meeting/record";
 import { validateContainedPath, formatTimestamp, resolveWritePath } from "@/daemon/lib/toolbox-utils";
 import { integrationWorktreePath } from "@/lib/paths";
@@ -180,6 +181,53 @@ export function makeSummarizeProgressHandler(deps: MeetingToolboxDeps) {
   };
 }
 
+export function makeRenameMeetingHandler(deps: MeetingToolboxDeps) {
+  const mid = asMeetingId(deps.contextId);
+
+  return async (args: { title: string }): Promise<ToolResult> => {
+    const trimmed = args.title.trim();
+
+    if (trimmed.length === 0) {
+      return {
+        content: [{ type: "text", text: "Title must not be empty." }],
+        isError: true,
+      };
+    }
+
+    if (trimmed.length > 200) {
+      return {
+        content: [{
+          type: "text",
+          text: `Title must be 200 characters or fewer (received ${trimmed.length}).`,
+        }],
+        isError: true,
+      };
+    }
+
+    if (/[\n\r]/.test(trimmed)) {
+      return {
+        content: [{ type: "text", text: "Title must not contain newline or carriage return characters." }],
+        isError: true,
+      };
+    }
+
+    const writePath = await resolveWritePath(
+      deps.guildHallHome, deps.projectName, deps.contextId, "meeting",
+    );
+    const { renamed } = await renameMeetingArtifact(writePath, mid, trimmed);
+
+    if (!renamed) {
+      return {
+        content: [{ type: "text", text: "No change: title is already set to that value." }],
+      };
+    }
+
+    return {
+      content: [{ type: "text", text: `Meeting renamed to: ${trimmed}` }],
+    };
+  };
+}
+
 /** ToolboxFactory adapter for the meeting toolbox. */
 export const meetingToolboxFactory: ToolboxFactory = (deps) => ({
   server: createMeetingToolbox(deps),
@@ -198,6 +246,7 @@ export function createMeetingToolbox(
   const linkArtifact = makeLinkArtifactHandler(deps);
   const proposeFollowup = makeProposeFollowupHandler(deps);
   const summarizeProgress = makeSummarizeProgressHandler(deps);
+  const renameMeeting = makeRenameMeetingHandler(deps);
 
   return createSdkMcpServer({
     name: "guild-hall-meeting",
@@ -227,6 +276,14 @@ export function createMeetingToolbox(
           summary: z.string(),
         },
         (args) => summarizeProgress(args),
+      ),
+      tool(
+        "rename_meeting",
+        "Rename this meeting to a more descriptive title. The new title appears in meeting listing views. Use this once you have enough context to give the meeting a name that will be meaningful when the user returns to it later.",
+        {
+          title: z.string(),
+        },
+        (args) => renameMeeting(args),
       ),
     ],
   });
