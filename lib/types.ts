@@ -22,9 +22,17 @@ export interface ModelDefinition {
   guidance?: string;
 }
 
+export interface SystemModels {
+  memoryCompaction?: string;
+  meetingNotes?: string;
+  briefing?: string;
+  guildMaster?: string;
+}
+
 export interface AppConfig {
   projects: ProjectConfig[];
   models?: ModelDefinition[];
+  systemModels?: SystemModels;
   settings?: Record<string, unknown>;
   maxConcurrentCommissions?: number;
   maxConcurrentMailReaders?: number;

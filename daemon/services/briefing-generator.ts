@@ -382,7 +382,7 @@ async function generateWithFullSdk(
     contextType: "briefing",
     eventBus: noopEventBus,
     abortController,
-    resourceOverrides: { maxTurns: 200, model: "sonnet" },
+    resourceOverrides: { maxTurns: 200, model: deps.config.systemModels?.briefing ?? "sonnet" },
     activationExtras: { managerContext: context },
   };
 

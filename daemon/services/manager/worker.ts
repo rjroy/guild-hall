@@ -2,6 +2,7 @@ import * as path from "node:path";
 import type {
   ActivationContext,
   ActivationResult,
+  AppConfig,
   DiscoveredPackage,
   ModelDefinition,
   ModelName,
@@ -102,7 +103,7 @@ export function buildModelGuidance(localModels?: ModelDefinition[]): string {
  * The empty `path` signals that this package is built into the daemon,
  * not loaded from the filesystem.
  */
-export function createManagerPackage(): DiscoveredPackage {
+export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
   const metadata: WorkerMetadata = {
     type: "worker",
     identity: {
@@ -114,7 +115,9 @@ export function createManagerPackage(): DiscoveredPackage {
     },
     posture: MANAGER_POSTURE_BASE,
     soul: MANAGER_SOUL,
-    model: "opus" as ModelName,
+    // Cast: model may be a local name string at this point.
+    // prepareSdkSession resolves it via resolveModel() at activation time.
+    model: (config?.systemModels?.guildMaster ?? "opus") as ModelName,
     systemToolboxes: ["manager"],
     domainToolboxes: [],
     builtInTools: ["Read", "Glob", "Grep"],

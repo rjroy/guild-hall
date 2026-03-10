@@ -16,7 +16,8 @@ import { readTranscript } from "@/daemon/services/meeting/transcript";
 import { readLinkedArtifacts } from "@/daemon/services/meeting/record";
 import type { MeetingId } from "@/daemon/types";
 import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
-import { isNodeError } from "@/lib/types";
+import { isNodeError, resolveModel } from "@/lib/types";
+import type { AppConfig } from "@/lib/types";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 
@@ -34,6 +35,7 @@ export type NotesQueryFn = (params: {
 export interface NotesGeneratorDeps {
   guildHallHome?: string;
   queryFn?: NotesQueryFn;
+  config?: AppConfig;
 }
 
 // -- Constants --
@@ -153,14 +155,36 @@ Generate concise meeting notes covering:
 
 Use plain text, no markdown headers. Be factual, not conversational.`;
 
-  // 5. Call queryFn
+  // 5. Resolve configured model (falls back to "sonnet")
+  const rawModelName = deps.config?.systemModels?.meetingNotes ?? "sonnet";
+  let notesModel: string = rawModelName;
+  let notesEnv: Record<string, string | undefined> | undefined;
+
+  try {
+    const resolved = resolveModel(rawModelName, deps.config);
+    if (resolved.type === "local") {
+      const { definition } = resolved;
+      notesModel = definition.modelId;
+      notesEnv = {
+        ...process.env,
+        ANTHROPIC_BASE_URL: definition.baseUrl,
+        ANTHROPIC_AUTH_TOKEN: definition.auth?.token ?? "ollama",
+        ANTHROPIC_API_KEY: definition.auth?.apiKey ?? "",
+      };
+    }
+  } catch {
+    return { success: false, reason: `Notes generation failed: unrecognized model "${rawModelName}"` };
+  }
+
+  // 6. Call queryFn
   try {
     const generator = deps.queryFn({
       prompt,
       options: {
         systemPrompt: "You are a meeting notes generator. Produce clear, concise summaries.",
         maxTurns: 1,
-        model: "sonnet",
+        model: notesModel,
+        ...(notesEnv ? { env: notesEnv } : {}),
         permissionMode: "dontAsk",
         settingSources: [],
       },

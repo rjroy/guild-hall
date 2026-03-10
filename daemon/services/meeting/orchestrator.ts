@@ -416,6 +416,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
           void triggerCompaction(workerName, projectName, {
             guildHallHome: opts.guildHallHome,
             compactFn: deps.queryFn!,
+            config: deps.config,
           });
         }
       : undefined,
@@ -1127,7 +1128,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
           meetingId,
           meeting.worktreeDir,
           meeting.workerName,
-          { guildHallHome: ghHome, queryFn: deps.notesQueryFn },
+          { guildHallHome: ghHome, queryFn: deps.notesQueryFn, config: deps.config },
         );
       } catch (err: unknown) {
         const errMsg = errorMessage(err);
