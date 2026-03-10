@@ -1,7 +1,7 @@
 ---
 title: "Meeting request: Discuss open questions in the local model support plan (.lore/plans/local-model-support.md). The spec is approved but the plan has design decisions that need user input before implementation can start."
 date: 2026-03-09
-status: requested
+status: open
 tags: [meeting]
 worker: Octavia
 workerDisplayTitle: "Octavia"
