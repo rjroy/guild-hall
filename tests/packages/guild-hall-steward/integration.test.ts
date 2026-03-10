@@ -76,7 +76,7 @@ describe("guild-hall-steward package", () => {
       expect(metadata.soul).toBeDefined();
       expect(metadata.soul!.length).toBeGreaterThan(0);
       expect(metadata.posture).toBeDefined();
-      expect(metadata.posture!.length).toBeGreaterThan(0);
+      expect(metadata.posture.length).toBeGreaterThan(0);
     });
 
     test("metadata validates against packageMetadataSchema", async () => {

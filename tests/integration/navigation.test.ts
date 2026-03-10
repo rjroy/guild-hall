@@ -498,8 +498,8 @@ describe("status mapping completeness", () => {
     // Phase 3 meeting states: requested, open, closed, declined
     expect(statusToGem("requested")).toBe("pending");
     expect(statusToGem("open")).toBe("pending");
-    expect(statusToGem("declined")).toBe("blocked");
-    // "closed" is not in any explicit set, falls through to "info"
+    // "declined" and "closed" are terminal states, fall through to "info"
+    expect(statusToGem("declined")).toBe("info");
     expect(statusToGem("closed")).toBe("info");
   });
 });
@@ -956,8 +956,8 @@ describe("declined meeting navigation", () => {
     expect(meetingStatusToGem("declined")).toBe("blocked");
   });
 
-  test("declined meeting gets red gem via statusToGem", () => {
-    expect(statusToGem("declined")).toBe("blocked");
+  test("declined meeting gets info gem via statusToGem", () => {
+    expect(statusToGem("declined")).toBe("info");
   });
 
   test("declined meeting artifact routes to artifact view (read-only) via artifactHref", async () => {

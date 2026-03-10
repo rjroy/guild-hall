@@ -4,12 +4,10 @@ import type { GemStatus, AppConfig, ModelDefinition } from "@/lib/types";
 
 describe("statusToGem", () => {
   const cases: Array<[string, GemStatus]> = [
-    // Active (green)
+    // Active (green) - in-progress and active states
     ["approved", "active"],
     ["active", "active"],
     ["current", "active"],
-    ["complete", "active"],
-    ["resolved", "active"],
     // Case-insensitive
     ["Approved", "active"],
     ["ACTIVE", "active"],
@@ -22,25 +20,27 @@ describe("statusToGem", () => {
     ["Draft", "pending"],
     ["Requested", "pending"],
 
-    // Blocked (red)
-    ["superseded", "blocked"],
-    ["outdated", "blocked"],
-    ["wontfix", "blocked"],
-    ["declined", "blocked"],
-    ["abandoned", "blocked"],
-    ["Superseded", "blocked"],
-    ["Declined", "blocked"],
+    // Blocked (red) - hard failures only
+    ["failed", "blocked"],
+    ["cancelled", "blocked"],
 
     // Commission-specific statuses
     ["dispatched", "active"],
     ["in_progress", "active"],
     ["sleeping", "active"],
-    ["completed", "active"],
-    ["failed", "blocked"],
-    ["cancelled", "blocked"],
     ["blocked", "pending"],
 
-    // Info (blue) - recognized
+    // Info (blue) - terminal states (no action needed)
+    ["complete", "info"],
+    ["completed", "info"],
+    ["resolved", "info"],
+    ["superseded", "info"],
+    ["outdated", "info"],
+    ["wontfix", "info"],
+    ["declined", "info"],
+    ["abandoned", "info"],
+    ["Superseded", "info"],
+    ["Declined", "info"],
     ["implemented", "info"],
     ["archived", "info"],
 

@@ -253,21 +253,22 @@ describe("sortCommissions", () => {
     expect(result[1].status).toBe("completed");
   });
 
-  test("abandoned sorts before completed", () => {
+  test("abandoned and completed share same group (newest first)", () => {
     const abandoned = makeCommission("abandoned", "2026-01-01");
     const completed = makeCommission("completed", "2026-01-02");
     const result = sortCommissions([completed, abandoned]);
-    expect(result[0].status).toBe("abandoned");
-    expect(result[1].status).toBe("completed");
+    // Same group (3), newest first
+    expect(result[0].status).toBe("completed");
+    expect(result[1].status).toBe("abandoned");
   });
 
-  test("full group order: pending, sleeping, abandoned, completed", () => {
+  test("full group order: pending, sleeping, failed, completed/abandoned", () => {
     const pending = makeCommission("pending", "2026-01-03");
     const sleeping = makeCommission("sleeping", "2026-01-02");
-    const abandoned = makeCommission("abandoned", "2026-01-01");
+    const failed = makeCommission("failed", "2026-01-01");
     const completed = makeCommission("completed", "2026-01-04");
-    const result = sortCommissions([completed, abandoned, sleeping, pending]);
-    expect(result.map((c) => c.status)).toEqual(["pending", "sleeping", "abandoned", "completed"]);
+    const result = sortCommissions([completed, failed, sleeping, pending]);
+    expect(result.map((c) => c.status)).toEqual(["pending", "sleeping", "failed", "completed"]);
   });
 
   test("sleeping sorts with active group (before failed)", () => {

@@ -120,15 +120,15 @@ describe("scanArtifacts", () => {
     await writeTestArtifact("impl.md", "title: Implemented Item\nstatus: implemented\ndate: 2026-03-01", "Body");
     await writeTestArtifact("draft.md", "title: Draft Item\nstatus: draft\ndate: 2026-01-01", "Body");
     await writeTestArtifact("active.md", "title: Active Item\nstatus: active\ndate: 2026-02-01", "Body");
-    await writeTestArtifact("abandoned.md", "title: Abandoned Item\nstatus: abandoned\ndate: 2026-02-15", "Body");
+    await writeTestArtifact("failed.md", "title: Failed Item\nstatus: failed\ndate: 2026-02-15", "Body");
 
     const artifacts = await scanArtifacts(tmpDir);
     expect(artifacts).toHaveLength(4);
-    // Group 0 (active work) -> Group 1 (in progress) -> Group 2 (terminal) -> Group 3 (closed negative)
+    // Group 0 (active work) -> Group 1 (in progress) -> Group 2 (hard failures) -> Group 3 (terminal)
     expect(artifacts[0].meta.status).toBe("draft");
     expect(artifacts[1].meta.status).toBe("active");
-    expect(artifacts[2].meta.status).toBe("implemented");
-    expect(artifacts[3].meta.status).toBe("abandoned");
+    expect(artifacts[2].meta.status).toBe("failed");
+    expect(artifacts[3].meta.status).toBe("implemented");
   });
 
   test("returns empty array for nonexistent directory", async () => {
@@ -381,16 +381,16 @@ describe("artifactStatusPriority", () => {
     }
   });
 
-  test("terminal statuses map to group 2", () => {
-    const terminalStatuses = ["complete", "resolved", "implemented"];
-    for (const status of terminalStatuses) {
+  test("hard failures map to group 2", () => {
+    const failureStatuses = ["failed", "cancelled"];
+    for (const status of failureStatuses) {
       expect(artifactStatusPriority(status)).toBe(2);
     }
   });
 
-  test("all BLOCKED_STATUSES map to group 3 (closed negative)", () => {
-    const blockedStatuses = ["superseded", "outdated", "wontfix", "declined", "failed", "cancelled", "abandoned"];
-    for (const status of blockedStatuses) {
+  test("terminal statuses (done + closed negative) map to group 3", () => {
+    const terminalStatuses = ["complete", "resolved", "implemented", "superseded", "outdated", "wontfix", "declined", "abandoned"];
+    for (const status of terminalStatuses) {
       expect(artifactStatusPriority(status)).toBe(3);
     }
   });
@@ -406,7 +406,7 @@ describe("artifactStatusPriority", () => {
   test("status matching is case-insensitive and trims whitespace", () => {
     expect(artifactStatusPriority("Draft")).toBe(0);
     expect(artifactStatusPriority("ACTIVE")).toBe(1);
-    expect(artifactStatusPriority(" implemented ")).toBe(2);
+    expect(artifactStatusPriority(" implemented ")).toBe(3);
   });
 });
 
@@ -447,12 +447,12 @@ describe("compareArtifactsByStatusAndTitle", () => {
     expect(sorted.map((a) => a.meta.status)).toEqual(["active", "implemented"]);
   });
 
-  test("implemented (group 2) sorts before abandoned (group 3)", () => {
+  test("failed (group 2) sorts before implemented (group 3)", () => {
+    const failed = makeArtifact({ status: "failed" });
     const impl = makeArtifact({ status: "implemented" });
-    const abandoned = makeArtifact({ status: "abandoned" });
 
-    const sorted = [abandoned, impl].sort(compareArtifactsByStatusAndTitle);
-    expect(sorted.map((a) => a.meta.status)).toEqual(["implemented", "abandoned"]);
+    const sorted = [impl, failed].sort(compareArtifactsByStatusAndTitle);
+    expect(sorted.map((a) => a.meta.status)).toEqual(["failed", "implemented"]);
   });
 
   test("abandoned (group 3) sorts before unknown (group 4)", () => {
@@ -509,7 +509,7 @@ describe("compareArtifactsByStatusAndTitle", () => {
       makeArtifact({ status: "abandoned", date: "2026-03-01", title: "Abandoned" }),
       makeArtifact({ status: "draft", date: "2026-01-01", title: "Draft" }),
       makeArtifact({ status: "active", date: "2026-02-15", title: "Active" }),
-      makeArtifact({ status: "implemented", date: "2026-02-01", title: "Implemented" }),
+      makeArtifact({ status: "failed", date: "2026-02-01", title: "Failed" }),
       makeArtifact({ status: "pending", date: "2026-02-15", title: "Pending" }),
     ];
 
@@ -518,7 +518,7 @@ describe("compareArtifactsByStatusAndTitle", () => {
       "Pending",       // group 0, 2026-02-15
       "Draft",         // group 0, 2026-01-01
       "Active",        // group 1, 2026-02-15
-      "Implemented",   // group 2, 2026-02-01
+      "Failed",        // group 2, 2026-02-01
       "Abandoned",     // group 3, 2026-03-01
     ]);
   });

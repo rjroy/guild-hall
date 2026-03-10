@@ -370,8 +370,8 @@ describe("buildArtifactTree", () => {
       "Blocked Spec",    // group 0 (pending)
       "Draft Spec",      // group 0 (pending)
       "Active Spec",     // group 1
-      "Complete Spec",   // group 2
-      "Cancelled Spec",  // group 3
+      "Cancelled Spec",  // group 2 (hard failure)
+      "Complete Spec",   // group 3 (terminal)
     ]);
   });
 
