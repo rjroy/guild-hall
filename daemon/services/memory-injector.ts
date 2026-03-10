@@ -16,13 +16,25 @@ import { isNodeError } from "@/lib/types";
 
 // -- Constants --
 
-const DEFAULT_MEMORY_LIMIT = 8000;
+const DEFAULT_MEMORY_LIMIT = 16000;
+
+const MEMORY_GUIDANCE = [
+  "You have a persistent memory system. Use the `write_memory` tool to save information worth preserving across sessions.",
+  "",
+  "Scopes:",
+  "- **global**: shared across all workers and projects",
+  "- **project**: shared across all workers in the active project",
+  "- **worker**: private to you, no other worker can access",
+  "",
+  "What to save: stable patterns, key decisions, solutions to problems you solved, conventions you discovered, user preferences.",
+  "What to skip: session-specific context, speculative conclusions, anything already in CLAUDE.md.",
+].join("\n");
 
 // -- Types --
 
 export interface MemoryInjectorDeps {
   guildHallHome: string;
-  /** Override the character limit. Defaults to DEFAULT_MEMORY_LIMIT (8000). */
+  /** Override the character limit. Defaults to DEFAULT_MEMORY_LIMIT (16000). */
   memoryLimit?: number;
 }
 
@@ -162,7 +174,7 @@ export function memoryScopeDir(
  * them into a markdown block suitable for system prompt injection.
  *
  * Files are sorted by mtime (most recent first) within each scope. The
- * total character count is checked against the limit (default 8000,
+ * total character count is checked against the limit (default 16000,
  * configurable via deps.memoryLimit). If the total exceeds the limit,
  * older files are dropped (soft cap: never cut a file mid-content) and
  * needsCompaction is set to true.
@@ -186,13 +198,18 @@ export async function loadMemories(
     readMemoryDir(path.join(memoryRoot, "workers", workerName)),
   ]);
 
-  // If all scopes are empty, return empty block
-  if (
-    globalEntries.length === 0 &&
-    projectEntries.length === 0 &&
-    workerEntries.length === 0
-  ) {
-    return { memoryBlock: "", needsCompaction: false };
+  const hasEntries =
+    globalEntries.length > 0 ||
+    projectEntries.length > 0 ||
+    workerEntries.length > 0;
+
+  // Guidance is always present (not counted against the file budget).
+  // File content budget applies only to the memory file sections.
+  if (!hasEntries) {
+    return {
+      memoryBlock: `## Memories\n\n${MEMORY_GUIDANCE}\n\nNo memories saved yet.`,
+      needsCompaction: false,
+    };
   }
 
   // Calculate overhead for the markdown structure (headers, etc.)
@@ -227,10 +244,13 @@ export async function loadMemories(
 
   if (sections.length === 0) {
     // All entries were too large to fit even one. Flag compaction.
-    return { memoryBlock: "", needsCompaction: true };
+    return {
+      memoryBlock: `## Memories\n\n${MEMORY_GUIDANCE}\n\nNo memories fit within budget. Compaction needed.`,
+      needsCompaction: true,
+    };
   }
 
-  const memoryBlock = `## Memories\n${sections.join("\n")}`;
+  const memoryBlock = `## Memories\n\n${MEMORY_GUIDANCE}\n\n${sections.join("\n")}`;
 
   return {
     memoryBlock,

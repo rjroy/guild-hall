@@ -52,16 +52,18 @@ async function writeMemoryFile(
 // -- Empty directories --
 
 describe("loadMemories: empty directories", () => {
-  test("returns empty block when no memory directories exist", async () => {
+  test("returns guidance block when no memory directories exist", async () => {
     const result = await loadMemories("test-worker", "test-project", {
       guildHallHome,
     });
 
-    expect(result.memoryBlock).toBe("");
+    expect(result.memoryBlock).toContain("## Memories");
+    expect(result.memoryBlock).toContain("write_memory");
+    expect(result.memoryBlock).toContain("No memories saved yet.");
     expect(result.needsCompaction).toBe(false);
   });
 
-  test("returns empty block when all directories exist but are empty", async () => {
+  test("returns guidance block when all directories exist but are empty", async () => {
     await fs.mkdir(path.join(guildHallHome, "memory", "global"), {
       recursive: true,
     });
@@ -78,7 +80,9 @@ describe("loadMemories: empty directories", () => {
       guildHallHome,
     });
 
-    expect(result.memoryBlock).toBe("");
+    expect(result.memoryBlock).toContain("## Memories");
+    expect(result.memoryBlock).toContain("write_memory");
+    expect(result.memoryBlock).toContain("No memories saved yet.");
     expect(result.needsCompaction).toBe(false);
   });
 });
@@ -195,7 +199,7 @@ describe("loadMemories: under limit", () => {
 
     const result = await loadMemories("test-worker", "test-project", {
       guildHallHome,
-      memoryLimit: 8000,
+      memoryLimit: 16000,
     });
 
     expect(result.memoryBlock).toContain("Short content A");
@@ -248,7 +252,8 @@ describe("loadMemories: over limit / truncation", () => {
     });
 
     // The file shouldn't appear at all (not truncated mid-content)
-    expect(result.memoryBlock).toBe("");
+    expect(result.memoryBlock).toContain("No memories fit within budget.");
+    expect(result.memoryBlock).not.toContain("**huge.md**");
     expect(result.needsCompaction).toBe(true);
   });
 
@@ -301,8 +306,9 @@ describe("loadMemories: memoryLimit config", () => {
       memoryLimit: 100,
     });
 
-    // File shouldn't be included (soft cap)
-    expect(result.memoryBlock).toBe("");
+    // File shouldn't be included (soft cap), but guidance is present
+    expect(result.memoryBlock).toContain("No memories fit within budget.");
+    expect(result.memoryBlock).not.toContain("**note.md**");
     expect(result.needsCompaction).toBe(true);
   });
 });
