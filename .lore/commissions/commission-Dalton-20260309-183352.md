@@ -1,7 +1,7 @@
 ---
 title: "Commission: Local Model Support - UI Provenance and Model Selector (Steps 7, 10)"
 date: 2026-03-10
-status: failed
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -21,6 +21,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-10T02:06:48.293Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "failed"
+    to: "pending"
+  - timestamp: 2026-03-10T02:06:48.294Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
