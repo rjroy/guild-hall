@@ -38,6 +38,7 @@ Three use cases drive this: cost-free routine maintenance (housekeeping on a loc
   - **modelId** (required): The string passed to the SDK's `model` parameter (e.g., `llama3`, `mistral`, `qwen2.5-coder:32b`). This is what the local server uses to identify the model.
   - **baseUrl** (required): The URL of the local model server (e.g., `http://localhost:11434`). Overrides `ANTHROPIC_BASE_URL` for sessions using this model.
   - **auth** (optional): An object with `token` and `apiKey` fields that override `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` respectively. When omitted, defaults to `{ token: "ollama", apiKey: "" }`, which is the convention Ollama expects (see issue file, lines 29-31). This default handles the common case without requiring the user to look up magic strings.
+  - **guidance** (optional): A string describing when to use this model. The manager worker reads these strings when assembling its system prompt, so it knows which local models suit which tasks (see REQ-LOCAL-20).
 
 - REQ-LOCAL-2: Model names are the addressing mechanism. Everywhere the system accepts a model name (worker `model` field, commission `resource_overrides.model`, manager's `create_commission` tool), a local model name works identically to a built-in name. No separate field, no "local:" prefix, no provider flag. If the name resolves to a definition in `config.yaml`, it's local. If it matches a built-in name, it's an API model.
 
@@ -49,6 +50,7 @@ Three use cases drive this: cost-free routine maintenance (housekeeping on a loc
     - name: llama3
       modelId: llama3
       baseUrl: http://localhost:11434
+      guidance: "Fast and free. Good for bounded tasks like file cleanup and formatting."
     - name: mistral-local
       modelId: mistral
       baseUrl: http://localhost:11434
@@ -70,6 +72,7 @@ Three use cases drive this: cost-free routine maintenance (housekeeping on a loc
       token?: string;
       apiKey?: string;
     };
+    guidance?: string;
   }
 
   interface AppConfig {
@@ -83,7 +86,7 @@ Three use cases drive this: cost-free routine maintenance (housekeeping on a loc
 
 - REQ-LOCAL-6: Config validation rejects duplicate model names within the `models` array. The error message identifies the duplicate.
 
-- REQ-LOCAL-7: Config validation requires `baseUrl` to be a syntactically valid URL (parseable by `new URL()`). It does not check reachability at config load time; reachability is checked at session start (REQ-LOCAL-13).
+- REQ-LOCAL-7: Config validation requires `baseUrl` to be a valid HTTP or HTTPS URL. Other protocols are rejected at config load time. Reachability is not checked at config load time; that happens at session start (REQ-LOCAL-13).
 
 ### Model Name Resolution
 
@@ -134,13 +137,13 @@ Three use cases drive this: cost-free routine maintenance (housekeeping on a loc
 
 - REQ-LOCAL-17: No automatic retry or reconnection. The commission preserves partial results per REQ-COM-14a and can be redispatched (REQ-COM-30) once the local server is back up. Automatic retry would mask infrastructure problems and complicate the state machine.
 
-- REQ-LOCAL-18: The error message surfaced to the UI should distinguish local server failures from Anthropic API failures. When the resolved model is local, the commission's failure reason is prefixed: `Local model "llama3" (http://localhost:11434) error: <SDK error>`. Including the URL helps the user diagnose which server to check. This applies to all session types (commissions, meetings, mail), not just commissions.
+- REQ-LOCAL-18: Mid-session errors from local model servers must be distinguishable from Anthropic API errors. To achieve this without duplicating resolution logic across orchestrators, `prepareSdkSession` returns the resolved model context (model name, URL, local-vs-builtin) alongside the session options. Each orchestrator (commission, meeting, mail, briefing) uses this context to prefix error messages for local model sessions: `Local model "llama3" (http://localhost:11434) error: <SDK error>`. Including the URL helps the user diagnose which server to check. The resolution happens once in `prepareSdkSession`; orchestrators only format, they don't re-resolve.
 
 ### Interaction with Existing Model Selection
 
 - REQ-LOCAL-19: The model resolution order from REQ-MODEL-9 is unchanged: commission `resource_overrides.model` > worker package `model` > fallback `opus`. Local model names are valid at every level of this chain. A worker can default to a local model, and a commission can override to a different local model or a built-in model.
 
-- REQ-LOCAL-20: The manager's `create_commission` tool accepts local model names in its `model` parameter. The manager's posture guidance (REQ-MODEL-14) is extended with a note about local models: "Local models are available for cost-free operation but may have reduced capability. Use them for bounded, mechanical tasks where the model's limitations are acceptable."
+- REQ-LOCAL-20: The manager's `create_commission` tool accepts local model names in its `model` parameter. Model guidance is config-driven, not hardcoded. Each `ModelDefinition` can include an optional `guidance` string (REQ-LOCAL-1) describing when to use that model (e.g., "Good for bounded, mechanical tasks like file cleanup. Not suitable for complex reasoning."). The manager worker assembles its system prompt by combining built-in defaults from the worker file (covering built-in models) with `guidance` fields from `config.models` (covering local models). This means users control how the manager thinks about their local models without editing worker source files.
 
 - REQ-LOCAL-21: Scheduled commission templates can specify local model names in `resource_overrides.model`. Spawned commissions inherit the local model through the existing resource override flow.
 
