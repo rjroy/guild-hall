@@ -229,7 +229,7 @@ export function validatePackageModels(
 ): DiscoveredPackage[] {
   return packages.filter((pkg) => {
     if (!("identity" in pkg.metadata)) return true;
-    const worker = pkg.metadata as WorkerMetadata;
+    const worker = pkg.metadata;
     if (!worker.model) return true;
     if (isValidModel(worker.model, config)) return true;
     console.warn(

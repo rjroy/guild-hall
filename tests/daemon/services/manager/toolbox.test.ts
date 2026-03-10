@@ -11,7 +11,7 @@ import type { CommissionRecordOps, ScheduleMetadata } from "@/daemon/services/co
 import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
 import type { TransitionResult } from "@/daemon/services/scheduler/schedule-lifecycle";
 import type { CommissionId, ScheduledCommissionStatus } from "@/daemon/types";
-import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import type { DiscoveredPackage, WorkerMetadata } from "@/lib/types";
 
 // -- Test helpers --
 

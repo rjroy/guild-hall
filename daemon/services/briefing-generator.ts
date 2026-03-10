@@ -398,7 +398,6 @@ async function generateWithFullSdk(
       return generateTemplateBriefing(context);
     }
 
-    const resolvedModel = prepResult.result.resolvedModel;
     const options = prepResult.result.options;
     const generator = runSdkSession(queryFn, BRIEFING_PROMPT, options);
     const text = await collectRunnerText(generator);
