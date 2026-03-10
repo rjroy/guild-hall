@@ -221,7 +221,7 @@ describe("notifyDaemonReload", () => {
       return new Response(JSON.stringify({ reloaded: true }));
     };
 
-    await notifyDaemonReload("/tmp/gh-home", mockFetch as typeof fetch);
+    await notifyDaemonReload("/tmp/gh-home", mockFetch as unknown as typeof fetch);
 
     expect(capturedUrl).toBe("http://localhost/admin/reload-config");
     expect(capturedInit?.method).toBe("POST");
