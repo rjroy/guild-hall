@@ -11,8 +11,19 @@ export interface ProjectConfig {
   memoryLimit?: number;
 }
 
+export interface ModelDefinition {
+  name: string;
+  modelId: string;
+  baseUrl: string;
+  auth?: {
+    token?: string;
+    apiKey?: string;
+  };
+}
+
 export interface AppConfig {
   projects: ProjectConfig[];
+  models?: ModelDefinition[];
   settings?: Record<string, unknown>;
   maxConcurrentCommissions?: number;
   maxConcurrentMailReaders?: number;
@@ -48,8 +59,46 @@ export type CheckoutScope = "sparse" | "full";
 export const VALID_MODELS = ["opus", "sonnet", "haiku"] as const;
 export type ModelName = (typeof VALID_MODELS)[number];
 
-export function isValidModel(value: string): value is ModelName {
-  return (VALID_MODELS as readonly string[]).includes(value);
+export type ResolvedModel =
+  | { type: "builtin"; name: ModelName }
+  | { type: "local"; definition: ModelDefinition };
+
+/**
+ * Resolves a model name to either a built-in name or a local definition.
+ * Throws with a descriptive error if the name is unrecognized.
+ *
+ * Resolution order (REQ-LOCAL-8):
+ * 1. Built-in names (opus, sonnet, haiku)
+ * 2. config.models definitions by name
+ * 3. Unknown → throw
+ */
+export function resolveModel(name: string, config?: AppConfig): ResolvedModel {
+  if ((VALID_MODELS as readonly string[]).includes(name)) {
+    return { type: "builtin", name: name as ModelName };
+  }
+  const local = config?.models?.find((m) => m.name === name);
+  if (local) {
+    return { type: "local", definition: local };
+  }
+  const hint = config?.models?.length
+    ? ` Configured local models: ${config.models.map((m) => m.name).join(", ")}.`
+    : "";
+  throw new Error(
+    `Unknown model "${name}". Valid built-in models: ${VALID_MODELS.join(", ")}.${hint}`,
+  );
+}
+
+/**
+ * Returns true if the model name resolves to a known model (built-in or
+ * configured local). When config is omitted, only built-in names pass.
+ */
+export function isValidModel(value: string, config?: AppConfig): boolean {
+  try {
+    resolveModel(value, config);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export interface ResourceDefaults {

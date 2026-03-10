@@ -396,6 +396,17 @@ export function createMailOrchestrator(
       }
     } catch (err: unknown) {
       console.error(`[mail-orchestrator] mail reader error for "${commissionId as string}":`, errorMessage(err));
+      // Record the failure in the commission timeline (REQ-LOCAL-14 gap fix)
+      try {
+        const artifactPath = commissionArtifactPath(worktreeDir, commissionId);
+        await recordOps.appendTimeline(
+          artifactPath,
+          "mail_reader_failed",
+          `Mail reader "${readerWorkerName}" failed: ${errorMessage(err)}`,
+        );
+      } catch {
+        // Timeline append is best-effort; don't mask the original error
+      }
       // Wake the commission with error context
       await wakeCommission(activation, buildErrorWakePrompt(readerWorkerName, errorMessage(err)));
     } finally {
