@@ -1,5 +1,5 @@
 ---
-title: Implementation notes: guild-hall-scheduled-commissions
+title: Implementation notes guild-hall-scheduled-commissions
 date: 2026-03-09
 status: complete
 tags: [implementation, notes]

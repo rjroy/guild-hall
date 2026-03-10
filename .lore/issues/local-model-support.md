@@ -1,7 +1,7 @@
 ---
 title: Support local models via Ollama or similar providers
 date: 2026-03-08
-status: open
+status: resolved
 tags: [enhancement, models, local-inference, ollama]
 modules: [daemon-services]
 depends_on: [.lore/brainstorm/model-selection.md]

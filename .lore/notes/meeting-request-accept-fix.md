@@ -1,5 +1,5 @@
 ---
-title: Implementation notes: meeting-request-accept-fix
+title: Implementation notes meeting-request-accept-fix
 date: 2026-03-08
 status: complete
 tags: [implementation, notes]
