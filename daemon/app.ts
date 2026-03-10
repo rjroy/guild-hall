@@ -84,7 +84,7 @@ export async function createProductionApp(options?: {
   gitOps?: GitOps;
 }): Promise<{ app: Hono; shutdown: () => void }> {
   const { readConfig } = await import("@/lib/config");
-  const { discoverPackages } = await import("@/lib/packages");
+  const { discoverPackages, validatePackageModels } = await import("@/lib/packages");
   const { getGuildHallHome, integrationWorktreePath } = await import("@/lib/paths");
   const { createMeetingSession } = await import(
     "@/daemon/services/meeting/orchestrator"
@@ -156,7 +156,8 @@ export async function createProductionApp(options?: {
   const defaultPackagesDir = nodePath.join(guildHallHome, "packages");
   const scanPaths: string[] = [options?.packagesDir ?? defaultPackagesDir];
 
-  const discoveredPackages = await discoverPackages(scanPaths);
+  const rawPackages = await discoverPackages(scanPaths);
+  const discoveredPackages = validatePackageModels(rawPackages, config);
 
   // Prepend the built-in Guild Master worker package to the packages list
   // so it appears in worker listings and can be selected for meetings.
