@@ -1,7 +1,7 @@
 ---
 title: Meeting Rename Tool
 date: 2026-03-10
-status: draft
+status: implemented
 tags: [architecture, meetings, toolbox, rename]
 modules: [guild-hall-core]
 related:
