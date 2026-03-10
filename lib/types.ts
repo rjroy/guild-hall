@@ -225,25 +225,29 @@ const ACTIVE_STATUSES = new Set([
   "approved",
   "active",
   "current",
-  "complete",
-  "completed",
-  "resolved",
   "in_progress",
   "dispatched",
   "sleeping",
 ]);
 
-const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested", "blocked", "queued", "paused"]);
+const PENDING_STATUSES = new Set([
+  "draft",
+  "open",
+  "pending",
+  "requested",
+  "blocked",
+  "queued",
+  "paused"
+]);
 
 const BLOCKED_STATUSES = new Set([
-  "superseded",
-  "outdated",
-  "wontfix",
-  "declined",
   "failed",
   "cancelled",
-  "abandoned",
 ]);
+
+/*
+ * The remaining statuses ("complete", "resolved", "implemented", "abandoned", "superseded", "outdated", "wontfix", "declined") are considered terminal states that require no action, and thus get the lowest priority. Unrecognized statuses default to an even lower priority, appearing after all known statuses.
+ */
 
 /**
  * Maps a freeform status string from artifact frontmatter to one of four
