@@ -1,19 +1,16 @@
 .container {
   width: 100%;
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 500px;
+}
+
+.container.compact {
+  max-height: 300px;
 }
 
 .graph {
   display: block;
-  width: 100%;
-  height: auto;
-  min-height: 120px;
-  max-height: 500px;
-}
-
-.graph.compact {
-  min-height: 80px;
-  max-height: 300px;
 }
 
 .nodeGroup {
