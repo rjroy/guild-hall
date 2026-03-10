@@ -840,10 +840,19 @@ export function createCommissionOrchestrator(
 
         if (dependencies.length === 0) return null;
 
-        const depChecks = await Promise.all(
-          dependencies.map((dep) => fileExists(commissionArtifactPath(iPath, dep))),
+        const depStatuses = await Promise.all(
+          dependencies.map(async (dep) => {
+            const depPath = commissionArtifactPath(iPath, dep);
+            try {
+              return await recordOps.readStatus(depPath);
+            } catch {
+              return "missing";
+            }
+          }),
         );
-        const allSatisfied = depChecks.every(Boolean);
+        const allSatisfied = depStatuses.every(
+          (s) => s === "completed" || s === "abandoned",
+        );
 
         return { cId, artifactPath: cArtifactPath, status, dependencies, allSatisfied };
       }),
@@ -1610,6 +1619,40 @@ projectName: ${projectName}
     }
     if (resourceOverrides.model !== undefined && !isValidModel(resourceOverrides.model, config)) {
       throw new Error(`Invalid model "${resourceOverrides.model}" in resource_overrides for commission "${commissionId as string}"`);
+    }
+
+    // 4. Check dependencies: block if any are not in a terminal-success state
+    if (commissionDeps.length > 0) {
+      const depStatuses = await Promise.all(
+        commissionDeps.map(async (dep) => {
+          const depPath = commissionArtifactPath(found.integrationPath, dep);
+          try {
+            return await recordOps.readStatus(depPath);
+          } catch {
+            return "missing";
+          }
+        }),
+      );
+      const allSatisfied = depStatuses.every(
+        (s) => s === "completed" || s === "abandoned",
+      );
+
+      if (!allSatisfied) {
+        if (!lifecycle.isTracked(commissionId)) {
+          lifecycle.register(commissionId, found.projectName, "pending", artifactPath);
+        }
+        await lifecycle.block(commissionId);
+        lifecycle.forget(commissionId);
+        console.log(
+          `[orchestrator] blocking "${commissionId as string}": dependencies not yet satisfied`,
+        );
+        eventBus.emit({
+          type: "commission_queued",
+          commissionId: commissionId as string,
+          reason: "Dependencies not yet satisfied",
+        });
+        return { status: "queued" };
+      }
     }
 
     // Determine checkout scope
