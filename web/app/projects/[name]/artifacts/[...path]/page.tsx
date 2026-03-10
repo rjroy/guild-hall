@@ -3,7 +3,13 @@ import { notFound } from "next/navigation";
 import { getProject } from "@/lib/config";
 import { readArtifact } from "@/lib/artifacts";
 import { scanCommissions } from "@/lib/commissions";
-import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
+import {
+  projectLorePath,
+  getGuildHallHome,
+  integrationWorktreePath,
+  resolveMeetingBasePath,
+  resolveCommissionBasePath,
+} from "@/lib/paths";
 import ArtifactProvenance from "@/web/components/artifact/ArtifactProvenance";
 import ArtifactContent from "@/web/components/artifact/ArtifactContent";
 import MetadataSidebar from "@/web/components/artifact/MetadataSidebar";
@@ -22,8 +28,24 @@ export default async function ArtifactPage({
   if (!project) notFound();
 
   const ghHome = getGuildHallHome();
-  const integrationPath = integrationWorktreePath(ghHome, projectName);
-  const lorePath = projectLorePath(integrationPath);
+
+  // Active meetings and commissions live in their activity worktree,
+  // not the integration worktree. Check daemon state to resolve the
+  // correct read path, mirroring resolveWritePath on the daemon side.
+  let basePath: string;
+  if (relativePath.startsWith("meetings/")) {
+    const filename = relativePath.split("/").pop() ?? "";
+    const meetingId = filename.replace(/\.md$/, "");
+    basePath = await resolveMeetingBasePath(ghHome, projectName, meetingId);
+  } else if (relativePath.startsWith("commissions/")) {
+    const filename = relativePath.split("/").pop() ?? "";
+    const commissionId = filename.replace(/\.md$/, "");
+    basePath = await resolveCommissionBasePath(ghHome, projectName, commissionId);
+  } else {
+    basePath = integrationWorktreePath(ghHome, projectName);
+  }
+
+  const lorePath = projectLorePath(basePath);
   let artifact;
   try {
     artifact = await readArtifact(lorePath, relativePath);
@@ -33,8 +55,10 @@ export default async function ArtifactPage({
 
   const displayTitle = artifact.meta.title || relativePath;
 
-  // Find commissions that reference this artifact
-  const allCommissions = await scanCommissions(lorePath, projectName);
+  // Find commissions that reference this artifact (always scan from
+  // integration worktree which has the complete commission set)
+  const integrationLore = projectLorePath(integrationWorktreePath(ghHome, projectName));
+  const allCommissions = await scanCommissions(integrationLore, projectName);
   const associatedCommissions = allCommissions.filter((c) =>
     c.linked_artifacts.includes(relativePath),
   );
