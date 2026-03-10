@@ -1,7 +1,7 @@
 ---
 title: Artifact Copy Path Button
 date: 2026-03-09
-status: draft
+status: implemented
 tags: [ui, artifacts, clipboard, ux]
 modules: [artifact-view]
 related:

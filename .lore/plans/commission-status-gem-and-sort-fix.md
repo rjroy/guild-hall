@@ -1,7 +1,7 @@
 ---
 title: Commission Status Gem and Sort Fix
 date: 2026-03-09
-status: approved
+status: implemented
 tags: [plan, commissions, ui, sorting, css]
 modules: [commission-list, gem-indicator, lib-commissions, lib-types]
 related:
