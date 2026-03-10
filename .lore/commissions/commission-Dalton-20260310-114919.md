@@ -1,7 +1,7 @@
 ---
 title: "Commission: Scheduled run of commission-Dalton-20260310-114824"
 date: 2026-03-10
-status: dispatched
+status: completed
 type: one-shot
 source_schedule: commission-Dalton-20260310-114824
 tags: [commission]
@@ -24,6 +24,23 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
-current_progress: ""
+  - timestamp: 2026-03-10T18:49:19.370Z
+    event: status_in_progress
+    reason: "Execution started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-03-10T18:49:24.891Z
+    event: progress_report
+    reason: "hello"
+  - timestamp: 2026-03-10T18:49:25.375Z
+    event: result_submitted
+    reason: "hello"
+  - timestamp: 2026-03-10T18:49:25.851Z
+    event: status_completed
+    reason: "Execution completed"
+    from: "in_progress"
+    to: "completed"
+current_progress: "hello"
 projectName: guild-hall
 ---
+hello
