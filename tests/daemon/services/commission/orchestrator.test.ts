@@ -918,6 +918,177 @@ describe("dependency auto-transitions", () => {
       expect(blockedEvent.projectName).toBe(TEST_PROJECT);
     }
   });
+
+  test("blocked commission stays blocked when dependency exists but is not completed", async () => {
+    const commissionId = "commission-dep-003";
+    const depId = "commission-dep-pending";
+    await writeCommissionArtifact(integrationPath, commissionId, {
+      status: "blocked",
+      dependencies: [depId],
+    });
+
+    // Dependency artifact exists but has status "pending" (not completed)
+    const depDir = path.join(integrationPath, ".lore", "commissions");
+    await fs.writeFile(
+      path.join(depDir, `${depId}.md`),
+      "---\ntitle: Dep\nstatus: pending\n---\n",
+      "utf-8",
+    );
+
+    const { orchestrator, eventBus } = buildDeps();
+
+    await orchestrator.checkDependencyTransitions(TEST_PROJECT);
+
+    // Commission should remain blocked (dep exists but not completed)
+    const artifactPath = path.join(depDir, `${commissionId}.md`);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("status: blocked");
+
+    // No unblock events should have been emitted
+    const pendingEvents = eventBus.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "pending",
+    );
+    expect(pendingEvents.length).toBe(0);
+  });
+
+  test("blocked commission unblocks when dependency status is abandoned", async () => {
+    const commissionId = "commission-dep-004";
+    const depId = "commission-dep-abandoned";
+    await writeCommissionArtifact(integrationPath, commissionId, {
+      status: "blocked",
+      dependencies: [depId],
+    });
+
+    const depDir = path.join(integrationPath, ".lore", "commissions");
+    await fs.writeFile(
+      path.join(depDir, `${depId}.md`),
+      "---\ntitle: Dep\nstatus: abandoned\n---\n",
+      "utf-8",
+    );
+
+    const { orchestrator, eventBus } = buildDeps();
+
+    await orchestrator.checkDependencyTransitions(TEST_PROJECT);
+
+    const artifactPath = path.join(depDir, `${commissionId}.md`);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("status: pending");
+
+    const pendingEvents = eventBus.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "pending",
+    );
+    expect(pendingEvents.length).toBe(1);
+  });
+});
+
+describe("dispatch dependency gate", () => {
+  test("dispatch with unsatisfied dependencies blocks instead of dispatching", async () => {
+    const depId = "commission-dep-unsatisfied";
+    const commissionId = asCommissionId("commission-test-dep-block-001");
+
+    // Create the dependency artifact with status "pending" (not completed)
+    await writeCommissionArtifact(integrationPath, depId, {
+      status: "pending",
+    });
+
+    // Create the dependent commission
+    await writeCommissionArtifact(integrationPath, commissionId as string, {
+      dependencies: [depId],
+    });
+
+    const { orchestrator, workspace, eventBus } = buildDeps();
+
+    const result = await orchestrator.dispatchCommission(commissionId);
+
+    // Should return "queued", not "accepted"
+    expect(result.status).toBe("queued");
+
+    // workspace.prepare should NOT have been called
+    const prepareCalls = workspace.calls.filter((c) => c.method === "prepare");
+    expect(prepareCalls.length).toBe(0);
+
+    // The commission should have been blocked (queued event emitted)
+    const queuedEvents = eventBus.events.filter((e) => e.type === "commission_queued");
+    expect(queuedEvents.length).toBe(1);
+
+    // The artifact should now have status "blocked"
+    const artifactPath = path.join(
+      integrationPath, ".lore", "commissions", `${commissionId as string}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("status: blocked");
+  });
+
+  test("dispatch with satisfied dependencies proceeds normally", async () => {
+    const depId = "commission-dep-satisfied";
+    const commissionId = asCommissionId("commission-test-dep-ok-001");
+
+    // Create the dependency artifact with status "completed"
+    await writeCommissionArtifact(integrationPath, depId, {
+      status: "completed",
+    });
+
+    // Create the dependent commission
+    await writeCommissionArtifact(integrationPath, commissionId as string, {
+      dependencies: [depId],
+    });
+
+    const eventBus = createTestEventBus();
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: true,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const workspace = createMockWorkspace();
+    const { orchestrator } = buildDeps({ workspace, mockQueryFn, eventBus });
+
+    const result = await orchestrator.dispatchCommission(commissionId);
+
+    // Should dispatch normally
+    expect(result.status).toBe("accepted");
+
+    // workspace.prepare should have been called
+    const prepareCalls = workspace.calls.filter((c) => c.method === "prepare");
+    expect(prepareCalls.length).toBe(1);
+
+    // Wait for session to settle
+    await new Promise<void>((r) => setTimeout(r, 200));
+  });
+
+  test("dispatch with missing dependency artifact blocks the commission", async () => {
+    const commissionId = asCommissionId("commission-test-dep-missing-001");
+
+    // Create dependent commission with a dependency that doesn't exist
+    await writeCommissionArtifact(integrationPath, commissionId as string, {
+      dependencies: ["commission-does-not-exist"],
+    });
+
+    const { orchestrator, workspace } = buildDeps();
+
+    const result = await orchestrator.dispatchCommission(commissionId);
+
+    expect(result.status).toBe("queued");
+
+    const prepareCalls = workspace.calls.filter((c) => c.method === "prepare");
+    expect(prepareCalls.length).toBe(0);
+  });
+
+  test("dispatch with no dependencies proceeds normally", async () => {
+    const commissionId = asCommissionId("commission-test-no-deps-001");
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+
+    const { orchestrator, workspace, mockQueryFn } = buildDeps();
+
+    const result = await orchestrator.dispatchCommission(commissionId);
+    expect(result.status).toBe("accepted");
+
+    const prepareCalls = workspace.calls.filter((c) => c.method === "prepare");
+    expect(prepareCalls.length).toBe(1);
+
+    await new Promise<void>((r) => setTimeout(r, 50));
+    expect(mockQueryFn.runCount).toBe(1);
+  });
 });
 
 describe("addUserNote", () => {

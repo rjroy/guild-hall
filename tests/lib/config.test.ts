@@ -409,3 +409,91 @@ models:
     await expect(readConfig(configPath())).rejects.toThrow("Config validation failed");
   });
 });
+
+describe("systemModels schema", () => {
+  const baseConfig = { projects: [{ name: "p", path: "/p" }] };
+
+  test("config with full systemModels section parses without error", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      systemModels: {
+        memoryCompaction: "haiku",
+        meetingNotes: "sonnet",
+        briefing: "sonnet",
+        guildMaster: "opus",
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.systemModels?.memoryCompaction).toBe("haiku");
+      expect(result.data.systemModels?.meetingNotes).toBe("sonnet");
+      expect(result.data.systemModels?.briefing).toBe("sonnet");
+      expect(result.data.systemModels?.guildMaster).toBe("opus");
+    }
+  });
+
+  test("all systemModels fields are independently optional", () => {
+    // Only one field
+    expect(appConfigSchema.safeParse({
+      ...baseConfig,
+      systemModels: { memoryCompaction: "haiku" },
+    }).success).toBe(true);
+
+    // Two fields
+    expect(appConfigSchema.safeParse({
+      ...baseConfig,
+      systemModels: { briefing: "sonnet", guildMaster: "opus" },
+    }).success).toBe(true);
+
+    // Three fields
+    expect(appConfigSchema.safeParse({
+      ...baseConfig,
+      systemModels: { memoryCompaction: "haiku", meetingNotes: "sonnet", briefing: "sonnet" },
+    }).success).toBe(true);
+  });
+
+  test("empty string for any field is rejected", () => {
+    for (const field of ["memoryCompaction", "meetingNotes", "briefing", "guildMaster"]) {
+      const result = appConfigSchema.safeParse({
+        ...baseConfig,
+        systemModels: { [field]: "" },
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  test("absent systemModels key returns undefined", () => {
+    const result = appConfigSchema.safeParse(baseConfig);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.systemModels).toBeUndefined();
+    }
+  });
+
+  test("systemModels parses from YAML via readConfig", async () => {
+    const yamlContent = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+systemModels:
+  memoryCompaction: haiku
+  meetingNotes: sonnet
+  briefing: sonnet
+  guildMaster: opus
+`;
+    await fs.writeFile(configPath(), yamlContent, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.systemModels?.memoryCompaction).toBe("haiku");
+    expect(config.systemModels?.meetingNotes).toBe("sonnet");
+    expect(config.systemModels?.briefing).toBe("sonnet");
+    expect(config.systemModels?.guildMaster).toBe("opus");
+  });
+
+  test("systemModels accepts local model names", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      systemModels: { memoryCompaction: "my-local-model" },
+    });
+    expect(result.success).toBe(true);
+  });
+});

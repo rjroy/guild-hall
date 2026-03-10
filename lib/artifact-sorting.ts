@@ -16,30 +16,31 @@ import type { Artifact } from "@/lib/types";
  * (priority 2) because it's done and needs no action.
  */
 const ARTIFACT_STATUS_GROUP: Record<string, number> = {
-  // Group 0: Active work (needs attention)
+  // Group 0: Active work (needs attention) [active gem]
   draft: 0,
   open: 0,
   pending: 0,
   requested: 0,
   blocked: 0,
   queued: 0,
-  // Group 1: In progress
+  // Group 1: In progress [pending gem]
   approved: 1,
   active: 1,
   current: 1,
   in_progress: 1,
   dispatched: 1,
-  // Group 2: Terminal (done, no action needed)
-  complete: 2,
-  resolved: 2,
-  implemented: 2,
+  sleeping: 1,
   // Group 3: Closed negative
+  failed: 2,
+  cancelled: 2,
+  // Group 2: Terminal (done, no action needed)
+  declined: 3,
   superseded: 3,
   outdated: 3,
   wontfix: 3,
-  declined: 3,
-  failed: 3,
-  cancelled: 3,
+  complete: 3,
+  resolved: 3,
+  implemented: 3,
   abandoned: 3,
 };
 const UNKNOWN_STATUS_PRIORITY = 4;

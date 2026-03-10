@@ -1,15 +1,13 @@
 import { describe, test, expect } from "bun:test";
-import { statusToGem, VALID_MODELS, isValidModel, resolveModel } from "@/lib/types";
+import { statusToGem, formatStatus, VALID_MODELS, isValidModel, resolveModel } from "@/lib/types";
 import type { GemStatus, AppConfig, ModelDefinition } from "@/lib/types";
 
 describe("statusToGem", () => {
   const cases: Array<[string, GemStatus]> = [
-    // Active (green)
+    // Active (green) - in-progress and active states
     ["approved", "active"],
     ["active", "active"],
     ["current", "active"],
-    ["complete", "active"],
-    ["resolved", "active"],
     // Case-insensitive
     ["Approved", "active"],
     ["ACTIVE", "active"],
@@ -22,25 +20,27 @@ describe("statusToGem", () => {
     ["Draft", "pending"],
     ["Requested", "pending"],
 
-    // Blocked (red)
-    ["superseded", "blocked"],
-    ["outdated", "blocked"],
-    ["wontfix", "blocked"],
-    ["declined", "blocked"],
-    ["abandoned", "blocked"],
-    ["Superseded", "blocked"],
-    ["Declined", "blocked"],
+    // Blocked (red) - hard failures only
+    ["failed", "blocked"],
+    ["cancelled", "blocked"],
 
     // Commission-specific statuses
     ["dispatched", "active"],
     ["in_progress", "active"],
     ["sleeping", "active"],
-    ["completed", "active"],
-    ["failed", "blocked"],
-    ["cancelled", "blocked"],
     ["blocked", "pending"],
 
-    // Info (blue) - recognized
+    // Info (blue) - terminal states (no action needed)
+    ["complete", "info"],
+    ["completed", "info"],
+    ["resolved", "info"],
+    ["superseded", "info"],
+    ["outdated", "info"],
+    ["wontfix", "info"],
+    ["declined", "info"],
+    ["abandoned", "info"],
+    ["Superseded", "info"],
+    ["Declined", "info"],
     ["implemented", "info"],
     ["archived", "info"],
 
@@ -157,5 +157,35 @@ describe("resolveModel", () => {
 
   test("throws for local model name when config is omitted", () => {
     expect(() => resolveModel("llama3")).toThrow("Unknown model");
+  });
+});
+
+describe("formatStatus", () => {
+  test("single lowercase word is title-cased", () => {
+    expect(formatStatus("complete")).toBe("Complete");
+  });
+
+  test("underscores become spaces with title-casing", () => {
+    expect(formatStatus("in_progress")).toBe("In Progress");
+  });
+
+  test("single word without underscores", () => {
+    expect(formatStatus("wontfix")).toBe("Wontfix");
+  });
+
+  test("simple lowercase word", () => {
+    expect(formatStatus("open")).toBe("Open");
+  });
+
+  test("empty string returns empty string", () => {
+    expect(formatStatus("")).toBe("");
+  });
+
+  test("already-uppercase input is title-cased", () => {
+    expect(formatStatus("DONE")).toBe("DONE");
+  });
+
+  test("mixed case with underscores", () => {
+    expect(formatStatus("not_started")).toBe("Not Started");
   });
 });

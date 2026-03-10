@@ -22,9 +22,17 @@ export interface ModelDefinition {
   guidance?: string;
 }
 
+export interface SystemModels {
+  memoryCompaction?: string;
+  meetingNotes?: string;
+  briefing?: string;
+  guildMaster?: string;
+}
+
 export interface AppConfig {
   projects: ProjectConfig[];
   models?: ModelDefinition[];
+  systemModels?: SystemModels;
   settings?: Record<string, unknown>;
   maxConcurrentCommissions?: number;
   maxConcurrentMailReaders?: number;
@@ -225,25 +233,29 @@ const ACTIVE_STATUSES = new Set([
   "approved",
   "active",
   "current",
-  "complete",
-  "completed",
-  "resolved",
   "in_progress",
   "dispatched",
   "sleeping",
 ]);
 
-const PENDING_STATUSES = new Set(["draft", "open", "pending", "requested", "blocked", "queued", "paused"]);
+const PENDING_STATUSES = new Set([
+  "draft",
+  "open",
+  "pending",
+  "requested",
+  "blocked",
+  "queued",
+  "paused"
+]);
 
 const BLOCKED_STATUSES = new Set([
-  "superseded",
-  "outdated",
-  "wontfix",
-  "declined",
   "failed",
   "cancelled",
-  "abandoned",
 ]);
+
+/*
+ * The remaining statuses ("complete", "resolved", "implemented", "abandoned", "superseded", "outdated", "wontfix", "declined") are considered terminal states that require no action, and thus get the lowest priority. Unrecognized statuses default to an even lower priority, appearing after all known statuses.
+ */
 
 /**
  * Maps a freeform status string from artifact frontmatter to one of four
@@ -255,6 +267,16 @@ export function statusToGem(status: string): GemStatus {
   if (PENDING_STATUSES.has(normalized)) return "pending";
   if (BLOCKED_STATUSES.has(normalized)) return "blocked";
   return "info";
+}
+
+/**
+ * Formats a raw status string for display. Replaces underscores with spaces
+ * and title-cases each word. "in_progress" -> "In Progress", "complete" -> "Complete".
+ */
+export function formatStatus(status: string): string {
+  return status
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // -- Error utilities --

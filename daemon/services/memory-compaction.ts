@@ -19,7 +19,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { isNodeError } from "@/lib/types";
+import { isNodeError, resolveModel } from "@/lib/types";
+import type { AppConfig } from "@/lib/types";
 import { memoryScopeDir, type MemoryScope } from "@/daemon/services/memory-injector";
 import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
@@ -40,6 +41,7 @@ export interface CompactionDeps {
   guildHallHome: string;
   /** DI seam: tests inject a mock, production passes the real SDK query(). */
   compactFn: CompactQueryFn;
+  config?: AppConfig;
 }
 
 interface ScopeSnapshot {
@@ -282,13 +284,31 @@ async function runCompaction(
 
   let summary: string;
   try {
+    // Resolve configured model (falls back to "sonnet")
+    const rawModelName = deps.config?.systemModels?.memoryCompaction ?? "sonnet";
+    let compactionModel: string = rawModelName;
+    let compactionEnv: Record<string, string | undefined> | undefined;
+
+    const resolved = resolveModel(rawModelName, deps.config);
+    if (resolved.type === "local") {
+      const { definition } = resolved;
+      compactionModel = definition.modelId;
+      compactionEnv = {
+        ...process.env,
+        ANTHROPIC_BASE_URL: definition.baseUrl,
+        ANTHROPIC_AUTH_TOKEN: definition.auth?.token ?? "ollama",
+        ANTHROPIC_API_KEY: definition.auth?.apiKey ?? "",
+      };
+    }
+
     const generator = deps.compactFn({
       prompt,
       options: {
         systemPrompt:
           "You are a memory compaction system. Condense the provided memory entries into a single summary preserving all important information.",
         maxTurns: 1,
-        model: "sonnet",
+        model: compactionModel,
+        ...(compactionEnv ? { env: compactionEnv } : {}),
         permissionMode: "dontAsk",
         settingSources: [],
         mcpServers: {},

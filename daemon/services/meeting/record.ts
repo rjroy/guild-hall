@@ -72,6 +72,42 @@ export async function updateArtifactStatus(
   await fs.writeFile(artifactPath, updated, "utf-8");
 }
 
+// -- Rename operations --
+
+/**
+ * Updates the title field in a meeting artifact's frontmatter and appends
+ * a renamed log entry. Both changes land in a single file write.
+ *
+ * Returns { renamed: true } if the write happened, { renamed: false } if
+ * the new title matches the current stored title (no-op).
+ */
+export async function renameMeetingArtifact(
+  projectPath: string,
+  meetingId: MeetingId,
+  newTitle: string,
+): Promise<{ renamed: boolean }> {
+  const artifactPath = meetingArtifactPath(projectPath, meetingId);
+  let raw = await fs.readFile(artifactPath, "utf-8");
+
+  // No-op: current stored title (quotes stripped) matches new title
+  const currentTitle = readYamlField(raw, "title") ?? "";
+  if (currentTitle === newTitle) {
+    return { renamed: false };
+  }
+
+  // Update title field (quoted YAML string to match creation format)
+  raw = replaceYamlField(raw, "title", `"${escapeYamlValue(newTitle)}"`);
+
+  // Append renamed log entry before closing ---
+  const now = new Date();
+  const reason = `Renamed to: ${newTitle}`;
+  const entry = `  - timestamp: ${now.toISOString()}\n    event: renamed\n    reason: "${escapeYamlValue(reason)}"`;
+  raw = appendLogEntry(raw, entry);
+
+  await fs.writeFile(artifactPath, raw, "utf-8");
+  return { renamed: true };
+}
+
 // -- Meeting log operations --
 
 /**

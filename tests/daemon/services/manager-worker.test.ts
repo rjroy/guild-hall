@@ -111,6 +111,36 @@ describe("createManagerPackage", () => {
     const meta = pkg.metadata as WorkerMetadata;
     expect(meta.model).toBe("opus");
   });
+
+  test("defaults to opus when called with no argument", () => {
+    const pkg = createManagerPackage();
+    const meta = pkg.metadata as WorkerMetadata;
+    expect(meta.model).toBe("opus");
+  });
+
+  test("uses configured guildMaster model from config", () => {
+    const pkg = createManagerPackage({ projects: [], systemModels: { guildMaster: "sonnet" } });
+    const meta = pkg.metadata as WorkerMetadata;
+    expect(meta.model).toBe("sonnet");
+  });
+
+  test("uses haiku when configured", () => {
+    const pkg = createManagerPackage({ projects: [], systemModels: { guildMaster: "haiku" } });
+    const meta = pkg.metadata as WorkerMetadata;
+    expect(meta.model).toBe("haiku");
+  });
+
+  test("stores local model name as-is for runtime resolution", () => {
+    const pkg = createManagerPackage({ projects: [], systemModels: { guildMaster: "my-local" } });
+    const meta = pkg.metadata as WorkerMetadata;
+    expect(meta.model).toBe("my-local");
+  });
+
+  test("falls back to opus when systemModels is present but guildMaster is absent", () => {
+    const pkg = createManagerPackage({ projects: [], systemModels: {} });
+    const meta = pkg.metadata as WorkerMetadata;
+    expect(meta.model).toBe("opus");
+  });
 });
 
 describe("MANAGER constants", () => {

@@ -1,7 +1,7 @@
 ---
 title: Local model support implementation
 date: 2026-03-09
-status: approved
+status: implemented
 tags: [local-models, ollama, model-selection, daemon, configuration]
 modules: [daemon, sdk-runner, config, worker-activation, web-ui]
 related:

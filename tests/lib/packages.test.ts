@@ -15,6 +15,8 @@ import {
   toolboxMetadataSchema,
   workerIdentitySchema,
   resourceDefaultsSchema,
+  MANAGER_WORKER_NAME,
+  MANAGER_PORTRAIT_PATH,
 } from "@/lib/packages";
 import type {
   AppConfig,
@@ -976,7 +978,14 @@ describe("getWorkerByName", () => {
 // -- resolveWorkerPortraits --
 
 describe("resolveWorkerPortraits", () => {
-  test("returns name-to-portraitPath map for workers with portraits", async () => {
+  test("always includes the built-in Guild Master portrait", async () => {
+    const ghHome = path.join(tmpDir, "no-packages");
+
+    const portraits = await resolveWorkerPortraits(ghHome);
+    expect(portraits.get(MANAGER_WORKER_NAME)).toBe(MANAGER_PORTRAIT_PATH);
+  });
+
+  test("includes discovered workers alongside the Guild Master", async () => {
     const ghHome = path.join(tmpDir, "gh-home");
     const packagesDir = path.join(ghHome, "packages");
 
@@ -986,11 +995,11 @@ describe("resolveWorkerPortraits", () => {
     });
 
     const portraits = await resolveWorkerPortraits(ghHome);
-    expect(portraits.size).toBe(1);
     expect(portraits.get("researcher")).toBe("portrait.png");
+    expect(portraits.get(MANAGER_WORKER_NAME)).toBe(MANAGER_PORTRAIT_PATH);
   });
 
-  test("omits workers without portraitPath", async () => {
+  test("omits workers without portraitPath but keeps Guild Master", async () => {
     const ghHome = path.join(tmpDir, "gh-home");
     const packagesDir = path.join(ghHome, "packages");
 
@@ -1003,14 +1012,17 @@ describe("resolveWorkerPortraits", () => {
     });
 
     const portraits = await resolveWorkerPortraits(ghHome);
-    expect(portraits.size).toBe(0);
+    // Only the Guild Master (no disk workers have portraits)
+    expect(portraits.size).toBe(1);
+    expect(portraits.get(MANAGER_WORKER_NAME)).toBe(MANAGER_PORTRAIT_PATH);
   });
 
-  test("returns empty map when packages directory does not exist", async () => {
+  test("returns Guild Master even when packages directory does not exist", async () => {
     const ghHome = path.join(tmpDir, "no-packages");
 
     const portraits = await resolveWorkerPortraits(ghHome);
-    expect(portraits.size).toBe(0);
+    expect(portraits.size).toBe(1);
+    expect(portraits.get(MANAGER_WORKER_NAME)).toBe(MANAGER_PORTRAIT_PATH);
   });
 
   test("maps multiple workers by identity name", async () => {
@@ -1033,12 +1045,14 @@ describe("resolveWorkerPortraits", () => {
     });
 
     const portraits = await resolveWorkerPortraits(ghHome);
-    expect(portraits.size).toBe(2);
+    // 2 disk workers + Guild Master = 3
+    expect(portraits.size).toBe(3);
     expect(portraits.get("researcher")).toBe("portrait.png");
     expect(portraits.get("architect")).toBe("arch.png");
+    expect(portraits.get(MANAGER_WORKER_NAME)).toBe(MANAGER_PORTRAIT_PATH);
   });
 
-  test("skips toolbox packages", async () => {
+  test("skips toolbox packages but keeps Guild Master", async () => {
     const ghHome = path.join(tmpDir, "gh-home");
     const packagesDir = path.join(ghHome, "packages");
 
@@ -1048,7 +1062,8 @@ describe("resolveWorkerPortraits", () => {
     });
 
     const portraits = await resolveWorkerPortraits(ghHome);
-    expect(portraits.size).toBe(0);
+    expect(portraits.size).toBe(1);
+    expect(portraits.get(MANAGER_WORKER_NAME)).toBe(MANAGER_PORTRAIT_PATH);
   });
 });
 

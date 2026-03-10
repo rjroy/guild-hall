@@ -76,7 +76,7 @@ describe("DependencyMap commission card data", () => {
     expect(statusToGem("dispatched")).toBe("active");
     expect(statusToGem("pending")).toBe("pending");
     expect(statusToGem("blocked")).toBe("pending");
-    expect(statusToGem("completed")).toBe("active");
+    expect(statusToGem("completed")).toBe("info");
     expect(statusToGem("failed")).toBe("blocked");
     expect(statusToGem("cancelled")).toBe("blocked");
     // Scheduled commission statuses

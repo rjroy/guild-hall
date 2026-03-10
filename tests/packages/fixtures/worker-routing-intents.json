@@ -30,6 +30,12 @@
     "expectedRole": "test-engineer"
   },
   {
+    "name": "steward representative",
+    "kind": "representative",
+    "intent": "Triage my inbox for the past week and flag anything urgent.",
+    "expectedRole": "steward"
+  },
+  {
     "name": "implement adversarial",
     "kind": "adversarial",
     "intent": "Implement fixes from the review findings without expanding scope.",
@@ -58,5 +64,17 @@
     "kind": "adversarial",
     "intent": "Verify the docs example commands pass in CI and capture pass/fail evidence.",
     "expectedRole": "test-engineer"
+  },
+  {
+    "name": "steward adversarial",
+    "kind": "adversarial",
+    "intent": "Check the inbox thread for any email about the test failure from last week.",
+    "expectedRole": "steward"
+  },
+  {
+    "name": "anti-steward adversarial",
+    "kind": "adversarial",
+    "intent": "Research how email encryption works and compare available libraries.",
+    "expectedRole": "researcher"
   }
 ]

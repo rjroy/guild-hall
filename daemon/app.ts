@@ -164,7 +164,7 @@ export async function createProductionApp(options?: {
   const { createManagerPackage } = await import(
     "@/daemon/services/manager/worker"
   );
-  const managerPkg = createManagerPackage();
+  const managerPkg = createManagerPackage(config);
   const allPackages = [managerPkg, ...discoveredPackages];
 
   // The real SDK query function. Dynamic import so the module isn't loaded
@@ -239,6 +239,7 @@ export async function createProductionApp(options?: {
       void triggerCompaction(workerName, projectName, {
         guildHallHome: opts.guildHallHome,
         compactFn: queryFn!,
+        config,
       });
     },
   };

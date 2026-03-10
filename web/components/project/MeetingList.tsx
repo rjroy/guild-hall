@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Panel from "@/web/components/ui/Panel";
-import GemIndicator from "@/web/components/ui/GemIndicator";
+import StatusBadge from "@/web/components/ui/StatusBadge";
 import EmptyState from "@/web/components/ui/EmptyState";
 import type { Artifact } from "@/lib/types";
 import type { GemStatus } from "@/lib/types";
@@ -108,7 +108,7 @@ export default function MeetingList({
                   href={meetingHref(status, projectName, meeting.relativePath)!}
                   className={styles.link}
                 >
-                  <GemIndicator status={gem} size="sm" />
+                  <StatusBadge gem={gem} label={status} size="sm" />
                   <div className={styles.info}>
                     <p className={styles.title}>{title}</p>
                     <div className={styles.meta}>
@@ -132,7 +132,7 @@ export default function MeetingList({
             return (
               <li key={meeting.relativePath} className={styles.item}>
                 <div className={styles.requestedEntry}>
-                  <GemIndicator status={gem} size="sm" />
+                  <StatusBadge gem={gem} label={status} size="sm" />
                   <div className={styles.info}>
                     <p className={styles.title}>{title}</p>
                     <div className={styles.meta}>
@@ -160,7 +160,7 @@ export default function MeetingList({
                   href={meetingHref(status, projectName, meeting.relativePath)!}
                   className={`${styles.link} ${styles.closedLink}`}
                 >
-                  <GemIndicator status={gem} size="sm" />
+                  <StatusBadge gem={gem} label={status} size="sm" />
                   <div className={styles.info}>
                     <p className={styles.title}>{title}</p>
                     <div className={styles.meta}>
@@ -181,7 +181,7 @@ export default function MeetingList({
           return (
             <li key={meeting.relativePath} className={styles.item}>
               <div className={styles.closedEntry}>
-                <GemIndicator status={gem} size="sm" />
+                <StatusBadge gem={gem} label={status} size="sm" />
                 <div className={styles.info}>
                   <p className={styles.title}>{title}</p>
                   <div className={styles.meta}>

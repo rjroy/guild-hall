@@ -47,8 +47,16 @@ export const modelDefinitionSchema = z.object({
   guidance: z.string().optional(),
 });
 
+const systemModelsSchema = z.object({
+  memoryCompaction: z.string().min(1).optional(),
+  meetingNotes: z.string().min(1).optional(),
+  briefing: z.string().min(1).optional(),
+  guildMaster: z.string().min(1).optional(),
+}).optional();
+
 export const appConfigSchema = z.object({
   projects: z.array(projectConfigSchema),
+  systemModels: systemModelsSchema,
   models: z
     .array(modelDefinitionSchema)
     .optional()

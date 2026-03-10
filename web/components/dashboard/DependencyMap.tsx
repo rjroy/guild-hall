@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Panel from "@/web/components/ui/Panel";
-import GemIndicator from "@/web/components/ui/GemIndicator";
+import StatusBadge from "@/web/components/ui/StatusBadge";
 import EmptyState from "@/web/components/ui/EmptyState";
 import CommissionGraph from "@/web/components/dashboard/CommissionGraph";
 import { statusToGem } from "@/lib/types";
@@ -61,7 +61,7 @@ export default function DependencyMap({ commissions }: DependencyMapProps) {
                 href={commissionHref(commission.projectName, commission.commissionId)}
                 className={styles.link}
               >
-                <GemIndicator status={gemStatus} size="sm" />
+                <StatusBadge gem={gemStatus} label={commission.status} size="sm" />
                 <div className={styles.info}>
                   <span className={styles.title}>
                     {commission.title || commission.commissionId}

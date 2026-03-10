@@ -2,13 +2,15 @@ import * as path from "node:path";
 import type {
   ActivationContext,
   ActivationResult,
+  AppConfig,
   DiscoveredPackage,
   ModelDefinition,
   ModelName,
   WorkerMetadata,
 } from "@/lib/types";
+import { MANAGER_WORKER_NAME, MANAGER_PORTRAIT_PATH } from "@/lib/packages";
 
-export const MANAGER_WORKER_NAME = "Guild Master";
+export { MANAGER_WORKER_NAME };
 export const MANAGER_PACKAGE_NAME = "guild-hall-manager";
 
 /**
@@ -101,7 +103,7 @@ export function buildModelGuidance(localModels?: ModelDefinition[]): string {
  * The empty `path` signals that this package is built into the daemon,
  * not loaded from the filesystem.
  */
-export function createManagerPackage(): DiscoveredPackage {
+export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
   const metadata: WorkerMetadata = {
     type: "worker",
     identity: {
@@ -109,11 +111,13 @@ export function createManagerPackage(): DiscoveredPackage {
       description:
         "Sits at the head of the hall, directing the guild's efforts. Sees the full board, dispatches the right hand for each task, and answers to the one who commissioned the work.",
       displayTitle: MANAGER_WORKER_NAME,
-      portraitPath: "/images/portraits/guild-master.webp",
+      portraitPath: MANAGER_PORTRAIT_PATH,
     },
     posture: MANAGER_POSTURE_BASE,
     soul: MANAGER_SOUL,
-    model: "opus" as ModelName,
+    // Cast: model may be a local name string at this point.
+    // prepareSdkSession resolves it via resolveModel() at activation time.
+    model: (config?.systemModels?.guildMaster ?? "opus") as ModelName,
     systemToolboxes: ["manager"],
     domainToolboxes: [],
     builtInTools: ["Read", "Glob", "Grep"],

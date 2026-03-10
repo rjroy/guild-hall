@@ -70,6 +70,12 @@
   --gem-blocked: hue-rotate(120deg) saturate(2) brightness(0.85);
   --gem-info: none;
 
+  /* Status label text colors (paired with --gem-* filter variables) */
+  --color-status-active: #6abf69;
+  --color-status-pending: var(--color-amber);
+  --color-status-blocked: #e57373;
+  --color-status-info: var(--color-text-muted);
+
   /* Breakpoints (reference only -- CSS custom properties
      cannot be used in @media conditions) */
   --breakpoint-tablet: 768px;

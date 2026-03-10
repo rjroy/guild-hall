@@ -13,6 +13,14 @@ import type {
 } from "@/lib/types";
 import { getGuildHallHome } from "@/lib/paths";
 
+// -- Built-in worker constants --
+// The Guild Master is a built-in worker (no package on disk). Its identity
+// constants live here so both daemon/ and lib/ can reference them without
+// crossing the import boundary.
+
+export const MANAGER_WORKER_NAME = "Guild Master";
+export const MANAGER_PORTRAIT_PATH = "/images/portraits/guild-master.webp";
+
 // -- Package name validation --
 
 /**
@@ -305,6 +313,10 @@ export async function resolveWorkerPortraits(
   const workers = getWorkers(packages);
 
   const portraits = new Map<string, string>();
+
+  // Include the built-in Guild Master (not on disk, won't appear in packages)
+  portraits.set(MANAGER_WORKER_NAME, MANAGER_PORTRAIT_PATH);
+
   for (const w of workers) {
     const meta = w.metadata as WorkerMetadata;
     if (meta.identity.portraitPath) {
