@@ -103,6 +103,14 @@
   margin: 0;
 }
 
+.workerModel {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-code);
+  margin: 2px 0 0 0;
+}
+
 .workerDescription {
   font-size: 0.8rem;
   color: var(--color-text-muted);

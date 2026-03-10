@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { createApp } from "@/daemon/app";
-import type { DiscoveredPackage, WorkerMetadata, ToolboxMetadata } from "@/lib/types";
+import type { AppConfig, DiscoveredPackage, WorkerMetadata, ToolboxMetadata } from "@/lib/types";
 
 // -- Test fixtures --
 
@@ -11,6 +11,7 @@ function makeWorkerPackage(overrides: Partial<{
   displayTitle: string;
   description: string;
   portraitPath: string;
+  model: string;
 }> = {}): DiscoveredPackage {
   const metadata: WorkerMetadata = {
     type: "worker",
@@ -21,6 +22,7 @@ function makeWorkerPackage(overrides: Partial<{
       portraitPath: overrides.portraitPath,
     },
     posture: "You are helpful.",
+    model: overrides.model,
     domainToolboxes: [],
     builtInTools: ["Read"],
     checkoutScope: "sparse",
@@ -46,13 +48,14 @@ function makeToolboxPackage(): DiscoveredPackage {
   };
 }
 
-function makeTestApp(packages: DiscoveredPackage[] = []) {
+function makeTestApp(packages: DiscoveredPackage[] = [], config?: AppConfig) {
   return createApp({
     health: {
       getMeetingCount: () => 0,
       getUptimeSeconds: () => 42,
     },
     packages,
+    config,
   });
 }
 
@@ -79,6 +82,7 @@ describe("GET /workers", () => {
       displayTitle: "Research Scholar",
       description: "Explores codebases",
       portraitUrl: null,
+      model: null,
     });
   });
 
@@ -185,5 +189,48 @@ describe("GET /workers", () => {
     expect(worker).toHaveProperty("displayTitle", "The Code Reviewer");
     expect(worker).toHaveProperty("description", "Reviews pull requests with care");
     expect(worker).toHaveProperty("portraitUrl");
+  });
+
+  test("worker with built-in model shows model info with isLocal=false", async () => {
+    const app = makeTestApp([
+      makeWorkerPackage({ model: "sonnet" }),
+    ]);
+
+    const res = await app.request("/workers");
+    const body = await res.json();
+    expect(body.workers[0].model).toEqual({
+      name: "sonnet",
+      isLocal: false,
+    });
+  });
+
+  test("worker with local model shows model info with isLocal=true and baseUrl", async () => {
+    const config: AppConfig = {
+      projects: [],
+      models: [
+        { name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" },
+      ],
+    };
+    const app = makeTestApp([
+      makeWorkerPackage({ model: "llama3" }),
+    ], config);
+
+    const res = await app.request("/workers");
+    const body = await res.json();
+    expect(body.workers[0].model).toEqual({
+      name: "llama3",
+      isLocal: true,
+      baseUrl: "http://localhost:11434",
+    });
+  });
+
+  test("worker with no model shows null model", async () => {
+    const app = makeTestApp([
+      makeWorkerPackage({}),
+    ]);
+
+    const res = await app.request("/workers");
+    const body = await res.json();
+    expect(body.workers[0].model).toBeNull();
   });
 });

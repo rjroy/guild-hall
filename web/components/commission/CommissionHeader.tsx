@@ -11,6 +11,8 @@ interface CommissionHeaderProps {
   projectName: string;
   model?: string;
   isModelOverride?: boolean;
+  isLocalModel?: boolean;
+  localModelBaseUrl?: string;
   commissionType?: string;
 }
 
@@ -27,6 +29,8 @@ export default function CommissionHeader({
   projectName,
   model,
   isModelOverride,
+  isLocalModel,
+  localModelBaseUrl,
   commissionType,
 }: CommissionHeaderProps) {
   const encodedProject = encodeURIComponent(projectName);
@@ -79,8 +83,13 @@ export default function CommissionHeader({
           </span>
         )}
         {model && (
-          <span className={styles.modelLabel}>
-            Model: {model}{isModelOverride ? " (override)" : ""}
+          <span
+            className={styles.modelLabel}
+            title={isLocalModel && localModelBaseUrl ? localModelBaseUrl : undefined}
+          >
+            Model: {model}
+            {isLocalModel ? " (local)" : ""}
+            {isModelOverride ? " (override)" : ""}
           </span>
         )}
       </div>

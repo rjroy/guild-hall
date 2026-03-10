@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { redirect } from "next/navigation";
 import matter from "gray-matter";
-import { getProject } from "@/lib/config";
+import { getProject, readConfig } from "@/lib/config";
 import { projectLorePath, getGuildHallHome, resolveCommissionBasePath, integrationWorktreePath } from "@/lib/paths";
 import {
   readCommissionMeta,
@@ -14,7 +14,7 @@ import { nextOccurrence } from "@/daemon/services/scheduler/cron";
 import { describeCron } from "@/lib/cron-utils";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
 import { discoverPackages, getWorkerByName } from "@/lib/packages";
-import type { WorkerMetadata } from "@/lib/types";
+import { resolveModel, type WorkerMetadata } from "@/lib/types";
 import CommissionHeader from "@/web/components/commission/CommissionHeader";
 import CommissionView from "@/web/components/commission/CommissionView";
 import type { ScheduleInfo } from "@/web/components/commission/CommissionView";
@@ -140,6 +140,20 @@ export default async function CommissionPage({
   const isModelOverride = commission.resource_overrides.model != null
     && commission.resource_overrides.model !== workerDefaultModel;
 
+  // Determine model provenance (REQ-LOCAL-25)
+  const config = await readConfig();
+  let isLocalModel = false;
+  let localModelBaseUrl: string | undefined;
+  try {
+    const resolved = resolveModel(effectiveModel, config);
+    if (resolved.type === "local") {
+      isLocalModel = true;
+      localModelBaseUrl = resolved.definition.baseUrl;
+    }
+  } catch {
+    // Unknown model name; display as-is without provenance
+  }
+
   // Build dependency graph from all commissions in the project
   // to show the neighborhood (direct deps and dependents) for this commission.
   const integrationPath = integrationWorktreePath(ghHome, projectName);
@@ -171,6 +185,8 @@ export default async function CommissionPage({
         projectName={projectName}
         model={effectiveModel}
         isModelOverride={isModelOverride}
+        isLocalModel={isLocalModel}
+        localModelBaseUrl={localModelBaseUrl}
         commissionType={commission.type}
       />
       <NeighborhoodGraph

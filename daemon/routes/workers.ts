@@ -1,9 +1,11 @@
 import { Hono } from "hono";
-import type { DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import { resolveModel } from "@/lib/types";
 import { getWorkers } from "@/lib/packages";
 
 export interface WorkerRoutesDeps {
   packages: DiscoveredPackage[];
+  config?: AppConfig;
 }
 
 function isWorkerMetadata(
@@ -30,13 +32,30 @@ export function createWorkerRoutes(deps: WorkerRoutesDeps): Hono {
       .filter((pkg): pkg is DiscoveredPackage & { metadata: WorkerMetadata } =>
         isWorkerMetadata(pkg.metadata),
       )
-      .map((pkg) => ({
-        name: pkg.name,
-        displayName: pkg.metadata.identity.name,
-        displayTitle: pkg.metadata.identity.displayTitle,
-        description: pkg.metadata.identity.description,
-        portraitUrl: pkg.metadata.identity.portraitPath ?? null,
-      }));
+      .map((pkg) => {
+        const workerModel = pkg.metadata.model;
+        let modelInfo: { name: string; isLocal: boolean; baseUrl?: string } | null = null;
+        if (workerModel) {
+          try {
+            const resolved = resolveModel(workerModel, deps.config);
+            modelInfo = {
+              name: workerModel,
+              isLocal: resolved.type === "local",
+              baseUrl: resolved.type === "local" ? resolved.definition.baseUrl : undefined,
+            };
+          } catch {
+            modelInfo = { name: workerModel, isLocal: false };
+          }
+        }
+        return {
+          name: pkg.name,
+          displayName: pkg.metadata.identity.name,
+          displayTitle: pkg.metadata.identity.displayTitle,
+          description: pkg.metadata.identity.description,
+          portraitUrl: pkg.metadata.identity.portraitPath ?? null,
+          model: modelInfo,
+        };
+      });
 
     return c.json({ workers });
   });

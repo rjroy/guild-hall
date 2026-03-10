@@ -10,7 +10,8 @@ import { createCommissionRoutes } from "./routes/commissions";
 import { createEventRoutes } from "./routes/events";
 import { createWorkerRoutes } from "./routes/workers";
 import { createBriefingRoutes } from "./routes/briefing";
-import type { DiscoveredPackage } from "@/lib/types";
+import { createModelsRoutes } from "./routes/models";
+import type { AppConfig, DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { EventBus } from "@/daemon/lib/event-bus";
@@ -24,6 +25,7 @@ export interface AppDeps {
   packages?: DiscoveredPackage[];
   eventBus?: EventBus;
   briefingGenerator?: ReturnType<typeof createBriefingGenerator>;
+  config?: AppConfig;
 }
 
 /**
@@ -51,7 +53,7 @@ export function createApp(deps: AppDeps): Hono {
   }
 
   if (deps.packages) {
-    app.route("/", createWorkerRoutes({ packages: deps.packages }));
+    app.route("/", createWorkerRoutes({ packages: deps.packages, config: deps.config }));
   }
 
   if (deps.eventBus) {
@@ -60,6 +62,10 @@ export function createApp(deps: AppDeps): Hono {
 
   if (deps.briefingGenerator) {
     app.route("/", createBriefingRoutes({ briefingGenerator: deps.briefingGenerator }));
+  }
+
+  if (deps.config) {
+    app.route("/", createModelsRoutes({ config: deps.config }));
   }
 
   return app;
@@ -347,6 +353,7 @@ export async function createProductionApp(options?: {
       packages: allPackages,
       eventBus,
       briefingGenerator,
+      config,
     }),
     shutdown: () => scheduler.stop(),
   };
