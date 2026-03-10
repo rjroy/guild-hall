@@ -1,7 +1,7 @@
 ---
 title: "Commission: Local Model Support - Spec Validation (Step 11)"
 date: 2026-03-10
-status: blocked
+status: failed
 type: one-shot
 tags: [commission]
 worker: Thorne

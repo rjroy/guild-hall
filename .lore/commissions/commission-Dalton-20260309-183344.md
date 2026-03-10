@@ -1,7 +1,7 @@
 ---
 title: "Commission: Local Model Support - Daemon Wiring and /models Endpoint (Steps 8-9)"
 date: 2026-03-10
-status: blocked
+status: failed
 type: one-shot
 tags: [commission]
 worker: Dalton

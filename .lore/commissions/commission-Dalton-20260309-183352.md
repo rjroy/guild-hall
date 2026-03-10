@@ -1,7 +1,7 @@
 ---
 title: "Commission: Local Model Support - UI Provenance and Model Selector (Steps 7, 10)"
 date: 2026-03-10
-status: blocked
+status: failed
 type: one-shot
 tags: [commission]
 worker: Dalton
