@@ -839,7 +839,7 @@ export function createCommissionOrchestrator(
         if (dependencies.length === 0) return null;
 
         const depChecks = await Promise.all(
-          dependencies.map((dep) => fileExists(path.join(iPath, dep))),
+          dependencies.map((dep) => fileExists(commissionArtifactPath(iPath, dep))),
         );
         const allSatisfied = depChecks.every(Boolean);
 

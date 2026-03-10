@@ -848,17 +848,18 @@ describe("recovery flow", () => {
 
 describe("dependency auto-transitions", () => {
   test("blocked commission becomes pending when dependency exists", async () => {
-    // Write a blocked commission with a dependency
+    // Write a blocked commission with a dependency (raw commission ID, not full path)
     const commissionId = "commission-dep-001";
+    const depId = "commission-dep-target";
     await writeCommissionArtifact(integrationPath, commissionId, {
       status: "blocked",
-      dependencies: [".lore/commissions/commission-dep-target.md"],
+      dependencies: [depId],
     });
 
-    // Create the dependency artifact
+    // Create the dependency artifact at the correct .lore/commissions/<id>.md path
     const depDir = path.join(integrationPath, ".lore", "commissions");
     await fs.writeFile(
-      path.join(depDir, "commission-dep-target.md"),
+      path.join(depDir, `${depId}.md`),
       "---\ntitle: Target\nstatus: completed\n---\n",
       "utf-8",
     );
@@ -888,7 +889,7 @@ describe("dependency auto-transitions", () => {
     const commissionId = "commission-dep-002";
     await writeCommissionArtifact(integrationPath, commissionId, {
       status: "pending",
-      dependencies: [".lore/commissions/nonexistent.md"],
+      dependencies: ["commission-nonexistent"],
     });
 
     const { orchestrator, eventBus } = buildDeps();
