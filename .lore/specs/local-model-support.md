@@ -34,7 +34,7 @@ Three use cases drive this: cost-free routine maintenance (housekeeping on a loc
 ### Model Definition
 
 - REQ-LOCAL-1: A model definition is a named entry in `config.yaml` that maps a model name to connection parameters. Each definition has:
-  - **name** (required): The identifier used in `resource_overrides.model` and worker `model` fields. Must not collide with built-in model names (`opus`, `sonnet`, `haiku`).
+  - **name** (required): The identifier used in `resource_overrides.model` and worker `model` fields. Must not collide with built-in model names (`opus`, `sonnet`, `haiku`). Must match `[a-zA-Z0-9_-]+` (alphanumeric, hyphen, underscore only). This restriction ensures names are safe for unquoted YAML values in commission artifacts.
   - **modelId** (required): The string passed to the SDK's `model` parameter (e.g., `llama3`, `mistral`, `qwen2.5-coder:32b`). This is what the local server uses to identify the model.
   - **baseUrl** (required): The URL of the local model server (e.g., `http://localhost:11434`). Overrides `ANTHROPIC_BASE_URL` for sessions using this model.
   - **auth** (optional): An object with `token` and `apiKey` fields that override `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` respectively. When omitted, defaults to `{ token: "ollama", apiKey: "" }`, which is the convention Ollama expects (see issue file, lines 29-31). This default handles the common case without requiring the user to look up magic strings.

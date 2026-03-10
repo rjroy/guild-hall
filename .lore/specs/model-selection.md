@@ -10,6 +10,7 @@ related:
   - .lore/specs/guild-hall-workers.md
   - .lore/specs/guild-hall-commissions.md
   - .lore/specs/guild-hall-scheduled-commissions.md
+  - .lore/specs/local-model-support.md
   - .lore/issues/local-model-support.md
 ---
 
@@ -37,8 +38,8 @@ This replaces the current hardcoded `"opus"` in worker activation, making model 
 
 ### Model Validation
 
-- REQ-MODEL-3: Valid model names are `opus`, `sonnet`, and `haiku`. The system rejects unrecognized names during package validation and commission creation.
-- REQ-MODEL-4: The valid model list is defined as a single constant, not repeated across validation sites. The list will grow when local model support is added (see `.lore/issues/local-model-support.md`).
+- REQ-MODEL-3: Valid model names are `opus`, `sonnet`, and `haiku` for built-in models. Configured local model names (see [Spec: Local Model Support](local-model-support.md) REQ-LOCAL-2) are also valid at all sites that accept model names. The system rejects unrecognized names during package validation and commission creation.
+- REQ-MODEL-4: The built-in model list is defined as a single constant (`VALID_MODELS`), not repeated across validation sites. Local model names are resolved via `config.models` at runtime (REQ-LOCAL-8, REQ-LOCAL-9).
 
 ### Activation
 
@@ -49,13 +50,13 @@ This replaces the current hardcoded `"opus"` in worker activation, making model 
 
 - REQ-MODEL-7: Commission artifacts accept an optional `model` field in `resource_overrides`, alongside `maxTurns` and `maxBudgetUsd`. This requires amending REQ-COM-2 in [Spec: Commissions](../specs/guild-hall-commissions.md) to add `model` to the `resource_overrides` definition.
 - REQ-MODEL-8: When present, the commission's model override takes precedence over the worker's default.
-- REQ-MODEL-9: The resolution order is: commission `resource_overrides.model` > worker package `model` > fallback `opus`.
+- REQ-MODEL-9: The resolution order is: commission `resource_overrides.model` > worker package `model` > fallback `opus`. Local model names are valid at every level of this chain (REQ-LOCAL-19).
 - REQ-MODEL-10: Scheduled commission templates include `model` in their `resource_overrides`. Spawned commissions inherit it through the existing resource override flow. This requires amending REQ-SCOM-11 and REQ-SCOM-19 in [Spec: Scheduled Commissions](../specs/guild-hall-scheduled-commissions.md) to explicitly include `model` in `resource_overrides` (they currently only list `maxTurns` and `maxBudgetUsd`).
 
 ### Meetings and Mail
 
-- REQ-MODEL-11: Meetings always use the worker's default model. No meeting-level model override exists.
-- REQ-MODEL-12: Mail reader sessions always use the worker's default model. No mail-level model override exists.
+- REQ-MODEL-11: Meetings always use the worker's default model. No meeting-level model override exists. If the worker's default is a local model, the meeting uses that local model (REQ-LOCAL-22).
+- REQ-MODEL-12: Mail reader sessions always use the worker's default model. No mail-level model override exists. If the worker's default is a local model, the mail reader uses that local model (REQ-LOCAL-22).
 
 ### Briefing Generator
 
@@ -109,7 +110,7 @@ This replaces the current hardcoded `"opus"` in worker activation, making model 
 
 ## Constraints
 
-- The valid model list will expand (Ollama, local models). Design validation to accommodate this without architectural changes.
+- The valid model list has been expanded via [Spec: Local Model Support](local-model-support.md). Local model names are resolved through `config.models` at runtime rather than a static list.
 - Model selection is a mechanism, not a policy. The system provides the override path; the manager's posture and the user's judgment decide when to use it. No system-enforced restrictions on which models can override which.
 - This spec does not cover model-specific posture adaptation. Workers have one posture regardless of which model runs them.
 

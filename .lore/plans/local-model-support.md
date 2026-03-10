@@ -1,7 +1,7 @@
 ---
 title: Local model support implementation
 date: 2026-03-09
-status: draft
+status: approved
 tags: [local-models, ollama, model-selection, daemon, configuration]
 modules: [daemon, sdk-runner, config, worker-activation, web-ui]
 related:
@@ -113,7 +113,10 @@ const modelAuthSchema = z.object({
 });
 
 const modelDefinitionSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).refine(
+    (name) => /^[a-zA-Z0-9_-]+$/.test(name),
+    { message: "Model name must contain only alphanumeric characters, hyphens, and underscores" },
+  ),
   modelId: z.string().min(1),
   baseUrl: z.string().refine(
     (url) => { try { new URL(url); return true; } catch { return false; } },
@@ -153,6 +156,8 @@ Note: `VALID_MODELS` must be imported from `lib/types.ts`. Watch for a circular 
 **Tests** (`tests/lib/config.test.ts`):
 - Valid model definition parses correctly
 - Model name matching a built-in (`"opus"`) is rejected
+- Model name with invalid characters (`"my:model"`, `"has space"`) is rejected
+- Model name with valid characters (`"llama3"`, `"mistral-local"`, `"qwen2_5"`) passes
 - Duplicate names in the array are rejected
 - `baseUrl` without a scheme (`"localhost:11434"`) is rejected
 - `baseUrl` with a valid URL (`"http://localhost:11434"`) passes
@@ -413,7 +418,9 @@ Also import `resolveModel` from `@/lib/types` if needed for future use (not stri
 
 Three changes:
 
-**Add `config` to the toolbox deps.** The current services bag passed to the manager toolbox (from `orchestrator.ts:1726-1734`) includes `commissionSession`, `gitOps`, `scheduleLifecycle`, `recordOps`, `packages`. Add `config: AppConfig` to that object. The toolbox factory function (`GuildHallToolServices` or equivalent type) needs to declare this field.
+**Add `config` to the toolbox deps.** The `GuildHallToolServices` type is defined at `daemon/lib/toolbox-utils.ts:28-34` with fields: `commissionSession`, `gitOps`, `scheduleLifecycle?`, `recordOps?`, `packages?`. Add `config: AppConfig` to this type. The services object is constructed in **two** places that both need updating:
+1. Commission orchestrator at `orchestrator.ts:1726-1734`
+2. Meeting orchestrator at `meeting/orchestrator.ts:470-478`
 
 **Replace `isValidModel` runtime checks** at `toolbox.ts:665` and `toolbox.ts:999`. These now call `isValidModel(name, deps.config)` (or `services.config`) instead of the no-config form. The error text should name the valid built-in models and hint that local models require a config entry:
 
@@ -582,20 +589,22 @@ A focused commission breakdown:
 
 Commission A must complete before B, C. Commission B and C can start in parallel after A. D after B and C. E after D.
 
-## Open Questions
+## Resolved Questions
 
-**Meeting orchestrator reachability failure path (REQ-LOCAL-14).** The spec says a meeting start is rejected and the error is surfaced to the user when the reachability check fails. `prepareSdkSession` already returns `{ ok: false }`. Verify that the meeting orchestrator handles this correctly: does it check `prepResult.ok` and surface the error as a meeting start failure rather than silently erroring? If not, add the check in the meeting orchestrator as part of Step 8 or a separate step.
+Questions from the draft plan, verified against the codebase during the meeting on 2026-03-09.
 
-**Mail reader reachability failure path (REQ-LOCAL-14).** Same question for the mail orchestrator. A failed reachability check should record in the commission's activity timeline so the user can see why mail was not delivered. The sleeping commission should remain in `sleeping` state. Verify or add this behavior.
+**Meeting orchestrator (REQ-LOCAL-14).** Verified. Checks `{ ok: false }` at `meeting/orchestrator.ts:595-600` and yields an SSE error event. The meeting enters "open" status before `prepareSdkSession` runs, so on failure the meeting stays "open" with no active session. This is acceptable: the user can retry via `sendMessage`, and the error is surfaced immediately via the SSE stream. No code change needed.
 
-**Briefing generator fallback (REQ-LOCAL-14).** The briefing generator already falls back to the template when `{ ok: false }`. Verify it handles reachability failure correctly (it should, given the existing fallback).
+**Mail reader (REQ-LOCAL-14).** Verified with a gap. Checks `{ ok: false }` at `mail/orchestrator.ts:377-380` and throws, caught at line 397. The sender is woken with an error prompt. **Gap**: no timeline event is recorded in the commission artifact when the reader's `prepareSdkSession` fails. The failure is console-logged but not observable in the artifact. **Action**: Step 3 or Step 8 should add a timeline append (e.g., `mail_reader_failed`) in the catch block at `mail/orchestrator.ts:397-400` before calling `wakeCommission`. This is a small change (one `appendTimeline` call) and should be included in the commission that handles Step 3.
 
-**`resolveModel` call in `prepareSdkSession` when `resolvedModel` is undefined.** When no model is set at either commission or worker level, `resolvedModel` is undefined at `sdk-runner.ts:314`. The injection code in Step 3 should only call `resolveModel` when `resolvedModel` is truthy. Confirm the guard is in place.
+**Briefing generator (REQ-LOCAL-14).** Verified. Correctly handles `{ ok: false }` at `briefing-generator.ts:395-397` and falls back to `generateTemplateBriefing()`. Tested at lines 326-376. No action needed.
 
-**Config in `GuildHallToolServices`.** The type is likely defined in `daemon/lib/toolbox-utils.ts`. Adding `config` to it is a type-only change, but every place that constructs a services object must include `config`. Audit all constructors before starting Step 6.
+**resolvedModel guard.** Verified. Already guarded via conditional spread at `sdk-runner.ts:327`: `...(resolvedModel ? { model: resolvedModel } : {})`. The injection code in Step 3 should call `resolveModel()` inside the same truthiness check. Confirmed safe.
 
-**Circular import risk.** `lib/config.ts` imports from `lib/types.ts`. `lib/types.ts` will now import `ModelDefinition` referenced by `AppConfig`. The Zod schema in `lib/config.ts` imports `VALID_MODELS` from `lib/types.ts`. This is fine — `lib/types.ts` does not import from `lib/config.ts`. The only risk is if Step 2 needs to import something from `lib/config.ts` for `resolveModel`. It should not: `resolveModel` takes `AppConfig` directly, not a path to load config from.
+**GuildHallToolServices.** Verified. Type defined at `daemon/lib/toolbox-utils.ts:28-34`. Five fields: `commissionSession`, `gitOps`, `scheduleLifecycle?`, `recordOps?`, `packages?`. Constructed in two places: commission orchestrator (`orchestrator.ts:1726-1734`) and meeting orchestrator (`meeting/orchestrator.ts:470-478`). Both need `config` added. Updated in Step 6.
 
-**Local model names in YAML without quoting.** The commission artifact writes model names unquoted (e.g., `model: mistral-local`). This is valid YAML for alphanumeric-plus-hyphen strings. However, names with special characters (colons, brackets, etc.) would break YAML serialization. The config schema's `name` field should be validated to only allow characters safe for unquoted YAML values. Add a `.refine()` to `modelDefinitionSchema.name` restricting to `[a-zA-Z0-9_-]`. Document this constraint in the spec if it isn't already explicit.
+**Circular import.** Verified safe. `lib/config.ts` imports from `lib/types.ts` (one-way). `lib/types.ts` imports only from `@anthropic-ai/claude-agent-sdk`. Adding `resolveModel()` to `lib/types.ts` with `AppConfig` (already defined there) creates no cycle.
 
-**Spec amendments.** REQ-LOCAL-19 extends REQ-MODEL-9 from the model-selection spec. REQ-LOCAL-22 references REQ-MODEL-11 and REQ-MODEL-12. These are informational cross-references, not blockers. Update the model-selection spec to note that local names are valid in the same positions.
+**Model name characters.** Resolved: restrict to `[a-zA-Z0-9_-]+` via a `.refine()` on `modelDefinitionSchema.name`. Added to Step 1 and documented in the spec (REQ-LOCAL-1).
+
+**Spec amendments.** Done. Model-selection spec updated with cross-references to REQ-LOCAL-2, REQ-LOCAL-8, REQ-LOCAL-9, REQ-LOCAL-19, REQ-LOCAL-22.
