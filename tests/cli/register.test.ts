@@ -215,7 +215,7 @@ describe("notifyDaemonReload", () => {
   test("calls fetch with the correct URL and unix socket path", async () => {
     let capturedUrl = "";
     let capturedInit: RequestInit | undefined;
-    const mockFetch = async (url: string | URL | Request, init?: RequestInit) => {
+    const mockFetch = (url: string | URL | Request, init?: RequestInit) => {
       capturedUrl = url as string;
       capturedInit = init;
       return new Response(JSON.stringify({ reloaded: true }));
@@ -231,7 +231,7 @@ describe("notifyDaemonReload", () => {
   });
 
   test("does not throw when daemon is not running", async () => {
-    const failingFetch = async () => {
+    const failingFetch = () => {
       throw new Error("Connection refused");
     };
 

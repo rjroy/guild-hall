@@ -9,38 +9,38 @@ function makeAdminDeps(overrides?: Partial<AdminDeps>): AdminDeps {
     config,
     guildHallHome: "/tmp/test-gh",
     gitOps: {
-      createBranch: async () => {},
-      branchExists: async () => false,
-      deleteBranch: async () => {},
-      createWorktree: async () => {},
-      removeWorktree: async () => {},
-      configureSparseCheckout: async () => {},
-      commitAll: async () => false,
-      squashMerge: async () => {},
-      hasUncommittedChanges: async () => false,
-      rebase: async () => {},
-      currentBranch: async () => "main",
-      listWorktrees: async () => [],
-      initClaudeBranch: async () => {},
-      detectDefaultBranch: async () => "main",
-      fetch: async () => {},
-      push: async () => {},
-      resetHard: async () => {},
-      resetSoft: async () => {},
-      createPullRequest: async () => ({ url: "" }),
-      isAncestor: async () => false,
-      treesEqual: async () => false,
-      revParse: async () => "abc",
-      rebaseOnto: async () => {},
-      merge: async () => {},
-      squashMergeNoCommit: async () => true,
-      listConflictedFiles: async () => [],
-      resolveConflictsTheirs: async () => {},
-      mergeAbort: async () => {},
-      hasCommitsBeyond: async () => false,
+      createBranch: () => Promise.resolve(),
+      branchExists: () => Promise.resolve(false),
+      deleteBranch: () => Promise.resolve(),
+      createWorktree: () => Promise.resolve(),
+      removeWorktree: () => Promise.resolve(),
+      configureSparseCheckout: () => Promise.resolve(),
+      commitAll: () => Promise.resolve(false),
+      squashMerge: () => Promise.resolve(),
+      hasUncommittedChanges: () => Promise.resolve(false),
+      rebase: () => Promise.resolve(),
+      currentBranch: () => Promise.resolve("main"),
+      listWorktrees: () => Promise.resolve([]),
+      initClaudeBranch: () => Promise.resolve(),
+      detectDefaultBranch: () => Promise.resolve("main"),
+      fetch: () => Promise.resolve(),
+      push: () => Promise.resolve(),
+      resetHard: () => Promise.resolve(),
+      resetSoft: () => Promise.resolve(),
+      createPullRequest: () => Promise.resolve({ url: "" }),
+      isAncestor: () => Promise.resolve(false),
+      treesEqual: () => Promise.resolve(false),
+      revParse: () => Promise.resolve("abc"),
+      rebaseOnto: () => Promise.resolve(),
+      merge: () => Promise.resolve(),
+      squashMergeNoCommit: () => Promise.resolve(true),
+      listConflictedFiles: () => Promise.resolve([]),
+      resolveConflictsTheirs: () => Promise.resolve(),
+      mergeAbort: () => Promise.resolve(),
+      hasCommitsBeyond: () => Promise.resolve(false),
     },
-    readConfigFromDisk: async () => ({ projects: [] }),
-    syncProject: async () => {},
+    readConfigFromDisk: () => Promise.resolve({ projects: [] }),
+    syncProject: () => Promise.resolve(),
     ...overrides,
   };
 }
@@ -60,7 +60,7 @@ describe("POST /admin/reload-config", () => {
     const config: AppConfig = { projects: [] };
     const deps = makeAdminDeps({
       config,
-      readConfigFromDisk: async () => ({
+      readConfigFromDisk: () => Promise.resolve({
         projects: [
           { name: "new-project", path: "/tmp/new-project" },
         ],
@@ -87,7 +87,7 @@ describe("POST /admin/reload-config", () => {
     };
     const deps = makeAdminDeps({
       config,
-      readConfigFromDisk: async () => ({
+      readConfigFromDisk: () => Promise.resolve({
         projects: [
           { name: "existing", path: "/tmp/existing" },
           { name: "added", path: "/tmp/added" },
@@ -111,14 +111,15 @@ describe("POST /admin/reload-config", () => {
     };
     const deps = makeAdminDeps({
       config,
-      readConfigFromDisk: async () => ({
+      readConfigFromDisk: () => Promise.resolve({
         projects: [
           { name: "old", path: "/tmp/old" },
           { name: "new", path: "/tmp/new" },
         ],
       }),
-      syncProject: async (_path, name) => {
+      syncProject: (_path, name) => {
         syncedProjects.push(name);
+        return Promise.resolve();
       },
     });
     const app = makeTestApp(deps);
@@ -137,7 +138,7 @@ describe("POST /admin/reload-config", () => {
     };
     const deps = makeAdminDeps({
       config,
-      readConfigFromDisk: async () => ({
+      readConfigFromDisk: () => Promise.resolve({
         projects: [{ name: "a", path: "/a" }],
       }),
     });
@@ -159,7 +160,7 @@ describe("POST /admin/reload-config", () => {
 
     const deps = makeAdminDeps({
       config,
-      readConfigFromDisk: async () => ({
+      readConfigFromDisk: () => Promise.resolve({
         projects: [{ name: "fresh", path: "/tmp/fresh" }],
       }),
     });
