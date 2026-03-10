@@ -1,7 +1,7 @@
 ---
 title: "Commission: Plan: Guild Hall Steward Worker MVP"
 date: 2026-03-10
-status: dispatched
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -22,6 +22,14 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-10T08:23:15.770Z
+    event: status_cancelled
+    reason: "Commission cancelled by user"
+  - timestamp: 2026-03-10T08:23:43.296Z
+    event: status_abandoned
+    reason: "Duplicate "
+    from: "cancelled"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---
