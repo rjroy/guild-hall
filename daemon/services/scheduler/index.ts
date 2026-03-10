@@ -216,16 +216,11 @@ export class SchedulerService {
         try {
           const metadata = await recordOps.readScheduleMetadata(artifactPath);
 
-          // Compute the reference date: last_run, or the artifact date field
-          let lastRunDate: Date;
-          if (metadata.lastRun) {
-            lastRunDate = new Date(metadata.lastRun);
-          } else {
-            const raw = await fs.readFile(artifactPath, "utf-8");
-            const dateStr = this.readArtifactField(raw, "date");
-            lastRunDate = dateStr ? new Date(dateStr) : new Date(0);
-          }
+          // A schedule that has never run can't have missed a run.
+          // The normal tick loop will handle the first firing.
+          if (!metadata.lastRun) continue;
 
+          const lastRunDate = new Date(metadata.lastRun);
           const next = nextOccurrence(metadata.cron, lastRunDate);
           if (!next) continue;
           if (now < next) continue; // Not overdue
