@@ -419,6 +419,7 @@ function buildDeps(overrides?: Partial<{
   gitOps: ReturnType<typeof createMockGitOps>;
   fileExists: (p: string) => Promise<boolean>;
   createMeetingRequestFn: CommissionOrchestratorDeps["createMeetingRequestFn"];
+  config: AppConfig;
 }>): {
   orchestrator: CommissionSessionForRoutes;
   lifecycle: CommissionLifecycle;
@@ -445,7 +446,7 @@ function buildDeps(overrides?: Partial<{
     queryFn: mockQueryFn.queryFn,
     recordOps,
     eventBus,
-    config: makeConfig(),
+    config: overrides?.config ?? makeConfig(),
     packages: [makeWorkerPackage()],
     guildHallHome: ghHome,
     gitOps,
@@ -1968,6 +1969,48 @@ projectName: ${TEST_PROJECT}
       orchestrator.dispatchCommission(commissionId),
     ).rejects.toThrow(/Invalid model "gpt4"/);
   });
+
+  test("accepts configured local model name in resource_overrides", async () => {
+    const localModelConfig: AppConfig = {
+      ...makeConfig(),
+      models: [
+        { name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" },
+      ],
+    };
+    const { orchestrator } = buildDeps({ config: localModelConfig });
+
+    const commissionId = asCommissionId("commission-test-local-model-001");
+
+    const now = new Date();
+    const content = `---
+title: "Commission: Local Model"
+date: ${now.toISOString().split("T")[0]}
+status: pending
+tags: [commission]
+worker: ${TEST_WORKER}
+workerDisplayTitle: "Test Worker Title"
+prompt: "Do work"
+dependencies: []
+linked_artifacts: []
+resource_overrides:
+  model: llama3
+activity_timeline:
+  - timestamp: ${now.toISOString()}
+    event: created
+    reason: "Commission created"
+current_progress: ""
+projectName: ${TEST_PROJECT}
+---
+`;
+    const dir = path.join(integrationPath, ".lore", "commissions");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, `${commissionId as string}.md`), content, "utf-8");
+
+    // Should not throw (local model name is valid when config has the definition)
+    await expect(
+      orchestrator.dispatchCommission(commissionId),
+    ).resolves.toBeDefined();
+  });
 });
 
 describe("updateCommission with model override", () => {
@@ -2053,6 +2096,37 @@ describe("updateCommission with model override", () => {
     const raw = await fs.readFile(artifactPath, "utf-8");
     expect(raw).toContain("model: sonnet");
     expect(raw).toContain("maxTurns: 20");
+  });
+
+  test("preserves hyphenated model name when updating other overrides", async () => {
+    const { orchestrator } = buildDeps();
+
+    // Create with a hyphenated model name (e.g., a local model)
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Hyphenated Model",
+      "test-worker",
+      "Do the work",
+      [],
+      { model: "mistral-local" },
+    );
+
+    const commissionId = asCommissionId(result.commissionId);
+
+    // Update maxTurns only; the hyphenated model name should be preserved
+    await orchestrator.updateCommission(commissionId, {
+      resourceOverrides: { maxTurns: 30 },
+    });
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("model: mistral-local");
+    expect(raw).toContain("maxTurns: 30");
   });
 });
 

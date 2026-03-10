@@ -3,8 +3,10 @@ import * as path from "node:path";
 import { z } from "zod";
 import {
   isValidModel,
+  VALID_MODELS,
 } from "@/lib/types";
 import type {
+  AppConfig,
   PackageMetadata,
   WorkerMetadata,
   DiscoveredPackage,
@@ -54,7 +56,7 @@ export const workerMetadataSchema = z.object({
   identity: workerIdentitySchema,
   posture: z.string().optional(),
   soul: z.string().optional(),
-  model: z.string().refine(isValidModel, { message: "Invalid model name" }).optional(),
+  model: z.string().min(1).optional(),
   systemToolboxes: z.array(z.string()).default([]),
   domainToolboxes: z.array(z.string()),
   domainPlugins: z.array(z.string()).optional(),
@@ -212,6 +214,32 @@ export async function discoverPackages(
   }
 
   return Array.from(seen.values());
+}
+
+// -- Post-discovery model validation --
+
+/**
+ * Validates that each worker's declared model is either a built-in name or
+ * a configured local model. Returns the packages that pass, logging a warning
+ * for each failure (same behavior as schema validation failures).
+ */
+export function validatePackageModels(
+  packages: DiscoveredPackage[],
+  config: AppConfig,
+): DiscoveredPackage[] {
+  return packages.filter((pkg) => {
+    if (!("identity" in pkg.metadata)) return true;
+    const worker = pkg.metadata as WorkerMetadata;
+    if (!worker.model) return true;
+    if (isValidModel(worker.model, config)) return true;
+    console.warn(
+      `[packages] Worker "${worker.identity.name}" references model "${worker.model}" ` +
+        `which is not a built-in model and not defined in config.yaml. ` +
+        `Add a model definition to config.yaml or use a built-in model (${VALID_MODELS.join(", ")}). ` +
+        `Package skipped.`,
+    );
+    return false;
+  });
 }
 
 // -- Filtering helpers --

@@ -11,7 +11,7 @@ import type { CommissionSessionForRoutes } from "@/daemon/services/commission/or
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
 import type { GitOps } from "@/daemon/lib/git";
-import type { DiscoveredPackage } from "@/lib/types";
+import type { AppConfig, DiscoveredPackage } from "@/lib/types";
 import {
   integrationWorktreePath,
   commissionWorktreePath,
@@ -28,6 +28,7 @@ import {
 export interface GuildHallToolServices {
   commissionSession: CommissionSessionForRoutes;
   gitOps: GitOps;
+  config: AppConfig;
   scheduleLifecycle?: ScheduleLifecycle;
   recordOps?: CommissionRecordOps;
   packages?: DiscoveredPackage[];

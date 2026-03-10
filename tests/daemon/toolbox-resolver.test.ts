@@ -422,6 +422,7 @@ describe("resolveToolSet with manager toolbox", () => {
     const services: GuildHallToolServices = {
       commissionSession: makeMockCommissionSession(),
       gitOps: makeMockGitOps(),
+      config: { projects: [] },
     };
     const context = {
       ...testContext(),
@@ -456,6 +457,7 @@ describe("resolveToolSet with manager toolbox", () => {
     const services: GuildHallToolServices = {
       commissionSession: makeMockCommissionSession(),
       gitOps: makeMockGitOps(),
+      config: { projects: [] },
     };
     const context = {
       ...testContext(),
@@ -613,6 +615,7 @@ export function toolboxFactory(deps) {
     const services: GuildHallToolServices = {
       commissionSession: makeMockCommissionSession(),
       gitOps: makeMockGitOps(),
+      config: { projects: [] },
     };
     const context = {
       ...testContext(),

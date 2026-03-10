@@ -122,7 +122,7 @@ export interface WorkerMetadata {
   identity: WorkerIdentity;
   posture: string;
   soul?: string;
-  model?: ModelName;
+  model?: string;
   systemToolboxes?: string[];
   domainToolboxes: string[];
   domainPlugins?: string[];

@@ -1505,7 +1505,7 @@ projectName: ${projectName}
       // Read existing overrides from raw content
       const existingMaxTurnsMatch = raw.match(/^ {2}maxTurns: (\d+)$/m);
       const existingMaxBudgetMatch = raw.match(/^ {2}maxBudgetUsd: ([\d.]+)$/m);
-      const existingModelMatch = raw.match(/^ {2}model: (\w+)$/m);
+      const existingModelMatch = raw.match(/^ {2}model: ([^\s]+)$/m);
 
       const maxTurns = updates.resourceOverrides.maxTurns
         ?? (existingMaxTurnsMatch ? Number(existingMaxTurnsMatch[1]) : undefined);
@@ -1606,7 +1606,7 @@ projectName: ${projectName}
     if (overrides?.model !== undefined) {
       resourceOverrides.model = String(overrides.model);
     }
-    if (resourceOverrides.model !== undefined && !isValidModel(resourceOverrides.model)) {
+    if (resourceOverrides.model !== undefined && !isValidModel(resourceOverrides.model, config)) {
       throw new Error(`Invalid model "${resourceOverrides.model}" in resource_overrides for commission "${commissionId as string}"`);
     }
 
@@ -1727,6 +1727,7 @@ projectName: ${projectName}
       ? {
           commissionSession: selfRef.current,
           gitOps: gitOps,
+          config,
           scheduleLifecycle: deps.scheduleLifecycleRef?.current,
           recordOps,
           packages,

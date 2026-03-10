@@ -471,6 +471,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         ? {
             commissionSession: deps.commissionSession,
             gitOps: git,
+            config: deps.config,
             packages: deps.packages,
             scheduleLifecycle: deps.scheduleLifecycleRef?.current,
             recordOps: deps.recordOps,
