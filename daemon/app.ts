@@ -11,6 +11,7 @@ import { createEventRoutes } from "./routes/events";
 import { createWorkerRoutes } from "./routes/workers";
 import { createBriefingRoutes } from "./routes/briefing";
 import { createModelsRoutes } from "./routes/models";
+import { createAdminRoutes, type AdminDeps } from "./routes/admin";
 import type { AppConfig, DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
@@ -26,6 +27,7 @@ export interface AppDeps {
   eventBus?: EventBus;
   briefingGenerator?: ReturnType<typeof createBriefingGenerator>;
   config?: AppConfig;
+  admin?: AdminDeps;
 }
 
 /**
@@ -66,6 +68,10 @@ export function createApp(deps: AppDeps): Hono {
 
   if (deps.config) {
     app.route("/", createModelsRoutes({ config: deps.config }));
+  }
+
+  if (deps.admin) {
+    app.route("/", createAdminRoutes(deps.admin));
   }
 
   return app;
@@ -356,6 +362,13 @@ export async function createProductionApp(options?: {
       eventBus,
       briefingGenerator,
       config,
+      admin: {
+        config,
+        guildHallHome,
+        gitOps: git,
+        readConfigFromDisk: readConfig,
+        syncProject: (await import("@/cli/rebase")).syncProject,
+      },
     }),
     shutdown: () => scheduler.stop(),
   };

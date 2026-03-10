@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
-import { register } from "@/cli/register";
+import { register, notifyDaemonReload } from "@/cli/register";
 import { readConfig } from "@/lib/config";
 import { getConfigPath, integrationWorktreePath, activityWorktreeRoot } from "@/lib/paths";
 import type { GitOps } from "@/daemon/lib/git";
@@ -208,5 +208,34 @@ describe("register git integration", () => {
     } catch {
       // Config file doesn't exist at all, which is also correct
     }
+  });
+});
+
+describe("notifyDaemonReload", () => {
+  test("calls fetch with the correct URL and unix socket path", async () => {
+    let capturedUrl = "";
+    let capturedInit: RequestInit | undefined;
+    const mockFetch = async (url: string | URL | Request, init?: RequestInit) => {
+      capturedUrl = url as string;
+      capturedInit = init;
+      return new Response(JSON.stringify({ reloaded: true }));
+    };
+
+    await notifyDaemonReload("/tmp/gh-home", mockFetch as typeof fetch);
+
+    expect(capturedUrl).toBe("http://localhost/admin/reload-config");
+    expect(capturedInit?.method).toBe("POST");
+    expect((capturedInit as Record<string, unknown>).unix).toBe(
+      "/tmp/gh-home/guild-hall.sock",
+    );
+  });
+
+  test("does not throw when daemon is not running", async () => {
+    const failingFetch = async () => {
+      throw new Error("Connection refused");
+    };
+
+    // Should not throw
+    await notifyDaemonReload("/tmp/gh-home", failingFetch as unknown as typeof fetch);
   });
 });
