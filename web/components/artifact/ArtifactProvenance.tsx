@@ -1,10 +1,12 @@
 import ArtifactBreadcrumb from "./ArtifactBreadcrumb";
+import CopyPathButton from "./CopyPathButton";
 import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
 import styles from "./ArtifactProvenance.module.css";
 
 interface ArtifactProvenanceProps {
   projectName: string;
   artifactTitle: string;
+  artifactPath: string;
 }
 
 /**
@@ -16,13 +18,17 @@ interface ArtifactProvenanceProps {
 export default function ArtifactProvenance({
   projectName,
   artifactTitle,
+  artifactPath,
 }: ArtifactProvenanceProps) {
   return (
     <div className={styles.provenance}>
-      <ArtifactBreadcrumb
-        projectName={projectName}
-        artifactTitle={artifactTitle}
-      />
+      <div className={styles.breadcrumbRow}>
+        <ArtifactBreadcrumb
+          projectName={projectName}
+          artifactTitle={artifactTitle}
+        />
+        <CopyPathButton path={`.lore/${artifactPath}`} />
+      </div>
       <div className={styles.sourceRow}>
         <WorkerPortrait size="sm" />
         <p className={styles.text}>Source information unavailable.</p>

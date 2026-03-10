@@ -12,9 +12,11 @@ import type {
   ActivationResult,
   AppConfig,
   DiscoveredPackage,
+  ResolvedModel,
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
+import { resolveModel } from "@/lib/types";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
@@ -43,6 +45,7 @@ export type SdkQueryOptions = {
   abortController?: AbortController;
   model?: string;
   resume?: string;
+  env?: Record<string, string | undefined>;
 };
 
 export type SessionPrepSpec = {
@@ -102,10 +105,12 @@ export type SessionPrepDeps = {
     opts: { guildHallHome: string },
   ) => void;
 
+  checkReachability?: (url: string) => Promise<{ reachable: boolean; error?: string }>;
+
   memoryLimit?: number;
 };
 
-export type SessionPrepResult = { options: SdkQueryOptions };
+export type SessionPrepResult = { options: SdkQueryOptions; resolvedModel?: ResolvedModel };
 
 export type SdkRunnerOutcome = {
   sessionId: string | null;
@@ -207,6 +212,26 @@ export async function drainSdkSession(
   return { sessionId, aborted, error: firstError, reason };
 }
 
+export async function defaultCheckReachability(
+  url: string,
+): Promise<{ reachable: boolean; error?: string }> {
+  try {
+    await fetch(url, { signal: AbortSignal.timeout(5000) });
+    return { reachable: true };
+  } catch (err: unknown) {
+    return { reachable: false, error: errorMessage(err) };
+  }
+}
+
+/** Prefixes an error message with local model context when applicable. */
+export function prefixLocalModelError(error: string, resolvedModel?: ResolvedModel): string {
+  if (resolvedModel?.type === "local") {
+    const { name, baseUrl } = resolvedModel.definition;
+    return `Local model "${name}" (${baseUrl}) error: ${error}`;
+  }
+  return error;
+}
+
 /** 5-step setup: find worker, resolve tools, load memories, activate, build options. */
 export async function prepareSdkSession(
   spec: SessionPrepSpec,
@@ -299,6 +324,7 @@ export async function prepareSdkSession(
         maxTurns: workerMeta.resourceDefaults?.maxTurns,
         maxBudgetUsd: workerMeta.resourceDefaults?.maxBudgetUsd,
       },
+      localModelDefinitions: spec.config.models,
       projectPath: spec.projectPath,
       workingDirectory: spec.workspaceDir,
       ...spec.activationExtras,
@@ -311,7 +337,44 @@ export async function prepareSdkSession(
   // 5. Build SDK query options
   const maxTurns = spec.resourceOverrides?.maxTurns ?? activation.resourceBounds.maxTurns;
   const maxBudgetUsd = spec.resourceOverrides?.maxBudgetUsd ?? activation.resourceBounds.maxBudgetUsd;
-  const resolvedModel = spec.resourceOverrides?.model ?? activation.model;
+  const resolvedModelName = spec.resourceOverrides?.model ?? activation.model;
+
+  // 5a. Resolve model to built-in or local definition (REQ-LOCAL-8)
+  let resolvedModelResult;
+  if (resolvedModelName) {
+    try {
+      resolvedModelResult = resolveModel(resolvedModelName, spec.config);
+    } catch (err: unknown) {
+      return { ok: false, error: `Model resolution failed: ${errorMessage(err)}` };
+    }
+  }
+
+  // 5b. For local models: reachability check then env injection (REQ-LOCAL-13)
+  if (resolvedModelResult?.type === "local") {
+    const { definition } = resolvedModelResult;
+    const doCheck = deps.checkReachability ?? defaultCheckReachability;
+    const check = await doCheck(definition.baseUrl);
+    if (!check.reachable) {
+      return {
+        ok: false,
+        error: `Local model "${definition.name}" at ${definition.baseUrl} is not reachable: ${check.error ?? "connection failed"}`,
+      };
+    }
+  }
+
+  // 5c. Determine final model ID and env (REQ-LOCAL-11, REQ-LOCAL-12)
+  const finalModelId = resolvedModelResult?.type === "local"
+    ? resolvedModelResult.definition.modelId
+    : resolvedModelName;
+
+  const localEnv = resolvedModelResult?.type === "local"
+    ? {
+        ...process.env,
+        ANTHROPIC_BASE_URL: resolvedModelResult.definition.baseUrl,
+        ANTHROPIC_AUTH_TOKEN: resolvedModelResult.definition.auth?.token ?? "ollama",
+        ANTHROPIC_API_KEY: resolvedModelResult.definition.auth?.apiKey ?? "",
+      }
+    : undefined;
 
   const mcpServers: Record<string, unknown> = {};
   for (const server of activation.tools.mcpServers) {
@@ -324,7 +387,8 @@ export async function prepareSdkSession(
     mcpServers,
     allowedTools: activation.tools.allowedTools,
     ...(resolvedPlugins.length > 0 ? { plugins: resolvedPlugins } : {}),
-    ...(resolvedModel ? { model: resolvedModel } : {}),
+    ...(finalModelId ? { model: finalModelId } : {}),
+    ...(localEnv ? { env: localEnv } : {}),
     ...(maxTurns ? { maxTurns } : {}),
     ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
     permissionMode: "dontAsk",
@@ -334,5 +398,5 @@ export async function prepareSdkSession(
   };
 
   log(`prepared session. systemPrompt length=${activation.systemPrompt.length}`);
-  return { ok: true, result: { options } };
+  return { ok: true, result: { options, resolvedModel: resolvedModelResult } };
 }

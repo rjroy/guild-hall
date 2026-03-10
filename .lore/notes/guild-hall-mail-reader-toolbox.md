@@ -1,5 +1,5 @@
 ---
-title: Implementation notes: guild-hall-mail-reader-toolbox
+title: Implementation notes guild-hall-mail-reader-toolbox
 date: 2026-03-08
 status: complete
 tags: [implementation, notes, toolbox, email, jmap]

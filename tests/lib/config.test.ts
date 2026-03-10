@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { readConfig, writeConfig, getProject } from "@/lib/config";
-import { appConfigSchema, projectConfigSchema } from "@/lib/config";
+import { appConfigSchema, projectConfigSchema, modelDefinitionSchema } from "@/lib/config";
 
 let tmpDir: string;
 
@@ -207,5 +207,205 @@ describe("Zod schemas", () => {
       settings: { foo: "bar", nested: { a: 1 } },
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("modelDefinitionSchema", () => {
+  test("accepts a valid model definition", () => {
+    const result = modelDefinitionSchema.safeParse({
+      name: "llama3",
+      modelId: "llama3",
+      baseUrl: "http://localhost:11434",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("accepts valid names with hyphens and underscores", () => {
+    for (const name of ["mistral-local", "qwen2_5", "my-model-v2"]) {
+      const result = modelDefinitionSchema.safeParse({
+        name,
+        modelId: "test",
+        baseUrl: "http://localhost:11434",
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  test("rejects names with invalid characters", () => {
+    for (const name of ["my:model", "has space", "slashed/name", "dot.name"]) {
+      const result = modelDefinitionSchema.safeParse({
+        name,
+        modelId: "test",
+        baseUrl: "http://localhost:11434",
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  test("rejects empty name", () => {
+    const result = modelDefinitionSchema.safeParse({
+      name: "",
+      modelId: "test",
+      baseUrl: "http://localhost:11434",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects baseUrl without a scheme", () => {
+    const result = modelDefinitionSchema.safeParse({
+      name: "test",
+      modelId: "test",
+      baseUrl: "localhost:11434",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("accepts baseUrl with valid URL", () => {
+    const result = modelDefinitionSchema.safeParse({
+      name: "test",
+      modelId: "test",
+      baseUrl: "http://localhost:11434",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("auth is optional", () => {
+    const result = modelDefinitionSchema.safeParse({
+      name: "test",
+      modelId: "test",
+      baseUrl: "http://localhost:11434",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.auth).toBeUndefined();
+    }
+  });
+
+  test("accepts auth with token and apiKey", () => {
+    const result = modelDefinitionSchema.safeParse({
+      name: "test",
+      modelId: "test",
+      baseUrl: "http://localhost:11434",
+      auth: { token: "my-token", apiKey: "my-key" },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("guidance is optional", () => {
+    const result = modelDefinitionSchema.safeParse({
+      name: "test",
+      modelId: "test",
+      baseUrl: "http://localhost:11434",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("accepts guidance string", () => {
+    const result = modelDefinitionSchema.safeParse({
+      name: "test",
+      modelId: "test",
+      baseUrl: "http://localhost:11434",
+      guidance: "Use for fast local inference on bounded tasks.",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.guidance).toBe("Use for fast local inference on bounded tasks.");
+    }
+  });
+});
+
+describe("appConfigSchema models validation", () => {
+  const baseConfig = { projects: [{ name: "p", path: "/p" }] };
+
+  test("accepts config without models key", () => {
+    const result = appConfigSchema.safeParse(baseConfig);
+    expect(result.success).toBe(true);
+  });
+
+  test("accepts config with valid models", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      models: [
+        { name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" },
+        { name: "mistral-local", modelId: "mistral", baseUrl: "http://localhost:11434" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects model name colliding with built-in", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      models: [
+        { name: "opus", modelId: "test", baseUrl: "http://localhost:11434" },
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("conflicts with built-in"))).toBe(true);
+    }
+  });
+
+  test("rejects duplicate model names", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      models: [
+        { name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" },
+        { name: "llama3", modelId: "llama3-v2", baseUrl: "http://localhost:11434" },
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("Duplicate model name"))).toBe(true);
+    }
+  });
+
+  test("rejects model with invalid baseUrl", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      models: [
+        { name: "test", modelId: "test", baseUrl: "not-a-url" },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("parses models from YAML via readConfig", async () => {
+    const yamlContent = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+models:
+  - name: llama3
+    modelId: llama3
+    baseUrl: http://localhost:11434
+  - name: custom-server
+    modelId: gpt-4o
+    baseUrl: http://192.168.1.50:8080
+    auth:
+      token: my-api-key
+      apiKey: my-api-key
+`;
+    await fs.writeFile(configPath(), yamlContent, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.models).toHaveLength(2);
+    expect(config.models![0].name).toBe("llama3");
+    expect(config.models![1].auth?.token).toBe("my-api-key");
+  });
+
+  test("readConfig rejects built-in name collision in YAML", async () => {
+    const yamlContent = `
+projects:
+  - name: p
+    path: /p
+models:
+  - name: haiku
+    modelId: test
+    baseUrl: http://localhost:11434
+`;
+    await fs.writeFile(configPath(), yamlContent, "utf-8");
+    await expect(readConfig(configPath())).rejects.toThrow("Config validation failed");
   });
 });

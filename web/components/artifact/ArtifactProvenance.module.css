@@ -16,6 +16,13 @@
   border-image-width: 50px;
 }
 
+.breadcrumbRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
 .sourceRow {
   display: flex;
   align-items: center;

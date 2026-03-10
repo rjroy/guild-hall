@@ -5,6 +5,7 @@ import * as os from "node:os";
 import {
   readCommissionMeta,
   scanCommissions,
+  sortCommissions,
   parseActivityTimeline,
 } from "@/lib/commissions";
 
@@ -217,6 +218,64 @@ describe("scanCommissions", () => {
 
     const results = await scanCommissions(lorePath, "my-project");
     expect(results[0].projectName).toBe("my-project");
+  });
+});
+
+// -- sortCommissions --
+
+describe("sortCommissions", () => {
+  function makeCommission(status: string, date: string) {
+    return {
+      commissionId: `commission-${status}`,
+      title: status,
+      status,
+      type: "one-shot",
+      sourceSchedule: "",
+      worker: "test",
+      workerDisplayTitle: "Test",
+      prompt: "",
+      dependencies: [],
+      linked_artifacts: [],
+      resource_overrides: {},
+      current_progress: "",
+      result_summary: "",
+      projectName: "test",
+      date,
+      relevantDate: date,
+    };
+  }
+
+  test("sleeping sorts before completed", () => {
+    const sleeping = makeCommission("sleeping", "2026-01-01");
+    const completed = makeCommission("completed", "2026-01-02");
+    const result = sortCommissions([completed, sleeping]);
+    expect(result[0].status).toBe("sleeping");
+    expect(result[1].status).toBe("completed");
+  });
+
+  test("abandoned sorts before completed", () => {
+    const abandoned = makeCommission("abandoned", "2026-01-01");
+    const completed = makeCommission("completed", "2026-01-02");
+    const result = sortCommissions([completed, abandoned]);
+    expect(result[0].status).toBe("abandoned");
+    expect(result[1].status).toBe("completed");
+  });
+
+  test("full group order: pending, sleeping, abandoned, completed", () => {
+    const pending = makeCommission("pending", "2026-01-03");
+    const sleeping = makeCommission("sleeping", "2026-01-02");
+    const abandoned = makeCommission("abandoned", "2026-01-01");
+    const completed = makeCommission("completed", "2026-01-04");
+    const result = sortCommissions([completed, abandoned, sleeping, pending]);
+    expect(result.map((c) => c.status)).toEqual(["pending", "sleeping", "abandoned", "completed"]);
+  });
+
+  test("sleeping sorts with active group (before failed)", () => {
+    const sleeping = makeCommission("sleeping", "2026-01-02");
+    const failed = makeCommission("failed", "2026-01-01");
+    const result = sortCommissions([failed, sleeping]);
+    expect(result[0].status).toBe("sleeping");
+    expect(result[1].status).toBe("failed");
   });
 });
 

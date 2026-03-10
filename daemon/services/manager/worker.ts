@@ -3,6 +3,7 @@ import type {
   ActivationContext,
   ActivationResult,
   DiscoveredPackage,
+  ModelDefinition,
   ModelName,
   WorkerMetadata,
 } from "@/lib/types";
@@ -43,7 +44,7 @@ const MANAGER_SOUL = [
  * Operational methodology for the Guild Master. Defines tools, dispatch behavior,
  * deference rules, and working style. Separated from personality (MANAGER_SOUL).
  */
-const MANAGER_POSTURE = [
+const MANAGER_POSTURE_BASE = [
   "You have tools to create commissions, dispatch workers, create pull requests, and propose meetings.",
   "",
   "When the user agrees on work to be done, create and dispatch commissions immediately. The user can review and cancel if needed.",
@@ -54,18 +55,46 @@ const MANAGER_POSTURE = [
   "- Questions requiring domain knowledge beyond your context",
   "",
   "Be direct. Present status, recommend actions, execute when authorized.",
-  "",
-  "## Model Selection",
-  "",
-  "Each worker declares a default model. When creating commissions, use the worker's default unless the task clearly fits a different tier.",
-  "",
-  "Model guidance:",
-  "- **Haiku:** The outcome is predictable, the task is bounded, and variance would be noise.",
-  "- **Sonnet:** Variance is acceptable or desirable. Creative work, drafting, exploration.",
-  "- **Opus:** Uncertainty is high and consistency matters. Deep reasoning, ambiguous problems, high stakes.",
-  "",
-  "To override a worker's default model, set `model` in `resourceOverrides` when creating the commission.",
 ].join("\n");
+
+/** Default guidance for built-in models. */
+const BUILTIN_MODEL_GUIDANCE: Record<string, string> = {
+  haiku: "The outcome is predictable, the task is bounded, and variance would be noise.",
+  sonnet: "Variance is acceptable or desirable. Creative work, drafting, exploration.",
+  opus: "Uncertainty is high and consistency matters. Deep reasoning, ambiguous problems, high stakes.",
+};
+
+/**
+ * Builds the model selection guidance section dynamically from built-in
+ * defaults and local model definitions from config (REQ-LOCAL-20).
+ */
+export function buildModelGuidance(localModels?: ModelDefinition[]): string {
+  const lines: string[] = [
+    "## Model Selection",
+    "",
+    "Each worker declares a default model. When creating commissions, use the worker's default unless the task clearly fits a different tier.",
+    "",
+    "Model guidance:",
+  ];
+
+  for (const [name, guidance] of Object.entries(BUILTIN_MODEL_GUIDANCE)) {
+    const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+    lines.push(`- **${displayName}:** ${guidance}`);
+  }
+
+  if (localModels && localModels.length > 0) {
+    for (const model of localModels) {
+      if (model.guidance) {
+        lines.push(`- **${model.name}:** ${model.guidance}`);
+      }
+    }
+  }
+
+  lines.push("");
+  lines.push("To override a worker's default model, set `model` in `resourceOverrides` when creating the commission.");
+
+  return lines.join("\n");
+}
 
 /**
  * Returns a DiscoveredPackage representing the built-in Guild Master worker.
@@ -82,7 +111,7 @@ export function createManagerPackage(): DiscoveredPackage {
       displayTitle: MANAGER_WORKER_NAME,
       portraitPath: "/images/portraits/guild-master.webp",
     },
-    posture: MANAGER_POSTURE,
+    posture: MANAGER_POSTURE_BASE,
     soul: MANAGER_SOUL,
     model: "opus" as ModelName,
     systemToolboxes: ["manager"],
@@ -159,8 +188,9 @@ export function activateManager(context: ActivationContext): ActivationResult {
     );
   }
 
-  // 3. Posture
-  parts.push(`# Posture\n\n${context.posture}`);
+  // 3. Posture + dynamic model guidance (REQ-LOCAL-20)
+  const modelGuidance = buildModelGuidance(context.localModelDefinitions);
+  parts.push(`# Posture\n\n${context.posture}\n\n${modelGuidance}`);
 
   // 4. Injected memory
   if (context.injectedMemory) {

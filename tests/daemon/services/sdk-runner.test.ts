@@ -3,7 +3,10 @@ import { describe, test, expect } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
   ActivationResult,
+  AppConfig,
   DiscoveredPackage,
+  ModelDefinition,
+  ResolvedModel,
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
@@ -13,6 +16,7 @@ import {
   drainSdkSession,
   prepareSdkSession,
   isSessionExpiryError,
+  prefixLocalModelError,
   type SdkRunnerEvent,
   type SdkQueryOptions,
   type SessionPrepSpec,
@@ -374,7 +378,7 @@ describe("prepareSdkSession", () => {
 
   const mockActivation: ActivationResult = {
     systemPrompt: "You are a test worker",
-    model: "test-model",
+    model: "sonnet",
     tools: mockResolvedTools,
     resourceBounds: { maxTurns: 10, maxBudgetUsd: 1.0 },
   };
@@ -419,7 +423,7 @@ describe("prepareSdkSession", () => {
     });
     expect(opts.cwd).toBe("/tmp/workspace");
     expect(opts.allowedTools).toEqual(["read_file", "write_file"]);
-    expect(opts.model).toBe("test-model");
+    expect(opts.model).toBe("sonnet");
     expect(opts.maxTurns).toBe(10);
     expect(opts.maxBudgetUsd).toBe(1.0);
     expect(opts.permissionMode).toBe("dontAsk");
@@ -864,6 +868,190 @@ describe("prepareSdkSession", () => {
     expect(result.ok).toBe(true);
     expect(capturedModel).toBe("haiku");
   });
+
+  // -- Local model support tests (REQ-LOCAL-10 through REQ-LOCAL-18) --
+
+  const localModelDef: ModelDefinition = {
+    name: "llama3",
+    modelId: "llama3:latest",
+    baseUrl: "http://localhost:11434",
+  };
+
+  const localModelWithAuth: ModelDefinition = {
+    name: "custom-server",
+    modelId: "gpt-4o",
+    baseUrl: "http://192.168.1.50:8080",
+    auth: { token: "my-token", apiKey: "my-key" },
+  };
+
+  const configWithLocal: AppConfig = {
+    projects: [],
+    models: [localModelDef, localModelWithAuth],
+  };
+
+  test("local model session: options.env contains ANTHROPIC_BASE_URL, AUTH_TOKEN, API_KEY", async () => {
+    const localActivation: ActivationResult = {
+      ...mockActivation,
+      model: "llama3",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ config: configWithLocal }),
+      makeDeps({
+        activateWorker: async () => localActivation,
+        checkReachability: async () => ({ reachable: true }),
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const env = result.result.options.env;
+    expect(env).toBeDefined();
+    expect(env!.ANTHROPIC_BASE_URL).toBe("http://localhost:11434");
+    expect(env!.ANTHROPIC_AUTH_TOKEN).toBe("ollama");
+    expect(env!.ANTHROPIC_API_KEY).toBe("");
+  });
+
+  test("local model session: options.model is modelId, not definition name", async () => {
+    const localActivation: ActivationResult = {
+      ...mockActivation,
+      model: "llama3",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ config: configWithLocal }),
+      makeDeps({
+        activateWorker: async () => localActivation,
+        checkReachability: async () => ({ reachable: true }),
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.model).toBe("llama3:latest");
+  });
+
+  test("built-in model session: options.env is absent", async () => {
+    const result = await prepareSdkSession(makeSpec(), makeDeps());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.env).toBeUndefined();
+  });
+
+  test("local model with custom auth: token and apiKey flow to env", async () => {
+    const customAuthActivation: ActivationResult = {
+      ...mockActivation,
+      model: "custom-server",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ config: configWithLocal }),
+      makeDeps({
+        activateWorker: async () => customAuthActivation,
+        checkReachability: async () => ({ reachable: true }),
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const env = result.result.options.env;
+    expect(env!.ANTHROPIC_BASE_URL).toBe("http://192.168.1.50:8080");
+    expect(env!.ANTHROPIC_AUTH_TOKEN).toBe("my-token");
+    expect(env!.ANTHROPIC_API_KEY).toBe("my-key");
+  });
+
+  test("reachability check succeeds: session proceeds", async () => {
+    const localActivation: ActivationResult = {
+      ...mockActivation,
+      model: "llama3",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ config: configWithLocal }),
+      makeDeps({
+        activateWorker: async () => localActivation,
+        checkReachability: async () => ({ reachable: true }),
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  test("reachability check fails: returns ok=false with model name and URL", async () => {
+    const localActivation: ActivationResult = {
+      ...mockActivation,
+      model: "llama3",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ config: configWithLocal }),
+      makeDeps({
+        activateWorker: async () => localActivation,
+        checkReachability: async () => ({ reachable: false, error: "connection refused" }),
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("llama3");
+    expect(result.error).toContain("http://localhost:11434");
+    expect(result.error).toContain("not reachable");
+    expect(result.error).toContain("connection refused");
+  });
+
+  test("built-in model: checkReachability is never called", async () => {
+    let reachabilityCalled = false;
+
+    const result = await prepareSdkSession(
+      makeSpec(),
+      makeDeps({
+        checkReachability: async () => {
+          reachabilityCalled = true;
+          return { reachable: true };
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(reachabilityCalled).toBe(false);
+  });
+
+  test("local model override via resourceOverrides.model works", async () => {
+    const result = await prepareSdkSession(
+      makeSpec({
+        config: configWithLocal,
+        resourceOverrides: { model: "llama3" },
+      }),
+      makeDeps({
+        activateWorker: async () => ({ ...mockActivation, model: undefined }),
+        checkReachability: async () => ({ reachable: true }),
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.model).toBe("llama3:latest");
+    expect(result.result.options.env).toBeDefined();
+    expect(result.result.options.env!.ANTHROPIC_BASE_URL).toBe("http://localhost:11434");
+  });
+
+  test("unknown model name returns model resolution error", async () => {
+    const unknownActivation: ActivationResult = {
+      ...mockActivation,
+      model: "nonexistent-model",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec(),
+      makeDeps({ activateWorker: async () => unknownActivation }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("Model resolution failed");
+    expect(result.error).toContain("nonexistent-model");
+  });
 });
 
 // -- isSessionExpiryError tests --
@@ -895,5 +1083,163 @@ describe("isSessionExpiryError", () => {
   test("rejects partial matches", () => {
     expect(isSessionExpiryError("session started")).toBe(false);
     expect(isSessionExpiryError("found something")).toBe(false);
+  });
+});
+
+// -- prefixLocalModelError tests --
+
+describe("prefixLocalModelError", () => {
+  const localModel: ResolvedModel = {
+    type: "local",
+    definition: {
+      name: "llama3",
+      modelId: "llama3:latest",
+      baseUrl: "http://localhost:11434",
+    },
+  };
+
+  const builtinModel: ResolvedModel = {
+    type: "builtin",
+    name: "sonnet",
+  };
+
+  test("prefixes error with model name and URL for local models", () => {
+    const result = prefixLocalModelError("connection reset", localModel);
+    expect(result).toBe('Local model "llama3" (http://localhost:11434) error: connection reset');
+  });
+
+  test("passes error through unchanged for built-in models", () => {
+    const result = prefixLocalModelError("connection reset", builtinModel);
+    expect(result).toBe("connection reset");
+  });
+
+  test("passes error through unchanged when resolvedModel is undefined", () => {
+    const result = prefixLocalModelError("connection reset", undefined);
+    expect(result).toBe("connection reset");
+  });
+});
+
+// -- prepareSdkSession resolvedModel return shape tests (REQ-LOCAL-18) --
+
+describe("prepareSdkSession resolvedModel", () => {
+  const mockWorkerMeta: WorkerMetadata = {
+    type: "worker",
+    identity: { name: "test-worker", description: "Test", displayTitle: "Test Worker" },
+    posture: "helpful assistant",
+    domainToolboxes: [],
+    builtInTools: [],
+    checkoutScope: "sparse",
+    resourceDefaults: { maxTurns: 10, maxBudgetUsd: 1.0 },
+  };
+
+  const mockWorkerPkg: DiscoveredPackage = {
+    name: "@guild-hall/test-worker",
+    path: "/tmp/packages/test-worker",
+    metadata: mockWorkerMeta,
+  };
+
+  const mockToolboxPkg: DiscoveredPackage = {
+    name: "@guild-hall/some-toolbox",
+    path: "/tmp/packages/some-toolbox",
+    metadata: { type: "toolbox", name: "some-toolbox", description: "A toolbox" },
+  };
+
+  const mockResolvedTools: ResolvedToolSet = {
+    mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
+    allowedTools: ["read_file", "write_file"],
+  };
+
+  const mockActivation: ActivationResult = {
+    systemPrompt: "You are a test worker",
+    model: "sonnet",
+    tools: mockResolvedTools,
+    resourceBounds: { maxTurns: 10, maxBudgetUsd: 1.0 },
+  };
+
+  const localModelDef: ModelDefinition = {
+    name: "llama3",
+    modelId: "llama3:latest",
+    baseUrl: "http://localhost:11434",
+  };
+
+  const configWithLocal: AppConfig = {
+    projects: [],
+    models: [localModelDef],
+  };
+
+  function makeSpec(overrides?: Partial<SessionPrepSpec>): SessionPrepSpec {
+    return {
+      workerName: "test-worker",
+      packages: [mockWorkerPkg, mockToolboxPkg],
+      config: { projects: [] },
+      guildHallHome: "/tmp/guild-hall",
+      projectName: "test-project",
+      projectPath: "/tmp/project",
+      workspaceDir: "/tmp/workspace",
+      contextId: "ctx-1",
+      contextType: "commission",
+      eventBus: noopEventBus,
+      abortController: new AbortController(),
+      ...overrides,
+    };
+  }
+
+  function makeDeps(overrides?: Partial<SessionPrepDeps>): SessionPrepDeps {
+    return {
+      resolveToolSet: async () => mockResolvedTools,
+      loadMemories: async () => ({ memoryBlock: "test memories", needsCompaction: false }),
+      activateWorker: async () => mockActivation,
+      ...overrides,
+    };
+  }
+
+  test("returns resolvedModel with type 'local' for local models", async () => {
+    const localActivation: ActivationResult = {
+      ...mockActivation,
+      model: "llama3",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ config: configWithLocal }),
+      makeDeps({
+        activateWorker: async () => localActivation,
+        checkReachability: async () => ({ reachable: true }),
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.resolvedModel).toBeDefined();
+    expect(result.result.resolvedModel!.type).toBe("local");
+    if (result.result.resolvedModel!.type !== "local") return;
+    expect(result.result.resolvedModel!.definition.name).toBe("llama3");
+    expect(result.result.resolvedModel!.definition.baseUrl).toBe("http://localhost:11434");
+  });
+
+  test("returns resolvedModel with type 'builtin' for built-in models", async () => {
+    const result = await prepareSdkSession(makeSpec(), makeDeps());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.resolvedModel).toBeDefined();
+    expect(result.result.resolvedModel!.type).toBe("builtin");
+    if (result.result.resolvedModel!.type !== "builtin") return;
+    expect(result.result.resolvedModel!.name).toBe("sonnet");
+  });
+
+  test("resolvedModel is undefined when no model is specified", async () => {
+    const noModelActivation: ActivationResult = {
+      ...mockActivation,
+      model: undefined,
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec(),
+      makeDeps({ activateWorker: async () => noModelActivation }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.resolvedModel).toBeUndefined();
   });
 });

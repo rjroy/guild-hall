@@ -9,6 +9,7 @@ import {
   getWorkerByName,
   isValidPackageName,
   resolveWorkerPortraits,
+  validatePackageModels,
   packageMetadataSchema,
   workerMetadataSchema,
   toolboxMetadataSchema,
@@ -16,6 +17,7 @@ import {
   resourceDefaultsSchema,
 } from "@/lib/packages";
 import type {
+  AppConfig,
   WorkerMetadata,
   ToolboxMetadata,
   DiscoveredPackage,
@@ -255,8 +257,17 @@ describe("Zod schemas", () => {
     }
   });
 
-  test("workerMetadataSchema rejects invalid model name", () => {
-    const data = { ...validWorkerGuildHall(), model: "invalid" } as Record<string, unknown>;
+  test("workerMetadataSchema accepts any non-empty model string (validation deferred to validatePackageModels)", () => {
+    const data = { ...validWorkerGuildHall(), model: "llama3-local" } as Record<string, unknown>;
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.model).toBe("llama3-local");
+    }
+  });
+
+  test("workerMetadataSchema rejects empty model string", () => {
+    const data = { ...validWorkerGuildHall(), model: "" } as Record<string, unknown>;
     const result = workerMetadataSchema.safeParse(data);
     expect(result.success).toBe(false);
   });
@@ -752,26 +763,18 @@ describe("discoverPackages", () => {
     expect(meta.model).toBeUndefined();
   });
 
-  test("skips worker with invalid model name", async () => {
-    const warnMessages: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnMessages.push(args.map(String).join(" "));
-    };
+  test("discovers worker with non-builtin model name (validation deferred to validatePackageModels)", async () => {
+    const guildHall = { ...validWorkerGuildHall(), model: "llama3" };
+    await writePackage(tmpDir, "local-model", {
+      name: "local-model",
+      guildHall,
+    });
 
-    try {
-      const guildHall = { ...validWorkerGuildHall(), model: "invalid" };
-      await writePackage(tmpDir, "bad-model", {
-        name: "bad-model",
-        guildHall,
-      });
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
 
-      const packages = await discoverPackages([tmpDir]);
-      expect(packages).toHaveLength(0);
-      expect(warnMessages.some((m) => m.includes("invalid guildHall metadata"))).toBe(true);
-    } finally {
-      console.warn = originalWarn;
-    }
+    const meta = packages[0].metadata as WorkerMetadata;
+    expect(meta.model).toBe("llama3");
   });
 
   test("soul.md loading does not affect posture loading", async () => {
@@ -1046,5 +1049,103 @@ describe("resolveWorkerPortraits", () => {
 
     const portraits = await resolveWorkerPortraits(ghHome);
     expect(portraits.size).toBe(0);
+  });
+});
+
+// -- validatePackageModels --
+
+describe("validatePackageModels", () => {
+  const baseConfig: AppConfig = { projects: [] };
+
+  const configWithLlama3: AppConfig = {
+    projects: [],
+    models: [
+      { name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" },
+    ],
+  };
+
+  function makeWorkerPkg(name: string, model?: string): DiscoveredPackage {
+    return {
+      name,
+      path: `/packages/${name}`,
+      metadata: {
+        ...validWorkerGuildHall(),
+        identity: { name, description: "Test", displayTitle: "Test" },
+        ...(model !== undefined ? { model } : {}),
+      } as WorkerMetadata,
+    };
+  }
+
+  function makeToolboxPkg(name: string): DiscoveredPackage {
+    return {
+      name,
+      path: `/packages/${name}`,
+      metadata: { ...validToolboxGuildHall() } as ToolboxMetadata,
+    };
+  }
+
+  test("worker with built-in model passes with any config", () => {
+    const pkgs = [makeWorkerPkg("w1", "haiku")];
+    const result = validatePackageModels(pkgs, baseConfig);
+    expect(result).toHaveLength(1);
+  });
+
+  test("worker with configured local model passes", () => {
+    const pkgs = [makeWorkerPkg("w1", "llama3")];
+    const result = validatePackageModels(pkgs, configWithLlama3);
+    expect(result).toHaveLength(1);
+  });
+
+  test("worker with unconfigured model is filtered and warned", () => {
+    const warnMessages: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnMessages.push(args.map(String).join(" "));
+    };
+
+    try {
+      const pkgs = [makeWorkerPkg("w1", "llama3")];
+      const result = validatePackageModels(pkgs, baseConfig);
+      expect(result).toHaveLength(0);
+      expect(warnMessages.some((m) =>
+        m.includes('references model "llama3"') &&
+        m.includes("not a built-in model") &&
+        m.includes("not defined in config.yaml") &&
+        m.includes("Package skipped"),
+      )).toBe(true);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  test("worker with no model field passes regardless of config", () => {
+    const pkgs = [makeWorkerPkg("w1")];
+    const result = validatePackageModels(pkgs, baseConfig);
+    expect(result).toHaveLength(1);
+  });
+
+  test("toolbox packages pass regardless", () => {
+    const pkgs = [makeToolboxPkg("tb1")];
+    const result = validatePackageModels(pkgs, baseConfig);
+    expect(result).toHaveLength(1);
+  });
+
+  test("filters only invalid workers, keeps the rest", () => {
+    const pkgs = [
+      makeWorkerPkg("good", "haiku"),
+      makeWorkerPkg("bad", "unknown-model"),
+      makeToolboxPkg("tb"),
+      makeWorkerPkg("local-ok", "llama3"),
+    ];
+
+    const originalWarn = console.warn;
+    console.warn = () => {};
+    try {
+      const result = validatePackageModels(pkgs, configWithLlama3);
+      expect(result).toHaveLength(3);
+      expect(result.map((p) => p.name)).toEqual(["good", "tb", "local-ok"]);
+    } finally {
+      console.warn = originalWarn;
+    }
   });
 });

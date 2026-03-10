@@ -10,12 +10,19 @@ import {
 } from "@/lib/sse-helpers";
 import styles from "./WorkerPicker.module.css";
 
+interface WorkerModelInfo {
+  name: string;
+  isLocal: boolean;
+  baseUrl?: string;
+}
+
 interface WorkerInfo {
   name: string;
   displayName: string;
   displayTitle: string;
   description: string;
   portraitUrl?: string;
+  model?: WorkerModelInfo | null;
 }
 
 interface WorkerPickerProps {
@@ -264,6 +271,14 @@ function WorkerPickerContent({
                             <p className={styles.workerTitle}>
                               {worker.displayTitle}
                             </p>
+                            {worker.model && (
+                              <span
+                                className={styles.workerModel}
+                                title={worker.model.isLocal && worker.model.baseUrl ? worker.model.baseUrl : undefined}
+                              >
+                                {worker.model.name}{worker.model.isLocal ? " (local)" : ""}
+                              </span>
+                            )}
                             {worker.description && (
                               <p className={styles.workerDescription}>
                                 {worker.description}

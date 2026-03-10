@@ -1,7 +1,7 @@
 ---
 title: Worker display title hardcoded to worker name in meeting artifact creation
 date: 2026-03-08
-status: open
+status: resolved
 tags: [bug, meetings, worker-identity, artifact-creation]
 modules: [meeting-toolbox, manager-toolbox]
 related:

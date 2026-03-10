@@ -10,7 +10,8 @@ import { createCommissionRoutes } from "./routes/commissions";
 import { createEventRoutes } from "./routes/events";
 import { createWorkerRoutes } from "./routes/workers";
 import { createBriefingRoutes } from "./routes/briefing";
-import type { DiscoveredPackage } from "@/lib/types";
+import { createModelsRoutes } from "./routes/models";
+import type { AppConfig, DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { EventBus } from "@/daemon/lib/event-bus";
@@ -24,6 +25,7 @@ export interface AppDeps {
   packages?: DiscoveredPackage[];
   eventBus?: EventBus;
   briefingGenerator?: ReturnType<typeof createBriefingGenerator>;
+  config?: AppConfig;
 }
 
 /**
@@ -51,7 +53,7 @@ export function createApp(deps: AppDeps): Hono {
   }
 
   if (deps.packages) {
-    app.route("/", createWorkerRoutes({ packages: deps.packages }));
+    app.route("/", createWorkerRoutes({ packages: deps.packages, config: deps.config }));
   }
 
   if (deps.eventBus) {
@@ -60,6 +62,10 @@ export function createApp(deps: AppDeps): Hono {
 
   if (deps.briefingGenerator) {
     app.route("/", createBriefingRoutes({ briefingGenerator: deps.briefingGenerator }));
+  }
+
+  if (deps.config) {
+    app.route("/", createModelsRoutes({ config: deps.config }));
   }
 
   return app;
@@ -78,7 +84,7 @@ export async function createProductionApp(options?: {
   gitOps?: GitOps;
 }): Promise<{ app: Hono; shutdown: () => void }> {
   const { readConfig } = await import("@/lib/config");
-  const { discoverPackages } = await import("@/lib/packages");
+  const { discoverPackages, validatePackageModels } = await import("@/lib/packages");
   const { getGuildHallHome, integrationWorktreePath } = await import("@/lib/paths");
   const { createMeetingSession } = await import(
     "@/daemon/services/meeting/orchestrator"
@@ -150,7 +156,8 @@ export async function createProductionApp(options?: {
   const defaultPackagesDir = nodePath.join(guildHallHome, "packages");
   const scanPaths: string[] = [options?.packagesDir ?? defaultPackagesDir];
 
-  const discoveredPackages = await discoverPackages(scanPaths);
+  const rawPackages = await discoverPackages(scanPaths);
+  const discoveredPackages = validatePackageModels(rawPackages, config);
 
   // Prepend the built-in Guild Master worker package to the packages list
   // so it appears in worker listings and can be selected for meetings.
@@ -271,6 +278,8 @@ export async function createProductionApp(options?: {
     createMeetingRequestFn,
     workspace: workspaceOps,
     registry: meetingRegistry,
+    scheduleLifecycleRef,
+    recordOps,
   });
   meetingSessionRef = meetingSession;
 
@@ -345,6 +354,7 @@ export async function createProductionApp(options?: {
       packages: allPackages,
       eventBus,
       briefingGenerator,
+      config,
     }),
     shutdown: () => scheduler.stop(),
   };

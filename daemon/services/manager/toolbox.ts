@@ -35,7 +35,7 @@ import { withProjectLock } from "@/daemon/lib/project-lock";
 import { hasActiveActivities, syncProject } from "@/cli/rebase";
 import type { SyncResult } from "@/cli/rebase";
 import { isValidModel } from "@/lib/types";
-import type { ProjectConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import type { AppConfig, ProjectConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
 import { getWorkerByName } from "@/lib/packages";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
@@ -49,6 +49,7 @@ export interface ManagerToolboxDeps {
   commissionSession: CommissionSessionForRoutes;
   eventBus: EventBus;
   gitOps: GitOps;
+  config: AppConfig;
   getProjectConfig: (name: string) => Promise<ProjectConfig | undefined>;
   scheduleLifecycle?: ScheduleLifecycle;
   recordOps?: CommissionRecordOps;
@@ -662,12 +663,12 @@ export function makeCreateScheduledCommissionHandler(
       const workerMeta = workerPkg.metadata as WorkerMetadata;
 
       // Validate model if provided
-      if (args.resourceOverrides?.model && !isValidModel(args.resourceOverrides.model)) {
+      if (args.resourceOverrides?.model && !isValidModel(args.resourceOverrides.model, deps.config)) {
         return {
           content: [
             {
               type: "text",
-              text: `Invalid model name: "${args.resourceOverrides.model}". Valid models: opus, sonnet, haiku`,
+              text: `Invalid model name: "${args.resourceOverrides.model}". Valid built-in models: opus, sonnet, haiku. Local models must be defined in config.yaml.`,
             },
           ],
           isError: true,
@@ -996,12 +997,12 @@ export function makeUpdateScheduleHandler(
 
       // Handle resource overrides update
       if (args.resourceOverrides) {
-        if (args.resourceOverrides.model && !isValidModel(args.resourceOverrides.model)) {
+        if (args.resourceOverrides.model && !isValidModel(args.resourceOverrides.model, deps.config)) {
           return {
             content: [
               {
                 type: "text",
-                text: `Invalid model name: "${args.resourceOverrides.model}". Valid models: opus, sonnet, haiku`,
+                text: `Invalid model name: "${args.resourceOverrides.model}". Valid built-in models: opus, sonnet, haiku. Local models must be defined in config.yaml.`,
               },
             ],
             isError: true,
@@ -1122,7 +1123,7 @@ export function createManagerToolbox(
           resourceOverrides: z.object({
             maxTurns: z.number().optional(),
             maxBudgetUsd: z.number().optional(),
-            model: z.string().refine(isValidModel, { message: "Invalid model name" }).optional(),
+            model: z.string().optional(),
           }).optional().describe("Override default resource limits. Use model to override the worker's default model."),
           dispatch: z.boolean().optional().describe("Whether to dispatch immediately (default: true)"),
         },
@@ -1243,6 +1244,7 @@ export const managerToolboxFactory: ToolboxFactory = (ctx) => {
       projectName: ctx.projectName,
       guildHallHome: ctx.guildHallHome,
       eventBus: ctx.eventBus,
+      config: ctx.services!.config,
       getProjectConfig: (name: string) =>
         Promise.resolve(ctx.config.projects.find((p) => p.name === name)),
       commissionSession: ctx.services!.commissionSession,

@@ -1,5 +1,5 @@
 ---
-title: Implementation notes: worker-domain-plugins
+title: Implementation notes worker-domain-plugins
 date: 2026-03-07
 status: complete
 tags: [implementation, notes]

@@ -1,7 +1,7 @@
 ---
 title: Portrait display-time resolution
 date: 2026-03-08
-status: approved
+status: implemented
 tags: [worker-identity, meetings, portrait, structural-fix]
 modules: [meeting-record, meeting-toolbox, manager-toolbox, meeting-page, dashboard, toolbox-resolver, sdk-runner]
 related:

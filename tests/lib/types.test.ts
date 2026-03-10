@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { statusToGem, VALID_MODELS, isValidModel } from "@/lib/types";
-import type { GemStatus } from "@/lib/types";
+import { statusToGem, VALID_MODELS, isValidModel, resolveModel } from "@/lib/types";
+import type { GemStatus, AppConfig, ModelDefinition } from "@/lib/types";
 
 describe("statusToGem", () => {
   const cases: Array<[string, GemStatus]> = [
@@ -30,6 +30,15 @@ describe("statusToGem", () => {
     ["abandoned", "blocked"],
     ["Superseded", "blocked"],
     ["Declined", "blocked"],
+
+    // Commission-specific statuses
+    ["dispatched", "active"],
+    ["in_progress", "active"],
+    ["sleeping", "active"],
+    ["completed", "active"],
+    ["failed", "blocked"],
+    ["cancelled", "blocked"],
+    ["blocked", "pending"],
 
     // Info (blue) - recognized
     ["implemented", "info"],
@@ -75,5 +84,78 @@ describe("isValidModel", () => {
   test("returns false for invalid model names", () => {
     expect(isValidModel("invalid")).toBe(false);
     expect(isValidModel("")).toBe(false);
+  });
+
+  test("returns true for configured local model when config provided", () => {
+    const config = configWithModels([
+      { name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" },
+    ]);
+    expect(isValidModel("llama3", config)).toBe(true);
+  });
+
+  test("returns false for local model when config omitted", () => {
+    expect(isValidModel("llama3")).toBe(false);
+  });
+});
+
+const configWithModels = (models: ModelDefinition[]): AppConfig => ({
+  projects: [],
+  models,
+});
+
+describe("resolveModel", () => {
+  test("resolves built-in model names", () => {
+    const result = resolveModel("opus");
+    expect(result).toEqual({ type: "builtin", name: "opus" });
+  });
+
+  test("resolves all built-in models", () => {
+    for (const name of VALID_MODELS) {
+      const result = resolveModel(name);
+      expect(result.type).toBe("builtin");
+    }
+  });
+
+  test("resolves configured local model", () => {
+    const def: ModelDefinition = {
+      name: "llama3",
+      modelId: "llama3",
+      baseUrl: "http://localhost:11434",
+    };
+    const config = configWithModels([def]);
+    const result = resolveModel("llama3", config);
+    expect(result).toEqual({ type: "local", definition: def });
+  });
+
+  test("built-in takes precedence over local with same name", () => {
+    // This shouldn't happen in practice (config validation rejects it),
+    // but the resolution logic should still prefer built-in
+    const config = configWithModels([
+      { name: "opus", modelId: "local-opus", baseUrl: "http://localhost:11434" },
+    ]);
+    const result = resolveModel("opus", config);
+    expect(result.type).toBe("builtin");
+  });
+
+  test("throws for unknown model without config", () => {
+    expect(() => resolveModel("unknown")).toThrow("Unknown model");
+  });
+
+  test("throws for unknown model with config", () => {
+    const config = configWithModels([
+      { name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" },
+    ]);
+    expect(() => resolveModel("unknown", config)).toThrow("Unknown model");
+  });
+
+  test("error message includes configured local models as hint", () => {
+    const config = configWithModels([
+      { name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" },
+    ]);
+    expect(() => resolveModel("unknown", config)).toThrow("Configured local models: llama3");
+  });
+
+  test("throws for local model name when config is omitted", () => {
+    expect(() => resolveModel("llama3")).toThrow("Unknown model");
   });
 });

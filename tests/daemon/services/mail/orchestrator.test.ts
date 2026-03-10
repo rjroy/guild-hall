@@ -2609,9 +2609,8 @@ describe("Sleeping commission abandon triggers dependency transitions (DEFECT-3)
     const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, TEST_COMMISSION_ID as string);
     await fs.mkdir(worktreeDir, { recursive: true });
 
-    // Create a second commission that depends on the sleeping one
+    // Create a second commission that depends on the sleeping one (raw commission ID)
     const dependentId = asCommissionId("commission-dependent-20260307-100001");
-    const depPath = `.lore/commissions/${TEST_COMMISSION_ID as string}.md`;
 
     const mockMailOrchestrator: MailOrchestrator = {
       async handleSleep() { return true; },
@@ -2644,11 +2643,10 @@ describe("Sleeping commission abandon triggers dependency transitions (DEFECT-3)
     await writeCommissionArtifact(integrationPath, TEST_COMMISSION_ID as string, { status: "sleeping" });
     await setupLifecycleState(lifecycle, TEST_COMMISSION_ID, TEST_PROJECT, worktreeDir, "sleeping");
 
-    // Create a dependent commission with a dependency path that points to the sleeping
-    // commission's artifact (dependency format is relative path from integration root)
+    // Create a dependent commission with a dependency on the sleeping commission (raw ID)
     await writeCommissionArtifact(integrationPath, dependentId as string, {
       status: "blocked",
-      dependencies: [depPath],
+      dependencies: [TEST_COMMISSION_ID as string],
     });
     // Do NOT register the dependent in lifecycle; checkDependencyTransitions
     // registers transiently and forgets after transition.

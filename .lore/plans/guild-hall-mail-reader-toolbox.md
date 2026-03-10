@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Mail Reader Toolbox
 date: 2026-03-08
-status: approved
+status: implemented
 tags: [plan, toolbox, email, fastmail, jmap, packages]
 modules: [packages, toolbox-resolver]
 related:

@@ -214,6 +214,7 @@ async function createBaseDeps(overrides?: {
     commissionSession: createMockCommissionSession() as never,
     eventBus: { emit: () => {}, subscribe: () => () => {} } as never,
     gitOps: createMockGitOps() as never,
+    config: { projects: [{ name: "test-project", path: "/repos/test-project" }] },
     getProjectConfig: () => Promise.resolve({
       name: "test-project",
       path: "/repos/test-project",
@@ -299,6 +300,26 @@ describe("makeCreateScheduledCommissionHandler", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("not found");
+  });
+
+  test("returns Worker not found when packages is empty (regression guard for meeting wiring)", async () => {
+    // Before the fix, create_scheduled_commission during a Guild Master meeting
+    // always failed with this error because packages was not wired into the
+    // manager toolbox services bag in the meeting orchestrator.
+    // This test documents that behavior and guards against regression:
+    // if the wiring breaks again, packages will be empty and this is what fails.
+    const deps = await createBaseDeps({ packages: [] });
+    const handler = makeCreateScheduledCommissionHandler(deps);
+
+    const result = await handler({
+      title: "Daily report",
+      workerName: "Scribe",
+      prompt: "Generate the daily status report",
+      cron: "0 9 * * *",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not found in discovered packages");
   });
 
   test("with resourceOverrides writes model in artifact", async () => {
@@ -637,5 +658,83 @@ projectName: test-project
 
     const reactivateCalls = lifecycle.calls.filter((c) => c.method === "reactivate");
     expect(reactivateCalls).toHaveLength(1);
+  });
+
+  // -- Local model validation for update_schedule --
+
+  test("accepts configured local model name", async () => {
+    const commissionId = "commission-Scribe-20260309-090000";
+    const recordOps = createMockRecordOps({ readStatusReturn: "active" });
+    const deps = await createBaseDeps({ recordOps });
+    deps.config = {
+      ...deps.config,
+      models: [{ name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" }],
+    };
+    await writeScheduledArtifact(commissionId);
+
+    const handler = makeUpdateScheduleHandler(deps);
+    const result = await handler({
+      commissionId,
+      resourceOverrides: { model: "llama3" },
+    });
+
+    expect(result.isError).toBeUndefined();
+  });
+
+  test("rejects unconfigured model with config.yaml hint", async () => {
+    const commissionId = "commission-Scribe-20260309-090000";
+    const recordOps = createMockRecordOps({ readStatusReturn: "active" });
+    const deps = await createBaseDeps({ recordOps });
+    await writeScheduledArtifact(commissionId);
+
+    const handler = makeUpdateScheduleHandler(deps);
+    const result = await handler({
+      commissionId,
+      resourceOverrides: { model: "unknown-model" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Invalid model name");
+    expect(result.content[0].text).toContain("Local models must be defined in config.yaml");
+  });
+});
+
+// -- Local model validation for create_scheduled_commission --
+
+describe("config-aware model validation (create)", () => {
+  test("create_scheduled_commission accepts configured local model name", async () => {
+    const deps = await createBaseDeps();
+    deps.config = {
+      ...deps.config,
+      models: [{ name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" }],
+    };
+    const handler = makeCreateScheduledCommissionHandler(deps);
+
+    const result = await handler({
+      title: "Local model test",
+      workerName: "Scribe",
+      prompt: "Test",
+      cron: "0 9 * * *",
+      resourceOverrides: { model: "llama3" },
+    });
+
+    expect(result.isError).toBeUndefined();
+  });
+
+  test("create_scheduled_commission rejects unconfigured model with hint", async () => {
+    const deps = await createBaseDeps();
+    const handler = makeCreateScheduledCommissionHandler(deps);
+
+    const result = await handler({
+      title: "Bad model",
+      workerName: "Scribe",
+      prompt: "Test",
+      cron: "0 9 * * *",
+      resourceOverrides: { model: "unknown-model" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Invalid model name");
+    expect(result.content[0].text).toContain("Local models must be defined in config.yaml");
   });
 });

@@ -11,6 +11,22 @@ interface WorkerInfo {
   description: string;
 }
 
+interface ModelEntry {
+  name: string;
+}
+
+interface LocalModelEntry {
+  name: string;
+  modelId: string;
+  baseUrl: string;
+  reachable: boolean;
+}
+
+interface ModelsResponse {
+  builtin: ModelEntry[];
+  local: LocalModelEntry[];
+}
+
 interface CommissionFormProps {
   projectName: string;
   onCreated?: (commissionId: string) => void;
@@ -36,7 +52,9 @@ export default function CommissionForm({
   const [dependencies, setDependencies] = useState(initialDependencies);
   const [maxTurns, setMaxTurns] = useState("");
   const [maxBudgetUsd, setMaxBudgetUsd] = useState("");
+  const [modelOverride, setModelOverride] = useState("");
   const [overridesOpen, setOverridesOpen] = useState(false);
+  const [models, setModels] = useState<ModelsResponse | null>(null);
 
   const [commissionType, setCommissionType] = useState<"one-shot" | "scheduled">("one-shot");
   const [cron, setCron] = useState("");
@@ -81,6 +99,25 @@ export default function CommissionForm({
     };
   }, []);
 
+  // Fetch available models for the model selector (REQ-LOCAL-27)
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/models")
+      .then(async (res) => {
+        if (cancelled || !res.ok) return;
+        const data = (await res.json()) as ModelsResponse;
+        setModels(data);
+      })
+      .catch(() => {
+        // Models are optional; selector falls back to no options
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSubmit = useCallback(async () => {
     if (!title.trim() || !workerName || !prompt.trim()) return;
 
@@ -92,7 +129,7 @@ export default function CommissionForm({
       .map((d) => d.trim())
       .filter(Boolean);
 
-    const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number } = {};
+    const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string } = {};
     if (maxTurns.trim()) {
       const parsed = parseInt(maxTurns, 10);
       if (!isNaN(parsed) && parsed > 0) {
@@ -104,6 +141,9 @@ export default function CommissionForm({
       if (!isNaN(parsed) && parsed > 0) {
         resourceOverrides.maxBudgetUsd = parsed;
       }
+    }
+    if (modelOverride) {
+      resourceOverrides.model = modelOverride;
     }
 
     const payload: Record<string, unknown> = {
@@ -158,7 +198,7 @@ export default function CommissionForm({
       setError(message);
       setSubmitting(false);
     }
-  }, [title, workerName, prompt, dependencies, maxTurns, maxBudgetUsd, commissionType, cron, repeat, projectName, onCreated]);
+  }, [title, workerName, prompt, dependencies, maxTurns, maxBudgetUsd, modelOverride, commissionType, cron, repeat, projectName, onCreated]);
 
   const canSubmit =
     title.trim().length > 0 &&
@@ -321,43 +361,76 @@ export default function CommissionForm({
           Resource Overrides
         </button>
         {overridesOpen && (
-          <div className={styles.overridesFields}>
-            <div className={styles.overridesField}>
-              <label
-                className={styles.overridesLabel}
-                htmlFor="commission-max-turns"
-              >
-                Max Turns
-              </label>
-              <input
-                id="commission-max-turns"
-                className={styles.numberInput}
-                type="number"
-                min="1"
-                value={maxTurns}
-                onChange={(e) => setMaxTurns(e.target.value)}
-                placeholder="10"
-                disabled={submitting}
-              />
+          <div className={styles.overridesSection}>
+            <div className={styles.overridesFields}>
+              <div className={styles.overridesField}>
+                <label
+                  className={styles.overridesLabel}
+                  htmlFor="commission-max-turns"
+                >
+                  Max Turns
+                </label>
+                <input
+                  id="commission-max-turns"
+                  className={styles.numberInput}
+                  type="number"
+                  min="1"
+                  value={maxTurns}
+                  onChange={(e) => setMaxTurns(e.target.value)}
+                  placeholder="10"
+                  disabled={submitting}
+                />
+              </div>
+              <div className={styles.overridesField}>
+                <label
+                  className={styles.overridesLabel}
+                  htmlFor="commission-max-budget"
+                >
+                  Max Budget (USD)
+                </label>
+                <input
+                  id="commission-max-budget"
+                  className={styles.numberInput}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={maxBudgetUsd}
+                  onChange={(e) => setMaxBudgetUsd(e.target.value)}
+                  placeholder="5.00"
+                  disabled={submitting}
+                />
+              </div>
             </div>
             <div className={styles.overridesField}>
               <label
                 className={styles.overridesLabel}
-                htmlFor="commission-max-budget"
+                htmlFor="commission-model"
               >
-                Max Budget (USD)
+                Model
               </label>
-              <input
-                id="commission-max-budget"
-                className={styles.numberInput}
-                type="number"
-                min="0"
-                step="0.01"
-                value={maxBudgetUsd}
-                onChange={(e) => setMaxBudgetUsd(e.target.value)}
-                placeholder="5.00"
+              <select
+                id="commission-model"
+                className={styles.select}
+                value={modelOverride}
+                onChange={(e) => setModelOverride(e.target.value)}
                 disabled={submitting}
-              />
+              >
+                <option value="">Worker default</option>
+                {models && models.builtin.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    {m.name}
+                  </option>
+                ))}
+                {models && models.local.length > 0 && (
+                  <optgroup label="Local Models">
+                    {models.local.map((m) => (
+                      <option key={m.name} value={m.name}>
+                        {m.name} (local)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
             </div>
           </div>
         )}

@@ -419,6 +419,7 @@ function buildDeps(overrides?: Partial<{
   gitOps: ReturnType<typeof createMockGitOps>;
   fileExists: (p: string) => Promise<boolean>;
   createMeetingRequestFn: CommissionOrchestratorDeps["createMeetingRequestFn"];
+  config: AppConfig;
 }>): {
   orchestrator: CommissionSessionForRoutes;
   lifecycle: CommissionLifecycle;
@@ -445,7 +446,7 @@ function buildDeps(overrides?: Partial<{
     queryFn: mockQueryFn.queryFn,
     recordOps,
     eventBus,
-    config: makeConfig(),
+    config: overrides?.config ?? makeConfig(),
     packages: [makeWorkerPackage()],
     guildHallHome: ghHome,
     gitOps,
@@ -848,17 +849,18 @@ describe("recovery flow", () => {
 
 describe("dependency auto-transitions", () => {
   test("blocked commission becomes pending when dependency exists", async () => {
-    // Write a blocked commission with a dependency
+    // Write a blocked commission with a dependency (raw commission ID, not full path)
     const commissionId = "commission-dep-001";
+    const depId = "commission-dep-target";
     await writeCommissionArtifact(integrationPath, commissionId, {
       status: "blocked",
-      dependencies: [".lore/commissions/commission-dep-target.md"],
+      dependencies: [depId],
     });
 
-    // Create the dependency artifact
+    // Create the dependency artifact at the correct .lore/commissions/<id>.md path
     const depDir = path.join(integrationPath, ".lore", "commissions");
     await fs.writeFile(
-      path.join(depDir, "commission-dep-target.md"),
+      path.join(depDir, `${depId}.md`),
       "---\ntitle: Target\nstatus: completed\n---\n",
       "utf-8",
     );
@@ -888,7 +890,7 @@ describe("dependency auto-transitions", () => {
     const commissionId = "commission-dep-002";
     await writeCommissionArtifact(integrationPath, commissionId, {
       status: "pending",
-      dependencies: [".lore/commissions/nonexistent.md"],
+      dependencies: ["commission-nonexistent"],
     });
 
     const { orchestrator, eventBus } = buildDeps();
@@ -1967,6 +1969,48 @@ projectName: ${TEST_PROJECT}
       orchestrator.dispatchCommission(commissionId),
     ).rejects.toThrow(/Invalid model "gpt4"/);
   });
+
+  test("accepts configured local model name in resource_overrides", async () => {
+    const localModelConfig: AppConfig = {
+      ...makeConfig(),
+      models: [
+        { name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" },
+      ],
+    };
+    const { orchestrator } = buildDeps({ config: localModelConfig });
+
+    const commissionId = asCommissionId("commission-test-local-model-001");
+
+    const now = new Date();
+    const content = `---
+title: "Commission: Local Model"
+date: ${now.toISOString().split("T")[0]}
+status: pending
+tags: [commission]
+worker: ${TEST_WORKER}
+workerDisplayTitle: "Test Worker Title"
+prompt: "Do work"
+dependencies: []
+linked_artifacts: []
+resource_overrides:
+  model: llama3
+activity_timeline:
+  - timestamp: ${now.toISOString()}
+    event: created
+    reason: "Commission created"
+current_progress: ""
+projectName: ${TEST_PROJECT}
+---
+`;
+    const dir = path.join(integrationPath, ".lore", "commissions");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, `${commissionId as string}.md`), content, "utf-8");
+
+    // Should not throw (local model name is valid when config has the definition)
+    await expect(
+      orchestrator.dispatchCommission(commissionId),
+    ).resolves.toBeDefined();
+  });
 });
 
 describe("updateCommission with model override", () => {
@@ -2052,6 +2096,37 @@ describe("updateCommission with model override", () => {
     const raw = await fs.readFile(artifactPath, "utf-8");
     expect(raw).toContain("model: sonnet");
     expect(raw).toContain("maxTurns: 20");
+  });
+
+  test("preserves hyphenated model name when updating other overrides", async () => {
+    const { orchestrator } = buildDeps();
+
+    // Create with a hyphenated model name (e.g., a local model)
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Hyphenated Model",
+      "test-worker",
+      "Do the work",
+      [],
+      { model: "mistral-local" },
+    );
+
+    const commissionId = asCommissionId(result.commissionId);
+
+    // Update maxTurns only; the hyphenated model name should be preserved
+    await orchestrator.updateCommission(commissionId, {
+      resourceOverrides: { maxTurns: 30 },
+    });
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("model: mistral-local");
+    expect(raw).toContain("maxTurns: 30");
   });
 });
 

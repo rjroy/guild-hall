@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { z } from "zod";
 import * as yaml from "yaml";
 import { getConfigPath } from "@/lib/paths";
-import { isNodeError } from "@/lib/types";
+import { isNodeError, VALID_MODELS } from "@/lib/types";
 import type { AppConfig, ProjectConfig } from "@/lib/types";
 
 // -- Zod schemas (exported so the CLI can reuse them) --
@@ -19,8 +19,62 @@ export const projectConfigSchema = z.object({
   memoryLimit: z.number().optional(),
 });
 
+const modelAuthSchema = z.object({
+  token: z.string().optional(),
+  apiKey: z.string().optional(),
+});
+
+export const modelDefinitionSchema = z.object({
+  name: z
+    .string()
+    .min(1)
+    .refine((name) => /^[a-zA-Z0-9_-]+$/.test(name), {
+      message: "Model name must contain only alphanumeric characters, hyphens, and underscores",
+    }),
+  modelId: z.string().min(1),
+  baseUrl: z.string().refine(
+    (url) => {
+      try {
+        const parsed = new URL(url);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "baseUrl must be a valid HTTP or HTTPS URL" },
+  ),
+  auth: modelAuthSchema.optional(),
+  guidance: z.string().optional(),
+});
+
 export const appConfigSchema = z.object({
   projects: z.array(projectConfigSchema),
+  models: z
+    .array(modelDefinitionSchema)
+    .optional()
+    .superRefine((models, ctx) => {
+      if (!models) return;
+      // Reject names that collide with built-in models (REQ-LOCAL-5)
+      for (const def of models) {
+        if ((VALID_MODELS as readonly string[]).includes(def.name)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Model definition "${def.name}" conflicts with built-in model name "${def.name}"`,
+          });
+        }
+      }
+      // Reject duplicate names (REQ-LOCAL-6)
+      const seen = new Set<string>();
+      for (const def of models) {
+        if (seen.has(def.name)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Duplicate model name "${def.name}" in models array`,
+          });
+        }
+        seen.add(def.name);
+      }
+    }),
   settings: z.record(z.string(), z.unknown()).optional(),
   maxConcurrentCommissions: z.number().optional(),
   maxConcurrentMailReaders: z.number().optional(),

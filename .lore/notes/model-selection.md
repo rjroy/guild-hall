@@ -1,5 +1,5 @@
 ---
-title: Implementation notes: model-selection
+title: Implementation notes model-selection
 date: 2026-03-08
 status: complete
 tags: [implementation, notes]

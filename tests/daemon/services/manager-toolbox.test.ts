@@ -168,6 +168,7 @@ function makeDeps(
     commissionSession: makeMockCommissionSession(),
     eventBus: makeMockEventBus(),
     gitOps: makeMockGitOps(),
+    config: { projects: [{ name: "test-project", path: path.join(tmpDir, "repo") }] },
     getProjectConfig(name: string) {
       if (name === "test-project") {
         return Promise.resolve({

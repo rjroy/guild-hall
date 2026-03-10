@@ -115,6 +115,7 @@ function makeDeps(
     commissionSession: makeMockCommissionSession(),
     eventBus: makeMockEventBus(),
     gitOps: makeMockGitOps(),
+    config: { projects: [testProjectConfig] },
     getProjectConfig(name: string) {
       if (name === "test-project") return Promise.resolve(testProjectConfig);
       return Promise.resolve(undefined);

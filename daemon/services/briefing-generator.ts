@@ -31,6 +31,7 @@ import { noopEventBus } from "@/daemon/lib/event-bus";
 import {
   prepareSdkSession,
   runSdkSession,
+  prefixLocalModelError,
   type SessionPrepDeps,
   type SessionPrepSpec,
 } from "@/daemon/lib/agent-sdk/sdk-runner";
@@ -407,7 +408,7 @@ async function generateWithFullSdk(
     }
     return text;
   } catch (err: unknown) {
-    const reason = errorMessage(err);
+    const reason = prefixLocalModelError(errorMessage(err), undefined);
     console.error(`[briefing-generator] SDK session failed for "${projectName}": ${reason}`);
     return generateTemplateBriefing(context);
   }
