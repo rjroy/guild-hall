@@ -1,0 +1,37 @@
+---
+title: "Commission: Scheduled test: hello"
+date: 2026-03-10
+status: completed
+type: scheduled
+tags: [commission, scheduled]
+worker: Dalton
+workerDisplayTitle: "Guild Artificer"
+prompt: "Report \"hello\" and nothing else."
+dependencies: []
+linked_artifacts: []
+schedule:
+  cron: "0 12 * * *"
+  repeat: 1
+  runs_completed: 1
+  last_run: 2026-03-10T18:40:19.367Z
+  last_spawned_id: commission-Dalton-20260310-114019
+resource_overrides:
+  maxTurns: 1
+  model: haiku
+activity_timeline:
+  - timestamp: 2026-03-10T18:39:38.285Z
+    event: created
+    reason: "Scheduled commission created"
+  - timestamp: 2026-03-10T18:40:19.368Z
+    event: commission_spawned
+    reason: "Spawned commission commission-Dalton-20260310-114019"
+    spawned_id: "commission-Dalton-20260310-114019"
+    run_number: "1"
+  - timestamp: 2026-03-10T18:40:19.369Z
+    event: schedule_completed
+    reason: "Repeat count reached: 1/1"
+    from: "active"
+    to: "completed"
+current_progress: ""
+projectName: guild-hall
+---

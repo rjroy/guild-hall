@@ -104,17 +104,18 @@ export default function CommissionGraph({
   // so we strip them for the marker ID.
   const markerId = `arrow${instanceId.replace(/:/g, "")}`;
 
-  const containerClass = styles.container;
-  const graphClass = [styles.graph, compact ? styles.compact : ""]
+  const containerClass = [styles.container, compact ? styles.compact : ""]
     .filter(Boolean)
     .join(" ");
+  const graphClass = styles.graph;
 
   return (
     <div className={containerClass}>
       <svg
         className={graphClass}
         viewBox={`0 0 ${layout.width} ${layout.height}`}
-        preserveAspectRatio="xMidYMid meet"
+        width={layout.width}
+        height={layout.height}
         role="img"
         aria-label="Commission dependency graph"
       >

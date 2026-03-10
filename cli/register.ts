@@ -5,6 +5,28 @@ import { getConfigPath, getGuildHallHome, integrationWorktreePath, activityWorkt
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 
 /**
+ * Asks a running daemon to reload its config from disk.
+ * If the daemon isn't running, logs a message and continues.
+ */
+export async function notifyDaemonReload(
+  guildHallHome: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<void> {
+  const socketPath = path.join(guildHallHome, "guild-hall.sock");
+  try {
+    await fetchFn(
+      `http://localhost/admin/reload-config`,
+      {
+        method: "POST",
+        unix: socketPath,
+      } as RequestInit,
+    );
+  } catch {
+    console.log("Daemon not running; restart to pick up changes.");
+  }
+}
+
+/**
  * Register a project in the Guild Hall config.
  *
  * Validates that the path exists and contains both .git/ and .lore/
@@ -79,6 +101,9 @@ export async function register(
 
   config.projects.push({ name, path: resolved, defaultBranch });
   await writeConfig(config, configFilePath);
+
+  // Notify the daemon to pick up the new project without restart
+  await notifyDaemonReload(ghHome);
 
   console.log(`Registered project '${name}' at ${resolved}`);
 }

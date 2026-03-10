@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Steward Worker
 date: 2026-03-10
-status: draft
+status: implemented
 tags: [workers, steward, personal-assistant, email, correspondence, household]
 modules: [guild-hall-workers, packages]
 related:

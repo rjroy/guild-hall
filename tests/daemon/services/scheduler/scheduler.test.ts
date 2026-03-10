@@ -896,9 +896,9 @@ describe("SchedulerService", () => {
       expect(createCalls).toHaveLength(0);
     });
 
-    test("spawns catch-up when last_run is null (uses date field)", async () => {
-      // No last_run, so the reference point is the artifact date field.
-      // With date in the past and "* * * * *" cron, catch-up should fire.
+    test("skips catch-up when last_run is null (brand-new schedule)", async () => {
+      // A schedule that has never run can't have missed a run.
+      // catchUp should skip it; the normal tick loop handles the first firing.
       await writeScheduleArtifact(projectDir, "schedule-catchup-null-lastrun", {
         cron: "* * * * *",
         lastRun: null,
@@ -911,16 +911,38 @@ describe("SchedulerService", () => {
       await scheduler.catchUp();
 
       const createCalls = commissionSession.calls.filter((c) => c.method === "createCommission");
+      expect(createCalls).toHaveLength(0);
+    });
+
+    test("brand-new schedule is handled by tick, not catchUp", async () => {
+      // Cron "* * * * *" fires every minute. No lastRun (brand-new).
+      // catchUp should skip it, but tick should spawn it since the
+      // date-based fallback in processSchedule makes it due.
+      await writeScheduleArtifact(projectDir, "schedule-brand-new", {
+        cron: "* * * * *",
+        lastRun: null,
+        worker: "Sable",
+        prompt: "Brand new schedule",
+        date: "2025-01-01",
+      });
+
+      const scheduler = createScheduler();
+
+      // catchUp should not spawn anything
+      await scheduler.catchUp();
+      let createCalls = commissionSession.calls.filter((c) => c.method === "createCommission");
+      expect(createCalls).toHaveLength(0);
+
+      // tick should spawn the commission via the normal path
+      await scheduler.tick();
+      createCalls = commissionSession.calls.filter((c) => c.method === "createCommission");
       expect(createCalls).toHaveLength(1);
 
-      // Verify timeline event type
+      // Verify it's a normal spawn, not a catch-up spawn
       const timelineCalls = recordOps.calls.filter(
-        (c) => c.method === "appendTimeline" && c.args[1] === "commission_spawned_catchup",
+        (c) => c.method === "appendTimeline" && c.args[1] === "commission_spawned",
       );
       expect(timelineCalls).toHaveLength(1);
-
-      const extra = timelineCalls[0].args[3] as Record<string, unknown>;
-      expect(extra.missed_since).toBeDefined();
     });
   });
 });
