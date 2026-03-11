@@ -6,17 +6,17 @@ type: one-shot
 tags: [commission]
 worker: Octavia
 workerDisplayTitle: "Guild Chronicler"
-prompt: "Update the status frontmatter from `draft` to `implemented` in these 4 spec files:\n\n1. `.lore/specs/guild-hall-steward-worker.md`\n2. `.lore/specs/meeting-rename.md`\n3. `.lore/specs/system-model-defaults.md`\n4. `.lore/specs/local-model-support.md`\n\nChange the `status:` field in the YAML frontmatter from `draft` to `implemented`. Do not modify anything else in the files.\n\nCommit with a message like: \"Mark 4 specs as implemented: steward worker, meeting rename, model defaults, local model support\""
+prompt: "Update the status frontmatter from `draft` to `implemented` in these 4 spec files:\n\n1. `.lore/specs/workers/guild-hall-steward-worker.md`\n2. `.lore/specs/meetings/meeting-rename.md`\n3. `.lore/specs/infrastructure/system-model-defaults.md`\n4. `.lore/specs/infrastructure/local-model-support.md`\n\nChange the `status:` field in the YAML frontmatter from `draft` to `implemented`. Do not modify anything else in the files.\n\nCommit with a message like: \"Mark 4 specs as implemented: steward worker, meeting rename, model defaults, local model support\""
 dependencies: []
 linked_artifacts:
-  - .lore/specs/guild-hall-steward-worker.md
+  - .lore/specs/workers/guild-hall-steward-worker.md
 
-  - .lore/specs/meeting-rename.md
-  - .lore/specs/system-model-defaults.md
-  - .lore/specs/local-model-support.md
-  - .lore/specs/meeting-rename.md
-  - .lore/specs/system-model-defaults.md
-  - .lore/specs/local-model-support.md
+  - .lore/specs/meetings/meeting-rename.md
+  - .lore/specs/infrastructure/system-model-defaults.md
+  - .lore/specs/infrastructure/local-model-support.md
+  - .lore/specs/meetings/meeting-rename.md
+  - .lore/specs/infrastructure/system-model-defaults.md
+  - .lore/specs/infrastructure/local-model-support.md
 resource_overrides:
   model: haiku
 
@@ -39,7 +39,7 @@ activity_timeline:
     reason: "Updated 4 spec files: changed status from `draft` to `implemented` in guild-hall-steward-worker.md, meeting-rename.md, system-model-defaults.md, and local-model-support.md. Committed changes with message \"Mark 4 specs as implemented: steward worker, meeting rename, model defaults, local model support\". All pre-commit checks passed."
   - timestamp: 2026-03-10T17:18:52.550Z
     event: result_submitted
-    reason: "Successfully updated status field from `draft` to `implemented` in 4 spec files:\n1. .lore/specs/guild-hall-steward-worker.md\n2. .lore/specs/meeting-rename.md\n3. .lore/specs/system-model-defaults.md\n4. .lore/specs/local-model-support.md\n\nCommitted with message: \"Mark 4 specs as implemented: steward worker, meeting rename, model defaults, local model support\"\n\nAll pre-commit checks passed (typecheck, lint, tests, production build)."
+    reason: "Successfully updated status field from `draft` to `implemented` in 4 spec files:\n1. .lore/specs/workers/guild-hall-steward-worker.md\n2. .lore/specs/meetings/meeting-rename.md\n3. .lore/specs/infrastructure/system-model-defaults.md\n4. .lore/specs/infrastructure/local-model-support.md\n\nCommitted with message: \"Mark 4 specs as implemented: steward worker, meeting rename, model defaults, local model support\"\n\nAll pre-commit checks passed (typecheck, lint, tests, production build)."
   - timestamp: 2026-03-10T17:18:55.386Z
     event: status_completed
     reason: "Execution completed"
@@ -49,10 +49,10 @@ current_progress: "Updated 4 spec files: changed status from `draft` to `impleme
 projectName: guild-hall
 ---
 Successfully updated status field from `draft` to `implemented` in 4 spec files:
-1. .lore/specs/guild-hall-steward-worker.md
-2. .lore/specs/meeting-rename.md
-3. .lore/specs/system-model-defaults.md
-4. .lore/specs/local-model-support.md
+1. .lore/specs/workers/guild-hall-steward-worker.md
+2. .lore/specs/meetings/meeting-rename.md
+3. .lore/specs/infrastructure/system-model-defaults.md
+4. .lore/specs/infrastructure/local-model-support.md
 
 Committed with message: "Mark 4 specs as implemented: steward worker, meeting rename, model defaults, local model support"
 

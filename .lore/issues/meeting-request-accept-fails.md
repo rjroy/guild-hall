@@ -2,7 +2,7 @@
 title: Meeting request accept fails when artifact is uncommitted on integration worktree
 date: 2026-03-08
 status: resolved
-tags: [bug, meetings, git]
+tags: [bug-fix, meetings, git]
 severity: blocking
 ---
 

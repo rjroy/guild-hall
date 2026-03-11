@@ -6,10 +6,10 @@ type: one-shot
 tags: [commission]
 worker: Octavia
 workerDisplayTitle: "Guild Chronicler"
-prompt: "Write an implementation plan for the Steward Worker MVP spec at `.lore/specs/guild-hall-steward-worker.md`.\n\nRead the spec thoroughly, then produce a plan that covers all requirements. Break the work into ordered steps suitable for commissioning to Dalton (implementation) and Sable (testing). Identify dependencies between steps.\n\nReference the spec's REQ IDs in the plan steps. Check the existing codebase to understand the current worker package structure before planning. Key areas to investigate:\n- Existing worker packages in `packages/` (use one as a template, e.g., `packages/guild-hall-researcher/`)\n- Worker registration and roster in `lib/`\n- How domain toolboxes are declared and resolved (`guild-hall-email` package)\n- Worker memory system\n- Worker-to-worker mail for Guild Master escalation\n\nOutput the plan to `.lore/plans/steward-worker-mvp.md` following the project's plan conventions."
+prompt: "Write an implementation plan for the Steward Worker MVP spec at `.lore/specs/workers/guild-hall-steward-worker.md`.\n\nRead the spec thoroughly, then produce a plan that covers all requirements. Break the work into ordered steps suitable for commissioning to Dalton (implementation) and Sable (testing). Identify dependencies between steps.\n\nReference the spec's REQ IDs in the plan steps. Check the existing codebase to understand the current worker package structure before planning. Key areas to investigate:\n- Existing worker packages in `packages/` (use one as a template, e.g., `packages/guild-hall-researcher/`)\n- Worker registration and roster in `lib/`\n- How domain toolboxes are declared and resolved (`guild-hall-email` package)\n- Worker memory system\n- Worker-to-worker mail for Guild Master escalation\n\nOutput the plan to `.lore/plans/workers/steward-worker-mvp.md` following the project's plan conventions."
 dependencies: []
 linked_artifacts:
-  - .lore/plans/steward-worker-mvp.md
+  - .lore/plans/workers/steward-worker-mvp.md
 
 resource_overrides:
   model: sonnet
@@ -39,7 +39,7 @@ activity_timeline:
     reason: "Codebase investigation complete. Writing the plan now."
   - timestamp: 2026-03-10T08:25:30.556Z
     event: result_submitted
-    reason: "Plan written to `.lore/plans/steward-worker-mvp.md`.\n\nSeven steps, three commissions:\n\n**Commission A (Dalton — Steps 1-4)**: Four files in `packages/guild-hall-steward/`. Step 1 is the `package.json` + `index.ts` scaffold (spec provides exact metadata, index is one line). Step 2 is `soul.md` (spec provides complete example content at REQ-STW-7). Step 3 is `posture.md` — the largest content step, encoding the five-stage workflow (read memory → execute task → check escalation → update memory → submit_result) and the three capability modes (triage, meeting prep, email research) with their required output structures. Step 4 is a portrait placeholder.\n\n**Commission B (Sable — Steps 5-6)**: Update three existing test files (roster, smoke, routing validation) to include the Steward, then create `tests/packages/guild-hall-steward/integration.test.ts` covering package discovery, toolbox resolution, advisory boundary verification, and posture content verification for all three task types.\n\n**Commission C (Thorne — Step 7)**: Fresh-context review targeting posture completeness, soul/posture boundary, advisory boundary structural enforcement, and routing distinctiveness from the Researcher.\n\nNo infrastructure changes. All systems (email toolbox, send_mail, worker activation, discovery) are already built. The entire MVP is content writing + test updates."
+    reason: "Plan written to `.lore/plans/workers/steward-worker-mvp.md`.\n\nSeven steps, three commissions:\n\n**Commission A (Dalton — Steps 1-4)**: Four files in `packages/guild-hall-steward/`. Step 1 is the `package.json` + `index.ts` scaffold (spec provides exact metadata, index is one line). Step 2 is `soul.md` (spec provides complete example content at REQ-STW-7). Step 3 is `posture.md` — the largest content step, encoding the five-stage workflow (read memory → execute task → check escalation → update memory → submit_result) and the three capability modes (triage, meeting prep, email research) with their required output structures. Step 4 is a portrait placeholder.\n\n**Commission B (Sable — Steps 5-6)**: Update three existing test files (roster, smoke, routing validation) to include the Steward, then create `tests/packages/guild-hall-steward/integration.test.ts` covering package discovery, toolbox resolution, advisory boundary verification, and posture content verification for all three task types.\n\n**Commission C (Thorne — Step 7)**: Fresh-context review targeting posture completeness, soul/posture boundary, advisory boundary structural enforcement, and routing distinctiveness from the Researcher.\n\nNo infrastructure changes. All systems (email toolbox, send_mail, worker activation, discovery) are already built. The entire MVP is content writing + test updates."
   - timestamp: 2026-03-10T08:25:39.170Z
     event: status_completed
     reason: "Execution completed"
@@ -48,7 +48,7 @@ activity_timeline:
 current_progress: "Codebase investigation complete. Writing the plan now."
 projectName: guild-hall
 ---
-Plan written to `.lore/plans/steward-worker-mvp.md`.
+Plan written to `.lore/plans/workers/steward-worker-mvp.md`.
 
 Seven steps, three commissions:
 

@@ -18,22 +18,6 @@ interface ArtifactListProps {
   projectName: string;
 }
 
-function collectDefaultExpanded(nodes: TreeNode[]): Set<string> {
-  const expanded = new Set<string>();
-  function walk(node: TreeNode): void {
-    if (node.defaultExpanded) {
-      expanded.add(node.path);
-    }
-    for (const child of node.children) {
-      walk(child);
-    }
-  }
-  for (const node of nodes) {
-    walk(node);
-  }
-  return expanded;
-}
-
 // Module-level component (not inside ArtifactTree's render body) to prevent
 // React from treating it as a new component type on each render.
 interface TreeNodeRowProps {
@@ -138,7 +122,7 @@ interface ArtifactTreeProps {
 // violate rules-of-hooks.
 function ArtifactTree({ tree, encodedProjectName }: ArtifactTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(
-    () => collectDefaultExpanded(tree)
+    () => new Set()
   );
 
   function toggleNode(path: string): void {

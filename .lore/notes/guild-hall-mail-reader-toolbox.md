@@ -2,8 +2,9 @@
 title: Implementation notes guild-hall-mail-reader-toolbox
 date: 2026-03-08
 status: complete
-tags: [implementation, notes, toolbox, email, jmap]
-source: .lore/plans/guild-hall-mail-reader-toolbox.md
+tags: [toolbox, email, jmap]
+related: [.lore/specs/workers/guild-hall-mail-reader-toolbox.md, .lore/plans/workers/guild-hall-mail-reader-toolbox.md]
+source: .lore/plans/workers/guild-hall-mail-reader-toolbox.md
 modules: [packages, toolbox-resolver]
 ---
 

@@ -6,7 +6,7 @@ type: one-shot
 tags: [commission]
 worker: Dalton
 workerDisplayTitle: "Guild Artificer"
-prompt: "Implement Steps 8 and 9 of the Local Model Support plan at `.lore/plans/local-model-support.md`. Read the full plan first.\n\n**Step 8**: Daemon wiring — wire `validatePackageModels` after `discoverPackages` in `createProductionApp` (`daemon/app.ts`), add `config` to the services bag passed to orchestrators.\n\n**Step 9**: /models endpoint — create `daemon/routes/models.ts` with `GET /models` that returns built-in models and local models with best-effort reachability checks (1-second timeout). Wire into `createApp` and `createProductionApp`. Add tests.\n\nThe spec is at `.lore/specs/local-model-support.md`. Run tests after each step."
+prompt: "Implement Steps 8 and 9 of the Local Model Support plan at `.lore/plans/infrastructure/local-model-support.md`. Read the full plan first.\n\n**Step 8**: Daemon wiring — wire `validatePackageModels` after `discoverPackages` in `createProductionApp` (`daemon/app.ts`), add `config` to the services bag passed to orchestrators.\n\n**Step 9**: /models endpoint — create `daemon/routes/models.ts` with `GET /models` that returns built-in models and local models with best-effort reachability checks (1-second timeout). Wire into `createApp` and `createProductionApp`. Add tests.\n\nThe spec is at `.lore/specs/infrastructure/local-model-support.md`. Run tests after each step."
 dependencies:
   - commission-Dalton-20260309-183331
 linked_artifacts:

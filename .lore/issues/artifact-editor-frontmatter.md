@@ -4,7 +4,7 @@ date: 2026-02-27
 status: resolved
 tags: [bug-fix, ui, artifacts, editor, frontmatter]
 modules: [artifact-content, api-artifacts]
-related: [.lore/plans/artifact-editor-full-content.md]
+related: [.lore/plans/ui/artifact-editor-full-content.md]
 ---
 
 ## Problem

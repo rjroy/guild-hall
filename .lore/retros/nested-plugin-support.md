@@ -2,7 +2,7 @@
 title: Three bugs from slashes in nested plugin names
 date: 2026-02-16
 status: complete
-tags: [bug, nested-plugins, path-handling, mcp, readiness-polling]
+tags: [bug-fix, nested-plugins, path-handling, mcp, readiness-polling]
 modules: [http-mcp-factory, pid-file-manager, plugin-discovery]
 ---
 

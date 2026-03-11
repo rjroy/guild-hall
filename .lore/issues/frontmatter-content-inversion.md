@@ -6,7 +6,7 @@ tags: [artifacts, frontmatter, meetings, commissions, data-model]
 modules: [meeting-artifact-helpers, notes-generator, commission-artifact]
 related:
   - .lore/issues/artifact-editor-frontmatter.md
-  - .lore/plans/frontmatter-content-to-body.md
+  - .lore/plans/infrastructure/frontmatter-content-to-body.md
 ---
 
 # Artifacts stored user-facing content in frontmatter instead of body

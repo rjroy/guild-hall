@@ -5,11 +5,11 @@ status: resolved
 tags: [model-selection, workers, commissions, cost-management, scheduled-commissions]
 modules: [daemon, worker-activation, sdk-runner, commission-orchestrator]
 related:
-  - .lore/specs/guild-hall-workers.md
-  - .lore/specs/guild-hall-commissions.md
-  - .lore/specs/guild-hall-scheduled-commissions.md
+  - .lore/specs/workers/guild-hall-workers.md
+  - .lore/specs/commissions/guild-hall-commissions.md
+  - .lore/specs/commissions/guild-hall-scheduled-commissions.md
   - .lore/brainstorm/scheduled-commissions.md
-  - .lore/specs/guild-hall-worker-roster.md
+  - .lore/specs/workers/guild-hall-worker-roster.md
 ---
 
 # Brainstorm: Model Selection

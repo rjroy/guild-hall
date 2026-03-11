@@ -5,7 +5,7 @@ status: resolved
 tags: [commissions, scheduling, cron, recurring-work, daemon]
 modules: [daemon, commission-orchestrator]
 related:
-  - .lore/specs/guild-hall-commissions.md
+  - .lore/specs/commissions/guild-hall-commissions.md
   - .lore/brainstorm/lore-proliferation-maintenance.md
 ---
 

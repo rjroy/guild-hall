@@ -10,18 +10,18 @@ dependencies: []
 linked_artifacts:
   - .lore/brainstorm/scheduled-commissions.md
 
-  - .lore/specs/worker-domain-plugins.md
-  - .lore/plans/improve-briefing-full-sdk-pattern.md
-  - .lore/plans/meeting-request-accept-fix.md
-  - .lore/plans/worker-domain-plugins.md
+  - .lore/specs/workers/worker-domain-plugins.md
+  - .lore/plans/infrastructure/improve-briefing-full-sdk-pattern.md
+  - .lore/plans/meetings/meeting-request-accept-fix.md
+  - .lore/plans/workers/worker-domain-plugins.md
   - .lore/retros/ui-redesign-fantasy-theme.md
   - .lore/design/cleanup-commissions-skill.md
   - .lore/brainstorm/personal-assistant-worker.md
   - .lore/lore-config.md
-  - .lore/specs/worker-domain-plugins.md
-  - .lore/plans/improve-briefing-full-sdk-pattern.md
-  - .lore/plans/meeting-request-accept-fix.md
-  - .lore/plans/worker-domain-plugins.md
+  - .lore/specs/workers/worker-domain-plugins.md
+  - .lore/plans/infrastructure/improve-briefing-full-sdk-pattern.md
+  - .lore/plans/meetings/meeting-request-accept-fix.md
+  - .lore/plans/workers/worker-domain-plugins.md
   - .lore/retros/ui-redesign-fantasy-theme.md
   - .lore/design/cleanup-commissions-skill.md
   - .lore/brainstorm/personal-assistant-worker.md

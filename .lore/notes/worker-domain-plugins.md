@@ -2,8 +2,9 @@
 title: Implementation notes worker-domain-plugins
 date: 2026-03-07
 status: complete
-tags: [implementation, notes]
-source: .lore/plans/worker-domain-plugins.md
+tags: [plugins, workers, packages]
+related: [.lore/specs/workers/worker-domain-plugins.md, .lore/plans/workers/worker-domain-plugins.md]
+source: .lore/plans/workers/worker-domain-plugins.md
 modules: [sdk-runner, packages, lib-types]
 ---
 

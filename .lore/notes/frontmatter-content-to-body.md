@@ -3,7 +3,8 @@ title: "Implementation notes: frontmatter-content-to-body"
 date: 2026-03-04
 status: complete
 tags: [artifacts, frontmatter, commissions]
-source: .lore/plans/frontmatter-content-to-body.md
+related: [.lore/plans/infrastructure/frontmatter-content-to-body.md]
+source: .lore/plans/infrastructure/frontmatter-content-to-body.md
 modules: [commission/record, commission/orchestrator, commissions, manager-context]
 ---
 

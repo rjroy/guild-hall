@@ -5,8 +5,8 @@ status: resolved
 tags: [architecture, meetings, refactor, infrastructure, convergence]
 modules: [meeting-session, meeting-handlers, meeting-artifact-helpers, activity-state-machine, workspace]
 related:
-  - .lore/specs/commission-layer-separation.md
-  - .lore/specs/guild-hall-meetings.md
+  - .lore/specs/commissions/commission-layer-separation.md
+  - .lore/specs/meetings/guild-hall-meetings.md
   - daemon/lib/activity-state-machine.ts
   - daemon/services/meeting-session.ts
   - daemon/services/meeting-handlers.ts

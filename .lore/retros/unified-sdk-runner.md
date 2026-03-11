@@ -2,7 +2,7 @@
 title: Unified SDK runner: streaming generator as universal session interface
 date: 2026-03-03
 status: complete
-tags: [refactor, sdk, session-runner, architecture, dependency-injection, generator]
+tags: [refactor, agent-sdk, session-runner, architecture, dependency-injection, generator]
 modules: [sdk-runner, event-translator, commission-orchestrator, meeting-orchestrator]
 related:
   - .lore/design/unified-sdk-runner.md

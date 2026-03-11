@@ -1,6 +1,6 @@
 {
   "name": "guild-hall-writer",
-  "description": "Skills for the Guild Chronicler (Octavia). Commission batch cleanup, artifact maintenance.",
+  "description": "Skills for the Guild Chronicler (Octavia). Commission and meeting batch cleanup, artifact maintenance.",
   "version": "0.1.0",
   "author": {
     "name": "Ronald Roy",

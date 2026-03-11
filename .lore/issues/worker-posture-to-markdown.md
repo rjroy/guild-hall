@@ -3,6 +3,7 @@ title: Move worker posture prompts from JSON to markdown files
 date: 2026-03-03
 status: resolved
 tags: [worker-packages, authoring, developer-experience]
+related: [.lore/plans/workers/worker-posture-to-markdown.md]
 modules: [packages, daemon]
 ---
 
@@ -30,7 +31,7 @@ The loader change lives in the daemon's worker/package resolution code. The mark
 
 ## Resolution
 
-Implemented per plan at `.lore/plans/worker-posture-to-markdown.md`. Changes:
+Implemented per plan at `.lore/plans/workers/worker-posture-to-markdown.md`. Changes:
 
 1. Created `posture.md` files for all five workers with content matching the original JSON posture strings.
 2. Made `posture` optional in the Zod `workerMetadataSchema` (`z.string().optional()`).

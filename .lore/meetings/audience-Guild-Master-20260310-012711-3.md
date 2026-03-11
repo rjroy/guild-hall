@@ -24,6 +24,6 @@ Guild Master noted mid-session that the dependency relationship between commissi
 
 Key decision: Commission sequencing follows the plan's delegation guide — Dalton handles all implementation, Sable handles testing, and a spec validation sub-agent (Commission C, not yet dispatched) is deferred until Sable completes. Commission B (Sable) and Commission C can run in parallel, but test gaps must be resolved before spec validation.
 
-Artifacts referenced: .lore/plans/system-model-defaults.md (the governing plan for this work), .lore/specs/system-model-defaults.md, and related specs for model-selection and local-model-support. Artifacts produced: commission-Dalton-20260310-012822 (dispatched), commission-Sable-20260310-012944 (queued, dependent on Dalton).
+Artifacts referenced: .lore/plans/infrastructure/system-model-defaults.md (the governing plan for this work), .lore/specs/infrastructure/system-model-defaults.md, and related specs for model-selection and local-model-support. Artifacts produced: commission-Dalton-20260310-012822 (dispatched), commission-Sable-20260310-012944 (queued, dependent on Dalton).
 
 Open items: Commission C (sub-agent spec validation against all REQ-SYS-MODEL requirements) has not yet been created and should be dispatched after Sable reports results. If Sable finds test gaps, those must be resolved before spec validation proceeds.

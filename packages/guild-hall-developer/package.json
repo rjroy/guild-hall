@@ -11,7 +11,7 @@
     },
     "model": "opus",
     "domainToolboxes": [],
-    "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    "builtInTools": ["Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
     "checkoutScope": "full",
     "resourceDefaults": {
       "maxTurns": 200

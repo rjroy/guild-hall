@@ -14,7 +14,7 @@ meeting_log:
     reason: "User started audience"
   - timestamp: 2026-03-09T22:07:15.550Z
     event: progress_summary
-    reason: "Dispatched commission to Octavia (commission-Octavia-20260309-150704) to write a spec for local model support via Ollama. She'll read the issue, the model-selection brainstorm, system specs, and session spawning code, then produce a spec at .lore/specs/local-model-support.md."
+    reason: "Dispatched commission to Octavia (commission-Octavia-20260309-150704) to write a spec for local model support via Ollama. She'll read the issue, the model-selection brainstorm, system specs, and session spawning code, then produce a spec at .lore/specs/infrastructure/local-model-support.md."
   - timestamp: 2026-03-09T22:12:18.902Z
     event: progress_summary
     reason: "Found bug: scheduled commission worker discovery fails during Guild Master meetings because the meeting orchestrator (line 456) only wires commissionSession and gitOps into the manager's services, omitting packages, scheduleLifecycle, and recordOps. Dispatched commission-Dalton-20260309-151214 (Sonnet) to fix the wiring gap and add tests."

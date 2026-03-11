@@ -2,7 +2,7 @@
 title: Infrastructure
 date: 2026-03-01
 status: current
-tags: [infrastructure, daemon, event-bus, sse, proxy, lifecycle, state-machine, sdk]
+tags: [infrastructure, daemon, event-bus, sse, proxy, lifecycle, state-machine, agent-sdk]
 modules: [daemon, daemon-lib, daemon-services, daemon-routes, lib-daemon-client, lib-sse-helpers, web-api]
 ---
 

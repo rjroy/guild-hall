@@ -2,7 +2,7 @@
 title: CLI and Git Operations
 date: 2026-03-01
 status: current
-tags: [cli, git, registration, rebase, sync, branch-strategy, worktree]
+tags: [cli, git, registration, rebase, sync, branch-strategy, worktrees]
 modules: [cli, daemon-lib-git, lib-config, lib-paths]
 ---
 

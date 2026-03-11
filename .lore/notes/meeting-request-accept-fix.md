@@ -2,8 +2,9 @@
 title: Implementation notes meeting-request-accept-fix
 date: 2026-03-08
 status: complete
-tags: [implementation, notes]
-source: .lore/plans/meeting-request-accept-fix.md
+tags: [meetings, bug-fix, git]
+related: [.lore/plans/meetings/meeting-request-accept-fix.md]
+source: .lore/plans/meetings/meeting-request-accept-fix.md
 modules: [manager-toolbox, workspace, meeting-orchestrator, meeting-routes]
 ---
 
