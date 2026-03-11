@@ -2,7 +2,7 @@
 title: Phase I autonomous implementation revealed SSE integration and test quality gaps
 date: 2026-02-12
 status: complete
-tags: [phase-1, implementation, autonomous-implementation, sse, testing, frontend, agent-sdk]
+tags: [phase-1, autonomous-implementation, sse, testing, frontend, agent-sdk]
 modules: [guild-hall, workshop, board, roster]
 related:
   - .lore/_abandoned/poc/poc-concepts-summary.md

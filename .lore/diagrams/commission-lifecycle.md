@@ -5,8 +5,8 @@ status: current
 tags: [commissions, lifecycle, state-machine, architecture]
 modules: [commission-orchestrator, commission-lifecycle, commission-workspace, sdk-runner]
 related:
-  - .lore/specs/commissions.md
-  - .lore/specs/system.md
+  - .lore/specs/commissions/guild-hall-commissions.md
+  - .lore/specs/infrastructure/guild-hall-system.md
 ---
 
 # Diagram: Commission Lifecycle
@@ -277,8 +277,8 @@ The failure flowchart shows that all failure paths converge: commit partial work
 
 ## Related
 
-- `.lore/specs/commissions.md` for requirements and REQ IDs
-- `.lore/specs/system.md` for system-level architecture
+- `.lore/specs/commissions/guild-hall-commissions.md` for requirements and REQ IDs
+- `.lore/specs/infrastructure/guild-hall-system.md` for system-level architecture
 - `daemon/services/commission/orchestrator.ts` for Layer 4 implementation
 - `daemon/services/commission/lifecycle.ts` for the state machine
 - `daemon/services/commission/workspace.ts` for git isolation

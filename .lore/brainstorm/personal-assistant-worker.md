@@ -5,10 +5,10 @@ status: resolved
 tags: [workers, personal-assistant, email, calendar, toolbox, scheduled-commissions]
 modules: [packages, daemon-scheduler, toolbox-resolver]
 related:
-  - .lore/specs/guild-hall-mail-reader-toolbox.md
-  - .lore/specs/guild-hall-worker-roster.md
-  - .lore/specs/guild-hall-scheduled-commissions.md
-  - .lore/specs/guild-hall-workers.md
+  - .lore/specs/workers/guild-hall-mail-reader-toolbox.md
+  - .lore/specs/workers/guild-hall-worker-roster.md
+  - .lore/specs/commissions/guild-hall-scheduled-commissions.md
+  - .lore/specs/workers/guild-hall-workers.md
   - .lore/research/fastmail-jmap-integration.md
   - .lore/brainstorm/scheduled-commissions.md
 ---
@@ -99,7 +99,7 @@ This boundary is clean, enforceable at the token scope level (Fastmail API token
 
 The current system is entirely reactive. Workers do things when commissioned. Nobody watches and notifies.
 
-Scheduled commissions (`.lore/specs/guild-hall-scheduled-commissions.md`) change this. A scheduled commission with `cron: "0 8 * * 1-5"` (8am weekdays) can generate a morning briefing. One with `cron: "*/30 * * * *"` (every 30 minutes) could watch for urgent emails.
+Scheduled commissions (`.lore/specs/commissions/guild-hall-scheduled-commissions.md`) change this. A scheduled commission with `cron: "0 8 * * 1-5"` (8am weekdays) can generate a morning briefing. One with `cron: "*/30 * * * *"` (every 30 minutes) could watch for urgent emails.
 
 **What if the assistant's proactive behavior is entirely expressed through scheduled commissions?** No new push mechanism needed. The assistant runs on a cron, produces an artifact (the briefing, the triage report), and the user sees it in the Guild Hall UI or gets notified through existing channels. The daemon already has an EventBus that pushes to SSE subscribers.
 

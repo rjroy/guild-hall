@@ -2,10 +2,10 @@
 title: Worker display title hardcoded to worker name in meeting artifact creation
 date: 2026-03-08
 status: resolved
-tags: [bug, meetings, worker-identity, artifact-creation]
+tags: [bug-fix, meetings, worker-identity, artifact-creation]
 modules: [meeting-toolbox, manager-toolbox]
 related:
-  - .lore/specs/worker-identity-and-personality.md
+  - .lore/specs/workers/worker-identity-and-personality.md
   - .lore/issues/meeting-portrait-not-displayed.md
 ---
 

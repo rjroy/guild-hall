@@ -5,7 +5,7 @@ status: resolved
 tags: [git, branching, squash-merge, lifecycle, meetings, commissions]
 modules: [guild-hall-core]
 related:
-  - .lore/specs/guild-hall-system.md
+  - .lore/specs/infrastructure/guild-hall-system.md
   - .lore/design/process-architecture.md
   - .lore/plans/foundation/implementation-phases.md
 ---

@@ -5,7 +5,7 @@ status: open
 tags: [meeting]
 worker: Guild Master
 workerDisplayTitle: "Guild Master"
-agenda: ".lore/specs/graph-scrollable-container.md"
+agenda: ".lore/specs/ui/graph-scrollable-container.md"
 deferred_until: ""
 linked_artifacts: []
 meeting_log:

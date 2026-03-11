@@ -3,7 +3,8 @@ title: "Implementation notes: artifact-editor-full-content"
 date: 2026-03-04
 status: complete
 tags: [bug-fix, ui, artifacts]
-source: .lore/plans/artifact-editor-full-content.md
+related: [.lore/plans/ui/artifact-editor-full-content.md]
+source: .lore/plans/ui/artifact-editor-full-content.md
 modules: [artifact-content, api-artifacts, artifacts-lib]
 ---
 

@@ -2,7 +2,7 @@
 title: Plugin Systems in TypeScript Applications
 date: 2026-02-11
 status: active
-tags: [plugin-system, typescript, extensibility, architecture, mcp, frontend]
+tags: [plugins, typescript, extensibility, architecture, mcp, frontend]
 modules: [guild-hall]
 related: [.lore/_abandoned/poc/poc-concepts-summary.md, .lore/research/agent-native-applications.md]
 ---

@@ -3,6 +3,7 @@ title: Plugin path convention caught late, test fixtures drifted from discovery
 date: 2026-03-07
 status: complete
 tags: [architecture, plugins, testing, spec-evolution]
+related: [.lore/specs/workers/worker-domain-plugins.md, .lore/plans/workers/worker-domain-plugins.md]
 modules: [sdk-runner, packages, lib-types, guild-hall-writer]
 ---
 
@@ -31,8 +32,8 @@ Implemented the `domainPlugins` infrastructure for worker packages: plugin detec
 
 ## Artifacts
 
-- `.lore/specs/worker-domain-plugins.md` (updated for `plugin/` convention)
-- `.lore/plans/worker-domain-plugins.md`
+- `.lore/specs/workers/worker-domain-plugins.md` (updated for `plugin/` convention)
+- `.lore/plans/workers/worker-domain-plugins.md`
 - `.lore/notes/worker-domain-plugins.md`
 - `packages/guild-hall-writer/plugin/skills/cleanup-commissions/SKILL.md`
 - `packages/guild-hall-writer/plugin/skills/cleanup-meetings/SKILL.md`

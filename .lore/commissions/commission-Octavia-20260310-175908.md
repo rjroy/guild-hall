@@ -10,7 +10,7 @@ prompt: "Create an implementation plan for the SDK tool availability enforcement
 dependencies:
   - commission-Octavia-20260310-174455
 linked_artifacts:
-  - .lore/plans/tool-availability-enforcement.md
+  - .lore/plans/workers/tool-availability-enforcement.md
 
 activity_timeline:
   - timestamp: 2026-03-11T00:59:08.005Z
@@ -37,7 +37,7 @@ activity_timeline:
     reason: "Plan complete and reviewed. Addressed three findings from plan-reviewer: (1) added three missing fixture files to Step 4, (2) added REQ-TAE-10 test 3 (six-tool affirmative case), (3) restructured commission boundaries so Dalton handles production code + fixture updates in one commit to satisfy the pre-commit hook. Submitting result."
   - timestamp: 2026-03-11T01:06:55.303Z
     event: result_submitted
-    reason: "Created implementation plan at `.lore/plans/tool-availability-enforcement.md`.\n\nThe plan converts the spec's 12 requirements (REQ-TAE-1 through REQ-TAE-12) into 5 steps:\n\n1. Add `builtInTools` to `ResolvedToolSet` type and toolbox resolver return value (one line each)\n2. Add `tools` to `SdkQueryOptions` and pass it in `prepareSdkSession` (one line each)\n3. Add toolbox resolver test assertions and new test cases (REQ-TAE-10 tests 6-7)\n4. Update all test fixtures across 5 files + add SDK runner test cases (REQ-TAE-10 tests 1-5)\n5. Full suite verification and fresh-context spec validation\n\nThe plan was reviewed by a plan-reviewer agent, which caught three gaps that were fixed:\n- Three additional test files (`manager-worker.test.ts`, `worker-role-smoke.test.ts`, `worker-activation.test.ts`) that construct `ResolvedToolSet` without `builtInTools`\n- Missing REQ-TAE-10 test 3 (affirmative six-tool case)\n- Pre-commit hook constraint requiring Dalton to bundle production code and fixture updates in a single commit\n\nCommission structure: Dalton (implementation + fixtures) -> Sable (new tests) -> Thorne (review). Three sequential commissions."
+    reason: "Created implementation plan at `.lore/plans/workers/tool-availability-enforcement.md`.\n\nThe plan converts the spec's 12 requirements (REQ-TAE-1 through REQ-TAE-12) into 5 steps:\n\n1. Add `builtInTools` to `ResolvedToolSet` type and toolbox resolver return value (one line each)\n2. Add `tools` to `SdkQueryOptions` and pass it in `prepareSdkSession` (one line each)\n3. Add toolbox resolver test assertions and new test cases (REQ-TAE-10 tests 6-7)\n4. Update all test fixtures across 5 files + add SDK runner test cases (REQ-TAE-10 tests 1-5)\n5. Full suite verification and fresh-context spec validation\n\nThe plan was reviewed by a plan-reviewer agent, which caught three gaps that were fixed:\n- Three additional test files (`manager-worker.test.ts`, `worker-role-smoke.test.ts`, `worker-activation.test.ts`) that construct `ResolvedToolSet` without `builtInTools`\n- Missing REQ-TAE-10 test 3 (affirmative six-tool case)\n- Pre-commit hook constraint requiring Dalton to bundle production code and fixture updates in a single commit\n\nCommission structure: Dalton (implementation + fixtures) -> Sable (new tests) -> Thorne (review). Three sequential commissions."
   - timestamp: 2026-03-11T01:07:03.799Z
     event: status_completed
     reason: "Execution completed"
@@ -46,7 +46,7 @@ activity_timeline:
 current_progress: "Plan complete and reviewed. Addressed three findings from plan-reviewer: (1) added three missing fixture files to Step 4, (2) added REQ-TAE-10 test 3 (six-tool affirmative case), (3) restructured commission boundaries so Dalton handles production code + fixture updates in one commit to satisfy the pre-commit hook. Submitting result."
 projectName: guild-hall
 ---
-Created implementation plan at `.lore/plans/tool-availability-enforcement.md`.
+Created implementation plan at `.lore/plans/workers/tool-availability-enforcement.md`.
 
 The plan converts the spec's 12 requirements (REQ-TAE-1 through REQ-TAE-12) into 5 steps:
 

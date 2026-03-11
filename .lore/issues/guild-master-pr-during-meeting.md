@@ -2,7 +2,8 @@
 title: Guild Master cannot create PR while own meeting is active
 date: 2026-03-06
 status: resolved
-tags: [bug, meetings, pr, guild-master, toolbox]
+tags: [bug-fix, meetings, pr, guild-master, toolbox]
+related: [.lore/plans/meetings/guild-master-pr-during-meeting.md]
 modules: [manager-toolbox, cli-rebase]
 ---
 

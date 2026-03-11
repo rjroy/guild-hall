@@ -5,7 +5,7 @@ status: completed
 tags: [commission]
 worker: Octavia
 workerDisplayTitle: "Guild Chronicler"
-prompt: "Prepare an implementation plan from the spec at `.lore/specs/model-selection.md`. Use `/lore-development:prep-plan` to build the plan as a persistent lore artifact. Read the spec thoroughly, review the brainstorm at `.lore/brainstorm/model-selection.md` for additional context, understand the existing codebase patterns (especially config in `lib/`, worker packages in `packages/`, daemon session preparation in `daemon/services/`, and the commission layer in `daemon/services/commission/`), and produce an ordered, actionable plan that a developer could follow."
+prompt: "Prepare an implementation plan from the spec at `.lore/specs/infrastructure/model-selection.md`. Use `/lore-development:prep-plan` to build the plan as a persistent lore artifact. Read the spec thoroughly, review the brainstorm at `.lore/brainstorm/model-selection.md` for additional context, understand the existing codebase patterns (especially config in `lib/`, worker packages in `packages/`, daemon session preparation in `daemon/services/`, and the commission layer in `daemon/services/commission/`), and produce an ordered, actionable plan that a developer could follow."
 dependencies: []
 linked_artifacts:
   - search-results
@@ -35,16 +35,16 @@ activity_timeline:
     reason: "Comprehensive search of `.lore/` completed. Found extensive prior work on model selection across specs, brainstorms, issues, meetings, commissions, and plans. Full findings below."
   - timestamp: 2026-03-09T02:52:04.019Z
     event: progress_report
-    reason: "Plan drafted and saved to .lore/plans/model-selection.md. 12 steps covering all 18 requirements. Now running fresh-eyes plan review via plan-reviewer agent."
+    reason: "Plan drafted and saved to .lore/plans/infrastructure/model-selection.md. 12 steps covering all 18 requirements. Now running fresh-eyes plan review via plan-reviewer agent."
   - timestamp: 2026-03-09T02:56:44.591Z
     event: progress_report
-    reason: "Resuming after context compaction. Applying remaining plan-reviewer feedback to .lore/plans/model-selection.md, then submitting."
+    reason: "Resuming after context compaction. Applying remaining plan-reviewer feedback to .lore/plans/infrastructure/model-selection.md, then submitting."
   - timestamp: 2026-03-09T02:59:00.415Z
     event: status_completed
     reason: "Execution completed"
     from: "in_progress"
     to: "completed"
-current_progress: "Resuming after context compaction. Applying remaining plan-reviewer feedback to .lore/plans/model-selection.md, then submitting."
+current_progress: "Resuming after context compaction. Applying remaining plan-reviewer feedback to .lore/plans/infrastructure/model-selection.md, then submitting."
 projectName: guild-hall
 ---
 Comprehensive search of `.lore/` completed. Found extensive prior work on model selection across specs, brainstorms, issues, meetings, commissions, and plans. Full findings below.

@@ -5,8 +5,8 @@ status: resolved
 tags: [architecture, workers, communication, mail, sleep, async]
 modules: [commission-orchestrator, sdk-runner, workspace, daemon, toolbox-resolver, lifecycle]
 related:
-  - .lore/specs/guild-hall-workers.md
-  - .lore/specs/guild-hall-system.md
+  - .lore/specs/workers/guild-hall-workers.md
+  - .lore/specs/infrastructure/guild-hall-system.md
 ---
 
 # Brainstorm: Worker-to-Worker Communication

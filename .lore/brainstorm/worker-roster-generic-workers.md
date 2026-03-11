@@ -6,8 +6,8 @@ tags: [workers, posture, developer, reviewer, researcher, writer, test-engineer,
 modules: [guild-hall-workers]
 related:
   - .lore/brainstorm/agentic-work-ux.md
-  - .lore/specs/guild-hall-workers.md
-  - .lore/specs/guild-hall-system.md
+  - .lore/specs/workers/guild-hall-workers.md
+  - .lore/specs/infrastructure/guild-hall-system.md
   - .lore/design/process-architecture.md
 ---
 

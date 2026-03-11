@@ -2,7 +2,7 @@
 title: SDK streaming emits text twice, translator must pick one source
 date: 2026-02-13
 status: complete
-tags: [bug-fix, sse, streaming, sdk, data-duplication]
+tags: [bug-fix, sse, streaming, agent-sdk, data-duplication]
 modules: [agent]
 related:
   - .lore/retros/sse-streaming-bug-fix.md

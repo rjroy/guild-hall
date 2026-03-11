@@ -33,9 +33,9 @@ No formal decisions were logged in the system. The following directional choices
 
 ARTIFACTS REFERENCED
 
-.lore/specs/guild-hall-steward-worker.md (completed spec, basis for Steward plan commission)
-.lore/specs/system-model-defaults.md (completed spec, basis for model defaults plan commission)
-.lore/specs/meeting-rename.md (completed spec, basis for meeting rename plan commission)
+.lore/specs/workers/guild-hall-steward-worker.md (completed spec, basis for Steward plan commission)
+.lore/specs/infrastructure/system-model-defaults.md (completed spec, basis for model defaults plan commission)
+.lore/specs/meetings/meeting-rename.md (completed spec, basis for meeting rename plan commission)
 web/components/commission/CommissionList.tsx (identified as requiring status text change)
 web/components/project/MeetingList.tsx (identified as requiring status text change)
 web/components/project/ArtifactList.tsx (identified as requiring status text change)

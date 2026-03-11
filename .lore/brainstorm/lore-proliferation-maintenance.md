@@ -5,7 +5,7 @@ status: open
 tags: [lore, maintenance, automation, document-lifecycle, events, scheduling]
 modules: [daemon, lore-development]
 related:
-  - .lore/specs/guild-hall-system.md
+  - .lore/specs/infrastructure/guild-hall-system.md
 ---
 
 # Brainstorm: Lore Proliferation and Automated Maintenance

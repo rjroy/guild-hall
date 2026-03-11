@@ -2,8 +2,9 @@
 title: Implementation notes guild-hall-scheduled-commissions
 date: 2026-03-09
 status: complete
-tags: [implementation, notes]
-source: .lore/plans/guild-hall-scheduled-commissions.md
+tags: [commissions, scheduling, daemon]
+related: [.lore/specs/commissions/guild-hall-scheduled-commissions.md, .lore/plans/commissions/guild-hall-scheduled-commissions.md, .lore/brainstorm/scheduled-commissions.md]
+source: .lore/plans/commissions/guild-hall-scheduled-commissions.md
 modules: [commission-orchestrator, daemon-scheduler, manager-toolbox, web-ui]
 ---
 

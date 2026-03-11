@@ -1,14 +1,14 @@
 ---
 title: Sandboxed execution environments for worker sessions
 date: 2026-03-10
-status: active
+status: open
 tags: [security, sandbox, architecture, agent-sdk, isolation]
 modules: [daemon-services, sdk-runner, commission-orchestrator, meeting-orchestrator]
 related:
   - .lore/research/claude-agent-sdk-sandboxing.md
   - .lore/brainstorm/commission-layer-separation.md
-  - .lore/specs/guild-hall-commissions.md
-  - .lore/specs/guild-hall-workers.md
+  - .lore/specs/commissions/guild-hall-commissions.md
+  - .lore/specs/workers/guild-hall-workers.md
 ---
 
 # Brainstorm: Sandboxed Execution Environments

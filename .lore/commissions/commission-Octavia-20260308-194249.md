@@ -5,35 +5,35 @@ status: completed
 tags: [commission]
 worker: Octavia
 workerDisplayTitle: "Guild Chronicler"
-prompt: "Prepare an implementation plan from the spec at `.lore/specs/guild-hall-mail-reader-toolbox.md`. Use `/lore-development:prep-plan` to build the plan as a persistent lore artifact. Read the spec thoroughly, understand the existing codebase patterns (especially the toolbox resolver in `daemon/services/toolbox/`, the mail system in `daemon/services/mail/`, and commission layer patterns), and produce an ordered, actionable plan that a developer could follow."
+prompt: "Prepare an implementation plan from the spec at `.lore/specs/workers/guild-hall-mail-reader-toolbox.md`. Use `/lore-development:prep-plan` to build the plan as a persistent lore artifact. Read the spec thoroughly, understand the existing codebase patterns (especially the toolbox resolver in `daemon/services/toolbox/`, the mail system in `daemon/services/mail/`, and commission layer patterns), and produce an ordered, actionable plan that a developer could follow."
 dependencies: []
 linked_artifacts:
-  - .lore/specs/guild-hall-mail-reader-toolbox.md
+  - .lore/specs/workers/guild-hall-mail-reader-toolbox.md
 
   - .lore/research/fastmail-jmap-integration.md
-  - .lore/specs/worker-domain-plugins.md
+  - .lore/specs/workers/worker-domain-plugins.md
   - .lore/retros/worker-domain-plugins.md
-  - .lore/plans/worker-domain-plugins.md
+  - .lore/plans/workers/worker-domain-plugins.md
   - .lore/notes/worker-domain-plugins.md
   - .lore/reference/workers-toolbox.md
-  - .lore/specs/worker-communication.md
-  - .lore/specs/guild-hall-workers.md
+  - .lore/specs/workers/worker-communication.md
+  - .lore/specs/workers/guild-hall-workers.md
   - .lore/retros/path-resolution-audit.md
   - .lore/retros/nested-plugin-support.md
-  - .lore/retros/commission-batch-cleanup-2026-03-07.md
+  - .lore/retros/commission-batch-cleanup.md
   - .lore/issues/w2w-mail-test-gaps.md
   - .lore/commissions/commission-Octavia-20260308-103216.md
   - .lore/research/fastmail-jmap-integration.md
-  - .lore/specs/worker-domain-plugins.md
+  - .lore/specs/workers/worker-domain-plugins.md
   - .lore/retros/worker-domain-plugins.md
-  - .lore/plans/worker-domain-plugins.md
+  - .lore/plans/workers/worker-domain-plugins.md
   - .lore/notes/worker-domain-plugins.md
   - .lore/reference/workers-toolbox.md
-  - .lore/specs/worker-communication.md
-  - .lore/specs/guild-hall-workers.md
+  - .lore/specs/workers/worker-communication.md
+  - .lore/specs/workers/guild-hall-workers.md
   - .lore/retros/path-resolution-audit.md
   - .lore/retros/nested-plugin-support.md
-  - .lore/retros/commission-batch-cleanup-2026-03-07.md
+  - .lore/retros/commission-batch-cleanup.md
   - .lore/issues/w2w-mail-test-gaps.md
   - .lore/commissions/commission-Octavia-20260308-103216.md
 activity_timeline:
@@ -64,13 +64,13 @@ activity_timeline:
     reason: "Completed lore search for prior work related to the guild-hall-email toolbox package. Found 14 highly relevant documents across 8 lore categories, plus confirmed that no `guild-hall-email` package exists yet in the codebase (only 5 worker packages, zero toolbox-only packages). Full findings below."
   - timestamp: 2026-03-09T02:50:17.477Z
     event: progress_report
-    reason: "Plan drafted and saved to .lore/plans/guild-hall-mail-reader-toolbox.md. Six implementation steps covering package scaffold, JMAP client, HTML-to-text utility, tool implementations, factory wiring, and spec validation. Running fresh-eyes plan review now."
+    reason: "Plan drafted and saved to .lore/plans/workers/guild-hall-mail-reader-toolbox.md. Six implementation steps covering package scaffold, JMAP client, HTML-to-text utility, tool implementations, factory wiring, and spec validation. Running fresh-eyes plan review now."
   - timestamp: 2026-03-09T02:54:15.720Z
     event: status_completed
     reason: "Execution completed"
     from: "in_progress"
     to: "completed"
-current_progress: "Plan drafted and saved to .lore/plans/guild-hall-mail-reader-toolbox.md. Six implementation steps covering package scaffold, JMAP client, HTML-to-text utility, tool implementations, factory wiring, and spec validation. Running fresh-eyes plan review now."
+current_progress: "Plan drafted and saved to .lore/plans/workers/guild-hall-mail-reader-toolbox.md. Six implementation steps covering package scaffold, JMAP client, HTML-to-text utility, tool implementations, factory wiring, and spec validation. Running fresh-eyes plan review now."
 projectName: guild-hall
 ---
 Completed lore search for prior work related to the guild-hall-email toolbox package. Found 14 highly relevant documents across 8 lore categories, plus confirmed that no `guild-hall-email` package exists yet in the codebase (only 5 worker packages, zero toolbox-only packages). Full findings below.

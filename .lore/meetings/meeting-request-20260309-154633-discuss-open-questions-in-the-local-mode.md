@@ -1,16 +1,16 @@
 ---
-title: "Discuss open questions in the local model support plan (.lore/plans/local-model-support.md). The spec is approved but the plan has design decisions that need user input before implementation can start."
+title: "Discuss open questions in the local model support plan (.lore/plans/infrastructure/local-model-support.md). The spec is approved but the plan has design decisions that need user input before implementation can start."
 date: 2026-03-09
 status: closed
 result_summary: "All open questions in the local model support plan resolved. Six codebase verifications confirmed existing error handling is adequate (with one gap found in mail reader timeline tracking, added to plan). Model name character restriction decided ([a-zA-Z0-9_-]+) and added to spec REQ-LOCAL-1. Model-selection spec updated with local model cross-references. Plan marked approved."
 tags: [meeting]
 worker: Octavia
 workerDisplayTitle: "Octavia"
-agenda: "Discuss open questions in the local model support plan (.lore/plans/local-model-support.md). The spec is approved but the plan has design decisions that need user input before implementation can start."
+agenda: "Discuss open questions in the local model support plan (.lore/plans/infrastructure/local-model-support.md). The spec is approved but the plan has design decisions that need user input before implementation can start."
 deferred_until: ""
 linked_artifacts:
-  - .lore/plans/local-model-support.md
-  - .lore/specs/local-model-support.md
+  - .lore/plans/infrastructure/local-model-support.md
+  - .lore/specs/infrastructure/local-model-support.md
   - .lore/issues/local-model-support.md
   - specs/model-selection.md
 meeting_log:
@@ -41,7 +41,7 @@ Model names for local models are restricted to characters matching [a-zA-Z0-9_-]
 
 ARTIFACTS PRODUCED OR REFERENCED
 
-Four artifacts are linked to this meeting. The local model support plan (.lore/plans/local-model-support.md) was updated in multiple places: Step 1 updated to include the .refine() validation, Step 6 updated with both construction sites for GuildHallToolServices, and the mail reader gap addressed by adding a mail_reader_failed timeline event. Plan status changed from draft to approved. The local model support spec (.lore/specs/local-model-support.md) was updated with the model name restriction in REQ-LOCAL-1. The model-selection spec (.lore/specs/model-selection.md) was updated to include cross-references to REQ-LOCAL-2, REQ-LOCAL-8, REQ-LOCAL-9, REQ-LOCAL-19, and REQ-LOCAL-22, and the local model support spec was added to its related list. The local model support issue (.lore/issues/local-model-support.md) was referenced throughout for background.
+Four artifacts are linked to this meeting. The local model support plan (.lore/plans/infrastructure/local-model-support.md) was updated in multiple places: Step 1 updated to include the .refine() validation, Step 6 updated with both construction sites for GuildHallToolServices, and the mail reader gap addressed by adding a mail_reader_failed timeline event. Plan status changed from draft to approved. The local model support spec (.lore/specs/infrastructure/local-model-support.md) was updated with the model name restriction in REQ-LOCAL-1. The model-selection spec (.lore/specs/infrastructure/model-selection.md) was updated to include cross-references to REQ-LOCAL-2, REQ-LOCAL-8, REQ-LOCAL-9, REQ-LOCAL-19, and REQ-LOCAL-22, and the local model support spec was added to its related list. The local model support issue (.lore/issues/local-model-support.md) was referenced throughout for background.
 
 OPEN ITEMS AND FOLLOW-UPS
 

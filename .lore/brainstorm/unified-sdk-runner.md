@@ -2,7 +2,7 @@
 title: Unified SDK runner for commissions and meetings
 date: 2026-03-03
 status: resolved
-tags: [sdk, refactor, session-runner, query-runner, architecture]
+tags: [agent-sdk, refactor, session-runner, query-runner, architecture]
 modules: [session-runner, query-runner, event-translator, sdk-logging]
 related: [.lore/brainstorm/meeting-infrastructure-convergence.md]
 ---

@@ -2,8 +2,9 @@
 title: Implementation notes model-selection
 date: 2026-03-08
 status: complete
-tags: [implementation, notes]
-source: .lore/plans/model-selection.md
+tags: [model-selection, workers, daemon]
+related: [.lore/brainstorm/model-selection.md, .lore/specs/infrastructure/model-selection.md, .lore/plans/infrastructure/model-selection.md]
+source: .lore/plans/infrastructure/model-selection.md
 modules: [daemon, worker-activation, sdk-runner, commission-orchestrator, manager-toolbox, web-ui]
 ---
 

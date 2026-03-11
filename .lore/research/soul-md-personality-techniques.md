@@ -5,8 +5,8 @@ status: active
 tags: [personality, soul-md, openclaw, workers, posture, system-prompt]
 modules: [guild-hall-workers]
 related:
-  - .lore/specs/guild-hall-workers.md
-  - .lore/specs/guild-hall-worker-roster.md
+  - .lore/specs/workers/guild-hall-workers.md
+  - .lore/specs/workers/guild-hall-worker-roster.md
   - .lore/brainstorm/worker-roster-generic-workers.md
 ---
 

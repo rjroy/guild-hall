@@ -5,7 +5,7 @@ status: complete
 tags: [refactor, architecture, delegation, review-agents, phased-migration]
 modules: [meeting-orchestrator, meeting-registry, record-utils, escalation, activity-state-machine]
 related:
-  - .lore/specs/meeting-infrastructure-convergence.md
+  - .lore/specs/meetings/meeting-infrastructure-convergence.md
   - .lore/plans/meeting-infrastructure-convergence.md
   - .lore/notes/meeting-infrastructure-convergence.md
   - .lore/retros/in-process-commissions.md
@@ -51,7 +51,7 @@ Replaced the generic ActivityMachine (472 lines, 11-step transition execution, h
 
 ## Artifacts
 
-- Spec: `.lore/specs/meeting-infrastructure-convergence.md`
+- Spec: `.lore/specs/meetings/meeting-infrastructure-convergence.md`
 - Plan: `.lore/plans/meeting-infrastructure-convergence.md`
 - Notes: `.lore/notes/meeting-infrastructure-convergence.md`
 - Tasks: `.lore/tasks/meeting-infrastructure-convergence/` (001-010)

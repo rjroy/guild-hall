@@ -5,8 +5,8 @@ status: current
 tags: [meetings, lifecycle, state-machine, architecture, streaming]
 modules: [meeting-orchestrator, meeting-registry, workspace, sdk-runner]
 related:
-  - .lore/specs/meetings.md
-  - .lore/specs/system.md
+  - .lore/specs/meetings/guild-hall-meetings.md
+  - .lore/specs/infrastructure/guild-hall-system.md
   - .lore/diagrams/commission-lifecycle.md
 ---
 
@@ -279,8 +279,8 @@ The crash recovery flowchart shows the pessimistic approach: SDK sessions are in
 
 ## Related
 
-- `.lore/specs/meetings.md` for requirements and REQ IDs
-- `.lore/specs/system.md` for system-level architecture
+- `.lore/specs/meetings/guild-hall-meetings.md` for requirements and REQ IDs
+- `.lore/specs/infrastructure/guild-hall-system.md` for system-level architecture
 - `.lore/diagrams/commission-lifecycle.md` for the commission equivalent
 - `daemon/services/meeting/orchestrator.ts` for the orchestration implementation
 - `daemon/services/meeting/registry.ts` for cap enforcement and close guard

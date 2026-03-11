@@ -31,7 +31,7 @@ Date: 2026-03-08
 
 SUMMARY
 
-This audience covered a plan review for the Portrait Display-Time Resolution refactor. Octavia examined the plan document at .lore/plans/portrait-display-time-resolution.md alongside the relevant spec files, codebase components, and test files. The review assessed whether the plan correctly implements the spec's requirement that worker portrait URLs be resolved at display time from installed worker packages rather than stored in meeting artifact frontmatter at creation time.
+This audience covered a plan review for the Portrait Display-Time Resolution refactor. Octavia examined the plan document at .lore/plans/meetings/portrait-display-time-resolution.md alongside the relevant spec files, codebase components, and test files. The review assessed whether the plan correctly implements the spec's requirement that worker portrait URLs be resolved at display time from installed worker packages rather than stored in meeting artifact frontmatter at creation time.
 
 Octavia verified the plan against four spec requirements spanning worker identity (REQ-WID-10) and view rendering (REQ-VIEW-3, REQ-VIEW-12, REQ-VIEW-28). All four requirements were confirmed to be addressed by the plan's eight steps. Spot-checks against live code confirmed that file references and line numbers cited in the plan are accurate. The overall verdict was that the plan is approximately 80% executable but has three clarity gaps that would cause an implementer to make arbitrary choices without additional guidance.
 
@@ -47,7 +47,7 @@ Fallback behavior was specified: when a worker name does not appear in the resol
 
 ARTIFACTS PRODUCED OR REFERENCED
 
-The plan file at .lore/plans/portrait-display-time-resolution.md was reviewed and edited. Referenced source files included web/components/dashboard/MeetingRequestCard.tsx, web/components/ui/WorkerPortrait.tsx, web/app/projects/[name]/meetings/[id]/page.tsx, daemon/services/meeting/record.ts, tests/daemon/services/meeting/record.test.ts, and tests/lib/packages.test.ts. The spec files worker-identity-and-personality.md and guild-hall-views.md were cited as the authority for requirements coverage.
+The plan file at .lore/plans/meetings/portrait-display-time-resolution.md was reviewed and edited. Referenced source files included web/components/dashboard/MeetingRequestCard.tsx, web/components/ui/WorkerPortrait.tsx, web/app/projects/[name]/meetings/[id]/page.tsx, daemon/services/meeting/record.ts, tests/daemon/services/meeting/record.test.ts, and tests/lib/packages.test.ts. The spec files worker-identity-and-personality.md and guild-hall-views.md were cited as the authority for requirements coverage.
 
 OPEN ITEMS
 

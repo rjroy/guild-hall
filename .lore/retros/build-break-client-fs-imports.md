@@ -5,7 +5,7 @@ status: complete
 tags: [build, turbopack, next-js, client-server-boundary, module-isolation]
 modules: [artifact-grouping, dependency-graph, commission-href, artifacts, commissions]
 related:
-  - .lore/plans/artifact-sorting.md
+  - .lore/plans/ui/artifact-sorting.md
 ---
 
 # Retro: Turbopack build break from transitive node:fs imports
@@ -33,6 +33,6 @@ The production build (`bun run build`) failed with two Turbopack errors. Both tr
 
 ## Artifacts
 
-- `.lore/plans/artifact-sorting.md` (the commission plan that introduced one of the breaking imports)
+- `.lore/plans/ui/artifact-sorting.md` (the commission plan that introduced one of the breaking imports)
 - `lib/artifact-sorting.ts` (new: extracted pure sorting functions)
 - `lib/commission-href.ts` (new: extracted URL helper)
