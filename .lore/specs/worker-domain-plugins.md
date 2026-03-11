@@ -10,7 +10,8 @@ related:
   - .lore/specs/commission-layer-separation.md
   - .lore/research/claude-agent-sdk.md
   - .lore/research/typescript-plugin-systems.md
-  - .lore/design/cleanup-commissions-skill.md
+  - packages/guild-hall-writer/plugin/skills/cleanup-commissions/SKILL.md
+  - packages/guild-hall-writer/plugin/skills/cleanup-meetings/SKILL.md
 req-prefix: DPL
 ---
 
@@ -135,7 +136,8 @@ The lore-researcher originally flagged `settingSources: ["local", "project", "us
 - `.lore/specs/guild-hall-workers.md` - defines the `domainToolboxes` pattern this mirrors
 - `.lore/research/claude-agent-sdk.md` - documents the SDK's `plugins` option
 - `.lore/research/typescript-plugin-systems.md` - documents the Claude Code plugin structure
-- `.lore/design/cleanup-commissions-skill.md` - the motivating use case (a skill that needs to be available to the writer worker)
+- `packages/guild-hall-writer/plugin/skills/cleanup-commissions/SKILL.md` - the motivating use case (a skill that needs to be available to the writer worker)
+- `packages/guild-hall-writer/plugin/skills/cleanup-meetings/SKILL.md` - meeting batch cleanup skill
 - `.lore/retros/unified-sdk-runner.md` - `prepareSdkSession` is the single extension point for SDK options
 - `.lore/retros/worker-dispatch.md` - production wiring in `createProductionApp()` must be updated for any new capability
 - `.lore/issues/package-distribution-model.md` - the `packages/` vs `~/.guild-hall/packages/` ambiguity affects plugin path resolution

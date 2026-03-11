@@ -34,4 +34,5 @@ Implemented the `domainPlugins` infrastructure for worker packages: plugin detec
 - `.lore/specs/worker-domain-plugins.md` (updated for `plugin/` convention)
 - `.lore/plans/worker-domain-plugins.md`
 - `.lore/notes/worker-domain-plugins.md`
-- `.lore/design/cleanup-commissions-skill.md`
+- `packages/guild-hall-writer/plugin/skills/cleanup-commissions/SKILL.md`
+- `packages/guild-hall-writer/plugin/skills/cleanup-meetings/SKILL.md`

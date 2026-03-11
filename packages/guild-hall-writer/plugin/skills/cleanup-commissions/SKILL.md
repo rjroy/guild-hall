@@ -99,13 +99,32 @@ tags: [retro, commissions, cleanup]
 
 Omit any section that has no content. A batch where everything was consumed cleanly should have a short retro.
 
-### 6. Confirm and Delete
+### 6. Update Memory
 
-Present the retro summary to the user. Ask for confirmation before deleting.
+Use `write_memory` to persist durable context extracted from the batch. The retro is a point-in-time artifact; memory carries forward across sessions.
+
+What belongs in memory:
+
+- **Active work state** (project scope) - what features are in progress, what stage they're at, what's blocked. Commissions are the best signal for "what's actually happening."
+- **Recurring patterns** (project scope) - if the same kind of finding appears across multiple chains, record it so future commissions can account for it.
+- **Worker-specific context** (worker scope) - things a worker learned during execution that would help on future commissions. Techniques, pitfalls in specific areas of the codebase, domain knowledge acquired.
+- **Project-level context** (project scope) - architectural decisions that emerged during implementation but aren't captured in specs or design docs.
+
+What does NOT belong in memory:
+
+- Anything already captured in the retro, specs, issues, or CLAUDE.md. Memory is for context with no other home.
+- Session-specific details (exact file paths changed, specific test output).
+- Speculation or unverified conclusions from a single commission.
+
+Review existing memory before writing. Update or replace stale entries rather than appending duplicates. A completed feature should update its work-state entry to reflect completion, not add a new note alongside the old "in progress" one.
+
+### 7. Confirm and Delete
+
+Present the retro summary and memory updates to the user. Ask for confirmation before deleting.
 
 On confirmation, delete all commission files in `.lore/commissions/`. Remove the files, not the directory.
 
-### 7. File Issues (Optional)
+### 8. File Issues (Optional)
 
 If the retro surfaces loose threads that need tracking, ask the user which ones warrant issues. For each confirmed one, write directly to `.lore/issues/`.
 
