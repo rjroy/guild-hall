@@ -1,6 +1,6 @@
 ---
 title: spawnFromSchedule double-escapes inner quotes in copied prompt
-status: open
+status: duplicate
 tags: [bug, scheduled-commissions]
 date: 2026-03-10
 ---

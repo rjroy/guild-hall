@@ -1,6 +1,6 @@
 ---
 title: .playwright-mcp/ directory not in .gitignore
-status: open
+status: resolved
 tags: [infrastructure, git, cleanup]
 date: 2026-03-10
 ---
