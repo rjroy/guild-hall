@@ -25,7 +25,7 @@ Infrastructure covers the cross-cutting concerns that meetings, commissions, and
 - **Event translator**: Pure function boundary between SDK internals and Guild Hall's public event schema. Translates SDK `system`, `stream_event`, `assistant`, `user`, and `result` messages into 6 `GuildHallEvent` types. Intentionally ignores `SDKAssistantMessage` text blocks to avoid double-data (SDK emits text via both stream deltas and finalized messages).
 - **Query runner**: Shared SDK query execution pipeline for meetings. `runQueryAndTranslate()` creates the SDK generator, iterates it through `iterateAndTranslate()` (which accumulates text/tool data for transcript append), detects session expiry errors, and yields `GuildHallEvent` objects. Handles abort (interrupt), error, and normal completion. Returns a `QueryRunOutcome`: ok, session_expired, or failed.
 - **Activity state machine**: Generic `ActivityMachine<TStatus, TId, TEntry>` class parameterized by status type, branded ID, and entry type. Manages state transitions with enter/exit handlers, per-entry locks (promise chain), artifact status writes, active/cleanup state classification, and cleanup hooks. Supports `inject` (direct entry at a state, no prior), `register` (recovery without handlers), and `transition` (standard from/to with guards).
-- **Briefing generator**: On-demand project status summaries. Builds context via `buildManagerContext()`, generates text via single-turn SDK session (sonnet, maxTurns: 1) or template fallback. File-based cache at `~/.guild-hall/state/briefings/<project>.json` with 1-hour TTL.
+- **Briefing generator**: On-demand project status summaries. Builds context via `buildManagerContext()`, generates text via multi-turn SDK session (Guild Master identity, read-only tools) or single-turn fallback or template fallback. File-based cache at `~/.guild-hall/state/briefings/<project>.json` keyed by HEAD commit with 1-hour TTL. Cache is valid when either HEAD matches or TTL hasn't expired; both must be stale before regeneration triggers.
 - **Branded ID types**: `MeetingId`, `SdkSessionId`, `CommissionId` prevent accidental mixing of ID strings at compile time via TypeScript branded types.
 
 ## Entry Points
@@ -94,14 +94,14 @@ The remaining 14 Next.js API routes proxy meeting and commission operations (doc
 | File | Role |
 |------|------|
 | `daemon/routes/briefing.ts` | Thin route: `GET /briefing/:projectName`, delegates to briefing generator, returns JSON result. |
-| `daemon/services/briefing-generator.ts` | `createBriefingGenerator(deps)`: file-cached (1h TTL), builds context via `buildManagerContext()`, generates via SDK (sonnet, single turn) or template fallback. `generateTemplateBriefing()` parses context markdown for commission/meeting counts. `invalidateCache()` for forced regeneration. |
+| `daemon/services/briefing-generator.ts` | `createBriefingGenerator(deps)`: file-cached (HEAD commit + 1h TTL, both must be stale to regenerate), builds context via `buildManagerContext()`, generates via multi-turn SDK (Guild Master, read-only tools), single-turn SDK, or template fallback. `generateTemplateBriefing()` parses context markdown for commission/meeting counts. `invalidateCache()` for forced regeneration. |
 | `daemon/services/manager-context.ts` | `buildManagerContext()`: assembles markdown summary of workers, commissions (grouped by active/pending/completed/failed), active meetings, pending requests. Priority-ordered truncation at 8000 chars. Shared with Guild Master worker's system prompt. |
 
 ### Data
 
 - **Socket**: `~/.guild-hall/guild-hall.sock` (Unix domain socket, runtime)
 - **PID file**: `~/.guild-hall/guild-hall.sock.pid` (daemon process guard)
-- **Briefing cache**: `~/.guild-hall/state/briefings/<project>.json` (1h TTL)
+- **Briefing cache**: `~/.guild-hall/state/briefings/<project>.json` (HEAD commit key + 1h TTL)
 - **State files**: `~/.guild-hall/state/meetings/*.json`, `~/.guild-hall/state/commissions/*.json` (crash recovery)
 
 ### Dependencies
