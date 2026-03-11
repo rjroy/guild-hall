@@ -172,6 +172,7 @@ function makeMockActivateFn() {
       tools: {
         mcpServers: [],
         allowedTools: ["Read", "Glob", "Grep"],
+        builtInTools: [],
       },
       resourceBounds: { maxTurns: context.resourceDefaults.maxTurns },
     };

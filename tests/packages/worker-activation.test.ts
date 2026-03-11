@@ -6,6 +6,7 @@ function makeResolvedTools(): ResolvedToolSet {
   return {
     mcpServers: [],
     allowedTools: ["Read", "Glob", "Grep"],
+    builtInTools: [],
   };
 }
 

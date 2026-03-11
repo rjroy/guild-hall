@@ -175,6 +175,7 @@ export interface DiscoveredPackage {
 export interface ResolvedToolSet {
   mcpServers: McpSdkServerConfigWithInstance[];
   allowedTools: string[];
+  builtInTools: string[];
 }
 
 /**

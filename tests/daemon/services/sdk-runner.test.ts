@@ -374,6 +374,7 @@ describe("prepareSdkSession", () => {
   const mockResolvedTools: ResolvedToolSet = {
     mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
     allowedTools: ["read_file", "write_file"],
+    builtInTools: ["Read", "Write"],
   };
 
   const mockActivation: ActivationResult = {
@@ -595,6 +596,7 @@ describe("prepareSdkSession", () => {
           { name: "server-b" } as ResolvedToolSet["mcpServers"][number],
         ],
         allowedTools: [],
+        builtInTools: [],
       },
     };
 
@@ -1147,6 +1149,7 @@ describe("prepareSdkSession resolvedModel", () => {
   const mockResolvedTools: ResolvedToolSet = {
     mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
     allowedTools: ["read_file", "write_file"],
+    builtInTools: ["Read", "Write"],
   };
 
   const mockActivation: ActivationResult = {
