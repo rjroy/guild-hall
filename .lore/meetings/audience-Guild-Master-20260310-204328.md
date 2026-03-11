@@ -1,5 +1,5 @@
 ---
-title: "Audience with Guild Master"
+title: "Guild Master Check-in"
 date: 2026-03-11
 status: open
 tags: [meeting]
@@ -12,4 +12,7 @@ meeting_log:
   - timestamp: 2026-03-11T03:43:28.378Z
     event: opened
     reason: "User started audience"
+  - timestamp: 2026-03-11T03:43:39.800Z
+    event: renamed
+    reason: "Renamed to: Guild Master Check-in"
 ---
