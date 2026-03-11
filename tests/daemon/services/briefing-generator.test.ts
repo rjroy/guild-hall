@@ -174,6 +174,7 @@ function makeMockPrepDeps() {
       return {
         mcpServers: [],
         allowedTools: ["Read", "Glob", "Grep"],
+        builtInTools: [],
       };
     },
     loadMemories: async () => ({
@@ -182,7 +183,7 @@ function makeMockPrepDeps() {
     }),
     activateWorker: async (_pkg, context: ActivationContext) => ({
       systemPrompt: `You are ${context.identity.name}`,
-      tools: { mcpServers: [], allowedTools: [] },
+      tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
       resourceBounds: { maxTurns: 30 },
       model: "opus",
     }),

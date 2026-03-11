@@ -37,6 +37,7 @@ export type SdkQueryOptions = {
   permissionMode?: string;
   mcpServers?: Record<string, unknown>;
   allowedTools?: string[];
+  tools?: string[] | { type: "preset"; preset: "claude_code" };
   plugins?: Array<{ type: "local"; path: string }>;
   settingSources?: string[];
   cwd?: string;
@@ -386,6 +387,7 @@ export async function prepareSdkSession(
     cwd: spec.workspaceDir,
     mcpServers,
     allowedTools: activation.tools.allowedTools,
+    tools: activation.tools.builtInTools,
     ...(resolvedPlugins.length > 0 ? { plugins: resolvedPlugins } : {}),
     ...(finalModelId ? { model: finalModelId } : {}),
     ...(localEnv ? { env: localEnv } : {}),

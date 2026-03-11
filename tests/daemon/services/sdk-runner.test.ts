@@ -374,6 +374,7 @@ describe("prepareSdkSession", () => {
   const mockResolvedTools: ResolvedToolSet = {
     mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
     allowedTools: ["read_file", "write_file"],
+    builtInTools: ["Read", "Write"],
   };
 
   const mockActivation: ActivationResult = {
@@ -595,6 +596,7 @@ describe("prepareSdkSession", () => {
           { name: "server-b" } as ResolvedToolSet["mcpServers"][number],
         ],
         allowedTools: [],
+        builtInTools: [],
       },
     };
 
@@ -1052,6 +1054,116 @@ describe("prepareSdkSession", () => {
     expect(result.error).toContain("Model resolution failed");
     expect(result.error).toContain("nonexistent-model");
   });
+
+  // -- Tool availability enforcement tests (REQ-TAE-10) --
+
+  test("prepareSdkSession includes tools matching worker builtInTools", async () => {
+    const deps = makeDeps({
+      resolveToolSet: async () => ({
+        mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
+        allowedTools: ["Read", "Glob", "Grep", "mcp__test-server__*"],
+        builtInTools: ["Read", "Glob", "Grep"],
+      }),
+      activateWorker: async (_pkg, context) => ({
+        systemPrompt: "test",
+        tools: context.resolvedTools,
+        resourceBounds: {},
+      }),
+    });
+
+    const result = await prepareSdkSession(makeSpec(), deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.tools).toEqual(["Read", "Glob", "Grep"]);
+  });
+
+  test("tools field excludes undeclared built-in tools", async () => {
+    const deps = makeDeps({
+      resolveToolSet: async () => ({
+        mcpServers: [],
+        allowedTools: ["Read", "Glob", "Grep"],
+        builtInTools: ["Read", "Glob", "Grep"],
+      }),
+      activateWorker: async (_pkg, context) => ({
+        systemPrompt: "test",
+        tools: context.resolvedTools,
+        resourceBounds: {},
+      }),
+    });
+
+    const result = await prepareSdkSession(makeSpec(), deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.tools).not.toContain("Bash");
+    expect(result.result.options.tools).not.toContain("Write");
+    expect(result.result.options.tools).not.toContain("Edit");
+  });
+
+  test("tools is independent of allowedTools", async () => {
+    const deps = makeDeps({
+      resolveToolSet: async () => ({
+        mcpServers: [{ name: "my-mcp" } as ResolvedToolSet["mcpServers"][number]],
+        allowedTools: ["Read", "Glob", "mcp__my-mcp__*"],
+        builtInTools: ["Read", "Glob"],
+      }),
+      activateWorker: async (_pkg, context) => ({
+        systemPrompt: "test",
+        tools: context.resolvedTools,
+        resourceBounds: {},
+      }),
+    });
+
+    const result = await prepareSdkSession(makeSpec(), deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // tools has only built-in names
+    expect(result.result.options.tools).toEqual(["Read", "Glob"]);
+    // allowedTools has both built-in names and MCP wildcards
+    expect(result.result.options.allowedTools).toContain("mcp__my-mcp__*");
+  });
+
+  test("full builtInTools set is passed through to tools", async () => {
+    const deps = makeDeps({
+      resolveToolSet: async () => ({
+        mcpServers: [],
+        allowedTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+        builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+      }),
+      activateWorker: async (_pkg, context) => ({
+        systemPrompt: "test",
+        tools: context.resolvedTools,
+        resourceBounds: {},
+      }),
+    });
+
+    const result = await prepareSdkSession(makeSpec(), deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.tools).toEqual(
+      ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    );
+  });
+
+  test("tools does not include MCP server entries", async () => {
+    const deps = makeDeps({
+      resolveToolSet: async () => ({
+        mcpServers: [{ name: "srv" } as ResolvedToolSet["mcpServers"][number]],
+        allowedTools: ["Read", "mcp__srv__*"],
+        builtInTools: ["Read"],
+      }),
+      activateWorker: async (_pkg, context) => ({
+        systemPrompt: "test",
+        tools: context.resolvedTools,
+        resourceBounds: {},
+      }),
+    });
+
+    const result = await prepareSdkSession(makeSpec(), deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.tools).toEqual(["Read"]);
+    expect(result.result.options.tools).not.toContain("mcp__srv__*");
+  });
 });
 
 // -- isSessionExpiryError tests --
@@ -1147,6 +1259,7 @@ describe("prepareSdkSession resolvedModel", () => {
   const mockResolvedTools: ResolvedToolSet = {
     mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
     allowedTools: ["read_file", "write_file"],
+    builtInTools: ["Read", "Write"],
   };
 
   const mockActivation: ActivationResult = {
