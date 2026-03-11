@@ -10,7 +10,7 @@
       "portraitPath": "/images/portraits/edmund-steward.webp"
     },
     "domainToolboxes": ["guild-hall-email"],
-    "builtInTools": ["Task", "Read", "Glob", "Grep", "Write", "Edit"],
+    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"],
     "checkoutScope": "sparse",
     "resourceDefaults": {
       "maxTurns": 80
