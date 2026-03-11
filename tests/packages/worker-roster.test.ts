@@ -24,37 +24,37 @@ const expectedRoleProfiles: Record<string, {
     identityName: "Dalton",
     descriptionIntent: /craftsman|builds|commissioned/i,
     checkoutScope: "full",
-    builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    builtInTools: ["Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
   },
   "guild-hall-reviewer": {
     identityName: "Thorne",
     descriptionIntent: /critical eye|inspects|alters nothing/i,
     checkoutScope: "full",
-    builtInTools: ["Read", "Glob", "Grep"],
+    builtInTools: ["Task", "Read", "Glob", "Grep"],
   },
   "guild-hall-researcher": {
     identityName: "Verity",
     descriptionIntent: /beyond the guild walls|intelligence|never touches the forge/i,
     checkoutScope: "sparse",
-    builtInTools: ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
+    builtInTools: ["Task", "Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
   },
   "guild-hall-writer": {
     identityName: "Octavia",
     descriptionIntent: /living record|documents|lore/i,
     checkoutScope: "full",
-    builtInTools: ["Read", "Glob", "Grep", "Write", "Edit"],
+    builtInTools: ["Task", "Read", "Glob", "Grep", "Write", "Edit"],
   },
   "guild-hall-test-engineer": {
     identityName: "Sable",
     descriptionIntent: /probes|seams|repairs what breaks/i,
     checkoutScope: "full",
-    builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    builtInTools: ["Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
   },
   "guild-hall-steward": {
     identityName: "Edmund",
     descriptionIntent: /inbox|correspondence|household/i,
     checkoutScope: "sparse",
-    builtInTools: ["Read", "Glob", "Grep", "Write", "Edit"],
+    builtInTools: ["Task", "Read", "Glob", "Grep", "Write", "Edit"],
   },
 };
 

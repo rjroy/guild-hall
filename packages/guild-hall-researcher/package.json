@@ -11,7 +11,7 @@
     },
     "model": "opus",
     "domainToolboxes": [],
-    "builtInTools": ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
+    "builtInTools": ["Task", "Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
     "checkoutScope": "sparse",
     "resourceDefaults": {
       "maxTurns": 100

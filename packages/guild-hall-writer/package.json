@@ -12,7 +12,7 @@
     "model": "opus",
     "domainPlugins": ["guild-hall-writer"],
     "domainToolboxes": [],
-    "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit"],
+    "builtInTools": ["Task", "Read", "Glob", "Grep", "Write", "Edit"],
     "checkoutScope": "full",
     "resourceDefaults": {
       "maxTurns": 60

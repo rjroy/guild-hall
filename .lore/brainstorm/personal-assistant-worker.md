@@ -1,7 +1,7 @@
 ---
 title: Personal assistant worker for Guild Hall
 date: 2026-03-08
-status: open
+status: resolved
 tags: [workers, personal-assistant, email, calendar, toolbox, scheduled-commissions]
 modules: [packages, daemon-scheduler, toolbox-resolver]
 related:
