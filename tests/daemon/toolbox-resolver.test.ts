@@ -109,6 +109,7 @@ describe("resolveToolSet", () => {
     expect(result.allowedTools).toContain("Edit");
     expect(result.allowedTools).toContain("mcp__guild-hall-base__*");
     expect(result.allowedTools).toContain("mcp__guild-hall-meeting__*");
+    expect(result.builtInTools).toEqual(["Read", "Glob", "Grep", "Bash", "Edit"]);
   });
 
   test("empty builtInTools still includes MCP wildcards", async () => {
@@ -118,6 +119,24 @@ describe("resolveToolSet", () => {
     // No built-in tools, but MCP wildcards are always present
     expect(result.allowedTools).toContain("mcp__guild-hall-base__*");
     expect(result.allowedTools).toContain("mcp__guild-hall-meeting__*");
+    expect(result.builtInTools).toEqual([]);
+    // Confirm MCP wildcards are NOT in builtInTools
+    expect(result.builtInTools).not.toContain("mcp__guild-hall-base__*");
+  });
+
+  test("builtInTools matches worker declaration exactly", async () => {
+    const worker = makeWorker({ builtInTools: ["Read", "Glob", "Grep"] });
+    const result = await resolveToolSet(worker, [], testContext());
+    expect(result.builtInTools).toEqual(["Read", "Glob", "Grep"]);
+  });
+
+  test("builtInTools excludes MCP server tools even when MCP servers are added", async () => {
+    const worker = makeWorker({ builtInTools: ["Read"] });
+    const result = await resolveToolSet(worker, [], testContext());
+    // builtInTools has only what the worker declared
+    expect(result.builtInTools).toEqual(["Read"]);
+    // allowedTools has both built-in and MCP wildcards
+    expect(result.allowedTools.length).toBeGreaterThan(result.builtInTools.length);
   });
 
   test("worker with domain toolbox resolves without error when package exists", async () => {
