@@ -1,7 +1,7 @@
 ---
 title: Meetings list entries are indistinguishable without preview text
 date: 2026-03-10
-status: open
+status: in_progress
 tags: [ux, ui, meetings]
 modules: [web/app/projects, web/components/meetings]
 ---

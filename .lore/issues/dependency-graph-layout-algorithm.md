@@ -1,7 +1,7 @@
 ---
 title: Dependency graph layout algorithm doesn't suit the actual data shape
 date: 2026-03-10
-status: open
+status: in_progress
 tags: [ux, ui, dashboard, commissions]
 modules: [web/components/CommissionGraph]
 related: [.lore/issues/dependency-graph-oversized-container.md, .lore/issues/commission-graph-node-labels-truncated.md]
