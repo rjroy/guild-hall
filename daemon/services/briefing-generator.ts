@@ -9,9 +9,11 @@
  *
  * Briefings are cached to disk at `<ghHome>/state/briefings/<project>.json`
  * keyed by the integration worktree's HEAD commit. The cache is valid when
- * HEAD hasn't moved AND the entry is less than 1 hour old. HEAD changes
- * catch content updates (commission merges, syncs). The TTL catches state
- * changes outside the worktree (meeting status, commission lifecycle).
+ * HEAD hasn't moved OR the entry is less than 1 hour old. HEAD match
+ * avoids regeneration when nothing has been committed. The TTL avoids
+ * regeneration during the window where state changes haven't been committed
+ * yet (meeting status, commission lifecycle). Both must be stale before
+ * regeneration triggers.
  */
 
 import * as fs from "node:fs/promises";
@@ -273,7 +275,7 @@ export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
       const cached = await readCacheFile(cachePath);
       const headMatch = currentHead && cached?.headCommit === currentHead;
       const withinTtl = cached && (now - cached.generatedAt) < CACHE_TTL_MS;
-      if (cached && headMatch && withinTtl) {
+      if (cached && (headMatch || withinTtl)) {
         return {
           briefing: cached.text,
           generatedAt: new Date(cached.generatedAt).toISOString(),

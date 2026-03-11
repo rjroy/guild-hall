@@ -444,7 +444,7 @@ describe("createBriefingGenerator - cache behavior", () => {
     expect(mock.getCallCount()).toBe(1);
   });
 
-  test("cache miss when HEAD advances", async () => {
+  test("cache hit when HEAD advances but within TTL", async () => {
     const mock = createMockQueryFn("Briefing text.");
     const generator = createBriefingGenerator(makeDeps({ queryFn: mock.queryFn }));
 
@@ -457,13 +457,13 @@ describe("createBriefingGenerator - cache behavior", () => {
     const integrationPath = path.join(guildHallHome, "projects", "test-project");
     await advanceHead(integrationPath);
 
-    // Second call: HEAD moved, should be a cache miss
+    // Second call: HEAD moved but within TTL, cache still valid (either condition suffices)
     const second = await generator.generateBriefing("test-project");
-    expect(second.cached).toBe(false);
-    expect(mock.getCallCount()).toBe(2);
+    expect(second.cached).toBe(true);
+    expect(mock.getCallCount()).toBe(1);
   });
 
-  test("cache miss when TTL expires even if HEAD unchanged", async () => {
+  test("cache miss when HEAD advances and TTL expires", async () => {
     let currentTime = 1_000_000;
     const mock = createMockQueryFn("Briefing text.");
     const generator = createBriefingGenerator(
@@ -475,13 +475,34 @@ describe("createBriefingGenerator - cache behavior", () => {
     expect(first.cached).toBe(false);
     expect(mock.getCallCount()).toBe(1);
 
-    // Advance past 1 hour TTL (HEAD unchanged)
+    // Advance HEAD AND expire TTL — both conditions stale triggers regeneration
+    const integrationPath = path.join(guildHallHome, "projects", "test-project");
+    await advanceHead(integrationPath);
     currentTime += 3_600_001;
 
-    // Second call: TTL expired, should regenerate
     const second = await generator.generateBriefing("test-project");
     expect(second.cached).toBe(false);
     expect(mock.getCallCount()).toBe(2);
+  });
+
+  test("cache hit when TTL expires but HEAD unchanged", async () => {
+    let currentTime = 1_000_000;
+    const mock = createMockQueryFn("Briefing text.");
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, clock: () => currentTime }),
+    );
+
+    // First call: miss
+    const first = await generator.generateBriefing("test-project");
+    expect(first.cached).toBe(false);
+    expect(mock.getCallCount()).toBe(1);
+
+    // Advance past 1 hour TTL but HEAD unchanged — HEAD match keeps cache valid
+    currentTime += 3_600_001;
+
+    const second = await generator.generateBriefing("test-project");
+    expect(second.cached).toBe(true);
+    expect(mock.getCallCount()).toBe(1);
   });
 
   test("cache hit when both HEAD unchanged and within TTL", async () => {
@@ -641,7 +662,7 @@ describe("createBriefingGenerator - edge cases", () => {
     expect(parsed.toISOString()).toBe(result.generatedAt);
   });
 
-  test("cache miss when integration worktree has no git repo", async () => {
+  test("cache hit within TTL when integration worktree has no git repo", async () => {
     // Create a project with no git repo in its integration worktree
     const noGitIntegration = path.join(guildHallHome, "projects", "no-git-project");
     await fs.mkdir(path.join(noGitIntegration, ".lore", "commissions"), { recursive: true });
@@ -659,7 +680,36 @@ describe("createBriefingGenerator - edge cases", () => {
     expect(first.cached).toBe(false);
     expect(mock.getCallCount()).toBe(1);
 
-    // Second call: no HEAD to compare, always regenerates
+    // Second call: no HEAD to compare but within TTL, so cache is valid
+    const second = await generator.generateBriefing("no-git-project");
+    expect(second.cached).toBe(true);
+    expect(mock.getCallCount()).toBe(1);
+  });
+
+  test("cache miss when no git repo and TTL expires", async () => {
+    // Create a project with no git repo in its integration worktree
+    const noGitIntegration = path.join(guildHallHome, "projects", "no-git-project");
+    await fs.mkdir(path.join(noGitIntegration, ".lore", "commissions"), { recursive: true });
+    await fs.mkdir(path.join(noGitIntegration, ".lore", "meetings"), { recursive: true });
+
+    const config: AppConfig = {
+      projects: [{ name: "no-git-project", path: "/tmp/no-git" }],
+    };
+
+    let currentTime = 1_000_000;
+    const mock = createMockQueryFn("Briefing for no-git project.");
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, config, clock: () => currentTime }),
+    );
+
+    // First call: generates
+    const first = await generator.generateBriefing("no-git-project");
+    expect(first.cached).toBe(false);
+    expect(mock.getCallCount()).toBe(1);
+
+    // Expire TTL — with no HEAD, there's no head match, so both conditions are stale
+    currentTime += 3_600_001;
+
     const second = await generator.generateBriefing("no-git-project");
     expect(second.cached).toBe(false);
     expect(mock.getCallCount()).toBe(2);
