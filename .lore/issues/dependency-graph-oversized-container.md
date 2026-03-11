@@ -1,7 +1,7 @@
 ---
 title: Task dependency graph container is oversized for its content
 date: 2026-03-10
-status: open
+status: invalid
 tags: [ux, ui, dashboard, commissions]
 modules: [web/components/CommissionGraph]
 ---
