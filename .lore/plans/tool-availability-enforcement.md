@@ -1,7 +1,7 @@
 ---
 title: Tool Availability Enforcement
 date: 2026-03-10
-status: draft
+status: implemented
 tags: [plan, agent-sdk, workers, toolbox, security]
 modules: [sdk-runner, toolbox-resolver, lib-types]
 related:

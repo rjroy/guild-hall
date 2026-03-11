@@ -1,7 +1,7 @@
 ---
 title: Tool Availability Enforcement
 date: 2026-03-10
-status: draft
+status: implemented
 tags: [agent-sdk, workers, toolbox, security, permissions]
 modules: [guild-hall-core]
 related:
