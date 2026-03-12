@@ -6,6 +6,10 @@ tags: [architecture, cli, mcp, rest-api, skills, integration]
 modules: [cli, daemon, daemon-routes]
 ---
 
+***
+USER NOTE: Much of this is wrong. The gist of we need to discuss CLI vs MCP vs REST API is true. But a lot of the why is wrong. It's about context and tokens primarily. I'm not going to go through and correct this right now, but much of this is just made up gobbly gook. You are going to try and convince me it has merit. Maybe it does, but I don't care. The reason I want to discuss CLI vs MCP vs REST API is token and context. Nothing at all about run time. It's about the agent.
+***
+
 # CLI-First Integration Model
 
 ## What Happened
