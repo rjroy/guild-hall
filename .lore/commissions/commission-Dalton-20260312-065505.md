@@ -20,12 +20,12 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
-  - timestamp: 2026-03-12T13:56:31.915Z
+  - timestamp: 2026-03-12T14:01:31.601Z
     event: status_pending
     reason: "Dependencies satisfied"
     from: "blocked"
     to: "pending"
-  - timestamp: 2026-03-12T13:56:31.957Z
+  - timestamp: 2026-03-12T14:01:31.603Z
     event: status_dispatched
     reason: "Dispatched to worker"
     from: "pending"

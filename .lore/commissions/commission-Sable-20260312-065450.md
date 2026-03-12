@@ -1,7 +1,7 @@
 ---
 title: "Commission: Sandboxed Execution: Phase 1 Tests (Step 4)"
 date: 2026-03-12
-status: dispatched
+status: queued
 type: one-shot
 tags: [commission]
 worker: Sable
@@ -30,6 +30,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-12T13:57:01.118Z
+    event: status_failed
+    reason: "Session error: Claude Code process exited with code 1"
 current_progress: ""
 projectName: guild-hall
 ---
