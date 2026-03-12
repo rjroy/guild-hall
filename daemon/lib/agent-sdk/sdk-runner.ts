@@ -47,6 +47,24 @@ export type SdkQueryOptions = {
   model?: string;
   resume?: string;
   env?: Record<string, string | undefined>;
+  sandbox?: {
+    enabled?: boolean;
+    autoAllowBashIfSandboxed?: boolean;
+    excludedCommands?: string[];
+    allowUnsandboxedCommands?: boolean;
+    network?: {
+      allowLocalBinding?: boolean;
+      allowUnixSockets?: string[];
+      allowAllUnixSockets?: boolean;
+      httpProxyPort?: number;
+      socksProxyPort?: number;
+    };
+    ignoreViolations?: {
+      file?: string[];
+      network?: string[];
+    };
+    enableWeakerNestedSandbox?: boolean;
+  };
 };
 
 export type SessionPrepSpec = {
@@ -377,6 +395,19 @@ export async function prepareSdkSession(
       }
     : undefined;
 
+  // 5d. Inject sandbox settings for Bash-capable workers (REQ-SBX-2)
+  const hasBash = activation.tools.builtInTools.includes("Bash");
+  const sandboxSettings = hasBash
+    ? {
+        enabled: true,
+        autoAllowBashIfSandboxed: true,
+        allowUnsandboxedCommands: false,
+        network: {
+          allowLocalBinding: false,
+        },
+      }
+    : undefined;
+
   const mcpServers: Record<string, unknown> = {};
   for (const server of activation.tools.mcpServers) {
     mcpServers[server.name] = server;
@@ -391,6 +422,7 @@ export async function prepareSdkSession(
     ...(resolvedPlugins.length > 0 ? { plugins: resolvedPlugins } : {}),
     ...(finalModelId ? { model: finalModelId } : {}),
     ...(localEnv ? { env: localEnv } : {}),
+    ...(sandboxSettings ? { sandbox: sandboxSettings } : {}),
     ...(maxTurns ? { maxTurns } : {}),
     ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
     permissionMode: "dontAsk",
