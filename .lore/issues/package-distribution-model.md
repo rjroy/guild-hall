@@ -1,7 +1,7 @@
 ---
 title: Define package distribution model for worker packages
 date: 2026-02-25
-status: open
+status: blocked
 tags: [design, packages, workers, distribution]
 modules: [lib-packages, daemon, cli]
 ---

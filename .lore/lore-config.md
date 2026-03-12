@@ -1,4 +1,5 @@
 ---
+status: current
 custom_directories:
   commissions: [pending, blocked, dispatched, in_progress, sleeping, completed, failed, cancelled, abandoned]
   meetings: [requested, open, closed, declined]

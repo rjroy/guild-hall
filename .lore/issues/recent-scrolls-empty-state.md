@@ -1,7 +1,7 @@
 ---
 title: Recent Scrolls panel is empty and unhelpful on first load
 date: 2026-03-10
-status: open
+status: requested
 tags: [ux, ui, dashboard]
 modules: [web/app/page, web/components/dashboard]
 ---

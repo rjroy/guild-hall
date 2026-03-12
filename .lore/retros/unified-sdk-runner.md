@@ -1,5 +1,5 @@
 ---
-title: Unified SDK runner: streaming generator as universal session interface
+title: "Unified SDK runner: streaming generator as universal session interface"
 date: 2026-03-03
 status: complete
 tags: [refactor, agent-sdk, session-runner, architecture, dependency-injection, generator]
