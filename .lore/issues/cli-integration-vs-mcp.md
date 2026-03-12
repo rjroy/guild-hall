@@ -1,69 +1,71 @@
 ---
-title: Investigate CLI-first integration model as alternative to MCP
+title: Investigate integration surfaces for context efficiency
 date: 2026-03-11
 status: queued
-tags: [architecture, cli, mcp, rest-api, skills, integration]
-modules: [cli, daemon, daemon-routes]
+tags: [architecture, cli, mcp, rest-api, skills, integration, context-efficiency]
+modules: [cli, daemon, daemon-routes, packages]
 ---
 
-***
-USER NOTE: This needs a critical review or its going to force bad decisions. The gist of we need to discuss CLI vs MCP vs REST API is true. For sure the conversation about cost has major issues. The fact is I want to look into this because of context and tokens primarily. There is likely merit to some of what is shared here, but that muddies the reality and could trigger decisions that are counter to the goal. The reason I want to discuss CLI vs MCP vs REST API is token and context. It's about making an agent native application. If all tools are MCP then they : take up a lot of context and are only visible to the agent. If they are REST API then they can be visible to agent and application. If there is a CLI (which talks to the REST API) then they are usable by human and agent. If the CLI has a help, then we have progressive discovery. The CLI should be developed with this in mind, don't have a 1000 commands at the base, build a hiearchy, same with the help. Then if there is a CLI we can instead of having MCP, we can provide plugins with skills. The hard part will be making sure the worktrees where the agent is working as access to the CLI for it to impact the proper worktree.
-***
-
-# CLI-First Integration Model
+# Integration Surfaces for Context Efficiency
 
 ## What Happened
 
-Guild Hall currently uses MCP as the primary integration surface for connecting Claude Code agents to guild capabilities. Worker packages ship Claude Code plugins (skills and MCP configs) that the Agent SDK picks up during session preparation. The `cli/` binary is a separate utility that talks directly to the filesystem, not to the daemon.
+Guild Hall uses MCP-style toolboxes as the primary integration surface for connecting agents to guild capabilities. Worker packages declare tools via the Agent SDK's toolbox system, which the daemon wires into sessions during `prepareSdkSession`. The `cli/` binary is a separate utility that talks directly to the filesystem, bypassing the daemon entirely.
 
-The question is whether this should be inverted: make the CLI (and by extension, skills as CLI wrappers) the primary integration surface, with MCP as a secondary or eliminated concern.
+Every tool definition occupies context window space for the entire session. That's token cost paid on every turn whether the tool is used or not. And those tools are only visible to the agent: the UI can't call them, humans can't invoke them, nothing outside the agent session even knows they exist.
 
 ## Why It Matters
 
-Two forces create tension here:
+The primary driver is token cost and context efficiency. This is a question about agent-native application design: which integration surface should each capability live on?
 
-**MCP has a cost.** MCP server configuration is complex to wire, fragile when the transport layer changes (SSE is deprecated, Streamable HTTP is new), and invisible to humans who want to understand what an agent can do. Skills, by contrast, are readable markdown prompts that load into Claude Code as slash commands. They're easier to author, easier to inspect, and easier to invoke without understanding protocol internals.
+Three surfaces serve three audiences:
 
-**The CLI is not currently a daemon client.** Today, `cli/` reads config files and runs git directly. It bypasses the daemon entirely. The daemon has a full REST API (Hono over Unix socket) that covers commissions, meetings, workers, models, briefings, and admin operations, but the CLI doesn't use any of it. This creates two separate integration paths with different capabilities.
+| Surface | Audience | Context cost | Visibility |
+|---------|----------|--------------|------------|
+| **MCP tools** | Agent only | High (schemas live in context for entire session) | Invisible to humans and application |
+| **REST API** | Agent + application | Zero (called on demand) | Available to Next.js UI and agents |
+| **CLI** | Human + agent | Zero (called on demand) | Available to humans, scripts, and agents |
 
-These two problems interact: if the REST API were the canonical interface for all guild capabilities, skills could be thin CLI wrappers over it. That makes the integration surface CLI + REST rather than MCP.
+If capabilities are REST API endpoints, both the Next.js UI and agents can use them. If there's a CLI over the REST API, humans can use them too. Each layer extends reach without duplicating logic or inflating context.
+
+The CLI enables progressive discovery through hierarchical help. Don't expose hundreds of commands at the root; build a tree (`guild-hall commission dispatch`, `guild-hall meeting open`, `guild-hall artifact list`). The help system becomes the documentation.
+
+Skills replace MCP for agent interaction. Instead of MCP tool definitions bloating the context window, worker packages provide skills: markdown prompts that teach the agent to use the CLI. The agent calls shell commands, not MCP tools. Skills load on demand (only when invoked), so they don't carry the always-present cost of tool schemas sitting in context.
+
+## The Hard Part
+
+Worktree targeting. Agents run in activity worktrees, not the main repository. When an agent invokes the CLI, the command must impact the correct worktree, not the daemon's default or the integration worktree.
+
+Current git isolation works because the daemon manages worktree paths internally and passes them through its own call stack. If the CLI becomes the interface, it needs a way to resolve which worktree context it's operating in. Options:
+
+- **Working directory inference.** The CLI detects which worktree it's running from, similar to how `git` knows its repo context from `$PWD`. Transparent to skill authors.
+- **Explicit flag.** `--worktree <path>` or `--context <commission-id>` for cases where inference isn't possible.
+- **Environment variable.** Set by the daemon when spawning agent sessions, inherited by CLI subprocesses.
+
+The approach should be transparent to skill authors. A skill that says "run `guild-hall artifact list`" shouldn't need to handle worktree paths if the CLI can figure it out from the working directory.
+
+## Current State
+
+The daemon already has a full REST API (Hono over Unix socket) covering commissions, meetings, workers, models, briefings, and admin. The CLI (`cli/`) bypasses it entirely with five commands (`register`, `rebase`, `sync`, `validate`, `migrate-content`) that read config files and run git directly.
+
+Existing skills in guild-hall-writer (`cleanup-commissions`, `cleanup-meetings`) demonstrate the target pattern: markdown prompts that guide an agent through a multi-step process. They don't invoke a CLI today, but they show how skills shape agent behavior without MCP tool definitions.
+
+Worker toolboxes (like `guild-hall-email` for the steward) currently load as MCP tools into every session that uses them. These are the definitions consuming context window space.
 
 ## Questions to Resolve
 
-**1. What does CLI-first actually mean for agents?**
+1. **Surface audit.** Which capabilities are exposed via MCP tools only, REST API only, CLI direct-fs, or multiple surfaces? Map the gaps. Identify which MCP tools could be eliminated by moving to REST + CLI + skills.
 
-Claude Code agents invoke tools, not commands. "CLI-first" likely means skills, not raw shell invocations. A skill is a markdown prompt that gives Claude Code instructions for how to invoke a CLI command and interpret its output. The question is: what capabilities should exist as skills, and how do they map to daemon API calls?
+2. **CLI as daemon client.** Make `cli/` talk to the daemon via its Unix socket REST API instead of reading files directly. Same pattern as Docker CLI to Docker daemon. Trade-off: the daemon must be running for the CLI to work, which is not currently required.
 
-Current skills in guild-hall-writer (`cleanup-commissions`, `cleanup-meetings`) are already in this pattern: they guide an agent through a multi-step process. The investigation should check whether commission and meeting operations (create, dispatch, cancel, send message) could be exposed the same way.
+3. **Worktree resolution.** How does the CLI determine which worktree to target? Test whether working-directory inference is sufficient (agent sessions already `cd` into their worktree) or whether explicit targeting is needed.
 
-**2. What would a CLI-as-daemon-client look like?**
+4. **CLI hierarchy design.** Define the command tree structure with progressive discovery in mind. Group by domain (`commission`, `meeting`, `artifact`, `worker`, `admin`), keep the root clean, make `--help` at each level genuinely useful.
 
-If `cli/` talked to the daemon via its Unix socket REST API instead of reading files directly, it would gain access to all daemon capabilities without duplicating logic. The daemon already validates, registers, and manages state. The CLI would become a thin HTTP client (similar to how `docker` CLI talks to the Docker daemon). This means:
-- `guild-hall register` calls `POST /admin/register` instead of writing `config.yaml` directly
-- `guild-hall dispatch` calls `POST /commissions/:id/dispatch` instead of reading state files
-- New capabilities added to the daemon are immediately available via CLI without a separate CLI code change
-
-The daemon would need to be running for the CLI to work, which is currently not required. That's a real trade-off.
-
-**3. Should the daemon expose an HTTP port, not just a Unix socket?**
-
-The daemon binds to `~/.guild-hall/guild-hall.sock`. The Next.js app and any CLI running on the same machine can reach it. External tools (scripts on the same box, remote CLIs, other services) cannot. If the daemon also bound to `localhost:PORT`, the REST API would become accessible to any tool without needing to understand the socket path. This is a prerequisite for skill-as-CLI-wrapper to work in contexts where the skill runs as a subprocess.
-
-**4. Do skills replace MCP, or complement it?**
-
-MCP gives agents structured tool calls with typed schemas. Skills give agents prompt-loaded instructions for invoking CLI commands. They serve different use cases: MCP is better when the agent needs to pass structured data and receive structured responses; CLI/skills are better when the interaction is procedural and the agent can interpret free-form output. The investigation should compare these for guild hall's specific operations:
-
-- **Commission dispatch**: structured (needs workerName, projectName, prompt) → MCP advantage
-- **Cleanup workflows**: procedural, multi-step, judgment-heavy → skill advantage
-- **Status checks**: could go either way depending on how the agent uses the output
+5. **Skill prototype.** Convert one MCP-based capability to a skill + CLI pattern. Verify the agent can use it reliably and the output is parse-friendly without structured schemas.
 
 ## Fix Direction
 
-This is an investigation, not a change. The investigation should answer:
+Investigation, not implementation. The outcome is a design document that maps current capabilities to their integration surfaces, recommends which surface each should live on, proposes the worktree targeting mechanism, defines the CLI hierarchy, and identifies which MCP tools can be eliminated in favor of skills + CLI.
 
-1. Enumerate which guild capabilities are currently exposed only via MCP, only via REST API, only via CLI direct-fs, or via multiple surfaces. Map the gaps.
-2. Determine what a minimal HTTP endpoint (localhost) on the daemon would require and what it would unlock.
-3. Prototype one skill that wraps a daemon REST call (e.g., `dispatch-commission`) to test whether the pattern is viable and whether the output is parse-friendly enough for agent use.
-4. Evaluate whether MCP adds value over skills + REST for the operations agents actually perform in guild hall.
-
-If the REST API becomes the single source of truth for all capabilities, the CLI becomes a user-facing client over it, skills become agent-facing clients over it, and MCP becomes optional. That's a cleaner surface model than the current mix of direct-fs, Unix socket REST, and MCP all coexisting without a clear hierarchy.
+Target architecture: REST API as the canonical interface for all guild capabilities. CLI as the user-facing and agent-facing client over it. Skills as the teaching layer that connects agents to the CLI. MCP eliminated or reduced to the bare minimum that genuinely requires structured tool schemas in the agent's context.
