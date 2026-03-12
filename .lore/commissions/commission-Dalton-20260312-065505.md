@@ -1,0 +1,25 @@
+---
+title: "Commission: Sandboxed Execution: Phase 2 Types, Validation, Fixtures (Steps 5-6)"
+date: 2026-03-12
+status: blocked
+type: one-shot
+tags: [commission]
+worker: Dalton
+workerDisplayTitle: "Guild Artificer"
+prompt: "Implement Phase 2 type changes, package validation, and fixture updates per `.lore/plans/infrastructure/sandboxed-execution.md`, Steps 5-6.\n\n**Read the full plan first.** It has precise file locations and the full fixture update list.\n\n**Step 5: Type changes and toolbox resolver passthrough**\n- Add `CanUseToolRule` interface to `lib/types.ts` (after `ResolvedToolSet`)\n- Add `canUseToolRules?: CanUseToolRule[]` to `WorkerMetadata` (optional)\n- Add `canUseToolRules: CanUseToolRule[]` to `ResolvedToolSet` (required, no default)\n- Update `daemon/services/toolbox-resolver.ts` return to include `canUseToolRules: worker.canUseToolRules ?? []`\n\n**Step 6: Package validation**\n- Add `canUseToolRuleSchema` to `lib/packages.ts`\n- Add `.superRefine()` to `workerMetadataSchema` for REQ-SBX-15: rules must reference only tools in `builtInTools`\n- Add validation tests to `tests/lib/packages.test.ts`\n\n**Critical: Fixture updates in same commit as type change.** Adding required `canUseToolRules` to `ResolvedToolSet` breaks typecheck until all fixtures are updated. The plan lists all affected files:\n- `tests/daemon/services/sdk-runner.test.ts` (multiple fixtures)\n- `tests/daemon/services/manager-worker.test.ts`\n- `tests/packages/worker-role-smoke.test.ts`\n- `tests/packages/worker-activation.test.ts`\n\nAdd `canUseToolRules: []` to every `ResolvedToolSet` fixture in these files.\n\nAlso check `tests/daemon/toolbox-resolver.test.ts` for any `ResolvedToolSet` constructions or assertions that need updating.\n\nRun `bun run typecheck` and `bun test` after all changes."
+dependencies:
+  - commission-Dalton-20260312-065431
+linked_artifacts: []
+
+activity_timeline:
+  - timestamp: 2026-03-12T13:55:05.023Z
+    event: created
+    reason: "Commission created"
+  - timestamp: 2026-03-12T13:55:05.024Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
+current_progress: ""
+projectName: guild-hall
+---
