@@ -7,7 +7,7 @@ modules: [cli, daemon, daemon-routes]
 ---
 
 ***
-USER NOTE: Much of this is wrong. The gist of we need to discuss CLI vs MCP vs REST API is true. But a lot of the why is wrong. It's about context and tokens primarily. I'm not going to go through and correct this right now, but much of this is just made up gobbly gook. You are going to try and convince me it has merit. Maybe it does, but I don't care. The reason I want to discuss CLI vs MCP vs REST API is token and context. Nothing at all about run time. It's about the agent.
+USER NOTE: This needs a critical review or its going to force bad decisions. The gist of we need to discuss CLI vs MCP vs REST API is true. For sure the conversation about cost has major issues. The fact is I want to look into this because of context and tokens primarily. There is likely merit to some of what is shared here, but that muddies the reality and could trigger decisions that are counter to the goal. The reason I want to discuss CLI vs MCP vs REST API is token and context. It's about making an agent native application. If all tools are MCP then they : take up a lot of context and are only visible to the agent. If they are REST API then they can be visible to agent and application. If there is a CLI (which talks to the REST API) then they are usable by human and agent. If the CLI has a help, then we have progressive discovery. The CLI should be developed with this in mind, don't have a 1000 commands at the base, build a hiearchy, same with the help. Then if there is a CLI we can instead of having MCP, we can provide plugins with skills. The hard part will be making sure the worktrees where the agent is working as access to the CLI for it to impact the proper worktree.
 ***
 
 # CLI-First Integration Model
