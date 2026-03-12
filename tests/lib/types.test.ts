@@ -23,31 +23,33 @@ describe("statusToGem", () => {
     // Blocked (red) - hard failures only
     ["failed", "blocked"],
     ["cancelled", "blocked"],
+    ["blocked", "blocked"],
 
     // Commission-specific statuses
     ["dispatched", "active"],
     ["in_progress", "active"],
     ["sleeping", "active"],
-    ["blocked", "pending"],
 
     // Info (blue) - terminal states (no action needed)
     ["complete", "info"],
     ["completed", "info"],
     ["resolved", "info"],
-    ["superseded", "info"],
-    ["outdated", "info"],
-    ["wontfix", "info"],
-    ["declined", "info"],
-    ["abandoned", "info"],
-    ["Superseded", "info"],
-    ["Declined", "info"],
     ["implemented", "info"],
-    ["archived", "info"],
 
-    // Info (blue) - unrecognized (safe default)
-    ["unknown-status", "info"],
-    ["", "info"],
-    ["something-else", "info"],
+    // Inactive (gray) - closed but not successful (no action needed, but not green)
+    ["superseded", "inactive"],
+    ["outdated", "inactive"],
+    ["wontfix", "inactive"],
+    ["declined", "inactive"],
+    ["abandoned", "inactive"],
+    ["Superseded", "inactive"],
+    ["Declined", "inactive"],
+    ["archived", "inactive"],
+
+    // Unknown (red) - unrecognized (alert default)
+    ["unknown-status", "blocked"],
+    ["", "blocked"],
+    ["something-else", "blocked"],
   ];
 
   for (const [input, expected] of cases) {

@@ -1,7 +1,7 @@
 import styles from "./GemIndicator.module.css";
 
 interface GemIndicatorProps {
-  status: "active" | "pending" | "blocked" | "info";
+  status: "pending" | "active" | "blocked" | "info" | "inactive";
   size?: "sm" | "md";
 }
 
@@ -10,6 +10,7 @@ const ALT_TEXT: Record<GemIndicatorProps["status"], string> = {
   pending: "Pending",
   blocked: "Blocked",
   info: "Info",
+  inactive: "Inactive",
 };
 
 export default function GemIndicator({

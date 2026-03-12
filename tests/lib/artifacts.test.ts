@@ -8,10 +8,9 @@ import {
   writeArtifactContent,
   writeRawArtifactContent,
   recentArtifacts,
-  compareArtifactsByStatusAndTitle,
   compareArtifactsByRecency,
-  artifactStatusPriority,
 } from "@/lib/artifacts";
+import { statusToPriority, compareArtifactsByStatusAndTitle } from "@/lib/types"; 
 
 let tmpDir: string;
 
@@ -366,47 +365,54 @@ describe("date parsing in frontmatter", () => {
   });
 });
 
-describe("artifactStatusPriority", () => {
+describe("statusToPriority", () => {
   test("all PENDING_STATUSES map to group 0 (active work)", () => {
-    const pendingStatuses = ["draft", "open", "pending", "requested", "blocked", "queued"];
+    const pendingStatuses = ["draft", "open", "pending", "requested", "queued"];
     for (const status of pendingStatuses) {
-      expect(artifactStatusPriority(status)).toBe(0);
+      expect(statusToPriority(status)).toBe(0);
     }
   });
 
   test("all ACTIVE_STATUSES (in-progress) map to group 1", () => {
     const activeStatuses = ["approved", "active", "current", "in_progress", "dispatched"];
     for (const status of activeStatuses) {
-      expect(artifactStatusPriority(status)).toBe(1);
+      expect(statusToPriority(status)).toBe(1);
     }
   });
 
   test("hard failures map to group 2", () => {
-    const failureStatuses = ["failed", "cancelled"];
+    const failureStatuses = ["blocked", "failed", "cancelled"];
     for (const status of failureStatuses) {
-      expect(artifactStatusPriority(status)).toBe(2);
+      expect(statusToPriority(status)).toBe(2);
     }
   });
 
-  test("terminal statuses (done + closed negative) map to group 3", () => {
-    const terminalStatuses = ["complete", "resolved", "implemented", "superseded", "outdated", "wontfix", "declined", "abandoned"];
+  test("terminal statuses (done) map to group 3", () => {
+    const terminalStatuses = ["complete", "resolved", "implemented"];
     for (const status of terminalStatuses) {
-      expect(artifactStatusPriority(status)).toBe(3);
+      expect(statusToPriority(status)).toBe(3);
     }
   });
 
-  test("empty status maps to group 4 (unknown)", () => {
-    expect(artifactStatusPriority("")).toBe(4);
+  test("terminal statuses (closed negative) map to group 4", () => {
+    const terminalStatuses = ["superseded", "outdated", "wontfix", "declined", "abandoned"];
+    for (const status of terminalStatuses) {
+      expect(statusToPriority(status)).toBe(4);
+    }
   });
 
-  test("unrecognized status maps to group 4 (unknown)", () => {
-    expect(artifactStatusPriority("nonexistent")).toBe(4);
+  test("empty status maps to group 2 (unknown)", () => {
+    expect(statusToPriority("")).toBe(2);
+  });
+
+  test("unrecognized status maps to group 2 (unknown)", () => {
+    expect(statusToPriority("nonexistent")).toBe(2);
   });
 
   test("status matching is case-insensitive and trims whitespace", () => {
-    expect(artifactStatusPriority("Draft")).toBe(0);
-    expect(artifactStatusPriority("ACTIVE")).toBe(1);
-    expect(artifactStatusPriority(" implemented ")).toBe(3);
+    expect(statusToPriority("Draft")).toBe(0);
+    expect(statusToPriority("ACTIVE")).toBe(1);
+    expect(statusToPriority(" implemented ")).toBe(3);
   });
 });
 
@@ -455,12 +461,12 @@ describe("compareArtifactsByStatusAndTitle", () => {
     expect(sorted.map((a) => a.meta.status)).toEqual(["failed", "implemented"]);
   });
 
-  test("abandoned (group 3) sorts before unknown (group 4)", () => {
+  test("abandoned (group 4) sorts after unknown (group 2)", () => {
     const abandoned = makeArtifact({ status: "abandoned" });
     const unknown = makeArtifact({ status: "something_weird" });
 
     const sorted = [unknown, abandoned].sort(compareArtifactsByStatusAndTitle);
-    expect(sorted.map((a) => a.meta.status)).toEqual(["abandoned", "something_weird"]);
+    expect(sorted.map((a) => a.meta.status)).toEqual(["something_weird", "abandoned"]);
   });
 
   test("empty status (group 4) sorts after all known statuses", () => {
@@ -508,6 +514,7 @@ describe("compareArtifactsByStatusAndTitle", () => {
     const artifacts = [
       makeArtifact({ status: "abandoned", date: "2026-03-01", title: "Abandoned" }),
       makeArtifact({ status: "draft", date: "2026-01-01", title: "Draft" }),
+      makeArtifact({ status: "draft", date: "2026-02-01", title: "Draft" }),
       makeArtifact({ status: "active", date: "2026-02-15", title: "Active" }),
       makeArtifact({ status: "failed", date: "2026-02-01", title: "Failed" }),
       makeArtifact({ status: "pending", date: "2026-02-15", title: "Pending" }),
@@ -515,8 +522,9 @@ describe("compareArtifactsByStatusAndTitle", () => {
 
     const sorted = artifacts.sort(compareArtifactsByStatusAndTitle);
     expect(sorted.map((a) => a.meta.title)).toEqual([
-      "Pending",       // group 0, 2026-02-15
       "Draft",         // group 0, 2026-01-01
+      "Draft",         // group 0, 2026-02-01
+      "Pending",       // group 0, 2026-02-15
       "Active",        // group 1, 2026-02-15
       "Failed",        // group 2, 2026-02-01
       "Abandoned",     // group 3, 2026-03-01

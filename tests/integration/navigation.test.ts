@@ -10,7 +10,6 @@ import type { GemStatus } from "@/lib/types";
 import { relatedToHref } from "@/web/components/artifact/MetadataSidebar";
 import { artifactHref } from "@/web/components/dashboard/RecentArtifacts";
 import { commissionHref } from "@/web/components/dashboard/DependencyMap";
-import { meetingStatusToGem } from "@/web/components/project/MeetingList";
 import { scanCommissions } from "@/lib/commissions";
 
 /**
@@ -467,6 +466,7 @@ describe("status mapping completeness", () => {
       "pending",
       "blocked",
       "info",
+      "inactive"
     ]);
 
     for (const artifact of artifacts) {
@@ -486,11 +486,13 @@ describe("status mapping completeness", () => {
       "superseded", "outdated",
       // blue (info)
       "implemented", "archived",
+      // gray (inactive)
+      "inactive"
     ];
 
     for (const status of specStatuses) {
       const gem = statusToGem(status);
-      expect(["active", "pending", "blocked", "info"]).toContain(gem);
+      expect(["active", "pending", "blocked", "info", "inactive"]).toContain(gem);
     }
   });
 
@@ -498,9 +500,10 @@ describe("status mapping completeness", () => {
     // Phase 3 meeting states: requested, open, closed, declined
     expect(statusToGem("requested")).toBe("pending");
     expect(statusToGem("open")).toBe("pending");
-    // "declined" and "closed" are terminal states, fall through to "info"
-    expect(statusToGem("declined")).toBe("info");
+    // "closed" is a terminal states, fall through to "info"
     expect(statusToGem("closed")).toBe("info");
+    // "declined" is a terminal states, fall through to "inactive"
+    expect(statusToGem("declined")).toBe("inactive");
   });
 });
 
@@ -874,33 +877,33 @@ describe("deeply nested artifact paths", () => {
   });
 });
 
-describe("meetingStatusToGem (MeetingList component)", () => {
-  test("open maps to active (green)", () => {
-    expect(meetingStatusToGem("open")).toBe("active");
+describe("statusToGem (MeetingList component)", () => {
+  test("current maps to active (green)", () => {
+    expect(statusToGem("current")).toBe("active");
   });
 
   test("requested maps to pending (amber)", () => {
-    expect(meetingStatusToGem("requested")).toBe("pending");
+    expect(statusToGem("requested")).toBe("pending");
   });
 
-  test("declined maps to blocked (red)", () => {
-    expect(meetingStatusToGem("declined")).toBe("blocked");
+  test("declined maps to inactive (grey)", () => {
+    expect(statusToGem("declined")).toBe("inactive");
   });
 
   test("closed maps to info (blue)", () => {
-    expect(meetingStatusToGem("closed")).toBe("info");
+    expect(statusToGem("closed")).toBe("info");
   });
 
   test("is case-insensitive and trims whitespace", () => {
-    expect(meetingStatusToGem("Open")).toBe("active");
-    expect(meetingStatusToGem("REQUESTED")).toBe("pending");
-    expect(meetingStatusToGem("  Declined  ")).toBe("blocked");
-    expect(meetingStatusToGem(" Closed ")).toBe("info");
+    expect(statusToGem("Open")).toBe("pending");
+    expect(statusToGem("REQUESTED")).toBe("pending");
+    expect(statusToGem("  Declined  ")).toBe("inactive");
+    expect(statusToGem(" Closed ")).toBe("info");
   });
 
-  test("unknown statuses fall through to info", () => {
-    expect(meetingStatusToGem("something-else")).toBe("info");
-    expect(meetingStatusToGem("")).toBe("info");
+  test("unknown statuses fall through to blocked (red)", () => {
+    expect(statusToGem("something-else")).toBe("blocked");
+    expect(statusToGem("")).toBe("blocked");
   });
 });
 
@@ -911,9 +914,9 @@ describe("requested meeting navigation", () => {
     expect(artifact.relativePath.startsWith("meetings/")).toBe(true);
   });
 
-  test("requested meeting gets amber gem via meetingStatusToGem", () => {
-    // MeetingList uses meetingStatusToGem for gem color
-    expect(meetingStatusToGem("requested")).toBe("pending");
+  test("requested meeting gets amber gem via statusToGem", () => {
+    // MeetingList uses statusToGem for gem color
+    expect(statusToGem("requested")).toBe("pending");
   });
 
   test("requested meeting artifact routes to project meetings tab via artifactHref", async () => {
@@ -952,12 +955,8 @@ describe("declined meeting navigation", () => {
     expect(artifact.relativePath.startsWith("meetings/")).toBe(true);
   });
 
-  test("declined meeting gets red gem via meetingStatusToGem", () => {
-    expect(meetingStatusToGem("declined")).toBe("blocked");
-  });
-
-  test("declined meeting gets info gem via statusToGem", () => {
-    expect(statusToGem("declined")).toBe("info");
+  test("declined meeting gets inactive gem via statusToGem", () => {
+    expect(statusToGem("declined")).toBe("inactive");
   });
 
   test("declined meeting artifact routes to artifact view (read-only) via artifactHref", async () => {

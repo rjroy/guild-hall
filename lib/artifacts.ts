@@ -3,9 +3,7 @@ import * as path from "node:path";
 import matter from "gray-matter";
 import { isNodeError } from "@/lib/types";
 import type { Artifact, ArtifactMeta } from "@/lib/types";
-import { artifactStatusPriority, compareArtifactsByStatusAndTitle } from "@/lib/artifact-sorting";
-
-export { artifactStatusPriority, compareArtifactsByStatusAndTitle };
+import { compareArtifactsByStatusAndTitle  } from "@/lib/types";
 
 // -- Path validation --
 

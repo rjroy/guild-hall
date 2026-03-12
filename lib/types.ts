@@ -58,7 +58,54 @@ export interface Artifact {
   lastModified: Date;
 }
 
-export type GemStatus = "active" | "pending" | "blocked" | "info";
+/**
+ * Five-group status priority for artifact browsing views.
+ * Groups are ordered by actionability: work needing attention surfaces first,
+ * completed work sinks below, closed/negative is near the bottom.
+ *
+ * This intentionally differs from gem color grouping (statusToGem). For example,
+ * "implemented" maps to the green gem (active) but sorts in the Terminal group
+ * (priority 2) because it's done and needs no action.
+ */
+export const ARTIFACT_STATUS_GROUP: Record<string, number> = {
+  // Group 0: Active work (needs attention) [pending gem]
+  draft: 0,
+  open: 0,
+  pending: 0,
+  requested: 0,
+  queued: 0,
+  paused: 0,
+  // Group 1: In progress [active gem]
+  approved: 1,
+  active: 1,
+  current: 1,
+  in_progress: 1,
+  dispatched: 1,
+  sleeping: 1,
+  // Group 2: Closed negative [blocked gem]
+  blocked: 2,
+  failed: 2,
+  cancelled: 2,
+  // Group 3: Terminal (done, no action needed) [info gem]
+  complete: 3,
+  completed: 3,
+  resolved: 3,
+  implemented: 3,
+  closed: 3,
+  executed: 3,
+  // Group 4: Inactive (inactive, no action needed) [inactive gem]
+  wontfix: 4,
+  declined: 4,
+  superseded: 4,
+  outdated: 4,
+  abandoned: 4,
+  duplicate: 4,
+  invalid: 4,
+  archived: 4,
+};
+export const UNKNOWN_STATUS_PRIORITY = 2;
+
+export type GemStatus = "pending" | "active" | "blocked" | "info" | "inactive";
 
 // -- Package metadata types (Phase 2) --
 
@@ -230,33 +277,14 @@ export interface ActivationResult {
   };
 }
 
-const ACTIVE_STATUSES = new Set([
-  "approved",
-  "active",
-  "current",
-  "in_progress",
-  "dispatched",
-  "sleeping",
-]);
-
-const PENDING_STATUSES = new Set([
-  "draft",
-  "open",
-  "pending",
-  "requested",
-  "blocked",
-  "queued",
-  "paused"
-]);
-
-const BLOCKED_STATUSES = new Set([
-  "failed",
-  "cancelled",
-]);
-
-/*
- * The remaining statuses ("complete", "resolved", "implemented", "abandoned", "superseded", "outdated", "wontfix", "declined") are considered terminal states that require no action, and thus get the lowest priority. Unrecognized statuses default to an even lower priority, appearing after all known statuses.
+/**
+ * Maps a freeform status string from artifact frontmatter to a numeric priority for sorting.
+ * Lower numbers are higher priority (surface first). Unrecognized statuses default to 2.
  */
+export function statusToPriority(status: string): number {
+  const normalized = status.toLowerCase().trim(); 
+  return ARTIFACT_STATUS_GROUP[normalized] ?? UNKNOWN_STATUS_PRIORITY;
+} 
 
 /**
  * Maps a freeform status string from artifact frontmatter to one of four
@@ -264,10 +292,21 @@ const BLOCKED_STATUSES = new Set([
  */
 export function statusToGem(status: string): GemStatus {
   const normalized = status.toLowerCase().trim();
-  if (ACTIVE_STATUSES.has(normalized)) return "active";
-  if (PENDING_STATUSES.has(normalized)) return "pending";
-  if (BLOCKED_STATUSES.has(normalized)) return "blocked";
-  return "info";
+  const priority = statusToPriority(normalized);
+  switch (priority) {
+    case 0:
+      return "pending";
+    case 1:
+      return "active";
+    case 2:
+      return "blocked";
+    case 3:
+      return "info";
+    case 4:
+      return "inactive";
+    default:
+      return "blocked";
+  } 
 }
 
 /**
@@ -305,3 +344,33 @@ export type ChatMessage = {
   content: string;
   toolUses?: ToolUseEntry[];
 };
+
+/**
+ * Compare function for artifact browsing views (Surface 2: tree view).
+ * Sorts by: status group (REQ-SORT-4), date descending, title/path alphabetical.
+ * Missing fields sort after present ones (REQ-SORT-3).
+ * Empty titles fall back to relativePath as tiebreaker (REQ-SORT-15).
+ */
+export function compareArtifactsByStatusAndTitle(a: Artifact, b: Artifact): number {
+  // 1. Status group priority
+  const priorityDiff = statusToPriority(a.meta.status) - statusToPriority(b.meta.status);
+  if (priorityDiff !== 0) return priorityDiff;
+
+  const statusDiff = a.meta.status.localeCompare(b.meta.status);
+  if (statusDiff !== 0) return statusDiff;
+
+  // 2. Date descending (newer first). Empty dates sort last.
+  const aDate = a.meta.date;
+  const bDate = b.meta.date;
+  if (aDate && !bDate) return -1;
+  if (!aDate && bDate) return 1;
+  if (aDate && bDate) {
+    const dateCmp = bDate.localeCompare(aDate);
+    if (dateCmp !== 0) return dateCmp;
+  }
+
+  // 3. Title alphabetical tiebreaker. Empty titles fall back to relativePath.
+  const aTitle = a.meta.title || a.relativePath;
+  const bTitle = b.meta.title || b.relativePath;
+  return aTitle.localeCompare(bTitle);
+}
