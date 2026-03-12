@@ -1,5 +1,5 @@
 import type { Artifact } from "@/lib/types";
-import { compareArtifactsByStatusAndTitle } from "@/lib/artifact-sorting";
+import { compareArtifactsByStatusAndTitle } from "@/lib/types";
 
 /**
  * Extracts the first directory segment from a relative path.

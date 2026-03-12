@@ -1,34 +1,34 @@
 import { describe, test, expect } from "bun:test";
+import { statusToGem } from "@/lib/types";
 import {
-  meetingStatusToGem,
   meetingHref,
 } from "@/web/components/project/MeetingList";
 
-describe("meetingStatusToGem", () => {
-  test("open maps to active", () => {
-    expect(meetingStatusToGem("open")).toBe("active");
+describe("statusToGem", () => {
+  test("open maps to pending", () => {
+    expect(statusToGem("open")).toBe("pending");
   });
 
   test("requested maps to pending", () => {
-    expect(meetingStatusToGem("requested")).toBe("pending");
+    expect(statusToGem("requested")).toBe("pending");
   });
 
-  test("declined maps to blocked", () => {
-    expect(meetingStatusToGem("declined")).toBe("blocked");
+  test("declined maps to inactive", () => {
+    expect(statusToGem("declined")).toBe("inactive");
   });
 
   test("closed maps to info", () => {
-    expect(meetingStatusToGem("closed")).toBe("info");
+    expect(statusToGem("closed")).toBe("info");
   });
 
-  test("unknown status maps to info", () => {
-    expect(meetingStatusToGem("something-else")).toBe("info");
+  test("unknown status maps to blocked", () => {
+    expect(statusToGem("something-else")).toBe("blocked");
   });
 
   test("normalizes case and whitespace", () => {
-    expect(meetingStatusToGem("  Open  ")).toBe("active");
-    expect(meetingStatusToGem("CLOSED")).toBe("info");
-    expect(meetingStatusToGem("Requested")).toBe("pending");
+    expect(statusToGem("  Open  ")).toBe("pending");
+    expect(statusToGem("CLOSED")).toBe("info");
+    expect(statusToGem("Requested")).toBe("pending");
   });
 });
 

@@ -3,28 +3,12 @@ import Panel from "@/web/components/ui/Panel";
 import StatusBadge from "@/web/components/ui/StatusBadge";
 import EmptyState from "@/web/components/ui/EmptyState";
 import type { Artifact } from "@/lib/types";
-import type { GemStatus } from "@/lib/types";
+import { statusToGem } from "@/lib/types";
 import styles from "./MeetingList.module.css";
 
 interface MeetingListProps {
   meetings: Artifact[];
   projectName: string;
-}
-
-/**
- * Maps meeting status to a gem display state.
- *
- * - "open" -> active (green): live meeting, clickable to join
- * - "requested" -> pending (amber): awaiting acceptance
- * - "declined" -> blocked (red): rejected, read-only
- * - "closed" / everything else -> info (blue): ended, read-only
- */
-export function meetingStatusToGem(status: string): GemStatus {
-  const normalized = status.toLowerCase().trim();
-  if (normalized === "open") return "active";
-  if (normalized === "requested") return "pending";
-  if (normalized === "declined") return "blocked";
-  return "info";
 }
 
 /**
@@ -95,7 +79,7 @@ export default function MeetingList({
       <ul className={styles.list}>
         {meetings.map((meeting) => {
           const status = (meeting.meta.status || "open").toLowerCase().trim();
-          const gem = meetingStatusToGem(status);
+          const gem = statusToGem(status);
           const title = meetingTitle(meeting);
           const rawWorker = meeting.meta.extras?.worker;
           const workerName = typeof rawWorker === "string" ? rawWorker : undefined;

@@ -367,9 +367,9 @@ describe("buildArtifactTree", () => {
     const specsNode = tree[0];
 
     expect(specsNode.children.map((c) => c.label)).toEqual([
-      "Blocked Spec",    // group 0 (pending)
       "Draft Spec",      // group 0 (pending)
       "Active Spec",     // group 1
+      "Blocked Spec",    // group 2 (pending)
       "Cancelled Spec",  // group 2 (hard failure)
       "Complete Spec",   // group 3 (terminal)
     ]);

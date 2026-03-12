@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Panel from "@/web/components/ui/Panel";
 import EmptyState from "@/web/components/ui/EmptyState";
 import styles from "./ManagerBriefing.module.css";
+import remarkGfm from "remark-gfm";
+import ReactMarkdown from "react-markdown";
 
 interface BriefingData {
   briefing: string;
@@ -107,7 +109,15 @@ export default function ManagerBriefing({ projectName }: ManagerBriefingProps) {
       )}
       {state.status === "loaded" && (
         <>
-          <p className={styles.briefingText}>{state.data.briefing}</p>
+          <div className={styles.briefingText}>
+
+            {state.data.briefing.trim() ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{state.data.briefing}</ReactMarkdown>
+            ) : (
+              <pre className={styles.rawFallback}>{state.data.briefing}</pre>
+            )}
+
+          </div>
           <div className={styles.meta}>
             <span className={styles.timestamp}>
               Last updated: {formatRelativeTime(state.data.generatedAt)}

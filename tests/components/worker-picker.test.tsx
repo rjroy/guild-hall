@@ -237,7 +237,7 @@ describe("MeetingList", () => {
 
     const badges = findComponentElements(el, "StatusBadge");
     expect(badges).toHaveLength(1);
-    expect(badges[0].props.gem).toBe("active");
+    expect(badges[0].props.gem).toBe("pending");
     expect(badges[0].props.label).toBe("open");
     expect(badges[0].props.size).toBe("sm");
   });
@@ -357,7 +357,7 @@ describe("MeetingList", () => {
 
     const badges = findComponentElements(el, "StatusBadge");
     expect(badges).toHaveLength(1);
-    expect(badges[0].props.gem).toBe("blocked");
+    expect(badges[0].props.gem).toBe("inactive");
     expect(badges[0].props.label).toBe("declined");
   });
 
