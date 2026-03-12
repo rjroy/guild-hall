@@ -1,7 +1,7 @@
 ---
 title: "Commission: Sandboxed Execution: Phase 1 Tests (Step 4)"
 date: 2026-03-12
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Sable
@@ -20,6 +20,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-12T13:56:31.915Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-12T13:56:31.917Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---

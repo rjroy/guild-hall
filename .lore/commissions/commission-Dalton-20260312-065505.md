@@ -1,7 +1,7 @@
 ---
 title: "Commission: Sandboxed Execution: Phase 2 Types, Validation, Fixtures (Steps 5-6)"
 date: 2026-03-12
-status: blocked
+status: pending
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -20,6 +20,11 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-12T13:56:31.915Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
 current_progress: ""
 projectName: guild-hall
 ---
