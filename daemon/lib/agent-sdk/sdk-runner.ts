@@ -7,10 +7,12 @@
  */
 
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import micromatch from "micromatch";
 import type {
   ActivationContext,
   ActivationResult,
   AppConfig,
+  CanUseToolRule,
   DiscoveredPackage,
   ResolvedModel,
   ResolvedToolSet,
@@ -65,6 +67,14 @@ export type SdkQueryOptions = {
     };
     enableWeakerNestedSandbox?: boolean;
   };
+  canUseTool?: (
+    toolName: string,
+    input: unknown,
+    options: { signal: AbortSignal },
+  ) => Promise<
+    | { behavior: "allow"; updatedInput: unknown }
+    | { behavior: "deny"; message: string; interrupt?: boolean }
+  >;
 };
 
 export type SessionPrepSpec = {
@@ -251,6 +261,58 @@ export function prefixLocalModelError(error: string, resolvedModel?: ResolvedMod
   return error;
 }
 
+/** Path argument field by tool name (REQ-SBX-12). */
+const TOOL_PATH_FIELD: Record<string, string> = {
+  Edit: "file_path",
+  Read: "file_path",
+  Write: "file_path",
+  Grep: "path",
+  Glob: "path",
+};
+
+/**
+ * Builds a canUseTool callback from worker-declared rules.
+ * Rules are evaluated in declaration order; first match wins.
+ * No match = allow (REQ-SBX-14).
+ */
+function buildCanUseTool(
+  rules: CanUseToolRule[],
+): NonNullable<SdkQueryOptions["canUseTool"]> {
+  return async (toolName, input, _options) => {
+    const toolInput = input as Record<string, unknown>;
+
+    for (const rule of rules) {
+      if (rule.tool !== toolName) continue;
+
+      // Check command condition (Bash only)
+      if (rule.commands !== undefined) {
+        if (toolName !== "Bash" || typeof toolInput.command !== "string") continue;
+        if (!micromatch.isMatch(toolInput.command, rule.commands)) continue;
+      }
+
+      // Check path condition
+      if (rule.paths !== undefined) {
+        const pathField = TOOL_PATH_FIELD[toolName];
+        if (!pathField || typeof toolInput[pathField] !== "string") continue;
+        if (!micromatch.isMatch(toolInput[pathField] as string, rule.paths)) continue;
+      }
+
+      // Rule matches
+      if (rule.allow) {
+        return { behavior: "allow" as const, updatedInput: input };
+      }
+      return {
+        behavior: "deny" as const,
+        message: rule.reason ?? "Tool call denied by worker policy",
+        interrupt: false,
+      };
+    }
+
+    // No rule matched: allow (REQ-SBX-14)
+    return { behavior: "allow" as const, updatedInput: input };
+  };
+}
+
 /** 5-step setup: find worker, resolve tools, load memories, activate, build options. */
 export async function prepareSdkSession(
   spec: SessionPrepSpec,
@@ -408,6 +470,12 @@ export async function prepareSdkSession(
       }
     : undefined;
 
+  // 5e. Build canUseTool callback from worker rules (REQ-SBX-20, REQ-SBX-21)
+  const canUseToolRules = activation.tools.canUseToolRules;
+  const canUseToolCallback = canUseToolRules.length > 0
+    ? buildCanUseTool(canUseToolRules)
+    : undefined;
+
   const mcpServers: Record<string, unknown> = {};
   for (const server of activation.tools.mcpServers) {
     mcpServers[server.name] = server;
@@ -423,6 +491,7 @@ export async function prepareSdkSession(
     ...(finalModelId ? { model: finalModelId } : {}),
     ...(localEnv ? { env: localEnv } : {}),
     ...(sandboxSettings ? { sandbox: sandboxSettings } : {}),
+    ...(canUseToolCallback ? { canUseTool: canUseToolCallback } : {}),
     ...(maxTurns ? { maxTurns } : {}),
     ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
     permissionMode: "dontAsk",

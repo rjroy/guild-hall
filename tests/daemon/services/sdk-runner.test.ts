@@ -1066,6 +1066,7 @@ describe("prepareSdkSession", () => {
           mcpServers: [],
           allowedTools: ["Read", "Bash"],
           builtInTools: ["Read", "Bash"],
+          canUseToolRules: [],
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
@@ -1089,6 +1090,7 @@ describe("prepareSdkSession", () => {
           mcpServers: [],
           allowedTools: ["Bash"],
           builtInTools: ["Bash"],
+          canUseToolRules: [],
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
@@ -1109,6 +1111,7 @@ describe("prepareSdkSession", () => {
           mcpServers: [],
           allowedTools: ["Read", "Glob", "Grep"],
           builtInTools: ["Read", "Glob", "Grep"],
+          canUseToolRules: [],
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
@@ -1130,6 +1133,7 @@ describe("prepareSdkSession", () => {
           mcpServers: [],
           allowedTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "Skill", "Task"],
           builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "Skill", "Task"],
+          canUseToolRules: [],
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
@@ -1149,6 +1153,7 @@ describe("prepareSdkSession", () => {
           mcpServers: [],
           allowedTools: ["Read", "Glob", "Grep"],
           builtInTools: ["Read", "Glob", "Grep"],
+          canUseToolRules: [],
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
