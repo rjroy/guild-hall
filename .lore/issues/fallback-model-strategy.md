@@ -1,7 +1,7 @@
 ---
 title: Fallback strategy when specified model is unavailable or fails
 date: 2026-03-10
-status: requested
+status: declined
 tags: [feature, models, reliability, cost-management, local-models]
 related: [.lore/specs/infrastructure/model-selection.md, .lore/specs/infrastructure/local-model-support.md]
 modules: [sdk-runner, commission-orchestrator, worker-activation]
