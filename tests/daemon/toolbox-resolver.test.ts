@@ -537,6 +537,29 @@ describe("resolveToolSet with manager toolbox", () => {
   });
 });
 
+// -- canUseToolRules passthrough (REQ-SBX-19, REQ-SBX-24) --
+
+describe("canUseToolRules passthrough", () => {
+  test("resolveToolSet returns canUseToolRules: [] when worker has no rules", async () => {
+    const worker = makeWorker({ builtInTools: ["Read", "Glob"] });
+    const result = await resolveToolSet(worker, [], testContext());
+    expect(result.canUseToolRules).toEqual([]);
+  });
+
+  test("resolveToolSet returns canUseToolRules matching worker declaration", async () => {
+    const rules = [
+      { tool: "Bash", commands: ["git status"], allow: true },
+      { tool: "Bash", allow: false, reason: "Only git status" },
+    ];
+    const worker = makeWorker({
+      builtInTools: ["Read", "Bash"],
+      canUseToolRules: rules,
+    });
+    const result = await resolveToolSet(worker, [], testContext());
+    expect(result.canUseToolRules).toEqual(rules);
+  });
+});
+
 // -- Domain toolbox loading --
 
 describe("domain toolbox loading", () => {
