@@ -1,7 +1,7 @@
 ---
 title: "Commission: Sandboxed Execution: Phase 1 Tests (Step 4)"
 date: 2026-03-12
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Sable
@@ -38,6 +38,11 @@ activity_timeline:
     reason: "Manual reset waiting for tokens"
     from: "failed"
     to: "pending"
+  - timestamp: 2026-03-13T03:02:37.443Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
