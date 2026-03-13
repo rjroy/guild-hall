@@ -1,7 +1,7 @@
 ---
 title: "Commission: Test Worker canUseToolRules (Steps 3-4 new tests)"
 date: 2026-03-13
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Sable
@@ -20,6 +20,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-13T05:12:43.968Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-13T05:12:43.969Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
