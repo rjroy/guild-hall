@@ -69,12 +69,12 @@ async function writeCommission(id: string, content: string): Promise<void> {
   await fs.writeFile(filePath, content, "utf-8");
 }
 
-// -- Tests: GET /commissions --
+// -- Tests: GET /commission/request/commission/list --
 
-describe("GET /commissions", () => {
+describe("GET /commission/request/commission/list", () => {
   test("returns 400 when projectName is missing", async () => {
     const app = makeTestApp();
-    const res = await app.request("/commissions");
+    const res = await app.request("/commission/request/commission/list");
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toContain("projectName");
@@ -82,7 +82,7 @@ describe("GET /commissions", () => {
 
   test("returns 404 for unknown project", async () => {
     const app = makeTestApp();
-    const res = await app.request("/commissions?projectName=nonexistent");
+    const res = await app.request("/commission/request/commission/list?projectName=nonexistent");
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain("nonexistent");
@@ -90,7 +90,7 @@ describe("GET /commissions", () => {
 
   test("returns empty array for project with no commissions", async () => {
     const app = makeTestApp();
-    const res = await app.request("/commissions?projectName=test-project");
+    const res = await app.request("/commission/request/commission/list?projectName=test-project");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.commissions).toEqual([]);
@@ -113,7 +113,7 @@ activity_timeline:
     );
 
     const app = makeTestApp();
-    const res = await app.request("/commissions?projectName=test-project");
+    const res = await app.request("/commission/request/commission/list?projectName=test-project");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.commissions).toHaveLength(1);
@@ -158,7 +158,7 @@ activity_timeline:
     );
 
     const app = makeTestApp();
-    const res = await app.request("/commissions?projectName=test-project");
+    const res = await app.request("/commission/request/commission/list?projectName=test-project");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.commissions).toHaveLength(2);
@@ -169,7 +169,7 @@ activity_timeline:
 
   test("response wraps commissions in an object", async () => {
     const app = makeTestApp();
-    const res = await app.request("/commissions?projectName=test-project");
+    const res = await app.request("/commission/request/commission/list?projectName=test-project");
     const body = await res.json();
     expect(body).toHaveProperty("commissions");
     expect(Array.isArray(body.commissions)).toBe(true);
@@ -177,17 +177,17 @@ activity_timeline:
 
   test("content-type is application/json", async () => {
     const app = makeTestApp();
-    const res = await app.request("/commissions?projectName=test-project");
+    const res = await app.request("/commission/request/commission/list?projectName=test-project");
     expect(res.headers.get("content-type")).toContain("application/json");
   });
 });
 
-// -- Tests: GET /commissions/:id --
+// -- Tests: GET /commission/request/commission/read --
 
-describe("GET /commissions/:id", () => {
+describe("GET /commission/request/commission/read", () => {
   test("returns 400 when projectName is missing", async () => {
     const app = makeTestApp();
-    const res = await app.request("/commissions/some-id");
+    const res = await app.request("/commission/request/commission/read?commissionId=some-id");
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toContain("projectName");
@@ -195,7 +195,7 @@ describe("GET /commissions/:id", () => {
 
   test("returns 404 for unknown project", async () => {
     const app = makeTestApp();
-    const res = await app.request("/commissions/some-id?projectName=nonexistent");
+    const res = await app.request("/commission/request/commission/read?commissionId=some-id&projectName=nonexistent");
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain("nonexistent");
@@ -203,7 +203,7 @@ describe("GET /commissions/:id", () => {
 
   test("returns 404 for nonexistent commission", async () => {
     const app = makeTestApp();
-    const res = await app.request("/commissions/does-not-exist?projectName=test-project");
+    const res = await app.request("/commission/request/commission/read?commissionId=does-not-exist&projectName=test-project");
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain("does-not-exist");
@@ -243,7 +243,7 @@ Result summary here.
 
     const app = makeTestApp();
     const res = await app.request(
-      `/commissions/${commissionId}?projectName=test-project`,
+      `/commission/request/commission/read?commissionId=${commissionId}&projectName=test-project`,
     );
     expect(res.status).toBe(200);
     const body = await res.json();

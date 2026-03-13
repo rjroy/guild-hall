@@ -65,12 +65,12 @@ async function writeMeeting(id: string, content: string): Promise<void> {
   await fs.writeFile(filePath, content, "utf-8");
 }
 
-// -- Tests: GET /meetings --
+// -- Tests: GET /meeting/request/meeting/list --
 
-describe("GET /meetings", () => {
+describe("GET /meeting/request/meeting/list", () => {
   test("returns 400 when projectName is missing", async () => {
     const app = makeTestApp();
-    const res = await app.request("/meetings");
+    const res = await app.request("/meeting/request/meeting/list");
     // POST /meetings also returns 400 for missing body, but GET should be
     // distinguished by method. Hono routes match by method.
     expect(res.status).toBe(400);
@@ -80,7 +80,7 @@ describe("GET /meetings", () => {
 
   test("returns 404 for unknown project", async () => {
     const app = makeTestApp();
-    const res = await app.request("/meetings?projectName=nonexistent");
+    const res = await app.request("/meeting/request/meeting/list?projectName=nonexistent");
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain("nonexistent");
@@ -88,7 +88,7 @@ describe("GET /meetings", () => {
 
   test("returns empty array when no meeting requests exist", async () => {
     const app = makeTestApp();
-    const res = await app.request("/meetings?projectName=test-project");
+    const res = await app.request("/meeting/request/meeting/list?projectName=test-project");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.meetings).toEqual([]);
@@ -121,7 +121,7 @@ Some notes here.
     );
 
     const app = makeTestApp();
-    const res = await app.request("/meetings?projectName=test-project");
+    const res = await app.request("/meeting/request/meeting/list?projectName=test-project");
     expect(res.status).toBe(200);
     const body = await res.json();
     // Only "requested" meetings are returned
@@ -136,7 +136,7 @@ Some notes here.
 
   test("response wraps meetings in an object", async () => {
     const app = makeTestApp();
-    const res = await app.request("/meetings?projectName=test-project");
+    const res = await app.request("/meeting/request/meeting/list?projectName=test-project");
     const body = await res.json();
     expect(body).toHaveProperty("meetings");
     expect(Array.isArray(body.meetings)).toBe(true);
@@ -144,17 +144,17 @@ Some notes here.
 
   test("content-type is application/json", async () => {
     const app = makeTestApp();
-    const res = await app.request("/meetings?projectName=test-project");
+    const res = await app.request("/meeting/request/meeting/list?projectName=test-project");
     expect(res.headers.get("content-type")).toContain("application/json");
   });
 });
 
-// -- Tests: GET /meetings/:id --
+// -- Tests: GET /meeting/request/meeting/read --
 
-describe("GET /meetings/:meetingId", () => {
+describe("GET /meeting/request/meeting/read", () => {
   test("returns 400 when projectName is missing", async () => {
     const app = makeTestApp();
-    const res = await app.request("/meetings/some-id");
+    const res = await app.request("/meeting/request/meeting/read?meetingId=some-id");
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toContain("projectName");
@@ -162,7 +162,7 @@ describe("GET /meetings/:meetingId", () => {
 
   test("returns 404 for unknown project", async () => {
     const app = makeTestApp();
-    const res = await app.request("/meetings/some-id?projectName=nonexistent");
+    const res = await app.request("/meeting/request/meeting/read?meetingId=some-id&projectName=nonexistent");
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain("nonexistent");
@@ -170,7 +170,7 @@ describe("GET /meetings/:meetingId", () => {
 
   test("returns 404 for nonexistent meeting", async () => {
     const app = makeTestApp();
-    const res = await app.request("/meetings/does-not-exist?projectName=test-project");
+    const res = await app.request("/meeting/request/meeting/read?meetingId=does-not-exist&projectName=test-project");
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain("does-not-exist");
@@ -197,7 +197,7 @@ Meeting notes content here.
 
     const app = makeTestApp();
     const res = await app.request(
-      `/meetings/${meetingId}?projectName=test-project`,
+      `/meeting/request/meeting/read?meetingId=${meetingId}&projectName=test-project`,
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -237,7 +237,7 @@ date: 2026-03-13
 
     const app = makeTestApp();
     const res = await app.request(
-      `/meetings/${meetingId}?projectName=test-project`,
+      `/meeting/request/meeting/read?meetingId=${meetingId}&projectName=test-project`,
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -260,7 +260,7 @@ date: 2026-03-13
 
     const app = makeTestApp();
     const res = await app.request(
-      `/meetings/${meetingId}?projectName=test-project`,
+      `/meeting/request/meeting/read?meetingId=${meetingId}&projectName=test-project`,
     );
     expect(res.status).toBe(200);
     const body = await res.json();

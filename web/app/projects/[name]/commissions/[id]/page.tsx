@@ -72,11 +72,11 @@ export default async function CommissionPage({
   // Fetch commission detail, workers, config, graph, and all commissions in parallel
   const [detailResult, workersResult, configResult, graphResult, allCommissionsResult] =
     await Promise.all([
-      fetchDaemon<CommissionDetail>(`/commissions/${encodeURIComponent(id)}?projectName=${encoded}`),
-      fetchDaemon<{ workers: WorkerInfo[] }>("/workers"),
-      fetchDaemon<AppConfig>("/config"),
-      fetchDaemon<DependencyGraph>(`/projects/${encoded}/dependency-graph`),
-      fetchDaemon<{ commissions: CommissionMeta[] }>(`/commissions?projectName=${encoded}`),
+      fetchDaemon<CommissionDetail>(`/commission/request/commission/read?commissionId=${encodeURIComponent(id)}&projectName=${encoded}`),
+      fetchDaemon<{ workers: WorkerInfo[] }>("/system/packages/worker/list"),
+      fetchDaemon<AppConfig>("/system/config/application/read"),
+      fetchDaemon<DependencyGraph>(`/commission/dependency/project/graph?projectName=${encoded}`),
+      fetchDaemon<{ commissions: CommissionMeta[] }>(`/commission/request/commission/list?projectName=${encoded}`),
     ]);
 
   if (!detailResult.ok) {

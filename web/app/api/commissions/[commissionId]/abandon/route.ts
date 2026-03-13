@@ -14,11 +14,13 @@ export async function POST(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  const { reason } = body as { reason?: string };
+
   const result = await daemonFetch(
-    `/commissions/${commissionId}/abandon`,
+    "/commission/run/abandon",
     {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify({ commissionId, reason }),
     },
   );
 

@@ -58,9 +58,9 @@ export default async function MeetingPage({
   // Fetch meeting detail and workers in parallel
   const [detailResult, workersResult] = await Promise.all([
     fetchDaemon<MeetingDetail>(
-      `/meetings/${encodeURIComponent(id)}?projectName=${encoded}`,
+      `/meeting/request/meeting/read?meetingId=${encodeURIComponent(id)}&projectName=${encoded}`,
     ),
-    fetchDaemon<{ workers: WorkerInfo[] }>("/workers"),
+    fetchDaemon<{ workers: WorkerInfo[] }>("/system/packages/worker/list"),
   ]);
 
   if (!detailResult.ok) {

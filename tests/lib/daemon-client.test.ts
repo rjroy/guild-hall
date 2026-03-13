@@ -210,7 +210,7 @@ describe("daemonFetch", () => {
 describe("daemonHealth", () => {
   test("returns health data from running daemon", async () => {
     const app = new Hono();
-    app.get("/health", (c) =>
+    app.get("/system/runtime/daemon/health", (c) =>
       c.json({ status: "ok", meetings: 2, uptime: 300 }),
     );
 

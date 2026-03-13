@@ -12,11 +12,11 @@ function makeTestApp(config: AppConfig) {
   });
 }
 
-describe("GET /models", () => {
+describe("GET /system/models/catalog/list", () => {
   test("returns built-in models", async () => {
     const app = makeTestApp({ projects: [] });
 
-    const res = await app.request("/models");
+    const res = await app.request("/system/models/catalog/list");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -30,7 +30,7 @@ describe("GET /models", () => {
   test("returns empty local array when no local models configured", async () => {
     const app = makeTestApp({ projects: [] });
 
-    const res = await app.request("/models");
+    const res = await app.request("/system/models/catalog/list");
 
     const body = await res.json();
     expect(body.local).toEqual([]);
@@ -49,7 +49,7 @@ describe("GET /models", () => {
     };
     const app = makeTestApp(config);
 
-    const res = await app.request("/models");
+    const res = await app.request("/system/models/catalog/list");
 
     const body = await res.json();
     expect(body.local).toHaveLength(1);
@@ -63,7 +63,7 @@ describe("GET /models", () => {
   test("returns application/json content type", async () => {
     const app = makeTestApp({ projects: [] });
 
-    const res = await app.request("/models");
+    const res = await app.request("/system/models/catalog/list");
 
     expect(res.headers.get("content-type")).toContain("application/json");
   });
@@ -76,7 +76,7 @@ describe("GET /models", () => {
       },
     });
 
-    const res = await app.request("/models");
+    const res = await app.request("/system/models/catalog/list");
     expect(res.status).toBe(404);
   });
 });

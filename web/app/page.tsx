@@ -23,7 +23,7 @@ export default async function DashboardPage({
 }) {
   const { project: selectedProject } = await searchParams;
 
-  const configResult = await fetchDaemon<AppConfig>("/config");
+  const configResult = await fetchDaemon<AppConfig>("/system/config/application/read");
   if (!configResult.ok) {
     return <DaemonError message={configResult.error} />;
   }
@@ -33,7 +33,7 @@ export default async function DashboardPage({
   let artifacts: Artifact[] = [];
   if (selectedProject) {
     const artResult = await fetchDaemon<{ artifacts: Artifact[] }>(
-      `/artifacts?projectName=${encodeURIComponent(selectedProject)}&recent=true&limit=10`,
+      `/workspace/artifact/document/list?projectName=${encodeURIComponent(selectedProject)}&recent=true&limit=10`,
     );
     if (artResult.ok) {
       artifacts = artResult.data.artifacts;
@@ -45,18 +45,18 @@ export default async function DashboardPage({
     Promise.all(
       config.projects.map((p) =>
         fetchDaemon<{ commissions: CommissionMeta[] }>(
-          `/commissions?projectName=${encodeURIComponent(p.name)}`,
+          `/commission/request/commission/list?projectName=${encodeURIComponent(p.name)}`,
         ),
       ),
     ),
     Promise.all(
       config.projects.map((p) =>
         fetchDaemon<{ meetings: MeetingMeta[] }>(
-          `/meetings?projectName=${encodeURIComponent(p.name)}`,
+          `/meeting/request/meeting/list?projectName=${encodeURIComponent(p.name)}`,
         ),
       ),
     ),
-    fetchDaemon<{ workers: WorkerInfo[] }>("/workers"),
+    fetchDaemon<{ workers: WorkerInfo[] }>("/system/packages/worker/list"),
   ]);
 
   const allCommissions: CommissionMeta[] = commissionResults

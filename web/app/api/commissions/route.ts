@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const result = await daemonFetch("/commissions", {
+  const result = await daemonFetch("/commission/request/commission/create", {
     method: "POST",
     body: JSON.stringify(body),
   });

@@ -45,12 +45,12 @@ function makeTestApp(config?: AppConfig) {
   });
 }
 
-// -- Tests: GET /config --
+// -- Tests: GET /system/config/application/read --
 
-describe("GET /config", () => {
+describe("GET /system/config/application/read", () => {
   test("returns the full application config", async () => {
     const app = makeTestApp();
-    const res = await app.request("/config");
+    const res = await app.request("/system/config/application/read");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.projects).toHaveLength(2);
@@ -62,13 +62,13 @@ describe("GET /config", () => {
 
   test("content-type is application/json", async () => {
     const app = makeTestApp();
-    const res = await app.request("/config");
+    const res = await app.request("/system/config/application/read");
     expect(res.headers.get("content-type")).toContain("application/json");
   });
 
   test("returns empty projects array for minimal config", async () => {
     const app = makeTestApp({ projects: [] });
-    const res = await app.request("/config");
+    const res = await app.request("/system/config/application/read");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.projects).toEqual([]);
@@ -82,7 +82,7 @@ describe("GET /config", () => {
       ],
     };
     const app = makeTestApp(config);
-    const res = await app.request("/config");
+    const res = await app.request("/system/config/application/read");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.models).toHaveLength(1);
@@ -90,12 +90,12 @@ describe("GET /config", () => {
   });
 });
 
-// -- Tests: GET /config/projects/:name --
+// -- Tests: GET /system/config/project/read --
 
-describe("GET /config/projects/:name", () => {
+describe("GET /system/config/project/read", () => {
   test("returns project config for a known project", async () => {
     const app = makeTestApp();
-    const res = await app.request("/config/projects/project-alpha");
+    const res = await app.request("/system/config/project/read?name=project-alpha");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.name).toBe("project-alpha");
@@ -105,7 +105,7 @@ describe("GET /config/projects/:name", () => {
 
   test("returns 404 for unknown project", async () => {
     const app = makeTestApp();
-    const res = await app.request("/config/projects/nonexistent");
+    const res = await app.request("/system/config/project/read?name=nonexistent");
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain("nonexistent");
@@ -113,7 +113,7 @@ describe("GET /config/projects/:name", () => {
 
   test("returns project with optional fields", async () => {
     const app = makeTestApp();
-    const res = await app.request("/config/projects/project-beta");
+    const res = await app.request("/system/config/project/read?name=project-beta");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.name).toBe("project-beta");
@@ -121,12 +121,12 @@ describe("GET /config/projects/:name", () => {
   });
 });
 
-// -- Tests: GET /projects/:name/dependency-graph --
+// -- Tests: GET /commission/dependency/project/graph --
 
-describe("GET /projects/:name/dependency-graph", () => {
+describe("GET /commission/dependency/project/graph", () => {
   test("returns 404 for unknown project", async () => {
     const app = makeTestApp();
-    const res = await app.request("/projects/nonexistent/dependency-graph");
+    const res = await app.request("/commission/dependency/project/graph?projectName=nonexistent");
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain("nonexistent");
@@ -138,7 +138,7 @@ describe("GET /projects/:name/dependency-graph", () => {
     await fs.mkdir(path.join(projectDir, ".lore", "commissions"), { recursive: true });
 
     const app = makeTestApp();
-    const res = await app.request("/projects/project-alpha/dependency-graph");
+    const res = await app.request("/commission/dependency/project/graph?projectName=project-alpha");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.nodes).toEqual([]);
@@ -180,7 +180,7 @@ dependencies:
     );
 
     const app = makeTestApp();
-    const res = await app.request("/projects/project-alpha/dependency-graph");
+    const res = await app.request("/commission/dependency/project/graph?projectName=project-alpha");
     expect(res.status).toBe(200);
     const body = await res.json();
 
@@ -213,7 +213,7 @@ date: 2026-03-13
     );
 
     const app = makeTestApp();
-    const res = await app.request("/projects/project-alpha/dependency-graph");
+    const res = await app.request("/commission/dependency/project/graph?projectName=project-alpha");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.nodes).toHaveLength(1);

@@ -8,8 +8,8 @@ export async function POST(
   const { commissionId } = await params;
 
   const result = await daemonFetch(
-    `/commissions/${commissionId}/dispatch`,
-    { method: "POST" },
+    "/commission/run/dispatch",
+    { method: "POST", body: JSON.stringify({ commissionId }) },
   );
 
   if (isDaemonError(result)) {

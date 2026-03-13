@@ -365,7 +365,7 @@ async function postCreateCommission(
     prompt: "Do integration test work",
   },
 ): Promise<Response> {
-  return app.request("/commissions", {
+  return app.request("/commission/request/commission/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -376,8 +376,10 @@ async function postDispatch(
   app: ReturnType<typeof createApp>,
   commissionId: string,
 ): Promise<Response> {
-  return app.request(`/commissions/${commissionId}/dispatch`, {
+  return app.request("/commission/run/dispatch", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ commissionId }),
   });
 }
 
@@ -385,15 +387,17 @@ async function _deleteCommission(
   app: ReturnType<typeof createApp>,
   commissionId: string,
 ): Promise<Response> {
-  return app.request(`/commissions/${commissionId}`, {
-    method: "DELETE",
+  return app.request("/commission/run/cancel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ commissionId }),
   });
 }
 
 // -- Tests --
 
 describe("commission lifecycle integration", () => {
-  test("POST /commissions creates artifact and returns 201", async () => {
+  test("POST /commission/request/commission/create creates artifact and returns 201", async () => {
     const { app } = makeFullApp();
 
     const res = await postCreateCommission(app);
@@ -415,7 +419,7 @@ describe("commission lifecycle integration", () => {
     expect(raw).toContain("worker: Test Worker");
   });
 
-  test("POST /commissions returns 400 for missing fields", async () => {
+  test("POST /commission/request/commission/create returns 400 for missing fields", async () => {
     const { app } = makeFullApp();
 
     const res = await postCreateCommission(app, {
@@ -504,7 +508,7 @@ describe("commission lifecycle integration", () => {
     });
 
     // Before any commissions
-    let healthRes = await app.request("/health");
+    let healthRes = await app.request("/system/runtime/daemon/health");
     let healthBody = await healthRes.json() as { commissions: { running: number } };
     expect(healthBody.commissions.running).toBe(0);
 
@@ -518,7 +522,7 @@ describe("commission lifecycle integration", () => {
     await new Promise((r) => setTimeout(r, 50));
 
     // During execution, count should be 1
-    healthRes = await app.request("/health");
+    healthRes = await app.request("/system/runtime/daemon/health");
     healthBody = await healthRes.json() as { commissions: { running: number } };
     expect(healthBody.commissions.running).toBe(1);
 
@@ -527,7 +531,7 @@ describe("commission lifecycle integration", () => {
     await new Promise((r) => setTimeout(r, 200));
 
     // After completion, count should be back to 0
-    healthRes = await app.request("/health");
+    healthRes = await app.request("/system/runtime/daemon/health");
     healthBody = await healthRes.json() as { commissions: { running: number } };
     expect(healthBody.commissions.running).toBe(0);
   });
@@ -536,7 +540,7 @@ describe("commission lifecycle integration", () => {
     const { app, queryState } = makeFullApp();
 
     // Subscribe to SSE before creating the commission
-    const ssePromise = app.request("/events");
+    const ssePromise = app.request("/system/events/stream/subscribe");
 
     // Give the SSE stream a moment to set up
     await new Promise((r) => setTimeout(r, 20));
@@ -653,7 +657,7 @@ describe("commission lifecycle integration", () => {
   });
 
 
-  test("POST /commissions returns 500 for unknown project", async () => {
+  test("POST /commission/request/commission/create returns 500 for unknown project", async () => {
     const { app } = makeFullApp();
 
     const res = await postCreateCommission(app, {
@@ -668,7 +672,7 @@ describe("commission lifecycle integration", () => {
     expect(body.error).toContain("not found");
   });
 
-  test("POST /commissions returns 500 for unknown worker", async () => {
+  test("POST /commission/request/commission/create returns 500 for unknown worker", async () => {
     const { app } = makeFullApp();
 
     const res = await postCreateCommission(app, {

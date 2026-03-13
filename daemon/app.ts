@@ -14,6 +14,7 @@ import { createModelsRoutes } from "./routes/models";
 import { createAdminRoutes, type AdminDeps } from "./routes/admin";
 import { createArtifactRoutes, type ArtifactDeps } from "./routes/artifacts";
 import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
+import { createHelpRoutes } from "./routes/help";
 import type { AppConfig, DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
@@ -46,6 +47,7 @@ export function createApp(deps: AppDeps): Hono {
   const app = new Hono();
 
   app.route("/", createHealthRoutes(deps.health));
+  app.route("/", createHelpRoutes());
 
   if (deps.meetingSession) {
     app.route("/", createMeetingRoutes({

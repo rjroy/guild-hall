@@ -98,11 +98,11 @@ async function parseSSEResponse(res: Response): Promise<GuildHallEvent[]> {
 
 // -- Tests --
 
-describe("POST /meetings", () => {
+describe("POST /meeting/request/meeting/create", () => {
   test("returns SSE stream with session event first", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -127,7 +127,7 @@ describe("POST /meetings", () => {
   test("SSE events are properly formatted", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -155,7 +155,7 @@ describe("POST /meetings", () => {
   test("streams text_delta and turn_end events after session", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -176,7 +176,7 @@ describe("POST /meetings", () => {
   test("returns 400 when projectName is missing", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -193,7 +193,7 @@ describe("POST /meetings", () => {
   test("returns 400 when workerName is missing", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -210,7 +210,7 @@ describe("POST /meetings", () => {
   test("returns 400 when prompt is missing", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -227,7 +227,7 @@ describe("POST /meetings", () => {
   test("returns 400 for invalid JSON body", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
@@ -246,7 +246,7 @@ describe("POST /meetings", () => {
       },
     });
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -270,7 +270,7 @@ describe("POST /meetings", () => {
   test("content-type includes text/event-stream", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -284,14 +284,14 @@ describe("POST /meetings", () => {
   });
 });
 
-describe("POST /meetings/:meetingId/messages", () => {
+describe("POST /meeting/session/message/send", () => {
   test("returns SSE stream with response events", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/test-meeting-001/messages", {
+    const res = await app.request("/meeting/session/message/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Follow up question" }),
+      body: JSON.stringify({ meetingId: "test-meeting-001", message: "Follow up question" }),
     });
 
     expect(res.status).toBe(200);
@@ -308,10 +308,10 @@ describe("POST /meetings/:meetingId/messages", () => {
   test("returns 400 when message is missing", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/test-meeting-001/messages", {
+    const res = await app.request("/meeting/session/message/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ meetingId: "test-meeting-001" }),
     });
 
     expect(res.status).toBe(400);
@@ -322,7 +322,7 @@ describe("POST /meetings/:meetingId/messages", () => {
   test("returns 400 for invalid JSON body", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/test-meeting-001/messages", {
+    const res = await app.request("/meeting/session/message/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
@@ -344,10 +344,10 @@ describe("POST /meetings/:meetingId/messages", () => {
       },
     });
 
-    await app.request("/meetings/my-meeting-id/messages", {
+    await app.request("/meeting/session/message/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "What about X?" }),
+      body: JSON.stringify({ meetingId: "my-meeting-id", message: "What about X?" }),
     });
 
     expect(receivedCalls).toHaveLength(1);
@@ -356,12 +356,14 @@ describe("POST /meetings/:meetingId/messages", () => {
   });
 });
 
-describe("DELETE /meetings/:meetingId", () => {
+describe("POST /meeting/session/meeting/close", () => {
   test("returns 200 with status ok and notes", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/test-meeting-001", {
-      method: "DELETE",
+    const res = await app.request("/meeting/session/meeting/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId: "test-meeting-001" }),
     });
 
     expect(res.status).toBe(200);
@@ -377,8 +379,10 @@ describe("DELETE /meetings/:meetingId", () => {
       },
     });
 
-    const res = await app.request("/meetings/unknown-id", {
-      method: "DELETE",
+    const res = await app.request("/meeting/session/meeting/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId: "unknown-id" }),
     });
 
     expect(res.status).toBe(404);
@@ -393,8 +397,10 @@ describe("DELETE /meetings/:meetingId", () => {
       },
     });
 
-    const res = await app.request("/meetings/test-meeting-001", {
-      method: "DELETE",
+    const res = await app.request("/meeting/session/meeting/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId: "test-meeting-001" }),
     });
 
     expect(res.status).toBe(500);
@@ -412,20 +418,24 @@ describe("DELETE /meetings/:meetingId", () => {
       },
     });
 
-    await app.request("/meetings/specific-meeting-42", {
-      method: "DELETE",
+    await app.request("/meeting/session/meeting/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId: "specific-meeting-42" }),
     });
 
     expect(closedIds).toEqual(["specific-meeting-42"]);
   });
 });
 
-describe("POST /meetings/:meetingId/interrupt", () => {
+describe("POST /meeting/session/generation/interrupt", () => {
   test("returns 200 with status ok", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/test-meeting-001/interrupt", {
+    const res = await app.request("/meeting/session/generation/interrupt", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId: "test-meeting-001" }),
     });
 
     expect(res.status).toBe(200);
@@ -440,8 +450,10 @@ describe("POST /meetings/:meetingId/interrupt", () => {
       },
     });
 
-    const res = await app.request("/meetings/unknown-id/interrupt", {
+    const res = await app.request("/meeting/session/generation/interrupt", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId: "unknown-id" }),
     });
 
     expect(res.status).toBe(404);
@@ -456,8 +468,10 @@ describe("POST /meetings/:meetingId/interrupt", () => {
       },
     });
 
-    const res = await app.request("/meetings/test-meeting-001/interrupt", {
+    const res = await app.request("/meeting/session/generation/interrupt", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId: "test-meeting-001" }),
     });
 
     expect(res.status).toBe(500);
@@ -474,22 +488,24 @@ describe("POST /meetings/:meetingId/interrupt", () => {
       },
     });
 
-    await app.request("/meetings/my-meeting-99/interrupt", {
+    await app.request("/meeting/session/generation/interrupt", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId: "my-meeting-99" }),
     });
 
     expect(interruptedIds).toEqual(["my-meeting-99"]);
   });
 });
 
-describe("POST /meetings/:meetingId/accept", () => {
+describe("POST /meeting/request/meeting/accept", () => {
   test("returns SSE stream with events", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/request-meeting-001/accept", {
+    const res = await app.request("/meeting/request/meeting/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectName: "test-project" }),
+      body: JSON.stringify({ meetingId: "request-meeting-001", projectName: "test-project" }),
     });
 
     expect(res.status).toBe(200);
@@ -508,10 +524,10 @@ describe("POST /meetings/:meetingId/accept", () => {
   test("returns 400 when projectName is missing", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/request-meeting-001/accept", {
+    const res = await app.request("/meeting/request/meeting/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ meetingId: "request-meeting-001" }),
     });
 
     expect(res.status).toBe(400);
@@ -522,7 +538,7 @@ describe("POST /meetings/:meetingId/accept", () => {
   test("returns 400 for invalid JSON body", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/request-meeting-001/accept", {
+    const res = await app.request("/meeting/request/meeting/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
@@ -556,10 +572,11 @@ describe("POST /meetings/:meetingId/accept", () => {
       },
     });
 
-    await app.request("/meetings/my-request-42/accept", {
+    await app.request("/meeting/request/meeting/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        meetingId: "my-request-42",
         projectName: "my-project",
         message: "Focus on the auth module",
       }),
@@ -572,14 +589,14 @@ describe("POST /meetings/:meetingId/accept", () => {
   });
 });
 
-describe("POST /meetings/:meetingId/decline", () => {
+describe("POST /meeting/request/meeting/decline", () => {
   test("returns 200 with status ok", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/request-meeting-001/decline", {
+    const res = await app.request("/meeting/request/meeting/decline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectName: "test-project" }),
+      body: JSON.stringify({ meetingId: "request-meeting-001", projectName: "test-project" }),
     });
 
     expect(res.status).toBe(200);
@@ -590,10 +607,10 @@ describe("POST /meetings/:meetingId/decline", () => {
   test("returns 400 when projectName is missing", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/request-meeting-001/decline", {
+    const res = await app.request("/meeting/request/meeting/decline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ meetingId: "request-meeting-001" }),
     });
 
     expect(res.status).toBe(400);
@@ -604,7 +621,7 @@ describe("POST /meetings/:meetingId/decline", () => {
   test("returns 400 for invalid JSON body", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/request-meeting-001/decline", {
+    const res = await app.request("/meeting/request/meeting/decline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
@@ -622,10 +639,10 @@ describe("POST /meetings/:meetingId/decline", () => {
       },
     });
 
-    const res = await app.request("/meetings/request-meeting-001/decline", {
+    const res = await app.request("/meeting/request/meeting/decline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectName: "unknown" }),
+      body: JSON.stringify({ meetingId: "request-meeting-001", projectName: "unknown" }),
     });
 
     expect(res.status).toBe(404);
@@ -640,10 +657,10 @@ describe("POST /meetings/:meetingId/decline", () => {
       },
     });
 
-    const res = await app.request("/meetings/request-meeting-001/decline", {
+    const res = await app.request("/meeting/request/meeting/decline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectName: "test-project" }),
+      body: JSON.stringify({ meetingId: "request-meeting-001", projectName: "test-project" }),
     });
 
     expect(res.status).toBe(500);
@@ -661,10 +678,10 @@ describe("POST /meetings/:meetingId/decline", () => {
       },
     });
 
-    await app.request("/meetings/my-request-77/decline", {
+    await app.request("/meeting/request/meeting/decline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectName: "my-project" }),
+      body: JSON.stringify({ meetingId: "my-request-77", projectName: "my-project" }),
     });
 
     expect(receivedCalls).toHaveLength(1);
@@ -673,14 +690,15 @@ describe("POST /meetings/:meetingId/decline", () => {
   });
 });
 
-describe("POST /meetings/:meetingId/defer", () => {
+describe("POST /meeting/request/meeting/defer", () => {
   test("returns 200 with status ok", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/request-meeting-001/defer", {
+    const res = await app.request("/meeting/request/meeting/defer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        meetingId: "request-meeting-001",
         projectName: "test-project",
         deferredUntil: "2026-03-15",
       }),
@@ -694,10 +712,10 @@ describe("POST /meetings/:meetingId/defer", () => {
   test("returns 400 when projectName is missing", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/request-meeting-001/defer", {
+    const res = await app.request("/meeting/request/meeting/defer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deferredUntil: "2026-03-15" }),
+      body: JSON.stringify({ meetingId: "request-meeting-001", deferredUntil: "2026-03-15" }),
     });
 
     expect(res.status).toBe(400);
@@ -708,10 +726,10 @@ describe("POST /meetings/:meetingId/defer", () => {
   test("returns 400 when deferredUntil is missing", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/request-meeting-001/defer", {
+    const res = await app.request("/meeting/request/meeting/defer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectName: "test-project" }),
+      body: JSON.stringify({ meetingId: "request-meeting-001", projectName: "test-project" }),
     });
 
     expect(res.status).toBe(400);
@@ -722,7 +740,7 @@ describe("POST /meetings/:meetingId/defer", () => {
   test("returns 400 for invalid JSON body", async () => {
     const app = makeTestApp();
 
-    const res = await app.request("/meetings/request-meeting-001/defer", {
+    const res = await app.request("/meeting/request/meeting/defer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
@@ -740,10 +758,11 @@ describe("POST /meetings/:meetingId/defer", () => {
       },
     });
 
-    const res = await app.request("/meetings/request-meeting-001/defer", {
+    const res = await app.request("/meeting/request/meeting/defer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        meetingId: "request-meeting-001",
         projectName: "unknown",
         deferredUntil: "2026-03-15",
       }),
@@ -761,10 +780,11 @@ describe("POST /meetings/:meetingId/defer", () => {
       },
     });
 
-    const res = await app.request("/meetings/request-meeting-001/defer", {
+    const res = await app.request("/meeting/request/meeting/defer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        meetingId: "request-meeting-001",
         projectName: "test-project",
         deferredUntil: "2026-03-15",
       }),
@@ -797,10 +817,11 @@ describe("POST /meetings/:meetingId/defer", () => {
       },
     });
 
-    await app.request("/meetings/my-request-88/defer", {
+    await app.request("/meeting/request/meeting/defer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        meetingId: "my-request-88",
         projectName: "my-project",
         deferredUntil: "2026-04-01",
       }),

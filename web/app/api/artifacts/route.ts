@@ -28,7 +28,7 @@ export async function PUT(request: NextRequest) {
   // Proxy to the daemon's POST /artifacts endpoint, which owns the
   // write + git commit + dependency check sequence.
   const result = await daemonFetch(
-    `/artifacts?projectName=${encodeURIComponent(projectName)}`,
+    `/workspace/artifact/document/write?projectName=${encodeURIComponent(projectName)}`,
     {
       method: "POST",
       body: JSON.stringify({ artifactPath, content }),

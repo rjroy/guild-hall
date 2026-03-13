@@ -42,16 +42,16 @@ function resolveProjectLorePath(
  * Creates artifact routes for the daemon REST API.
  *
  * Routes:
- * - GET /artifacts?projectName=X           List artifacts for a project
- * - GET /artifacts?projectName=X&recent=true&limit=N   Recent artifacts
- * - GET /artifacts/:path?projectName=X     Read single artifact
- * - POST /artifacts?projectName=X          Write artifact content
+ * - GET  /workspace/artifact/document/list?projectName=X           List artifacts
+ * - GET  /workspace/artifact/document/list?projectName=X&recent=true&limit=N  Recent
+ * - GET  /workspace/artifact/document/read?projectName=X&path=...  Read single artifact
+ * - POST /workspace/artifact/document/write?projectName=X          Write artifact content
  */
 export function createArtifactRoutes(deps: ArtifactDeps): Hono {
   const routes = new Hono();
 
-  // GET /artifacts - list or recent artifacts
-  routes.get("/artifacts", async (c) => {
+  // GET /workspace/artifact/document/list - list or recent artifacts
+  routes.get("/workspace/artifact/document/list", async (c) => {
     const projectName = c.req.query("projectName");
     if (!projectName) {
       return c.json({ error: "Missing required query parameter: projectName" }, 400);
@@ -82,11 +82,11 @@ export function createArtifactRoutes(deps: ArtifactDeps): Hono {
     }
   });
 
-  // GET /artifacts/:path - read single artifact
+  // GET /workspace/artifact/document/read - read single artifact
   // Active meetings and commissions live in activity worktrees, not the
   // integration worktree. Resolve the correct base path based on the
   // artifact's prefix and daemon state files.
-  routes.get("/artifacts/:path{.+}", async (c) => {
+  routes.get("/workspace/artifact/document/read", async (c) => {
     const projectName = c.req.query("projectName");
     if (!projectName) {
       return c.json({ error: "Missing required query parameter: projectName" }, 400);
@@ -97,7 +97,10 @@ export function createArtifactRoutes(deps: ArtifactDeps): Hono {
       return c.json({ error: `Project not found: ${projectName}` }, 404);
     }
 
-    const artifactPath = c.req.param("path");
+    const artifactPath = c.req.query("path");
+    if (!artifactPath) {
+      return c.json({ error: "Missing required query parameter: path" }, 400);
+    }
 
     try {
       let basePath: string;
@@ -127,8 +130,8 @@ export function createArtifactRoutes(deps: ArtifactDeps): Hono {
     }
   });
 
-  // POST /artifacts - write artifact content
-  routes.post("/artifacts", async (c) => {
+  // POST /workspace/artifact/document/write - write artifact content
+  routes.post("/workspace/artifact/document/write", async (c) => {
     const projectName = c.req.query("projectName");
     if (!projectName) {
       return c.json({ error: "Missing required query parameter: projectName" }, 400);

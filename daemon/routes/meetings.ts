@@ -55,19 +55,21 @@ export interface MeetingRoutesDeps {
 /**
  * Creates meeting management routes.
  *
- * POST /meetings                - Create meeting, stream first turn via SSE
- * POST /meetings/:id/messages   - Send follow-up, stream response via SSE
- * DELETE /meetings/:id          - Close meeting
- * POST /meetings/:id/interrupt  - Stop current generation
- * POST /meetings/:id/accept     - Accept meeting request, stream first turn via SSE
- * POST /meetings/:id/decline    - Decline a meeting request
- * POST /meetings/:id/defer      - Defer a meeting request
+ * POST /meeting/request/meeting/create      - Create meeting, stream first turn via SSE
+ * POST /meeting/session/message/send        - Send follow-up, stream response via SSE
+ * POST /meeting/session/meeting/close       - Close an active meeting
+ * POST /meeting/session/generation/interrupt - Stop current generation
+ * POST /meeting/request/meeting/accept      - Accept meeting request, stream first turn
+ * POST /meeting/request/meeting/decline     - Decline a meeting request
+ * POST /meeting/request/meeting/defer       - Defer a meeting request
+ * GET  /meeting/request/meeting/list        - List meeting requests for a project
+ * GET  /meeting/request/meeting/read        - Read meeting detail
  */
 export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
   const routes = new Hono();
 
-  // POST /meetings - Create meeting and stream first turn
-  routes.post("/meetings", async (c) => {
+  // POST /meeting/request/meeting/create - Create meeting and stream first turn
+  routes.post("/meeting/request/meeting/create", async (c) => {
     let body: { projectName?: string; workerName?: string; prompt?: string };
     try {
       body = await c.req.json();
@@ -103,16 +105,19 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     });
   });
 
-  // POST /meetings/:meetingId/messages - Send follow-up message
-  routes.post("/meetings/:meetingId/messages", async (c) => {
-    const meetingId = asMeetingId(c.req.param("meetingId"));
-
-    let body: { message?: string };
+  // POST /meeting/session/message/send - Send follow-up message
+  routes.post("/meeting/session/message/send", async (c) => {
+    let body: { meetingId?: string; message?: string };
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
+
+    if (!body.meetingId) {
+      return c.json({ error: "Missing required field: meetingId" }, 400);
+    }
+    const meetingId = asMeetingId(body.meetingId);
 
     const { message } = body;
 
@@ -135,9 +140,19 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     });
   });
 
-  // DELETE /meetings/:meetingId - Close meeting
-  routes.delete("/meetings/:meetingId", async (c) => {
-    const meetingId = asMeetingId(c.req.param("meetingId"));
+  // POST /meeting/session/meeting/close - Close meeting
+  routes.post("/meeting/session/meeting/close", async (c) => {
+    let body: { meetingId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.meetingId) {
+      return c.json({ error: "Missing required field: meetingId" }, 400);
+    }
+    const meetingId = asMeetingId(body.meetingId);
     try {
       const { notes } = await deps.meetingSession.closeMeeting(meetingId);
       return c.json({ status: "ok", notes });
@@ -151,9 +166,19 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     }
   });
 
-  // POST /meetings/:meetingId/interrupt - Stop current generation
-  routes.post("/meetings/:meetingId/interrupt", (c) => {
-    const meetingId = asMeetingId(c.req.param("meetingId"));
+  // POST /meeting/session/generation/interrupt - Stop current generation
+  routes.post("/meeting/session/generation/interrupt", async (c) => {
+    let body: { meetingId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.meetingId) {
+      return c.json({ error: "Missing required field: meetingId" }, 400);
+    }
+    const meetingId = asMeetingId(body.meetingId);
     try {
       deps.meetingSession.interruptTurn(meetingId);
       return c.json({ status: "ok" });
@@ -166,16 +191,19 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     }
   });
 
-  // POST /meetings/:meetingId/accept - Accept a meeting request, stream first turn
-  routes.post("/meetings/:meetingId/accept", async (c) => {
-    const meetingId = asMeetingId(c.req.param("meetingId"));
-
-    let body: { projectName?: string; message?: string };
+  // POST /meeting/request/meeting/accept - Accept a meeting request, stream first turn
+  routes.post("/meeting/request/meeting/accept", async (c) => {
+    let body: { meetingId?: string; projectName?: string; message?: string };
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
+
+    if (!body.meetingId) {
+      return c.json({ error: "Missing required field: meetingId" }, 400);
+    }
+    const meetingId = asMeetingId(body.meetingId);
 
     const { projectName, message } = body;
 
@@ -202,16 +230,19 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     });
   });
 
-  // POST /meetings/:meetingId/decline - Decline a meeting request
-  routes.post("/meetings/:meetingId/decline", async (c) => {
-    const meetingId = asMeetingId(c.req.param("meetingId"));
-
-    let body: { projectName?: string };
+  // POST /meeting/request/meeting/decline - Decline a meeting request
+  routes.post("/meeting/request/meeting/decline", async (c) => {
+    let body: { meetingId?: string; projectName?: string };
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
+
+    if (!body.meetingId) {
+      return c.json({ error: "Missing required field: meetingId" }, 400);
+    }
+    const meetingId = asMeetingId(body.meetingId);
 
     const { projectName } = body;
 
@@ -232,16 +263,19 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     }
   });
 
-  // POST /meetings/:meetingId/defer - Defer a meeting request
-  routes.post("/meetings/:meetingId/defer", async (c) => {
-    const meetingId = asMeetingId(c.req.param("meetingId"));
-
-    let body: { projectName?: string; deferredUntil?: string };
+  // POST /meeting/request/meeting/defer - Defer a meeting request
+  routes.post("/meeting/request/meeting/defer", async (c) => {
+    let body: { meetingId?: string; projectName?: string; deferredUntil?: string };
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
+
+    if (!body.meetingId) {
+      return c.json({ error: "Missing required field: meetingId" }, 400);
+    }
+    const meetingId = asMeetingId(body.meetingId);
 
     const { projectName, deferredUntil } = body;
 
@@ -267,10 +301,10 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
 
   // -- Read routes (Phase 1-2 DAB migration) --
 
-  // GET /meetings?projectName=X - List meeting requests for a project
-  // GET /meetings?projectName=X&view=artifacts - List all meetings as artifacts
-  //   (includes active worktree meetings, sorted open-first then by date desc)
-  routes.get("/meetings", async (c) => {
+  // GET /meeting/request/meeting/list?projectName=X - List meeting requests for a project
+  // GET /meeting/request/meeting/list?projectName=X&view=artifacts - List all meetings
+  //   as artifacts (includes active worktree meetings, sorted open-first then by date desc)
+  routes.get("/meeting/request/meeting/list", async (c) => {
     if (!deps.config || !deps.guildHallHome) {
       return c.json({ error: "Read routes not configured" }, 500);
     }
@@ -323,9 +357,9 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     }
   });
 
-  // GET /meetings/:meetingId?projectName=X - Read meeting detail
+  // GET /meeting/request/meeting/read?meetingId=X&projectName=X - Read meeting detail
   // Returns meeting metadata, raw transcript, and parsed transcript messages.
-  routes.get("/meetings/:meetingId", async (c) => {
+  routes.get("/meeting/request/meeting/read", async (c) => {
     if (!deps.config || !deps.guildHallHome) {
       return c.json({ error: "Read routes not configured" }, 500);
     }
@@ -340,7 +374,10 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
       return c.json({ error: `Project not found: ${projectName}` }, 404);
     }
 
-    const meetingId = c.req.param("meetingId");
+    const meetingId = c.req.query("meetingId");
+    if (!meetingId) {
+      return c.json({ error: "Missing required query parameter: meetingId" }, 400);
+    }
 
     try {
       const basePath = await resolveMeetingBasePath(deps.guildHallHome, projectName, meetingId);

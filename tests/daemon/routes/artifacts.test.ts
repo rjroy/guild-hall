@@ -94,12 +94,12 @@ async function writeTestArtifact(
   await fs.writeFile(fullPath, content, "utf-8");
 }
 
-// -- Tests: GET /artifacts (list) --
+// -- Tests: GET /workspace/artifact/document/list --
 
-describe("GET /artifacts", () => {
+describe("GET /workspace/artifact/document/list", () => {
   test("returns 400 when projectName is missing", async () => {
     const app = makeTestApp();
-    const res = await app.request("/artifacts");
+    const res = await app.request("/workspace/artifact/document/list");
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toContain("projectName");
@@ -107,7 +107,7 @@ describe("GET /artifacts", () => {
 
   test("returns 404 for unknown project", async () => {
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=nonexistent");
+    const res = await app.request("/workspace/artifact/document/list?projectName=nonexistent");
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain("nonexistent");
@@ -115,7 +115,7 @@ describe("GET /artifacts", () => {
 
   test("returns empty array for project with no artifacts", async () => {
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=test-project");
+    const res = await app.request("/workspace/artifact/document/list?projectName=test-project");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.artifacts).toEqual([]);
@@ -138,7 +138,7 @@ Some content here.
     );
 
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=test-project");
+    const res = await app.request("/workspace/artifact/document/list?projectName=test-project");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.artifacts).toHaveLength(1);
@@ -179,7 +179,7 @@ Beta content.
     );
 
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=test-project");
+    const res = await app.request("/workspace/artifact/document/list?projectName=test-project");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.artifacts).toHaveLength(2);
@@ -189,9 +189,9 @@ Beta content.
   });
 });
 
-// -- Tests: GET /artifacts (recent) --
+// -- Tests: GET /workspace/artifact/document/list (recent) --
 
-describe("GET /artifacts?recent=true", () => {
+describe("GET /workspace/artifact/document/list?recent=true", () => {
   test("returns recent artifacts sorted by modification time", async () => {
     await writeTestArtifact(
       "specs/older.md",
@@ -220,7 +220,7 @@ Newer content.
 
     const app = makeTestApp();
     const res = await app.request(
-      "/artifacts?projectName=test-project&recent=true&limit=10",
+      "/workspace/artifact/document/list?projectName=test-project&recent=true&limit=10",
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -239,7 +239,7 @@ Newer content.
 
     const app = makeTestApp();
     const res = await app.request(
-      "/artifacts?projectName=test-project&recent=true&limit=2",
+      "/workspace/artifact/document/list?projectName=test-project&recent=true&limit=2",
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -249,7 +249,7 @@ Newer content.
   test("defaults limit to 10 when not specified", async () => {
     const app = makeTestApp();
     const res = await app.request(
-      "/artifacts?projectName=test-project&recent=true",
+      "/workspace/artifact/document/list?projectName=test-project&recent=true",
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -259,7 +259,7 @@ Newer content.
   test("returns 400 for invalid limit", async () => {
     const app = makeTestApp();
     const res = await app.request(
-      "/artifacts?projectName=test-project&recent=true&limit=abc",
+      "/workspace/artifact/document/list?projectName=test-project&recent=true&limit=abc",
     );
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -267,9 +267,9 @@ Newer content.
   });
 });
 
-// -- Tests: GET /artifacts/:path (read single) --
+// -- Tests: GET /workspace/artifact/document/read --
 
-describe("GET /artifacts/:path", () => {
+describe("GET /workspace/artifact/document/read", () => {
   test("reads a single artifact with parsed content", async () => {
     await writeTestArtifact(
       "specs/my-spec.md",
@@ -288,7 +288,7 @@ Detailed requirements here.
 
     const app = makeTestApp();
     const res = await app.request(
-      "/artifacts/specs/my-spec.md?projectName=test-project",
+      "/workspace/artifact/document/read?projectName=test-project&path=specs/my-spec.md",
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -304,7 +304,7 @@ Detailed requirements here.
   test("returns 404 for nonexistent artifact", async () => {
     const app = makeTestApp();
     const res = await app.request(
-      "/artifacts/does/not/exist.md?projectName=test-project",
+      "/workspace/artifact/document/read?projectName=test-project&path=does/not/exist.md",
     );
     expect(res.status).toBe(404);
     const body = await res.json();
@@ -316,7 +316,7 @@ Detailed requirements here.
     // reaching the route handler. POST body paths bypass URL normalization,
     // so writeRawArtifactContent's validatePath catches them.
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=test-project", {
+    const res = await app.request("/workspace/artifact/document/write?projectName=test-project", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -331,7 +331,7 @@ Detailed requirements here.
 
   test("returns 400 when projectName is missing", async () => {
     const app = makeTestApp();
-    const res = await app.request("/artifacts/some/path.md");
+    const res = await app.request("/workspace/artifact/document/read?path=some/path.md");
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toContain("projectName");
@@ -352,7 +352,7 @@ Deep content.
 
     const app = makeTestApp();
     const res = await app.request(
-      "/artifacts/specs/infrastructure/deep/nested-spec.md?projectName=test-project",
+      "/workspace/artifact/document/read?projectName=test-project&path=specs/infrastructure/deep/nested-spec.md",
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -361,15 +361,15 @@ Deep content.
   });
 });
 
-// -- Tests: POST /artifacts (write) --
+// -- Tests: POST /workspace/artifact/document/write --
 
-describe("POST /artifacts", () => {
+describe("POST /workspace/artifact/document/write", () => {
   test("writes artifact content and returns success", async () => {
     // Create the file first (writeRawArtifactContent writes to existing paths)
     await writeTestArtifact("specs/writable.md", "---\ntitle: Old\nstatus: draft\ntags: []\ndate: 2026-01-01\n---\nOld content.");
 
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=test-project", {
+    const res = await app.request("/workspace/artifact/document/write?projectName=test-project", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -405,7 +405,7 @@ describe("POST /artifacts", () => {
     });
 
     const app = makeTestApp({ gitOps: mockGitOps });
-    await app.request("/artifacts?projectName=test-project", {
+    await app.request("/workspace/artifact/document/write?projectName=test-project", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -431,7 +431,7 @@ describe("POST /artifacts", () => {
       },
     });
 
-    await app.request("/artifacts?projectName=test-project", {
+    await app.request("/workspace/artifact/document/write?projectName=test-project", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -452,7 +452,7 @@ describe("POST /artifacts", () => {
     });
 
     const app = makeTestApp({ gitOps: mockGitOps });
-    const res = await app.request("/artifacts?projectName=test-project", {
+    const res = await app.request("/workspace/artifact/document/write?projectName=test-project", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -473,7 +473,7 @@ describe("POST /artifacts", () => {
       },
     });
 
-    const res = await app.request("/artifacts?projectName=test-project", {
+    const res = await app.request("/workspace/artifact/document/write?projectName=test-project", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -487,7 +487,7 @@ describe("POST /artifacts", () => {
 
   test("returns 400 for missing fields", async () => {
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=test-project", {
+    const res = await app.request("/workspace/artifact/document/write?projectName=test-project", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ artifactPath: "specs/test.md" }),
@@ -499,7 +499,7 @@ describe("POST /artifacts", () => {
 
   test("returns 400 for invalid JSON body", async () => {
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=test-project", {
+    const res = await app.request("/workspace/artifact/document/write?projectName=test-project", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
@@ -511,7 +511,7 @@ describe("POST /artifacts", () => {
 
   test("returns 404 for unknown project on write", async () => {
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=nonexistent", {
+    const res = await app.request("/workspace/artifact/document/write?projectName=nonexistent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -533,7 +533,7 @@ describe("response shape", () => {
     );
 
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=test-project");
+    const res = await app.request("/workspace/artifact/document/list?projectName=test-project");
     const body = await res.json();
     const artifact = body.artifacts[0];
     expect(typeof artifact.lastModified).toBe("string");
@@ -545,7 +545,7 @@ describe("response shape", () => {
 
   test("list response wraps artifacts in an object", async () => {
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=test-project");
+    const res = await app.request("/workspace/artifact/document/list?projectName=test-project");
     const body = await res.json();
     expect(body).toHaveProperty("artifacts");
     expect(Array.isArray(body.artifacts)).toBe(true);
@@ -559,7 +559,7 @@ describe("response shape", () => {
 
     const app = makeTestApp();
     const res = await app.request(
-      "/artifacts/specs/unwrapped.md?projectName=test-project",
+      "/workspace/artifact/document/read?projectName=test-project&path=specs/unwrapped.md",
     );
     const body = await res.json();
     // Single artifact is returned directly, not in an array
@@ -569,7 +569,7 @@ describe("response shape", () => {
 
   test("content-type is application/json", async () => {
     const app = makeTestApp();
-    const res = await app.request("/artifacts?projectName=test-project");
+    const res = await app.request("/workspace/artifact/document/list?projectName=test-project");
     expect(res.headers.get("content-type")).toContain("application/json");
   });
 });

@@ -9,14 +9,19 @@ export interface BriefingRouteDeps {
 /**
  * Creates the briefing route group.
  *
- * GET /briefing/:projectName returns a project status briefing with caching
- * metadata. The briefing generator handles SDK vs template fallback internally.
+ * GET /coordination/review/briefing/read?projectName=X returns a project status
+ * briefing with caching metadata. The briefing generator handles SDK vs template
+ * fallback internally.
  */
 export function createBriefingRoutes(deps: BriefingRouteDeps): Hono {
   const routes = new Hono();
 
-  routes.get("/briefing/:projectName", async (c) => {
-    const projectName = c.req.param("projectName");
+  routes.get("/coordination/review/briefing/read", async (c) => {
+    const projectName = c.req.query("projectName");
+
+    if (!projectName) {
+      return c.json({ error: "Missing required query parameter: projectName" }, 400);
+    }
 
     try {
       const result = await deps.briefingGenerator.generateBriefing(projectName);

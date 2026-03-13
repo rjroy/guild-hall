@@ -14,9 +14,9 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const result = await daemonFetch(`/commissions/${commissionId}`, {
-    method: "PUT",
-    body: JSON.stringify(body),
+  const result = await daemonFetch("/commission/request/commission/update", {
+    method: "POST",
+    body: JSON.stringify({ commissionId, ...(body as Record<string, unknown>) }),
   });
 
   if (isDaemonError(result)) {
@@ -36,8 +36,9 @@ export async function DELETE(
 ) {
   const { commissionId } = await params;
 
-  const result = await daemonFetch(`/commissions/${commissionId}`, {
-    method: "DELETE",
+  const result = await daemonFetch("/commission/run/cancel", {
+    method: "POST",
+    body: JSON.stringify({ commissionId }),
   });
 
   if (isDaemonError(result)) {

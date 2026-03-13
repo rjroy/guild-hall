@@ -7,8 +7,9 @@ export async function POST(
 ) {
   const { meetingId } = await params;
 
-  const result = await daemonFetch(`/meetings/${meetingId}/interrupt`, {
+  const result = await daemonFetch("/meeting/session/generation/interrupt", {
     method: "POST",
+    body: JSON.stringify({ meetingId }),
   });
 
   if (isDaemonError(result)) {

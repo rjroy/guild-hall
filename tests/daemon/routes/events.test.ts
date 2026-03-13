@@ -67,13 +67,13 @@ async function readSSEEvents(
   return events;
 }
 
-describe("GET /events", () => {
+describe("GET /system/events/stream/subscribe", () => {
   test("returns text/event-stream content type", async () => {
     const { app, eventBus } = makeTestApp();
 
     // Emit an event before the request so the stream has data to send
     // and eventually closes (the stream stays open otherwise).
-    const resPromise = app.request("/events");
+    const resPromise = app.request("/system/events/stream/subscribe");
 
     // Give the stream a moment to set up, then emit and let it process
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -86,7 +86,7 @@ describe("GET /events", () => {
   test("streams events as JSON SSE data lines", async () => {
     const { app, eventBus } = makeTestApp();
 
-    const resPromise = app.request("/events");
+    const resPromise = app.request("/system/events/stream/subscribe");
 
     // Emit events after a small delay to allow the stream to set up
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -110,7 +110,7 @@ describe("GET /events", () => {
   test("multiple events stream in order", async () => {
     const { app, eventBus } = makeTestApp();
 
-    const resPromise = app.request("/events");
+    const resPromise = app.request("/system/events/stream/subscribe");
 
     await new Promise((resolve) => setTimeout(resolve, 10));
 
@@ -147,7 +147,7 @@ describe("GET /events", () => {
   test("event data lines contain valid JSON", async () => {
     const { app, eventBus } = makeTestApp();
 
-    const resPromise = app.request("/events");
+    const resPromise = app.request("/system/events/stream/subscribe");
 
     await new Promise((resolve) => setTimeout(resolve, 10));
 

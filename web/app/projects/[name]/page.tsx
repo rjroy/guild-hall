@@ -24,7 +24,7 @@ export default async function ProjectPage({
   const projectName = decodeURIComponent(rawName);
   const encoded = encodeURIComponent(projectName);
 
-  const projectResult = await fetchDaemon<ProjectConfig>(`/config/projects/${encoded}`);
+  const projectResult = await fetchDaemon<ProjectConfig>(`/system/config/project/read?name=${encoded}`);
   if (!projectResult.ok) {
     // 404 from daemon means project doesn't exist
     if (projectResult.error.includes("not found")) {
@@ -36,11 +36,11 @@ export default async function ProjectPage({
 
   // Fetch all data in parallel
   const [artifactsResult, meetingsResult, commissionsResult, graphResult] = await Promise.all([
-    fetchDaemon<{ artifacts: Artifact[] }>(`/artifacts?projectName=${encoded}`),
+    fetchDaemon<{ artifacts: Artifact[] }>(`/workspace/artifact/document/list?projectName=${encoded}`),
     // view=artifacts returns all meetings as Artifact[] with active worktree merging, pre-sorted
-    fetchDaemon<{ meetings: Artifact[] }>(`/meetings?projectName=${encoded}&view=artifacts`),
-    fetchDaemon<{ commissions: CommissionMeta[] }>(`/commissions?projectName=${encoded}`),
-    fetchDaemon<DependencyGraph>(`/projects/${encoded}/dependency-graph`),
+    fetchDaemon<{ meetings: Artifact[] }>(`/meeting/request/meeting/list?projectName=${encoded}&view=artifacts`),
+    fetchDaemon<{ commissions: CommissionMeta[] }>(`/commission/request/commission/list?projectName=${encoded}`),
+    fetchDaemon<DependencyGraph>(`/commission/dependency/project/graph?projectName=${encoded}`),
   ]);
 
   const artifacts = artifactsResult.ok ? artifactsResult.data.artifacts : [];

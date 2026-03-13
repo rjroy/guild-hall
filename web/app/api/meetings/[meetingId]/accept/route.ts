@@ -15,8 +15,8 @@ export async function POST(
   }
 
   const result = await daemonStreamAsync(
-    `/meetings/${meetingId}/accept`,
-    JSON.stringify(body),
+    "/meeting/request/meeting/accept",
+    JSON.stringify({ meetingId, ...(body as Record<string, unknown>) }),
   );
 
   if (isDaemonError(result)) {

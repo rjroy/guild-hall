@@ -9,12 +9,12 @@ export interface ModelsRouteDeps {
 /**
  * Creates model listing routes.
  *
- * GET /models - List built-in and configured local models with reachability
+ * GET /system/models/catalog/list - List built-in and configured local models with reachability
  */
 export function createModelsRoutes(deps: ModelsRouteDeps): Hono {
   const routes = new Hono();
 
-  routes.get("/models", async (c) => {
+  routes.get("/system/models/catalog/list", async (c) => {
     const localModels = deps.config.models ?? [];
 
     const localWithReachability = await Promise.all(

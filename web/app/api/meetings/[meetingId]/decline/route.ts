@@ -14,9 +14,9 @@ export async function POST(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const result = await daemonFetch(`/meetings/${meetingId}/decline`, {
+  const result = await daemonFetch("/meeting/request/meeting/decline", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ meetingId, ...(body as Record<string, unknown>) }),
   });
 
   if (isDaemonError(result)) {

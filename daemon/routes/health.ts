@@ -12,11 +12,13 @@ export interface HealthDeps {
 /**
  * Creates a health check route group.
  * Dependencies are injected for testability.
+ *
+ * GET /system/runtime/daemon/health - Check daemon health status
  */
 export function createHealthRoutes(deps: HealthDeps): Hono {
   const routes = new Hono();
 
-  routes.get("/health", (c) => {
+  routes.get("/system/runtime/daemon/health", (c) => {
     return c.json({
       status: "ok",
       meetings: deps.getMeetingCount(),

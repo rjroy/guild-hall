@@ -24,7 +24,7 @@ export default async function ArtifactPage({
   const encoded = encodeURIComponent(projectName);
 
   // Verify project exists
-  const projectResult = await fetchDaemon<Record<string, unknown>>(`/config/projects/${encoded}`);
+  const projectResult = await fetchDaemon<Record<string, unknown>>(`/system/config/project/read?name=${encoded}`);
   if (!projectResult.ok) {
     if (projectResult.error.includes("not found")) {
       notFound();
@@ -34,7 +34,7 @@ export default async function ArtifactPage({
 
   // Read artifact from daemon (handles activity worktree resolution)
   const artifactResult = await fetchDaemon<SerializedArtifact>(
-    `/artifacts/${relativePath}?projectName=${encoded}`,
+    `/workspace/artifact/document/read?projectName=${encoded}&path=${relativePath}`,
   );
   if (!artifactResult.ok) {
     if (artifactResult.error.includes("not found")) {
@@ -48,7 +48,7 @@ export default async function ArtifactPage({
 
   // Find commissions that reference this artifact
   const commissionsResult = await fetchDaemon<{ commissions: CommissionMeta[] }>(
-    `/commissions?projectName=${encoded}`,
+    `/commission/request/commission/list?projectName=${encoded}`,
   );
   const allCommissions = commissionsResult.ok ? commissionsResult.data.commissions : [];
   const associatedCommissions = allCommissions.filter((c) =>

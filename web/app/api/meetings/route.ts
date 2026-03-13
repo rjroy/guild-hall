@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   }
 
   const result = await daemonStreamAsync(
-    "/meetings",
+    "/meeting/request/meeting/create",
     JSON.stringify({ projectName, workerName, prompt }),
   );
 

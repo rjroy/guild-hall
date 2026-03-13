@@ -3,7 +3,7 @@ import { daemonStreamAsync, isDaemonError } from "@/lib/daemon-client";
 
 export async function GET() {
   const result = await daemonStreamAsync(
-    "/events",
+    "/system/events/stream/subscribe",
     undefined,
     undefined,
     { method: "GET" },

@@ -14,21 +14,24 @@ export interface ConfigRoutesDeps {
  * Creates config and project read routes for the daemon REST API.
  *
  * Routes:
- * - GET /config                            Read application config
- * - GET /config/projects/:name             Read single project config
- * - GET /projects/:name/dependency-graph   Dependency graph data
+ * - GET /system/config/application/read           Read application config
+ * - GET /system/config/project/read?name=X        Read single project config
+ * - GET /commission/dependency/project/graph?projectName=X  Dependency graph data
  */
 export function createConfigRoutes(deps: ConfigRoutesDeps): Hono {
   const routes = new Hono();
 
-  // GET /config - Read application config
-  routes.get("/config", (c) => {
+  // GET /system/config/application/read - Read application config
+  routes.get("/system/config/application/read", (c) => {
     return c.json(deps.config);
   });
 
-  // GET /config/projects/:name - Read single project config
-  routes.get("/config/projects/:name", (c) => {
-    const name = c.req.param("name");
+  // GET /system/config/project/read?name=X - Read single project config
+  routes.get("/system/config/project/read", (c) => {
+    const name = c.req.query("name");
+    if (!name) {
+      return c.json({ error: "Missing required query parameter: name" }, 400);
+    }
     const project = deps.config.projects.find((p) => p.name === name);
     if (!project) {
       return c.json({ error: `Project not found: ${name}` }, 404);
@@ -36,9 +39,12 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): Hono {
     return c.json(project);
   });
 
-  // GET /projects/:name/dependency-graph - Dependency graph data
-  routes.get("/projects/:name/dependency-graph", async (c) => {
-    const name = c.req.param("name");
+  // GET /commission/dependency/project/graph?projectName=X - Dependency graph data
+  routes.get("/commission/dependency/project/graph", async (c) => {
+    const name = c.req.query("projectName");
+    if (!name) {
+      return c.json({ error: "Missing required query parameter: projectName" }, 400);
+    }
     const project = deps.config.projects.find((p) => p.name === name);
     if (!project) {
       return c.json({ error: `Project not found: ${name}` }, 404);

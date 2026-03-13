@@ -58,7 +58,7 @@ function makeTestApp(adminDeps: AdminDeps) {
   });
 }
 
-describe("POST /admin/reload-config", () => {
+describe("POST /system/config/application/reload", () => {
   test("updates config.projects in place from disk", async () => {
     const config: AppConfig = { projects: [] };
     const deps = makeAdminDeps({
@@ -71,7 +71,7 @@ describe("POST /admin/reload-config", () => {
     });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/reload-config", { method: "POST" });
+    const res = await app.request("/system/config/application/reload", { method: "POST" });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -99,7 +99,7 @@ describe("POST /admin/reload-config", () => {
     });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/reload-config", { method: "POST" });
+    const res = await app.request("/system/config/application/reload", { method: "POST" });
 
     const body = await res.json();
     expect(body.projectCount).toBe(2);
@@ -127,7 +127,7 @@ describe("POST /admin/reload-config", () => {
     });
     const app = makeTestApp(deps);
 
-    await app.request("/admin/reload-config", { method: "POST" });
+    await app.request("/system/config/application/reload", { method: "POST" });
 
     expect(syncedProjects).toEqual(["new"]);
   });
@@ -147,7 +147,7 @@ describe("POST /admin/reload-config", () => {
     });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/reload-config", { method: "POST" });
+    const res = await app.request("/system/config/application/reload", { method: "POST" });
 
     const body = await res.json();
     expect(body.projectCount).toBe(1);
@@ -169,7 +169,7 @@ describe("POST /admin/reload-config", () => {
     });
     const app = makeTestApp(deps);
 
-    await app.request("/admin/reload-config", { method: "POST" });
+    await app.request("/system/config/application/reload", { method: "POST" });
 
     // The original array reference should contain the new data
     expect(projectsRef).toHaveLength(1);
@@ -184,14 +184,14 @@ describe("POST /admin/reload-config", () => {
       },
     });
 
-    const res = await app.request("/admin/reload-config", { method: "POST" });
+    const res = await app.request("/system/config/application/reload", { method: "POST" });
     expect(res.status).toBe(404);
   });
 });
 
 // -- Tests for new Phase 4 admin routes --
 
-describe("POST /admin/register-project", () => {
+describe("POST /system/config/project/register", () => {
   let tmpDir: string;
   let ghHome: string;
   let savedGHHome: string | undefined;
@@ -218,7 +218,7 @@ describe("POST /admin/register-project", () => {
     const deps = makeAdminDeps({ guildHallHome: ghHome });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/register-project", {
+    const res = await app.request("/system/config/project/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: "/tmp/some-path" }),
@@ -233,7 +233,7 @@ describe("POST /admin/register-project", () => {
     const deps = makeAdminDeps({ guildHallHome: ghHome });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/register-project", {
+    const res = await app.request("/system/config/project/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "test", path: "/nonexistent/path" }),
@@ -251,7 +251,7 @@ describe("POST /admin/register-project", () => {
     const deps = makeAdminDeps({ guildHallHome: ghHome });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/register-project", {
+    const res = await app.request("/system/config/project/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "test", path: projectDir }),
@@ -269,7 +269,7 @@ describe("POST /admin/register-project", () => {
     const deps = makeAdminDeps({ guildHallHome: ghHome });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/register-project", {
+    const res = await app.request("/system/config/project/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "test", path: projectDir }),
@@ -291,7 +291,7 @@ describe("POST /admin/register-project", () => {
     const deps = makeAdminDeps({ guildHallHome: ghHome, config });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/register-project", {
+    const res = await app.request("/system/config/project/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "existing", path: projectDir }),
@@ -315,7 +315,7 @@ describe("POST /admin/register-project", () => {
     const deps = makeAdminDeps({ guildHallHome: ghHome, config });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/register-project", {
+    const res = await app.request("/system/config/project/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "my-project", path: projectDir }),
@@ -333,7 +333,7 @@ describe("POST /admin/register-project", () => {
   });
 });
 
-describe("GET /admin/validate", () => {
+describe("GET /system/config/application/validate", () => {
   let tmpDir: string;
   let ghHome: string;
   let savedGHHome: string | undefined;
@@ -363,7 +363,7 @@ describe("GET /admin/validate", () => {
     const deps = makeAdminDeps({ guildHallHome: ghHome });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/validate");
+    const res = await app.request("/system/config/application/validate");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -380,7 +380,7 @@ describe("GET /admin/validate", () => {
     const deps = makeAdminDeps({ guildHallHome: ghHome });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/validate");
+    const res = await app.request("/system/config/application/validate");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -401,7 +401,7 @@ describe("GET /admin/validate", () => {
     const deps = makeAdminDeps({ guildHallHome: ghHome });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/validate");
+    const res = await app.request("/system/config/application/validate");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -422,7 +422,7 @@ describe("GET /admin/validate", () => {
     const deps = makeAdminDeps({ guildHallHome: ghHome });
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/validate");
+    const res = await app.request("/system/config/application/validate");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -431,13 +431,13 @@ describe("GET /admin/validate", () => {
   });
 });
 
-describe("POST /admin/rebase", () => {
+describe("POST /workspace/git/branch/rebase", () => {
   test("returns results from rebaseAll", async () => {
     const deps = makeAdminDeps();
     const app = makeTestApp(deps);
 
     // No projects, so results should be empty
-    const res = await app.request("/admin/rebase", {
+    const res = await app.request("/workspace/git/branch/rebase", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -452,7 +452,7 @@ describe("POST /admin/rebase", () => {
     const deps = makeAdminDeps();
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/rebase", {
+    const res = await app.request("/workspace/git/branch/rebase", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectName: "nonexistent" }),
@@ -464,12 +464,12 @@ describe("POST /admin/rebase", () => {
   });
 });
 
-describe("POST /admin/sync", () => {
+describe("POST /workspace/git/integration/sync", () => {
   test("returns results from syncAll", async () => {
     const deps = makeAdminDeps();
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/sync", {
+    const res = await app.request("/workspace/git/integration/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -484,7 +484,7 @@ describe("POST /admin/sync", () => {
     const deps = makeAdminDeps();
     const app = makeTestApp(deps);
 
-    const res = await app.request("/admin/sync", {
+    const res = await app.request("/workspace/git/integration/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectName: "nonexistent" }),

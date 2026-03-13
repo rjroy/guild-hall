@@ -7,7 +7,7 @@ export async function GET(
 ) {
   const { projectName } = await props.params;
 
-  const result = await daemonFetch(`/briefing/${encodeURIComponent(projectName)}`);
+  const result = await daemonFetch(`/coordination/review/briefing/read?projectName=${encodeURIComponent(projectName)}`);
 
   if (isDaemonError(result)) {
     return NextResponse.json(

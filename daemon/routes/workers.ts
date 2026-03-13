@@ -20,12 +20,12 @@ function isWorkerMetadata(
 /**
  * Creates worker discovery routes.
  *
- * GET /workers - List discovered worker packages with metadata
+ * GET /system/packages/worker/list - List discovered worker packages with metadata
  */
 export function createWorkerRoutes(deps: WorkerRoutesDeps): Hono {
   const routes = new Hono();
 
-  routes.get("/workers", (c) => {
+  routes.get("/system/packages/worker/list", (c) => {
     const workerPackages = getWorkers(deps.packages);
 
     const workers = workerPackages

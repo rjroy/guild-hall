@@ -40,7 +40,7 @@ export async function POST(
 
   // 1. Read the meeting request via daemon API to get worker and linked_artifacts
   const meetingResult = await daemonFetch(
-    `/meetings/${encodeURIComponent(meetingId)}?projectName=${encodeURIComponent(projectName)}`,
+    `/meeting/request/meeting/read?meetingId=${encodeURIComponent(meetingId)}&projectName=${encodeURIComponent(projectName)}`,
   );
 
   if (isDaemonError(meetingResult)) {
@@ -79,7 +79,7 @@ export async function POST(
   // 2. Create commission via daemon
   const title = prompt.length > 50 ? prompt.slice(0, 50) + "..." : prompt;
 
-  const commissionResult = await daemonFetch("/commissions", {
+  const commissionResult = await daemonFetch("/commission/request/commission/create", {
     method: "POST",
     body: JSON.stringify({
       projectName,
@@ -113,9 +113,9 @@ export async function POST(
   const commissionId = commissionData.commissionId as string;
 
   // 3. Decline the meeting (best-effort after commission creation)
-  const declineResult = await daemonFetch(`/meetings/${meetingId}/decline`, {
+  const declineResult = await daemonFetch("/meeting/request/meeting/decline", {
     method: "POST",
-    body: JSON.stringify({ projectName }),
+    body: JSON.stringify({ meetingId, projectName }),
   });
 
   if (isDaemonError(declineResult) || !declineResult.ok) {

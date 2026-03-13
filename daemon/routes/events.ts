@@ -9,13 +9,13 @@ export interface EventRoutesDeps {
 /**
  * Creates the system-wide SSE event stream route.
  *
- * GET /events - Subscribes to the event bus and streams each SystemEvent
- *               as a JSON SSE message. Unsubscribes on client disconnect.
+ * GET /system/events/stream/subscribe - Subscribes to the event bus and streams
+ *     each SystemEvent as a JSON SSE message. Unsubscribes on client disconnect.
  */
 export function createEventRoutes(deps: EventRoutesDeps): Hono {
   const routes = new Hono();
 
-  routes.get("/events", (c) => {
+  routes.get("/system/events/stream/subscribe", (c) => {
     return streamSSE(c, async (stream) => {
       const unsubscribe = deps.eventBus.subscribe((event) => {
         // writeSSE is async but we fire-and-forget from the synchronous

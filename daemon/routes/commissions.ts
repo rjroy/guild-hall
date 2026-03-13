@@ -22,20 +22,23 @@ export interface CommissionRoutesDeps {
 /**
  * Creates commission management routes.
  *
- * POST   /commissions                       - Create commission
- * POST   /commissions/check-dependencies   - Trigger dependency auto-transitions
- * PUT    /commissions/:id                  - Update pending commission
- * POST   /commissions/:id/dispatch         - Dispatch commission to worker
- * DELETE /commissions/:id             - Cancel commission
- * POST   /commissions/:id/redispatch  - Re-dispatch failed/cancelled commission
- * POST   /commissions/:id/abandon     - Abandon a commission
- * POST   /commissions/:id/note        - User adds note
+ * POST /commission/request/commission/create    - Create commission
+ * POST /commission/dependency/project/check     - Trigger dependency auto-transitions
+ * POST /commission/request/commission/update    - Update pending commission
+ * POST /commission/run/dispatch                 - Dispatch commission to worker
+ * POST /commission/run/cancel                   - Cancel commission
+ * POST /commission/run/redispatch               - Re-dispatch failed/cancelled commission
+ * POST /commission/run/abandon                  - Abandon a commission
+ * POST /commission/request/commission/note      - User adds note
+ * POST /commission/schedule/commission/update   - Update schedule status
+ * GET  /commission/request/commission/list      - List commissions for a project
+ * GET  /commission/request/commission/read      - Read commission detail
  */
 export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
   const routes = new Hono();
 
-  // POST /commissions - Create commission
-  routes.post("/commissions", async (c) => {
+  // POST /commission/request/commission/create - Create commission
+  routes.post("/commission/request/commission/create", async (c) => {
     let body: {
       projectName?: string;
       title?: string;
@@ -73,7 +76,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
 
     try {
-      console.log(`[route] POST /commissions project="${projectName}" worker="${workerName}" type="${body.type ?? "one-shot"}"`);
+      console.log(`[route] POST /commission/request/commission/create project="${projectName}" worker="${workerName}" type="${body.type ?? "one-shot"}"`);
 
       let result: { commissionId: string };
       if (body.type === "scheduled") {
@@ -104,9 +107,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/check-dependencies - Trigger dependency auto-transitions
-  // Must be registered before :id routes to avoid matching "check-dependencies" as an ID.
-  routes.post("/commissions/check-dependencies", async (c) => {
+  // POST /commission/dependency/project/check - Trigger dependency auto-transitions
+  routes.post("/commission/dependency/project/check", async (c) => {
     let body: { projectName?: string };
     try {
       body = await c.req.json();
@@ -128,11 +130,10 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // PUT /commissions/:id - Update pending commission
-  routes.put("/commissions/:id", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
+  // POST /commission/request/commission/update - Update pending commission
+  routes.post("/commission/request/commission/update", async (c) => {
     let body: {
+      commissionId?: string;
       prompt?: string;
       dependencies?: string[];
       resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
@@ -143,8 +144,16 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
 
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
+
+    // Strip commissionId from updates - it's an identifier, not a field to update
+    const { commissionId: _, ...updates } = body;
+
     try {
-      await deps.commissionSession.updateCommission(commissionId, body);
+      await deps.commissionSession.updateCommission(commissionId, updates);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
       const message = errorMessage(err);
@@ -155,12 +164,22 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/:id/dispatch - Dispatch commission
-  routes.post("/commissions/:id/dispatch", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
+  // POST /commission/run/dispatch - Dispatch commission
+  routes.post("/commission/run/dispatch", async (c) => {
+    let body: { commissionId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     try {
-      console.log(`[route] POST /commissions/${commissionId as string}/dispatch`);
+      console.log(`[route] POST /commission/run/dispatch commissionId="${commissionId as string}"`);
       const result =
         await deps.commissionSession.dispatchCommission(commissionId);
       return c.json(result, 202);
@@ -174,12 +193,22 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // DELETE /commissions/:id - Cancel commission
-  routes.delete("/commissions/:id", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
+  // POST /commission/run/cancel - Cancel commission
+  routes.post("/commission/run/cancel", async (c) => {
+    let body: { commissionId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     try {
-      console.log(`[route] DELETE /commissions/${commissionId as string} (cancel)`);
+      console.log(`[route] POST /commission/run/cancel commissionId="${commissionId as string}"`);
       await deps.commissionSession.cancelCommission(commissionId);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
@@ -197,12 +226,22 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/:id/redispatch - Re-dispatch failed/cancelled commission
-  routes.post("/commissions/:id/redispatch", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
+  // POST /commission/run/redispatch - Re-dispatch failed/cancelled commission
+  routes.post("/commission/run/redispatch", async (c) => {
+    let body: { commissionId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     try {
-      console.log(`[route] POST /commissions/${commissionId as string}/redispatch`);
+      console.log(`[route] POST /commission/run/redispatch commissionId="${commissionId as string}"`);
       const result =
         await deps.commissionSession.redispatchCommission(commissionId);
       return c.json(result, 202);
@@ -219,16 +258,19 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/:id/abandon - Abandon a commission
-  routes.post("/commissions/:id/abandon", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
-    let body: { reason?: string };
+  // POST /commission/run/abandon - Abandon a commission
+  routes.post("/commission/run/abandon", async (c) => {
+    let body: { commissionId?: string; reason?: string };
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     const { reason } = body;
     if (!reason) {
@@ -237,7 +279,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
 
     try {
       console.log(
-        `[route] POST /commissions/${commissionId as string}/abandon`,
+        `[route] POST /commission/run/abandon commissionId="${commissionId as string}"`,
       );
       await deps.commissionSession.abandonCommission(commissionId, reason);
       return c.json({ status: "ok" });
@@ -256,16 +298,19 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/:id/schedule-status - Update schedule status (pause/resume/complete)
-  routes.post("/commissions/:id/schedule-status", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
-    let body: { status?: string };
+  // POST /commission/schedule/commission/update - Update schedule status (pause/resume/complete)
+  routes.post("/commission/schedule/commission/update", async (c) => {
+    let body: { commissionId?: string; status?: string };
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     const { status } = body;
     if (!status) {
@@ -273,7 +318,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
 
     try {
-      console.log(`[route] POST /commissions/${commissionId as string}/schedule-status target="${status}"`);
+      console.log(`[route] POST /commission/schedule/commission/update commissionId="${commissionId as string}" target="${status}"`);
       const result = await deps.commissionSession.updateScheduleStatus(commissionId, status);
       if (result.outcome === "skipped") {
         return c.json({ error: result.reason }, 409);
@@ -291,16 +336,19 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/:id/note - User adds note
-  routes.post("/commissions/:id/note", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
-    let body: { content?: string };
+  // POST /commission/request/commission/note - User adds note
+  routes.post("/commission/request/commission/note", async (c) => {
+    let body: { commissionId?: string; content?: string };
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     const { content } = body;
     if (!content) {
@@ -316,10 +364,10 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // -- Read routes (Phase 1 DAB migration) --
+  // -- Read routes --
 
-  // GET /commissions?projectName=X - List commissions for a project
-  routes.get("/commissions", async (c) => {
+  // GET /commission/request/commission/list?projectName=X - List commissions for a project
+  routes.get("/commission/request/commission/list", async (c) => {
     if (!deps.config || !deps.guildHallHome) {
       return c.json({ error: "Read routes not configured" }, 500);
     }
@@ -344,8 +392,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // GET /commissions/:id?projectName=X - Read commission detail
-  routes.get("/commissions/:id", async (c) => {
+  // GET /commission/request/commission/read?commissionId=X&projectName=X - Read commission detail
+  routes.get("/commission/request/commission/read", async (c) => {
     if (!deps.config || !deps.guildHallHome) {
       return c.json({ error: "Read routes not configured" }, 500);
     }
@@ -360,7 +408,10 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       return c.json({ error: `Project not found: ${projectName}` }, 404);
     }
 
-    const commissionId = c.req.param("id");
+    const commissionId = c.req.query("commissionId");
+    if (!commissionId) {
+      return c.json({ error: "Missing required query parameter: commissionId" }, 400);
+    }
 
     try {
       const basePath = await resolveCommissionBasePath(deps.guildHallHome, projectName, commissionId);

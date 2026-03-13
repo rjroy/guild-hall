@@ -29,13 +29,18 @@ export interface AdminDeps {
 
 /**
  * Creates admin routes for operational tasks.
- * These are behind /admin/ to signal they're operational, not user-facing.
+ *
+ * POST /system/config/application/reload   - Reload configuration from disk
+ * POST /system/config/project/register     - Register a new project
+ * GET  /system/config/application/validate - Validate configuration and project paths
+ * POST /workspace/git/branch/rebase        - Rebase claude branch onto default branch
+ * POST /workspace/git/integration/sync     - Smart sync: fetch, detect merged PRs, rebase
  */
 export function createAdminRoutes(deps: AdminDeps): Hono {
   const routes = new Hono();
   const doSyncProject = deps.syncProject ?? syncProjectDefault;
 
-  routes.post("/admin/reload-config", async (c) => {
+  routes.post("/system/config/application/reload", async (c) => {
     const freshConfig = await deps.readConfigFromDisk();
 
     // Identify newly added projects (present in fresh config but not in current)
@@ -97,9 +102,9 @@ export function createAdminRoutes(deps: AdminDeps): Hono {
     });
   });
 
-  // -- POST /admin/register-project --
+  // -- POST /system/config/project/register --
   // Owns the full registration sequence: validate, git setup, config write, reload.
-  routes.post("/admin/register-project", async (c) => {
+  routes.post("/system/config/project/register", async (c) => {
     try {
       const body = await c.req.json() as { name?: string; path?: string };
 
@@ -177,9 +182,9 @@ export function createAdminRoutes(deps: AdminDeps): Hono {
     }
   });
 
-  // -- GET /admin/validate --
+  // -- GET /system/config/application/validate --
   // Validates config and project paths. Returns issues found.
-  routes.get("/admin/validate", async (c) => {
+  routes.get("/system/config/application/validate", async (c) => {
     try {
       // deps.guildHallHome is the full path (e.g., ~/.guild-hall), not
       // a HOME override, so construct config path directly.
@@ -241,9 +246,9 @@ export function createAdminRoutes(deps: AdminDeps): Hono {
     }
   });
 
-  // -- POST /admin/rebase --
+  // -- POST /workspace/git/branch/rebase --
   // Rebase claude onto default branch for one or all projects.
-  routes.post("/admin/rebase", async (c) => {
+  routes.post("/workspace/git/branch/rebase", async (c) => {
     try {
       const body = await c.req.json().catch(() => ({})) as { projectName?: string };
       const result = await rebaseAll(
@@ -258,9 +263,9 @@ export function createAdminRoutes(deps: AdminDeps): Hono {
     }
   });
 
-  // -- POST /admin/sync --
+  // -- POST /workspace/git/integration/sync --
   // Smart sync (fetch + detect merged PRs + reset or rebase) for one or all projects.
-  routes.post("/admin/sync", async (c) => {
+  routes.post("/workspace/git/integration/sync", async (c) => {
     try {
       const body = await c.req.json().catch(() => ({})) as { projectName?: string };
       const result = await syncAll(
