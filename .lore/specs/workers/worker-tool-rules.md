@@ -1,7 +1,7 @@
 ---
 title: Worker canUseToolRules Declarations
 date: 2026-03-12
-status: draft
+status: approved
 tags: [workers, security, sandbox, canUseTool, permissions, packages]
 modules: [guild-hall-workers, daemon-services]
 related:
