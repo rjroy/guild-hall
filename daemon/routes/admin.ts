@@ -3,15 +3,22 @@ import * as path from "node:path";
 import { Hono } from "hono";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
-import { integrationWorktreePath } from "@/lib/paths";
+import { integrationWorktreePath, activityWorktreeRoot } from "@/lib/paths";
+import { readConfig, writeConfig } from "@/lib/config";
 import type { AppConfig } from "@/lib/types";
+import {
+  syncProject as syncProjectDefault,
+  rebaseAll,
+  syncAll,
+} from "@/daemon/services/git-admin";
 
 export interface AdminDeps {
   config: AppConfig;
   guildHallHome: string;
   gitOps: GitOps;
   readConfigFromDisk: () => Promise<AppConfig>;
-  syncProject: (
+  /** Optional DI override for syncProject (used by reload-config for testability). */
+  syncProject?: (
     projectPath: string,
     projectName: string,
     guildHallHome?: string,
@@ -26,6 +33,7 @@ export interface AdminDeps {
  */
 export function createAdminRoutes(deps: AdminDeps): Hono {
   const routes = new Hono();
+  const doSyncProject = deps.syncProject ?? syncProjectDefault;
 
   routes.post("/admin/reload-config", async (c) => {
     const freshConfig = await deps.readConfigFromDisk();
@@ -67,7 +75,7 @@ export function createAdminRoutes(deps: AdminDeps): Hono {
       }
 
       try {
-        await deps.syncProject(
+        await doSyncProject(
           project.path,
           project.name,
           deps.guildHallHome,
@@ -87,6 +95,184 @@ export function createAdminRoutes(deps: AdminDeps): Hono {
       projectCount: deps.config.projects.length,
       newProjects: newProjects.map((p) => p.name),
     });
+  });
+
+  // -- POST /admin/register-project --
+  // Owns the full registration sequence: validate, git setup, config write, reload.
+  routes.post("/admin/register-project", async (c) => {
+    try {
+      const body = await c.req.json() as { name?: string; path?: string };
+
+      if (!body.name || !body.path) {
+        return c.json({ error: "name and path are required" }, 400);
+      }
+
+      const name = body.name;
+      const resolved = path.resolve(body.path);
+
+      // Validate the project path exists and is a directory
+      try {
+        const stat = await fs.stat(resolved);
+        if (!stat.isDirectory()) {
+          return c.json({ error: `'${resolved}' is not a directory` }, 400);
+        }
+      } catch {
+        return c.json({ error: `path '${resolved}' does not exist` }, 400);
+      }
+
+      // Validate .git/ exists
+      try {
+        await fs.stat(path.join(resolved, ".git"));
+      } catch {
+        return c.json({ error: `'${resolved}' does not contain a .git/ directory` }, 400);
+      }
+
+      // Validate .lore/ exists
+      try {
+        await fs.stat(path.join(resolved, ".lore"));
+      } catch {
+        return c.json({ error: `'${resolved}' does not contain a .lore/ directory` }, 400);
+      }
+
+      // Reject duplicate names
+      if (deps.config.projects.some((p) => p.name === name)) {
+        return c.json({ error: `project '${name}' is already registered` }, 409);
+      }
+
+      // Detect default branch before modifications
+      const defaultBranch = await deps.gitOps.detectDefaultBranch(resolved);
+
+      // Create claude branch from HEAD if it doesn't exist
+      await deps.gitOps.initClaudeBranch(resolved);
+
+      // Create integration worktree
+      const integrationPath = integrationWorktreePath(deps.guildHallHome, name);
+      await fs.mkdir(path.dirname(integrationPath), { recursive: true });
+      await deps.gitOps.createWorktree(resolved, integrationPath, CLAUDE_BRANCH);
+
+      // Ensure the activity worktrees directory exists
+      const worktreeRoot = activityWorktreeRoot(deps.guildHallHome, name);
+      await fs.mkdir(worktreeRoot, { recursive: true });
+
+      // Write to config.yaml on disk
+      const configPath = path.join(deps.guildHallHome, "config.yaml");
+      const diskConfig = await readConfig(configPath);
+      diskConfig.projects.push({ name, path: resolved, defaultBranch });
+      await writeConfig(diskConfig, configPath);
+
+      // Update the in-memory config so all daemon references see the new project
+      deps.config.projects.push({ name, path: resolved, defaultBranch });
+
+      console.log(`[admin] Registered project '${name}' at ${resolved}`);
+
+      return c.json({
+        registered: true,
+        name,
+        path: resolved,
+        defaultBranch,
+      });
+    } catch (err: unknown) {
+      console.error("[admin] register-project failed:", errorMessage(err));
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  // -- GET /admin/validate --
+  // Validates config and project paths. Returns issues found.
+  routes.get("/admin/validate", async (c) => {
+    try {
+      // deps.guildHallHome is the full path (e.g., ~/.guild-hall), not
+      // a HOME override, so construct config path directly.
+      const configPath = path.join(deps.guildHallHome, "config.yaml");
+      let config: AppConfig;
+      try {
+        config = await readConfig(configPath);
+      } catch (err: unknown) {
+        return c.json({
+          valid: false,
+          issues: [`Config error: ${errorMessage(err)}`],
+        });
+      }
+
+      if (config.projects.length === 0) {
+        return c.json({ valid: true, issues: [], projectCount: 0 });
+      }
+
+      const issues: string[] = [];
+
+      for (const project of config.projects) {
+        const resolved = path.resolve(project.path);
+
+        try {
+          const stat = await fs.stat(resolved);
+          if (!stat.isDirectory()) {
+            issues.push(`${project.name}: '${resolved}' is not a directory`);
+            continue;
+          }
+        } catch {
+          issues.push(`${project.name}: path '${resolved}' does not exist`);
+          continue;
+        }
+
+        try {
+          await fs.stat(path.join(resolved, ".git"));
+        } catch {
+          issues.push(
+            `${project.name}: '${resolved}' does not contain a .git/ directory`,
+          );
+        }
+
+        try {
+          await fs.stat(path.join(resolved, ".lore"));
+        } catch {
+          issues.push(
+            `${project.name}: '${resolved}' does not contain a .lore/ directory`,
+          );
+        }
+      }
+
+      return c.json({
+        valid: issues.length === 0,
+        issues,
+        projectCount: config.projects.length,
+      });
+    } catch (err: unknown) {
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  // -- POST /admin/rebase --
+  // Rebase claude onto default branch for one or all projects.
+  routes.post("/admin/rebase", async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({})) as { projectName?: string };
+      const result = await rebaseAll(
+        body.projectName,
+        deps.guildHallHome,
+        deps.gitOps,
+        deps.config,
+      );
+      return c.json(result);
+    } catch (err: unknown) {
+      return c.json({ error: errorMessage(err) }, 400);
+    }
+  });
+
+  // -- POST /admin/sync --
+  // Smart sync (fetch + detect merged PRs + reset or rebase) for one or all projects.
+  routes.post("/admin/sync", async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({})) as { projectName?: string };
+      const result = await syncAll(
+        body.projectName,
+        deps.guildHallHome,
+        deps.gitOps,
+        deps.config,
+      );
+      return c.json(result);
+    } catch (err: unknown) {
+      return c.json({ error: errorMessage(err) }, 400);
+    }
   });
 
   return routes;

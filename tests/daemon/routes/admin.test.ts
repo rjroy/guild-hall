@@ -1,7 +1,10 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { createApp } from "@/daemon/app";
 import type { AdminDeps } from "@/daemon/routes/admin";
 import type { AppConfig } from "@/lib/types";
+import { writeConfig } from "@/lib/config";
 
 function makeAdminDeps(overrides?: Partial<AdminDeps>): AdminDeps {
   const config: AppConfig = overrides?.config ?? { projects: [] };
@@ -183,5 +186,312 @@ describe("POST /admin/reload-config", () => {
 
     const res = await app.request("/admin/reload-config", { method: "POST" });
     expect(res.status).toBe(404);
+  });
+});
+
+// -- Tests for new Phase 4 admin routes --
+
+describe("POST /admin/register-project", () => {
+  let tmpDir: string;
+  let ghHome: string;
+  let savedGHHome: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join("/tmp/claude-1000", "gh-admin-reg-"));
+    ghHome = path.join(tmpDir, "guild-hall");
+    await fs.mkdir(ghHome, { recursive: true });
+
+    savedGHHome = process.env.GUILD_HALL_HOME;
+    process.env.GUILD_HALL_HOME = ghHome;
+  });
+
+  afterEach(async () => {
+    if (savedGHHome !== undefined) {
+      process.env.GUILD_HALL_HOME = savedGHHome;
+    } else {
+      delete process.env.GUILD_HALL_HOME;
+    }
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  test("returns 400 when name is missing", async () => {
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/register-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "/tmp/some-path" }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("name and path are required");
+  });
+
+  test("returns 400 when path does not exist", async () => {
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/register-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "test", path: "/nonexistent/path" }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("does not exist");
+  });
+
+  test("returns 400 when .git is missing", async () => {
+    const projectDir = path.join(tmpDir, "no-git-project");
+    await fs.mkdir(path.join(projectDir, ".lore"), { recursive: true });
+
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/register-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "test", path: projectDir }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain(".git/");
+  });
+
+  test("returns 400 when .lore is missing", async () => {
+    const projectDir = path.join(tmpDir, "no-lore-project");
+    await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
+
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/register-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "test", path: projectDir }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain(".lore/");
+  });
+
+  test("returns 409 for duplicate project names", async () => {
+    const projectDir = path.join(tmpDir, "dup-project");
+    await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
+    await fs.mkdir(path.join(projectDir, ".lore"), { recursive: true });
+
+    const config: AppConfig = {
+      projects: [{ name: "existing", path: "/some/path" }],
+    };
+    const deps = makeAdminDeps({ guildHallHome: ghHome, config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/register-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "existing", path: projectDir }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toContain("already registered");
+  });
+
+  test("successfully registers a valid project", async () => {
+    const projectDir = path.join(tmpDir, "valid-project");
+    await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
+    await fs.mkdir(path.join(projectDir, ".lore"), { recursive: true });
+
+    // Write an initial config.yaml so the route can read/write it
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [] }, configPath);
+
+    const config: AppConfig = { projects: [] };
+    const deps = makeAdminDeps({ guildHallHome: ghHome, config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/register-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "my-project", path: projectDir }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.registered).toBe(true);
+    expect(body.name).toBe("my-project");
+    expect(body.defaultBranch).toBe("main");
+
+    // In-memory config should be updated
+    expect(config.projects).toHaveLength(1);
+    expect(config.projects[0].name).toBe("my-project");
+  });
+});
+
+describe("GET /admin/validate", () => {
+  let tmpDir: string;
+  let ghHome: string;
+  let savedGHHome: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join("/tmp/claude-1000", "gh-admin-val-"));
+    ghHome = path.join(tmpDir, "guild-hall");
+    await fs.mkdir(ghHome, { recursive: true });
+
+    savedGHHome = process.env.GUILD_HALL_HOME;
+    process.env.GUILD_HALL_HOME = ghHome;
+  });
+
+  afterEach(async () => {
+    if (savedGHHome !== undefined) {
+      process.env.GUILD_HALL_HOME = savedGHHome;
+    } else {
+      delete process.env.GUILD_HALL_HOME;
+    }
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  test("returns valid for empty config", async () => {
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [] }, configPath);
+
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/validate");
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.valid).toBe(true);
+    expect(body.projectCount).toBe(0);
+  });
+
+  test("reports issues for missing project paths", async () => {
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({
+      projects: [{ name: "ghost", path: "/nonexistent/path" }],
+    }, configPath);
+
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/validate");
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.valid).toBe(false);
+    expect(body.issues).toHaveLength(1);
+    expect(body.issues[0]).toContain("does not exist");
+  });
+
+  test("reports issues for missing .git and .lore", async () => {
+    const projectDir = path.join(tmpDir, "bare-dir");
+    await fs.mkdir(projectDir, { recursive: true });
+
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({
+      projects: [{ name: "bare", path: projectDir }],
+    }, configPath);
+
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/validate");
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.valid).toBe(false);
+    expect(body.issues.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("returns valid when all projects check out", async () => {
+    const projectDir = path.join(tmpDir, "good-project");
+    await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
+    await fs.mkdir(path.join(projectDir, ".lore"), { recursive: true });
+
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({
+      projects: [{ name: "good", path: projectDir }],
+    }, configPath);
+
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/validate");
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.valid).toBe(true);
+    expect(body.projectCount).toBe(1);
+  });
+});
+
+describe("POST /admin/rebase", () => {
+  test("returns results from rebaseAll", async () => {
+    const deps = makeAdminDeps();
+    const app = makeTestApp(deps);
+
+    // No projects, so results should be empty
+    const res = await app.request("/admin/rebase", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.results).toEqual([]);
+  });
+
+  test("returns 400 for unknown project name", async () => {
+    const deps = makeAdminDeps();
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/rebase", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectName: "nonexistent" }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("not found");
+  });
+});
+
+describe("POST /admin/sync", () => {
+  test("returns results from syncAll", async () => {
+    const deps = makeAdminDeps();
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.results).toEqual([]);
+  });
+
+  test("returns 400 for unknown project name", async () => {
+    const deps = makeAdminDeps();
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/admin/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectName: "nonexistent" }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("not found");
   });
 });

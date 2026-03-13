@@ -167,7 +167,7 @@ export async function createProductionApp(options?: {
   // Smart sync: fetch from origin, detect merged PRs (reset), or rebase
   // onto the default branch. Replaces the unconditional rebase from Phase 5.
   // Failures log a warning but don't crash the daemon.
-  const { syncProject } = await import("@/cli/rebase");
+  const { syncProject } = await import("@/daemon/services/git-admin");
   for (const project of config.projects) {
     try {
       await syncProject(project.path, project.name, guildHallHome, git, project.defaultBranch);
@@ -415,7 +415,6 @@ export async function createProductionApp(options?: {
         guildHallHome,
         gitOps: git,
         readConfigFromDisk: readConfig,
-        syncProject: (await import("@/cli/rebase")).syncProject,
       },
       artifacts: {
         config,

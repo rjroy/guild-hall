@@ -32,8 +32,8 @@ import type { CommissionSessionForRoutes } from "@/daemon/services/commission/or
 import type { EventBus } from "@/daemon/lib/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
-import { hasActiveActivities, syncProject } from "@/cli/rebase";
-import type { SyncResult } from "@/cli/rebase";
+import { hasActiveActivities, syncProject } from "@/daemon/services/git-admin";
+import type { SyncResult } from "@/daemon/services/git-admin";
 import { isValidModel } from "@/lib/types";
 import type { AppConfig, ProjectConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
 import { getWorkerByName } from "@/lib/packages";
