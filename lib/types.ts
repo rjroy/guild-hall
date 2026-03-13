@@ -389,3 +389,10 @@ export function compareArtifactsByStatusAndTitle(a: Artifact, b: Artifact): numb
   const bTitle = b.meta.title || b.relativePath;
   return aTitle.localeCompare(bTitle);
 }
+
+// Re-export domain types so server components can import from lib/types.ts
+// instead of lib/commissions.ts or lib/meetings.ts (DAB migration: server
+// components must not import from lib files that perform filesystem reads).
+export type { CommissionMeta, TimelineEntry } from "./commissions";
+export type { MeetingMeta, TranscriptChatMessage } from "./meetings";
+export type { DependencyGraph } from "./dependency-graph";

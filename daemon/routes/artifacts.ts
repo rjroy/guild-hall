@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import { integrationWorktreePath, projectLorePath } from "@/lib/paths";
+import {
+  integrationWorktreePath,
+  projectLorePath,
+  resolveCommissionBasePath,
+  resolveMeetingBasePath,
+} from "@/lib/paths";
 import {
   scanArtifacts,
   recentArtifacts,
@@ -78,20 +83,37 @@ export function createArtifactRoutes(deps: ArtifactDeps): Hono {
   });
 
   // GET /artifacts/:path - read single artifact
+  // Active meetings and commissions live in activity worktrees, not the
+  // integration worktree. Resolve the correct base path based on the
+  // artifact's prefix and daemon state files.
   routes.get("/artifacts/:path{.+}", async (c) => {
     const projectName = c.req.query("projectName");
     if (!projectName) {
       return c.json({ error: "Missing required query parameter: projectName" }, 400);
     }
 
-    const lorePath = resolveProjectLorePath(deps.config, deps.guildHallHome, projectName);
-    if (!lorePath) {
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
       return c.json({ error: `Project not found: ${projectName}` }, 404);
     }
 
     const artifactPath = c.req.param("path");
 
     try {
+      let basePath: string;
+      if (artifactPath.startsWith("meetings/")) {
+        const filename = artifactPath.split("/").pop() ?? "";
+        const meetingId = filename.replace(/\.md$/, "");
+        basePath = await resolveMeetingBasePath(deps.guildHallHome, projectName, meetingId);
+      } else if (artifactPath.startsWith("commissions/")) {
+        const filename = artifactPath.split("/").pop() ?? "";
+        const commissionId = filename.replace(/\.md$/, "");
+        basePath = await resolveCommissionBasePath(deps.guildHallHome, projectName, commissionId);
+      } else {
+        basePath = integrationWorktreePath(deps.guildHallHome, projectName);
+      }
+
+      const lorePath = projectLorePath(basePath);
       const artifact = await readArtifact(lorePath, artifactPath);
       return c.json(serializeArtifact(artifact));
     } catch (err: unknown) {

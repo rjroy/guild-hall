@@ -5,9 +5,17 @@ import { streamSSE } from "hono/streaming";
 import type { GuildHallEvent, MeetingId } from "@/daemon/types";
 import { asMeetingId } from "@/daemon/types";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import type { AppConfig } from "@/lib/types";
+import type { AppConfig, Artifact } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveMeetingBasePath } from "@/lib/paths";
-import { scanMeetingRequests, readMeetingMeta } from "@/lib/meetings";
+import { scanArtifacts } from "@/lib/artifacts";
+import {
+  scanMeetingRequests,
+  readMeetingMeta,
+  getActiveMeetingWorktrees,
+  sortMeetingArtifacts,
+  sortMeetingRequests,
+  parseTranscriptToMessages,
+} from "@/lib/meetings";
 
 /**
  * The meeting session interface as seen by the routes layer.
@@ -257,9 +265,11 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     }
   });
 
-  // -- Read routes (Phase 1 DAB migration) --
+  // -- Read routes (Phase 1-2 DAB migration) --
 
   // GET /meetings?projectName=X - List meeting requests for a project
+  // GET /meetings?projectName=X&view=artifacts - List all meetings as artifacts
+  //   (includes active worktree meetings, sorted open-first then by date desc)
   routes.get("/meetings", async (c) => {
     if (!deps.config || !deps.guildHallHome) {
       return c.json({ error: "Read routes not configured" }, 500);
@@ -275,17 +285,46 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
       return c.json({ error: `Project not found: ${projectName}` }, 404);
     }
 
+    const view = c.req.query("view");
+
     try {
       const iPath = integrationWorktreePath(deps.guildHallHome, projectName);
       const lorePath = projectLorePath(iPath);
+
+      // Artifacts view: return all meetings as Artifact[] with active worktree
+      // merging. Used by the project page's meetings tab.
+      if (view === "artifacts") {
+        const meetingsPath = path.join(lorePath, "meetings");
+        const integrationMeetings = await scanArtifacts(meetingsPath);
+
+        const activeWorktrees = await getActiveMeetingWorktrees(deps.guildHallHome, projectName);
+        const activeMeetingArrays = await Promise.all(
+          activeWorktrees.map((wt) => scanArtifacts(path.join(wt, ".lore", "meetings"))),
+        );
+        const activeMeetings = activeMeetingArrays.flat();
+
+        // Merge, deduplicating by filename
+        const seenIds = new Set(integrationMeetings.map((m) => m.relativePath));
+        const merged = [
+          ...integrationMeetings,
+          ...activeMeetings.filter((m) => !seenIds.has(m.relativePath)),
+        ];
+        const sorted = sortMeetingArtifacts(merged);
+
+        return c.json({ meetings: sorted.map(serializeArtifact) });
+      }
+
+      // Default: return meeting requests (pending/deferred), sorted
       const meetings = await scanMeetingRequests(lorePath, projectName);
-      return c.json({ meetings });
+      const sorted = sortMeetingRequests(meetings);
+      return c.json({ meetings: sorted });
     } catch (err: unknown) {
       return c.json({ error: errorMessage(err) }, 500);
     }
   });
 
   // GET /meetings/:meetingId?projectName=X - Read meeting detail
+  // Returns meeting metadata, raw transcript, and parsed transcript messages.
   routes.get("/meetings/:meetingId", async (c) => {
     if (!deps.config || !deps.guildHallHome) {
       return c.json({ error: "Read routes not configured" }, 500);
@@ -319,7 +358,9 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
         // No transcript file
       }
 
-      return c.json({ meeting: meta, transcript });
+      const parsedMessages = parseTranscriptToMessages(transcript);
+
+      return c.json({ meeting: meta, transcript, parsedMessages });
     } catch (err: unknown) {
       if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
         return c.json({ error: `Meeting not found: ${meetingId}` }, 404);
@@ -329,4 +370,18 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
   });
 
   return routes;
+}
+
+/**
+ * Converts an Artifact to a JSON-safe shape for meeting artifact responses.
+ * Matches the serialization in daemon/routes/artifacts.ts.
+ */
+function serializeArtifact(a: Artifact): Record<string, unknown> {
+  return {
+    relativePath: a.relativePath,
+    meta: a.meta,
+    content: a.content,
+    lastModified: a.lastModified.toISOString(),
+    ...(a.rawContent !== undefined ? { rawContent: a.rawContent } : {}),
+  };
 }

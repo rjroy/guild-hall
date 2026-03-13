@@ -7,6 +7,9 @@ import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import type { AppConfig } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveCommissionBasePath } from "@/lib/paths";
 import { scanCommissions, readCommissionMeta, parseActivityTimeline } from "@/lib/commissions";
+import { nextOccurrence } from "@/daemon/services/scheduler/cron";
+import { describeCron } from "@/lib/cron-utils";
+import matter from "gray-matter";
 
 export interface CommissionRoutesDeps {
   commissionSession: CommissionSessionForRoutes;
@@ -368,7 +371,44 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       const meta = await readCommissionMeta(filePath, projectName);
       const timeline = parseActivityTimeline(rawContent);
 
-      return c.json({ commission: meta, timeline, rawContent });
+      // Parse schedule info for scheduled commissions
+      let scheduleInfo: Record<string, unknown> | undefined;
+      if (meta.type === "scheduled") {
+        const parsed = matter(rawContent);
+        const sched = parsed.data.schedule as Record<string, unknown> | undefined;
+        if (sched && typeof sched === "object") {
+          const lastRun = sched.last_run;
+          let lastRunStr: string | null = null;
+          if (lastRun instanceof Date) {
+            lastRunStr = lastRun.toISOString();
+          } else if (typeof lastRun === "string" && lastRun) {
+            lastRunStr = lastRun;
+          }
+
+          const cronExpr = typeof sched.cron === "string" ? sched.cron : "";
+
+          let nextRunStr: string | null = null;
+          if (cronExpr) {
+            const referenceDate = lastRunStr ? new Date(lastRunStr) : new Date(0);
+            const nextDate = nextOccurrence(cronExpr, referenceDate);
+            if (nextDate) {
+              nextRunStr = nextDate.toISOString();
+            }
+          }
+
+          scheduleInfo = {
+            cron: cronExpr,
+            cronDescription: describeCron(cronExpr),
+            repeat: typeof sched.repeat === "number" ? sched.repeat : null,
+            runsCompleted: typeof sched.runs_completed === "number" ? sched.runs_completed : 0,
+            lastRun: lastRunStr,
+            lastSpawnedId: typeof sched.last_spawned_id === "string" ? sched.last_spawned_id : null,
+            nextRun: nextRunStr,
+          };
+        }
+      }
+
+      return c.json({ commission: meta, timeline, rawContent, scheduleInfo });
     } catch (err: unknown) {
       if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
         return c.json({ error: `Commission not found: ${commissionId}` }, 404);
