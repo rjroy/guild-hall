@@ -191,6 +191,7 @@ Examples:
 - `POST /meeting/request/meeting/create`
 - `POST /meeting/request/meeting/accept`
 - `POST /meeting/request/meeting/decline`
+- `POST /meeting/request/meeting/defer`
 - `POST /meeting/session/message/send`
 - `POST /meeting/session/generation/interrupt`
 - `POST /meeting/session/meeting/close`
@@ -210,9 +211,11 @@ Examples:
 
 - `POST /commission/request/commission/create`
 - `POST /commission/request/commission/update`
+- `POST /commission/request/commission/note`
 - `POST /commission/run/dispatch`
 - `POST /commission/run/redispatch`
 - `POST /commission/run/cancel`
+- `POST /commission/run/abandon`
 - `POST /commission/schedule/commission/update`
 - `POST /commission/dependency/project/check`
 
@@ -325,6 +328,19 @@ In practice, most non-trivial operations will be `POST` because Guild Hall capab
 
 Each skill has exactly one canonical invocation contract in discovery metadata. If transport aliases exist for practical reasons, they are aliases of that skill rather than distinct public capabilities.
 
+## Streaming Convention
+
+All streaming operations use Server-Sent Events with a consistent wire format:
+
+- Events are sent as unnamed SSE messages (no `event:` header). The event type is a `type` field inside the JSON payload.
+- Each SSE frame contains `data: <JSON>` where the JSON object always has a `type` string discriminator.
+- Errors during streaming are sent as `{ "type": "error", "reason": "..." }` in the same stream, not as HTTP error responses.
+- Streams end by closing the connection after a terminal event (e.g., `turn_end` for meetings, or client disconnect for event subscriptions).
+
+This matches the current implementation, which uses two event families: meeting session events (`session`, `text_delta`, `tool_use`, `tool_result`, `turn_end`, `error`) and system events (`commission_status`, `meeting_started`, etc.). The `type` discriminator is the only dispatching mechanism; clients switch on it to handle each event kind.
+
+When help metadata declares `"streaming": true`, the `streamingSchema` field should list the `type` values the client can expect from that operation.
+
 ## Examples
 
 ### API root discovery
@@ -388,14 +404,28 @@ The current route set maps roughly as follows:
 - `/meetings/:id/decline` -> `/meeting/request/meeting/decline`
 - `/meetings/:id/defer` -> `/meeting/request/meeting/defer`
 - `/meetings/:id/interrupt` -> `/meeting/session/generation/interrupt`
+- `DELETE /meetings/:id` -> `/meeting/session/meeting/close`
 - `/commissions` -> `/commission/request/commission/create`
-- `/commissions/:id` -> `/commission/request/commission/update`
+- `/commissions/:id` (PUT) -> `/commission/request/commission/update`
+- `DELETE /commissions/:id` -> `/commission/run/cancel`
 - `/commissions/:id/dispatch` -> `/commission/run/dispatch`
 - `/commissions/:id/redispatch` -> `/commission/run/redispatch`
 - `/commissions/:id/abandon` -> `/commission/run/abandon`
+- `/commissions/:id/note` -> `/commission/request/commission/note`
+- `/commissions/:id/schedule-status` -> `/commission/schedule/commission/update`
 - `/commissions/check-dependencies` -> `/commission/dependency/project/check`
+- `/admin/reload-config` -> `/system/config/application/reload`
 
 This is intentionally a conceptual mapping, not a promise to preserve old URLs or exact semantics.
+
+### Web routes that bypass the daemon
+
+Two Next.js API routes currently perform application-state operations without going through the daemon, which are boundary violations under REQ-DAB-3:
+
+- `PUT /api/artifacts` writes artifact content directly to the integration worktree filesystem and commits via git. Target: `/workspace/artifact/document/write` with the daemon owning the write and commit.
+- `POST /api/meetings/[meetingId]/quick-comment` is a compound action that creates a commission from meeting context and declines the meeting. It reads meeting artifacts from the filesystem and coordinates two daemon calls. Target: either a dedicated `/coordination/dispatch/quick-comment` skill or decomposition into existing daemon skills with the compound logic moved server-side.
+
+These are transitional adapters per REQ-DAB-15. They should be replaced by daemon-owned skills as the API migration progresses, not deepened with additional filesystem logic.
 
 ## Trade-Offs
 
@@ -413,12 +443,25 @@ This is intentionally a conceptual mapping, not a promise to preserve old URLs o
 - Requires the daemon to maintain high-quality capability metadata
 - Forces explicit thinking about public namespace boundaries
 
-## Open Questions
+## Resolved Questions
 
-- Should capability metadata be generated from handler registration, or written explicitly alongside handlers?
-- Should `help` be the only discovery mechanism, or should the daemon also expose a machine-readable catalog endpoint that mirrors the same data?
-- Should worker/package discovery live under `system/packages/...` or receive its own root such as `worker/...`?
-- Should streaming operations be discoverable only through `help`, or also through a shared streaming capability schema?
+### Metadata: explicit, co-located with handlers
+
+Capability metadata should be written explicitly alongside route handlers, not generated by introspecting registered routes. The current codebase has zero machine-readable metadata (only JSDoc comments), so there is nothing to introspect. Explicit metadata keeps the source of truth next to the code and is verifiable by review. Existing Zod schemas used for request validation can be reused as the request/response descriptions in help metadata.
+
+The route factory pattern already supports this: factories currently return a `Hono` instance and can be extended to return metadata alongside it.
+
+### Discovery: `help` is canonical, catalog is a convenience
+
+`help` at every hierarchy level is the canonical discovery mechanism. It returns structured JSON, so it is already machine-readable. A flat catalog endpoint (`GET /catalog` or similar) that lists all capabilities without traversal is a valid convenience projection of the same data, not a separate discovery authority. It should be added when a client needs it, not preemptively.
+
+### Worker/package discovery: `system/packages`
+
+Worker and package discovery lives under `system/packages/...`. Workers are installed infrastructure, not a user-facing application domain like meetings or commissions. The `system` root already lists `packages` as a candidate feature, and packages include both workers and toolboxes. A dedicated `worker/...` root would overweight one package type and create a naming asymmetry with toolboxes.
+
+### Streaming discovery: through `help`, not a separate endpoint
+
+Streaming is an attribute of individual operations, not a separate discovery concern. The help metadata for each operation already includes `streaming` (boolean) and `streamingSchema` fields. All Guild Hall streaming operations should use a consistent SSE event format, documented once in this design. That consistency is a convention enforced by implementation, not a separate endpoint to query.
 
 ## Recommendation
 

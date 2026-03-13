@@ -38,9 +38,9 @@ Guild Hall's target architecture treats the daemon as the application. The daemo
 
 - REQ-DAB-6: The daemon can spawn and manage specialist agent sessions. Where those sessions run is an implementation detail; lifecycle ownership, context injection, and side-effect mediation belong to the daemon boundary.
 
-- REQ-DAB-7: Agents interact with the Guild Hall application only through daemon-governed skills with CLI semantics. Agents do not receive a separate privileged application surface that bypasses the daemon's client boundary.
+- REQ-DAB-7: Agents interact with the Guild Hall application only through daemon-governed skills with CLI semantics: named capabilities, stable invocation paths, structured arguments, and machine-readable discovery. Agents do not receive a separate privileged application surface that bypasses the daemon's client boundary.
 
-- REQ-DAB-8: A skill is the shared application-facing unit of capability for humans and agents. A skill is a daemon-owned capability contract with a stable name, description, invocation shape, and context rules, defined in terms of an application outcome rather than an internal callback or storage detail.
+- REQ-DAB-8: A skill is the shared application-facing unit of capability for humans and agents. A skill is a daemon-owned capability contract with a stable name, description, invocation shape, and context rules, defined in terms of an application outcome rather than an internal callback or storage detail. An existing Claude Code plugin skill (SKILL.md) is not itself this contract; it is one way the contract may be projected into an agent session. The daemon-owned contract is the parent concept, and its metadata is defined at the daemon level.
 
 - REQ-DAB-9: The daemon owns canonical skill metadata and discovery. CLI, web, and agent-facing projections may render that metadata differently, but they discover the same underlying skill contract from the daemon rather than inventing parallel capability models.
 
@@ -60,7 +60,7 @@ Guild Hall's target architecture treats the daemon as the application. The daemo
 
 | Exit | Triggers When | Target |
 |------|---------------|--------|
-| Daemon route and payload details | Need the concrete REST resource model, request/response shapes, and streaming rules | [STUB: daemon-rest-api] |
+| Daemon route and payload details | Need the concrete REST resource model, request/response shapes, and streaming rules | [Design: daemon-rest-api](../../design/daemon-rest-api.md) |
 | CLI discovery and invocation UX | Need the exact command grammar and discovery model for daemon capabilities | [STUB: cli-progressive-discovery] |
 | Worker package and runtime model | Need worker metadata, runtime configuration, and internal tool resolution | [Spec: guild-hall-workers](../workers/guild-hall-workers.md) |
 | Meetings and commissions | Need orchestration rules for interactive and autonomous daemon-managed work | [Spec: guild-hall-commissions](../commissions/guild-hall-commissions.md) |
@@ -74,17 +74,18 @@ Guild Hall's target architecture treats the daemon as the application. The daemo
 - [ ] Agent interaction is defined in terms of CLI-shaped skills rather than a separate privileged surface
 - [ ] Skills are distinguished from internal tools and toolboxes
 - [ ] Human-agent parity is stated as an application-boundary invariant
+- [ ] The daemon serves canonical capability metadata; clients discover skills from the daemon rather than from static client-side configuration
 - [ ] Migration principles are documented without turning this spec into an implementation plan
+- [ ] New work governed by this spec does not introduce client-side authority paths that bypass the daemon API
 
 ## AI Validation
 
-**Defaults:**
-- Unit tests with mocked time/network/filesystem/LLM calls (including Agent SDK `query()`)
-- 90%+ coverage on new code
-- Code review by fresh-context sub-agent
+This is a target-architecture spec with no implementation deliverable. Standard test defaults do not apply.
 
-**Custom:**
-- None. Defaults are sufficient for this spec.
+**Validation approach:**
+- Implementing work governed by this spec must satisfy the standard defaults (unit tests, 90%+ coverage, fresh-context review)
+- Each implementing spec or plan must verify that no new client-side authority paths were introduced
+- The spec itself is validated by its success criteria and by fresh-context spec review
 
 ## Constraints
 
@@ -101,4 +102,4 @@ Guild Hall's target architecture treats the daemon as the application. The daemo
 - `.lore/specs/workers/guild-hall-workers.md` defines worker packages, toolbox resolution, and SDK runtime behavior. This spec does not replace that model; it constrains how application-facing capability should be exposed and treats current toolboxes as daemon-internal mechanisms rather than the long-term application contract.
 - `.lore/specs/workers/worker-domain-plugins.md` shows that skills already exist as a concept in the codebase. In this architecture, plugin skills are one possible projection of the daemon-owned skill contract rather than the contract itself.
 - `.lore/research/agent-native-applications.md` contributes the parity and progressive discovery principles, but this spec redirects them from MCP-shaped tooling toward a daemon-owned CLI skill surface.
-- Lore survey findings for this spec: current documentation still describes the web as reading from the filesystem, the CLI as an independent runtime, and direct file editing as a parity mechanism. Those documents are intentionally left as current-state references while this spec records the target direction and supersedes that direct-edit parity model for future-state architecture.
+- Lore survey findings for this spec: current documentation still describes the web as reading from the filesystem, the CLI as performing direct filesystem and git operations outside the daemon API, and direct file editing as a parity mechanism. Those documents are intentionally left as current-state references while this spec records the target direction and supersedes that direct-edit parity model for future-state architecture.
