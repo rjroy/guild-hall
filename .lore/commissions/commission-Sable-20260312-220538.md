@@ -1,7 +1,7 @@
 ---
 title: "Commission: Test Worker canUseToolRules (Steps 3-4 new tests)"
 date: 2026-03-13
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Sable
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-13T05:05:38.931Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-13T05:09:37.498Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---
