@@ -1,7 +1,7 @@
 ---
 title: "Commission: Sandboxed Execution: Review (Step 9)"
 date: 2026-03-12
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -20,6 +20,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-13T03:15:19.984Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-13T03:15:19.986Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
