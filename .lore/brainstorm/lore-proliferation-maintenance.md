@@ -1,7 +1,7 @@
 ---
 title: Lore proliferation and automated maintenance
 date: 2026-03-08
-status: open
+status: resolved
 tags: [lore, maintenance, automation, document-lifecycle, events, scheduling]
 modules: [daemon, lore-development]
 related:

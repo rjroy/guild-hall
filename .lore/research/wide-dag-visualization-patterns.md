@@ -1,3 +1,6 @@
+---
+status: active
+---
 # Wide DAG Visualization Patterns
 
 Research into how CI/CD tools and graph libraries handle wide dependency graphs, with focus on "wide-and-shallow" DAGs (many parallel nodes, few depth levels).

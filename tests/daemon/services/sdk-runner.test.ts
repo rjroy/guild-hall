@@ -375,6 +375,7 @@ describe("prepareSdkSession", () => {
     mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
     allowedTools: ["read_file", "write_file"],
     builtInTools: ["Read", "Write"],
+    canUseToolRules: [],
   };
 
   const mockActivation: ActivationResult = {
@@ -597,6 +598,7 @@ describe("prepareSdkSession", () => {
         ],
         allowedTools: [],
         builtInTools: [],
+        canUseToolRules: [],
       },
     };
 
@@ -1055,6 +1057,368 @@ describe("prepareSdkSession", () => {
     expect(result.error).toContain("nonexistent-model");
   });
 
+  // -- Sandbox injection tests (REQ-SBX-10) --
+
+  describe("sandbox injection", () => {
+    test("includes sandbox in options when worker has Bash in builtInTools", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read", "Bash"],
+          builtInTools: ["Read", "Bash"],
+          canUseToolRules: [],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.sandbox).toBeDefined();
+      expect(result.result.options.sandbox?.enabled).toBe(true);
+      expect(result.result.options.sandbox?.autoAllowBashIfSandboxed).toBe(true);
+      expect(result.result.options.sandbox?.allowUnsandboxedCommands).toBe(false);
+    });
+
+    test("sandbox sets network.allowLocalBinding to false", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Bash"],
+          builtInTools: ["Bash"],
+          canUseToolRules: [],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.sandbox?.network?.allowLocalBinding).toBe(false);
+    });
+
+    test("does NOT include sandbox when worker has no Bash in builtInTools", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read", "Glob", "Grep"],
+          builtInTools: ["Read", "Glob", "Grep"],
+          canUseToolRules: [],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.sandbox).toBeUndefined();
+    });
+
+    test("Dalton-like worker (has Bash) gets sandbox, Thorne-like worker (no Bash) does not", async () => {
+      // Dalton: has Bash among full tool set
+      const daltonDeps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "Skill", "Task"],
+          builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "Skill", "Task"],
+          canUseToolRules: [],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const daltonResult = await prepareSdkSession(makeSpec(), daltonDeps);
+      expect(daltonResult.ok).toBe(true);
+      if (!daltonResult.ok) return;
+      expect(daltonResult.result.options.sandbox?.enabled).toBe(true);
+
+      // Thorne: read-only tools, no Bash
+      const thorneDeps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read", "Glob", "Grep"],
+          builtInTools: ["Read", "Glob", "Grep"],
+          canUseToolRules: [],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const thorneResult = await prepareSdkSession(makeSpec(), thorneDeps);
+      expect(thorneResult.ok).toBe(true);
+      if (!thorneResult.ok) return;
+      expect(thorneResult.result.options.sandbox).toBeUndefined();
+    });
+  });
+
+  // -- canUseTool callback tests (REQ-SBX-24) --
+
+  describe("canUseTool callback", () => {
+    test("prepareSdkSession does NOT include canUseTool when rules are empty", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read"],
+          builtInTools: ["Read"],
+          canUseToolRules: [],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.canUseTool).toBeUndefined();
+    });
+
+    test("prepareSdkSession includes canUseTool when rules are non-empty", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read", "Bash"],
+          builtInTools: ["Read", "Bash"],
+          canUseToolRules: [{ tool: "Bash", allow: false, reason: "No Bash" }],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.canUseTool).toBeDefined();
+      expect(typeof result.result.options.canUseTool).toBe("function");
+    });
+
+    test("allows call when no rule matches (different tool than rules target)", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read", "Edit", "Bash"],
+          builtInTools: ["Read", "Edit", "Bash"],
+          canUseToolRules: [
+            { tool: "Bash", allow: false, reason: "No Bash" },
+          ],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const decision = await result.result.options.canUseTool!(
+        "Edit",
+        { file_path: "/some/file.ts" },
+        { signal: new AbortController().signal },
+      );
+      expect(decision.behavior).toBe("allow");
+    });
+
+    test("denies Bash call matching a catch-all deny rule", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Bash"],
+          builtInTools: ["Bash"],
+          canUseToolRules: [
+            { tool: "Bash", allow: false, reason: "All Bash denied" },
+          ],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const decision = await result.result.options.canUseTool!(
+        "Bash",
+        { command: "rm -rf /" },
+        { signal: new AbortController().signal },
+      );
+      expect(decision.behavior).toBe("deny");
+      if (decision.behavior === "deny") {
+        expect(decision.message).toBe("All Bash denied");
+      }
+    });
+
+    test("allowlist pattern: allows git status, denies rm -rf", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Bash"],
+          builtInTools: ["Bash"],
+          canUseToolRules: [
+            { tool: "Bash", commands: ["git status", "git log"], allow: true },
+            { tool: "Bash", allow: false, reason: "Only git status and git log" },
+          ],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const allowDecision = await result.result.options.canUseTool!(
+        "Bash",
+        { command: "git status" },
+        { signal: new AbortController().signal },
+      );
+      expect(allowDecision.behavior).toBe("allow");
+
+      const denyDecision = await result.result.options.canUseTool!(
+        "Bash",
+        { command: "rm -rf /" },
+        { signal: new AbortController().signal },
+      );
+      expect(denyDecision.behavior).toBe("deny");
+      if (denyDecision.behavior === "deny") {
+        expect(denyDecision.message).toBe("Only git status and git log");
+      }
+    });
+
+    test("path-based deny: blocks Edit to **/.ssh/**, allows .lore/ paths", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Edit"],
+          builtInTools: ["Edit"],
+          canUseToolRules: [
+            { tool: "Edit", paths: ["**/.ssh/**"], allow: false, reason: "Cannot edit credentials" },
+          ],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      // SDK delivers absolute paths
+      const denyDecision = await result.result.options.canUseTool!(
+        "Edit",
+        { file_path: "/home/user/.ssh/id_rsa" },
+        { signal: new AbortController().signal },
+      );
+      expect(denyDecision.behavior).toBe("deny");
+      if (denyDecision.behavior === "deny") {
+        expect(denyDecision.message).toBe("Cannot edit credentials");
+      }
+
+      const allowDecision = await result.result.options.canUseTool!(
+        "Edit",
+        { file_path: "/home/user/project/.lore/specs/example.md" },
+        { signal: new AbortController().signal },
+      );
+      expect(allowDecision.behavior).toBe("allow");
+    });
+
+    test("path patterns match dotfile directories", async () => {
+      // micromatch requires { dot: true } to match leading dots
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Edit"],
+          builtInTools: ["Edit"],
+          canUseToolRules: [
+            { tool: "Edit", paths: ["**/.lore/**"], allow: false, reason: "Cannot edit lore" },
+          ],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const decision = await result.result.options.canUseTool!(
+        "Edit",
+        { file_path: "/home/user/project/.lore/specs/example.md" },
+        { signal: new AbortController().signal },
+      );
+      expect(decision.behavior).toBe("deny");
+    });
+
+    test("denial sets interrupt: false", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Bash"],
+          builtInTools: ["Bash"],
+          canUseToolRules: [
+            { tool: "Bash", allow: false, reason: "Denied" },
+          ],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const decision = await result.result.options.canUseTool!(
+        "Bash",
+        { command: "anything" },
+        { signal: new AbortController().signal },
+      );
+      expect(decision.behavior).toBe("deny");
+      if (decision.behavior === "deny") {
+        expect(decision.interrupt).toBe(false);
+      }
+    });
+  });
+
   // -- Tool availability enforcement tests (REQ-TAE-10) --
 
   test("prepareSdkSession includes tools matching worker builtInTools", async () => {
@@ -1063,6 +1427,7 @@ describe("prepareSdkSession", () => {
         mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
         allowedTools: ["Read", "Glob", "Grep", "mcp__test-server__*"],
         builtInTools: ["Read", "Glob", "Grep"],
+        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
@@ -1083,6 +1448,7 @@ describe("prepareSdkSession", () => {
         mcpServers: [],
         allowedTools: ["Read", "Glob", "Grep"],
         builtInTools: ["Read", "Glob", "Grep"],
+        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
@@ -1105,6 +1471,7 @@ describe("prepareSdkSession", () => {
         mcpServers: [{ name: "my-mcp" } as ResolvedToolSet["mcpServers"][number]],
         allowedTools: ["Read", "Glob", "mcp__my-mcp__*"],
         builtInTools: ["Read", "Glob"],
+        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
@@ -1128,6 +1495,7 @@ describe("prepareSdkSession", () => {
         mcpServers: [],
         allowedTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
         builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
@@ -1150,6 +1518,7 @@ describe("prepareSdkSession", () => {
         mcpServers: [{ name: "srv" } as ResolvedToolSet["mcpServers"][number]],
         allowedTools: ["Read", "mcp__srv__*"],
         builtInTools: ["Read"],
+        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
@@ -1260,6 +1629,7 @@ describe("prepareSdkSession resolvedModel", () => {
     mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
     allowedTools: ["read_file", "write_file"],
     builtInTools: ["Read", "Write"],
+    canUseToolRules: [],
   };
 
   const mockActivation: ActivationResult = {

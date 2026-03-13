@@ -173,6 +173,34 @@ export async function createProductionApp(options?: {
   const managerPkg = createManagerPackage(config);
   const allPackages = [managerPkg, ...discoveredPackages];
 
+  // Check for bubblewrap prerequisite on Linux (REQ-SBX-9)
+  if (process.platform === "linux") {
+    const hasBashWorker = allPackages.some((p) => {
+      if (!("identity" in p.metadata)) return false;
+      return p.metadata.builtInTools.includes("Bash");
+    });
+
+    if (hasBashWorker) {
+      try {
+        const proc = Bun.spawn(["which", "bwrap"], { stdout: "ignore", stderr: "ignore" });
+        const exitCode = await proc.exited;
+        if (exitCode !== 0) {
+          console.warn(
+            "[daemon] WARNING: Bash-capable workers are loaded but bubblewrap (bwrap) " +
+              "is not installed. SDK sandbox isolation requires bubblewrap and socat. " +
+              "Install with: sudo pacman -S bubblewrap socat (Arch) or " +
+              "sudo apt install bubblewrap socat (Debian/Ubuntu).",
+          );
+        }
+      } catch {
+        console.warn(
+          "[daemon] WARNING: Could not check for bubblewrap availability. " +
+            "SDK sandbox isolation requires bubblewrap and socat on Linux.",
+        );
+      }
+    }
+  }
+
   // The real SDK query function. Dynamic import so the module isn't loaded
   // during testing when it isn't needed.
   let queryFn: MeetingSessionDeps["queryFn"];

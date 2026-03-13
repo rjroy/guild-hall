@@ -1,7 +1,7 @@
 ---
 title: Meeting sidebar "Linked Artifacts" is always empty in active meetings
 date: 2026-03-10
-status: open
+status: requested
 tags: [ux, ui, meetings]
 modules: [web/components/meeting]
 ---

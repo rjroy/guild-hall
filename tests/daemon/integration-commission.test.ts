@@ -173,6 +173,7 @@ function createMockPrepDeps(): SessionPrepDeps {
       mcpServers: [],
       allowedTools: [],
       builtInTools: [],
+      canUseToolRules: [],
     }),
     loadMemories: async () => ({
       memoryBlock: "",
@@ -180,7 +181,7 @@ function createMockPrepDeps(): SessionPrepDeps {
     }),
     activateWorker: async () => ({
       systemPrompt: "Test system prompt",
-      tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
+      tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
       resourceBounds: { maxTurns: 10 },
     }),
   };

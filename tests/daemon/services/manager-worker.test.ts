@@ -24,6 +24,7 @@ function makeContext(
     mcpServers: [],
     allowedTools: ["Read", "Glob", "Grep"],
     builtInTools: [],
+    canUseToolRules: [],
   };
 
   return {
@@ -213,6 +214,7 @@ describe("activateManager", () => {
       mcpServers: [],
       allowedTools: ["Read", "Glob", "Grep", "CustomTool"],
       builtInTools: [],
+      canUseToolRules: [],
     };
     const context = makeContext({ resolvedTools: tools });
     const result = activateManager(context);
