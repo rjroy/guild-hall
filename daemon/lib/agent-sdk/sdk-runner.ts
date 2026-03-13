@@ -299,17 +299,17 @@ function buildCanUseTool(
 
       // Rule matches
       if (rule.allow) {
-        return { behavior: "allow" as const, updatedInput: input };
+        return Promise.resolve({ behavior: "allow" as const, updatedInput: input });
       }
-      return {
+      return Promise.resolve({
         behavior: "deny" as const,
         message: rule.reason ?? "Tool call denied by worker policy",
         interrupt: false,
-      };
+      });
     }
 
     // No rule matched: allow (REQ-SBX-14)
-    return { behavior: "allow" as const, updatedInput: input };
+    return Promise.resolve({ behavior: "allow" as const, updatedInput: input });
   };
 }
 
