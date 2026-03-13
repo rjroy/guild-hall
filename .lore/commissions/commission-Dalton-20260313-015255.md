@@ -43,6 +43,19 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-13T12:52:03.736Z
+    event: status_failed
+    reason: "Session error: Claude Code process exited with code 1"
+  - timestamp: 2026-03-13T14:08:52.868Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "failed"
+    to: "pending"
+  - timestamp: 2026-03-13T14:08:52.870Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
