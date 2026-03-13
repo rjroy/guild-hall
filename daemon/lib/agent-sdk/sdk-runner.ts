@@ -278,7 +278,7 @@ const TOOL_PATH_FIELD: Record<string, string> = {
 function buildCanUseTool(
   rules: CanUseToolRule[],
 ): NonNullable<SdkQueryOptions["canUseTool"]> {
-  return async (toolName, input, _options) => {
+  return (toolName, input, _options) => {
     const toolInput = input as Record<string, unknown>;
 
     for (const rule of rules) {
@@ -294,7 +294,7 @@ function buildCanUseTool(
       if (rule.paths !== undefined) {
         const pathField = TOOL_PATH_FIELD[toolName];
         if (!pathField || typeof toolInput[pathField] !== "string") continue;
-        if (!micromatch.isMatch(toolInput[pathField] as string, rule.paths, { dot: true })) continue;
+        if (!micromatch.isMatch(toolInput[pathField], rule.paths, { dot: true })) continue;
       }
 
       // Rule matches
