@@ -9,7 +9,7 @@ function makeTestApp(config: AppConfig) {
       getUptimeSeconds: () => 42,
     },
     config,
-  });
+  }).app;
 }
 
 describe("GET /system/models/catalog/list", () => {
@@ -69,7 +69,7 @@ describe("GET /system/models/catalog/list", () => {
   });
 
   test("route not mounted when config not provided", async () => {
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => 0,
         getUptimeSeconds: () => 42,

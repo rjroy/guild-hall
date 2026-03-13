@@ -61,7 +61,7 @@ function makeTestApp(config?: AppConfig) {
       config: cfg,
       guildHallHome,
     },
-  });
+  }).app;
 }
 
 async function writeCommission(id: string, content: string): Promise<void> {

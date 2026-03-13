@@ -334,7 +334,7 @@ function makeFullApp(overrides?: {
   });
 
   const startTime = Date.now();
-  const app = createApp({
+  const { app } = createApp({
     health: {
       getMeetingCount: () => 0,
       getCommissionCount: () => commissionSession.getActiveCommissions(),
@@ -357,7 +357,7 @@ function makeFullApp(overrides?: {
 // -- HTTP helpers --
 
 async function postCreateCommission(
-  app: ReturnType<typeof createApp>,
+  app: ReturnType<typeof createApp>["app"],
   body: Record<string, unknown> = {
     projectName: TEST_PROJECT,
     title: "Integration Test Commission",
@@ -373,7 +373,7 @@ async function postCreateCommission(
 }
 
 async function postDispatch(
-  app: ReturnType<typeof createApp>,
+  app: ReturnType<typeof createApp>["app"],
   commissionId: string,
 ): Promise<Response> {
   return app.request("/commission/run/dispatch", {
@@ -384,7 +384,7 @@ async function postDispatch(
 }
 
 async function _deleteCommission(
-  app: ReturnType<typeof createApp>,
+  app: ReturnType<typeof createApp>["app"],
   commissionId: string,
 ): Promise<Response> {
   return app.request("/commission/run/cancel", {
@@ -497,7 +497,7 @@ describe("commission lifecycle integration", () => {
     });
 
     const startTime = Date.now();
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => 0,
         getCommissionCount: () => commissionSession.getActiveCommissions(),

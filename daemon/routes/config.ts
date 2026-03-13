@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import type { AppConfig } from "@/lib/types";
+import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath } from "@/lib/paths";
 import { scanCommissions } from "@/lib/commissions";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
@@ -18,7 +18,7 @@ export interface ConfigRoutesDeps {
  * - GET /system/config/project/read?name=X        Read single project config
  * - GET /commission/dependency/project/graph?projectName=X  Dependency graph data
  */
-export function createConfigRoutes(deps: ConfigRoutesDeps): Hono {
+export function createConfigRoutes(deps: ConfigRoutesDeps): RouteModule {
   const routes = new Hono();
 
   // GET /system/config/application/read - Read application config
@@ -61,5 +61,52 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): Hono {
     }
   });
 
-  return routes;
+  const skills: SkillDefinition[] = [
+    {
+      skillId: "system.config.application.read",
+      version: "1",
+      name: "read",
+      description: "Read application configuration",
+      invocation: { method: "GET", path: "/system/config/application/read" },
+      sideEffects: "",
+      context: {},
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "system", feature: "config", object: "application" },
+    },
+    {
+      skillId: "system.config.project.read",
+      version: "1",
+      name: "read",
+      description: "Read single project configuration",
+      invocation: { method: "GET", path: "/system/config/project/read" },
+      sideEffects: "",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "system", feature: "config", object: "project" },
+    },
+    {
+      skillId: "commission.dependency.project.graph",
+      version: "1",
+      name: "graph",
+      description: "Get commission dependency graph",
+      invocation: { method: "GET", path: "/commission/dependency/project/graph" },
+      sideEffects: "",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "dependency", object: "project" },
+    },
+  ];
+
+  const descriptions: Record<string, string> = {
+    "system.config": "Application and project configuration",
+    "system.config.application": "Application-level configuration",
+    "system.config.project": "Project-specific configuration",
+    "commission.dependency": "Commission dependency management",
+    "commission.dependency.project": "Project-level dependency operations",
+  };
+
+  return { routes, skills, descriptions };
 }

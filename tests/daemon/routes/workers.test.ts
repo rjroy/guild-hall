@@ -56,7 +56,7 @@ function makeTestApp(packages: DiscoveredPackage[] = [], config?: AppConfig) {
     },
     packages,
     config,
-  });
+  }).app;
 }
 
 // -- Tests --

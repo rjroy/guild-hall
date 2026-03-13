@@ -5,7 +5,7 @@ import { streamSSE } from "hono/streaming";
 import type { GuildHallEvent, MeetingId } from "@/daemon/types";
 import { asMeetingId } from "@/daemon/types";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import type { AppConfig, Artifact } from "@/lib/types";
+import type { AppConfig, Artifact, RouteModule, SkillDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveMeetingBasePath } from "@/lib/paths";
 import { scanArtifacts } from "@/lib/artifacts";
 import {
@@ -65,7 +65,7 @@ export interface MeetingRoutesDeps {
  * GET  /meeting/request/meeting/list        - List meeting requests for a project
  * GET  /meeting/request/meeting/read        - Read meeting detail
  */
-export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
+export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
   const routes = new Hono();
 
   // POST /meeting/request/meeting/create - Create meeting and stream first turn
@@ -406,7 +406,131 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
     }
   });
 
-  return routes;
+  const skills: SkillDefinition[] = [
+    {
+      skillId: "meeting.request.meeting.create",
+      version: "1",
+      name: "create",
+      description: "Create a new meeting and stream first turn",
+      invocation: { method: "POST", path: "/meeting/request/meeting/create" },
+      sideEffects: "Creates meeting artifact, spawns session, streams response",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      streaming: { eventTypes: ["meeting_message", "meeting_status"] },
+      hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+    },
+    {
+      skillId: "meeting.request.meeting.accept",
+      version: "1",
+      name: "accept",
+      description: "Accept a meeting request and stream first turn",
+      invocation: { method: "POST", path: "/meeting/request/meeting/accept" },
+      sideEffects: "Transitions meeting to active, spawns session, streams response",
+      context: { project: true, meetingId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      streaming: { eventTypes: ["meeting_message", "meeting_status"] },
+      hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+    },
+    {
+      skillId: "meeting.request.meeting.decline",
+      version: "1",
+      name: "decline",
+      description: "Decline a meeting request",
+      invocation: { method: "POST", path: "/meeting/request/meeting/decline" },
+      sideEffects: "Transitions meeting to declined",
+      context: { project: true, meetingId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+    },
+    {
+      skillId: "meeting.request.meeting.defer",
+      version: "1",
+      name: "defer",
+      description: "Defer a meeting request",
+      invocation: { method: "POST", path: "/meeting/request/meeting/defer" },
+      sideEffects: "Transitions meeting to deferred",
+      context: { project: true, meetingId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+    },
+    {
+      skillId: "meeting.request.meeting.list",
+      version: "1",
+      name: "list",
+      description: "List meeting requests for a project",
+      invocation: { method: "GET", path: "/meeting/request/meeting/list" },
+      sideEffects: "",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+    },
+    {
+      skillId: "meeting.request.meeting.read",
+      version: "1",
+      name: "read",
+      description: "Read meeting detail",
+      invocation: { method: "GET", path: "/meeting/request/meeting/read" },
+      sideEffects: "",
+      context: { project: true, meetingId: true },
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+    },
+    {
+      skillId: "meeting.session.message.send",
+      version: "1",
+      name: "send",
+      description: "Send a message and stream response",
+      invocation: { method: "POST", path: "/meeting/session/message/send" },
+      sideEffects: "Sends message to worker session, streams response",
+      context: { meetingId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      streaming: { eventTypes: ["meeting_message", "meeting_status"] },
+      hierarchy: { root: "meeting", feature: "session", object: "message" },
+    },
+    {
+      skillId: "meeting.session.generation.interrupt",
+      version: "1",
+      name: "interrupt",
+      description: "Stop current generation",
+      invocation: { method: "POST", path: "/meeting/session/generation/interrupt" },
+      sideEffects: "Aborts current worker generation turn",
+      context: { meetingId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "meeting", feature: "session", object: "generation" },
+    },
+    {
+      skillId: "meeting.session.meeting.close",
+      version: "1",
+      name: "close",
+      description: "Close an active meeting",
+      invocation: { method: "POST", path: "/meeting/session/meeting/close" },
+      sideEffects: "Closes session, merges worktree, generates notes",
+      context: { meetingId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "meeting", feature: "session", object: "meeting" },
+    },
+  ];
+
+  const descriptions: Record<string, string> = {
+    meeting: "Meeting requests, sessions, and message streaming",
+    "meeting.request": "Meeting request lifecycle",
+    "meeting.request.meeting": "Meeting requests",
+    "meeting.session": "Active meeting session operations",
+    "meeting.session.message": "Message exchange within a meeting",
+    "meeting.session.generation": "AI generation control",
+    "meeting.session.meeting": "Meeting session lifecycle",
+  };
+
+  return { routes, skills, descriptions };
 }
 
 /**

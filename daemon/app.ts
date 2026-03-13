@@ -15,7 +15,8 @@ import { createAdminRoutes, type AdminDeps } from "./routes/admin";
 import { createArtifactRoutes, type ArtifactDeps } from "./routes/artifacts";
 import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
 import { createHelpRoutes } from "./routes/help";
-import type { AppConfig, DiscoveredPackage } from "@/lib/types";
+import { createSkillRegistry, type SkillRegistry } from "@/daemon/lib/skill-registry";
+import type { AppConfig, DiscoveredPackage, RouteModule, SkillDefinition } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { EventBus } from "@/daemon/lib/event-bus";
@@ -42,15 +43,29 @@ export interface AppDeps {
  * When meetingSession or packages are provided, the corresponding routes
  * are mounted. This allows tests to provide mocks while production wires
  * real instances.
+ *
+ * Returns the Hono app and the skill registry built from all route modules.
  */
-export function createApp(deps: AppDeps): Hono {
+export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry } {
   const app = new Hono();
+  const allSkills: SkillDefinition[] = [];
+  const allDescriptions: Record<string, string> = {};
 
-  app.route("/", createHealthRoutes(deps.health));
-  app.route("/", createHelpRoutes());
+  function mount(mod: RouteModule): void {
+    app.route("/", mod.routes);
+    allSkills.push(...mod.skills);
+    if (mod.descriptions) {
+      Object.assign(allDescriptions, mod.descriptions);
+    }
+  }
 
+  // Health routes are always present
+  mount(createHealthRoutes(deps.health));
+
+  // Conditionally mount route modules based on available deps.
+  // Missing deps produce no routes and no skills.
   if (deps.meetingSession) {
-    app.route("/", createMeetingRoutes({
+    mount(createMeetingRoutes({
       meetingSession: deps.meetingSession,
       config: deps.config,
       guildHallHome: deps.configRoutes?.guildHallHome,
@@ -58,45 +73,48 @@ export function createApp(deps: AppDeps): Hono {
   }
 
   if (deps.commissionSession) {
-    app.route(
-      "/",
-      createCommissionRoutes({
-        commissionSession: deps.commissionSession,
-        config: deps.config,
-        guildHallHome: deps.configRoutes?.guildHallHome,
-      }),
-    );
+    mount(createCommissionRoutes({
+      commissionSession: deps.commissionSession,
+      config: deps.config,
+      guildHallHome: deps.configRoutes?.guildHallHome,
+    }));
   }
 
   if (deps.packages) {
-    app.route("/", createWorkerRoutes({ packages: deps.packages, config: deps.config }));
+    mount(createWorkerRoutes({ packages: deps.packages, config: deps.config }));
   }
 
   if (deps.eventBus) {
-    app.route("/", createEventRoutes({ eventBus: deps.eventBus }));
+    mount(createEventRoutes({ eventBus: deps.eventBus }));
   }
 
   if (deps.briefingGenerator) {
-    app.route("/", createBriefingRoutes({ briefingGenerator: deps.briefingGenerator }));
+    mount(createBriefingRoutes({ briefingGenerator: deps.briefingGenerator }));
   }
 
   if (deps.config) {
-    app.route("/", createModelsRoutes({ config: deps.config }));
+    mount(createModelsRoutes({ config: deps.config }));
   }
 
   if (deps.admin) {
-    app.route("/", createAdminRoutes(deps.admin));
+    mount(createAdminRoutes(deps.admin));
   }
 
   if (deps.artifacts) {
-    app.route("/", createArtifactRoutes(deps.artifacts));
+    mount(createArtifactRoutes(deps.artifacts));
   }
 
   if (deps.configRoutes) {
-    app.route("/", createConfigRoutes(deps.configRoutes));
+    mount(createConfigRoutes(deps.configRoutes));
   }
 
-  return app;
+  // Build the skill registry from all collected skills
+  const registry = createSkillRegistry(allSkills, allDescriptions);
+
+  // Mount help routes last so they can query the registry
+  app.route("/", createHelpRoutes(registry));
+
+  return { app, registry };
 }
 
 /**
@@ -110,7 +128,7 @@ export function createApp(deps: AppDeps): Hono {
 export async function createProductionApp(options?: {
   packagesDir?: string;
   gitOps?: GitOps;
-}): Promise<{ app: Hono; shutdown: () => void }> {
+}): Promise<{ app: Hono; registry: SkillRegistry; shutdown: () => void }> {
   const { readConfig } = await import("@/lib/config");
   const { discoverPackages, validatePackageModels } = await import("@/lib/packages");
   const { getGuildHallHome, integrationWorktreePath } = await import("@/lib/paths");
@@ -399,39 +417,38 @@ export async function createProductionApp(options?: {
 
   const startTime = Date.now();
 
-  return {
-    app: createApp({
-      health: {
-        getMeetingCount: () => meetingSession.getActiveMeetings(),
-        getCommissionCount: () => commissionSession.getActiveCommissions(),
-        getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),
-      },
-      meetingSession,
-      commissionSession,
-      packages: allPackages,
-      eventBus,
-      briefingGenerator,
+  const { app, registry } = createApp({
+    health: {
+      getMeetingCount: () => meetingSession.getActiveMeetings(),
+      getCommissionCount: () => commissionSession.getActiveCommissions(),
+      getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),
+    },
+    meetingSession,
+    commissionSession,
+    packages: allPackages,
+    eventBus,
+    briefingGenerator,
+    config,
+    admin: {
       config,
-      admin: {
-        config,
-        guildHallHome,
-        gitOps: git,
-        readConfigFromDisk: readConfig,
-      },
-      artifacts: {
-        config,
-        guildHallHome,
-        gitOps: git,
-        checkDependencyTransitions: (projectName: string) =>
-          commissionSession.checkDependencyTransitions(projectName),
-      },
-      configRoutes: {
-        config,
-        guildHallHome,
-      },
-    }),
-    shutdown: () => scheduler.stop(),
-  };
+      guildHallHome,
+      gitOps: git,
+      readConfigFromDisk: readConfig,
+    },
+    artifacts: {
+      config,
+      guildHallHome,
+      gitOps: git,
+      checkDependencyTransitions: (projectName: string) =>
+        commissionSession.checkDependencyTransitions(projectName),
+    },
+    configRoutes: {
+      config,
+      guildHallHome,
+    },
+  });
+
+  return { app, registry, shutdown: () => scheduler.stop() };
 }
 
 /**
@@ -441,7 +458,7 @@ export async function createProductionApp(options?: {
  */
 const startTime = Date.now();
 
-const app = createApp({
+const { app } = createApp({
   health: {
     getMeetingCount: () => 0,
     getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),

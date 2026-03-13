@@ -4,7 +4,7 @@ import { createEventBus, type SystemEvent } from "@/daemon/lib/event-bus";
 
 function makeTestApp() {
   const eventBus = createEventBus();
-  const app = createApp({
+  const { app } = createApp({
     health: {
       getMeetingCount: () => 0,
       getUptimeSeconds: () => 42,

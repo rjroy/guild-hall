@@ -334,7 +334,7 @@ function makeFullApp(overrides: Partial<MeetingSessionDeps> = {}) {
   const meetingSession = createMeetingSession(deps);
   const startTime = Date.now();
 
-  const app = createApp({
+  const { app } = createApp({
     health: {
       getMeetingCount: () => meetingSession.getActiveMeetings(),
       getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),
@@ -347,7 +347,7 @@ function makeFullApp(overrides: Partial<MeetingSessionDeps> = {}) {
 }
 
 async function postCreateMeeting(
-  app: ReturnType<typeof createApp>,
+  app: ReturnType<typeof createApp>["app"],
   body: Record<string, unknown> = {
     projectName: "test-project",
     workerName: "test-assistant",
@@ -834,7 +834,7 @@ describe("integration: GET /system/packages/worker/list returns discovered worke
       activateFn: activateMock.activateFn,
     });
 
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => meetingSession.getActiveMeetings(),
         getUptimeSeconds: () => 0,
@@ -1107,7 +1107,7 @@ describe("integration: meeting cap enforcement through HTTP", () => {
       gitOps: createMockGitOps(),
     });
 
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => meetingSession.getActiveMeetings(),
         getUptimeSeconds: () => 0,
@@ -1151,7 +1151,7 @@ describe("integration: SDK error propagation", () => {
       gitOps: createMockGitOps(),
     });
 
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => meetingSession.getActiveMeetings(),
         getUptimeSeconds: () => 0,
@@ -1208,7 +1208,7 @@ describe("integration: SDK error propagation", () => {
       gitOps: createMockGitOps(),
     });
 
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => meetingSession.getActiveMeetings(),
         getUptimeSeconds: () => 0,

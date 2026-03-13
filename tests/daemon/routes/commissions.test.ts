@@ -106,7 +106,7 @@ function makeTestApp(
   sessionOverrides: Partial<CommissionSessionForRoutes> = {},
 ) {
   const { session, calls } = makeMockCommissionSession(sessionOverrides);
-  const app = createApp({
+  const { app } = createApp({
     health: {
       getMeetingCount: () => 0,
       getCommissionCount: () => session.getActiveCommissions(),

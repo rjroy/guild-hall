@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { RouteModule, SkillDefinition } from "@/lib/types";
 
 export interface HealthDeps {
   /** Returns the number of active meetings. */
@@ -15,7 +16,7 @@ export interface HealthDeps {
  *
  * GET /system/runtime/daemon/health - Check daemon health status
  */
-export function createHealthRoutes(deps: HealthDeps): Hono {
+export function createHealthRoutes(deps: HealthDeps): RouteModule {
   const routes = new Hono();
 
   routes.get("/system/runtime/daemon/health", (c) => {
@@ -27,5 +28,20 @@ export function createHealthRoutes(deps: HealthDeps): Hono {
     });
   });
 
-  return routes;
+  const skills: SkillDefinition[] = [
+    {
+      skillId: "system.runtime.daemon.health",
+      version: "1",
+      name: "health",
+      description: "Check daemon health status",
+      invocation: { method: "GET", path: "/system/runtime/daemon/health" },
+      sideEffects: "",
+      context: {},
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "system", feature: "runtime", object: "daemon" },
+    },
+  ];
+
+  return { routes, skills };
 }

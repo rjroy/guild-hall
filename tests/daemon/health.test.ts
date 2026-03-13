@@ -10,7 +10,7 @@ function makeTestApp(overrides?: {
       getMeetingCount: () => overrides?.meetingCount ?? 0,
       getUptimeSeconds: () => overrides?.uptimeSeconds ?? 42,
     },
-  });
+  }).app;
 }
 
 describe("GET /system/runtime/daemon/health", () => {

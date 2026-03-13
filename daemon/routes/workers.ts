@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import type { AppConfig, DiscoveredPackage, RouteModule, SkillDefinition, WorkerMetadata } from "@/lib/types";
 import { resolveModel } from "@/lib/types";
 import { getWorkers } from "@/lib/packages";
 
@@ -22,7 +22,7 @@ function isWorkerMetadata(
  *
  * GET /system/packages/worker/list - List discovered worker packages with metadata
  */
-export function createWorkerRoutes(deps: WorkerRoutesDeps): Hono {
+export function createWorkerRoutes(deps: WorkerRoutesDeps): RouteModule {
   const routes = new Hono();
 
   routes.get("/system/packages/worker/list", (c) => {
@@ -60,5 +60,20 @@ export function createWorkerRoutes(deps: WorkerRoutesDeps): Hono {
     return c.json({ workers });
   });
 
-  return routes;
+  const skills: SkillDefinition[] = [
+    {
+      skillId: "system.packages.worker.list",
+      version: "1",
+      name: "list",
+      description: "List discovered worker packages",
+      invocation: { method: "GET", path: "/system/packages/worker/list" },
+      sideEffects: "",
+      context: {},
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "system", feature: "packages", object: "worker" },
+    },
+  ];
+
+  return { routes, skills };
 }

@@ -5,7 +5,7 @@ import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath, activityWorktreeRoot } from "@/lib/paths";
 import { readConfig, writeConfig } from "@/lib/config";
-import type { AppConfig } from "@/lib/types";
+import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
 import {
   syncProject as syncProjectDefault,
   rebaseAll,
@@ -36,7 +36,7 @@ export interface AdminDeps {
  * POST /workspace/git/branch/rebase        - Rebase claude branch onto default branch
  * POST /workspace/git/integration/sync     - Smart sync: fetch, detect merged PRs, rebase
  */
-export function createAdminRoutes(deps: AdminDeps): Hono {
+export function createAdminRoutes(deps: AdminDeps): RouteModule {
   const routes = new Hono();
   const doSyncProject = deps.syncProject ?? syncProjectDefault;
 
@@ -280,5 +280,74 @@ export function createAdminRoutes(deps: AdminDeps): Hono {
     }
   });
 
-  return routes;
+  const skills: SkillDefinition[] = [
+    {
+      skillId: "system.config.application.reload",
+      version: "1",
+      name: "reload",
+      description: "Reload configuration from disk",
+      invocation: { method: "POST", path: "/system/config/application/reload" },
+      sideEffects: "Reloads config.yaml into daemon memory, creates worktrees for new projects",
+      context: {},
+      eligibility: { tier: "admin", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "system", feature: "config", object: "application" },
+    },
+    {
+      skillId: "system.config.project.register",
+      version: "1",
+      name: "register",
+      description: "Register a new project",
+      invocation: { method: "POST", path: "/system/config/project/register" },
+      sideEffects: "Creates git branch, integration worktree, writes config.yaml",
+      context: {},
+      eligibility: { tier: "admin", readOnly: false },
+      idempotent: false,
+      hierarchy: { root: "system", feature: "config", object: "project" },
+    },
+    {
+      skillId: "system.config.application.validate",
+      version: "1",
+      name: "validate",
+      description: "Validate configuration and project paths",
+      invocation: { method: "GET", path: "/system/config/application/validate" },
+      sideEffects: "",
+      context: {},
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "system", feature: "config", object: "application" },
+    },
+    {
+      skillId: "workspace.git.branch.rebase",
+      version: "1",
+      name: "rebase",
+      description: "Rebase claude branch onto default branch",
+      invocation: { method: "POST", path: "/workspace/git/branch/rebase" },
+      sideEffects: "Rebases claude branch, updates integration worktree",
+      context: {},
+      eligibility: { tier: "admin", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "workspace", feature: "git", object: "branch" },
+    },
+    {
+      skillId: "workspace.git.integration.sync",
+      version: "1",
+      name: "sync",
+      description: "Smart sync: fetch, detect merged PRs, rebase",
+      invocation: { method: "POST", path: "/workspace/git/integration/sync" },
+      sideEffects: "Fetches from origin, detects merged PRs, rebases or resets claude branch",
+      context: {},
+      eligibility: { tier: "admin", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "workspace", feature: "git", object: "integration" },
+    },
+  ];
+
+  const descriptions: Record<string, string> = {
+    "workspace.git": "Git branch and integration operations",
+    "workspace.git.branch": "Branch management",
+    "workspace.git.integration": "Integration worktree sync",
+  };
+
+  return { routes, skills, descriptions };
 }

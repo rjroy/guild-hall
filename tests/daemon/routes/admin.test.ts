@@ -55,7 +55,7 @@ function makeTestApp(adminDeps: AdminDeps) {
       getUptimeSeconds: () => 42,
     },
     admin: adminDeps,
-  });
+  }).app;
 }
 
 describe("POST /system/config/application/reload", () => {
@@ -177,7 +177,7 @@ describe("POST /system/config/application/reload", () => {
   });
 
   test("route not mounted when admin deps not provided", async () => {
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => 0,
         getUptimeSeconds: () => 42,

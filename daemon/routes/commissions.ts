@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { asCommissionId } from "../types";
 import type { CommissionSessionForRoutes } from "../services/commission/orchestrator";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import type { AppConfig } from "@/lib/types";
+import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveCommissionBasePath } from "@/lib/paths";
 import { scanCommissions, readCommissionMeta, parseActivityTimeline } from "@/lib/commissions";
 import { nextOccurrence } from "@/daemon/services/scheduler/cron";
@@ -34,7 +34,7 @@ export interface CommissionRoutesDeps {
  * GET  /commission/request/commission/list      - List commissions for a project
  * GET  /commission/request/commission/read      - Read commission detail
  */
-export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
+export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule {
   const routes = new Hono();
 
   // POST /commission/request/commission/create - Create commission
@@ -468,5 +468,149 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  return routes;
+  const skills: SkillDefinition[] = [
+    {
+      skillId: "commission.request.commission.create",
+      version: "1",
+      name: "create",
+      description: "Create a new commission",
+      invocation: { method: "POST", path: "/commission/request/commission/create" },
+      sideEffects: "Creates commission artifact and emits commission_status event",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      hierarchy: { root: "commission", feature: "request", object: "commission" },
+    },
+    {
+      skillId: "commission.request.commission.update",
+      version: "1",
+      name: "update",
+      description: "Update a pending commission",
+      invocation: { method: "POST", path: "/commission/request/commission/update" },
+      sideEffects: "Modifies commission artifact",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "request", object: "commission" },
+    },
+    {
+      skillId: "commission.request.commission.note",
+      version: "1",
+      name: "note",
+      description: "Add a user note to a commission",
+      invocation: { method: "POST", path: "/commission/request/commission/note" },
+      sideEffects: "Appends note to commission timeline",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      hierarchy: { root: "commission", feature: "request", object: "commission" },
+    },
+    {
+      skillId: "commission.request.commission.list",
+      version: "1",
+      name: "list",
+      description: "List commissions for a project",
+      invocation: { method: "GET", path: "/commission/request/commission/list" },
+      sideEffects: "",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "request", object: "commission" },
+    },
+    {
+      skillId: "commission.request.commission.read",
+      version: "1",
+      name: "read",
+      description: "Read commission detail",
+      invocation: { method: "GET", path: "/commission/request/commission/read" },
+      sideEffects: "",
+      context: { project: true, commissionId: true },
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "request", object: "commission" },
+    },
+    {
+      skillId: "commission.run.dispatch",
+      version: "1",
+      name: "dispatch",
+      description: "Dispatch a commission to a worker",
+      invocation: { method: "POST", path: "/commission/run/dispatch" },
+      sideEffects: "Transitions commission to dispatched, spawns worker session",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      hierarchy: { root: "commission", feature: "run" },
+    },
+    {
+      skillId: "commission.run.redispatch",
+      version: "1",
+      name: "redispatch",
+      description: "Re-dispatch a failed or cancelled commission",
+      invocation: { method: "POST", path: "/commission/run/redispatch" },
+      sideEffects: "Transitions commission to dispatched, spawns worker session",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      hierarchy: { root: "commission", feature: "run" },
+    },
+    {
+      skillId: "commission.run.cancel",
+      version: "1",
+      name: "cancel",
+      description: "Cancel a pending commission",
+      invocation: { method: "POST", path: "/commission/run/cancel" },
+      sideEffects: "Transitions commission to cancelled",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "run" },
+    },
+    {
+      skillId: "commission.run.abandon",
+      version: "1",
+      name: "abandon",
+      description: "Abandon a running commission",
+      invocation: { method: "POST", path: "/commission/run/abandon" },
+      sideEffects: "Aborts worker session, transitions commission to abandoned",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "run" },
+    },
+    {
+      skillId: "commission.schedule.commission.update",
+      version: "1",
+      name: "update",
+      description: "Update schedule status (pause/resume/complete)",
+      invocation: { method: "POST", path: "/commission/schedule/commission/update" },
+      sideEffects: "Transitions schedule status, emits commission_status event",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "schedule", object: "commission" },
+    },
+    {
+      skillId: "commission.dependency.project.check",
+      version: "1",
+      name: "check",
+      description: "Trigger dependency auto-transitions",
+      invocation: { method: "POST", path: "/commission/dependency/project/check" },
+      sideEffects: "Transitions blocked commissions whose dependencies are met",
+      context: { project: true },
+      eligibility: { tier: "manager", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "dependency", object: "project" },
+    },
+  ];
+
+  const descriptions: Record<string, string> = {
+    commission: "Commission requests, execution, scheduling, and dependencies",
+    "commission.request": "Commission request lifecycle",
+    "commission.request.commission": "Commission requests",
+    "commission.run": "Commission execution control",
+    "commission.schedule": "Scheduled commission management",
+    "commission.schedule.commission": "Scheduled commission lifecycle",
+  };
+
+  return { routes, skills, descriptions };
 }

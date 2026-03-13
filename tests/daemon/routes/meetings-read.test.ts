@@ -57,7 +57,7 @@ function makeTestApp(config?: AppConfig) {
       config: cfg,
       guildHallHome,
     },
-  });
+  }).app;
 }
 
 async function writeMeeting(id: string, content: string): Promise<void> {

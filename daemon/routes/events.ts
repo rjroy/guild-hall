@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { EventBus } from "@/daemon/lib/event-bus";
+import type { RouteModule, SkillDefinition } from "@/lib/types";
 
 export interface EventRoutesDeps {
   eventBus: EventBus;
@@ -12,7 +13,7 @@ export interface EventRoutesDeps {
  * GET /system/events/stream/subscribe - Subscribes to the event bus and streams
  *     each SystemEvent as a JSON SSE message. Unsubscribes on client disconnect.
  */
-export function createEventRoutes(deps: EventRoutesDeps): Hono {
+export function createEventRoutes(deps: EventRoutesDeps): RouteModule {
   const routes = new Hono();
 
   routes.get("/system/events/stream/subscribe", (c) => {
@@ -40,5 +41,21 @@ export function createEventRoutes(deps: EventRoutesDeps): Hono {
     });
   });
 
-  return routes;
+  const skills: SkillDefinition[] = [
+    {
+      skillId: "system.events.stream.subscribe",
+      version: "1",
+      name: "subscribe",
+      description: "Subscribe to system event stream (SSE)",
+      invocation: { method: "GET", path: "/system/events/stream/subscribe" },
+      sideEffects: "",
+      context: {},
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      streaming: { eventTypes: ["commission_status", "meeting_status", "meeting_message"] },
+      hierarchy: { root: "system", feature: "events", object: "stream" },
+    },
+  ];
+
+  return { routes, skills };
 }

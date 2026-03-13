@@ -12,7 +12,7 @@ import {
   readArtifact,
   writeRawArtifactContent,
 } from "@/lib/artifacts";
-import type { Artifact, AppConfig } from "@/lib/types";
+import type { Artifact, AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
 import type { GitOps } from "@/daemon/lib/git";
 
 export interface ArtifactDeps {
@@ -47,7 +47,7 @@ function resolveProjectLorePath(
  * - GET  /workspace/artifact/document/read?projectName=X&path=...  Read single artifact
  * - POST /workspace/artifact/document/write?projectName=X          Write artifact content
  */
-export function createArtifactRoutes(deps: ArtifactDeps): Hono {
+export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
   const routes = new Hono();
 
   // GET /workspace/artifact/document/list - list or recent artifacts
@@ -187,7 +187,52 @@ export function createArtifactRoutes(deps: ArtifactDeps): Hono {
     return c.json({ success: true });
   });
 
-  return routes;
+  const skills: SkillDefinition[] = [
+    {
+      skillId: "workspace.artifact.document.list",
+      version: "1",
+      name: "list",
+      description: "List artifacts for a project",
+      invocation: { method: "GET", path: "/workspace/artifact/document/list" },
+      sideEffects: "",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+    },
+    {
+      skillId: "workspace.artifact.document.read",
+      version: "1",
+      name: "read",
+      description: "Read a single artifact",
+      invocation: { method: "GET", path: "/workspace/artifact/document/read" },
+      sideEffects: "",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+    },
+    {
+      skillId: "workspace.artifact.document.write",
+      version: "1",
+      name: "write",
+      description: "Write artifact content",
+      invocation: { method: "POST", path: "/workspace/artifact/document/write" },
+      sideEffects: "Writes artifact file, commits to git, triggers dependency check",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+    },
+  ];
+
+  const descriptions: Record<string, string> = {
+    workspace: "Artifact management and git operations",
+    "workspace.artifact": "Project artifact document management",
+    "workspace.artifact.document": "Artifact documents",
+  };
+
+  return { routes, skills, descriptions };
 }
 
 // -- Serialization --

@@ -66,7 +66,7 @@ function makeTestApp(
       getUptimeSeconds: () => 42,
     },
     meetingSession,
-  });
+  }).app;
 }
 
 /**

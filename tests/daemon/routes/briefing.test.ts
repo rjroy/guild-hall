@@ -27,7 +27,7 @@ function makeTestApp(briefingGenerator: BriefingGenerator) {
       getUptimeSeconds: () => 42,
     },
     briefingGenerator,
-  });
+  }).app;
 }
 
 // -- Tests --

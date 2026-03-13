@@ -42,7 +42,7 @@ function makeTestApp(config?: AppConfig) {
       config: cfg,
       guildHallHome,
     },
-  });
+  }).app;
 }
 
 // -- Tests: GET /system/config/application/read --

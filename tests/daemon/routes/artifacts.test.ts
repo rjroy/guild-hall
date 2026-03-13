@@ -82,7 +82,7 @@ function makeTestApp(
       gitOps,
       checkDependencyTransitions: artifactDeps.checkDependencyTransitions,
     },
-  });
+  }).app;
 }
 
 async function writeTestArtifact(
