@@ -1,8 +1,13 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { GuildHallEvent, MeetingId } from "@/daemon/types";
 import { asMeetingId } from "@/daemon/types";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import type { AppConfig } from "@/lib/types";
+import { integrationWorktreePath, projectLorePath, resolveMeetingBasePath } from "@/lib/paths";
+import { scanMeetingRequests, readMeetingMeta } from "@/lib/meetings";
 
 /**
  * The meeting session interface as seen by the routes layer.
@@ -33,6 +38,10 @@ export interface MeetingSessionForRoutes {
 
 export interface MeetingRoutesDeps {
   meetingSession: MeetingSessionForRoutes;
+  /** Required for GET read routes. */
+  config?: AppConfig;
+  /** Required for GET read routes. */
+  guildHallHome?: string;
 }
 
 /**
@@ -245,6 +254,77 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): Hono {
         return c.json({ error: message }, 404);
       }
       return c.json({ error: message }, 500);
+    }
+  });
+
+  // -- Read routes (Phase 1 DAB migration) --
+
+  // GET /meetings?projectName=X - List meeting requests for a project
+  routes.get("/meetings", async (c) => {
+    if (!deps.config || !deps.guildHallHome) {
+      return c.json({ error: "Read routes not configured" }, 500);
+    }
+
+    const projectName = c.req.query("projectName");
+    if (!projectName) {
+      return c.json({ error: "Missing required query parameter: projectName" }, 400);
+    }
+
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
+      return c.json({ error: `Project not found: ${projectName}` }, 404);
+    }
+
+    try {
+      const iPath = integrationWorktreePath(deps.guildHallHome, projectName);
+      const lorePath = projectLorePath(iPath);
+      const meetings = await scanMeetingRequests(lorePath, projectName);
+      return c.json({ meetings });
+    } catch (err: unknown) {
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  // GET /meetings/:meetingId?projectName=X - Read meeting detail
+  routes.get("/meetings/:meetingId", async (c) => {
+    if (!deps.config || !deps.guildHallHome) {
+      return c.json({ error: "Read routes not configured" }, 500);
+    }
+
+    const projectName = c.req.query("projectName");
+    if (!projectName) {
+      return c.json({ error: "Missing required query parameter: projectName" }, 400);
+    }
+
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
+      return c.json({ error: `Project not found: ${projectName}` }, 404);
+    }
+
+    const meetingId = c.req.param("meetingId");
+
+    try {
+      const basePath = await resolveMeetingBasePath(deps.guildHallHome, projectName, meetingId);
+      const lorePath = projectLorePath(basePath);
+      const filePath = path.join(lorePath, "meetings", `${meetingId}.md`);
+
+      const meta = await readMeetingMeta(filePath, projectName);
+
+      // Read transcript if it exists
+      let transcript = "";
+      const transcriptPath = path.join(deps.guildHallHome, "meetings", `${meetingId}.md`);
+      try {
+        transcript = await fs.readFile(transcriptPath, "utf-8");
+      } catch {
+        // No transcript file
+      }
+
+      return c.json({ meeting: meta, transcript });
+    } catch (err: unknown) {
+      if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+        return c.json({ error: `Meeting not found: ${meetingId}` }, 404);
+      }
+      return c.json({ error: errorMessage(err) }, 500);
     }
   });
 

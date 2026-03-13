@@ -1,10 +1,19 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { Hono } from "hono";
 import { asCommissionId } from "../types";
 import type { CommissionSessionForRoutes } from "../services/commission/orchestrator";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import type { AppConfig } from "@/lib/types";
+import { integrationWorktreePath, projectLorePath, resolveCommissionBasePath } from "@/lib/paths";
+import { scanCommissions, readCommissionMeta, parseActivityTimeline } from "@/lib/commissions";
 
 export interface CommissionRoutesDeps {
   commissionSession: CommissionSessionForRoutes;
+  /** Required for GET read routes. */
+  config?: AppConfig;
+  /** Required for GET read routes. */
+  guildHallHome?: string;
 }
 
 /**
@@ -301,6 +310,70 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     } catch (err: unknown) {
       const message = errorMessage(err);
       return c.json({ error: message }, 500);
+    }
+  });
+
+  // -- Read routes (Phase 1 DAB migration) --
+
+  // GET /commissions?projectName=X - List commissions for a project
+  routes.get("/commissions", async (c) => {
+    if (!deps.config || !deps.guildHallHome) {
+      return c.json({ error: "Read routes not configured" }, 500);
+    }
+
+    const projectName = c.req.query("projectName");
+    if (!projectName) {
+      return c.json({ error: "Missing required query parameter: projectName" }, 400);
+    }
+
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
+      return c.json({ error: `Project not found: ${projectName}` }, 404);
+    }
+
+    try {
+      const iPath = integrationWorktreePath(deps.guildHallHome, projectName);
+      const lorePath = projectLorePath(iPath);
+      const commissions = await scanCommissions(lorePath, projectName);
+      return c.json({ commissions });
+    } catch (err: unknown) {
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  // GET /commissions/:id?projectName=X - Read commission detail
+  routes.get("/commissions/:id", async (c) => {
+    if (!deps.config || !deps.guildHallHome) {
+      return c.json({ error: "Read routes not configured" }, 500);
+    }
+
+    const projectName = c.req.query("projectName");
+    if (!projectName) {
+      return c.json({ error: "Missing required query parameter: projectName" }, 400);
+    }
+
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
+      return c.json({ error: `Project not found: ${projectName}` }, 404);
+    }
+
+    const commissionId = c.req.param("id");
+
+    try {
+      const basePath = await resolveCommissionBasePath(deps.guildHallHome, projectName, commissionId);
+      const lorePath = projectLorePath(basePath);
+      const filePath = path.join(lorePath, "commissions", `${commissionId}.md`);
+
+      const rawContent = await fs.readFile(filePath, "utf-8");
+      const meta = await readCommissionMeta(filePath, projectName);
+      const timeline = parseActivityTimeline(rawContent);
+
+      return c.json({ commission: meta, timeline, rawContent });
+    } catch (err: unknown) {
+      if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+        return c.json({ error: `Commission not found: ${commissionId}` }, 404);
+      }
+      return c.json({ error: errorMessage(err) }, 500);
     }
   });
 

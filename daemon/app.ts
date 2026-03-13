@@ -13,6 +13,7 @@ import { createBriefingRoutes } from "./routes/briefing";
 import { createModelsRoutes } from "./routes/models";
 import { createAdminRoutes, type AdminDeps } from "./routes/admin";
 import { createArtifactRoutes, type ArtifactDeps } from "./routes/artifacts";
+import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
 import type { AppConfig, DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
@@ -30,6 +31,7 @@ export interface AppDeps {
   config?: AppConfig;
   admin?: AdminDeps;
   artifacts?: ArtifactDeps;
+  configRoutes?: ConfigRoutesDeps;
 }
 
 /**
@@ -46,13 +48,21 @@ export function createApp(deps: AppDeps): Hono {
   app.route("/", createHealthRoutes(deps.health));
 
   if (deps.meetingSession) {
-    app.route("/", createMeetingRoutes({ meetingSession: deps.meetingSession }));
+    app.route("/", createMeetingRoutes({
+      meetingSession: deps.meetingSession,
+      config: deps.config,
+      guildHallHome: deps.configRoutes?.guildHallHome,
+    }));
   }
 
   if (deps.commissionSession) {
     app.route(
       "/",
-      createCommissionRoutes({ commissionSession: deps.commissionSession }),
+      createCommissionRoutes({
+        commissionSession: deps.commissionSession,
+        config: deps.config,
+        guildHallHome: deps.configRoutes?.guildHallHome,
+      }),
     );
   }
 
@@ -78,6 +88,10 @@ export function createApp(deps: AppDeps): Hono {
 
   if (deps.artifacts) {
     app.route("/", createArtifactRoutes(deps.artifacts));
+  }
+
+  if (deps.configRoutes) {
+    app.route("/", createConfigRoutes(deps.configRoutes));
   }
 
   return app;
@@ -409,6 +423,10 @@ export async function createProductionApp(options?: {
         gitOps: git,
         checkDependencyTransitions: (projectName: string) =>
           commissionSession.checkDependencyTransitions(projectName),
+      },
+      configRoutes: {
+        config,
+        guildHallHome,
       },
     }),
     shutdown: () => scheduler.stop(),
