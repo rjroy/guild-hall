@@ -1,7 +1,7 @@
 ---
 title: Worker canUseToolRules Declarations
 date: 2026-03-12
-status: pending
+status: executed
 tags: [workers, security, sandbox, canUseTool, packages]
 modules: [sdk-runner, manager-worker, guild-hall-writer]
 related:
