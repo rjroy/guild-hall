@@ -56,6 +56,24 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-13T18:19:17.585Z
+    event: status_failed
+    reason: "Recovery: process lost on restart"
+    from: "dispatched"
+    to: "failed"
+  - timestamp: 2026-03-13T18:19:18.098Z
+    event: status_failed
+    reason: "Recovery: process lost on restart"
+  - timestamp: 2026-03-13T18:20:59.414Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "failed"
+    to: "pending"
+  - timestamp: 2026-03-13T18:20:59.417Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
