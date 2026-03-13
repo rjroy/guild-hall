@@ -1055,6 +1055,113 @@ describe("prepareSdkSession", () => {
     expect(result.error).toContain("nonexistent-model");
   });
 
+  // -- Sandbox injection tests (REQ-SBX-10) --
+
+  describe("sandbox injection", () => {
+    test("includes sandbox in options when worker has Bash in builtInTools", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read", "Bash"],
+          builtInTools: ["Read", "Bash"],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.sandbox).toBeDefined();
+      expect(result.result.options.sandbox?.enabled).toBe(true);
+      expect(result.result.options.sandbox?.autoAllowBashIfSandboxed).toBe(true);
+      expect(result.result.options.sandbox?.allowUnsandboxedCommands).toBe(false);
+    });
+
+    test("sandbox sets network.allowLocalBinding to false", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Bash"],
+          builtInTools: ["Bash"],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.sandbox?.network?.allowLocalBinding).toBe(false);
+    });
+
+    test("does NOT include sandbox when worker has no Bash in builtInTools", async () => {
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read", "Glob", "Grep"],
+          builtInTools: ["Read", "Glob", "Grep"],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.sandbox).toBeUndefined();
+    });
+
+    test("Dalton-like worker (has Bash) gets sandbox, Thorne-like worker (no Bash) does not", async () => {
+      // Dalton: has Bash among full tool set
+      const daltonDeps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "Skill", "Task"],
+          builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "Skill", "Task"],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const daltonResult = await prepareSdkSession(makeSpec(), daltonDeps);
+      expect(daltonResult.ok).toBe(true);
+      if (!daltonResult.ok) return;
+      expect(daltonResult.result.options.sandbox?.enabled).toBe(true);
+
+      // Thorne: read-only tools, no Bash
+      const thorneDeps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Read", "Glob", "Grep"],
+          builtInTools: ["Read", "Glob", "Grep"],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const thorneResult = await prepareSdkSession(makeSpec(), thorneDeps);
+      expect(thorneResult.ok).toBe(true);
+      if (!thorneResult.ok) return;
+      expect(thorneResult.result.options.sandbox).toBeUndefined();
+    });
+  });
+
   // -- Tool availability enforcement tests (REQ-TAE-10) --
 
   test("prepareSdkSession includes tools matching worker builtInTools", async () => {
