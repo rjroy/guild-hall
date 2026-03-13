@@ -14,11 +14,13 @@ Core systems are built: UI, daemon, meetings, commissions, git isolation, worker
 
 The repo root is a monorepo with four top-level systems: `web/` (Next.js App Router UI), `daemon/` (Hono on a Unix socket), `cli/` (bun scripts), and `packages/` (workers and toolboxes). Shared code lives in `lib/`, tests in `tests/`.
 
-Next.js App Router serves the UI from `web/`, reading config and artifacts from the filesystem. The daemon (`~/.guild-hall/guild-hall.sock`) owns all write operations, meeting/commission sessions, and the EventBus. Meetings and commissions run as Claude Agent SDK sessions inside the daemon process. A three-tier git branch strategy (`master` / `claude` / activity branches) isolates AI work: Next.js reads from integration worktrees on `claude`, active sessions get their own activity worktrees with sparse checkout. The Guild Master is a built-in manager worker with an exclusive toolbox and coordination posture.
+Current implementation: Next.js App Router serves the UI from `web/`, and some reads still come directly from the filesystem. The daemon (`~/.guild-hall/guild-hall.sock`) owns all write operations, meeting/commission sessions, and the EventBus. Meetings and commissions run as Claude Agent SDK sessions inside the daemon process. A three-tier git branch strategy (`master` / `claude` / activity branches) isolates AI work: Next.js reads from integration worktrees on `claude`, active sessions get their own activity worktrees with sparse checkout. The Guild Master is a built-in manager worker with an exclusive toolbox and coordination posture.
+
+Architectural truth / target: the daemon is the application boundary and exposes Guild Hall through REST over the Unix socket. The web layer and CLI are UX clients over that API. The daemon can spawn specialist agents, and agents should interact with the application only through CLI-shaped skills so human and agent capabilities converge through progressive discovery. The five concerns below are daemon-internal boundaries, not alternative application boundaries. See `.lore/specs/infrastructure/daemon-application-boundary.md`.
 
 `@/` resolves to the repo root everywhere. Root `tsconfig.json` maps `@/*` to `./*`; `web/tsconfig.json` extends root with `baseUrl: ".."` and the same `@/*` to `./*` mapping. Both resolve identically: `@/lib/types`, `@/daemon/lib/git`, `@/web/components/ui/Panel`. The `baseUrl` approach is required because bun resolves the nearest `tsconfig.json` per file, and relative `../*` paths break when `extends` is involved.
 
-For deeper architectural context, see `.lore/specs/infrastructure/guild-hall-system.md` and `.lore/specs/commissions/guild-hall-commissions.md`.
+For deeper architectural context, see `.lore/specs/infrastructure/daemon-application-boundary.md`, `.lore/specs/infrastructure/guild-hall-system.md`, and `.lore/specs/commissions/guild-hall-commissions.md`.
 
 ## Documentation Map
 
