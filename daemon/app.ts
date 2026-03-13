@@ -12,6 +12,7 @@ import { createWorkerRoutes } from "./routes/workers";
 import { createBriefingRoutes } from "./routes/briefing";
 import { createModelsRoutes } from "./routes/models";
 import { createAdminRoutes, type AdminDeps } from "./routes/admin";
+import { createArtifactRoutes, type ArtifactDeps } from "./routes/artifacts";
 import type { AppConfig, DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
@@ -28,6 +29,7 @@ export interface AppDeps {
   briefingGenerator?: ReturnType<typeof createBriefingGenerator>;
   config?: AppConfig;
   admin?: AdminDeps;
+  artifacts?: ArtifactDeps;
 }
 
 /**
@@ -72,6 +74,10 @@ export function createApp(deps: AppDeps): Hono {
 
   if (deps.admin) {
     app.route("/", createAdminRoutes(deps.admin));
+  }
+
+  if (deps.artifacts) {
+    app.route("/", createArtifactRoutes(deps.artifacts));
   }
 
   return app;
@@ -396,6 +402,13 @@ export async function createProductionApp(options?: {
         gitOps: git,
         readConfigFromDisk: readConfig,
         syncProject: (await import("@/cli/rebase")).syncProject,
+      },
+      artifacts: {
+        config,
+        guildHallHome,
+        gitOps: git,
+        checkDependencyTransitions: (projectName: string) =>
+          commissionSession.checkDependencyTransitions(projectName),
       },
     }),
     shutdown: () => scheduler.stop(),
