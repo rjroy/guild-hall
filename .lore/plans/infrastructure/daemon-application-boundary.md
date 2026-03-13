@@ -9,6 +9,8 @@ related:
   - .lore/design/daemon-rest-api.md
   - .lore/specs/infrastructure/guild-hall-system.md
   - .lore/research/agent-native-applications.md
+  - .lore/specs/workers/worker-tool-rules.md
+  - .lore/specs/infrastructure/sandboxed-execution.md
 ---
 
 # Plan: Daemon Application Boundary Migration
@@ -289,6 +291,8 @@ This ordering prevents the circular dependency identified in risk R4. If step 1 
 
 **CLI client pattern:** Each CLI command checks daemon health first and gives a clear error if the daemon isn't running.
 
+**Agent CLI access dependency:** The `guild-hall` CLI commands created here become the invocation surface that agents use in Phase 7. When Phase 7 provisions CLI skill access for workers, the specific subcommands available here determine the `canUseToolRules` allowlists. See [Cross-Cutting Concern: CLI Skill Access for Agents](#cross-cutting-concern-cli-skill-access-for-agents).
+
 **Leaves the system in:** CLI is a pure daemon client. No direct filesystem or git operations except `migrate-content` (one-time migration script). The daemon no longer imports from `cli/`.
 
 ---
@@ -379,7 +383,7 @@ The `help` response model follows the design doc format: `skillId`, `version`, `
 
 **Goal:** Define and implement the daemon-owned skill contract that REQ-DAB-8 through REQ-DAB-10 require.
 
-**Gate: This phase requires a design commission before implementation.** The skill contract type definition, the route factory signature change, and the registry data structure need concrete design decisions. Run `/lore-development:design` to produce a design doc at `.lore/design/skill-contract.md` before commissioning implementation. Without this, the implementer will encounter undefined areas and either invent their own answers or stall.
+**Gate: This phase requires a design commission before implementation.** The skill contract type definition, the route factory signature change, and the registry data structure need concrete design decisions. The design must also address per-worker skill eligibility: which skills are available to which worker roles (REQ-DAB-10 context rules, REQ-DAB-12 human-agent parity). This determines the `guild-hall` subcommand allowlists each worker receives in Phase 7. Run `/lore-development:design` to produce a design doc at `.lore/design/skill-contract.md` before commissioning implementation. Without this, the implementer will encounter undefined areas and either invent their own answers or stall.
 
 **What a skill contract is:**
 
@@ -440,14 +444,104 @@ Don't try to make all internal tools call the public API. Instead:
 - **Session-scoped tools** (report_progress, submit_result, send_mail) remain internal. These are session lifecycle management, not application capabilities. They operate on the active session's state, which is inherently daemon-internal. REQ-DAB-11 explicitly allows internal tools as long as they don't replace the public boundary.
 - **Base toolbox tools** (read_memory, write_memory, record_decision) remain internal. Memory access is a daemon-internal concern, and these tools already operate within the daemon's authority.
 - **Meeting toolbox tools** (link_artifact, propose_followup, summarize_progress) remain internal for the same reason.
+- **CLI skill invocation for non-manager workers.** Workers without application-level toolbox tools (Thorne, Verity, Edmund, and to some extent Octavia) interact with Guild Hall capabilities through `guild-hall` CLI commands via Bash. This requires adding Bash with `canUseToolRules` restricting them to allowed `guild-hall` subcommands. See [Cross-Cutting Concern: CLI Skill Access for Agents](#cross-cutting-concern-cli-skill-access-for-agents) for the per-worker provisioning plan.
 
 **What changes:**
 
 1. Manager toolbox handlers call daemon routes instead of service methods for: `create_commission`, `dispatch_commission`, `cancel_commission`, `abandon_commission`, `create_pr`, `initiate_meeting`, `add_commission_note`, `sync_project`, `create_scheduled_commission`, `update_schedule`.
 2. Each manager tool's `help` metadata references its corresponding `skillId` from the skill registry.
 3. Agent sessions receive the skill registry as context so they can discover available capabilities (progressive discovery for agents, per REQ-DAB-5).
+4. Workers gaining CLI skill access receive `"Bash"` in `builtInTools` and `canUseToolRules` entries for their allowed `guild-hall` subcommands. This follows the allowlist-with-catch-all-deny pattern from the [worker tool rules spec](../../specs/workers/worker-tool-rules.md). Workers without prior Bash access (Thorne, Verity, Edmund) gain it here with CLI-only restrictions.
 
-**Leaves the system in:** Manager tools invoke daemon skills. Session-scoped tools remain internal. The application boundary is consistent across web, CLI, and agent surfaces.
+**Leaves the system in:** Manager tools invoke daemon skills. Non-manager workers invoke skills through CLI commands. Session-scoped tools remain internal. The application boundary is consistent across web, CLI, and agent surfaces.
+
+---
+
+## Cross-Cutting Concern: CLI Skill Access for Agents
+
+### The Dependency
+
+REQ-DAB-7 says agents interact with Guild Hall "only through daemon-governed skills with CLI semantics." The natural implementation: agents run `guild-hall <subcommand>` commands via Bash. This creates a dependency chain that cuts across the later migration phases:
+
+```
+Phase 4: guild-hall CLI commands → Phase 6: skill contract + eligibility → Phase 7: Bash + canUseToolRules for agents
+```
+
+Every worker that invokes a CLI skill needs `"Bash"` in `builtInTools`. Adding Bash auto-triggers the Phase 1 SDK sandbox (REQ-SBX-2). The `canUseToolRules` layer then narrows which Bash commands the worker can run.
+
+The worker tool rules spec (`.lore/specs/workers/worker-tool-rules.md`) established the allowlist-with-catch-all-deny pattern for this. Octavia's `rm .lore/**` rules and the Guild Master's read-only git rules prove the pattern works at the individual worker level. CLI skill access extends it with `guild-hall <subcommand>` patterns.
+
+### Current Worker Bash Status
+
+| Worker | Has Bash | canUseToolRules | CLI Skill Migration Impact |
+|--------|----------|-----------------|---------------------------|
+| Dalton | Yes | None (unrestricted) | None. Full Bash within sandbox covers `guild-hall` commands. |
+| Sable | Yes | None (unrestricted) | None. Same as Dalton. |
+| Octavia | Yes | `rm .lore/**`, `rm -f .lore/**` + catch-all deny | Additive: `guild-hall` patterns alongside existing `rm` rules. |
+| Guild Master | Yes | Read-only git only | Additive: `guild-hall` patterns alongside existing git rules. |
+| Thorne | **No** | N/A | **New Bash access.** `guild-hall` commands only, catch-all deny. |
+| Verity | **No** | N/A | **New Bash access.** `guild-hall` commands only, catch-all deny. |
+| Edmund | **No** | N/A | **New Bash access.** `guild-hall` commands only, catch-all deny. |
+
+The WTR spec (REQ-WTR-14, 15, 16) decided Thorne, Verity, and Edmund should not have Bash because they had no operational need. The DAB migration creates a new need: CLI skill invocation. When Phase 7 arrives, a WTR spec addendum should formally establish rules for these workers following the same spec/implement/review process.
+
+### The canUseToolRules Pattern Scales
+
+The allowlist-with-catch-all-deny pattern handles CLI skill access the same way it handles existing permissions. For workers that already have Bash rules, `guild-hall` command patterns are additive rules before the catch-all deny. For workers gaining Bash solely for CLI skills, the entire ruleset is just: allow `guild-hall` commands, deny everything else.
+
+**Workers already on Bash (Octavia, Guild Master)** add `guild-hall` patterns to their existing allowlists:
+
+```json
+[
+  { "tool": "Bash", "commands": ["rm .lore/**", "rm -f .lore/**"], "allow": true },
+  { "tool": "Bash", "commands": ["guild-hall *"], "allow": true },
+  { "tool": "Bash", "allow": false, "reason": "..." }
+]
+```
+
+**Workers gaining Bash for CLI skills only (Thorne, Verity, Edmund):**
+
+```json
+[
+  { "tool": "Bash", "commands": ["guild-hall *"], "allow": true },
+  { "tool": "Bash", "allow": false, "reason": "Only guild-hall commands are permitted" }
+]
+```
+
+The glob `*` does not match `/` (per the WTR spec's [pattern matching notes](../../specs/workers/worker-tool-rules.md#command-pattern-matching-notes)), so `guild-hall *` matches `guild-hall status --short` but not commands with path arguments containing slashes. The `**` glob could be used if subcommand paths need slash matching, but `*` is the conservative starting point.
+
+**Per-worker subcommand narrowing** is optional but available. The broad `guild-hall *` pattern allows any subcommand. If the skill eligibility design (Phase 6) determines certain workers should only invoke specific skills, patterns can be narrowed:
+
+```json
+[
+  { "tool": "Bash", "commands": ["guild-hall briefing *", "guild-hall status *"], "allow": true },
+  { "tool": "Bash", "allow": false, "reason": "Only briefing and status commands are permitted" }
+]
+```
+
+This narrowing decision belongs in Phase 6's design commission, not here.
+
+**Phase 6 design question: slash-containing arguments.** The glob `*` does not match `/`. If any `guild-hall` subcommands take path arguments with slashes (e.g., `guild-hall artifact read projects/foo/bar.md`), the `guild-hall *` pattern will deny them. Commission IDs use hyphens, not slashes, so dispatch and abandon commands are likely fine. But artifact or project path arguments may contain slashes. The Phase 6 design must determine whether `**` or explicit per-subcommand patterns are needed.
+
+### Scope of Adding Bash to Three Workers
+
+Adding Bash to Thorne, Verity, and Edmund is a larger change than adding it to Octavia and the Guild Master (which the WTR spec handled). Three considerations:
+
+1. **Thorne is currently read-only.** His posture says "inspects everything, alters nothing" (REQ-WRS-6). He has no Write or Edit tools. Adding Bash with a `guild-hall` allowlist doesn't violate the read-only contract if the allowed `guild-hall` commands are also read-only (status, briefing). If Thorne needs to invoke write-oriented skills (dispatch, create commission), that's a posture question the Phase 6 design should address.
+
+2. **Verity has sparse checkout scope.** Her worktree only includes `.lore/`. The SDK sandbox restricts Bash writes to the worktree, which limits blast radius. CLI skills that operate through the daemon (not the filesystem) are safe regardless of checkout scope.
+
+3. **Edmund has sparse checkout scope.** Same consideration as Verity. His Bash would be limited to the daemon's CLI interface, not filesystem operations.
+
+Defense in depth applies to all three: the SDK sandbox (Gate 2) restricts filesystem and network access, `canUseToolRules` (Gate 3) restricts which commands run, and the daemon itself validates skill invocations on receipt. Three layers between the agent and any side effect.
+
+### Phase Integration Summary
+
+| Phase | CLI Skill Access Action |
+|-------|------------------------|
+| 4 | Creates the `guild-hall` CLI commands agents will invoke. No worker Bash changes. |
+| 6 | Design commission defines skill eligibility per worker role. Determines which `guild-hall` subcommands each worker needs in their allowlist. |
+| 7 | Workers receive Bash + `canUseToolRules` for their allowed `guild-hall` commands. Thorne, Verity, and Edmund gain Bash here. Octavia and Guild Master get additional `guild-hall` patterns. A WTR spec addendum formalizes the rules before implementation. |
 
 ---
 
@@ -500,6 +594,8 @@ Recommendation: Defer this to after Phase 7. Domain plugins are the newest and l
 
 **R5: Agent toolbox refactoring may break session behavior.** The manager toolbox's tools are tightly coupled to session lifecycle (e.g., `commissionSession.createCommission()` updates in-process state that the session runner watches). Switching to daemon API calls changes the notification path. Careful testing is needed to ensure EventBus subscriptions still fire correctly when the creation path changes.
 
+**R6: Bash provisioning scope for CLI skill access.** The DAB migration requires adding Bash to Thorne, Verity, and Edmund, three workers the WTR spec explicitly kept Bash-free (REQ-WTR-14, 15, 16). The `canUseToolRules` allowlist limits their Bash to `guild-hall` commands, and the SDK sandbox provides defense in depth. But each new Bash-capable worker increases the surface that needs monitoring. The Phase 6 design commission should confirm that CLI skill invocation via Bash is the right approach for read-oriented workers versus an alternative (e.g., daemon-injected MCP tools that don't require Bash).
+
 ## Decision Log
 
 | Decision | Rationale |
@@ -511,6 +607,8 @@ Recommendation: Defer this to after Phase 7. Domain plugins are the newest and l
 | Return JSON from daemon read endpoints (Q1) | The daemon should own the parsing contract. Returning raw markdown shifts parsing to every client. |
 | CLI migration after web migration | The CLI has fewer boundary violations and lower user impact. Web migration is higher priority. |
 | Route reorganization in a separate phase (Phase 5) | Avoid scope creep. Build functional routes first, reorganize naming after they're proven. |
+| `canUseToolRules` is the scaling model for per-worker CLI skill access | The WTR spec established allowlist-with-catch-all-deny for Octavia (`rm .lore/**`) and Guild Master (read-only git). The same pattern extends to all workers gaining CLI skill access via `guild-hall` subcommand patterns. Per-worker allowlists keep each worker's Bash surface minimal. Cross-ref: `.lore/specs/workers/worker-tool-rules.md` |
+| CLI skill access reverses WTR no-Bash decisions for Thorne, Verity, Edmund | REQ-WTR-14/15/16 kept these workers Bash-free because they had no operational need. REQ-DAB-7 creates a new need. The WTR decisions were correct for their context; the DAB migration changes that context. A WTR spec addendum formalizes the new rules at Phase 7. |
 
 ## Validation
 
@@ -522,4 +620,4 @@ Each phase has its own validation criteria:
 - **Phase 4:** CLI commands work with daemon running. CLI commands fail clearly with daemon offline. `cli/rebase.ts` no longer exports functions imported by daemon code.
 - **Phase 5:** All routes accessible at new paths. `help` endpoints return structured metadata. Old paths removed.
 - **Phase 6:** Skill registry exists and is populated from route metadata. `help` endpoints serve from registry.
-- **Phase 7:** Manager toolbox tools invoke daemon routes. Verify EventBus events fire correctly for commission creation, dispatch, and abandonment when triggered through the daemon route path (not just the service method path). Fresh-context review confirms no session behavior regressions.
+- **Phase 7:** Manager toolbox tools invoke daemon routes. Workers with new CLI skill access have Bash + `canUseToolRules` enforced. Verify EventBus events fire correctly for commission creation, dispatch, and abandonment when triggered through the daemon route path (not just the service method path). Verify `canUseToolRules` correctly allows `guild-hall` subcommands and denies all other Bash for Thorne, Verity, and Edmund. Fresh-context review confirms no session behavior regressions.
