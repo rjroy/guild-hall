@@ -1,8 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProject } from "@/lib/config";
-import { writeRawArtifactContent } from "@/lib/artifacts";
-import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
-import { createGitOps } from "@/daemon/lib/git";
 import { daemonFetch, isDaemonError } from "@/lib/daemon-client";
 
 export async function PUT(request: NextRequest) {
@@ -29,49 +25,23 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  const project = await getProject(projectName);
-  if (!project) {
+  // Proxy to the daemon's POST /artifacts endpoint, which owns the
+  // write + git commit + dependency check sequence.
+  const result = await daemonFetch(
+    `/artifacts?projectName=${encodeURIComponent(projectName)}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ artifactPath, content }),
+    },
+  );
+
+  if (isDaemonError(result)) {
     return NextResponse.json(
-      { error: "Project not found" },
-      { status: 404 }
+      { error: "Daemon is not running" },
+      { status: 503 },
     );
   }
 
-  const ghHome = getGuildHallHome();
-  const integrationPath = integrationWorktreePath(ghHome, projectName);
-  const lorePath = projectLorePath(integrationPath);
-
-  try {
-    await writeRawArtifactContent(lorePath, artifactPath, content);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to save";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-
-  // Auto-commit the edit to the claude branch. Non-fatal if commit fails
-  // (e.g., no actual changes after write, or integration worktree not set up).
-  try {
-    const git = createGitOps();
-    await git.commitAll(integrationPath, `Edit artifact: ${artifactPath}`);
-  } catch {
-    // Commit failure is non-fatal
-  }
-
-  // Notify the daemon that artifacts changed so it can check if any blocked
-  // commissions now have their dependencies satisfied. Non-fatal: the daemon
-  // may be offline during development.
-  try {
-    const result = await daemonFetch("/commissions/check-dependencies", {
-      method: "POST",
-      body: JSON.stringify({ projectName }),
-    });
-    if (isDaemonError(result)) {
-      // Daemon offline, ignore
-    }
-  } catch {
-    // Non-fatal
-  }
-
-  return NextResponse.json({ success: true });
+  const data = (await result.json()) as Record<string, unknown>;
+  return NextResponse.json(data, { status: result.status });
 }

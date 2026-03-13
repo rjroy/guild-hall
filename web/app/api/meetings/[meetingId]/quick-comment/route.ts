@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { daemonFetch, isDaemonError } from "@/lib/daemon-client";
-import { readMeetingMeta } from "@/lib/meetings";
-import { getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
-import * as path from "node:path";
 
 /**
  * POST /api/meetings/[meetingId]/quick-comment
  *
  * Compound action: creates a commission from a meeting request's context,
  * then declines the meeting. The user provides a prompt; the worker name
- * and linked artifacts come from the meeting request artifact.
+ * and linked artifacts come from the meeting request via the daemon API.
  *
  * Atomicity:
  * - If commission creation fails, the meeting is NOT declined.
@@ -41,33 +38,41 @@ export async function POST(
     );
   }
 
-  // 1. Read the meeting request artifact to get worker and linked_artifacts
-  const ghHome = getGuildHallHome();
-  const integrationPath = integrationWorktreePath(ghHome, projectName);
-  const meetingArtifactPath = path.join(
-    integrationPath,
-    ".lore",
-    "meetings",
-    `${meetingId}.md`,
+  // 1. Read the meeting request via daemon API to get worker and linked_artifacts
+  const meetingResult = await daemonFetch(
+    `/meetings/${encodeURIComponent(meetingId)}?projectName=${encodeURIComponent(projectName)}`,
   );
 
-  let workerName: string;
-  let dependencies: string[];
-  try {
-    const meta = await readMeetingMeta(meetingArtifactPath, projectName);
-    workerName = meta.worker;
-    dependencies = meta.linked_artifacts;
-
-    if (!workerName) {
-      return NextResponse.json(
-        { error: "Meeting request has no worker assigned" },
-        { status: 400 },
-      );
-    }
-  } catch {
+  if (isDaemonError(meetingResult)) {
     return NextResponse.json(
-      { error: `Meeting artifact not found: ${meetingId}` },
-      { status: 404 },
+      { error: "Daemon is not running" },
+      { status: 503 },
+    );
+  }
+
+  if (!meetingResult.ok) {
+    const meetingData = (await meetingResult.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    const reason =
+      typeof meetingData.error === "string"
+        ? meetingData.error
+        : `Meeting not found: ${meetingId}`;
+    return NextResponse.json({ error: reason }, { status: meetingResult.status });
+  }
+
+  const meetingData = (await meetingResult.json()) as {
+    meeting: { worker: string; linked_artifacts: string[] };
+  };
+
+  const workerName = meetingData.meeting.worker;
+  const dependencies = meetingData.meeting.linked_artifacts;
+
+  if (!workerName) {
+    return NextResponse.json(
+      { error: "Meeting request has no worker assigned" },
+      { status: 400 },
     );
   }
 
