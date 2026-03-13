@@ -1,7 +1,7 @@
 ---
 title: Sandboxed Execution Environments
 date: 2026-03-11
-status: approved
+status: implemented
 tags: [security, sandbox, architecture, agent-sdk, isolation, permissions]
 modules: [daemon-services, sdk-runner, toolbox-resolver, commission-orchestrator, meeting-orchestrator]
 related:

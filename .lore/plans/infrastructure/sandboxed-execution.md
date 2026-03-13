@@ -1,7 +1,7 @@
 ---
 title: Sandboxed Execution Environments
 date: 2026-03-12
-status: approved
+status: executed
 tags: [security, sandbox, agent-sdk, permissions, toolbox]
 modules: [sdk-runner, toolbox-resolver, lib-types, lib-packages]
 related:

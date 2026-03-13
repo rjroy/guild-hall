@@ -12,7 +12,19 @@
     "model": "opus",
     "domainPlugins": ["guild-hall-writer"],
     "domainToolboxes": [],
-    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"],
+    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    "canUseToolRules": [
+      {
+        "tool": "Bash",
+        "commands": ["rm .lore/**", "rm -f .lore/**"],
+        "allow": true
+      },
+      {
+        "tool": "Bash",
+        "allow": false,
+        "reason": "Only file deletion within .lore/ is permitted"
+      }
+    ],
     "checkoutScope": "full",
     "resourceDefaults": {
       "maxTurns": 60

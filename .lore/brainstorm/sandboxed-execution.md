@@ -1,7 +1,7 @@
 ---
 title: Sandboxed execution environments for worker sessions
 date: 2026-03-10
-status: active
+status: resolved
 tags: [security, sandbox, architecture, agent-sdk, isolation]
 modules: [daemon-services, sdk-runner, commission-orchestrator, meeting-orchestrator]
 related:
