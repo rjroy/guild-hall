@@ -140,7 +140,7 @@ export async function resolveToolSet(
     ...mcpServers.map((s) => `mcp__${s.name}__*`),
   ];
 
-  return { mcpServers, allowedTools, builtInTools: worker.builtInTools };
+  return { mcpServers, allowedTools, builtInTools: worker.builtInTools, canUseToolRules: worker.canUseToolRules ?? [] };
 }
 
 // -- Helpers --

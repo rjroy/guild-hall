@@ -323,6 +323,49 @@ describe("Zod schemas", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  test("workerMetadataSchema accepts canUseToolRules referencing tools in builtInTools", () => {
+    const data = {
+      ...validWorkerGuildHall(),
+      builtInTools: ["Read", "Glob", "Bash"],
+      canUseToolRules: [
+        { tool: "Bash", commands: ["git status"], allow: true },
+        { tool: "Bash", allow: false, reason: "Only git status" },
+      ],
+    };
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(true);
+  });
+
+  test("workerMetadataSchema rejects canUseToolRules referencing tool not in builtInTools (REQ-SBX-15)", () => {
+    const data = {
+      ...validWorkerGuildHall(),
+      builtInTools: ["Read", "Glob"],
+      canUseToolRules: [
+        { tool: "Bash", allow: false, reason: "No Bash" },
+      ],
+    };
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("Bash") && m.includes("not in builtInTools"))).toBe(true);
+    }
+  });
+
+  test("workerMetadataSchema accepts missing canUseToolRules (optional)", () => {
+    const result = workerMetadataSchema.safeParse(validWorkerGuildHall());
+    expect(result.success).toBe(true);
+  });
+
+  test("workerMetadataSchema accepts empty canUseToolRules array", () => {
+    const data = {
+      ...validWorkerGuildHall(),
+      canUseToolRules: [],
+    };
+    const result = workerMetadataSchema.safeParse(data);
+    expect(result.success).toBe(true);
+  });
 });
 
 // -- Discovery --

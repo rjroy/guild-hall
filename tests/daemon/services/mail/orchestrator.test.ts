@@ -188,6 +188,7 @@ function createMockPrepDeps(overrides?: Partial<SessionPrepDeps>): SessionPrepDe
       mcpServers: [],
       allowedTools: [],
       builtInTools: [],
+      canUseToolRules: [],
     })),
     loadMemories: overrides?.loadMemories ?? (async () => ({
       memoryBlock: "",
@@ -195,7 +196,7 @@ function createMockPrepDeps(overrides?: Partial<SessionPrepDeps>): SessionPrepDe
     })),
     activateWorker: overrides?.activateWorker ?? (async () => ({
       systemPrompt: "Test system prompt",
-      tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
+      tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
       resourceBounds: { maxTurns: 10 },
     })),
     triggerCompaction: overrides?.triggerCompaction,
@@ -811,7 +812,7 @@ describe("Mail reader activation (Step 6b)", () => {
         activateWorkerCalls.push(config);
         return {
           systemPrompt: "Test system prompt",
-          tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
+          tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
           resourceBounds: { maxTurns: 10 },
         };
       },
@@ -2749,7 +2750,7 @@ describe("maxTurns wake prompt distinction (DEFECT-4)", () => {
     const prepDeps = createMockPrepDeps({
       activateWorker: async () => ({
         systemPrompt: "Test system prompt",
-        tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
         resourceBounds: { maxTurns: 2 },
       }),
     });
@@ -3112,7 +3113,7 @@ describe("Recovery uses persisted mailSequence", () => {
         if (ctx.contextId) {
           capturedContextIds.push(ctx.contextId);
         }
-        return { mcpServers: [], allowedTools: [], builtInTools: [] };
+        return { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] };
       },
     });
 
@@ -3214,7 +3215,7 @@ describe("Recovery uses persisted mailSequence", () => {
         if (ctx.contextId) {
           capturedContextIds.push(ctx.contextId);
         }
-        return { mcpServers: [], allowedTools: [], builtInTools: [] };
+        return { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] };
       },
     });
 
@@ -3316,7 +3317,7 @@ describe("Recovery uses persisted mailSequence", () => {
         if (ctx.contextId) {
           capturedContextIds.push(ctx.contextId);
         }
-        return { mcpServers: [], allowedTools: [], builtInTools: [] };
+        return { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] };
       },
     });
 

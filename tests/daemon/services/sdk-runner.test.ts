@@ -375,6 +375,7 @@ describe("prepareSdkSession", () => {
     mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
     allowedTools: ["read_file", "write_file"],
     builtInTools: ["Read", "Write"],
+    canUseToolRules: [],
   };
 
   const mockActivation: ActivationResult = {
@@ -597,6 +598,7 @@ describe("prepareSdkSession", () => {
         ],
         allowedTools: [],
         builtInTools: [],
+        canUseToolRules: [],
       },
     };
 
@@ -1170,6 +1172,7 @@ describe("prepareSdkSession", () => {
         mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
         allowedTools: ["Read", "Glob", "Grep", "mcp__test-server__*"],
         builtInTools: ["Read", "Glob", "Grep"],
+        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
@@ -1190,6 +1193,7 @@ describe("prepareSdkSession", () => {
         mcpServers: [],
         allowedTools: ["Read", "Glob", "Grep"],
         builtInTools: ["Read", "Glob", "Grep"],
+        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
@@ -1212,6 +1216,7 @@ describe("prepareSdkSession", () => {
         mcpServers: [{ name: "my-mcp" } as ResolvedToolSet["mcpServers"][number]],
         allowedTools: ["Read", "Glob", "mcp__my-mcp__*"],
         builtInTools: ["Read", "Glob"],
+        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
@@ -1235,6 +1240,7 @@ describe("prepareSdkSession", () => {
         mcpServers: [],
         allowedTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
         builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
@@ -1257,6 +1263,7 @@ describe("prepareSdkSession", () => {
         mcpServers: [{ name: "srv" } as ResolvedToolSet["mcpServers"][number]],
         allowedTools: ["Read", "mcp__srv__*"],
         builtInTools: ["Read"],
+        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
@@ -1367,6 +1374,7 @@ describe("prepareSdkSession resolvedModel", () => {
     mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
     allowedTools: ["read_file", "write_file"],
     builtInTools: ["Read", "Write"],
+    canUseToolRules: [],
   };
 
   const mockActivation: ActivationResult = {

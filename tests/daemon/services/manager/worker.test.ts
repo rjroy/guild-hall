@@ -6,7 +6,7 @@ import {
   MANAGER_PACKAGE_NAME,
 } from "@/daemon/services/manager/worker";
 import { MANAGER_WORKER_NAME } from "@/lib/packages";
-import type { AppConfig, ActivationContext, WorkerMetadata } from "@/lib/types";
+import type { AppConfig, ActivationContext, CanUseToolRule, WorkerMetadata } from "@/lib/types";
 
 describe("createManagerPackage", () => {
   test("returns opus as default model when called with no arguments", () => {
@@ -133,7 +133,7 @@ describe("activateManager", () => {
       },
       posture: "Manager posture text",
       injectedMemory: "",
-      resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
+      resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
       resourceDefaults: { maxTurns: 200 },
       projectPath: "/tmp/project",
       workingDirectory: "/tmp/work",
@@ -189,7 +189,7 @@ describe("activateManager", () => {
   });
 
   test("returns resolved tools from context", () => {
-    const tools = { mcpServers: [], allowedTools: ["Read", "Glob"], builtInTools: [] as string[] };
+    const tools = { mcpServers: [], allowedTools: ["Read", "Glob"], builtInTools: [] as string[], canUseToolRules: [] as CanUseToolRule[] };
     const result = activateManager(makeContext({ resolvedTools: tools }));
     expect(result.tools.allowedTools).toEqual(["Read", "Glob"]);
   });

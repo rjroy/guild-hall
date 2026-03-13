@@ -183,6 +183,7 @@ export interface WorkerMetadata {
   domainToolboxes: string[];
   domainPlugins?: string[];
   builtInTools: string[];
+  canUseToolRules?: CanUseToolRule[];
   checkoutScope: CheckoutScope;
   resourceDefaults?: ResourceDefaults;
   /** Determines git isolation for meetings. "project" runs in the integration worktree; "activity" (default) gets its own branch/worktree. */
@@ -219,10 +220,24 @@ export interface DiscoveredPackage {
  * mcpServers contains SDK MCP server instances created via createSdkMcpServer().
  * allowedTools lists the Claude Code built-in tool names the worker may use.
  */
+export interface CanUseToolRule {
+  /** The built-in tool this rule applies to. Must be in builtInTools. */
+  tool: string;
+  /** Command patterns to match (Bash tool only). Glob patterns supported. */
+  commands?: string[];
+  /** File path patterns to match (Read, Write, Edit, Glob, Grep). Glob patterns supported. */
+  paths?: string[];
+  /** Whether to allow or deny the call when this rule matches. */
+  allow: boolean;
+  /** Denial message shown in the session when allow is false. */
+  reason?: string;
+}
+
 export interface ResolvedToolSet {
   mcpServers: McpSdkServerConfigWithInstance[];
   allowedTools: string[];
   builtInTools: string[];
+  canUseToolRules: CanUseToolRule[];
 }
 
 /**
