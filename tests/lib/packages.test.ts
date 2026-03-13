@@ -366,6 +366,17 @@ describe("Zod schemas", () => {
     const result = workerMetadataSchema.safeParse(data);
     expect(result.success).toBe(true);
   });
+
+  test("guild-hall-writer package.json passes workerMetadataSchema validation (REQ-WTR-17 case 18)", async () => {
+    const pkgJson = JSON.parse(
+      await fs.readFile(
+        path.join(__dirname, "../../packages/guild-hall-writer/package.json"),
+        "utf-8",
+      ),
+    );
+    const result = workerMetadataSchema.safeParse(pkgJson.guildHall);
+    expect(result.success).toBe(true);
+  });
 });
 
 // -- Discovery --

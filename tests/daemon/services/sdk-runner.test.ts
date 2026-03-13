@@ -4,6 +4,7 @@ import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
   ActivationResult,
   AppConfig,
+  CanUseToolRule,
   DiscoveredPackage,
   ModelDefinition,
   ResolvedModel,
@@ -1416,6 +1417,238 @@ describe("prepareSdkSession", () => {
       if (decision.behavior === "deny") {
         expect(decision.interrupt).toBe(false);
       }
+    });
+
+    // -- Octavia rules (REQ-WTR-17 cases 1-7) --
+
+    describe("Octavia rules (REQ-WTR-17)", () => {
+      const octaviaRules: CanUseToolRule[] = [
+        { tool: "Bash", commands: ["rm .lore/**", "rm -f .lore/**"], allow: true },
+        { tool: "Bash", allow: false, reason: "Only file deletion within .lore/ is permitted" },
+      ];
+
+      function octaviaDeps() {
+        return makeDeps({
+          resolveToolSet: async () => ({
+            mcpServers: [],
+            allowedTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+            builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+            canUseToolRules: octaviaRules,
+          }),
+          activateWorker: async (_pkg, context) => ({
+            systemPrompt: "test",
+            tools: context.resolvedTools,
+            resourceBounds: {},
+          }),
+        });
+      }
+
+      async function getCanUseTool() {
+        const result = await prepareSdkSession(makeSpec(), octaviaDeps());
+        expect(result.ok).toBe(true);
+        if (!result.ok) throw new Error("prep failed");
+        expect(result.result.options.canUseTool).toBeDefined();
+        return result.result.options.canUseTool!;
+      }
+
+      test("case 1: rm .lore/commissions/commission-Octavia-20260312.md is allowed", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "rm .lore/commissions/commission-Octavia-20260312.md" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("allow");
+      });
+
+      test("case 2: rm -f .lore/meetings/audience-Guild-Master-20260311.md is allowed", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "rm -f .lore/meetings/audience-Guild-Master-20260311.md" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("allow");
+      });
+
+      test("case 3: rm .lore/specs/some-spec.md is allowed", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "rm .lore/specs/some-spec.md" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("allow");
+      });
+
+      test("case 4: rm -rf / is denied", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "rm -rf /" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("deny");
+        if (decision.behavior === "deny") {
+          expect(decision.message).toBe("Only file deletion within .lore/ is permitted");
+        }
+      });
+
+      test("case 5: ls .lore/ is denied", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "ls .lore/" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("deny");
+      });
+
+      test("case 6: cat .lore/specs/some-spec.md is denied", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "cat .lore/specs/some-spec.md" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("deny");
+      });
+
+      test("case 7: rm -rf .lore/commissions/ is denied", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "rm -rf .lore/commissions/" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("deny");
+      });
+    });
+
+    // -- Guild Master rules (REQ-WTR-17 cases 8-15) --
+
+    describe("Guild Master rules (REQ-WTR-17)", () => {
+      const guildMasterRules: CanUseToolRule[] = [
+        {
+          tool: "Bash",
+          commands: [
+            "git status", "git status *",
+            "git log", "git log *",
+            "git diff", "git diff *",
+            "git show", "git show *",
+          ],
+          allow: true,
+        },
+        {
+          tool: "Bash",
+          allow: false,
+          reason: "Only read-only git commands (status, log, diff, show) are permitted",
+        },
+      ];
+
+      function guildMasterDeps() {
+        return makeDeps({
+          resolveToolSet: async () => ({
+            mcpServers: [],
+            allowedTools: ["Read", "Glob", "Grep", "Bash"],
+            builtInTools: ["Read", "Glob", "Grep", "Bash"],
+            canUseToolRules: guildMasterRules,
+          }),
+          activateWorker: async (_pkg, context) => ({
+            systemPrompt: "test",
+            tools: context.resolvedTools,
+            resourceBounds: {},
+          }),
+        });
+      }
+
+      async function getCanUseTool() {
+        const result = await prepareSdkSession(makeSpec(), guildMasterDeps());
+        expect(result.ok).toBe(true);
+        if (!result.ok) throw new Error("prep failed");
+        expect(result.result.options.canUseTool).toBeDefined();
+        return result.result.options.canUseTool!;
+      }
+
+      test("case 8: git status is allowed", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "git status" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("allow");
+      });
+
+      test("case 9: git log --oneline -10 is allowed", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "git log --oneline -10" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("allow");
+      });
+
+      test("case 10: git diff HEAD~3..HEAD is allowed", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "git diff HEAD~3..HEAD" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("allow");
+      });
+
+      test("case 11: git show abc123 is allowed", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "git show abc123" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("allow");
+      });
+
+      test("case 12: git diff -- src/lib/foo.ts is denied (path with /)", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "git diff -- src/lib/foo.ts" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("deny");
+      });
+
+      test("case 13: git push origin master is denied", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "git push origin master" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("deny");
+      });
+
+      test("case 14: git checkout -b new-branch is denied", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "git checkout -b new-branch" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("deny");
+      });
+
+      test("case 15: curl http://example.com is denied", async () => {
+        const canUseTool = await getCanUseTool();
+        const decision = await canUseTool(
+          "Bash",
+          { command: "curl http://example.com" },
+          { signal: new AbortController().signal },
+        );
+        expect(decision.behavior).toBe("deny");
+      });
     });
   });
 
