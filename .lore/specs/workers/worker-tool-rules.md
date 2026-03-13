@@ -80,13 +80,13 @@ Source: `packages/guild-hall-writer/package.json`
 
 - REQ-WTR-3: Octavia MUST add `"Bash"` to her `builtInTools` array.
 
-- REQ-WTR-4: Octavia MUST declare `canUseToolRules` that restrict Bash to file deletion within `.lore/`.
+- REQ-WTR-4: Octavia MUST declare `canUseToolRules` that restrict Bash to file operations within `.lore/`.
 
-**Justification:** Octavia's `cleanup-commissions` and `cleanup-meetings` domain plugin skills require file deletion. Step 7 of `cleanup-commissions` says "delete all commission files in `.lore/commissions/`" and "Remove the files, not the directory." Step 7 of `cleanup-meetings` says "delete all closed and declined meeting files from `.lore/meetings/`."
+**Justification:** Octavia's domain plugin skills require filesystem operations that have no built-in Claude Code tool equivalents. Cleanup skills (`cleanup-commissions`, `cleanup-meetings`) need file deletion (`rm`). Lore reorganization needs directory creation (`mkdir`) and file moves (`mv`) to restructure `.lore/` subdirectories without recreating content.
 
-Claude Code has no built-in Delete tool. The Write and Edit tools can overwrite content but cannot remove files from the filesystem. File deletion requires `rm`, which requires Bash.
+Claude Code has no built-in Delete, Mkdir, or Move tool. The Write and Edit tools can create and modify content but cannot remove files, create directories, or relocate files. These operations require Bash.
 
-Without this change, Octavia relies on the user to delete files manually or on dispatching Dalton for cleanup, which defeats the purpose of a self-contained cleanup skill.
+Without this change, Octavia relies on the user or Dalton for filesystem operations, which defeats the purpose of a self-contained chronicler role.
 
 - REQ-WTR-5: Octavia's `canUseToolRules` MUST use an allowlist pattern (specific allow rules followed by a catch-all deny). The allowed commands:
 
@@ -94,8 +94,13 @@ Without this change, Octavia relies on the user to delete files manually or on d
   |---------|---------|
   | `rm .lore/**` | Delete any file within the `.lore/` directory tree |
   | `rm -f .lore/**` | Delete with force flag (suppresses "not found" errors during batch cleanup) |
+  | `mkdir .lore/**` | Create a directory within `.lore/` |
+  | `mkdir -p .lore/**` | Create a directory and parents within `.lore/` |
+  | `mv .lore/**` | Move or rename files within `.lore/` |
 
-  Catch-all deny reason: `"Only file deletion within .lore/ is permitted"`
+  Catch-all deny reason: `"Only file operations (rm, mkdir, mv) within .lore/ are permitted"`
+
+  > **`mv` pattern limitation:** The pattern `mv .lore/**` validates that the source is within `.lore/` but cannot validate the destination. The `**` glob consumes the remainder of the command string, so `mv .lore/a.md /tmp/b.md` would match. This is acceptable: Octavia operates in a sandboxed worktree (Gate 2), and `canUseToolRules` is an intent filter, not a security boundary. Moving files out of `.lore/` would be caught by posture ("never modify source code") and is harmless within the worktree sandbox.
 
 - REQ-WTR-6: The exact `package.json` change for `packages/guild-hall-writer/package.json`:
 
@@ -106,13 +111,17 @@ Without this change, Octavia relies on the user to delete files manually or on d
       "canUseToolRules": [
         {
           "tool": "Bash",
-          "commands": ["rm .lore/**", "rm -f .lore/**"],
+          "commands": [
+            "rm .lore/**", "rm -f .lore/**",
+            "mkdir .lore/**", "mkdir -p .lore/**",
+            "mv .lore/**"
+          ],
           "allow": true
         },
         {
           "tool": "Bash",
           "allow": false,
-          "reason": "Only file deletion within .lore/ is permitted"
+          "reason": "Only file operations (rm, mkdir, mv) within .lore/ are permitted"
         }
       ]
     }
@@ -121,7 +130,7 @@ Without this change, Octavia relies on the user to delete files manually or on d
 
   All other `guildHall` fields remain unchanged.
 
-- REQ-WTR-7: Octavia's `canUseToolRules` MUST NOT allow recursive deletion flags (`-r`, `-rf`, `-ri`). The cleanup skills explicitly say "Remove the files, not the directory." The patterns handle this implicitly: micromatch matches the literal prefix of each pattern. The pattern `rm -f .lore/**` requires the command to start with exactly `rm -f `, so `rm -rf` does not match (the prefix is `rm -rf `, not `rm -f `). Similarly, `rm .lore/**` requires `rm ` followed immediately by `.lore/`, so `rm -r .lore/` does not match. Any command with unrecognized flags hits the catch-all deny.
+- REQ-WTR-7: Octavia's `canUseToolRules` MUST NOT allow recursive deletion flags (`-r`, `-rf`, `-ri`). The cleanup skills explicitly say "Remove the files, not the directory." The patterns handle this implicitly: micromatch matches the literal prefix of each pattern. The pattern `rm -f .lore/**` requires the command to start with exactly `rm -f `, so `rm -rf` does not match (the prefix is `rm -rf `, not `rm -f `). Similarly, `rm .lore/**` requires `rm ` followed immediately by `.lore/`, so `rm -r .lore/` does not match. Any command with unrecognized flags hits the catch-all deny. The same logic applies to `mkdir` and `mv`: only the exact flag variants listed in the allowlist are permitted.
 
 - REQ-WTR-8: With Bash added to Octavia's `builtInTools`, Phase 1 sandbox enforcement activates automatically (per REQ-SBX-2). Even if a command passed the `canUseTool` check, the sandbox restricts filesystem writes to the worktree and blocks network access. Defense in depth.
 
@@ -266,30 +275,35 @@ No type changes are needed. The `CanUseToolRule` type and `canUseToolRules` fiel
   1. `rm .lore/commissions/commission-Octavia-20260312.md` is allowed.
   2. `rm -f .lore/meetings/audience-Guild-Master-20260311.md` is allowed.
   3. `rm .lore/specs/some-spec.md` is allowed (patterns cover all `.lore/` subdirectories).
-  4. `rm -rf /` is denied.
-  5. `ls .lore/` is denied (not in allowlist).
-  6. `cat .lore/specs/some-spec.md` is denied (not `rm`).
-  7. `rm -rf .lore/commissions/` is denied (recursive flag not in allowlist).
+  4. `mkdir -p .lore/specs/new-domain` is allowed.
+  5. `mkdir .lore/brainstorm` is allowed.
+  6. `mv .lore/notes/old-name.md .lore/notes/new-name.md` is allowed.
+  7. `rm -rf /` is denied.
+  8. `ls .lore/` is denied (not in allowlist).
+  9. `cat .lore/specs/some-spec.md` is denied (not in allowlist).
+  10. `rm -rf .lore/commissions/` is denied (recursive flag not in allowlist).
+  11. `mkdir /tmp/escape` is denied (outside `.lore/`).
+  12. `mv /etc/passwd .lore/stolen.md` is denied (source outside `.lore/`).
 
   **Guild Master rules (sdk-runner.test.ts or canUseTool unit tests):**
 
-  8. `git status` is allowed.
-  9. `git log --oneline -10` is allowed.
-  10. `git diff HEAD~3..HEAD` is allowed.
-  11. `git show abc123` is allowed.
-  12. `git diff -- src/lib/foo.ts` is denied (path argument with `/` cannot match `*`).
-  13. `git push origin master` is denied.
-  14. `git checkout -b new-branch` is denied.
-  15. `curl http://example.com` is denied.
+  13. `git status` is allowed.
+  14. `git log --oneline -10` is allowed.
+  15. `git diff HEAD~3..HEAD` is allowed.
+  16. `git show abc123` is allowed.
+  17. `git diff -- src/lib/foo.ts` is denied (path argument with `/` cannot match `*`).
+  18. `git push origin master` is denied.
+  19. `git checkout -b new-branch` is denied.
+  20. `curl http://example.com` is denied.
 
   **Manager package (manager/worker.test.ts or equivalent):**
 
-  16. `createManagerPackage()` returns metadata with `builtInTools` containing `"Bash"`.
-  17. `createManagerPackage()` returns metadata with `canUseToolRules` containing the expected allowlist and catch-all deny.
+  21. `createManagerPackage()` returns metadata with `builtInTools` containing `"Bash"`.
+  22. `createManagerPackage()` returns metadata with `canUseToolRules` containing the expected allowlist and catch-all deny.
 
   **Package validation:**
 
-  18. Octavia's `package.json` passes validation: `canUseToolRules` references `"Bash"` which is in `builtInTools`.
+  23. Octavia's `package.json` passes validation: `canUseToolRules` references `"Bash"` which is in `builtInTools`.
 
 ## Out of Scope
 
@@ -304,8 +318,8 @@ No type changes are needed. The `CanUseToolRule` type and `canUseToolRules` fiel
 - [ ] Guild Master's metadata includes `"Bash"` in `builtInTools` and `canUseToolRules` per REQ-WTR-12
 - [ ] Dalton and Sable have no `canUseToolRules` (unchanged)
 - [ ] Thorne, Verity, and Edmund have no Bash access and no `canUseToolRules` (unchanged)
-- [ ] Octavia can delete files in `.lore/` via `rm` and `rm -f` during cleanup sessions
-- [ ] Octavia cannot run any Bash command that does not match `rm .lore/**` or `rm -f .lore/**`
+- [ ] Octavia can delete files (`rm`, `rm -f`), create directories (`mkdir`, `mkdir -p`), and move files (`mv`) within `.lore/`
+- [ ] Octavia cannot run any Bash command outside the allowlist (rm, mkdir, mv within `.lore/`)
 - [ ] Guild Master can run `git status`, `git log`, `git diff`, `git show` with non-path flags
 - [ ] Guild Master cannot run `git push`, `git checkout`, `git reset`, or any non-allowlisted command
 - [ ] Guild Master cannot run git commands with file path arguments containing `/` (e.g., `git diff -- src/lib/foo.ts`)

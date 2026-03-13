@@ -16,13 +16,17 @@
     "canUseToolRules": [
       {
         "tool": "Bash",
-        "commands": ["rm .lore/**", "rm -f .lore/**"],
+        "commands": [
+          "rm .lore/**", "rm -f .lore/**",
+          "mkdir .lore/**", "mkdir -p .lore/**",
+          "mv .lore/**"
+        ],
         "allow": true
       },
       {
         "tool": "Bash",
         "allow": false,
-        "reason": "Only file deletion within .lore/ is permitted"
+        "reason": "Only file operations (rm, mkdir, mv) within .lore/ are permitted"
       }
     ],
     "checkoutScope": "full",
