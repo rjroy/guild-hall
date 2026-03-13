@@ -82,10 +82,10 @@ describe("createManagerPackage", () => {
     expect(meta.resourceDefaults?.maxTurns).toBe(200);
   });
 
-  test("builtInTools are read-only (Read, Glob, Grep)", () => {
+  test("builtInTools includes read-only tools and Bash", () => {
     const pkg = createManagerPackage();
     const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.builtInTools).toEqual(["Read", "Glob", "Grep"]);
+    expect(meta.builtInTools).toEqual(["Read", "Glob", "Grep", "Bash"]);
   });
 
   test("domainToolboxes is empty", () => {

@@ -120,7 +120,24 @@ export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
     model: (config?.systemModels?.guildMaster ?? "opus") as ModelName,
     systemToolboxes: ["manager"],
     domainToolboxes: [],
-    builtInTools: ["Read", "Glob", "Grep"],
+    builtInTools: ["Read", "Glob", "Grep", "Bash"],
+    canUseToolRules: [
+      {
+        tool: "Bash",
+        commands: [
+          "git status", "git status *",
+          "git log", "git log *",
+          "git diff", "git diff *",
+          "git show", "git show *",
+        ],
+        allow: true,
+      },
+      {
+        tool: "Bash",
+        allow: false,
+        reason: "Only read-only git commands (status, log, diff, show) are permitted",
+      },
+    ],
     checkoutScope: "full",
     meetingScope: "project",
     resourceDefaults: {
