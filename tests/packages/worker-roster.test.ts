@@ -42,7 +42,7 @@ const expectedRoleProfiles: Record<string, {
     identityName: "Octavia",
     descriptionIntent: /living record|documents|lore/i,
     checkoutScope: "full",
-    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"],
+    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
   },
   "guild-hall-test-engineer": {
     identityName: "Sable",
