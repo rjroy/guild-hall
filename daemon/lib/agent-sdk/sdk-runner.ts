@@ -287,14 +287,14 @@ function buildCanUseTool(
       // Check command condition (Bash only)
       if (rule.commands !== undefined) {
         if (toolName !== "Bash" || typeof toolInput.command !== "string") continue;
-        if (!micromatch.isMatch(toolInput.command, rule.commands)) continue;
+        if (!micromatch.isMatch(toolInput.command, rule.commands, { dot: true })) continue;
       }
 
       // Check path condition
       if (rule.paths !== undefined) {
         const pathField = TOOL_PATH_FIELD[toolName];
         if (!pathField || typeof toolInput[pathField] !== "string") continue;
-        if (!micromatch.isMatch(toolInput[pathField] as string, rule.paths)) continue;
+        if (!micromatch.isMatch(toolInput[pathField] as string, rule.paths, { dot: true })) continue;
       }
 
       // Rule matches

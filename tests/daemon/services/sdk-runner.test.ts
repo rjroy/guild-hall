@@ -1356,6 +1356,36 @@ describe("prepareSdkSession", () => {
       expect(allowDecision.behavior).toBe("allow");
     });
 
+    test("path patterns match dotfile directories", async () => {
+      // micromatch requires { dot: true } to match leading dots
+      const deps = makeDeps({
+        resolveToolSet: async () => ({
+          mcpServers: [],
+          allowedTools: ["Edit"],
+          builtInTools: ["Edit"],
+          canUseToolRules: [
+            { tool: "Edit", paths: ["**/.lore/**"], allow: false, reason: "Cannot edit lore" },
+          ],
+        }),
+        activateWorker: async (_pkg, context) => ({
+          systemPrompt: "test",
+          tools: context.resolvedTools,
+          resourceBounds: {},
+        }),
+      });
+
+      const result = await prepareSdkSession(makeSpec(), deps);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const decision = await result.result.options.canUseTool!(
+        "Edit",
+        { file_path: "/home/user/project/.lore/specs/example.md" },
+        { signal: new AbortController().signal },
+      );
+      expect(decision.behavior).toBe("deny");
+    });
+
     test("denial sets interrupt: false", async () => {
       const deps = makeDeps({
         resolveToolSet: async () => ({

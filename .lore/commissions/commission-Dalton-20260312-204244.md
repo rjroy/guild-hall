@@ -1,7 +1,7 @@
 ---
 title: "Commission: Fix: micromatch dotfile matching in canUseTool"
 date: 2026-03-13
-status: dispatched
+status: completed
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -22,6 +22,37 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
-current_progress: ""
+  - timestamp: 2026-03-13T03:42:44.719Z
+    event: status_in_progress
+    reason: "Execution started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-03-13T03:42:56.450Z
+    event: progress_report
+    reason: "Starting one-line fix: adding `{ dot: true }` to micromatch.isMatch() calls to enable dotfile pattern matching"
+  - timestamp: 2026-03-13T03:43:36.808Z
+    event: result_submitted
+    reason: "✓ Fixed glob pattern matching for dotfile directories by adding `{ dot: true }` to both micromatch.isMatch() calls in buildCanUseTool():\n\n**Changes:**\n1. Line 290: `micromatch.isMatch(toolInput.command, rule.commands)` → `micromatch.isMatch(toolInput.command, rule.commands, { dot: true })`\n2. Line 297: `micromatch.isMatch(toolInput[pathField] as string, rule.paths)` → `micromatch.isMatch(toolInput[pathField] as string, rule.paths, { dot: true })`\n\n**Test Added:**\n- Added `\"path patterns match dotfile directories\"` test in `tests/daemon/services/sdk-runner.test.ts` that verifies a pattern like `**/.lore/**` correctly matches `.lore/specs/example.md`\n\n**Verification:**\n- All 83 sdk-runner tests pass (including new test)\n- Full test suite: 2519 tests pass, 0 failures\n- TypeScript typecheck: clean\n\nWithout this fix, glob patterns with `*` would fail to match dotfiles and dot-prefixed directories because micromatch's default behavior skips leading dots."
+  - timestamp: 2026-03-13T03:43:40.791Z
+    event: status_completed
+    reason: "Execution completed"
+    from: "in_progress"
+    to: "completed"
+current_progress: "Starting one-line fix: adding `{ dot: true }` to micromatch.isMatch() calls to enable dotfile pattern matching"
 projectName: guild-hall
 ---
+✓ Fixed glob pattern matching for dotfile directories by adding `{ dot: true }` to both micromatch.isMatch() calls in buildCanUseTool():
+
+**Changes:**
+1. Line 290: `micromatch.isMatch(toolInput.command, rule.commands)` → `micromatch.isMatch(toolInput.command, rule.commands, { dot: true })`
+2. Line 297: `micromatch.isMatch(toolInput[pathField] as string, rule.paths)` → `micromatch.isMatch(toolInput[pathField] as string, rule.paths, { dot: true })`
+
+**Test Added:**
+- Added `"path patterns match dotfile directories"` test in `tests/daemon/services/sdk-runner.test.ts` that verifies a pattern like `**/.lore/**` correctly matches `.lore/specs/example.md`
+
+**Verification:**
+- All 83 sdk-runner tests pass (including new test)
+- Full test suite: 2519 tests pass, 0 failures
+- TypeScript typecheck: clean
+
+Without this fix, glob patterns with `*` would fail to match dotfiles and dot-prefixed directories because micromatch's default behavior skips leading dots.
