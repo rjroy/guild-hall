@@ -1,7 +1,7 @@
 ---
 title: "Commission: Sandboxed Execution: Phase 1 Tests (Step 4)"
 date: 2026-03-12
-status: queued
+status: pending
 type: one-shot
 tags: [commission]
 worker: Sable
@@ -33,6 +33,11 @@ activity_timeline:
   - timestamp: 2026-03-12T13:57:01.118Z
     event: status_failed
     reason: "Session error: Claude Code process exited with code 1"
+  - timestamp: 2026-03-13T01:21:10.000Z
+    event: status_pending
+    reason: "Manual reset waiting for tokens"
+    from: "failed"
+    to: "pending"
 current_progress: ""
 projectName: guild-hall
 ---

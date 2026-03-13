@@ -1,7 +1,7 @@
 ---
 title: "Commission: Sandboxed Execution: Phase 2 Types, Validation, Fixtures (Steps 5-6)"
 date: 2026-03-12
-status: dispatched
+status: pending
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -30,42 +30,16 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
-  - timestamp: 2026-03-12T14:01:31.618Z
+  - timestamp: 2026-03-12T14:02:14.055Z
     event: status_failed
     reason: "Workspace preparation failed: git branch failed (exit 128): fatal: a branch named 'claude/commission/commission-Dalton-20260312-065505' already exists"
     from: "dispatched"
     to: "failed"
-  - timestamp: 2026-03-12T14:01:31.619Z
-    event: status_failed
-    reason: "Workspace preparation failed: git branch failed (exit 128): fatal: a branch named 'claude/commission/commission-Dalton-20260312-065505' already exists"
-  - timestamp: 2026-03-12T14:02:00.082Z
+  - timestamp: 2026-03-13T01:21:10.000Z
     event: status_pending
-    reason: "Dependencies satisfied"
-    from: "blocked"
+    reason: "Manual reset waiting for tokens"
+    from: "failed"
     to: "pending"
-  - timestamp: 2026-03-12T14:02:00.084Z
-    event: status_dispatched
-    reason: "Dispatched to worker"
-    from: "pending"
-    to: "dispatched"
-  - timestamp: 2026-03-12T14:02:00.096Z
-    event: status_failed
-    reason: "Workspace preparation failed: git branch failed (exit 128): fatal: a branch named 'claude/commission/commission-Dalton-20260312-065505' already exists"
-    from: "dispatched"
-    to: "failed"
-  - timestamp: 2026-03-12T14:02:00.096Z
-    event: status_failed
-    reason: "Workspace preparation failed: git branch failed (exit 128): fatal: a branch named 'claude/commission/commission-Dalton-20260312-065505' already exists"
-  - timestamp: 2026-03-12T14:02:14.038Z
-    event: status_pending
-    reason: "Dependencies satisfied"
-    from: "blocked"
-    to: "pending"
-  - timestamp: 2026-03-12T14:02:14.041Z
-    event: status_dispatched
-    reason: "Dispatched to worker"
-    from: "pending"
-    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---

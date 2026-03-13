@@ -12,7 +12,7 @@ import { createWorkerRoutes } from "./routes/workers";
 import { createBriefingRoutes } from "./routes/briefing";
 import { createModelsRoutes } from "./routes/models";
 import { createAdminRoutes, type AdminDeps } from "./routes/admin";
-import type { AppConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import type { AppConfig, DiscoveredPackage } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { EventBus } from "@/daemon/lib/event-bus";
@@ -177,7 +177,7 @@ export async function createProductionApp(options?: {
   if (process.platform === "linux") {
     const hasBashWorker = allPackages.some((p) => {
       if (!("identity" in p.metadata)) return false;
-      return (p.metadata as WorkerMetadata).builtInTools.includes("Bash");
+      return p.metadata.builtInTools.includes("Bash");
     });
 
     if (hasBashWorker) {

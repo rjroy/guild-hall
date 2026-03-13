@@ -1,6 +1,6 @@
 ---
 title: Briefing display renders raw markdown text instead of formatted output
-status: open
+status: resolved
 tags: [bug, ui, markdown-rendering]
 date: 2026-03-11
 modules: [web/components/dashboard/ManagerBriefing, daemon/routes/briefing]
