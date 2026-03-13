@@ -1,7 +1,7 @@
 ---
 title: "Commission: Review Worker canUseToolRules Implementation"
 date: 2026-03-13
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -20,6 +20,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-13T05:15:15.158Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-13T05:15:15.160Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
