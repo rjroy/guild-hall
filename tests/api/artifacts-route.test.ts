@@ -1,4 +1,7 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { PUT } from "@/web/app/api/artifacts/route";
 import { NextRequest } from "next/server";
 
@@ -13,6 +16,27 @@ import { NextRequest } from "next/server";
  * The actual write, git commit, and dependency check behavior is tested
  * in tests/daemon/routes/artifacts.test.ts.
  */
+
+let tmpDir: string;
+let savedGuildHallHome: string | undefined;
+
+beforeEach(async () => {
+  savedGuildHallHome = process.env.GUILD_HALL_HOME;
+  tmpDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "gh-api-artifacts-test-"),
+  );
+  // Point at a directory with no socket file so daemon calls fail with ENOENT
+  process.env.GUILD_HALL_HOME = tmpDir;
+});
+
+afterEach(async () => {
+  if (savedGuildHallHome === undefined) {
+    delete process.env.GUILD_HALL_HOME;
+  } else {
+    process.env.GUILD_HALL_HOME = savedGuildHallHome;
+  }
+  await fs.rm(tmpDir, { recursive: true, force: true });
+});
 
 function makePutRequest(body: unknown): NextRequest {
   return new NextRequest("http://localhost:3000/api/artifacts", {

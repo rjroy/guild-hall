@@ -1,4 +1,7 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { NextRequest } from "next/server";
 import { POST } from "@/web/app/api/meetings/[meetingId]/quick-comment/route";
 
@@ -17,6 +20,27 @@ import { POST } from "@/web/app/api/meetings/[meetingId]/quick-comment/route";
  * (tests/daemon/routes/meetings.test.ts and tests/daemon/routes/commissions.test.ts)
  * since this route is now a pure compound orchestration of daemon endpoints.
  */
+
+let tmpDir: string;
+let savedGuildHallHome: string | undefined;
+
+beforeEach(async () => {
+  savedGuildHallHome = process.env.GUILD_HALL_HOME;
+  tmpDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "gh-api-quick-comment-test-"),
+  );
+  // Point at a directory with no socket file so daemon calls fail with ENOENT
+  process.env.GUILD_HALL_HOME = tmpDir;
+});
+
+afterEach(async () => {
+  if (savedGuildHallHome === undefined) {
+    delete process.env.GUILD_HALL_HOME;
+  } else {
+    process.env.GUILD_HALL_HOME = savedGuildHallHome;
+  }
+  await fs.rm(tmpDir, { recursive: true, force: true });
+});
 
 function makePostRequest(url: string, body: unknown): NextRequest {
   return new NextRequest(url, {
