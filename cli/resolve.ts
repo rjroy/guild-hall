@@ -7,7 +7,6 @@ export interface CliSkill {
   description: string;
   invocation: { method: "GET" | "POST"; path: string };
   context: Record<string, boolean>;
-  eligibility: { tier: string; readOnly: boolean };
   streaming?: { eventTypes: string[] };
   idempotent: boolean;
   parameters?: SkillParameter[];

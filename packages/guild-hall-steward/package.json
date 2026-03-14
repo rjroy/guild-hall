@@ -23,9 +23,6 @@
         "reason": "Only guild-hall CLI commands are permitted"
       }
     ],
-    "skillAccess": {
-      "tiers": ["any"]
-    },
     "checkoutScope": "sparse",
     "resourceDefaults": {
       "maxTurns": 80

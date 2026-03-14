@@ -415,7 +415,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       invocation: { method: "POST", path: "/meeting/request/meeting/create" },
       sideEffects: "Creates meeting artifact, spawns session, streams response",
       context: { project: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: false,
       streaming: { eventTypes: ["meeting_message", "meeting_status"] },
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
@@ -429,7 +429,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       invocation: { method: "POST", path: "/meeting/request/meeting/accept" },
       sideEffects: "Transitions meeting to active, spawns session, streams response",
       context: { project: true, meetingId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: false,
       streaming: { eventTypes: ["meeting_message", "meeting_status"] },
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
@@ -443,7 +443,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       invocation: { method: "POST", path: "/meeting/request/meeting/decline" },
       sideEffects: "Transitions meeting to declined",
       context: { project: true, meetingId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
       parameters: [{ name: "projectName", required: true, in: "body" as const }, { name: "meetingId", required: true, in: "body" as const }],
@@ -456,7 +456,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       invocation: { method: "POST", path: "/meeting/request/meeting/defer" },
       sideEffects: "Transitions meeting to deferred",
       context: { project: true, meetingId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
       parameters: [{ name: "projectName", required: true, in: "body" as const }, { name: "meetingId", required: true, in: "body" as const }],
@@ -469,7 +469,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       invocation: { method: "GET", path: "/meeting/request/meeting/list" },
       sideEffects: "",
       context: { project: true },
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
       parameters: [{ name: "projectName", required: true, in: "query" as const }],
@@ -482,7 +482,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       invocation: { method: "GET", path: "/meeting/request/meeting/read" },
       sideEffects: "",
       context: { project: true, meetingId: true },
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
       parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "meetingId", required: true, in: "query" as const }],
@@ -495,7 +495,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       invocation: { method: "POST", path: "/meeting/session/message/send" },
       sideEffects: "Sends message to worker session, streams response",
       context: { meetingId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: false,
       streaming: { eventTypes: ["meeting_message", "meeting_status"] },
       hierarchy: { root: "meeting", feature: "session", object: "message" },
@@ -509,7 +509,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       invocation: { method: "POST", path: "/meeting/session/generation/interrupt" },
       sideEffects: "Aborts current worker generation turn",
       context: { meetingId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "meeting", feature: "session", object: "generation" },
       parameters: [{ name: "meetingId", required: true, in: "body" as const }],
@@ -522,7 +522,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       invocation: { method: "POST", path: "/meeting/session/meeting/close" },
       sideEffects: "Closes session, merges worktree, generates notes",
       context: { meetingId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "meeting", feature: "session", object: "meeting" },
       parameters: [{ name: "meetingId", required: true, in: "body" as const }],

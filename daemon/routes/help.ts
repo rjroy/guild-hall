@@ -26,6 +26,11 @@ function serializeNode(
     result.method = node.skill.invocation.method;
   }
 
+  // Include source package attribution for package-contributed skills
+  if (node.skill?.sourcePackage) {
+    result.sourcePackage = node.skill.sourcePackage;
+  }
+
   // Include children summary for non-operation nodes
   if (node.children.length > 0) {
     result.children = node.children.map((child) => ({
@@ -159,17 +164,22 @@ export function createHelpRoutes(registry: SkillRegistry): Hono {
 
   // GET /help/skills - Flat list of all skills with metadata
   routes.get("/help/skills", (c) => {
-    const skills = Array.from(registry.skills.values()).map((skill) => ({
-      skillId: skill.skillId,
-      name: skill.name,
-      description: skill.description,
-      invocation: skill.invocation,
-      context: skill.context,
-      eligibility: skill.eligibility,
-      streaming: skill.streaming,
-      idempotent: skill.idempotent,
-      parameters: skill.parameters,
-    }));
+    const skills = Array.from(registry.skills.values()).map((skill) => {
+      const entry: Record<string, unknown> = {
+        skillId: skill.skillId,
+        name: skill.name,
+        description: skill.description,
+        invocation: skill.invocation,
+        context: skill.context,
+        streaming: skill.streaming,
+        idempotent: skill.idempotent,
+        parameters: skill.parameters,
+      };
+      if (skill.sourcePackage) {
+        entry.sourcePackage = skill.sourcePackage;
+      }
+      return entry;
+    });
     return c.json({ skills });
   });
 

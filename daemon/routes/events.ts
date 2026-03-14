@@ -50,7 +50,7 @@ export function createEventRoutes(deps: EventRoutesDeps): RouteModule {
       invocation: { method: "GET", path: "/system/events/stream/subscribe" },
       sideEffects: "",
       context: {},
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       streaming: { eventTypes: ["commission_status", "meeting_status", "meeting_message"] },
       hierarchy: { root: "system", feature: "events", object: "stream" },

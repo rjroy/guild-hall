@@ -14,7 +14,6 @@ function makeSkill(
     invocation: { method: "GET", path: "/test" },
     sideEffects: "",
     context: {},
-    eligibility: { tier: "any", readOnly: true },
     idempotent: true,
     hierarchy: { root: "test", feature: "skills" },
     ...overrides,
@@ -470,6 +469,75 @@ describe("Help Routes", () => {
     expect(body.method).toBe("POST");
   });
 
+  test("operation help for package skill includes sourcePackage", async () => {
+    const skill = makeSkill({
+      skillId: "workspace.artifact.document.cleanup",
+      name: "cleanup",
+      description: "Clean up old artifacts",
+      invocation: { method: "POST", path: "/workspace/artifact/document/cleanup" },
+      hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+      sourcePackage: "guild-hall-writer",
+    });
+
+    const registry = createSkillRegistry([skill]);
+    const routes = createHelpRoutes(registry);
+
+    const res = await routes.request(
+      "/workspace/artifact/document/cleanup/help",
+    );
+    const body = await res.json();
+
+    expect(body.sourcePackage).toBe("guild-hall-writer");
+  });
+
+  test("operation help for built-in skill omits sourcePackage", async () => {
+    const skill = makeSkill({
+      skillId: "system.health",
+      name: "health",
+      description: "Check health",
+      hierarchy: { root: "system", feature: "health" },
+      // No sourcePackage set - built-in skill
+    });
+
+    const registry = createSkillRegistry([skill]);
+    const routes = createHelpRoutes(registry);
+
+    const res = await routes.request("/system/health/health/help");
+    const body = await res.json();
+
+    expect(body).not.toHaveProperty("sourcePackage");
+  });
+
+  test("package skill appears in correct hierarchy position", async () => {
+    const builtIn = makeSkill({
+      skillId: "workspace.artifact.document.list",
+      name: "list",
+      description: "List artifacts",
+      hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+    });
+    const packageSkill = makeSkill({
+      skillId: "workspace.artifact.document.cleanup",
+      name: "cleanup",
+      description: "Clean up old artifacts",
+      hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+      sourcePackage: "guild-hall-writer",
+    });
+
+    const registry = createSkillRegistry([builtIn, packageSkill]);
+    const routes = createHelpRoutes(registry);
+
+    // Both should appear as children of the same object node
+    const res = await routes.request("/workspace/artifact/document/help");
+    const body = await res.json();
+
+    expect(body.kind).toBe("object");
+    expect(body.children).toHaveLength(2);
+    expect((body.children as Array<{ name: string }>).map((c) => c.name)).toEqual([
+      "list",
+      "cleanup",
+    ]);
+  });
+
   test("non-operation nodes omit method field", async () => {
     const skill = makeSkill({
       skillId: "commission.run",
@@ -519,12 +587,11 @@ describe("GET /help/skills", () => {
     ]);
   });
 
-  test("includes invocation and eligibility metadata", async () => {
+  test("includes invocation metadata", async () => {
     const skill = makeSkill({
       skillId: "commission.run.dispatch",
       name: "dispatch",
       invocation: { method: "POST", path: "/commission/run/dispatch" },
-      eligibility: { tier: "any", readOnly: false },
       hierarchy: { root: "commission", feature: "run" },
     });
 
@@ -537,10 +604,6 @@ describe("GET /help/skills", () => {
     expect(body.skills[0].invocation).toEqual({
       method: "POST",
       path: "/commission/run/dispatch",
-    });
-    expect(body.skills[0].eligibility).toEqual({
-      tier: "any",
-      readOnly: false,
     });
   });
 
@@ -586,6 +649,40 @@ describe("GET /help/skills", () => {
     const body = await res.json() as { skills: unknown[] };
 
     expect(body.skills).toHaveLength(0);
+  });
+
+  test("includes sourcePackage for package skills", async () => {
+    const skills = [
+      makeSkill({
+        skillId: "workspace.artifact.document.cleanup",
+        name: "cleanup",
+        description: "Clean up old artifacts",
+        hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+        sourcePackage: "guild-hall-writer",
+      }),
+      makeSkill({
+        skillId: "system.health",
+        name: "health",
+        description: "Check health",
+        hierarchy: { root: "system", feature: "health" },
+      }),
+    ];
+
+    const registry = createSkillRegistry(skills);
+    const routes = createHelpRoutes(registry);
+
+    const res = await routes.request("/help/skills");
+    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+
+    const packageSkill = body.skills.find(
+      (s) => s.skillId === "workspace.artifact.document.cleanup",
+    );
+    expect(packageSkill?.sourcePackage).toBe("guild-hall-writer");
+
+    const builtInSkill = body.skills.find(
+      (s) => s.skillId === "system.health",
+    );
+    expect(builtInSkill).not.toHaveProperty("sourcePackage");
   });
 
   test("does not expose requestSchema, responseSchema, or sideEffects", async () => {

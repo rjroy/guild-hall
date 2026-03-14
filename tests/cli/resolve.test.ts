@@ -14,7 +14,6 @@ function makeSkill(overrides: Partial<CliSkill> = {}): CliSkill {
     description: "Test skill",
     invocation: { method: "GET", path: "/test" },
     context: {},
-    eligibility: { tier: "any", readOnly: true },
     idempotent: true,
     ...overrides,
   };

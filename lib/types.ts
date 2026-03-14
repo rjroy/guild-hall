@@ -190,13 +190,6 @@ export interface WorkerMetadata {
   resourceDefaults?: ResourceDefaults;
   /** Determines git isolation for meetings. "project" runs in the integration worktree; "activity" (default) gets its own branch/worktree. */
   meetingScope?: "project" | "activity";
-  /** Skill eligibility constraints for CLI skill access. Determines which
-   *  daemon-governed skills this worker can invoke via guild-hall commands.
-   *  Omit for default: tier "any", no read-only restriction. */
-  skillAccess?: {
-    tiers: Array<SkillEligibility["tier"]>;
-    readOnlyOnly?: boolean;
-  };
 }
 
 /**
@@ -409,14 +402,6 @@ export interface SkillContext {
   scheduleId?: boolean;
 }
 
-/** Eligibility rules controlling who can invoke a skill. */
-export interface SkillEligibility {
-  /** Base tier. "any" = all clients, "manager" = Guild Master or human, "admin" = human only. */
-  tier: "any" | "manager" | "admin";
-  /** If true, the skill only reads state. Never creates, modifies, or deletes application state. */
-  readOnly: boolean;
-}
-
 /**
  * A daemon-owned capability contract. Each SkillDefinition describes
  * one invocable operation in the public API.
@@ -458,8 +443,6 @@ export interface SkillDefinition {
   sideEffects: string;
   /** What context fields the caller must provide. */
   context: SkillContext;
-  /** Who can invoke this skill. */
-  eligibility: SkillEligibility;
   /** Streaming metadata. Omit for non-streaming operations. */
   streaming?: {
     /** SSE event type discriminators the client should expect. */
@@ -475,6 +458,9 @@ export interface SkillDefinition {
   };
   /** Positional CLI parameters, in order. The CLI maps trailing argv words to these. */
   parameters?: SkillParameter[];
+  /** Package that contributed this skill. Undefined for built-in skills.
+   *  Set by the daemon during registration, not by the package. */
+  sourcePackage?: string;
 }
 
 /**

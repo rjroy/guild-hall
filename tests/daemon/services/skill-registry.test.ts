@@ -13,7 +13,6 @@ function makeSkill(
     invocation: { method: "GET", path: "/test" },
     sideEffects: "",
     context: {},
-    eligibility: { tier: "any", readOnly: true },
     idempotent: true,
     hierarchy: { root: "test", feature: "skills" },
     ...overrides,
@@ -199,96 +198,21 @@ describe("createSkillRegistry", () => {
   test("filter() returns matching skills", () => {
     const skill1 = makeSkill({
       skillId: "commission.run",
-      eligibility: { tier: "any", readOnly: true },
       hierarchy: { root: "commission", feature: "run" },
     });
     const skill2 = makeSkill({
       skillId: "commission.list",
-      eligibility: { tier: "manager", readOnly: true },
+      sideEffects: "does stuff",
       hierarchy: { root: "commission", feature: "list" },
     });
 
     const registry = createSkillRegistry([skill1, skill2]);
 
-    const managerSkills = registry.filter(
-      (s) => s.eligibility.tier === "manager",
+    const withSideEffects = registry.filter(
+      (s) => s.sideEffects !== "",
     );
-    expect(managerSkills).toHaveLength(1);
-    expect(managerSkills[0].skillId).toBe("commission.list");
-  });
-
-  test("forTier('any') returns only 'any' tier skills", () => {
-    const skill1 = makeSkill({
-      skillId: "commission.run",
-      eligibility: { tier: "any", readOnly: true },
-      hierarchy: { root: "commission", feature: "run" },
-    });
-    const skill2 = makeSkill({
-      skillId: "commission.dispatch",
-      eligibility: { tier: "manager", readOnly: false },
-      hierarchy: { root: "commission", feature: "dispatch" },
-    });
-    const skill3 = makeSkill({
-      skillId: "system.reload",
-      eligibility: { tier: "admin", readOnly: false },
-      hierarchy: { root: "system", feature: "reload" },
-    });
-
-    const registry = createSkillRegistry([skill1, skill2, skill3]);
-
-    const anyTier = registry.forTier("any");
-    expect(anyTier).toHaveLength(1);
-    expect(anyTier[0].skillId).toBe("commission.run");
-  });
-
-  test("forTier('manager') returns 'any' and 'manager' tier skills", () => {
-    const skill1 = makeSkill({
-      skillId: "commission.run",
-      eligibility: { tier: "any", readOnly: true },
-      hierarchy: { root: "commission", feature: "run" },
-    });
-    const skill2 = makeSkill({
-      skillId: "commission.dispatch",
-      eligibility: { tier: "manager", readOnly: false },
-      hierarchy: { root: "commission", feature: "dispatch" },
-    });
-    const skill3 = makeSkill({
-      skillId: "system.reload",
-      eligibility: { tier: "admin", readOnly: false },
-      hierarchy: { root: "system", feature: "reload" },
-    });
-
-    const registry = createSkillRegistry([skill1, skill2, skill3]);
-
-    const managerTier = registry.forTier("manager");
-    expect(managerTier).toHaveLength(2);
-    expect(managerTier.map((s) => s.skillId).sort()).toEqual([
-      "commission.dispatch",
-      "commission.run",
-    ]);
-  });
-
-  test("forTier('admin') returns all skills", () => {
-    const skill1 = makeSkill({
-      skillId: "commission.run",
-      eligibility: { tier: "any", readOnly: true },
-      hierarchy: { root: "commission", feature: "run" },
-    });
-    const skill2 = makeSkill({
-      skillId: "commission.dispatch",
-      eligibility: { tier: "manager", readOnly: false },
-      hierarchy: { root: "commission", feature: "dispatch" },
-    });
-    const skill3 = makeSkill({
-      skillId: "system.reload",
-      eligibility: { tier: "admin", readOnly: false },
-      hierarchy: { root: "system", feature: "reload" },
-    });
-
-    const registry = createSkillRegistry([skill1, skill2, skill3]);
-
-    const adminTier = registry.forTier("admin");
-    expect(adminTier).toHaveLength(3);
+    expect(withSideEffects).toHaveLength(1);
+    expect(withSideEffects[0].skillId).toBe("commission.list");
   });
 
   test("subtree() returns undefined for empty segments", () => {

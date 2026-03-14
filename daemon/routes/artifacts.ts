@@ -196,7 +196,7 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
       invocation: { method: "GET", path: "/workspace/artifact/document/list" },
       sideEffects: "",
       context: { project: true },
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "workspace", feature: "artifact", object: "document" },
       parameters: [{ name: "projectName", required: true, in: "query" as const }],
@@ -209,7 +209,7 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
       invocation: { method: "GET", path: "/workspace/artifact/document/read" },
       sideEffects: "",
       context: { project: true },
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "workspace", feature: "artifact", object: "document" },
       parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "path", required: true, in: "query" as const }],
@@ -222,7 +222,7 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
       invocation: { method: "POST", path: "/workspace/artifact/document/write" },
       sideEffects: "Writes artifact file, commits to git, triggers dependency check",
       context: { project: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "workspace", feature: "artifact", object: "document" },
       parameters: [{ name: "projectName", required: true, in: "body" as const }],

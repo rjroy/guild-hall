@@ -1,4 +1,4 @@
-import type { SkillDefinition, SkillEligibility } from "@/lib/types";
+import type { SkillDefinition } from "@/lib/types";
 
 /**
  * Navigation tree node for help endpoint rendering.
@@ -25,9 +25,6 @@ export interface SkillRegistry {
 
   /** Return all skills matching a predicate. */
   filter(predicate: (skill: SkillDefinition) => boolean): SkillDefinition[];
-
-  /** Return skills eligible for a given worker tier. */
-  forTier(tier: SkillEligibility["tier"]): SkillDefinition[];
 
   /** Return the navigation subtree at a given path. */
   subtree(segments: string[]): SkillTreeNode | undefined;
@@ -141,22 +138,6 @@ export function createSkillRegistry(
 
     filter(predicate: (skill: SkillDefinition) => boolean): SkillDefinition[] {
       return skills.filter(predicate);
-    },
-
-    forTier(tier: SkillEligibility["tier"]): SkillDefinition[] {
-      // "admin" tier can access everything
-      // "manager" tier can access "any" and "manager"
-      // "any" tier can access only "any"
-      return skills.filter((s) => {
-        switch (tier) {
-          case "admin":
-            return true;
-          case "manager":
-            return s.eligibility.tier === "any" || s.eligibility.tier === "manager";
-          case "any":
-            return s.eligibility.tier === "any";
-        }
-      });
     },
 
     subtree: findSubtree,

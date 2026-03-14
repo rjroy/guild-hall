@@ -17,6 +17,10 @@ import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
 import { createHelpRoutes } from "./routes/help";
 import { createSkillRegistry, type SkillRegistry } from "@/daemon/lib/skill-registry";
 import type { AppConfig, DiscoveredPackage, RouteModule, SkillDefinition } from "@/lib/types";
+import { createPackageSkillRoutes, type PackageSkillRouteDeps } from "@/daemon/routes/package-skills";
+import { loadPackageSkills } from "@/daemon/services/skill-loader";
+import { SkillHandlerError } from "@/daemon/services/skill-types";
+import { asCommissionId, asMeetingId } from "@/daemon/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { EventBus } from "@/daemon/lib/event-bus";
@@ -35,6 +39,9 @@ export interface AppDeps {
   admin?: AdminDeps;
   artifacts?: ArtifactDeps;
   configRoutes?: ConfigRoutesDeps;
+  /** Route module from package-contributed skills. When provided, its skills
+   *  enter the same registry as built-in skills and its routes are mounted. */
+  packageSkillRouteModule?: RouteModule;
 }
 
 /**
@@ -107,6 +114,10 @@ export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry }
 
   if (deps.configRoutes) {
     mount(createConfigRoutes(deps.configRoutes));
+  }
+
+  if (deps.packageSkillRouteModule) {
+    mount(deps.packageSkillRouteModule);
   }
 
   // Build the skill registry from all collected skills
@@ -416,6 +427,96 @@ export async function createProductionApp(options?: {
     guildHallHome,
   });
 
+  // -- Package skill loading --
+  // Load skills contributed by packages and build the route module.
+  // This happens after all sessions are constructed so that SkillFactoryDeps
+  // can wire adapters to the commission lifecycle and meeting session.
+
+  const packageSkills = await loadPackageSkills(allPackages, {
+    config,
+    guildHallHome,
+    emitEvent: (event) => eventBus.emit(event),
+    transitionCommission: async (commissionId, transition, payload) => {
+      const id = asCommissionId(commissionId);
+      const methodMap: Record<string, () => Promise<import("@/daemon/services/commission/lifecycle").TransitionResult>> = {
+        dispatch: () => lifecycle.dispatch(id),
+        cancel: () => lifecycle.cancel(id, (payload?.reason as string) ?? "Cancelled via skill"),
+        abandon: () => lifecycle.abandon(id, (payload?.reason as string) ?? "Abandoned via skill"),
+        redispatch: () => lifecycle.redispatch(id),
+        block: () => lifecycle.block(id),
+        unblock: () => lifecycle.unblock(id),
+        sleep: () => lifecycle.sleep(id, (payload?.reason as string) ?? "Sleep via skill"),
+        wake: () => lifecycle.wake(id, (payload?.reason as string) ?? "Wake via skill"),
+        complete: () => lifecycle.executionCompleted(id),
+        fail: () => lifecycle.executionFailed(id, (payload?.reason as string) ?? "Failed via skill"),
+      };
+      const method = methodMap[transition];
+      if (!method) {
+        throw new SkillHandlerError(`Unknown commission transition: "${transition}"`, 400);
+      }
+      const result = await method();
+      if (result.outcome === "skipped") {
+        throw new SkillHandlerError(result.reason, 409);
+      }
+    },
+    transitionMeeting: async (meetingId, transition, payload) => {
+      // Validate required parameters before building the method map
+      if (transition === "decline") {
+        const projectName = (payload?.projectName as string) ?? "";
+        if (!projectName) {
+          throw new SkillHandlerError(
+            `"decline" transition requires a "projectName" parameter`,
+            400,
+          );
+        }
+      }
+
+      const methodMap: Record<string, () => Promise<unknown>> = {
+        close: () => meetingSession.closeMeeting(asMeetingId(meetingId)),
+        decline: () => {
+          const projectName = (payload?.projectName as string) ?? "";
+          return meetingSession.declineMeeting(
+            asMeetingId(meetingId),
+            projectName,
+          );
+        },
+      };
+      const method = methodMap[transition];
+      if (!method) {
+        throw new SkillHandlerError(`Unknown meeting transition: "${transition}"`, 400);
+      }
+      try {
+        await method();
+      } catch (err) {
+        if (err instanceof SkillHandlerError) throw err;
+        const msg = errorMessage(err);
+        if (/not found/i.test(msg)) {
+          throw new SkillHandlerError(msg, 404);
+        }
+        if (/invalid/i.test(msg)) {
+          throw new SkillHandlerError(msg, 409);
+        }
+        throw new SkillHandlerError(msg, 500);
+      }
+    },
+  });
+
+  let packageSkillRouteModule: RouteModule | undefined;
+  if (packageSkills.length > 0) {
+    const routeDeps: PackageSkillRouteDeps = {
+      config,
+      guildHallHome,
+      getCommissionStatus: (commissionId) => {
+        return Promise.resolve(lifecycle.getStatus(asCommissionId(commissionId)));
+      },
+      getMeetingStatus: (meetingId) => {
+        const entry = meetingRegistry.get(asMeetingId(meetingId));
+        return Promise.resolve(entry?.status);
+      },
+    };
+    packageSkillRouteModule = createPackageSkillRoutes(packageSkills, routeDeps);
+  }
+
   const startTime = Date.now();
 
   const { app, registry } = createApp({
@@ -447,6 +548,7 @@ export async function createProductionApp(options?: {
       config,
       guildHallHome,
     },
+    packageSkillRouteModule,
   });
 
   // Late-bind the skill registry for progressive discovery (REQ-DAB-5).

@@ -604,56 +604,6 @@ export function makeAbandonCommissionHandler(
   };
 }
 
-// -- sync_project: delegates to daemon route --
-
-export function makeSyncProjectHandler(
-  deps: ManagerToolboxDeps,
-) {
-  return async (args: { projectName: string }): Promise<ToolResult> => {
-    try {
-      const result = await deps.callRoute(
-        "/workspace/git/integration/sync",
-        { projectName: args.projectName },
-      );
-
-      if (!result.ok) {
-        console.error(
-          `[manager-toolbox] Failed to sync project "${args.projectName}":`,
-          result.error,
-        );
-        return routeError(result.error);
-      }
-
-      const data = result.data as { results?: Array<{ project: string; action: string; reason: string }> };
-
-      // Build a summary from the sync results
-      const projectResult = data.results?.find((r) => r.project === args.projectName);
-      const summary = projectResult
-        ? `Sync ${projectResult.action} for "${args.projectName}": ${projectResult.reason}`
-        : `Sync completed for "${args.projectName}"`;
-
-      console.log(
-        `[manager-toolbox] sync_project "${args.projectName}": ${projectResult?.action ?? "completed"}`,
-      );
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ action: projectResult?.action ?? "completed", summary }),
-          },
-        ],
-      };
-    } catch (err: unknown) {
-      console.error(
-        `[manager-toolbox] Failed to sync project "${args.projectName}":`,
-        errorMessage(err),
-      );
-      return routeError(errorMessage(err));
-    }
-  };
-}
-
 // -- Scheduled commission tools --
 
 export function makeCreateScheduledCommissionHandler(
@@ -995,7 +945,6 @@ export function createManagerToolbox(
   const createPr = makeCreatePrHandler(deps);
   const initiateMeeting = makeInitiateMeetingHandler(deps);
   const addCommissionNote = makeAddCommissionNoteHandler(deps);
-  const syncProjectTool = makeSyncProjectHandler(deps);
   const createScheduledCommission = makeCreateScheduledCommissionHandler(deps);
   const updateSchedule = makeUpdateScheduleHandler(deps);
 
@@ -1072,14 +1021,6 @@ export function createManagerToolbox(
           content: z.string().describe("The note content"),
         },
         (args) => addCommissionNote(args),
-      ),
-      tool(
-        "sync_project",
-        "Sync a project's claude branch after a PR has been merged. Detects merged PRs, resets the claude branch to match the remote default branch, or rebases if the default branch advanced independently. Use when the user says they merged a PR. [skillId: workspace.git.integration.sync]",
-        {
-          projectName: z.string().describe("Name of the project to sync"),
-        },
-        (args) => syncProjectTool(args),
       ),
       tool(
         "create_scheduled_commission",

@@ -37,7 +37,7 @@ export function createHealthRoutes(deps: HealthDeps): RouteModule {
       invocation: { method: "GET", path: "/system/runtime/daemon/health" },
       sideEffects: "",
       context: {},
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "system", feature: "runtime", object: "daemon" },
     },

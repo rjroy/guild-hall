@@ -43,7 +43,7 @@ export function createBriefingRoutes(deps: BriefingRouteDeps): RouteModule {
       invocation: { method: "GET", path: "/coordination/review/briefing/read" },
       sideEffects: "",
       context: { project: true },
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "coordination", feature: "review", object: "briefing" },
       parameters: [{ name: "projectName", required: true, in: "query" as const }],
