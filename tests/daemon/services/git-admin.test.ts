@@ -1,28 +1,32 @@
 /**
- * Tests for cli/rebase.ts: claude branch maintenance and post-merge sync.
+ * Tests for daemon/services/git-admin.ts: claude branch maintenance and post-merge sync.
  *
  * Uses mock gitOps and temp directories with state files to verify:
+ * - hasActiveActivities detects active commissions/meetings
  * - rebaseProject calls git.rebase with the integration worktree path
- * - Active activities (commissions/meetings) cause rebase to be skipped
- * - The rebase() CLI function handles single/all projects and errors
+ * - Active activities cause rebase to be skipped
+ * - rebaseAll handles single/all projects and errors
  * - syncProject detects merged PRs (via marker), resets or rebases
  * - syncProject skips when activities are active
  * - syncProject is a noop when claude/main is already current
+ * - readPrMarker / removePrMarker manage PR marker state files
+ *
+ * Migrated from tests/cli/rebase.test.ts during Phase 4 of the Daemon
+ * Application Boundary work. The logic moved from cli/rebase.ts to
+ * daemon/services/git-admin.ts.
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as os from "node:os";
 import {
-  rebase,
+  hasActiveActivities,
   rebaseProject,
+  rebaseAll,
   syncProject,
   readPrMarker,
   removePrMarker,
-  hasActiveActivities,
-} from "@/cli/rebase";
-import { writeConfig } from "@/lib/config";
+} from "@/daemon/services/git-admin";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { GitOps } from "@/daemon/lib/git";
 
@@ -153,28 +157,23 @@ function createMockGitOps(): MockGitOps {
   };
 }
 
+// Use /tmp/claude-1000/ for sandbox compatibility
+const TMP_ROOT = "/tmp/claude-1000";
+
 let tmpDir: string;
 let ghHome: string;
 let mockGit: MockGitOps;
-let savedGHHome: string | undefined;
 
 beforeEach(async () => {
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-rebase-test-"));
+  await fs.mkdir(TMP_ROOT, { recursive: true });
+  tmpDir = await fs.mkdtemp(path.join(TMP_ROOT, "gh-git-admin-test-"));
   ghHome = path.join(tmpDir, "guild-hall");
   mockGit = createMockGitOps();
 
   await fs.mkdir(ghHome, { recursive: true });
-
-  savedGHHome = process.env.GUILD_HALL_HOME;
-  process.env.GUILD_HALL_HOME = ghHome;
 });
 
 afterEach(async () => {
-  if (savedGHHome !== undefined) {
-    process.env.GUILD_HALL_HOME = savedGHHome;
-  } else {
-    delete process.env.GUILD_HALL_HOME;
-  }
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
@@ -343,12 +342,10 @@ describe("rebaseProject", () => {
     );
 
     expect(result).toBe(true);
-    // Should call detectDefaultBranch since no defaultBranch was passed
     const detectCalls = mockGit.calls.filter((c) => c.method === "detectDefaultBranch");
     expect(detectCalls).toHaveLength(1);
     expect(detectCalls[0].args).toEqual(["/fake/project"]);
 
-    // Rebase should use the detected branch ("main" from mock)
     const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
     expect(rebaseCalls).toHaveLength(1);
     const expectedPath = integrationWorktreePath(ghHome, "my-project");
@@ -446,58 +443,50 @@ describe("rebaseProject", () => {
   });
 });
 
-describe("rebase (CLI entry point)", () => {
+describe("rebaseAll", () => {
   test("rebases only the specified project", async () => {
-    const configPath = path.join(ghHome, "config.yaml");
-    await writeConfig(
-      {
-        projects: [
-          { name: "project-a", path: "/fake/a" },
-          { name: "project-b", path: "/fake/b" },
-        ],
-      },
-      configPath,
-    );
+    const config = {
+      projects: [
+        { name: "project-a", path: "/fake/a" },
+        { name: "project-b", path: "/fake/b" },
+      ],
+    };
 
-    await rebase("project-a", ghHome, mockGit);
+    const result = await rebaseAll("project-a", ghHome, mockGit, config);
+
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].project).toBe("project-a");
+    expect(result.results[0].rebased).toBe(true);
 
     const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
     expect(rebaseCalls).toHaveLength(1);
-
     const expectedPath = integrationWorktreePath(ghHome, "project-a");
     expect(rebaseCalls[0].args[0]).toBe(expectedPath);
   });
 
   test("rebases all projects when no name given", async () => {
-    const configPath = path.join(ghHome, "config.yaml");
-    await writeConfig(
-      {
-        projects: [
-          { name: "alpha", path: "/fake/alpha" },
-          { name: "beta", path: "/fake/beta" },
-          { name: "gamma", path: "/fake/gamma" },
-        ],
-      },
-      configPath,
-    );
+    const config = {
+      projects: [
+        { name: "alpha", path: "/fake/alpha" },
+        { name: "beta", path: "/fake/beta" },
+        { name: "gamma", path: "/fake/gamma" },
+      ],
+    };
 
-    await rebase(undefined, ghHome, mockGit);
+    const result = await rebaseAll(undefined, ghHome, mockGit, config);
 
+    expect(result.results).toHaveLength(3);
     const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
     expect(rebaseCalls).toHaveLength(3);
   });
 
   test("continues to next project when one fails", async () => {
-    const configPath = path.join(ghHome, "config.yaml");
-    await writeConfig(
-      {
-        projects: [
-          { name: "fails", path: "/fake/fails" },
-          { name: "succeeds", path: "/fake/succeeds" },
-        ],
-      },
-      configPath,
-    );
+    const config = {
+      projects: [
+        { name: "fails", path: "/fake/fails" },
+        { name: "succeeds", path: "/fake/succeeds" },
+      ],
+    };
 
     let callCount = 0;
     mockGit.rebase = (...args) => {
@@ -509,35 +498,32 @@ describe("rebase (CLI entry point)", () => {
       return Promise.resolve();
     };
 
-    // Should not throw even though first project fails
-    await rebase(undefined, ghHome, mockGit);
+    const result = await rebaseAll(undefined, ghHome, mockGit, config);
 
-    // Second project should still have been rebased
-    const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
-    expect(rebaseCalls).toHaveLength(1);
-    const expectedPath = integrationWorktreePath(ghHome, "succeeds");
-    expect(rebaseCalls[0].args[0]).toBe(expectedPath);
+    expect(result.results).toHaveLength(2);
+    expect(result.results[0].project).toBe("fails");
+    expect(result.results[0].rebased).toBe(false);
+    expect(result.results[0].error).toContain("rebase conflict");
+    expect(result.results[1].project).toBe("succeeds");
+    expect(result.results[1].rebased).toBe(true);
   });
 
   test("throws for unknown project name", async () => {
-    const configPath = path.join(ghHome, "config.yaml");
-    await writeConfig(
-      { projects: [{ name: "real", path: "/fake/real" }] },
-      configPath,
-    );
+    const config = {
+      projects: [{ name: "real", path: "/fake/real" }],
+    };
 
-    await expect(rebase("nonexistent", ghHome, mockGit)).rejects.toThrow(
+    await expect(rebaseAll("nonexistent", ghHome, mockGit, config)).rejects.toThrow(
       'Project "nonexistent" not found in config',
     );
   });
 
   test("works with empty project list", async () => {
-    const configPath = path.join(ghHome, "config.yaml");
-    await writeConfig({ projects: [] }, configPath);
+    const config = { projects: [] };
 
-    // Should complete without error
-    await rebase(undefined, ghHome, mockGit);
+    const result = await rebaseAll(undefined, ghHome, mockGit, config);
 
+    expect(result.results).toHaveLength(0);
     const rebaseCalls = mockGit.calls.filter((c) => c.method === "rebase");
     expect(rebaseCalls).toHaveLength(0);
   });
@@ -947,10 +933,7 @@ describe("syncProject", () => {
   });
 
   test("calls fetch with origin", async () => {
-    // Make sync a noop to focus on fetch call
-    mockGit.isAncestor = () => Promise.resolve(false);
-    // Both calls return false, so it tries merge in diverged case
-    // Let's make it: origin is ancestor of claude (noop)
+    // Make it noop: origin is ancestor of claude
     let isAncestorCallCount = 0;
     mockGit.isAncestor = (...args) => {
       mockGit.calls.push({ method: "isAncestor", args });

@@ -24,8 +24,8 @@ export async function POST(
   }
 
   const result = await daemonStreamAsync(
-    `/meetings/${meetingId}/messages`,
-    JSON.stringify({ message }),
+    "/meeting/session/message/send",
+    JSON.stringify({ meetingId, message }),
   );
 
   if (isDaemonError(result)) {

@@ -14,9 +14,11 @@ export async function POST(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const result = await daemonFetch(`/commissions/${commissionId}/note`, {
+  const { content } = body as { content?: string };
+
+  const result = await daemonFetch("/commission/request/commission/note", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ commissionId, content }),
   });
 
   if (isDaemonError(result)) {

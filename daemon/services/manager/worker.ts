@@ -129,15 +129,19 @@ export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
           "git log", "git log *",
           "git diff", "git diff *",
           "git show", "git show *",
+          "guild-hall **",
         ],
         allow: true,
       },
       {
         tool: "Bash",
         allow: false,
-        reason: "Only read-only git commands (status, log, diff, show) are permitted",
+        reason: "Only read-only git commands (status, log, diff, show) and guild-hall CLI commands are permitted",
       },
     ],
+    skillAccess: {
+      tiers: ["any", "manager"],
+    },
     checkoutScope: "full",
     meetingScope: "project",
     resourceDefaults: {

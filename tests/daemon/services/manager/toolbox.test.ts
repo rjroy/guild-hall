@@ -12,6 +12,7 @@ import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lif
 import type { TransitionResult } from "@/daemon/services/scheduler/schedule-lifecycle";
 import type { CommissionId, ScheduledCommissionStatus } from "@/daemon/types";
 import type { DiscoveredPackage, WorkerMetadata } from "@/lib/types";
+import type { RouteCaller } from "@/daemon/services/manager/toolbox";
 
 // -- Test helpers --
 
@@ -33,6 +34,30 @@ function createMockWorkerPackage(name: string): DiscoveredPackage {
       checkoutScope: "sparse",
     } satisfies WorkerMetadata,
   };
+}
+
+/**
+ * Creates a mock RouteCaller that records calls and returns configured responses.
+ * Use responseMap to configure per-route responses; unmatched routes return
+ * a generic success with commissionId.
+ */
+function createMockRouteCaller(responseMap?: Record<string, Awaited<ReturnType<RouteCaller>>>): RouteCaller & {
+  calls: Array<{ routePath: string; body: unknown }>;
+} {
+  const calls: Array<{ routePath: string; body: unknown }> = [];
+  const fn = ((routePath: string, body: unknown) => {
+    calls.push({ routePath, body });
+    if (responseMap?.[routePath]) {
+      return Promise.resolve(responseMap[routePath]);
+    }
+    return Promise.resolve({
+      ok: true as const,
+      status: 200,
+      data: { commissionId: "commission-Scribe-20260309-090000" },
+    });
+  }) as RouteCaller & { calls: Array<{ routePath: string; body: unknown }> };
+  fn.calls = calls;
+  return fn;
 }
 
 function createMockRecordOps(overrides?: {
@@ -186,22 +211,13 @@ function createMockGitOps() {
   };
 }
 
-function createMockCommissionSession() {
-  return {
-    createCommission: () => Promise.resolve({ commissionId: "test-id" }),
-    dispatchCommission: async () => {},
-    cancelCommission: async () => {},
-    abandonCommission: async () => {},
-    addUserNote: async () => {},
-  };
-}
-
 let tmpDir: string;
 
 async function createBaseDeps(overrides?: {
   packages?: DiscoveredPackage[];
   recordOps?: CommissionRecordOps;
   scheduleLifecycle?: ScheduleLifecycle;
+  callRoute?: RouteCaller;
 }): Promise<ManagerToolboxDeps> {
   // Create the integration worktree structure
   const projectDir = path.join(tmpDir, "projects", "test-project");
@@ -211,7 +227,7 @@ async function createBaseDeps(overrides?: {
   return {
     projectName: "test-project",
     guildHallHome: tmpDir,
-    commissionSession: createMockCommissionSession() as never,
+    callRoute: overrides?.callRoute ?? createMockRouteCaller(),
     eventBus: { emit: () => {}, subscribe: () => () => {} } as never,
     gitOps: createMockGitOps() as never,
     config: { projects: [{ name: "test-project", path: "/repos/test-project" }] },
@@ -226,6 +242,9 @@ async function createBaseDeps(overrides?: {
 }
 
 describe("makeCreateScheduledCommissionHandler", () => {
+  // Phase 7: create_scheduled_commission now delegates to the daemon route
+  // via callRoute. Tests verify correct route invocation and response handling.
+
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-mgr-test-"));
   });
@@ -234,8 +253,9 @@ describe("makeCreateScheduledCommissionHandler", () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
-  test("valid inputs produce a correct artifact written to disk", async () => {
-    const deps = await createBaseDeps();
+  test("calls the commission create route with scheduled type and returns commissionId", async () => {
+    const mockRoute = createMockRouteCaller();
+    const deps = await createBaseDeps({ callRoute: mockRoute });
     const handler = makeCreateScheduledCommissionHandler(deps);
 
     const result = await handler({
@@ -249,31 +269,47 @@ describe("makeCreateScheduledCommissionHandler", () => {
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.created).toBe(true);
     expect(parsed.status).toBe("active");
-    expect(parsed.commissionId).toMatch(/^commission-Scribe-\d{8}-\d{6}$/);
+    expect(parsed.commissionId).toBe("commission-Scribe-20260309-090000");
 
-    // Verify artifact on disk
-    const artifactPath = path.join(
-      tmpDir,
-      "projects",
-      "test-project",
-      ".lore",
-      "commissions",
-      `${parsed.commissionId}.md`,
-    );
-    const content = await fs.readFile(artifactPath, "utf-8");
-    expect(content).toContain("type: scheduled");
-    expect(content).toContain("status: active");
-    expect(content).toContain('cron: "0 9 * * *"');
-    expect(content).toContain("repeat: null");
-    expect(content).toContain("runs_completed: 0");
-    expect(content).toContain("last_run: null");
-    expect(content).toContain("last_spawned_id: null");
-    expect(content).toContain("tags: [commission, scheduled]");
-    expect(content).toContain('prompt: "Generate the daily status report"');
+    // Verify the route was called with correct args
+    expect(mockRoute.calls).toHaveLength(1);
+    expect(mockRoute.calls[0].routePath).toBe("/commission/request/commission/create");
+    const body = mockRoute.calls[0].body as Record<string, unknown>;
+    expect(body.projectName).toBe("test-project");
+    expect(body.title).toBe("Daily report");
+    expect(body.workerName).toBe("Scribe");
+    expect(body.prompt).toBe("Generate the daily status report");
+    expect(body.type).toBe("scheduled");
+    expect(body.cron).toBe("0 9 * * *");
   });
 
-  test("invalid cron expression returns isError: true", async () => {
-    const deps = await createBaseDeps();
+  test("passes repeat and resourceOverrides to route", async () => {
+    const mockRoute = createMockRouteCaller();
+    const deps = await createBaseDeps({ callRoute: mockRoute });
+    const handler = makeCreateScheduledCommissionHandler(deps);
+
+    await handler({
+      title: "With overrides",
+      workerName: "Scribe",
+      prompt: "Test",
+      cron: "0 9 * * 1",
+      repeat: 5,
+      resourceOverrides: { model: "haiku" },
+    });
+
+    const body = mockRoute.calls[0].body as Record<string, unknown>;
+    expect(body.repeat).toBe(5);
+    expect(body.resourceOverrides).toEqual({ model: "haiku" });
+  });
+
+  test("propagates route error as isError result", async () => {
+    const mockRoute = createMockRouteCaller({
+      "/commission/request/commission/create": {
+        ok: false,
+        error: "Invalid cron expression: not a cron",
+      },
+    });
+    const deps = await createBaseDeps({ callRoute: mockRoute });
     const handler = makeCreateScheduledCommissionHandler(deps);
 
     const result = await handler({
@@ -287,8 +323,14 @@ describe("makeCreateScheduledCommissionHandler", () => {
     expect(result.content[0].text).toContain("Invalid cron expression");
   });
 
-  test("invalid worker name returns isError: true", async () => {
-    const deps = await createBaseDeps();
+  test("propagates worker-not-found route error", async () => {
+    const mockRoute = createMockRouteCaller({
+      "/commission/request/commission/create": {
+        ok: false,
+        error: 'Worker "NonExistent" not found in discovered packages',
+      },
+    });
+    const deps = await createBaseDeps({ callRoute: mockRoute });
     const handler = makeCreateScheduledCommissionHandler(deps);
 
     const result = await handler({
@@ -302,55 +344,14 @@ describe("makeCreateScheduledCommissionHandler", () => {
     expect(result.content[0].text).toContain("not found");
   });
 
-  test("returns Worker not found when packages is empty (regression guard for meeting wiring)", async () => {
-    // Before the fix, create_scheduled_commission during a Guild Master meeting
-    // always failed with this error because packages was not wired into the
-    // manager toolbox services bag in the meeting orchestrator.
-    // This test documents that behavior and guards against regression:
-    // if the wiring breaks again, packages will be empty and this is what fails.
-    const deps = await createBaseDeps({ packages: [] });
-    const handler = makeCreateScheduledCommissionHandler(deps);
-
-    const result = await handler({
-      title: "Daily report",
-      workerName: "Scribe",
-      prompt: "Generate the daily status report",
-      cron: "0 9 * * *",
+  test("propagates model validation error from route", async () => {
+    const mockRoute = createMockRouteCaller({
+      "/commission/request/commission/create": {
+        ok: false,
+        error: "Invalid model name: gpt-4",
+      },
     });
-
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("not found in discovered packages");
-  });
-
-  test("with resourceOverrides writes model in artifact", async () => {
-    const deps = await createBaseDeps();
-    const handler = makeCreateScheduledCommissionHandler(deps);
-
-    const result = await handler({
-      title: "Model override",
-      workerName: "Scribe",
-      prompt: "Test with model",
-      cron: "0 9 * * 1",
-      resourceOverrides: { model: "haiku" },
-    });
-
-    expect(result.isError).toBeUndefined();
-    const parsed = JSON.parse(result.content[0].text);
-
-    const artifactPath = path.join(
-      tmpDir,
-      "projects",
-      "test-project",
-      ".lore",
-      "commissions",
-      `${parsed.commissionId}.md`,
-    );
-    const content = await fs.readFile(artifactPath, "utf-8");
-    expect(content).toContain("model: haiku");
-  });
-
-  test("invalid model name returns isError: true", async () => {
-    const deps = await createBaseDeps();
+    const deps = await createBaseDeps({ callRoute: mockRoute });
     const handler = makeCreateScheduledCommissionHandler(deps);
 
     const result = await handler({
@@ -363,52 +364,6 @@ describe("makeCreateScheduledCommissionHandler", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("Invalid model name");
-  });
-
-  test("registers with scheduleLifecycle", async () => {
-    const lifecycle = createMockScheduleLifecycle();
-    const deps = await createBaseDeps({ scheduleLifecycle: lifecycle as unknown as ScheduleLifecycle });
-    const handler = makeCreateScheduledCommissionHandler(deps);
-
-    const result = await handler({
-      title: "Lifecycle test",
-      workerName: "Scribe",
-      prompt: "Test",
-      cron: "0 9 * * *",
-    });
-
-    expect(result.isError).toBeUndefined();
-    const registerCalls = lifecycle.calls.filter((c) => c.method === "register");
-    expect(registerCalls).toHaveLength(1);
-    expect(registerCalls[0].args[1]).toBe("test-project");
-    expect(registerCalls[0].args[2]).toBe("active");
-  });
-
-  test("with repeat value writes it in artifact", async () => {
-    const deps = await createBaseDeps();
-    const handler = makeCreateScheduledCommissionHandler(deps);
-
-    const result = await handler({
-      title: "Limited runs",
-      workerName: "Scribe",
-      prompt: "Test",
-      cron: "0 9 * * 1",
-      repeat: 5,
-    });
-
-    expect(result.isError).toBeUndefined();
-    const parsed = JSON.parse(result.content[0].text);
-
-    const artifactPath = path.join(
-      tmpDir,
-      "projects",
-      "test-project",
-      ".lore",
-      "commissions",
-      `${parsed.commissionId}.md`,
-    );
-    const content = await fs.readFile(artifactPath, "utf-8");
-    expect(content).toContain("repeat: 5");
   });
 });
 
@@ -700,14 +655,14 @@ projectName: test-project
 });
 
 // -- Local model validation for create_scheduled_commission --
+// Phase 7: Model validation for create_scheduled_commission now happens in
+// the daemon route. These tests verify the handler passes resourceOverrides
+// through and propagates route-level errors correctly.
 
 describe("config-aware model validation (create)", () => {
-  test("create_scheduled_commission accepts configured local model name", async () => {
-    const deps = await createBaseDeps();
-    deps.config = {
-      ...deps.config,
-      models: [{ name: "llama3", modelId: "llama3", baseUrl: "http://localhost:11434" }],
-    };
+  test("create_scheduled_commission passes model in resourceOverrides to route", async () => {
+    const mockRoute = createMockRouteCaller();
+    const deps = await createBaseDeps({ callRoute: mockRoute });
     const handler = makeCreateScheduledCommissionHandler(deps);
 
     const result = await handler({
@@ -719,10 +674,18 @@ describe("config-aware model validation (create)", () => {
     });
 
     expect(result.isError).toBeUndefined();
+    const body = mockRoute.calls[0].body as Record<string, unknown>;
+    expect(body.resourceOverrides).toEqual({ model: "llama3" });
   });
 
-  test("create_scheduled_commission rejects unconfigured model with hint", async () => {
-    const deps = await createBaseDeps();
+  test("create_scheduled_commission propagates model rejection from route", async () => {
+    const mockRoute = createMockRouteCaller({
+      "/commission/request/commission/create": {
+        ok: false,
+        error: "Invalid model name: unknown-model. Local models must be defined in config.yaml",
+      },
+    });
+    const deps = await createBaseDeps({ callRoute: mockRoute });
     const handler = makeCreateScheduledCommissionHandler(deps);
 
     const result = await handler({

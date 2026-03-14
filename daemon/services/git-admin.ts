@@ -1,6 +1,19 @@
+/**
+ * Git administration operations that the daemon owns.
+ *
+ * Contains syncProject(), hasActiveActivities(), rebaseProject(), and
+ * PR marker I/O. These were originally in cli/rebase.ts but belong in the
+ * daemon since they operate on daemon-owned state (worktrees, state files,
+ * project locks) and are consumed by daemon routes and the manager toolbox.
+ *
+ * Phase 4 of the Daemon Application Boundary migration extracted this code
+ * so the daemon no longer imports from @/cli/.
+ */
+
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { readConfig } from "@/lib/config";
+import type { AppConfig } from "@/lib/types";
 import { getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
@@ -110,39 +123,7 @@ export async function rebaseProject(
   return true;
 }
 
-/**
- * CLI entry point: rebases claude onto master for one or all projects.
- */
-export async function rebase(
-  projectName?: string,
-  ghHome?: string,
-  gitOps?: GitOps,
-): Promise<void> {
-  const home = ghHome ?? getGuildHallHome();
-  const git = gitOps ?? createGitOps();
-  const config = await readConfig();
-
-  if (projectName) {
-    const project = config.projects.find((p) => p.name === projectName);
-    if (!project) {
-      throw new Error(`Project "${projectName}" not found in config`);
-    }
-    await rebaseProject(project.path, projectName, home, git, project.defaultBranch);
-  } else {
-    for (const project of config.projects) {
-      try {
-        await rebaseProject(project.path, project.name, home, git, project.defaultBranch);
-      } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[rebase] Failed to rebase "${project.name}": ${reason}`,
-        );
-      }
-    }
-  }
-}
-
-// -- Post-merge sync --
+// -- PR marker I/O --
 
 /**
  * Reads the PR marker file for a project, if it exists.
@@ -363,34 +344,79 @@ export async function syncProject(
 }
 
 /**
- * CLI entry point: smart sync (fetch + detect merged PR + reset or rebase)
- * for one or all projects.
+ * Rebase all projects or a single named project.
+ * Used by the daemon's POST /admin/rebase route.
+ *
+ * Accepts config directly so callers (daemon routes) don't need to worry
+ * about config path resolution. Falls back to readConfig() for CLI usage.
  */
-export async function sync(
+export async function rebaseAll(
   projectName?: string,
   ghHome?: string,
   gitOps?: GitOps,
-): Promise<void> {
+  config?: AppConfig,
+): Promise<{ results: Array<{ project: string; rebased: boolean; error?: string }> }> {
   const home = ghHome ?? getGuildHallHome();
   const git = gitOps ?? createGitOps();
-  const config = await readConfig();
+  const cfg = config ?? await readConfig();
+  const results: Array<{ project: string; rebased: boolean; error?: string }> = [];
 
-  if (projectName) {
-    const project = config.projects.find((p) => p.name === projectName);
-    if (!project) {
-      throw new Error(`Project "${projectName}" not found in config`);
-    }
-    await syncProject(project.path, projectName, home, git, project.defaultBranch);
-  } else {
-    for (const project of config.projects) {
-      try {
-        await syncProject(project.path, project.name, home, git, project.defaultBranch);
-      } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[sync] Failed to sync "${project.name}": ${reason}`,
-        );
-      }
+  const projects = projectName
+    ? cfg.projects.filter((p) => p.name === projectName)
+    : cfg.projects;
+
+  if (projectName && projects.length === 0) {
+    throw new Error(`Project "${projectName}" not found in config`);
+  }
+
+  for (const project of projects) {
+    try {
+      const rebased = await rebaseProject(project.path, project.name, home, git, project.defaultBranch);
+      results.push({ project: project.name, rebased });
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : String(err);
+      results.push({ project: project.name, rebased: false, error: reason });
     }
   }
+
+  return { results };
+}
+
+/**
+ * Sync all projects or a single named project.
+ * Used by the daemon's POST /admin/sync route.
+ *
+ * Accepts config directly so callers (daemon routes) don't need to worry
+ * about config path resolution. Falls back to readConfig() for CLI usage.
+ */
+export async function syncAll(
+  projectName?: string,
+  ghHome?: string,
+  gitOps?: GitOps,
+  config?: AppConfig,
+): Promise<{ results: Array<{ project: string; action: string; reason: string; error?: string }> }> {
+  const home = ghHome ?? getGuildHallHome();
+  const git = gitOps ?? createGitOps();
+  const cfg = config ?? await readConfig();
+  const results: Array<{ project: string; action: string; reason: string; error?: string }> = [];
+
+  const projects = projectName
+    ? cfg.projects.filter((p) => p.name === projectName)
+    : cfg.projects;
+
+  if (projectName && projects.length === 0) {
+    throw new Error(`Project "${projectName}" not found in config`);
+  }
+
+  for (const project of projects) {
+    try {
+      const result = await syncProject(project.path, project.name, home, git, project.defaultBranch);
+      results.push({ project: project.name, action: result.action, reason: result.reason });
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : String(err);
+      results.push({ project: project.name, action: "error", reason, error: reason });
+    }
+  }
+
+  return { results };
 }

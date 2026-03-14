@@ -9,10 +9,10 @@ export async function POST(
   const body = (await request.json()) as Record<string, unknown>;
 
   const result = await daemonFetch(
-    `/commissions/${commissionId}/schedule-status`,
+    "/commission/schedule/commission/update",
     {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify({ commissionId, ...body }),
     },
   );
 

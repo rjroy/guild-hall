@@ -7,8 +7,9 @@ export async function DELETE(
 ) {
   const { meetingId } = await params;
 
-  const result = await daemonFetch(`/meetings/${meetingId}`, {
-    method: "DELETE",
+  const result = await daemonFetch("/meeting/session/meeting/close", {
+    method: "POST",
+    body: JSON.stringify({ meetingId }),
   });
 
   if (isDaemonError(result)) {

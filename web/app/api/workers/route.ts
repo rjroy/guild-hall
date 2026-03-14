@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { daemonFetch, isDaemonError } from "@/lib/daemon-client";
 
 export async function GET() {
-  const result = await daemonFetch("/workers");
+  const result = await daemonFetch("/system/packages/worker/list");
 
   if (isDaemonError(result)) {
     return NextResponse.json(

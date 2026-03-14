@@ -12,12 +12,17 @@ import { createWorkerRoutes } from "./routes/workers";
 import { createBriefingRoutes } from "./routes/briefing";
 import { createModelsRoutes } from "./routes/models";
 import { createAdminRoutes, type AdminDeps } from "./routes/admin";
-import type { AppConfig, DiscoveredPackage } from "@/lib/types";
+import { createArtifactRoutes, type ArtifactDeps } from "./routes/artifacts";
+import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
+import { createHelpRoutes } from "./routes/help";
+import { createSkillRegistry, type SkillRegistry } from "@/daemon/lib/skill-registry";
+import type { AppConfig, DiscoveredPackage, RouteModule, SkillDefinition } from "@/lib/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
+import type { SessionPrepDeps } from "@/daemon/lib/agent-sdk/sdk-runner";
 
 export interface AppDeps {
   health: HealthDeps;
@@ -28,6 +33,8 @@ export interface AppDeps {
   briefingGenerator?: ReturnType<typeof createBriefingGenerator>;
   config?: AppConfig;
   admin?: AdminDeps;
+  artifacts?: ArtifactDeps;
+  configRoutes?: ConfigRoutesDeps;
 }
 
 /**
@@ -37,44 +44,78 @@ export interface AppDeps {
  * When meetingSession or packages are provided, the corresponding routes
  * are mounted. This allows tests to provide mocks while production wires
  * real instances.
+ *
+ * Returns the Hono app and the skill registry built from all route modules.
  */
-export function createApp(deps: AppDeps): Hono {
+export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry } {
   const app = new Hono();
+  const allSkills: SkillDefinition[] = [];
+  const allDescriptions: Record<string, string> = {};
 
-  app.route("/", createHealthRoutes(deps.health));
+  function mount(mod: RouteModule): void {
+    app.route("/", mod.routes);
+    allSkills.push(...mod.skills);
+    if (mod.descriptions) {
+      Object.assign(allDescriptions, mod.descriptions);
+    }
+  }
 
+  // Health routes are always present
+  mount(createHealthRoutes(deps.health));
+
+  // Conditionally mount route modules based on available deps.
+  // Missing deps produce no routes and no skills.
   if (deps.meetingSession) {
-    app.route("/", createMeetingRoutes({ meetingSession: deps.meetingSession }));
+    mount(createMeetingRoutes({
+      meetingSession: deps.meetingSession,
+      config: deps.config,
+      guildHallHome: deps.configRoutes?.guildHallHome,
+    }));
   }
 
   if (deps.commissionSession) {
-    app.route(
-      "/",
-      createCommissionRoutes({ commissionSession: deps.commissionSession }),
-    );
+    mount(createCommissionRoutes({
+      commissionSession: deps.commissionSession,
+      config: deps.config,
+      guildHallHome: deps.configRoutes?.guildHallHome,
+    }));
   }
 
   if (deps.packages) {
-    app.route("/", createWorkerRoutes({ packages: deps.packages, config: deps.config }));
+    mount(createWorkerRoutes({ packages: deps.packages, config: deps.config }));
   }
 
   if (deps.eventBus) {
-    app.route("/", createEventRoutes({ eventBus: deps.eventBus }));
+    mount(createEventRoutes({ eventBus: deps.eventBus }));
   }
 
   if (deps.briefingGenerator) {
-    app.route("/", createBriefingRoutes({ briefingGenerator: deps.briefingGenerator }));
+    mount(createBriefingRoutes({ briefingGenerator: deps.briefingGenerator }));
   }
 
   if (deps.config) {
-    app.route("/", createModelsRoutes({ config: deps.config }));
+    mount(createModelsRoutes({ config: deps.config }));
   }
 
   if (deps.admin) {
-    app.route("/", createAdminRoutes(deps.admin));
+    mount(createAdminRoutes(deps.admin));
   }
 
-  return app;
+  if (deps.artifacts) {
+    mount(createArtifactRoutes(deps.artifacts));
+  }
+
+  if (deps.configRoutes) {
+    mount(createConfigRoutes(deps.configRoutes));
+  }
+
+  // Build the skill registry from all collected skills
+  const registry = createSkillRegistry(allSkills, allDescriptions);
+
+  // Mount help routes last so they can query the registry
+  app.route("/", createHelpRoutes(registry));
+
+  return { app, registry };
 }
 
 /**
@@ -88,7 +129,7 @@ export function createApp(deps: AppDeps): Hono {
 export async function createProductionApp(options?: {
   packagesDir?: string;
   gitOps?: GitOps;
-}): Promise<{ app: Hono; shutdown: () => void }> {
+}): Promise<{ app: Hono; registry: SkillRegistry; shutdown: () => void }> {
   const { readConfig } = await import("@/lib/config");
   const { discoverPackages, validatePackageModels } = await import("@/lib/packages");
   const { getGuildHallHome, integrationWorktreePath } = await import("@/lib/paths");
@@ -147,7 +188,7 @@ export async function createProductionApp(options?: {
   // Smart sync: fetch from origin, detect merged PRs (reset), or rebase
   // onto the default branch. Replaces the unconditional rebase from Phase 5.
   // Failures log a warning but don't crash the daemon.
-  const { syncProject } = await import("@/cli/rebase");
+  const { syncProject } = await import("@/daemon/services/git-admin");
   for (const project of config.projects) {
     try {
       await syncProject(project.path, project.name, guildHallHome, git, project.defaultBranch);
@@ -258,7 +299,7 @@ export async function createProductionApp(options?: {
     "@/daemon/services/manager/worker"
   );
 
-  const prepDeps = {
+  const prepDeps: SessionPrepDeps = {
     resolveToolSet,
     loadMemories,
     activateWorker: activateWorkerFn,
@@ -377,29 +418,44 @@ export async function createProductionApp(options?: {
 
   const startTime = Date.now();
 
-  return {
-    app: createApp({
-      health: {
-        getMeetingCount: () => meetingSession.getActiveMeetings(),
-        getCommissionCount: () => commissionSession.getActiveCommissions(),
-        getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),
-      },
-      meetingSession,
-      commissionSession,
-      packages: allPackages,
-      eventBus,
-      briefingGenerator,
+  const { app, registry } = createApp({
+    health: {
+      getMeetingCount: () => meetingSession.getActiveMeetings(),
+      getCommissionCount: () => commissionSession.getActiveCommissions(),
+      getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),
+    },
+    meetingSession,
+    commissionSession,
+    packages: allPackages,
+    eventBus,
+    briefingGenerator,
+    config,
+    admin: {
       config,
-      admin: {
-        config,
-        guildHallHome,
-        gitOps: git,
-        readConfigFromDisk: readConfig,
-        syncProject: (await import("@/cli/rebase")).syncProject,
-      },
-    }),
-    shutdown: () => scheduler.stop(),
-  };
+      guildHallHome,
+      gitOps: git,
+      readConfigFromDisk: readConfig,
+    },
+    artifacts: {
+      config,
+      guildHallHome,
+      gitOps: git,
+      checkDependencyTransitions: (projectName: string) =>
+        commissionSession.checkDependencyTransitions(projectName),
+    },
+    configRoutes: {
+      config,
+      guildHallHome,
+    },
+  });
+
+  // Late-bind the skill registry for progressive discovery (REQ-DAB-5).
+  // The registry is constructed during createApp() which happens after
+  // prepDeps is created. Since prepDeps is shared across all orchestrators,
+  // setting it here makes skills available to all session types.
+  prepDeps.skillRegistry = registry;
+
+  return { app, registry, shutdown: () => scheduler.stop() };
 }
 
 /**
@@ -409,7 +465,7 @@ export async function createProductionApp(options?: {
  */
 const startTime = Date.now();
 
-const app = createApp({
+const { app } = createApp({
   health: {
     getMeetingCount: () => 0,
     getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),

@@ -1,58 +1,63 @@
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import { redirect } from "next/navigation";
-import matter from "gray-matter";
-import { getProject, readConfig } from "@/lib/config";
-import { projectLorePath, getGuildHallHome, resolveCommissionBasePath, integrationWorktreePath } from "@/lib/paths";
+import { fetchDaemon } from "@/web/lib/daemon-api";
 import {
-  readCommissionMeta,
-  scanCommissions,
-  parseActivityTimeline,
+  resolveModel,
+  type AppConfig,
   type CommissionMeta,
-} from "@/lib/commissions";
-import { nextOccurrence } from "@/daemon/services/scheduler/cron";
-import { describeCron } from "@/lib/cron-utils";
-import { buildDependencyGraph } from "@/lib/dependency-graph";
-import { discoverPackages, getWorkerByName } from "@/lib/packages";
-import { resolveModel, type WorkerMetadata } from "@/lib/types";
+  type TimelineEntry,
+  type DependencyGraph,
+} from "@/lib/types";
 import CommissionHeader from "@/web/components/commission/CommissionHeader";
 import CommissionView from "@/web/components/commission/CommissionView";
 import type { ScheduleInfo } from "@/web/components/commission/CommissionView";
 import NeighborhoodGraph from "@/web/components/commission/NeighborhoodGraph";
 import type { CommissionArtifact } from "@/web/components/commission/CommissionLinkedArtifacts";
+import DaemonError from "@/web/components/ui/DaemonError";
 import styles from "./page.module.css";
 
+/** Shape returned by GET /workers */
+interface WorkerInfo {
+  name: string;
+  displayName: string;
+  displayTitle: string;
+  portraitUrl: string | null;
+  model: { name: string; isLocal: boolean; baseUrl?: string } | null;
+}
+
+/** Shape returned by GET /commissions/:id */
+interface CommissionDetail {
+  commission: CommissionMeta;
+  timeline: TimelineEntry[];
+  rawContent: string;
+  scheduleInfo?: {
+    cron: string;
+    cronDescription: string;
+    repeat: number | null;
+    runsCompleted: number;
+    lastRun: string | null;
+    lastSpawnedId: string | null;
+    nextRun: string | null;
+  };
+}
+
 /**
- * Resolves linked artifact paths from commission frontmatter into
- * CommissionArtifact objects with display titles and hrefs.
+ * Builds linked artifact display objects from commission frontmatter paths.
+ * Pure URL construction, no filesystem access.
  */
-async function resolveLinkedArtifacts(
+function buildLinkedArtifacts(
   artifactPaths: string[],
-  lorePath: string,
   projectName: string,
-): Promise<CommissionArtifact[]> {
+): CommissionArtifact[] {
   const encodedProject = encodeURIComponent(projectName);
-
-  return Promise.all(
-    artifactPaths.map(async (artifactPath) => {
-      // Verify the file exists (best effort, non-blocking)
-      const fullPath = path.join(lorePath, artifactPath);
-      try {
-        await fs.access(fullPath);
-      } catch {
-        // File doesn't exist yet; still include it in the list
-      }
-
-      const title =
-        artifactPath.split("/").pop()?.replace(/\.md$/, "") || artifactPath;
-
-      return {
-        path: artifactPath,
-        title,
-        href: `/projects/${encodedProject}/artifacts/${artifactPath}`,
-      };
-    }),
-  );
+  return artifactPaths.map((artifactPath) => {
+    const title =
+      artifactPath.split("/").pop()?.replace(/\.md$/, "") || artifactPath;
+    return {
+      path: artifactPath,
+      title,
+      href: `/projects/${encodedProject}/artifacts/${artifactPath}`,
+    };
+  });
 }
 
 export default async function CommissionPage({
@@ -62,86 +67,60 @@ export default async function CommissionPage({
 }) {
   const { name: rawName, id } = await params;
   const projectName = decodeURIComponent(rawName);
+  const encoded = encodeURIComponent(projectName);
 
-  const project = await getProject(projectName);
-  if (!project) {
-    redirect("/");
-  }
+  // Fetch commission detail, workers, config, graph, and all commissions in parallel
+  const [detailResult, workersResult, configResult, graphResult, allCommissionsResult] =
+    await Promise.all([
+      fetchDaemon<CommissionDetail>(`/commission/request/commission/read?commissionId=${encodeURIComponent(id)}&projectName=${encoded}`),
+      fetchDaemon<{ workers: WorkerInfo[] }>("/system/packages/worker/list"),
+      fetchDaemon<AppConfig>("/system/config/application/read"),
+      fetchDaemon<DependencyGraph>(`/commission/dependency/project/graph?projectName=${encoded}`),
+      fetchDaemon<{ commissions: CommissionMeta[] }>(`/commission/request/commission/list?projectName=${encoded}`),
+    ]);
 
-  const ghHome = getGuildHallHome();
-  const basePath = await resolveCommissionBasePath(ghHome, projectName, id);
-  const lorePath = projectLorePath(basePath);
-  const commissionFile = path.join(lorePath, "commissions", `${id}.md`);
-
-  let commission;
-  let rawContent: string;
-  try {
-    rawContent = await fs.readFile(commissionFile, "utf-8");
-    commission = await readCommissionMeta(commissionFile, projectName);
-  } catch {
-    redirect(`/projects/${encodeURIComponent(projectName)}?tab=commissions`);
-  }
-
-  const timeline = parseActivityTimeline(rawContent);
-  const linkedArtifacts = await resolveLinkedArtifacts(
-    commission.linked_artifacts,
-    lorePath,
-    projectName,
-  );
-
-  // Parse schedule metadata for scheduled commissions.
-  let scheduleInfo: ScheduleInfo | undefined;
-  if (commission.type === "scheduled") {
-    const parsed = matter(rawContent);
-    const sched = parsed.data.schedule as Record<string, unknown> | undefined;
-    if (sched && typeof sched === "object") {
-      const lastRun = sched.last_run;
-      let lastRunStr: string | null = null;
-      if (lastRun instanceof Date) {
-        lastRunStr = lastRun.toISOString();
-      } else if (typeof lastRun === "string" && lastRun) {
-        lastRunStr = lastRun;
-      }
-
-      const cronExpr = typeof sched.cron === "string" ? sched.cron : "";
-
-      // Compute next expected run
-      let nextRunStr: string | null = null;
-      if (cronExpr) {
-        const referenceDate = lastRunStr ? new Date(lastRunStr) : new Date(0);
-        const nextDate = nextOccurrence(cronExpr, referenceDate);
-        if (nextDate) {
-          nextRunStr = nextDate.toISOString();
-        }
-      }
-
-      scheduleInfo = {
-        cron: cronExpr,
-        cronDescription: describeCron(cronExpr),
-        repeat: typeof sched.repeat === "number" ? sched.repeat : null,
-        runsCompleted: typeof sched.runs_completed === "number" ? sched.runs_completed : 0,
-        lastRun: lastRunStr,
-        lastSpawnedId: typeof sched.last_spawned_id === "string" ? sched.last_spawned_id : null,
-        nextRun: nextRunStr,
-        recentRuns: [], // populated below after allCommissions is scanned
-      };
+  if (!detailResult.ok) {
+    if (detailResult.error.includes("not found")) {
+      redirect(`/projects/${encoded}?tab=commissions`);
     }
+    return <DaemonError message={detailResult.error} />;
   }
 
-  // Resolve the effective model for display. Commission override takes
-  // precedence over the worker's default, which falls back to "opus".
-  const defaultPackagesDir = path.join(ghHome, "packages");
-  const packages = await discoverPackages([defaultPackagesDir]);
-  const workerPkg = getWorkerByName(packages, commission.worker);
-  const workerDefaultModel = workerPkg
-    ? (workerPkg.metadata as WorkerMetadata).model
-    : undefined;
+  const { commission, timeline, scheduleInfo: rawScheduleInfo } = detailResult.data;
+  const linkedArtifacts = buildLinkedArtifacts(commission.linked_artifacts, projectName);
+
+  // Build schedule info with recent runs from all commissions
+  let scheduleInfo: ScheduleInfo | undefined;
+  if (rawScheduleInfo) {
+    const allCommissions = allCommissionsResult.ok
+      ? allCommissionsResult.data.commissions
+      : [];
+    const spawned = allCommissions
+      .filter((c) => c.sourceSchedule === id)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 10);
+
+    scheduleInfo = {
+      ...rawScheduleInfo,
+      recentRuns: spawned.map((c) => ({
+        commissionId: c.commissionId,
+        status: c.status,
+        date: c.date,
+      })),
+    };
+  }
+
+  // Resolve effective model from worker packages and commission overrides
+  const workers = workersResult.ok ? workersResult.data.workers : [];
+  const workerInfo = workers.find((w) => w.name === commission.worker);
+  const workerDefaultModel = workerInfo?.model?.name;
   const effectiveModel = commission.resource_overrides.model ?? workerDefaultModel ?? "opus";
-  const isModelOverride = commission.resource_overrides.model != null
-    && commission.resource_overrides.model !== workerDefaultModel;
+  const isModelOverride =
+    commission.resource_overrides.model != null &&
+    commission.resource_overrides.model !== workerDefaultModel;
 
   // Determine model provenance (REQ-LOCAL-25)
-  const config = await readConfig();
+  const config = configResult.ok ? configResult.data : undefined;
   let isLocalModel = false;
   let localModelBaseUrl: string | undefined;
   try {
@@ -154,26 +133,7 @@ export default async function CommissionPage({
     // Unknown model name; display as-is without provenance
   }
 
-  // Build dependency graph from all commissions in the project
-  // to show the neighborhood (direct deps and dependents) for this commission.
-  const integrationPath = integrationWorktreePath(ghHome, projectName);
-  const integrationLorePath = projectLorePath(integrationPath);
-  const allCommissions = await scanCommissions(integrationLorePath, projectName);
-  const graph = buildDependencyGraph(allCommissions);
-
-  // Populate recent runs for scheduled commissions
-  if (scheduleInfo) {
-    const spawned = allCommissions
-      .filter((c: CommissionMeta) => c.sourceSchedule === id)
-      .sort((a: CommissionMeta, b: CommissionMeta) => b.date.localeCompare(a.date))
-      .slice(0, 10);
-
-    scheduleInfo.recentRuns = spawned.map((c: CommissionMeta) => ({
-      commissionId: c.commissionId,
-      status: c.status,
-      date: c.date,
-    }));
-  }
+  const graph = graphResult.ok ? graphResult.data : { nodes: [], edges: [] };
 
   return (
     <div className={styles.commissionView}>

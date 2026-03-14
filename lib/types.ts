@@ -1,4 +1,6 @@
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
+import type { ZodType } from "zod";
+import type { Hono } from "hono";
 
 export interface ProjectConfig {
   name: string;
@@ -188,6 +190,13 @@ export interface WorkerMetadata {
   resourceDefaults?: ResourceDefaults;
   /** Determines git isolation for meetings. "project" runs in the integration worktree; "activity" (default) gets its own branch/worktree. */
   meetingScope?: "project" | "activity";
+  /** Skill eligibility constraints for CLI skill access. Determines which
+   *  daemon-governed skills this worker can invoke via guild-hall commands.
+   *  Omit for default: tier "any", no read-only restriction. */
+  skillAccess?: {
+    tiers: Array<SkillEligibility["tier"]>;
+    readOnlyOnly?: boolean;
+  };
 }
 
 /**
@@ -389,3 +398,100 @@ export function compareArtifactsByStatusAndTitle(a: Artifact, b: Artifact): numb
   const bTitle = b.meta.title || b.relativePath;
   return aTitle.localeCompare(bTitle);
 }
+
+// -- Skill contract types (REQ-DAB-8 through REQ-DAB-10) --
+
+/** Context fields a skill requires from the caller. */
+export interface SkillContext {
+  project?: boolean;
+  commissionId?: boolean;
+  meetingId?: boolean;
+  scheduleId?: boolean;
+}
+
+/** Eligibility rules controlling who can invoke a skill. */
+export interface SkillEligibility {
+  /** Base tier. "any" = all clients, "manager" = Guild Master or human, "admin" = human only. */
+  tier: "any" | "manager" | "admin";
+  /** If true, the skill only reads state. Never creates, modifies, or deletes application state. */
+  readOnly: boolean;
+}
+
+/**
+ * A daemon-owned capability contract. Each SkillDefinition describes
+ * one invocable operation in the public API.
+ */
+/** Declares a positional CLI parameter for a skill. */
+export interface SkillParameter {
+  /** Parameter name, used as the query/body field key. */
+  name: string;
+  /** Whether the parameter is required. */
+  required: boolean;
+  /** Where to place the parameter in the HTTP request. */
+  in: "query" | "body";
+}
+
+/**
+ * A daemon-owned capability contract. Each SkillDefinition describes
+ * one invocable operation in the public API.
+ */
+export interface SkillDefinition {
+  /** Stable dotted name derived from the route path. Example: "commission.run.dispatch" */
+  skillId: string;
+  /** Semver-ish version string. Starts at "1". Bump on breaking changes. */
+  version: string;
+  /** Human-readable operation name. Example: "dispatch" */
+  name: string;
+  /** One-sentence description of what the skill does. */
+  description: string;
+  /** HTTP invocation contract. */
+  invocation: {
+    method: "GET" | "POST";
+    /** Full path. Example: "/commission/run/dispatch" */
+    path: string;
+  };
+  /** Zod schema for request body/query validation. Optional for parameter-less GETs. */
+  requestSchema?: ZodType;
+  /** Zod schema for the response body. */
+  responseSchema?: ZodType;
+  /** Free-text summary of side effects. Empty string for read-only operations. */
+  sideEffects: string;
+  /** What context fields the caller must provide. */
+  context: SkillContext;
+  /** Who can invoke this skill. */
+  eligibility: SkillEligibility;
+  /** Streaming metadata. Omit for non-streaming operations. */
+  streaming?: {
+    /** SSE event type discriminators the client should expect. */
+    eventTypes: string[];
+  };
+  /** Whether repeated identical calls produce the same result. */
+  idempotent: boolean;
+  /** Position in the API hierarchy, for navigation rendering. */
+  hierarchy: {
+    root: string;
+    feature: string;
+    object?: string;
+  };
+  /** Positional CLI parameters, in order. The CLI maps trailing argv words to these. */
+  parameters?: SkillParameter[];
+}
+
+/**
+ * Return type for route factories. Each factory returns its Hono routes
+ * plus skill metadata for the registry.
+ */
+export interface RouteModule {
+  routes: Hono;
+  skills: SkillDefinition[];
+  /** Descriptions for non-leaf navigation nodes (root, feature, object).
+   *  Keyed by dotted path (e.g., "commission" for root, "commission.run" for feature). */
+  descriptions?: Record<string, string>;
+}
+
+// Re-export domain types so server components can import from lib/types.ts
+// instead of lib/commissions.ts or lib/meetings.ts (DAB migration: server
+// components must not import from lib files that perform filesystem reads).
+export type { CommissionMeta, TimelineEntry } from "./commissions";
+export type { MeetingMeta, TranscriptChatMessage } from "./meetings";
+export type { DependencyGraph } from "./dependency-graph";

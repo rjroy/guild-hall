@@ -1,11 +1,6 @@
-import * as path from "node:path";
-import { getProject } from "@/lib/config";
-import { scanArtifacts } from "@/lib/artifacts";
-import { scanCommissions } from "@/lib/commissions";
-import { buildDependencyGraph } from "@/lib/dependency-graph";
-import { getActiveMeetingWorktrees, sortMeetingArtifacts } from "@/lib/meetings";
-import { projectLorePath, getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { notFound } from "next/navigation";
+import { fetchDaemon } from "@/web/lib/daemon-api";
+import type { ProjectConfig, Artifact, CommissionMeta, DependencyGraph } from "@/lib/types";
 import ProjectHeader from "@/web/components/project/ProjectHeader";
 import ProjectTabs from "@/web/components/project/ProjectTabs";
 import ArtifactList from "@/web/components/project/ArtifactList";
@@ -13,6 +8,7 @@ import MeetingList from "@/web/components/project/MeetingList";
 import CommissionList from "@/web/components/commission/CommissionList";
 import CommissionGraph from "@/web/components/dashboard/CommissionGraph";
 import CreateCommissionButton from "@/web/components/commission/CreateCommissionButton";
+import DaemonError from "@/web/components/ui/DaemonError";
 import styles from "./page.module.css";
 
 export default async function ProjectPage({
@@ -26,36 +22,31 @@ export default async function ProjectPage({
   const { tab = "artifacts", newCommission, dep } = await searchParams;
 
   const projectName = decodeURIComponent(rawName);
-  const project = await getProject(projectName);
-  if (!project) notFound();
+  const encoded = encodeURIComponent(projectName);
 
-  const ghHome = getGuildHallHome();
-  const integrationPath = integrationWorktreePath(ghHome, projectName);
-  const lorePath = projectLorePath(integrationPath);
-  const artifacts = await scanArtifacts(lorePath);
+  const projectResult = await fetchDaemon<ProjectConfig>(`/system/config/project/read?name=${encoded}`);
+  if (!projectResult.ok) {
+    // 404 from daemon means project doesn't exist
+    if (projectResult.error.includes("not found")) {
+      notFound();
+    }
+    return <DaemonError message={projectResult.error} />;
+  }
+  const project = projectResult.data;
 
-  // Scan meetings from integration worktree (closed/merged meetings)
-  const meetingsPath = path.join(lorePath, "meetings");
-  const integrationMeetings = await scanArtifacts(meetingsPath);
+  // Fetch all data in parallel
+  const [artifactsResult, meetingsResult, commissionsResult, graphResult] = await Promise.all([
+    fetchDaemon<{ artifacts: Artifact[] }>(`/workspace/artifact/document/list?projectName=${encoded}`),
+    // view=artifacts returns all meetings as Artifact[] with active worktree merging, pre-sorted
+    fetchDaemon<{ meetings: Artifact[] }>(`/meeting/request/meeting/list?projectName=${encoded}&view=artifacts`),
+    fetchDaemon<{ commissions: CommissionMeta[] }>(`/commission/request/commission/list?projectName=${encoded}`),
+    fetchDaemon<DependencyGraph>(`/commission/dependency/project/graph?projectName=${encoded}`),
+  ]);
 
-  // Scan meetings from active meeting worktrees (open meetings live
-  // in their activity worktree and aren't in the integration worktree yet)
-  const activeWorktrees = await getActiveMeetingWorktrees(ghHome, projectName);
-  const activeMeetingArrays = await Promise.all(
-    activeWorktrees.map((wt) => scanArtifacts(path.join(wt, ".lore", "meetings"))),
-  );
-  const activeMeetings = activeMeetingArrays.flat();
-
-  // Merge, deduplicating by filename in case a meeting appears in both
-  const seenIds = new Set(integrationMeetings.map((m) => m.relativePath));
-  const mergedMeetings = [
-    ...integrationMeetings,
-    ...activeMeetings.filter((m) => !seenIds.has(m.relativePath)),
-  ];
-  const meetingArtifacts = sortMeetingArtifacts(mergedMeetings);
-
-  const commissions = await scanCommissions(lorePath, projectName);
-  const commissionGraph = buildDependencyGraph(commissions);
+  const artifacts = artifactsResult.ok ? artifactsResult.data.artifacts : [];
+  const meetingArtifacts = meetingsResult.ok ? meetingsResult.data.meetings : [];
+  const commissions = commissionsResult.ok ? commissionsResult.data.commissions : [];
+  const commissionGraph = graphResult.ok ? graphResult.data : { nodes: [], edges: [] };
 
   return (
     <div className={styles.projectView}>

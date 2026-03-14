@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { AppConfig } from "@/lib/types";
+import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
 import { VALID_MODELS } from "@/lib/types";
 
 export interface ModelsRouteDeps {
@@ -9,12 +9,12 @@ export interface ModelsRouteDeps {
 /**
  * Creates model listing routes.
  *
- * GET /models - List built-in and configured local models with reachability
+ * GET /system/models/catalog/list - List built-in and configured local models with reachability
  */
-export function createModelsRoutes(deps: ModelsRouteDeps): Hono {
+export function createModelsRoutes(deps: ModelsRouteDeps): RouteModule {
   const routes = new Hono();
 
-  routes.get("/models", async (c) => {
+  routes.get("/system/models/catalog/list", async (c) => {
     const localModels = deps.config.models ?? [];
 
     const localWithReachability = await Promise.all(
@@ -41,5 +41,20 @@ export function createModelsRoutes(deps: ModelsRouteDeps): Hono {
     });
   });
 
-  return routes;
+  const skills: SkillDefinition[] = [
+    {
+      skillId: "system.models.catalog.list",
+      version: "1",
+      name: "list",
+      description: "List available AI models",
+      invocation: { method: "GET", path: "/system/models/catalog/list" },
+      sideEffects: "",
+      context: {},
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "system", feature: "models", object: "catalog" },
+    },
+  ];
+
+  return { routes, skills };
 }

@@ -16,9 +16,11 @@ import type {
   DiscoveredPackage,
   ResolvedModel,
   ResolvedToolSet,
+  SkillDefinition,
   WorkerMetadata,
 } from "@/lib/types";
 import { resolveModel } from "@/lib/types";
+import type { SkillRegistry } from "@/daemon/lib/skill-registry";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
@@ -135,6 +137,10 @@ export type SessionPrepDeps = {
   ) => void;
 
   checkReachability?: (url: string) => Promise<{ reachable: boolean; error?: string }>;
+
+  /** Skill registry for progressive discovery (REQ-DAB-5). Set after
+   *  createApp() constructs the registry. */
+  skillRegistry?: SkillRegistry;
 
   memoryLimit?: number;
 };
@@ -415,6 +421,14 @@ export async function prepareSdkSession(
     return { ok: false, error: `Worker activation failed: ${errorMessage(err)}` };
   }
 
+  // 4b. Inject skill discovery context (REQ-DAB-5)
+  if (deps.skillRegistry && workerMeta.builtInTools.includes("Bash")) {
+    const skillContext = formatSkillDiscoveryContext(deps.skillRegistry, workerMeta);
+    if (skillContext) {
+      activation.systemPrompt += `\n\n${skillContext}`;
+    }
+  }
+
   // 5. Build SDK query options
   const maxTurns = spec.resourceOverrides?.maxTurns ?? activation.resourceBounds.maxTurns;
   const maxBudgetUsd = spec.resourceOverrides?.maxBudgetUsd ?? activation.resourceBounds.maxBudgetUsd;
@@ -502,4 +516,62 @@ export async function prepareSdkSession(
 
   log(`prepared session. systemPrompt length=${activation.systemPrompt.length}`);
   return { ok: true, result: { options, resolvedModel: resolvedModelResult } };
+}
+
+/**
+ * Filters the skill registry for a worker's eligible skills based on
+ * their skillAccess metadata and formats them as a system prompt section.
+ *
+ * Workers without Bash access don't get skill context (they can't invoke
+ * guild-hall CLI commands). Workers with readOnlyOnly only see read-only
+ * skills. The result is a human-readable listing for progressive discovery.
+ */
+export function formatSkillDiscoveryContext(
+  registry: SkillRegistry,
+  workerMeta: WorkerMetadata,
+): string | null {
+  const access = workerMeta.skillAccess;
+  const tiers = access?.tiers ?? ["any"];
+
+  // Collect eligible skills from all accessible tiers
+  const eligibleSkills: SkillDefinition[] = [];
+  const seen = new Set<string>();
+
+  for (const tier of tiers) {
+    for (const skill of registry.forTier(tier)) {
+      if (seen.has(skill.skillId)) continue;
+      if (access?.readOnlyOnly && !skill.eligibility.readOnly) continue;
+      seen.add(skill.skillId);
+      eligibleSkills.push(skill);
+    }
+  }
+
+  if (eligibleSkills.length === 0) return null;
+
+  // Group by hierarchy root for readable output
+  const grouped = new Map<string, SkillDefinition[]>();
+  for (const skill of eligibleSkills) {
+    const root = skill.hierarchy.root;
+    if (!grouped.has(root)) grouped.set(root, []);
+    grouped.get(root)!.push(skill);
+  }
+
+  const lines: string[] = [
+    "# Available Skills",
+    "",
+    "The following operations are available through the `guild-hall` CLI.",
+    "Use `guild-hall help` for detailed usage information.",
+    "",
+  ];
+
+  for (const [root, skills] of grouped) {
+    lines.push(`## ${root}`);
+    for (const skill of skills) {
+      const readOnlyTag = skill.eligibility.readOnly ? " (read-only)" : "";
+      lines.push(`- **${skill.skillId}**: ${skill.description}${readOnlyTag}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
 }

@@ -127,7 +127,7 @@ export interface DaemonHealthData {
 export async function daemonHealth(
   socketPathOverride?: string,
 ): Promise<DaemonHealthData | null> {
-  const result = await daemonFetch("/health", undefined, socketPathOverride);
+  const result = await daemonFetch("/system/runtime/daemon/health", undefined, socketPathOverride);
   if (isDaemonError(result)) return null;
 
   try {

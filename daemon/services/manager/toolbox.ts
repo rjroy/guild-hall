@@ -13,8 +13,13 @@
  * - create_scheduled_commission: create a recurring scheduled commission
  * - update_schedule: update schedule config or transition schedule status
  *
- * Follows the same MCP server factory pattern as commission-toolbox.ts and
- * meeting-toolbox.ts.
+ * Phase 7 (REQ-DAB-7): Tools that map to existing daemon routes call those
+ * routes via the Unix socket instead of service methods directly. This makes
+ * the manager toolbox a projection of the daemon's skill contract into the
+ * agent session, using the same invocation path as CLI and web.
+ *
+ * Tools without matching daemon routes (create_pr, initiate_meeting,
+ * update_schedule) remain internal per REQ-DAB-11.
  */
 
 import * as fs from "node:fs/promises";
@@ -27,30 +32,66 @@ import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-
 import { z } from "zod/v4";
 import { asCommissionId } from "@/daemon/types";
 import type { ToolResult, ScheduledCommissionStatus } from "@/daemon/types";
-import { formatTimestamp, escapeYamlValue, errorMessage, sanitizeForGitRef } from "@/daemon/lib/toolbox-utils";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
+import { formatTimestamp, escapeYamlValue, errorMessage } from "@/daemon/lib/toolbox-utils";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
-import { hasActiveActivities, syncProject } from "@/cli/rebase";
-import type { SyncResult } from "@/cli/rebase";
+import { hasActiveActivities } from "@/daemon/services/git-admin";
 import { isValidModel } from "@/lib/types";
-import type { AppConfig, ProjectConfig, DiscoveredPackage, WorkerMetadata } from "@/lib/types";
-import { getWorkerByName } from "@/lib/packages";
+import type { AppConfig, ProjectConfig, DiscoveredPackage } from "@/lib/types";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import { isValidCron } from "@/daemon/services/scheduler/cron";
+import { daemonFetch, isDaemonError } from "@/lib/daemon-client";
+
+// -- Daemon route caller --
+
+/**
+ * Calls a daemon route via the Unix socket. Returns parsed JSON on success
+ * or an error string on failure. Used by manager tools that delegate to
+ * daemon routes (REQ-DAB-7) instead of calling service methods directly.
+ */
+export type RouteCaller = (
+  routePath: string,
+  body: unknown,
+) => Promise<{ ok: true; status: number; data: unknown } | { ok: false; error: string }>;
+
+/**
+ * Creates a RouteCaller backed by daemonFetch over the Unix socket.
+ */
+export function createDaemonRouteCaller(socketPath: string): RouteCaller {
+  return async (routePath: string, body: unknown) => {
+    const result = await daemonFetch(
+      routePath,
+      { method: "POST", body: JSON.stringify(body) },
+      socketPath,
+    );
+
+    if (isDaemonError(result)) {
+      return { ok: false, error: result.message };
+    }
+
+    const data: unknown = await result.json();
+    if (result.ok) {
+      return { ok: true, status: result.status, data };
+    }
+    return { ok: false, error: (data as { error?: string }).error ?? "Unknown error" };
+  };
+}
 
 export interface ManagerToolboxDeps {
   projectName: string;
   guildHallHome: string;
-  commissionSession: CommissionSessionForRoutes;
+  /** Calls daemon routes via Unix socket. Tools that map to existing
+   *  daemon routes use this instead of service methods (REQ-DAB-7). */
+  callRoute: RouteCaller;
   eventBus: EventBus;
   gitOps: GitOps;
   config: AppConfig;
   getProjectConfig: (name: string) => Promise<ProjectConfig | undefined>;
+  /** Internal deps for tools without daemon routes. */
   scheduleLifecycle?: ScheduleLifecycle;
   recordOps?: CommissionRecordOps;
   packages?: DiscoveredPackage[];
@@ -71,6 +112,16 @@ function sanitizeForFilename(text: string, maxLen = 40): string {
     .replace(/-$/g, "");
 }
 
+/**
+ * Converts a daemon route error response to a ToolResult with isError.
+ */
+function routeError(errorMsg: string): ToolResult {
+  return {
+    content: [{ type: "text", text: errorMsg }],
+    isError: true,
+  };
+}
+
 // -- Tool handler factories --
 
 export function makeCreateCommissionHandler(
@@ -85,30 +136,42 @@ export function makeCreateCommissionHandler(
     dispatch?: boolean;
   }): Promise<ToolResult> => {
     try {
-      const { commissionId } = await deps.commissionSession.createCommission(
-        deps.projectName,
-        args.title,
-        args.workerName,
-        args.prompt,
-        args.dependencies,
-        args.resourceOverrides,
+      // Create the commission via daemon route
+      const createResult = await deps.callRoute(
+        "/commission/request/commission/create",
+        {
+          projectName: deps.projectName,
+          title: args.title,
+          workerName: args.workerName,
+          prompt: args.prompt,
+          dependencies: args.dependencies,
+          resourceOverrides: args.resourceOverrides,
+        },
       );
+
+      if (!createResult.ok) {
+        console.error(
+          `[manager-toolbox] Failed to create commission "${args.title}":`,
+          createResult.error,
+        );
+        return routeError(createResult.error);
+      }
+
+      const { commissionId } = createResult.data as { commissionId: string };
 
       const shouldDispatch = args.dispatch !== false;
       let dispatched = false;
 
       if (shouldDispatch) {
-        const cid = asCommissionId(commissionId);
+        const dispatchResult = await deps.callRoute(
+          "/commission/run/dispatch",
+          { commissionId },
+        );
 
-        try {
-          await deps.commissionSession.dispatchCommission(cid);
-          dispatched = true;
-        } catch (dispatchErr: unknown) {
-          // createCommission succeeded but dispatch failed. Return the
-          // commission ID so the manager LLM can dispatch separately.
+        if (!dispatchResult.ok) {
           console.error(
             `[manager-toolbox] Failed to dispatch commission "${commissionId}":`,
-            errorMessage(dispatchErr),
+            dispatchResult.error,
           );
           return {
             content: [
@@ -117,14 +180,14 @@ export function makeCreateCommissionHandler(
                 text: JSON.stringify({
                   commissionId,
                   dispatched: false,
-                  error: errorMessage(dispatchErr),
+                  error: dispatchResult.error,
                 }),
               },
             ],
             isError: true,
           };
         }
-
+        dispatched = true;
       }
 
       console.log(
@@ -144,15 +207,7 @@ export function makeCreateCommissionHandler(
         `[manager-toolbox] Failed to create commission "${args.title}":`,
         errorMessage(err),
       );
-      return {
-        content: [
-          {
-            type: "text",
-            text: errorMessage(err),
-          },
-        ],
-        isError: true,
-      };
+      return routeError(errorMessage(err));
     }
   };
 }
@@ -162,8 +217,18 @@ export function makeDispatchCommissionHandler(
 ) {
   return async (args: { commissionId: string }): Promise<ToolResult> => {
     try {
-      const cid = asCommissionId(args.commissionId);
-      await deps.commissionSession.dispatchCommission(cid);
+      const result = await deps.callRoute(
+        "/commission/run/dispatch",
+        { commissionId: args.commissionId },
+      );
+
+      if (!result.ok) {
+        console.error(
+          `[manager-toolbox] Failed to dispatch commission "${args.commissionId}":`,
+          result.error,
+        );
+        return routeError(result.error);
+      }
 
       console.log(
         `[manager-toolbox] Dispatched commission "${args.commissionId}"`,
@@ -182,15 +247,7 @@ export function makeDispatchCommissionHandler(
         `[manager-toolbox] Failed to dispatch commission "${args.commissionId}":`,
         errorMessage(err),
       );
-      return {
-        content: [
-          {
-            type: "text",
-            text: errorMessage(err),
-          },
-        ],
-        isError: true,
-      };
+      return routeError(errorMessage(err));
     }
   };
 }
@@ -206,6 +263,7 @@ export interface PrMarker {
   prUrl: string;
 }
 
+// create_pr remains internal: no matching daemon route (REQ-DAB-11)
 export function makeCreatePrHandler(
   deps: ManagerToolboxDeps,
 ) {
@@ -302,19 +360,12 @@ export function makeCreatePrHandler(
         `[manager-toolbox] Failed to create PR for "${deps.projectName}":`,
         errorMessage(err),
       );
-      return {
-        content: [
-          {
-            type: "text",
-            text: errorMessage(err),
-          },
-        ],
-        isError: true,
-      };
+      return routeError(errorMessage(err));
     }
   };
 }
 
+// initiate_meeting remains internal: no matching daemon route (REQ-DAB-11)
 export function makeInitiateMeetingHandler(
   deps: ManagerToolboxDeps,
 ) {
@@ -414,15 +465,7 @@ meeting_log:
         `[manager-toolbox] Failed to create meeting request for "${args.workerName}":`,
         errorMessage(err),
       );
-      return {
-        content: [
-          {
-            type: "text",
-            text: errorMessage(err),
-          },
-        ],
-        isError: true,
-      };
+      return routeError(errorMessage(err));
     }
   };
 }
@@ -435,8 +478,21 @@ export function makeAddCommissionNoteHandler(
     content: string;
   }): Promise<ToolResult> => {
     try {
-      const cid = asCommissionId(args.commissionId);
-      await deps.commissionSession.addUserNote(cid, args.content);
+      const result = await deps.callRoute(
+        "/commission/request/commission/note",
+        {
+          commissionId: args.commissionId,
+          content: args.content,
+        },
+      );
+
+      if (!result.ok) {
+        console.error(
+          `[manager-toolbox] Failed to add note to commission "${args.commissionId}":`,
+          result.error,
+        );
+        return routeError(result.error);
+      }
 
       console.log(
         `[manager-toolbox] Added note to commission "${args.commissionId}"`,
@@ -455,15 +511,7 @@ export function makeAddCommissionNoteHandler(
         `[manager-toolbox] Failed to add note to commission "${args.commissionId}":`,
         errorMessage(err),
       );
-      return {
-        content: [
-          {
-            type: "text",
-            text: errorMessage(err),
-          },
-        ],
-        isError: true,
-      };
+      return routeError(errorMessage(err));
     }
   };
 }
@@ -473,12 +521,20 @@ export function makeCancelCommissionHandler(
 ) {
   return async (args: {
     commissionId: string;
-    reason?: string;
   }): Promise<ToolResult> => {
     try {
-      const cid = asCommissionId(args.commissionId);
-      const reason = args.reason ?? "Commission cancelled by manager";
-      await deps.commissionSession.cancelCommission(cid, reason);
+      const result = await deps.callRoute(
+        "/commission/run/cancel",
+        { commissionId: args.commissionId },
+      );
+
+      if (!result.ok) {
+        console.error(
+          `[manager-toolbox] Failed to cancel commission "${args.commissionId}":`,
+          result.error,
+        );
+        return routeError(result.error);
+      }
 
       console.log(
         `[manager-toolbox] Cancelled commission "${args.commissionId}"`,
@@ -497,15 +553,7 @@ export function makeCancelCommissionHandler(
         `[manager-toolbox] Failed to cancel commission "${args.commissionId}":`,
         errorMessage(err),
       );
-      return {
-        content: [
-          {
-            type: "text",
-            text: errorMessage(err),
-          },
-        ],
-        isError: true,
-      };
+      return routeError(errorMessage(err));
     }
   };
 }
@@ -518,8 +566,21 @@ export function makeAbandonCommissionHandler(
     reason: string;
   }): Promise<ToolResult> => {
     try {
-      const cid = asCommissionId(args.commissionId);
-      await deps.commissionSession.abandonCommission(cid, args.reason);
+      const result = await deps.callRoute(
+        "/commission/run/abandon",
+        {
+          commissionId: args.commissionId,
+          reason: args.reason,
+        },
+      );
+
+      if (!result.ok) {
+        console.error(
+          `[manager-toolbox] Failed to abandon commission "${args.commissionId}":`,
+          result.error,
+        );
+        return routeError(result.error);
+      }
 
       console.log(
         `[manager-toolbox] Abandoned commission "${args.commissionId}"`,
@@ -538,79 +599,48 @@ export function makeAbandonCommissionHandler(
         `[manager-toolbox] Failed to abandon commission "${args.commissionId}":`,
         errorMessage(err),
       );
-      return {
-        content: [
-          {
-            type: "text",
-            text: errorMessage(err),
-          },
-        ],
-        isError: true,
-      };
+      return routeError(errorMessage(err));
     }
   };
 }
 
-// -- sync_project --
-
-/**
- * Translates a SyncResult into a human-readable summary for the LLM.
- */
-function describeSyncResult(result: SyncResult, projectName: string): string {
-  switch (result.action) {
-    case "reset":
-      return `Merged PR detected for "${projectName}". Claude branch has been reset to match the remote default branch. (${result.reason})`;
-    case "rebase":
-      return `Claude branch for "${projectName}" has been rebased onto the latest default branch. (${result.reason})`;
-    case "merge":
-      return `Claude branch for "${projectName}" has been merged and compacted onto the remote default branch. (${result.reason})`;
-    case "skip":
-      return `Sync skipped for "${projectName}": active commissions or meetings are in progress. Complete or cancel active work first.`;
-    case "noop":
-      return `No sync needed for "${projectName}": ${result.reason}.`;
-  }
-}
+// -- sync_project: delegates to daemon route --
 
 export function makeSyncProjectHandler(
   deps: ManagerToolboxDeps,
 ) {
   return async (args: { projectName: string }): Promise<ToolResult> => {
     try {
-      // Look up the project config to validate it exists and get its path
-      const project = await deps.getProjectConfig(args.projectName);
-
-      if (!project) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Project "${args.projectName}" is not registered. Check the project name and try again.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      // syncProject() already wraps itself in withProjectLock()
-      const result = await syncProject(
-        project.path,
-        args.projectName,
-        deps.guildHallHome,
-        deps.gitOps,
-        project.defaultBranch,
+      const result = await deps.callRoute(
+        "/workspace/git/integration/sync",
+        { projectName: args.projectName },
       );
 
-      const summary = describeSyncResult(result, args.projectName);
+      if (!result.ok) {
+        console.error(
+          `[manager-toolbox] Failed to sync project "${args.projectName}":`,
+          result.error,
+        );
+        return routeError(result.error);
+      }
+
+      const data = result.data as { results?: Array<{ project: string; action: string; reason: string }> };
+
+      // Build a summary from the sync results
+      const projectResult = data.results?.find((r) => r.project === args.projectName);
+      const summary = projectResult
+        ? `Sync ${projectResult.action} for "${args.projectName}": ${projectResult.reason}`
+        : `Sync completed for "${args.projectName}"`;
 
       console.log(
-        `[manager-toolbox] sync_project "${args.projectName}": ${result.action} (${result.reason})`,
+        `[manager-toolbox] sync_project "${args.projectName}": ${projectResult?.action ?? "completed"}`,
       );
 
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify({ action: result.action, summary }),
+            text: JSON.stringify({ action: projectResult?.action ?? "completed", summary }),
           },
         ],
       };
@@ -619,15 +649,7 @@ export function makeSyncProjectHandler(
         `[manager-toolbox] Failed to sync project "${args.projectName}":`,
         errorMessage(err),
       );
-      return {
-        content: [
-          {
-            type: "text",
-            text: errorMessage(err),
-          },
-        ],
-        isError: true,
-      };
+      return routeError(errorMessage(err));
     }
   };
 }
@@ -647,150 +669,30 @@ export function makeCreateScheduledCommissionHandler(
     resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
   }): Promise<ToolResult> => {
     try {
-      // Validate worker exists
-      const workerPkg = getWorkerByName(deps.packages ?? [], args.workerName);
-      if (!workerPkg) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Worker "${args.workerName}" not found in discovered packages`,
-            },
-          ],
-          isError: true,
-        };
-      }
-      const workerMeta = workerPkg.metadata as WorkerMetadata;
+      const result = await deps.callRoute(
+        "/commission/request/commission/create",
+        {
+          projectName: deps.projectName,
+          title: args.title,
+          workerName: args.workerName,
+          prompt: args.prompt,
+          type: "scheduled",
+          cron: args.cron,
+          repeat: args.repeat,
+          dependencies: args.dependencies,
+          resourceOverrides: args.resourceOverrides,
+        },
+      );
 
-      // Validate model if provided
-      if (args.resourceOverrides?.model && !isValidModel(args.resourceOverrides.model, deps.config)) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Invalid model name: "${args.resourceOverrides.model}". Valid built-in models: opus, sonnet, haiku. Local models must be defined in config.yaml.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      // Validate cron expression
-      if (!isValidCron(args.cron)) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Invalid cron expression: "${args.cron}". Must be a valid 5-field cron expression.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      // Generate commission ID (same pattern as orchestrator.ts)
-      const now = new Date();
-      const safeName = sanitizeForGitRef(workerMeta.identity.name);
-      const ts = formatTimestamp(now);
-      const commissionId = `commission-${safeName}-${ts}`;
-
-      const dateStr = now.toISOString().split("T")[0];
-      const isoStr = now.toISOString();
-
-      const escapedTitle = escapeYamlValue(args.title);
-      const escapedPrompt = escapeYamlValue(args.prompt);
-      const escapedDisplayTitle = escapeYamlValue(workerMeta.identity.displayTitle);
-
-      const depsYaml =
-        args.dependencies && args.dependencies.length > 0
-          ? "\n" + args.dependencies.map((d) => `  - ${d}`).join("\n")
-          : " []";
-
-      const repeatValue = args.repeat ?? null;
-
-      const resourceLines =
-        args.resourceOverrides &&
-        (args.resourceOverrides.maxTurns !== undefined ||
-          args.resourceOverrides.maxBudgetUsd !== undefined ||
-          args.resourceOverrides.model !== undefined)
-          ? `resource_overrides:\n${
-              args.resourceOverrides.maxTurns !== undefined
-                ? `  maxTurns: ${args.resourceOverrides.maxTurns}\n`
-                : ""
-            }${
-              args.resourceOverrides.maxBudgetUsd !== undefined
-                ? `  maxBudgetUsd: ${args.resourceOverrides.maxBudgetUsd}\n`
-                : ""
-            }${
-              args.resourceOverrides.model !== undefined
-                ? `  model: ${args.resourceOverrides.model}\n`
-                : ""
-            }`
-          : "";
-
-      const content = `---
-title: "Commission: ${escapedTitle}"
-date: ${dateStr}
-status: active
-type: scheduled
-tags: [commission, scheduled]
-worker: ${workerMeta.identity.name}
-workerDisplayTitle: "${escapedDisplayTitle}"
-prompt: "${escapedPrompt}"
-dependencies:${depsYaml}
-linked_artifacts: []
-schedule:
-  cron: "${args.cron}"
-  repeat: ${repeatValue}
-  runs_completed: 0
-  last_run: null
-  last_spawned_id: null
-${resourceLines}activity_timeline:
-  - timestamp: ${isoStr}
-    event: created
-    reason: "Scheduled commission created"
-current_progress: ""
-projectName: ${deps.projectName}
----
-`;
-
-      // Write to integration worktree
-      const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
-      const commissionsDir = path.join(intPath, ".lore", "commissions");
-      await fs.mkdir(commissionsDir, { recursive: true });
-
-      const artifactPath = path.join(commissionsDir, `${commissionId}.md`);
-      await fs.writeFile(artifactPath, content, "utf-8");
-
-      // Commit to claude branch under project lock
-      try {
-        await withProjectLock(deps.projectName, async () => {
-          await deps.gitOps.commitAll(
-            intPath,
-            `Add commission: ${commissionId}`,
-          );
-        });
-      } catch (commitErr: unknown) {
+      if (!result.ok) {
         console.error(
-          `[manager-toolbox] Failed to commit scheduled commission "${commissionId}":`,
-          errorMessage(commitErr),
+          `[manager-toolbox] Failed to create scheduled commission "${args.title}":`,
+          result.error,
         );
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Scheduled commission file was written but commit failed: ${errorMessage(commitErr)}`,
-            },
-          ],
-          isError: true,
-        };
+        return routeError(result.error);
       }
 
-      // Register with schedule lifecycle so the scheduler picks it up
-      if (deps.scheduleLifecycle) {
-        const cid = asCommissionId(commissionId);
-        deps.scheduleLifecycle.register(cid, deps.projectName, "active", artifactPath);
-      }
+      const { commissionId } = result.data as { commissionId: string };
 
       console.log(
         `[manager-toolbox] Created scheduled commission "${args.title}" (id: ${commissionId})`,
@@ -809,15 +711,7 @@ projectName: ${deps.projectName}
         `[manager-toolbox] Failed to create scheduled commission "${args.title}":`,
         errorMessage(err),
       );
-      return {
-        content: [
-          {
-            type: "text",
-            text: errorMessage(err),
-          },
-        ],
-        isError: true,
-      };
+      return routeError(errorMessage(err));
     }
   };
 }
@@ -843,6 +737,8 @@ const SCHEDULE_STATUS_ACTIONS: Record<
   },
 };
 
+// update_schedule remains internal: daemon route only covers status transitions,
+// not field updates (cron, repeat, prompt, resource overrides). REQ-DAB-11.
 export function makeUpdateScheduleHandler(
   deps: ManagerToolboxDeps,
 ) {
@@ -1073,15 +969,7 @@ export function makeUpdateScheduleHandler(
         `[manager-toolbox] Failed to update schedule "${args.commissionId}":`,
         errorMessage(err),
       );
-      return {
-        content: [
-          {
-            type: "text",
-            text: errorMessage(err),
-          },
-        ],
-        isError: true,
-      };
+      return routeError(errorMessage(err));
     }
   };
 }
@@ -1093,6 +981,9 @@ export function makeUpdateScheduleHandler(
  * the Guild Master worker, providing tools for coordination: creating
  * commissions, dispatching work, creating PRs, syncing branches, and
  * initiating meetings.
+ *
+ * Tool descriptions include skillId references for tools that map to
+ * daemon-governed skills (REQ-DAB-7).
  */
 export function createManagerToolbox(
   deps: ManagerToolboxDeps,
@@ -1114,7 +1005,7 @@ export function createManagerToolbox(
     tools: [
       tool(
         "create_commission",
-        "Create a new commission for a specialist worker. By default, the commission is dispatched immediately after creation. Set dispatch=false to create without dispatching. Use resourceOverrides.model to override the worker's default model.",
+        "Create a new commission for a specialist worker. By default, the commission is dispatched immediately after creation. Set dispatch=false to create without dispatching. Use resourceOverrides.model to override the worker's default model. [skillId: commission.request.commission.create]",
         {
           title: z.string().describe("Short title for the commission"),
           workerName: z.string().describe("Name of the worker to assign"),
@@ -1131,7 +1022,7 @@ export function createManagerToolbox(
       ),
       tool(
         "dispatch_commission",
-        "Dispatch an existing pending commission to its assigned worker. The commission must be in 'pending' status.",
+        "Dispatch an existing pending commission to its assigned worker. The commission must be in 'pending' status. [skillId: commission.run.dispatch]",
         {
           commissionId: z.string().describe("The commission ID to dispatch"),
         },
@@ -1139,16 +1030,15 @@ export function createManagerToolbox(
       ),
       tool(
         "cancel_commission",
-        "Cancel an active or pending commission. For running commissions, signals the in-process session to stop immediately. Valid from pending, blocked, or in_progress states.",
+        "Cancel an active or pending commission. For running commissions, signals the in-process session to stop immediately. Valid from pending, blocked, or in_progress states. [skillId: commission.run.cancel]",
         {
           commissionId: z.string().describe("The commission ID to cancel"),
-          reason: z.string().optional().describe("Why the commission is being cancelled (default: 'Commission cancelled by manager')"),
         },
         (args) => cancelCommission(args),
       ),
       tool(
         "abandon_commission",
-        "Abandon a commission that won't be completed through the commission process. Use when work was done elsewhere, is no longer relevant, or isn't worth retrying. Valid from pending, blocked, failed, or cancelled states. Requires a reason for the audit trail.",
+        "Abandon a commission that won't be completed through the commission process. Use when work was done elsewhere, is no longer relevant, or isn't worth retrying. Valid from pending, blocked, failed, or cancelled states. Requires a reason for the audit trail. [skillId: commission.run.abandon]",
         {
           commissionId: z.string().describe("The commission ID to abandon"),
           reason: z.string().describe("Why the commission is being abandoned"),
@@ -1157,7 +1047,7 @@ export function createManagerToolbox(
       ),
       tool(
         "create_pr",
-        "Create a pull request from the integration branch to the default branch. Requires that all active commissions are complete.",
+        "Create a pull request from the integration branch to the default branch. Requires that all active commissions are complete. [internal: no daemon route]",
         {
           title: z.string().describe("PR title"),
           body: z.string().optional().describe("PR body/description"),
@@ -1166,7 +1056,7 @@ export function createManagerToolbox(
       ),
       tool(
         "initiate_meeting",
-        "Create a meeting request with a specialist worker. The request appears on the Dashboard for the user to accept or decline.",
+        "Create a meeting request with a specialist worker. The request appears on the Dashboard for the user to accept or decline. [internal: no daemon route]",
         {
           workerName: z.string().describe("Name of the worker to meet with"),
           reason: z.string().describe("Why this meeting is needed"),
@@ -1176,7 +1066,7 @@ export function createManagerToolbox(
       ),
       tool(
         "add_commission_note",
-        "Add a coordination note to a commission's timeline. Use for status observations, recommendations, or context that helps the user understand commission progress.",
+        "Add a coordination note to a commission's timeline. Use for status observations, recommendations, or context that helps the user understand commission progress. [skillId: commission.request.commission.note]",
         {
           commissionId: z.string().describe("The commission ID to annotate"),
           content: z.string().describe("The note content"),
@@ -1185,7 +1075,7 @@ export function createManagerToolbox(
       ),
       tool(
         "sync_project",
-        "Sync a project's claude branch after a PR has been merged. Detects merged PRs, resets the claude branch to match the remote default branch, or rebases if the default branch advanced independently. Use when the user says they merged a PR.",
+        "Sync a project's claude branch after a PR has been merged. Detects merged PRs, resets the claude branch to match the remote default branch, or rebases if the default branch advanced independently. Use when the user says they merged a PR. [skillId: workspace.git.integration.sync]",
         {
           projectName: z.string().describe("Name of the project to sync"),
         },
@@ -1193,7 +1083,7 @@ export function createManagerToolbox(
       ),
       tool(
         "create_scheduled_commission",
-        "Create a recurring scheduled commission that spawns one-shot commissions on a cron schedule. The schedule starts in 'active' status and the scheduler will dispatch commissions at each cron interval.",
+        "Create a recurring scheduled commission that spawns one-shot commissions on a cron schedule. The schedule starts in 'active' status and the scheduler will dispatch commissions at each cron interval. [skillId: commission.request.commission.create]",
         {
           title: z.string().describe("Short title for the scheduled commission"),
           workerName: z.string().describe("Name of the worker to assign each run to"),
@@ -1211,7 +1101,7 @@ export function createManagerToolbox(
       ),
       tool(
         "update_schedule",
-        "Update a scheduled commission's configuration or status. Can change the cron expression, repeat limit, prompt, status (active/paused/completed), or resource overrides. Status transitions follow the schedule lifecycle state machine.",
+        "Update a scheduled commission's configuration or status. Can change the cron expression, repeat limit, prompt, status (active/paused/completed), or resource overrides. Status transitions follow the schedule lifecycle state machine. [skillId: commission.schedule.commission.update]",
         {
           commissionId: z.string().describe("The scheduled commission ID to update"),
           cron: z.string().optional().describe("New 5-field cron expression"),
@@ -1237,17 +1127,24 @@ export function createManagerToolbox(
  *
  * The scheduleLifecycle, recordOps, and packages fields are provided by
  * the orchestrator's services bag (wired in createProductionApp).
+ *
+ * Phase 7: callRoute uses daemonFetch over the daemon's Unix socket. Tools
+ * that map to daemon routes call them through this function rather than
+ * through deps.services.commissionSession directly.
  */
 export const managerToolboxFactory: ToolboxFactory = (ctx) => {
+  // The manager toolbox calls the daemon's own socket (same process).
+  // This is safe: Hono is async, Bun serves concurrent requests, no deadlock.
+  const socketPath = path.join(ctx.guildHallHome, "guild-hall.sock");
   return {
     server: createManagerToolbox({
       projectName: ctx.projectName,
       guildHallHome: ctx.guildHallHome,
+      callRoute: createDaemonRouteCaller(socketPath),
       eventBus: ctx.eventBus,
       config: ctx.services!.config,
       getProjectConfig: (name: string) =>
         Promise.resolve(ctx.config.projects.find((p) => p.name === name)),
-      commissionSession: ctx.services!.commissionSession,
       gitOps: ctx.services!.gitOps,
       scheduleLifecycle: ctx.services?.scheduleLifecycle,
       recordOps: ctx.services?.recordOps,

@@ -106,7 +106,7 @@ function makeTestApp(
   sessionOverrides: Partial<CommissionSessionForRoutes> = {},
 ) {
   const { session, calls } = makeMockCommissionSession(sessionOverrides);
-  const app = createApp({
+  const { app } = createApp({
     health: {
       getMeetingCount: () => 0,
       getCommissionCount: () => session.getActiveCommissions(),
@@ -119,11 +119,11 @@ function makeTestApp(
 
 // -- Tests --
 
-describe("POST /commissions", () => {
+describe("POST /commission/request/commission/create", () => {
   test("creates commission and returns 201 with ID", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions", {
+    const res = await app.request("/commission/request/commission/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -145,7 +145,7 @@ describe("POST /commissions", () => {
     const { app } = makeTestApp();
 
     // Missing title
-    const res = await app.request("/commissions", {
+    const res = await app.request("/commission/request/commission/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -163,7 +163,7 @@ describe("POST /commissions", () => {
   test("returns 400 for invalid JSON body", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions", {
+    const res = await app.request("/commission/request/commission/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
@@ -177,7 +177,7 @@ describe("POST /commissions", () => {
   test("passes all fields to session including optional ones", async () => {
     const { app, calls } = makeTestApp();
 
-    await app.request("/commissions", {
+    await app.request("/commission/request/commission/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -207,7 +207,7 @@ describe("POST /commissions", () => {
       },
     });
 
-    const res = await app.request("/commissions", {
+    const res = await app.request("/commission/request/commission/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -224,14 +224,14 @@ describe("POST /commissions", () => {
   });
 });
 
-describe("PUT /commissions/:id", () => {
+describe("POST /commission/request/commission/update", () => {
   test("returns 200 for valid update", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/commission-test-001", {
-      method: "PUT",
+    const res = await app.request("/commission/request/commission/update", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "Updated prompt" }),
+      body: JSON.stringify({ commissionId: "commission-test-001", prompt: "Updated prompt" }),
     });
 
     expect(res.status).toBe(200);
@@ -250,10 +250,10 @@ describe("PUT /commissions/:id", () => {
       },
     });
 
-    const res = await app.request("/commissions/c-001", {
-      method: "PUT",
+    const res = await app.request("/commission/request/commission/update", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "New prompt" }),
+      body: JSON.stringify({ commissionId: "c-001", prompt: "New prompt" }),
     });
 
     expect(res.status).toBe(409);
@@ -264,8 +264,8 @@ describe("PUT /commissions/:id", () => {
   test("returns 400 for invalid JSON body", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/c-001", {
-      method: "PUT",
+    const res = await app.request("/commission/request/commission/update", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
     });
@@ -278,10 +278,11 @@ describe("PUT /commissions/:id", () => {
   test("passes commissionId and updates to session", async () => {
     const { app, calls } = makeTestApp();
 
-    await app.request("/commissions/my-commission-42", {
-      method: "PUT",
+    await app.request("/commission/request/commission/update", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        commissionId: "my-commission-42",
         prompt: "Updated prompt",
         dependencies: ["dep-a"],
       }),
@@ -297,12 +298,14 @@ describe("PUT /commissions/:id", () => {
   });
 });
 
-describe("POST /commissions/:id/dispatch", () => {
+describe("POST /commission/run/dispatch", () => {
   test("returns 202 on success", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/c-001/dispatch", {
+    const res = await app.request("/commission/run/dispatch", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "c-001" }),
     });
 
     expect(res.status).toBe(202);
@@ -321,8 +324,10 @@ describe("POST /commissions/:id/dispatch", () => {
       },
     });
 
-    const res = await app.request("/commissions/c-001/dispatch", {
+    const res = await app.request("/commission/run/dispatch", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "c-001" }),
     });
 
     expect(res.status).toBe(409);
@@ -333,8 +338,10 @@ describe("POST /commissions/:id/dispatch", () => {
   test("passes correct commissionId to session", async () => {
     const { app, calls } = makeTestApp();
 
-    await app.request("/commissions/specific-commission-99/dispatch", {
+    await app.request("/commission/run/dispatch", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "specific-commission-99" }),
     });
 
     expect(calls).toHaveLength(1);
@@ -343,12 +350,14 @@ describe("POST /commissions/:id/dispatch", () => {
   });
 });
 
-describe("DELETE /commissions/:id", () => {
+describe("POST /commission/run/cancel", () => {
   test("returns 200 on success", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/c-001", {
-      method: "DELETE",
+    const res = await app.request("/commission/run/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "c-001" }),
     });
 
     expect(res.status).toBe(200);
@@ -367,8 +376,10 @@ describe("DELETE /commissions/:id", () => {
       },
     });
 
-    const res = await app.request("/commissions/unknown", {
-      method: "DELETE",
+    const res = await app.request("/commission/run/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "unknown" }),
     });
 
     expect(res.status).toBe(404);
@@ -387,8 +398,10 @@ describe("DELETE /commissions/:id", () => {
       },
     });
 
-    const res = await app.request("/commissions/c-completed", {
-      method: "DELETE",
+    const res = await app.request("/commission/run/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "c-completed" }),
     });
 
     expect(res.status).toBe(409);
@@ -399,8 +412,10 @@ describe("DELETE /commissions/:id", () => {
   test("passes correct commissionId to session", async () => {
     const { app, calls } = makeTestApp();
 
-    await app.request("/commissions/cancel-me-123", {
-      method: "DELETE",
+    await app.request("/commission/run/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "cancel-me-123" }),
     });
 
     expect(calls).toHaveLength(1);
@@ -409,12 +424,14 @@ describe("DELETE /commissions/:id", () => {
   });
 });
 
-describe("POST /commissions/:id/redispatch", () => {
+describe("POST /commission/run/redispatch", () => {
   test("returns 202 on success", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/c-001/redispatch", {
+    const res = await app.request("/commission/run/redispatch", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "c-001" }),
     });
 
     expect(res.status).toBe(202);
@@ -433,8 +450,10 @@ describe("POST /commissions/:id/redispatch", () => {
       },
     });
 
-    const res = await app.request("/commissions/c-001/redispatch", {
+    const res = await app.request("/commission/run/redispatch", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "c-001" }),
     });
 
     expect(res.status).toBe(409);
@@ -445,8 +464,10 @@ describe("POST /commissions/:id/redispatch", () => {
   test("passes correct commissionId to session", async () => {
     const { app, calls } = makeTestApp();
 
-    await app.request("/commissions/redispatch-me-77/redispatch", {
+    await app.request("/commission/run/redispatch", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "redispatch-me-77" }),
     });
 
     expect(calls).toHaveLength(1);
@@ -459,14 +480,14 @@ describe("POST /commissions/:id/redispatch", () => {
 // commission migration. Those endpoints no longer exist; callbacks handle
 // progress/result/question directly within the commission session.
 
-describe("POST /commissions/:id/note", () => {
+describe("POST /commission/request/commission/note", () => {
   test("returns 200", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/c-001/note", {
+    const res = await app.request("/commission/request/commission/note", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: "Please prioritize tests" }),
+      body: JSON.stringify({ commissionId: "c-001", content: "Please prioritize tests" }),
     });
 
     expect(res.status).toBe(200);
@@ -477,10 +498,10 @@ describe("POST /commissions/:id/note", () => {
   test("returns 400 when content is missing", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/c-001/note", {
+    const res = await app.request("/commission/request/commission/note", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ commissionId: "c-001" }),
     });
 
     expect(res.status).toBe(400);
@@ -491,10 +512,10 @@ describe("POST /commissions/:id/note", () => {
   test("passes commissionId and content to session", async () => {
     const { app, calls } = makeTestApp();
 
-    await app.request("/commissions/note-me-42/note", {
+    await app.request("/commission/request/commission/note", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: "Use the existing auth module" }),
+      body: JSON.stringify({ commissionId: "note-me-42", content: "Use the existing auth module" }),
     });
 
     expect(calls).toHaveLength(1);
@@ -504,14 +525,14 @@ describe("POST /commissions/:id/note", () => {
   });
 });
 
-describe("POST /commissions/:id/abandon", () => {
+describe("POST /commission/run/abandon", () => {
   test("returns 200 on success with reason", async () => {
     const { app, calls } = makeTestApp();
 
-    const res = await app.request("/commissions/commission-test-001/abandon", {
+    const res = await app.request("/commission/run/abandon", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: "Work done elsewhere" }),
+      body: JSON.stringify({ commissionId: "commission-test-001", reason: "Work done elsewhere" }),
     });
 
     expect(res.status).toBe(200);
@@ -526,10 +547,10 @@ describe("POST /commissions/:id/abandon", () => {
   test("returns 400 when reason is missing", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/commission-test-001/abandon", {
+    const res = await app.request("/commission/run/abandon", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ commissionId: "commission-test-001" }),
     });
 
     expect(res.status).toBe(400);
@@ -540,7 +561,7 @@ describe("POST /commissions/:id/abandon", () => {
   test("returns 400 on invalid JSON", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/commission-test-001/abandon", {
+    const res = await app.request("/commission/run/abandon", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
@@ -560,10 +581,10 @@ describe("POST /commissions/:id/abandon", () => {
       },
     });
 
-    const res = await app.request("/commissions/ghost-001/abandon", {
+    const res = await app.request("/commission/run/abandon", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: "Gone" }),
+      body: JSON.stringify({ commissionId: "ghost-001", reason: "Gone" }),
     });
 
     expect(res.status).toBe(404);
@@ -578,10 +599,10 @@ describe("POST /commissions/:id/abandon", () => {
       },
     });
 
-    const res = await app.request("/commissions/c1/abandon", {
+    const res = await app.request("/commission/run/abandon", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: "Test" }),
+      body: JSON.stringify({ commissionId: "c1", reason: "Test" }),
     });
 
     expect(res.status).toBe(409);
@@ -594,21 +615,21 @@ describe("POST /commissions/:id/abandon", () => {
       },
     });
 
-    const res = await app.request("/commissions/c1/abandon", {
+    const res = await app.request("/commission/run/abandon", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: "Test" }),
+      body: JSON.stringify({ commissionId: "c1", reason: "Test" }),
     });
 
     expect(res.status).toBe(500);
   });
 });
 
-describe("POST /commissions (scheduled)", () => {
+describe("POST /commission/request/commission/create (scheduled)", () => {
   test("passes type option when type is scheduled", async () => {
     const { app, calls } = makeTestApp();
 
-    const res = await app.request("/commissions", {
+    const res = await app.request("/commission/request/commission/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -637,7 +658,7 @@ describe("POST /commissions (scheduled)", () => {
   test("returns 400 when type is scheduled but cron is missing", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions", {
+    const res = await app.request("/commission/request/commission/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -657,7 +678,7 @@ describe("POST /commissions (scheduled)", () => {
   test("does not pass options for one-shot commissions", async () => {
     const { app, calls } = makeTestApp();
 
-    await app.request("/commissions", {
+    await app.request("/commission/request/commission/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -675,7 +696,7 @@ describe("POST /commissions (scheduled)", () => {
   test("scheduled commission with cron but no repeat succeeds", async () => {
     const { app, calls } = makeTestApp();
 
-    const res = await app.request("/commissions", {
+    const res = await app.request("/commission/request/commission/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -697,14 +718,14 @@ describe("POST /commissions (scheduled)", () => {
   });
 });
 
-describe("POST /commissions/:id/schedule-status", () => {
+describe("POST /commission/schedule/commission/update", () => {
   test("returns 200 on successful status transition", async () => {
     const { app, calls } = makeTestApp();
 
-    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+    const res = await app.request("/commission/schedule/commission/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "paused" }),
+      body: JSON.stringify({ commissionId: "schedule-test-001", status: "paused" }),
     });
 
     expect(res.status).toBe(200);
@@ -724,10 +745,10 @@ describe("POST /commissions/:id/schedule-status", () => {
       },
     });
 
-    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+    const res = await app.request("/commission/schedule/commission/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "paused" }),
+      body: JSON.stringify({ commissionId: "schedule-test-001", status: "paused" }),
     });
 
     expect(res.status).toBe(409);
@@ -744,10 +765,10 @@ describe("POST /commissions/:id/schedule-status", () => {
       },
     });
 
-    const res = await app.request("/commissions/c-001/schedule-status", {
+    const res = await app.request("/commission/schedule/commission/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "paused" }),
+      body: JSON.stringify({ commissionId: "c-001", status: "paused" }),
     });
 
     expect(res.status).toBe(409);
@@ -764,10 +785,10 @@ describe("POST /commissions/:id/schedule-status", () => {
       },
     });
 
-    const res = await app.request("/commissions/ghost-schedule/schedule-status", {
+    const res = await app.request("/commission/schedule/commission/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "active" }),
+      body: JSON.stringify({ commissionId: "ghost-schedule", status: "active" }),
     });
 
     expect(res.status).toBe(404);
@@ -778,10 +799,10 @@ describe("POST /commissions/:id/schedule-status", () => {
   test("returns 400 when status field is missing", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+    const res = await app.request("/commission/schedule/commission/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ commissionId: "schedule-test-001" }),
     });
 
     expect(res.status).toBe(400);
@@ -792,7 +813,7 @@ describe("POST /commissions/:id/schedule-status", () => {
   test("returns 400 on invalid JSON", async () => {
     const { app } = makeTestApp();
 
-    const res = await app.request("/commissions/schedule-test-001/schedule-status", {
+    const res = await app.request("/commission/schedule/commission/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",

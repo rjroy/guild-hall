@@ -27,16 +27,16 @@ function makeTestApp(briefingGenerator: BriefingGenerator) {
       getUptimeSeconds: () => 42,
     },
     briefingGenerator,
-  });
+  }).app;
 }
 
 // -- Tests --
 
-describe("GET /briefing/:projectName", () => {
+describe("GET /coordination/review/briefing/read", () => {
   test("returns briefing with metadata", async () => {
     const app = makeTestApp(makeMockBriefingGenerator());
 
-    const res = await app.request("/briefing/my-project");
+    const res = await app.request("/coordination/review/briefing/read?projectName=my-project");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -56,7 +56,7 @@ describe("GET /briefing/:projectName", () => {
     });
     const app = makeTestApp(generator);
 
-    const res = await app.request("/briefing/test-project");
+    const res = await app.request("/coordination/review/briefing/read?projectName=test-project");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -76,7 +76,7 @@ describe("GET /briefing/:projectName", () => {
     });
     const app = makeTestApp(generator);
 
-    const res = await app.request("/briefing/nonexistent");
+    const res = await app.request("/coordination/review/briefing/read?projectName=nonexistent");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -91,7 +91,7 @@ describe("GET /briefing/:projectName", () => {
     });
     const app = makeTestApp(generator);
 
-    const res = await app.request("/briefing/test-project");
+    const res = await app.request("/coordination/review/briefing/read?projectName=test-project");
 
     expect(res.status).toBe(500);
     const body = await res.json();
@@ -102,7 +102,7 @@ describe("GET /briefing/:projectName", () => {
     const generator = makeMockBriefingGenerator();
     const app = makeTestApp(generator);
 
-    const res = await app.request("/briefing/my%20project");
+    const res = await app.request("/coordination/review/briefing/read?projectName=my%20project");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -112,7 +112,7 @@ describe("GET /briefing/:projectName", () => {
   test("returns application/json content type", async () => {
     const app = makeTestApp(makeMockBriefingGenerator());
 
-    const res = await app.request("/briefing/test-project");
+    const res = await app.request("/coordination/review/briefing/read?projectName=test-project");
 
     expect(res.headers.get("content-type")).toContain("application/json");
   });

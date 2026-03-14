@@ -1,69 +1,49 @@
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import { redirect } from "next/navigation";
-import { getProject } from "@/lib/config";
-import { readArtifact } from "@/lib/artifacts";
-import { projectLorePath, getGuildHallHome, resolveMeetingBasePath } from "@/lib/paths";
-import { resolveWorkerPortraits } from "@/lib/packages";
-import { parseTranscriptToMessages } from "@/lib/meetings";
-import { discoverPackages, getWorkerByName } from "@/lib/packages";
-import type { WorkerMetadata } from "@/lib/types";
+import { fetchDaemon } from "@/web/lib/daemon-api";
+import type { MeetingMeta, TranscriptChatMessage } from "@/lib/types";
 import MeetingHeader from "@/web/components/meeting/MeetingHeader";
 import MeetingView from "@/web/components/meeting/MeetingView";
 import Panel from "@/web/components/ui/Panel";
 import type { LinkedArtifact } from "@/web/components/meeting/ArtifactsPanel";
+import DaemonError from "@/web/components/ui/DaemonError";
 import styles from "./page.module.css";
 
-/**
- * Reads the transcript file for a meeting and parses it into ChatMessage[]
- * for resume. Returns an empty array if no transcript exists.
- */
-async function loadTranscriptMessages(meetingId: string) {
-  const home = getGuildHallHome();
-  const transcriptFile = path.join(home, "meetings", `${meetingId}.md`);
+/** Shape returned by GET /workers */
+interface WorkerInfo {
+  name: string;
+  displayName: string;
+  displayTitle: string;
+  portraitUrl: string | null;
+  model: { name: string; isLocal: boolean; baseUrl?: string } | null;
+}
 
-  try {
-    const raw = await fs.readFile(transcriptFile, "utf-8");
-    return parseTranscriptToMessages(raw);
-  } catch {
-    return [];
-  }
+/** Shape returned by GET /meetings/:id */
+interface MeetingDetail {
+  meeting: MeetingMeta;
+  transcript: string;
+  parsedMessages: TranscriptChatMessage[];
 }
 
 /**
- * Resolves linked artifact paths from meeting frontmatter into LinkedArtifact
- * objects suitable for the ArtifactsPanel. Checks whether each artifact file
- * exists on disk.
+ * Builds linked artifact display objects from meeting frontmatter paths.
+ * Pure URL construction. Sets exists=true optimistically (the UI handles
+ * missing artifact links gracefully).
  */
-async function resolveLinkedArtifacts(
+function buildLinkedArtifacts(
   artifactPaths: string[],
-  lorePath: string,
   projectName: string,
-): Promise<LinkedArtifact[]> {
+): LinkedArtifact[] {
   const encodedProject = encodeURIComponent(projectName);
-
-  return Promise.all(
-    artifactPaths.map(async (artifactPath) => {
-      const fullPath = path.join(lorePath, artifactPath);
-      let exists = false;
-      try {
-        await fs.access(fullPath);
-        exists = true;
-      } catch {
-        // File doesn't exist
-      }
-
-      const title =
-        artifactPath.split("/").pop()?.replace(/\.md$/, "") || artifactPath;
-
-      return {
-        path: artifactPath,
-        title,
-        exists,
-        href: `/projects/${encodedProject}/artifacts/${artifactPath}`,
-      };
-    }),
-  );
+  return artifactPaths.map((artifactPath) => {
+    const title =
+      artifactPath.split("/").pop()?.replace(/\.md$/, "") || artifactPath;
+    return {
+      path: artifactPath,
+      title,
+      exists: true,
+      href: `/projects/${encodedProject}/artifacts/${artifactPath}`,
+    };
+  });
 }
 
 export default async function MeetingPage({
@@ -73,63 +53,40 @@ export default async function MeetingPage({
 }) {
   const { name: rawName, id } = await params;
   const projectName = decodeURIComponent(rawName);
+  const encoded = encodeURIComponent(projectName);
 
-  const project = await getProject(projectName);
-  if (!project) {
-    redirect(`/`);
+  // Fetch meeting detail and workers in parallel
+  const [detailResult, workersResult] = await Promise.all([
+    fetchDaemon<MeetingDetail>(
+      `/meeting/request/meeting/read?meetingId=${encodeURIComponent(id)}&projectName=${encoded}`,
+    ),
+    fetchDaemon<{ workers: WorkerInfo[] }>("/system/packages/worker/list"),
+  ]);
+
+  if (!detailResult.ok) {
+    if (detailResult.error.includes("not found")) {
+      redirect(`/projects/${encoded}`);
+    }
+    return <DaemonError message={detailResult.error} />;
   }
 
-  const ghHome = getGuildHallHome();
-  const basePath = await resolveMeetingBasePath(ghHome, projectName, id);
-  const lorePath = projectLorePath(basePath);
-  const meetingPath = `meetings/${id}.md`;
-
-  let artifact;
-  try {
-    artifact = await readArtifact(lorePath, meetingPath);
-  } catch {
-    redirect(`/projects/${encodeURIComponent(projectName)}`);
-  }
-
-  const { meta } = artifact;
+  const { meeting: meta, parsedMessages } = detailResult.data;
   const status = meta.status.toLowerCase().trim();
 
-  // Meeting frontmatter stores worker identity name and display title as
-  // separate fields. The title field is "Audience with <displayTitle>",
-  // so we read the dedicated fields from extras instead.
-  const workerName =
-    (typeof meta.extras?.worker === "string" ? meta.extras.worker : "") ||
-    "Worker";
-  const workerDisplayTitle =
-    (typeof meta.extras?.workerDisplayTitle === "string"
-      ? meta.extras.workerDisplayTitle
-      : "") || workerName;
+  // Meeting frontmatter stores worker identity name and display title
+  const workerName = meta.worker || "Worker";
+  const workerDisplayTitle = meta.workerDisplayTitle || workerName;
 
-  // Portrait resolved at display time from worker packages (REQ-WID-10).
-  const portraits = await resolveWorkerPortraits(ghHome);
-  const workerPortraitUrl = portraits.get(workerName) ?? undefined;
+  // Portrait and model resolved from workers endpoint (REQ-WID-10)
+  const workers = workersResult.ok ? workersResult.data.workers : [];
+  const workerInfo = workers.find((w) => w.name === workerName);
+  const workerPortraitUrl = workerInfo?.portraitUrl ?? undefined;
+  const workerModel = workerInfo?.model?.name ?? "opus";
 
-  // Agenda lives in frontmatter, not the markdown body. The daemon writes
-  // it as a frontmatter field at meeting creation time.
-  const agenda =
-    (typeof meta.extras?.agenda === "string" ? meta.extras.agenda : "") ||
-    "No agenda provided.";
+  const agenda = meta.agenda || "No agenda provided.";
 
-  // Resolve the worker's model for display. Meetings use the worker's
-  // default model; there is no per-meeting override.
-  const defaultPackagesDir = path.join(ghHome, "packages");
-  const meetingPackages = await discoverPackages([defaultPackagesDir]);
-  const meetingWorkerPkg = getWorkerByName(meetingPackages, workerName);
-  const workerModel = meetingWorkerPkg
-    ? (meetingWorkerPkg.metadata as WorkerMetadata).model ?? "opus"
-    : "opus";
-
-  // Linked artifacts from meeting frontmatter
-  const linkedPaths = Array.isArray(meta.extras?.linked_artifacts)
-    ? (meta.extras.linked_artifacts as unknown[]).filter(
-        (a): a is string => typeof a === "string",
-      )
-    : [];
+  // Linked artifacts from meeting metadata
+  const linkedPaths = meta.linked_artifacts ?? [];
 
   // Closed meetings show an ended message
   if (status === "closed" || status === "complete") {
@@ -147,7 +104,7 @@ export default async function MeetingPage({
           <div className={styles.ended}>
             <p className={styles.endedText}>This audience has ended.</p>
             <a
-              href={`/projects/${encodeURIComponent(projectName)}`}
+              href={`/projects/${encoded}`}
               className={styles.endedLink}
             >
               Return to project
@@ -158,13 +115,7 @@ export default async function MeetingPage({
     );
   }
 
-  // Load transcript messages for session resume (fallback when sessionStorage is empty).
-  // Load linked artifacts for the sidebar panel.
-  // These are independent reads so we run them in parallel.
-  const [transcriptMessages, initialArtifacts] = await Promise.all([
-    loadTranscriptMessages(id),
-    resolveLinkedArtifacts(linkedPaths, lorePath, projectName),
-  ]);
+  const initialArtifacts = buildLinkedArtifacts(linkedPaths, projectName);
 
   return (
     <div className={styles.meetingView}>
@@ -183,7 +134,7 @@ export default async function MeetingPage({
         workerDisplayTitle={workerDisplayTitle}
         workerPortraitUrl={workerPortraitUrl}
         initialArtifacts={initialArtifacts}
-        initialMessages={transcriptMessages}
+        initialMessages={parsedMessages}
       />
     </div>
   );

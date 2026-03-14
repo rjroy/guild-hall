@@ -334,7 +334,7 @@ function makeFullApp(overrides: Partial<MeetingSessionDeps> = {}) {
   const meetingSession = createMeetingSession(deps);
   const startTime = Date.now();
 
-  const app = createApp({
+  const { app } = createApp({
     health: {
       getMeetingCount: () => meetingSession.getActiveMeetings(),
       getUptimeSeconds: () => Math.floor((Date.now() - startTime) / 1000),
@@ -347,14 +347,14 @@ function makeFullApp(overrides: Partial<MeetingSessionDeps> = {}) {
 }
 
 async function postCreateMeeting(
-  app: ReturnType<typeof createApp>,
+  app: ReturnType<typeof createApp>["app"],
   body: Record<string, unknown> = {
     projectName: "test-project",
     workerName: "test-assistant",
     prompt: "Analyze the codebase",
   },
 ) {
-  return app.request("/meetings", {
+  return app.request("/meeting/request/meeting/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -374,7 +374,7 @@ async function getWorktreeDirFromState(meetingId: string): Promise<string> {
 
 // -- Tests --
 
-describe("integration: POST /meetings creates meeting and streams events", () => {
+describe("integration: POST /meeting/request/meeting/create creates meeting and streams events", () => {
   test("returns SSE stream with session, text_delta, and turn_end events", async () => {
     const { app } = makeFullApp();
 
@@ -518,7 +518,7 @@ describe("integration: POST /meetings creates meeting and streams events", () =>
   });
 });
 
-describe("integration: POST /meetings/:id/messages sends follow-up", () => {
+describe("integration: POST /meeting/session/message/send sends follow-up", () => {
   test("streams response events for follow-up messages", async () => {
     const { app } = makeFullApp();
 
@@ -536,11 +536,11 @@ describe("integration: POST /meetings/:id/messages sends follow-up", () => {
 
     // Send follow-up message
     const followUpRes = await app.request(
-      `/meetings/${meetingId}/messages`,
+      "/meeting/session/message/send",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Tell me more" }),
+        body: JSON.stringify({ meetingId, message: "Tell me more" }),
       },
     );
 
@@ -579,10 +579,10 @@ describe("integration: POST /meetings/:id/messages sends follow-up", () => {
     // Send follow-up and consume the SSE response to ensure the generator
     // runs to completion (async transcript writes create gaps that require
     // the stream to be fully consumed before checking mock call counts).
-    const followUpRes = await app.request(`/meetings/${meetingId}/messages`, {
+    const followUpRes = await app.request("/meeting/session/message/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "What about tests?" }),
+      body: JSON.stringify({ meetingId, message: "What about tests?" }),
     });
     await followUpRes.text();
 
@@ -594,7 +594,7 @@ describe("integration: POST /meetings/:id/messages sends follow-up", () => {
   });
 });
 
-describe("integration: DELETE /meetings/:id closes meeting", () => {
+describe("integration: POST /meeting/session/meeting/close closes meeting", () => {
   test("returns 200 with status ok and notes", async () => {
     const { app } = makeFullApp();
 
@@ -609,8 +609,10 @@ describe("integration: DELETE /meetings/:id closes meeting", () => {
     }
 
     // Close meeting
-    const deleteRes = await app.request(`/meetings/${meetingId}`, {
-      method: "DELETE",
+    const deleteRes = await app.request("/meeting/session/meeting/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId }),
     });
 
     expect(deleteRes.status).toBe(200);
@@ -634,13 +636,17 @@ describe("integration: DELETE /meetings/:id closes meeting", () => {
     }
 
     // Close meeting
-    await app.request(`/meetings/${meetingId}`, { method: "DELETE" });
-
-    // Try to send message to closed meeting
-    const sendRes = await app.request(`/meetings/${meetingId}/messages`, {
+    await app.request("/meeting/session/meeting/close", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Hello again" }),
+      body: JSON.stringify({ meetingId }),
+    });
+
+    // Try to send message to closed meeting
+    const sendRes = await app.request("/meeting/session/message/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId, message: "Hello again" }),
     });
 
     // The route returns 200 SSE even for errors (error is in the stream)
@@ -670,7 +676,11 @@ describe("integration: DELETE /meetings/:id closes meeting", () => {
     const worktreeDir = await getWorktreeDirFromState(meetingId);
 
     // Close meeting
-    await app.request(`/meetings/${meetingId}`, { method: "DELETE" });
+    await app.request("/meeting/session/meeting/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId }),
+    });
 
     // Read the artifact from the worktreeDir (still present: mock removeWorktree is a no-op)
     const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
@@ -706,18 +716,22 @@ describe("integration: DELETE /meetings/:id closes meeting", () => {
     expect(stateBefore.status).toBe("open");
 
     // Close meeting
-    await app.request(`/meetings/${meetingId}`, { method: "DELETE" });
+    await app.request("/meeting/session/meeting/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId }),
+    });
 
     // State file deleted: artifact on the integration worktree is the source of truth
     await expect(fs.readFile(stateFile, "utf-8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
 
-describe("integration: GET /health returns correct meeting counts", () => {
+describe("integration: GET /system/runtime/daemon/health returns correct meeting counts", () => {
   test("reports 0 meetings before any are created", async () => {
     const { app } = makeFullApp();
 
-    const res = await app.request("/health");
+    const res = await app.request("/system/runtime/daemon/health");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe("ok");
@@ -730,7 +744,7 @@ describe("integration: GET /health returns correct meeting counts", () => {
     const createRes = await postCreateMeeting(app);
     await parseSSEResponse(createRes);
 
-    const res = await app.request("/health");
+    const res = await app.request("/system/runtime/daemon/health");
     const body = await res.json();
     expect(body.meetings).toBe(1);
   });
@@ -748,9 +762,13 @@ describe("integration: GET /health returns correct meeting counts", () => {
     }
 
     // Close meeting
-    await app.request(`/meetings/${meetingId}`, { method: "DELETE" });
+    await app.request("/meeting/session/meeting/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId }),
+    });
 
-    const res = await app.request("/health");
+    const res = await app.request("/system/runtime/daemon/health");
     const body = await res.json();
     expect(body.meetings).toBe(0);
   });
@@ -771,17 +789,17 @@ describe("integration: GET /health returns correct meeting counts", () => {
     });
     await parseSSEResponse(r2);
 
-    const res = await app.request("/health");
+    const res = await app.request("/system/runtime/daemon/health");
     const body = await res.json();
     expect(body.meetings).toBe(2);
   });
 });
 
-describe("integration: GET /workers returns discovered workers", () => {
+describe("integration: GET /system/packages/worker/list returns discovered workers", () => {
   test("returns the sample-assistant worker with correct metadata", async () => {
     const { app } = makeFullApp();
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as {
@@ -816,7 +834,7 @@ describe("integration: GET /workers returns discovered workers", () => {
       activateFn: activateMock.activateFn,
     });
 
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => meetingSession.getActiveMeetings(),
         getUptimeSeconds: () => 0,
@@ -825,14 +843,14 @@ describe("integration: GET /workers returns discovered workers", () => {
       packages: [],
     });
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
     expect(res.status).toBe(200);
     const body = (await res.json()) as { workers: unknown[] };
     expect(body.workers).toHaveLength(0);
   });
 });
 
-describe("integration: POST /meetings/:id/interrupt", () => {
+describe("integration: POST /meeting/session/generation/interrupt", () => {
   test("returns 200 for an active meeting", async () => {
     const { app } = makeFullApp();
 
@@ -848,8 +866,12 @@ describe("integration: POST /meetings/:id/interrupt", () => {
 
     // Interrupt the meeting
     const interruptRes = await app.request(
-      `/meetings/${meetingId}/interrupt`,
-      { method: "POST" },
+      "/meeting/session/generation/interrupt",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meetingId }),
+      },
     );
 
     expect(interruptRes.status).toBe(200);
@@ -860,8 +882,10 @@ describe("integration: POST /meetings/:id/interrupt", () => {
   test("returns 404 for unknown meeting", async () => {
     const { app } = makeFullApp();
 
-    const res = await app.request("/meetings/nonexistent-meeting/interrupt", {
+    const res = await app.request("/meeting/session/generation/interrupt", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId: "nonexistent-meeting" }),
     });
 
     expect(res.status).toBe(404);
@@ -911,7 +935,7 @@ describe("integration: error cases", () => {
   test("returns 400 for missing required fields", async () => {
     const { app } = makeFullApp();
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectName: "test-project" }),
@@ -925,7 +949,7 @@ describe("integration: error cases", () => {
   test("returns 400 for invalid JSON body", async () => {
     const { app } = makeFullApp();
 
-    const res = await app.request("/meetings", {
+    const res = await app.request("/meeting/request/meeting/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not-json",
@@ -939,10 +963,10 @@ describe("integration: error cases", () => {
   test("returns 400 for missing message in follow-up", async () => {
     const { app } = makeFullApp();
 
-    const res = await app.request("/meetings/any-meeting/messages", {
+    const res = await app.request("/meeting/session/message/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ meetingId: "any-meeting" }),
     });
 
     expect(res.status).toBe(400);
@@ -953,8 +977,10 @@ describe("integration: error cases", () => {
   test("returns 404 when closing a nonexistent meeting", async () => {
     const { app } = makeFullApp();
 
-    const res = await app.request("/meetings/nonexistent-id", {
-      method: "DELETE",
+    const res = await app.request("/meeting/session/meeting/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId: "nonexistent-id" }),
     });
 
     expect(res.status).toBe(404);
@@ -984,17 +1010,17 @@ describe("integration: full lifecycle (create, message, close)", () => {
     expect(meetingId).toBeTruthy();
 
     // Verify health shows 1 meeting
-    let healthRes = await app.request("/health");
+    let healthRes = await app.request("/system/runtime/daemon/health");
     let healthBody = await healthRes.json();
     expect(healthBody.meetings).toBe(1);
 
     // 2. Send follow-up message
     const followUpRes = await app.request(
-      `/meetings/${meetingId}/messages`,
+      "/meeting/session/message/send",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Continue with details" }),
+        body: JSON.stringify({ meetingId, message: "Continue with details" }),
       },
     );
     const followUpEvents = await parseSSEResponse(followUpRes);
@@ -1008,7 +1034,7 @@ describe("integration: full lifecycle (create, message, close)", () => {
     );
 
     // Health still shows 1 meeting
-    healthRes = await app.request("/health");
+    healthRes = await app.request("/system/runtime/daemon/health");
     healthBody = await healthRes.json();
     expect(healthBody.meetings).toBe(1);
 
@@ -1016,13 +1042,15 @@ describe("integration: full lifecycle (create, message, close)", () => {
     const worktreeDir = await getWorktreeDirFromState(meetingId);
 
     // 3. Close meeting
-    const deleteRes = await app.request(`/meetings/${meetingId}`, {
-      method: "DELETE",
+    const deleteRes = await app.request("/meeting/session/meeting/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingId }),
     });
     expect(deleteRes.status).toBe(200);
 
     // Health shows 0 meetings
-    healthRes = await app.request("/health");
+    healthRes = await app.request("/system/runtime/daemon/health");
     healthBody = await healthRes.json();
     expect(healthBody.meetings).toBe(0);
 
@@ -1050,11 +1078,11 @@ describe("integration: full lifecycle (create, message, close)", () => {
 
     // 6. Verify subsequent operations on closed meeting fail correctly
     const postCloseRes = await app.request(
-      `/meetings/${meetingId}/messages`,
+      "/meeting/session/message/send",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Should fail" }),
+        body: JSON.stringify({ meetingId, message: "Should fail" }),
       },
     );
     const postCloseEvents = await parseSSEResponse(postCloseRes);
@@ -1079,7 +1107,7 @@ describe("integration: meeting cap enforcement through HTTP", () => {
       gitOps: createMockGitOps(),
     });
 
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => meetingSession.getActiveMeetings(),
         getUptimeSeconds: () => 0,
@@ -1123,7 +1151,7 @@ describe("integration: SDK error propagation", () => {
       gitOps: createMockGitOps(),
     });
 
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => meetingSession.getActiveMeetings(),
         getUptimeSeconds: () => 0,
@@ -1180,7 +1208,7 @@ describe("integration: SDK error propagation", () => {
       gitOps: createMockGitOps(),
     });
 
-    const app = createApp({
+    const { app } = createApp({
       health: {
         getMeetingCount: () => meetingSession.getActiveMeetings(),
         getUptimeSeconds: () => 0,

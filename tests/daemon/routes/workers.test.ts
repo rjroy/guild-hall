@@ -56,12 +56,12 @@ function makeTestApp(packages: DiscoveredPackage[] = [], config?: AppConfig) {
     },
     packages,
     config,
-  });
+  }).app;
 }
 
 // -- Tests --
 
-describe("GET /workers", () => {
+describe("GET /system/packages/worker/list", () => {
   test("returns discovered workers with metadata", async () => {
     const app = makeTestApp([
       makeWorkerPackage({
@@ -71,7 +71,7 @@ describe("GET /workers", () => {
       }),
     ]);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -89,7 +89,7 @@ describe("GET /workers", () => {
   test("returns empty array when no workers exist", async () => {
     const app = makeTestApp([]);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -112,7 +112,7 @@ describe("GET /workers", () => {
       }),
     ]);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -129,7 +129,7 @@ describe("GET /workers", () => {
       makeToolboxPackage(),
     ]);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -144,7 +144,7 @@ describe("GET /workers", () => {
       }),
     ]);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -156,7 +156,7 @@ describe("GET /workers", () => {
       makeWorkerPackage({}),
     ]);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -166,7 +166,7 @@ describe("GET /workers", () => {
   test("returns application/json content type", async () => {
     const app = makeTestApp([]);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
 
     expect(res.headers.get("content-type")).toContain("application/json");
   });
@@ -180,7 +180,7 @@ describe("GET /workers", () => {
       }),
     ]);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
 
     const body = await res.json();
     const worker = body.workers[0];
@@ -196,7 +196,7 @@ describe("GET /workers", () => {
       makeWorkerPackage({ model: "sonnet" }),
     ]);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
     const body = await res.json();
     expect(body.workers[0].model).toEqual({
       name: "sonnet",
@@ -215,7 +215,7 @@ describe("GET /workers", () => {
       makeWorkerPackage({ model: "llama3" }),
     ], config);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
     const body = await res.json();
     expect(body.workers[0].model).toEqual({
       name: "llama3",
@@ -229,7 +229,7 @@ describe("GET /workers", () => {
       makeWorkerPackage({}),
     ]);
 
-    const res = await app.request("/workers");
+    const res = await app.request("/system/packages/worker/list");
     const body = await res.json();
     expect(body.workers[0].model).toBeNull();
   });

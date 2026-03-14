@@ -1,66 +1,173 @@
 #!/usr/bin/env bun
-import { register } from "./register";
-import { rebase, sync } from "./rebase";
-import { validate } from "./validate";
+import * as path from "node:path";
+import { daemonFetch, isDaemonError } from "@/lib/daemon-client";
 import { migrateContentToBody } from "./migrate-content-to-body";
+import {
+  resolveCommand,
+  buildQueryString,
+  buildBody,
+  validateArgs,
+} from "./resolve";
+import type { CliSkill } from "./resolve";
+import {
+  extractFlags,
+  shouldOutputJson,
+  formatResponse,
+  formatHelpTree,
+  formatSkillHelp,
+  suggestCommand,
+} from "./format";
+import type { HelpNode } from "./format";
+import { streamSkill } from "./stream";
 
-const USAGE = `Guild Hall CLI
+/**
+ * Fetches the flat skill list from the daemon.
+ * Returns null if the daemon is unreachable.
+ */
+async function fetchSkills(): Promise<CliSkill[] | null> {
+  const result = await daemonFetch("/help/skills");
+  if (isDaemonError(result)) return null;
+  if (!result.ok) return null;
 
-Commands:
-  register <name> <path>  Register a project
-  rebase [name]           Rebase claude branch onto master
-  sync [name]             Fetch + smart sync (detects merged PRs, resets or rebases)
-  validate                Validate config and projects
-  migrate-content         Migrate result_summary from frontmatter to body (dry-run)
-  migrate-content --apply Migrate result_summary from frontmatter to body (write)
-  help                    Show this help message`;
+  const data = (await result.json()) as { skills: CliSkill[] };
+  return data.skills;
+}
+
+/**
+ * Fetches help tree data from the daemon at the given hierarchy path.
+ */
+async function fetchHelpTree(segments: string[]): Promise<HelpNode | null> {
+  const helpPath =
+    segments.length > 0
+      ? `/${segments.join("/")}/help`
+      : "/help";
+
+  const result = await daemonFetch(helpPath);
+  if (isDaemonError(result)) return null;
+  if (!result.ok) return null;
+
+  return (await result.json()) as HelpNode;
+}
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const command = args[0];
+  const argv = process.argv.slice(2);
+  const { segments, options } = extractFlags(argv);
+  const jsonMode = shouldOutputJson(options);
 
-  switch (command) {
-    case "register": {
-      const name = args[1];
-      const projectPath = args[2];
-      if (!name || !projectPath) {
-        console.error("Usage: guild-hall register <name> <path>");
+  // Special case: migrate-content is a local command, not a daemon skill
+  if (segments[0] === "migrate-content") {
+    const applyFlag = argv.includes("--apply");
+    const exitCode = await migrateContentToBody(applyFlag);
+    process.exit(exitCode);
+  }
+
+  // Fetch skill catalog from daemon
+  const skills = await fetchSkills();
+  if (!skills) {
+    console.error(
+      "Daemon is not running. Start the daemon first: bun run dev:daemon",
+    );
+    process.exit(1);
+  }
+
+  const resolved = resolveCommand(segments, skills);
+
+  switch (resolved.type) {
+    case "help": {
+      // Check if segments resolve to a specific skill (leaf help)
+      if (resolved.help.segments.length > 0) {
+        const pathStr = `/${resolved.help.segments.join("/")}`;
+        const skill = skills.find((s) => s.invocation.path === pathStr);
+        if (skill) {
+          if (jsonMode) {
+            console.log(JSON.stringify(skill, null, 2));
+          } else {
+            console.log(formatSkillHelp(skill));
+          }
+          return;
+        }
+      }
+
+      // Fetch help tree from the daemon's hierarchy
+      const helpData = await fetchHelpTree(resolved.help.segments);
+      if (!helpData) {
+        console.error("Could not fetch help from daemon.");
         process.exit(1);
       }
-      await register(name, projectPath);
+
+      if (jsonMode) {
+        console.log(JSON.stringify(helpData, null, 2));
+      } else {
+        console.log(formatHelpTree(helpData, resolved.help.segments));
+      }
+      return;
+    }
+
+    case "unknown": {
+      const suggestion = suggestCommand(resolved.segments, skills);
+      const msg = `Unknown command: ${resolved.segments.join(" ")}`;
+      if (suggestion) {
+        console.error(`${msg}\n\nDid you mean: guild-hall ${suggestion}?`);
+      } else {
+        console.error(`${msg}\n\nRun 'guild-hall help' to see available commands.`);
+      }
+      process.exit(1);
       break;
     }
 
-    case "rebase": {
-      const projectName = args[1]; // optional
-      await rebase(projectName);
-      break;
-    }
+    case "command": {
+      const { skill, positionalArgs } = resolved.command;
 
-    case "sync": {
-      const projectName = args[1]; // optional
-      await sync(projectName);
-      break;
-    }
+      // For register, resolve the path argument before sending
+      const cmdSegments = skill.invocation.path.split("/").filter(Boolean);
+      const isRegister = cmdSegments[cmdSegments.length - 1] === "register";
+      const resolvedArgs =
+        isRegister && positionalArgs.length >= 2
+          ? [positionalArgs[0], path.resolve(positionalArgs[1])]
+          : positionalArgs;
 
-    case "validate": {
-      const exitCode = await validate();
-      process.exit(exitCode);
-      break;
-    }
+      // Validate required args
+      const error = validateArgs(skill, resolvedArgs);
+      if (error) {
+        console.error(error);
+        process.exit(1);
+      }
 
-    case "migrate-content": {
-      const applyFlag = args.includes("--apply");
-      const exitCode = await migrateContentToBody(applyFlag);
-      process.exit(exitCode);
-      break;
-    }
+      // Streaming skills use SSE
+      if (skill.streaming) {
+        const body = buildBody(skill, resolvedArgs);
+        await streamSkill(skill.invocation.path, body);
+        return;
+      }
 
-    case "help":
-    case undefined:
-    default:
-      console.log(USAGE);
-      break;
+      // Standard request
+      const isGet = skill.invocation.method === "GET";
+      const requestPath = isGet
+        ? `${skill.invocation.path}${buildQueryString(skill, resolvedArgs)}`
+        : skill.invocation.path;
+
+      const result = await daemonFetch(requestPath, {
+        method: skill.invocation.method,
+        body: isGet ? undefined : buildBody(skill, resolvedArgs),
+      });
+
+      if (isDaemonError(result)) {
+        console.error(`Failed to reach daemon: ${result.message}`);
+        process.exit(1);
+      }
+
+      const data: unknown = await result.json();
+
+      if (!result.ok) {
+        const errObj = data as { error?: string };
+        console.error(
+          errObj.error ?? `Request failed (HTTP ${result.status})`,
+        );
+        process.exit(1);
+      }
+
+      console.log(formatResponse(data, jsonMode));
+    }
   }
 }
 

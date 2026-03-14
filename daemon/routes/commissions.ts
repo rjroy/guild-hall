@@ -1,29 +1,44 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { Hono } from "hono";
 import { asCommissionId } from "../types";
 import type { CommissionSessionForRoutes } from "../services/commission/orchestrator";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
+import { integrationWorktreePath, projectLorePath, resolveCommissionBasePath } from "@/lib/paths";
+import { scanCommissions, readCommissionMeta, parseActivityTimeline } from "@/lib/commissions";
+import { nextOccurrence } from "@/daemon/services/scheduler/cron";
+import { describeCron } from "@/lib/cron-utils";
+import matter from "gray-matter";
 
 export interface CommissionRoutesDeps {
   commissionSession: CommissionSessionForRoutes;
+  /** Required for GET read routes. */
+  config?: AppConfig;
+  /** Required for GET read routes. */
+  guildHallHome?: string;
 }
 
 /**
  * Creates commission management routes.
  *
- * POST   /commissions                       - Create commission
- * POST   /commissions/check-dependencies   - Trigger dependency auto-transitions
- * PUT    /commissions/:id                  - Update pending commission
- * POST   /commissions/:id/dispatch         - Dispatch commission to worker
- * DELETE /commissions/:id             - Cancel commission
- * POST   /commissions/:id/redispatch  - Re-dispatch failed/cancelled commission
- * POST   /commissions/:id/abandon     - Abandon a commission
- * POST   /commissions/:id/note        - User adds note
+ * POST /commission/request/commission/create    - Create commission
+ * POST /commission/dependency/project/check     - Trigger dependency auto-transitions
+ * POST /commission/request/commission/update    - Update pending commission
+ * POST /commission/run/dispatch                 - Dispatch commission to worker
+ * POST /commission/run/cancel                   - Cancel commission
+ * POST /commission/run/redispatch               - Re-dispatch failed/cancelled commission
+ * POST /commission/run/abandon                  - Abandon a commission
+ * POST /commission/request/commission/note      - User adds note
+ * POST /commission/schedule/commission/update   - Update schedule status
+ * GET  /commission/request/commission/list      - List commissions for a project
+ * GET  /commission/request/commission/read      - Read commission detail
  */
-export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
+export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule {
   const routes = new Hono();
 
-  // POST /commissions - Create commission
-  routes.post("/commissions", async (c) => {
+  // POST /commission/request/commission/create - Create commission
+  routes.post("/commission/request/commission/create", async (c) => {
     let body: {
       projectName?: string;
       title?: string;
@@ -61,7 +76,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
 
     try {
-      console.log(`[route] POST /commissions project="${projectName}" worker="${workerName}" type="${body.type ?? "one-shot"}"`);
+      console.log(`[route] POST /commission/request/commission/create project="${projectName}" worker="${workerName}" type="${body.type ?? "one-shot"}"`);
 
       let result: { commissionId: string };
       if (body.type === "scheduled") {
@@ -92,9 +107,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/check-dependencies - Trigger dependency auto-transitions
-  // Must be registered before :id routes to avoid matching "check-dependencies" as an ID.
-  routes.post("/commissions/check-dependencies", async (c) => {
+  // POST /commission/dependency/project/check - Trigger dependency auto-transitions
+  routes.post("/commission/dependency/project/check", async (c) => {
     let body: { projectName?: string };
     try {
       body = await c.req.json();
@@ -116,11 +130,10 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // PUT /commissions/:id - Update pending commission
-  routes.put("/commissions/:id", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
+  // POST /commission/request/commission/update - Update pending commission
+  routes.post("/commission/request/commission/update", async (c) => {
     let body: {
+      commissionId?: string;
       prompt?: string;
       dependencies?: string[];
       resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
@@ -131,8 +144,16 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
 
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
+
+    // Strip commissionId from updates - it's an identifier, not a field to update
+    const { commissionId: _, ...updates } = body;
+
     try {
-      await deps.commissionSession.updateCommission(commissionId, body);
+      await deps.commissionSession.updateCommission(commissionId, updates);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
       const message = errorMessage(err);
@@ -143,12 +164,22 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/:id/dispatch - Dispatch commission
-  routes.post("/commissions/:id/dispatch", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
+  // POST /commission/run/dispatch - Dispatch commission
+  routes.post("/commission/run/dispatch", async (c) => {
+    let body: { commissionId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     try {
-      console.log(`[route] POST /commissions/${commissionId as string}/dispatch`);
+      console.log(`[route] POST /commission/run/dispatch commissionId="${commissionId as string}"`);
       const result =
         await deps.commissionSession.dispatchCommission(commissionId);
       return c.json(result, 202);
@@ -162,12 +193,22 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // DELETE /commissions/:id - Cancel commission
-  routes.delete("/commissions/:id", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
+  // POST /commission/run/cancel - Cancel commission
+  routes.post("/commission/run/cancel", async (c) => {
+    let body: { commissionId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     try {
-      console.log(`[route] DELETE /commissions/${commissionId as string} (cancel)`);
+      console.log(`[route] POST /commission/run/cancel commissionId="${commissionId as string}"`);
       await deps.commissionSession.cancelCommission(commissionId);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
@@ -185,12 +226,22 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/:id/redispatch - Re-dispatch failed/cancelled commission
-  routes.post("/commissions/:id/redispatch", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
+  // POST /commission/run/redispatch - Re-dispatch failed/cancelled commission
+  routes.post("/commission/run/redispatch", async (c) => {
+    let body: { commissionId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     try {
-      console.log(`[route] POST /commissions/${commissionId as string}/redispatch`);
+      console.log(`[route] POST /commission/run/redispatch commissionId="${commissionId as string}"`);
       const result =
         await deps.commissionSession.redispatchCommission(commissionId);
       return c.json(result, 202);
@@ -207,16 +258,19 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/:id/abandon - Abandon a commission
-  routes.post("/commissions/:id/abandon", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
-    let body: { reason?: string };
+  // POST /commission/run/abandon - Abandon a commission
+  routes.post("/commission/run/abandon", async (c) => {
+    let body: { commissionId?: string; reason?: string };
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     const { reason } = body;
     if (!reason) {
@@ -225,7 +279,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
 
     try {
       console.log(
-        `[route] POST /commissions/${commissionId as string}/abandon`,
+        `[route] POST /commission/run/abandon commissionId="${commissionId as string}"`,
       );
       await deps.commissionSession.abandonCommission(commissionId, reason);
       return c.json({ status: "ok" });
@@ -244,16 +298,19 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/:id/schedule-status - Update schedule status (pause/resume/complete)
-  routes.post("/commissions/:id/schedule-status", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
-    let body: { status?: string };
+  // POST /commission/schedule/commission/update - Update schedule status (pause/resume/complete)
+  routes.post("/commission/schedule/commission/update", async (c) => {
+    let body: { commissionId?: string; status?: string };
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     const { status } = body;
     if (!status) {
@@ -261,7 +318,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
 
     try {
-      console.log(`[route] POST /commissions/${commissionId as string}/schedule-status target="${status}"`);
+      console.log(`[route] POST /commission/schedule/commission/update commissionId="${commissionId as string}" target="${status}"`);
       const result = await deps.commissionSession.updateScheduleStatus(commissionId, status);
       if (result.outcome === "skipped") {
         return c.json({ error: result.reason }, 409);
@@ -279,16 +336,19 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  // POST /commissions/:id/note - User adds note
-  routes.post("/commissions/:id/note", async (c) => {
-    const commissionId = asCommissionId(c.req.param("id"));
-
-    let body: { content?: string };
+  // POST /commission/request/commission/note - User adds note
+  routes.post("/commission/request/commission/note", async (c) => {
+    let body: { commissionId?: string; content?: string };
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
 
     const { content } = body;
     if (!content) {
@@ -304,5 +364,264 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): Hono {
     }
   });
 
-  return routes;
+  // -- Read routes --
+
+  // GET /commission/request/commission/list?projectName=X - List commissions for a project
+  routes.get("/commission/request/commission/list", async (c) => {
+    if (!deps.config || !deps.guildHallHome) {
+      return c.json({ error: "Read routes not configured" }, 500);
+    }
+
+    const projectName = c.req.query("projectName");
+    if (!projectName) {
+      return c.json({ error: "Missing required query parameter: projectName" }, 400);
+    }
+
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
+      return c.json({ error: `Project not found: ${projectName}` }, 404);
+    }
+
+    try {
+      const iPath = integrationWorktreePath(deps.guildHallHome, projectName);
+      const lorePath = projectLorePath(iPath);
+      const commissions = await scanCommissions(lorePath, projectName);
+      return c.json({ commissions });
+    } catch (err: unknown) {
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  // GET /commission/request/commission/read?commissionId=X&projectName=X - Read commission detail
+  routes.get("/commission/request/commission/read", async (c) => {
+    if (!deps.config || !deps.guildHallHome) {
+      return c.json({ error: "Read routes not configured" }, 500);
+    }
+
+    const projectName = c.req.query("projectName");
+    if (!projectName) {
+      return c.json({ error: "Missing required query parameter: projectName" }, 400);
+    }
+
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
+      return c.json({ error: `Project not found: ${projectName}` }, 404);
+    }
+
+    const commissionId = c.req.query("commissionId");
+    if (!commissionId) {
+      return c.json({ error: "Missing required query parameter: commissionId" }, 400);
+    }
+
+    try {
+      const basePath = await resolveCommissionBasePath(deps.guildHallHome, projectName, commissionId);
+      const lorePath = projectLorePath(basePath);
+      const filePath = path.join(lorePath, "commissions", `${commissionId}.md`);
+
+      const rawContent = await fs.readFile(filePath, "utf-8");
+      const meta = await readCommissionMeta(filePath, projectName);
+      const timeline = parseActivityTimeline(rawContent);
+
+      // Parse schedule info for scheduled commissions
+      let scheduleInfo: Record<string, unknown> | undefined;
+      if (meta.type === "scheduled") {
+        const parsed = matter(rawContent);
+        const sched = parsed.data.schedule as Record<string, unknown> | undefined;
+        if (sched && typeof sched === "object") {
+          const lastRun = sched.last_run;
+          let lastRunStr: string | null = null;
+          if (lastRun instanceof Date) {
+            lastRunStr = lastRun.toISOString();
+          } else if (typeof lastRun === "string" && lastRun) {
+            lastRunStr = lastRun;
+          }
+
+          const cronExpr = typeof sched.cron === "string" ? sched.cron : "";
+
+          let nextRunStr: string | null = null;
+          if (cronExpr) {
+            const referenceDate = lastRunStr ? new Date(lastRunStr) : new Date(0);
+            const nextDate = nextOccurrence(cronExpr, referenceDate);
+            if (nextDate) {
+              nextRunStr = nextDate.toISOString();
+            }
+          }
+
+          scheduleInfo = {
+            cron: cronExpr,
+            cronDescription: describeCron(cronExpr),
+            repeat: typeof sched.repeat === "number" ? sched.repeat : null,
+            runsCompleted: typeof sched.runs_completed === "number" ? sched.runs_completed : 0,
+            lastRun: lastRunStr,
+            lastSpawnedId: typeof sched.last_spawned_id === "string" ? sched.last_spawned_id : null,
+            nextRun: nextRunStr,
+          };
+        }
+      }
+
+      return c.json({ commission: meta, timeline, rawContent, scheduleInfo });
+    } catch (err: unknown) {
+      if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+        return c.json({ error: `Commission not found: ${commissionId}` }, 404);
+      }
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  const skills: SkillDefinition[] = [
+    {
+      skillId: "commission.request.commission.create",
+      version: "1",
+      name: "create",
+      description: "Create a new commission",
+      invocation: { method: "POST", path: "/commission/request/commission/create" },
+      sideEffects: "Creates commission artifact and emits commission_status event",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      hierarchy: { root: "commission", feature: "request", object: "commission" },
+      parameters: [{ name: "projectName", required: true, in: "body" as const }],
+    },
+    {
+      skillId: "commission.request.commission.update",
+      version: "1",
+      name: "update",
+      description: "Update a pending commission",
+      invocation: { method: "POST", path: "/commission/request/commission/update" },
+      sideEffects: "Modifies commission artifact",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "request", object: "commission" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+    },
+    {
+      skillId: "commission.request.commission.note",
+      version: "1",
+      name: "note",
+      description: "Add a user note to a commission",
+      invocation: { method: "POST", path: "/commission/request/commission/note" },
+      sideEffects: "Appends note to commission timeline",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      hierarchy: { root: "commission", feature: "request", object: "commission" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+    },
+    {
+      skillId: "commission.request.commission.list",
+      version: "1",
+      name: "list",
+      description: "List commissions for a project",
+      invocation: { method: "GET", path: "/commission/request/commission/list" },
+      sideEffects: "",
+      context: { project: true },
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "request", object: "commission" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }],
+    },
+    {
+      skillId: "commission.request.commission.read",
+      version: "1",
+      name: "read",
+      description: "Read commission detail",
+      invocation: { method: "GET", path: "/commission/request/commission/read" },
+      sideEffects: "",
+      context: { project: true, commissionId: true },
+      eligibility: { tier: "any", readOnly: true },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "request", object: "commission" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "commissionId", required: true, in: "query" as const }],
+    },
+    {
+      skillId: "commission.run.dispatch",
+      version: "1",
+      name: "dispatch",
+      description: "Dispatch a commission to a worker",
+      invocation: { method: "POST", path: "/commission/run/dispatch" },
+      sideEffects: "Transitions commission to dispatched, spawns worker session",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      hierarchy: { root: "commission", feature: "run" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+    },
+    {
+      skillId: "commission.run.redispatch",
+      version: "1",
+      name: "redispatch",
+      description: "Re-dispatch a failed or cancelled commission",
+      invocation: { method: "POST", path: "/commission/run/redispatch" },
+      sideEffects: "Transitions commission to dispatched, spawns worker session",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: false,
+      hierarchy: { root: "commission", feature: "run" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+    },
+    {
+      skillId: "commission.run.cancel",
+      version: "1",
+      name: "cancel",
+      description: "Cancel a pending commission",
+      invocation: { method: "POST", path: "/commission/run/cancel" },
+      sideEffects: "Transitions commission to cancelled",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "run" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+    },
+    {
+      skillId: "commission.run.abandon",
+      version: "1",
+      name: "abandon",
+      description: "Abandon a running commission",
+      invocation: { method: "POST", path: "/commission/run/abandon" },
+      sideEffects: "Aborts worker session, transitions commission to abandoned",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "run" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+    },
+    {
+      skillId: "commission.schedule.commission.update",
+      version: "1",
+      name: "update",
+      description: "Update schedule status (pause/resume/complete)",
+      invocation: { method: "POST", path: "/commission/schedule/commission/update" },
+      sideEffects: "Transitions schedule status, emits commission_status event",
+      context: { commissionId: true },
+      eligibility: { tier: "any", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "schedule", object: "commission" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+    },
+    {
+      skillId: "commission.dependency.project.check",
+      version: "1",
+      name: "check",
+      description: "Trigger dependency auto-transitions",
+      invocation: { method: "POST", path: "/commission/dependency/project/check" },
+      sideEffects: "Transitions blocked commissions whose dependencies are met",
+      context: { project: true },
+      eligibility: { tier: "manager", readOnly: false },
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "dependency", object: "project" },
+      parameters: [{ name: "projectName", required: true, in: "body" as const }],
+    },
+  ];
+
+  const descriptions: Record<string, string> = {
+    commission: "Commission requests, execution, scheduling, and dependencies",
+    "commission.request": "Commission request lifecycle",
+    "commission.request.commission": "Commission requests",
+    "commission.run": "Commission execution control",
+    "commission.schedule": "Scheduled commission management",
+    "commission.schedule.commission": "Scheduled commission lifecycle",
+  };
+
+  return { routes, skills, descriptions };
 }

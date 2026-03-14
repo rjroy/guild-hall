@@ -10,13 +10,13 @@ function makeTestApp(overrides?: {
       getMeetingCount: () => overrides?.meetingCount ?? 0,
       getUptimeSeconds: () => overrides?.uptimeSeconds ?? 42,
     },
-  });
+  }).app;
 }
 
-describe("GET /health", () => {
+describe("GET /system/runtime/daemon/health", () => {
   test("returns status ok with meetings and uptime", async () => {
     const app = makeTestApp({ meetingCount: 0, uptimeSeconds: 42 });
-    const res = await app.request("/health");
+    const res = await app.request("/system/runtime/daemon/health");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -30,7 +30,7 @@ describe("GET /health", () => {
 
   test("reflects injected meeting count", async () => {
     const app = makeTestApp({ meetingCount: 3, uptimeSeconds: 100 });
-    const res = await app.request("/health");
+    const res = await app.request("/system/runtime/daemon/health");
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -40,7 +40,7 @@ describe("GET /health", () => {
 
   test("returns application/json content type", async () => {
     const app = makeTestApp();
-    const res = await app.request("/health");
+    const res = await app.request("/system/runtime/daemon/health");
 
     expect(res.headers.get("content-type")).toContain("application/json");
   });
