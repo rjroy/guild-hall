@@ -1,7 +1,7 @@
 ---
 title: Commission List Filtering by Status
 date: 2026-03-14
-status: executed
+status: approved
 tags: [ux, commissions, filtering, ui, client-component]
 modules: [web/components/commission/CommissionList]
 related:
