@@ -423,7 +423,7 @@ export async function prepareSdkSession(
 
   // 4b. Inject skill discovery context (REQ-DAB-5)
   if (deps.skillRegistry && workerMeta.builtInTools.includes("Bash")) {
-    const skillContext = formatSkillDiscoveryContext(deps.skillRegistry, workerMeta);
+    const skillContext = formatSkillDiscoveryContext(deps.skillRegistry, workerMeta.canUseToolRules ?? []);
     if (skillContext) {
       activation.systemPrompt += `\n\n${skillContext}`;
     }
@@ -519,29 +519,27 @@ export async function prepareSdkSession(
 }
 
 /**
- * Filters the skill registry for a worker's eligible skills based on
- * their skillAccess metadata and formats them as a system prompt section.
+ * Derives the set of eligible skills from canUseToolRules and formats
+ * them as a system prompt section.
  *
- * Workers without Bash access don't get skill context (they can't invoke
- * guild-hall CLI commands). Workers with readOnlyOnly only see read-only
- * skills. The result is a human-readable listing for progressive discovery.
+ * A skill is eligible if its CLI command (`guild-hall <skillId with dots as spaces>`)
+ * matches an allow rule and is not blocked by a subsequent deny rule.
+ * Rules are evaluated in declaration order (first match wins), matching
+ * the runtime canUseTool callback behavior.
  */
 export function formatSkillDiscoveryContext(
   registry: SkillRegistry,
-  workerMeta: WorkerMetadata,
+  canUseToolRules: CanUseToolRule[],
 ): string | null {
-  const access = workerMeta.skillAccess;
-  const tiers = access?.tiers ?? ["any"];
+  const bashRules = canUseToolRules.filter((r) => r.tool === "Bash");
+  if (bashRules.length === 0) return null;
 
-  // Collect eligible skills from all accessible tiers
+  const allSkills = registry.filter(() => true);
   const eligibleSkills: SkillDefinition[] = [];
-  const seen = new Set<string>();
 
-  for (const tier of tiers) {
-    for (const skill of registry.forTier(tier)) {
-      if (seen.has(skill.skillId)) continue;
-      if (access?.readOnlyOnly && !skill.eligibility.readOnly) continue;
-      seen.add(skill.skillId);
+  for (const skill of allSkills) {
+    const command = `guild-hall ${skill.skillId.replace(/\./g, " ")}`;
+    if (isCommandAllowed(command, bashRules)) {
       eligibleSkills.push(skill);
     }
   }
@@ -567,11 +565,26 @@ export function formatSkillDiscoveryContext(
   for (const [root, skills] of grouped) {
     lines.push(`## ${root}`);
     for (const skill of skills) {
-      const readOnlyTag = skill.eligibility.readOnly ? " (read-only)" : "";
-      lines.push(`- **${skill.skillId}**: ${skill.description}${readOnlyTag}`);
+      lines.push(`- **${skill.skillId}**: ${skill.description}`);
     }
     lines.push("");
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Checks whether a command string would be allowed by the given Bash rules.
+ * Mirrors the first-match-wins logic in buildCanUseTool.
+ */
+function isCommandAllowed(command: string, bashRules: CanUseToolRule[]): boolean {
+  for (const rule of bashRules) {
+    if (rule.commands !== undefined) {
+      if (!micromatch.isMatch(command, rule.commands, { dot: true })) continue;
+    }
+    // Rule with no commands field matches any Bash command
+    return rule.allow;
+  }
+  // No rule matched: allow (REQ-SBX-14)
+  return true;
 }

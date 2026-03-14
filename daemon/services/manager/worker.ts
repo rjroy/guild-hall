@@ -139,9 +139,6 @@ export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
         reason: "Only read-only git commands (status, log, diff, show) and guild-hall CLI commands are permitted",
       },
     ],
-    skillAccess: {
-      tiers: ["any", "manager"],
-    },
     checkoutScope: "full",
     meetingScope: "project",
     resourceDefaults: {

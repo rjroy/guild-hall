@@ -171,7 +171,6 @@ export function createHelpRoutes(registry: SkillRegistry): Hono {
         description: skill.description,
         invocation: skill.invocation,
         context: skill.context,
-        eligibility: skill.eligibility,
         streaming: skill.streaming,
         idempotent: skill.idempotent,
         parameters: skill.parameters,

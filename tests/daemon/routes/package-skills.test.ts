@@ -39,7 +39,6 @@ function makeSkillDefinition(overrides: Partial<SkillDefinition> = {}): SkillDef
     invocation: { method: "POST", path: "/test/feature/operation" },
     sideEffects: "",
     context: {},
-    eligibility: { tier: "any", readOnly: false },
     idempotent: false,
     hierarchy: { root: "test", feature: "feature" },
     ...overrides,

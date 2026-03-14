@@ -69,7 +69,7 @@ export function createWorkerRoutes(deps: WorkerRoutesDeps): RouteModule {
       invocation: { method: "GET", path: "/system/packages/worker/list" },
       sideEffects: "",
       context: {},
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "system", feature: "packages", object: "worker" },
     },

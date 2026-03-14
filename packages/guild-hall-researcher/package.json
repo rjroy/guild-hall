@@ -29,10 +29,6 @@
         "reason": "Only read-only guild-hall commands are permitted"
       }
     ],
-    "skillAccess": {
-      "tiers": ["any"],
-      "readOnlyOnly": true
-    },
     "checkoutScope": "sparse",
     "resourceDefaults": {
       "maxTurns": 100

@@ -45,7 +45,6 @@ function makeSkillDefinition(overrides?: Record<string, unknown>) {
     invocation: { method: "POST" as const, path: "/test/skill" },
     sideEffects: "",
     context: {},
-    eligibility: { tier: "any" as const, readOnly: false },
     idempotent: false,
     hierarchy: { root: "test", feature: "skill" },
     ...overrides,

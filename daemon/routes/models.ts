@@ -50,7 +50,7 @@ export function createModelsRoutes(deps: ModelsRouteDeps): RouteModule {
       invocation: { method: "GET", path: "/system/models/catalog/list" },
       sideEffects: "",
       context: {},
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "system", feature: "models", object: "catalog" },
     },

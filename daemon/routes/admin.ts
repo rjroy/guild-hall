@@ -289,7 +289,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       invocation: { method: "POST", path: "/system/config/application/reload" },
       sideEffects: "Reloads config.yaml into daemon memory, creates worktrees for new projects",
       context: {},
-      eligibility: { tier: "admin", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "system", feature: "config", object: "application" },
     },
@@ -301,7 +301,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       invocation: { method: "POST", path: "/system/config/project/register" },
       sideEffects: "Creates git branch, integration worktree, writes config.yaml",
       context: {},
-      eligibility: { tier: "admin", readOnly: false },
+
       idempotent: false,
       hierarchy: { root: "system", feature: "config", object: "project" },
       parameters: [{ name: "name", required: true, in: "body" as const }, { name: "path", required: true, in: "body" as const }],
@@ -314,7 +314,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       invocation: { method: "GET", path: "/system/config/application/validate" },
       sideEffects: "",
       context: {},
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "system", feature: "config", object: "application" },
     },
@@ -326,7 +326,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       invocation: { method: "POST", path: "/workspace/git/branch/rebase" },
       sideEffects: "Rebases claude branch, updates integration worktree",
       context: {},
-      eligibility: { tier: "admin", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "workspace", feature: "git", object: "branch" },
       parameters: [{ name: "projectName", required: false, in: "body" as const }],
@@ -339,7 +339,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       invocation: { method: "POST", path: "/workspace/git/integration/sync" },
       sideEffects: "Fetches from origin, detects merged PRs, rebases or resets claude branch",
       context: {},
-      eligibility: { tier: "admin", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "workspace", feature: "git", object: "integration" },
       parameters: [{ name: "projectName", required: false, in: "body" as const }],

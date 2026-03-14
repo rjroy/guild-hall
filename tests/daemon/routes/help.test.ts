@@ -14,7 +14,6 @@ function makeSkill(
     invocation: { method: "GET", path: "/test" },
     sideEffects: "",
     context: {},
-    eligibility: { tier: "any", readOnly: true },
     idempotent: true,
     hierarchy: { root: "test", feature: "skills" },
     ...overrides,
@@ -588,12 +587,11 @@ describe("GET /help/skills", () => {
     ]);
   });
 
-  test("includes invocation and eligibility metadata", async () => {
+  test("includes invocation metadata", async () => {
     const skill = makeSkill({
       skillId: "commission.run.dispatch",
       name: "dispatch",
       invocation: { method: "POST", path: "/commission/run/dispatch" },
-      eligibility: { tier: "any", readOnly: false },
       hierarchy: { root: "commission", feature: "run" },
     });
 
@@ -606,10 +604,6 @@ describe("GET /help/skills", () => {
     expect(body.skills[0].invocation).toEqual({
       method: "POST",
       path: "/commission/run/dispatch",
-    });
-    expect(body.skills[0].eligibility).toEqual({
-      tier: "any",
-      readOnly: false,
     });
   });
 

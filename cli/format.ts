@@ -159,7 +159,6 @@ export function formatSkillHelp(skill: CliSkill): string {
   lines.push("");
   lines.push(`  Method:  ${skill.invocation.method}`);
   lines.push(`  Path:    ${skill.invocation.path}`);
-  lines.push(`  Tier:    ${skill.eligibility.tier}`);
 
   if (skill.streaming) {
     lines.push(`  Stream:  yes (${skill.streaming.eventTypes.join(", ")})`);

@@ -477,7 +477,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "POST", path: "/commission/request/commission/create" },
       sideEffects: "Creates commission artifact and emits commission_status event",
       context: { project: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: false,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
       parameters: [{ name: "projectName", required: true, in: "body" as const }],
@@ -490,7 +490,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "POST", path: "/commission/request/commission/update" },
       sideEffects: "Modifies commission artifact",
       context: { commissionId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
@@ -503,7 +503,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "POST", path: "/commission/request/commission/note" },
       sideEffects: "Appends note to commission timeline",
       context: { commissionId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: false,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
@@ -516,7 +516,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "GET", path: "/commission/request/commission/list" },
       sideEffects: "",
       context: { project: true },
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
       parameters: [{ name: "projectName", required: true, in: "query" as const }],
@@ -529,7 +529,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "GET", path: "/commission/request/commission/read" },
       sideEffects: "",
       context: { project: true, commissionId: true },
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
       parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "commissionId", required: true, in: "query" as const }],
@@ -542,7 +542,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "POST", path: "/commission/run/dispatch" },
       sideEffects: "Transitions commission to dispatched, spawns worker session",
       context: { commissionId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: false,
       hierarchy: { root: "commission", feature: "run" },
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
@@ -555,7 +555,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "POST", path: "/commission/run/redispatch" },
       sideEffects: "Transitions commission to dispatched, spawns worker session",
       context: { commissionId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: false,
       hierarchy: { root: "commission", feature: "run" },
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
@@ -568,7 +568,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "POST", path: "/commission/run/cancel" },
       sideEffects: "Transitions commission to cancelled",
       context: { commissionId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "commission", feature: "run" },
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
@@ -581,7 +581,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "POST", path: "/commission/run/abandon" },
       sideEffects: "Aborts worker session, transitions commission to abandoned",
       context: { commissionId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "commission", feature: "run" },
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
@@ -594,7 +594,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "POST", path: "/commission/schedule/commission/update" },
       sideEffects: "Transitions schedule status, emits commission_status event",
       context: { commissionId: true },
-      eligibility: { tier: "any", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "commission", feature: "schedule", object: "commission" },
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
@@ -607,7 +607,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       invocation: { method: "POST", path: "/commission/dependency/project/check" },
       sideEffects: "Transitions blocked commissions whose dependencies are met",
       context: { project: true },
-      eligibility: { tier: "manager", readOnly: false },
+
       idempotent: true,
       hierarchy: { root: "commission", feature: "dependency", object: "project" },
       parameters: [{ name: "projectName", required: true, in: "body" as const }],

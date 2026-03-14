@@ -70,7 +70,7 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): RouteModule {
       invocation: { method: "GET", path: "/system/config/application/read" },
       sideEffects: "",
       context: {},
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "system", feature: "config", object: "application" },
     },
@@ -82,7 +82,7 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): RouteModule {
       invocation: { method: "GET", path: "/system/config/project/read" },
       sideEffects: "",
       context: { project: true },
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "system", feature: "config", object: "project" },
       parameters: [{ name: "projectName", required: true, in: "query" as const }],
@@ -95,7 +95,7 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): RouteModule {
       invocation: { method: "GET", path: "/commission/dependency/project/graph" },
       sideEffects: "",
       context: { project: true },
-      eligibility: { tier: "any", readOnly: true },
+
       idempotent: true,
       hierarchy: { root: "commission", feature: "dependency", object: "project" },
       parameters: [{ name: "projectName", required: true, in: "query" as const }],

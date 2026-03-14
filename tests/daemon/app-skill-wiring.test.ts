@@ -3,7 +3,7 @@
  *
  * Verifies that package-contributed skills integrate correctly with the
  * built-in skill registry: route mounting, registry inclusion, duplicate
- * detection, and tier filtering.
+ * detection, and navigation tree integration.
  */
 
 import { describe, test, expect } from "bun:test";
@@ -29,7 +29,6 @@ function makeSkill(overrides: Partial<SkillDefinition> = {}): SkillDefinition {
     invocation: { method: "GET", path: "/test/default/op" },
     sideEffects: "",
     context: {},
-    eligibility: { tier: "any", readOnly: true },
     idempotent: true,
     hierarchy: { root: "test", feature: "default" },
     ...overrides,
@@ -196,63 +195,6 @@ describe("createApp with packageSkillRouteModule", () => {
         packageSkillRouteModule: makePackageSkillRouteModule([skill1, skill2]),
       }),
     ).toThrow(/Duplicate skillId "pkg.dup.op"/);
-  });
-
-  test("forTier returns eligible package skills and excludes ineligible ones", () => {
-    const anySkill = makeSkill({
-      skillId: "pkg.open.read",
-      name: "read",
-      invocation: { method: "GET", path: "/pkg/open/read" },
-      hierarchy: { root: "pkg", feature: "open" },
-      eligibility: { tier: "any", readOnly: true },
-      sourcePackage: "test-pkg",
-    });
-
-    const managerSkill = makeSkill({
-      skillId: "pkg.mgr.act",
-      name: "act",
-      invocation: { method: "POST", path: "/pkg/mgr/act" },
-      hierarchy: { root: "pkg", feature: "mgr" },
-      eligibility: { tier: "manager", readOnly: false },
-      sourcePackage: "test-pkg",
-    });
-
-    const adminSkill = makeSkill({
-      skillId: "pkg.admin.config",
-      name: "config",
-      invocation: { method: "POST", path: "/pkg/admin/config" },
-      hierarchy: { root: "pkg", feature: "admin" },
-      eligibility: { tier: "admin", readOnly: false },
-      sourcePackage: "test-pkg",
-    });
-
-    const routeModule = makePackageSkillRouteModule([anySkill, managerSkill, adminSkill]);
-
-    const { registry } = createApp({
-      health: makeHealthDeps(),
-      packageSkillRouteModule: routeModule,
-    });
-
-    // "any" tier sees only "any" skills
-    const anyTier = registry.forTier("any");
-    const anyPkgSkills = anyTier.filter((s) => s.sourcePackage !== undefined);
-    expect(anyPkgSkills.map((s) => s.skillId)).toContain("pkg.open.read");
-    expect(anyPkgSkills.map((s) => s.skillId)).not.toContain("pkg.mgr.act");
-    expect(anyPkgSkills.map((s) => s.skillId)).not.toContain("pkg.admin.config");
-
-    // "manager" tier sees "any" and "manager"
-    const mgrTier = registry.forTier("manager");
-    const mgrPkgSkills = mgrTier.filter((s) => s.sourcePackage !== undefined);
-    expect(mgrPkgSkills.map((s) => s.skillId)).toContain("pkg.open.read");
-    expect(mgrPkgSkills.map((s) => s.skillId)).toContain("pkg.mgr.act");
-    expect(mgrPkgSkills.map((s) => s.skillId)).not.toContain("pkg.admin.config");
-
-    // "admin" tier sees everything
-    const adminTier = registry.forTier("admin");
-    const adminPkgSkills = adminTier.filter((s) => s.sourcePackage !== undefined);
-    expect(adminPkgSkills.map((s) => s.skillId)).toContain("pkg.open.read");
-    expect(adminPkgSkills.map((s) => s.skillId)).toContain("pkg.mgr.act");
-    expect(adminPkgSkills.map((s) => s.skillId)).toContain("pkg.admin.config");
   });
 
   test("package skill descriptions merge into navigation tree", () => {
