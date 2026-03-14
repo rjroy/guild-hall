@@ -34,32 +34,32 @@ function makeConfig(projectName = "test-project"): AppConfig {
 
 function makeMockGitOps(overrides: Partial<GitOps> = {}): GitOps {
   return {
-    commitAll: async () => false,
-    createBranch: async () => {},
-    branchExists: async () => false,
-    deleteBranch: async () => {},
-    hasCommitsBeyond: async () => false,
-    createWorktree: async () => {},
-    removeWorktree: async () => {},
-    configureSparseCheckout: async () => {},
-    squashMerge: async () => {},
-    hasUncommittedChanges: async () => false,
-    rebase: async () => {},
-    currentBranch: async () => "main",
-    listWorktrees: async () => [],
-    initClaudeBranch: async () => {},
-    detectDefaultBranch: async () => "main",
-    fetch: async () => {},
-    push: async () => {},
-    resetHard: async () => {},
-    resetSoft: async () => {},
-    createPullRequest: async () => "",
-    squashMergeNoCommit: async () => true,
-    listConflictedFiles: async () => [],
-    resolveConflictsTheirs: async () => {},
-    revParse: async () => "",
-    isAncestor: async () => false,
-    listBranches: async () => [],
+    commitAll: () => Promise.resolve(false),
+    createBranch: () => Promise.resolve(),
+    branchExists: () => Promise.resolve(false),
+    deleteBranch: () => Promise.resolve(),
+    hasCommitsBeyond: () => Promise.resolve(false),
+    createWorktree: () => Promise.resolve(),
+    removeWorktree: () => Promise.resolve(),
+    configureSparseCheckout: () => Promise.resolve(),
+    squashMerge: () => Promise.resolve(),
+    hasUncommittedChanges: () => Promise.resolve(false),
+    rebase: () => Promise.resolve(),
+    currentBranch: () => Promise.resolve("main"),
+    listWorktrees: () => Promise.resolve([]),
+    initClaudeBranch: () => Promise.resolve(),
+    detectDefaultBranch: () => Promise.resolve("main"),
+    fetch: () => Promise.resolve(),
+    push: () => Promise.resolve(),
+    resetHard: () => Promise.resolve(),
+    resetSoft: () => Promise.resolve(),
+    createPullRequest: () => Promise.resolve(""),
+    squashMergeNoCommit: () => Promise.resolve(true),
+    listConflictedFiles: () => Promise.resolve([]),
+    resolveConflictsTheirs: () => Promise.resolve(),
+    revParse: () => Promise.resolve(""),
+    isAncestor: () => Promise.resolve(false),
+    listBranches: () => Promise.resolve([]),
     ...overrides,
   } as GitOps;
 }
@@ -396,11 +396,11 @@ describe("POST /workspace/artifact/document/write", () => {
     let commitPath = "";
     let commitMessage = "";
     const mockGitOps = makeMockGitOps({
-      commitAll: async (worktreePath: string, message: string) => {
+      commitAll: (worktreePath: string, message: string) => {
         commitCalled = true;
         commitPath = worktreePath;
         commitMessage = message;
-        return true;
+        return Promise.resolve(true);
       },
     });
 
@@ -425,9 +425,10 @@ describe("POST /workspace/artifact/document/write", () => {
     let depCheckCalled = false;
     let depCheckProject = "";
     const app = makeTestApp({
-      checkDependencyTransitions: async (projectName: string) => {
+      checkDependencyTransitions: (projectName: string) => {
         depCheckCalled = true;
         depCheckProject = projectName;
+        return Promise.resolve();
       },
     });
 
@@ -448,7 +449,7 @@ describe("POST /workspace/artifact/document/write", () => {
     await writeTestArtifact("specs/git-fail.md", "---\ntitle: Test\nstatus: draft\ntags: []\ndate: 2026-01-01\n---\nContent.");
 
     const mockGitOps = makeMockGitOps({
-      commitAll: async () => { throw new Error("Git is broken"); },
+      commitAll: () => Promise.reject(new Error("Git is broken")),
     });
 
     const app = makeTestApp({ gitOps: mockGitOps });
@@ -468,9 +469,7 @@ describe("POST /workspace/artifact/document/write", () => {
     await writeTestArtifact("specs/dep-fail.md", "---\ntitle: Test\nstatus: draft\ntags: []\ndate: 2026-01-01\n---\nContent.");
 
     const app = makeTestApp({
-      checkDependencyTransitions: async () => {
-        throw new Error("Dependency check broken");
-      },
+      checkDependencyTransitions: () => Promise.reject(new Error("Dependency check broken")),
     });
 
     const res = await app.request("/workspace/artifact/document/write?projectName=test-project", {

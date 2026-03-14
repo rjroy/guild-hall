@@ -106,7 +106,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
   // Owns the full registration sequence: validate, git setup, config write, reload.
   routes.post("/system/config/project/register", async (c) => {
     try {
-      const body = await c.req.json() as { name?: string; path?: string };
+      const body: { name?: string; path?: string } = await c.req.json();
 
       if (!body.name || !body.path) {
         return c.json({ error: "name and path are required" }, 400);

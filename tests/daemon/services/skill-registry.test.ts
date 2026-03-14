@@ -1,8 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import {
-  createSkillRegistry,
-  type SkillTreeNode,
-} from "@/daemon/lib/skill-registry";
+import { createSkillRegistry } from "@/daemon/lib/skill-registry";
 import type { SkillDefinition } from "@/lib/types";
 
 function makeSkill(

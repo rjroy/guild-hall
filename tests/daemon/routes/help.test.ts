@@ -1,5 +1,4 @@
 import { describe, test, expect } from "bun:test";
-import { Hono } from "hono";
 import { createSkillRegistry } from "@/daemon/lib/skill-registry";
 import { createHelpRoutes } from "@/daemon/routes/help";
 import type { SkillDefinition } from "@/lib/types";
@@ -444,10 +443,10 @@ describe("Help Routes", () => {
     const res = await routes.request(
       "/commission/run/dispatch/help",
     );
-    const body = await res.json();
+    const body: { children: { name: string }[] } = await res.json();
 
     expect(body.children).toHaveLength(3);
-    expect(body.children.map((c: any) => c.name)).toEqual([
+    expect(body.children.map((c) => c.name)).toEqual([
       "dispatch",
       "cancel",
       "status",
