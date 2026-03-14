@@ -46,6 +46,20 @@ export function createCommissionHref(
   return `/projects/${encodedName}?tab=commissions&newCommission=true&dep=${encodedPath}`;
 }
 
+/**
+ * Builds the href for the "Request Meeting" link.
+ * Navigates to the project's meetings tab with query params that
+ * auto-open the form and pre-fill the artifact context.
+ */
+export function requestMeetingHref(
+  projectName: string,
+  artifactPath: string,
+): string {
+  const encodedName = encodeURIComponent(projectName);
+  const encodedPath = encodeURIComponent(artifactPath);
+  return `/projects/${encodedName}?tab=meetings&newMeeting=true&artifact=${encodedPath}`;
+}
+
 export default function MetadataSidebar({
   meta,
   projectName,
@@ -138,15 +152,28 @@ export default function MetadataSidebar({
           ) : (
             <EmptyState message="No commissions reference this artifact." />
           )}
-          {artifactPath && (
-            <Link
-              href={createCommissionHref(projectName, artifactPath)}
-              className={styles.createCommissionLink}
-            >
-              Create Commission from Artifact
-            </Link>
-          )}
         </div>
+
+        {/* Actions */}
+        {artifactPath && (
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Actions</h3>
+            <div className={styles.actionLinks}>
+              <Link
+                href={createCommissionHref(projectName, artifactPath)}
+                className={styles.actionLink}
+              >
+                Create Commission from Artifact
+              </Link>
+              <Link
+                href={requestMeetingHref(projectName, artifactPath)}
+                className={styles.actionLink}
+              >
+                Request Meeting
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Related artifacts */}
         {meta.related && meta.related.length > 0 && (

@@ -8,6 +8,7 @@ import MeetingList from "@/web/components/project/MeetingList";
 import CommissionList from "@/web/components/commission/CommissionList";
 import CommissionGraph from "@/web/components/dashboard/CommissionGraph";
 import CreateCommissionButton from "@/web/components/commission/CreateCommissionButton";
+import CreateMeetingButton from "@/web/components/meeting/CreateMeetingButton";
 import DaemonError from "@/web/components/ui/DaemonError";
 import styles from "./page.module.css";
 
@@ -16,10 +17,10 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ tab?: string; newCommission?: string; dep?: string }>;
+  searchParams: Promise<{ tab?: string; newCommission?: string; dep?: string; newMeeting?: string; artifact?: string }>;
 }) {
   const { name: rawName } = await params;
-  const { tab = "artifacts", newCommission, dep } = await searchParams;
+  const { tab = "artifacts", newCommission, dep, newMeeting, artifact } = await searchParams;
 
   const projectName = decodeURIComponent(rawName);
   const encoded = encodeURIComponent(projectName);
@@ -76,7 +77,16 @@ export default async function ProjectPage({
           </div>
         )}
         {tab === "meetings" && (
-          <MeetingList meetings={meetingArtifacts} projectName={projectName} />
+          <div className={styles.meetingTab}>
+            <div className={styles.meetingActions}>
+              <CreateMeetingButton
+                projectName={projectName}
+                defaultOpen={newMeeting === "true"}
+                initialArtifact={artifact}
+              />
+            </div>
+            <MeetingList meetings={meetingArtifacts} projectName={projectName} />
+          </div>
         )}
       </div>
     </div>

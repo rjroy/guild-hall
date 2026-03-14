@@ -23,6 +23,17 @@
   justify-content: flex-start;
 }
 
+.meetingTab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.meetingActions {
+  display: flex;
+  justify-content: flex-start;
+}
+
 /* --- Responsive --- */
 
 @media (max-width: 768px) {
