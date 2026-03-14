@@ -33,6 +33,19 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-14T01:14:00.853Z
+    event: status_cancelled
+    reason: "Commission cancelled by user"
+  - timestamp: 2026-03-14T03:21:55.774Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "cancelled"
+    to: "pending"
+  - timestamp: 2026-03-14T03:21:55.778Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
