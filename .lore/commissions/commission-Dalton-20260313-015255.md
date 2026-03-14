@@ -92,6 +92,19 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-14T00:13:19.827Z
+    event: status_failed
+    reason: "Session error: error_max_turns"
+  - timestamp: 2026-03-14T00:25:22.467Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "failed"
+    to: "pending"
+  - timestamp: 2026-03-14T00:25:22.471Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
