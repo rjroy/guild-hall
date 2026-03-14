@@ -1,7 +1,7 @@
 ---
 title: Project info gem icons are not discoverable as interactive elements
 date: 2026-03-10
-status: open
+status: wontfix
 tags: [ux, ui, dashboard]
 modules: [web/app/page, web/components/dashboard]
 ---
