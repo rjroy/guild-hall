@@ -61,6 +61,9 @@ export function artifactHref(
   return `/projects/${encodedName}/artifacts/${artifact.relativePath}`;
 }
 
+// Server component: receives Artifact[] with lastModified: Date.
+// Do NOT add "use client" — Date objects don't serialize cleanly
+// through the RSC protocol and would cause hydration mismatches.
 export default function RecentArtifacts({
   artifacts,
   projectName,
