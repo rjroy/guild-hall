@@ -61,7 +61,7 @@ Guild Hall's target architecture treats the daemon as the application. The daemo
 | Exit | Triggers When | Target |
 |------|---------------|--------|
 | Daemon route and payload details | Need the concrete REST resource model, request/response shapes, and streaming rules | [Design: daemon-rest-api](../../design/daemon-rest-api.md) |
-| CLI discovery and invocation UX | Need the exact command grammar and discovery model for daemon capabilities | [STUB: cli-progressive-discovery] |
+| CLI discovery and invocation UX | Need the exact command grammar and discovery model for daemon capabilities | [Spec: cli-progressive-discovery](cli-progressive-discovery.md) |
 | Worker package and runtime model | Need worker metadata, runtime configuration, and internal tool resolution | [Spec: guild-hall-workers](../workers/guild-hall-workers.md) |
 | Meetings and commissions | Need orchestration rules for interactive and autonomous daemon-managed work | [Spec: guild-hall-commissions](../commissions/guild-hall-commissions.md) |
 
