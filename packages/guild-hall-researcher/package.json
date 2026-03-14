@@ -18,12 +18,6 @@
         "commands": [
           "guild-hall artifact list **",
           "guild-hall artifact read **",
-          "guild-hall briefing **",
-          "guild-hall commission list **",
-          "guild-hall commission read **",
-          "guild-hall meeting list **",
-          "guild-hall meeting read **",
-          "guild-hall health **",
           "guild-hall models **",
           "guild-hall workers **"
         ],

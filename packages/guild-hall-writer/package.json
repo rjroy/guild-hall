@@ -20,7 +20,10 @@
           "rm .lore/**", "rm -f .lore/**",
           "mkdir .lore/**", "mkdir -p .lore/**",
           "mv .lore/**",
-          "guild-hall **"
+          "guild-hall artifact list **",
+          "guild-hall artifact read **",
+          "guild-hall models **",
+          "guild-hall workers **"
         ],
         "allow": true
       },
