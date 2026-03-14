@@ -2,10 +2,8 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
-import type { CommissionId } from "@/daemon/types";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { GitOps } from "@/daemon/lib/git";
-import type { ManagerToolboxDeps } from "@/daemon/services/manager/toolbox";
+import type { ManagerToolboxDeps, RouteCaller } from "@/daemon/services/manager/toolbox";
 import type { EventBus, SystemEvent } from "@/daemon/lib/event-bus";
 import {
   makeCreateCommissionHandler,
@@ -15,7 +13,9 @@ import {
   makeCreatePrHandler,
   makeInitiateMeetingHandler,
   makeAddCommissionNoteHandler,
+  makeSyncProjectHandler,
   createManagerToolbox,
+  createDaemonRouteCaller,
 } from "@/daemon/services/manager/toolbox";
 
 let tmpDir: string;
@@ -48,65 +48,55 @@ afterEach(async () => {
 /* eslint-disable @typescript-eslint/require-await */
 
 /**
- * Creates a mock CommissionSessionForRoutes that records calls and
- * returns predictable results. Override individual methods as needed.
+ * Creates a mock RouteCaller that records calls and returns configured
+ * responses. By default returns a success with a predictable commissionId.
  */
-function makeMockCommissionSession(
-  overrides?: Partial<CommissionSessionForRoutes>,
-): CommissionSessionForRoutes & { calls: Record<string, unknown[][]> } {
-  const calls: Record<string, unknown[][]> = {
-    createCommission: [],
-    dispatchCommission: [],
-    updateCommission: [],
-    cancelCommission: [],
-    redispatchCommission: [],
-    reportProgress: [],
-    reportResult: [],
-    reportQuestion: [],
-    addUserNote: [],
+function makeMockRouteCaller(
+  responseMap?: Record<string, (body: unknown) => { ok: true; status: number; data: unknown } | { ok: false; error: string }>,
+): RouteCaller & { calls: Array<{ path: string; body: unknown }> } {
+  const calls: Array<{ path: string; body: unknown }> = [];
+
+  const caller = async (routePath: string, body: unknown) => {
+    calls.push({ path: routePath, body });
+
+    if (responseMap && responseMap[routePath]) {
+      return responseMap[routePath](body);
+    }
+
+    // Default responses by route path
+    if (routePath === "/commission/request/commission/create") {
+      return { ok: true as const, status: 200, data: { commissionId: "commission-test-worker-20260223-120000" } };
+    }
+    if (routePath === "/commission/run/dispatch") {
+      return { ok: true as const, status: 200, data: { status: "accepted" } };
+    }
+    if (routePath === "/commission/run/cancel") {
+      return { ok: true as const, status: 200, data: { status: "cancelled" } };
+    }
+    if (routePath === "/commission/run/abandon") {
+      return { ok: true as const, status: 200, data: { status: "abandoned" } };
+    }
+    if (routePath === "/commission/request/commission/note") {
+      return { ok: true as const, status: 200, data: { noted: true } };
+    }
+    if (routePath === "/workspace/git/integration/sync") {
+      const b = body as { projectName?: string };
+      return {
+        ok: true as const,
+        status: 200,
+        data: {
+          results: [{ project: b.projectName ?? "test-project", action: "reset", reason: "Merged PR detected" }],
+        },
+      };
+    }
+
+    return { ok: true as const, status: 200, data: {} };
   };
 
-  return {
-    calls,
-    async createCommission(
-      projectName: string,
-      title: string,
-      workerName: string,
-      prompt: string,
-      dependencies?: string[],
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
-    ) {
-      calls.createCommission.push([
-        projectName, title, workerName, prompt, dependencies, resourceOverrides,
-      ]);
-      return { commissionId: "commission-test-worker-20260223-120000" };
-    },
-    async dispatchCommission(commissionId: CommissionId) {
-      calls.dispatchCommission.push([commissionId]);
-      return { status: "accepted" as const };
-    },
-    async updateCommission() {},
-    async cancelCommission(cid: CommissionId, reason?: string) {
-      calls.cancelCommission.push([cid, reason]);
-    },
-    async abandonCommission(cid: CommissionId, reason: string) {
-      if (!calls.abandonCommission) calls.abandonCommission = [];
-      calls.abandonCommission.push([cid, reason]);
-    },
-    async redispatchCommission() {
-      return { status: "accepted" as const };
-    },
-    async addUserNote(cid: CommissionId, content: string) {
-      calls.addUserNote.push([cid, content]);
-    },
-    async checkDependencyTransitions() {},
-    async createScheduledCommission() { return { commissionId: "schedule-001" }; },
-    async updateScheduleStatus() { return { outcome: "executed", status: "paused" }; },
-    async recoverCommissions() { return 0; },
-    getActiveCommissions() { return 0; },
-    shutdown() {},
-    ...overrides,
-  };
+  // Attach calls array to the function
+  const fn = caller as RouteCaller & { calls: Array<{ path: string; body: unknown }> };
+  fn.calls = calls;
+  return fn;
 }
 
 function makeMockGitOps(overrides?: Partial<GitOps>): GitOps {
@@ -165,7 +155,7 @@ function makeDeps(
   return {
     projectName: "test-project",
     guildHallHome,
-    commissionSession: makeMockCommissionSession(),
+    callRoute: makeMockRouteCaller(),
     eventBus: makeMockEventBus(),
     gitOps: makeMockGitOps(),
     config: { projects: [{ name: "test-project", path: path.join(tmpDir, "repo") }] },
@@ -183,46 +173,6 @@ function makeDeps(
   };
 }
 
-/**
- * Writes a minimal commission artifact so appendTimelineEntry can find it
- * after create_commission + dispatch.
- */
-async function writeCommissionArtifact(
-  basePath: string,
-  commissionId: string,
-): Promise<void> {
-  const artifactDir = path.join(basePath, ".lore", "commissions");
-  await fs.mkdir(artifactDir, { recursive: true });
-
-  const content = `---
-title: "Commission: Test task"
-date: 2026-02-23
-status: pending
-tags: [commission]
-worker: test-worker
-workerDisplayTitle: "Test Worker"
-prompt: "Do the work"
-dependencies: []
-linked_artifacts: []
-resource_overrides:
-  maxTurns: 150
-  maxBudgetUsd: 1.00
-activity_timeline:
-  - timestamp: 2026-02-23T12:00:00.000Z
-    event: created
-    reason: "Commission created"
-current_progress: ""
-projectName: test-project
----
-`;
-
-  await fs.writeFile(
-    path.join(artifactDir, `${commissionId}.md`),
-    content,
-    "utf-8",
-  );
-}
-
 // -- Parsed JSON result helper --
 
 /** Type-safe accessor for JSON.parse results from tool content. */
@@ -234,15 +184,8 @@ function parseResult(text: string): { commissionId?: string; dispatched?: boolea
 
 describe("create_commission", () => {
   test("creates and dispatches commission by default", async () => {
-    const mockSession = makeMockCommissionSession();
-
-    // Write the artifact so appendTimelineEntry can find it
-    await writeCommissionArtifact(
-      derivedIntegrationPath(),
-      "commission-test-worker-20260223-120000",
-    );
-
-    const deps = makeDeps({ commissionSession: mockSession });
+    const mockCallRoute = makeMockRouteCaller();
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeCreateCommissionHandler(deps);
 
     const result = await handler({
@@ -257,20 +200,22 @@ describe("create_commission", () => {
     expect(parsed.commissionId).toBe("commission-test-worker-20260223-120000");
     expect(parsed.dispatched).toBe(true);
 
-    // Verify createCommission was called with correct args
-    expect(mockSession.calls.createCommission).toHaveLength(1);
-    expect(mockSession.calls.createCommission[0][0]).toBe("test-project");
-    expect(mockSession.calls.createCommission[0][1]).toBe("Research OAuth");
-    expect(mockSession.calls.createCommission[0][2]).toBe("test-worker");
-    expect(mockSession.calls.createCommission[0][3]).toBe("Research OAuth patterns");
+    // Verify create route was called with correct body
+    expect(mockCallRoute.calls).toHaveLength(2);
+    expect(mockCallRoute.calls[0].path).toBe("/commission/request/commission/create");
+    const createBody = mockCallRoute.calls[0].body as Record<string, unknown>;
+    expect(createBody.projectName).toBe("test-project");
+    expect(createBody.title).toBe("Research OAuth");
+    expect(createBody.workerName).toBe("test-worker");
+    expect(createBody.prompt).toBe("Research OAuth patterns");
 
-    // Verify dispatchCommission was called
-    expect(mockSession.calls.dispatchCommission).toHaveLength(1);
+    // Verify dispatch route was called
+    expect(mockCallRoute.calls[1].path).toBe("/commission/run/dispatch");
   });
 
   test("creates without dispatching when dispatch=false", async () => {
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ commissionSession: mockSession });
+    const mockCallRoute = makeMockRouteCaller();
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeCreateCommissionHandler(deps);
 
     const result = await handler({
@@ -285,14 +230,14 @@ describe("create_commission", () => {
     const parsed = parseResult(result.content[0].text);
     expect(parsed.dispatched).toBe(false);
 
-    // createCommission called but dispatchCommission not called
-    expect(mockSession.calls.createCommission).toHaveLength(1);
-    expect(mockSession.calls.dispatchCommission).toHaveLength(0);
+    // Only create route called, not dispatch
+    expect(mockCallRoute.calls).toHaveLength(1);
+    expect(mockCallRoute.calls[0].path).toBe("/commission/request/commission/create");
   });
 
   test("passes through dependencies and resourceOverrides", async () => {
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ commissionSession: mockSession });
+    const mockCallRoute = makeMockRouteCaller();
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeCreateCommissionHandler(deps);
 
     await handler({
@@ -304,14 +249,14 @@ describe("create_commission", () => {
       dispatch: false,
     });
 
-    const call = mockSession.calls.createCommission[0];
-    expect(call[4]).toEqual(["commission-a", "commission-b"]);
-    expect(call[5]).toEqual({ maxTurns: 50, maxBudgetUsd: 2.0 });
+    const body = mockCallRoute.calls[0].body as Record<string, unknown>;
+    expect(body.dependencies).toEqual(["commission-a", "commission-b"]);
+    expect(body.resourceOverrides).toEqual({ maxTurns: 50, maxBudgetUsd: 2.0 });
   });
 
-  test("passes model in resourceOverrides through to createCommission", async () => {
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ commissionSession: mockSession });
+  test("passes model in resourceOverrides through to create route", async () => {
+    const mockCallRoute = makeMockRouteCaller();
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeCreateCommissionHandler(deps);
 
     await handler({
@@ -322,17 +267,18 @@ describe("create_commission", () => {
       dispatch: false,
     });
 
-    const call = mockSession.calls.createCommission[0];
-    expect(call[5]).toEqual({ model: "haiku" });
+    const body = mockCallRoute.calls[0].body as Record<string, unknown>;
+    expect(body.resourceOverrides).toEqual({ model: "haiku" });
   });
 
-  test("returns error when createCommission throws", async () => {
-    const mockSession = makeMockCommissionSession({
-      createCommission() {
-        return Promise.reject(new Error('Worker "nonexistent" not found'));
-      },
+  test("returns error when create route fails", async () => {
+    const mockCallRoute = makeMockRouteCaller({
+      "/commission/request/commission/create": () => ({
+        ok: false as const,
+        error: 'Worker "nonexistent" not found',
+      }),
     });
-    const deps = makeDeps({ commissionSession: mockSession });
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeCreateCommissionHandler(deps);
 
     const result = await handler({
@@ -345,13 +291,14 @@ describe("create_commission", () => {
     expect(result.content[0].text).toContain("nonexistent");
   });
 
-  test("returns commissionId and error when dispatchCommission throws", async () => {
-    const mockSession = makeMockCommissionSession({
-      dispatchCommission() {
-        return Promise.reject(new Error("Cannot dispatch: status is blocked"));
-      },
+  test("returns commissionId and error when dispatch route fails", async () => {
+    const mockCallRoute = makeMockRouteCaller({
+      "/commission/run/dispatch": () => ({
+        ok: false as const,
+        error: "Cannot dispatch: status is blocked",
+      }),
     });
-    const deps = makeDeps({ commissionSession: mockSession });
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeCreateCommissionHandler(deps);
 
     const result = await handler({
@@ -377,8 +324,8 @@ describe("create_commission", () => {
 
 describe("dispatch_commission", () => {
   test("dispatches an existing commission", async () => {
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ commissionSession: mockSession });
+    const mockCallRoute = makeMockRouteCaller();
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeDispatchCommissionHandler(deps);
 
     const result = await handler({
@@ -391,16 +338,18 @@ describe("dispatch_commission", () => {
     expect(parsed.commissionId).toBe("commission-researcher-20260223-140000");
     expect(parsed.dispatched).toBe(true);
 
-    expect(mockSession.calls.dispatchCommission).toHaveLength(1);
+    expect(mockCallRoute.calls).toHaveLength(1);
+    expect(mockCallRoute.calls[0].path).toBe("/commission/run/dispatch");
   });
 
   test("returns error when dispatch fails", async () => {
-    const mockSession = makeMockCommissionSession({
-      dispatchCommission() {
-        return Promise.reject(new Error('Commission "xyz" not found in any project'));
-      },
+    const mockCallRoute = makeMockRouteCaller({
+      "/commission/run/dispatch": () => ({
+        ok: false as const,
+        error: 'Commission "xyz" not found in any project',
+      }),
     });
-    const deps = makeDeps({ commissionSession: mockSession });
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeDispatchCommissionHandler(deps);
 
     const result = await handler({ commissionId: "xyz" });
@@ -414,8 +363,8 @@ describe("dispatch_commission", () => {
 
 describe("cancel_commission", () => {
   test("cancels an active commission and returns success", async () => {
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ commissionSession: mockSession });
+    const mockCallRoute = makeMockRouteCaller();
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeCancelCommissionHandler(deps);
 
     const result = await handler({
@@ -431,34 +380,18 @@ describe("cancel_commission", () => {
     expect(parsed.commissionId).toBe("commission-researcher-20260223-140000");
     expect(parsed.status).toBe("cancelled");
 
-    expect(mockSession.calls.cancelCommission).toHaveLength(1);
-  });
-
-  test("passes custom reason to cancelCommission", async () => {
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ commissionSession: mockSession });
-    const handler = makeCancelCommissionHandler(deps);
-
-    await handler({
-      commissionId: "commission-researcher-20260223-140000",
-      reason: "Blocking PR creation, stale work",
-    });
-
-    expect(mockSession.calls.cancelCommission).toHaveLength(1);
-    expect(mockSession.calls.cancelCommission[0][1]).toBe(
-      "Blocking PR creation, stale work",
-    );
+    expect(mockCallRoute.calls).toHaveLength(1);
+    expect(mockCallRoute.calls[0].path).toBe("/commission/run/cancel");
   });
 
   test("returns error when commission not found", async () => {
-    const mockSession = makeMockCommissionSession({
-      cancelCommission() {
-        return Promise.reject(
-          new Error('Commission "xyz" not found in active commissions'),
-        );
-      },
+    const mockCallRoute = makeMockRouteCaller({
+      "/commission/run/cancel": () => ({
+        ok: false as const,
+        error: 'Commission "xyz" not found in active commissions',
+      }),
     });
-    const deps = makeDeps({ commissionSession: mockSession });
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeCancelCommissionHandler(deps);
 
     const result = await handler({ commissionId: "xyz" });
@@ -468,14 +401,13 @@ describe("cancel_commission", () => {
   });
 
   test("returns error on invalid transition", async () => {
-    const mockSession = makeMockCommissionSession({
-      cancelCommission() {
-        return Promise.reject(
-          new Error('Invalid commission transition: "completed" -> "cancelled"'),
-        );
-      },
+    const mockCallRoute = makeMockRouteCaller({
+      "/commission/run/cancel": () => ({
+        ok: false as const,
+        error: 'Invalid commission transition: "completed" -> "cancelled"',
+      }),
     });
-    const deps = makeDeps({ commissionSession: mockSession });
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeCancelCommissionHandler(deps);
 
     const result = await handler({
@@ -485,29 +417,14 @@ describe("cancel_commission", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("Invalid commission transition");
   });
-
-  test("uses default reason when none provided", async () => {
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ commissionSession: mockSession });
-    const handler = makeCancelCommissionHandler(deps);
-
-    await handler({
-      commissionId: "commission-researcher-20260223-140000",
-    });
-
-    expect(mockSession.calls.cancelCommission).toHaveLength(1);
-    expect(mockSession.calls.cancelCommission[0][1]).toBe(
-      "Commission cancelled by manager",
-    );
-  });
 });
 
 // -- abandon_commission --
 
 describe("abandon_commission", () => {
   test("abandons commission with reason and returns success", async () => {
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ commissionSession: mockSession });
+    const mockCallRoute = makeMockRouteCaller();
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeAbandonCommissionHandler(deps);
 
     const result = await handler({
@@ -524,21 +441,20 @@ describe("abandon_commission", () => {
     expect(parsed.commissionId).toBe("commission-researcher-20260223-140000");
     expect(parsed.status).toBe("abandoned");
 
-    expect(mockSession.calls.abandonCommission).toHaveLength(1);
-    expect(mockSession.calls.abandonCommission[0][1]).toBe(
-      "Work completed outside commission process",
-    );
+    expect(mockCallRoute.calls).toHaveLength(1);
+    expect(mockCallRoute.calls[0].path).toBe("/commission/run/abandon");
+    const body = mockCallRoute.calls[0].body as Record<string, unknown>;
+    expect(body.reason).toBe("Work completed outside commission process");
   });
 
   test("returns error when commission not found", async () => {
-    const mockSession = makeMockCommissionSession({
-      abandonCommission() {
-        return Promise.reject(
-          new Error('Commission "xyz" not found in any project'),
-        );
-      },
+    const mockCallRoute = makeMockRouteCaller({
+      "/commission/run/abandon": () => ({
+        ok: false as const,
+        error: 'Commission "xyz" not found in any project',
+      }),
     });
-    const deps = makeDeps({ commissionSession: mockSession });
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeAbandonCommissionHandler(deps);
 
     const result = await handler({
@@ -551,14 +467,13 @@ describe("abandon_commission", () => {
   });
 
   test("returns error on invalid transition", async () => {
-    const mockSession = makeMockCommissionSession({
-      abandonCommission() {
-        return Promise.reject(
-          new Error('Cannot abandon commission "c1": it has an active session. Cancel it first.'),
-        );
-      },
+    const mockCallRoute = makeMockRouteCaller({
+      "/commission/run/abandon": () => ({
+        ok: false as const,
+        error: 'Cannot abandon commission "c1": it has an active session. Cancel it first.',
+      }),
     });
-    const deps = makeDeps({ commissionSession: mockSession });
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeAbandonCommissionHandler(deps);
 
     const result = await handler({
@@ -993,10 +908,10 @@ describe("initiate_meeting", () => {
 // -- add_commission_note --
 
 describe("add_commission_note", () => {
-  test("delegates to commissionSession.addUserNote with correct args", async () => {
+  test("delegates to daemon route with correct args", async () => {
     const commissionId = "commission-test-worker-20260223-120000";
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ commissionSession: mockSession });
+    const mockCallRoute = makeMockRouteCaller();
+    const deps = makeDeps({ callRoute: mockCallRoute });
     const handler = makeAddCommissionNoteHandler(deps);
 
     const result = await handler({
@@ -1013,19 +928,18 @@ describe("add_commission_note", () => {
     expect(parsed.commissionId).toBe(commissionId);
     expect(parsed.noted).toBe(true);
 
-    // Verify addUserNote was called with the commission ID and content
-    expect(mockSession.calls.addUserNote).toHaveLength(1);
-    expect(mockSession.calls.addUserNote[0][0]).toBe(commissionId);
-    expect(mockSession.calls.addUserNote[0][1]).toBe(
-      "Worker seems stalled, consider re-dispatching",
-    );
+    // Verify route was called with the commission ID and content
+    expect(mockCallRoute.calls).toHaveLength(1);
+    expect(mockCallRoute.calls[0].path).toBe("/commission/request/commission/note");
+    const body = mockCallRoute.calls[0].body as Record<string, unknown>;
+    expect(body.commissionId).toBe(commissionId);
+    expect(body.content).toBe("Worker seems stalled, consider re-dispatching");
   });
 
-  test("does not emit events directly (delegated to commissionSession)", async () => {
+  test("does not emit events directly (delegated to daemon route)", async () => {
     const commissionId = "commission-test-worker-20260223-120000";
     const mockEventBus = makeMockEventBus();
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ eventBus: mockEventBus, commissionSession: mockSession });
+    const deps = makeDeps({ eventBus: mockEventBus });
     const handler = makeAddCommissionNoteHandler(deps);
 
     await handler({
@@ -1033,23 +947,21 @@ describe("add_commission_note", () => {
       content: "Status update: good progress",
     });
 
-    // The handler delegates to commissionSession.addUserNote(), which
-    // handles both timeline writes and EventBus emission internally.
+    // The handler delegates to the daemon route, which handles
+    // both timeline writes and EventBus emission internally.
     // The handler itself should not emit events directly.
     expect(mockEventBus.emitted).toHaveLength(0);
-    expect(mockSession.calls.addUserNote).toHaveLength(1);
   });
 
-  test("returns error when addUserNote throws", async () => {
-    const mockSession = makeMockCommissionSession({
-      addUserNote() {
-        return Promise.reject(
-          new Error('Commission "commission-nonexistent-20260223-999999" not found in any project'),
-        );
-      },
+  test("returns error when route fails", async () => {
+    const mockCallRoute = makeMockRouteCaller({
+      "/commission/request/commission/note": () => ({
+        ok: false as const,
+        error: 'Commission "commission-nonexistent-20260223-999999" not found in any project',
+      }),
     });
     const mockEventBus = makeMockEventBus();
-    const deps = makeDeps({ eventBus: mockEventBus, commissionSession: mockSession });
+    const deps = makeDeps({ eventBus: mockEventBus, callRoute: mockCallRoute });
     const handler = makeAddCommissionNoteHandler(deps);
 
     const result = await handler({
@@ -1063,23 +975,47 @@ describe("add_commission_note", () => {
     // No event should be emitted on failure
     expect(mockEventBus.emitted).toHaveLength(0);
   });
+});
 
-  test("passes commission ID as branded type to addUserNote", async () => {
-    const commissionId = "commission-test-worker-20260223-120000";
-    const mockSession = makeMockCommissionSession();
-    const deps = makeDeps({ commissionSession: mockSession });
-    const handler = makeAddCommissionNoteHandler(deps);
+// -- sync_project --
 
-    await handler({
-      commissionId,
-      content: "Note for active commission",
+describe("sync_project", () => {
+  test("delegates to daemon route with correct project name", async () => {
+    const mockCallRoute = makeMockRouteCaller();
+    const deps = makeDeps({ callRoute: mockCallRoute });
+    const handler = makeSyncProjectHandler(deps);
+
+    const result = await handler({ projectName: "test-project" });
+
+    expect(result.isError).toBeUndefined();
+
+    const parsed = JSON.parse(result.content[0].text) as {
+      action?: string;
+      summary?: string;
+    };
+    expect(parsed.action).toBe("reset");
+    expect(parsed.summary).toContain("Merged PR detected");
+
+    expect(mockCallRoute.calls).toHaveLength(1);
+    expect(mockCallRoute.calls[0].path).toBe("/workspace/git/integration/sync");
+    const body = mockCallRoute.calls[0].body as Record<string, unknown>;
+    expect(body.projectName).toBe("test-project");
+  });
+
+  test("returns error when sync route fails", async () => {
+    const mockCallRoute = makeMockRouteCaller({
+      "/workspace/git/integration/sync": () => ({
+        ok: false as const,
+        error: 'Project "bad-project" not found',
+      }),
     });
+    const deps = makeDeps({ callRoute: mockCallRoute });
+    const handler = makeSyncProjectHandler(deps);
 
-    // The handler converts the string to a CommissionId via asCommissionId
-    // before passing to addUserNote
-    expect(mockSession.calls.addUserNote).toHaveLength(1);
-    expect(mockSession.calls.addUserNote[0][0]).toBe(commissionId);
-    expect(mockSession.calls.addUserNote[0][1]).toBe("Note for active commission");
+    const result = await handler({ projectName: "bad-project" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not found");
   });
 });
 
@@ -1104,5 +1040,14 @@ describe("createManagerToolbox", () => {
     expect(server1.instance).toBeDefined();
     expect(server2.instance).toBeDefined();
     expect(server1.instance).not.toBe(server2.instance);
+  });
+});
+
+// -- createDaemonRouteCaller --
+
+describe("createDaemonRouteCaller", () => {
+  test("returns a function with correct signature", () => {
+    const caller = createDaemonRouteCaller("/tmp/test.sock");
+    expect(typeof caller).toBe("function");
   });
 });

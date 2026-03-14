@@ -22,6 +22,7 @@ import type { CommissionSessionForRoutes } from "@/daemon/services/commission/or
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
+import type { SessionPrepDeps } from "@/daemon/lib/agent-sdk/sdk-runner";
 
 export interface AppDeps {
   health: HealthDeps;
@@ -298,7 +299,7 @@ export async function createProductionApp(options?: {
     "@/daemon/services/manager/worker"
   );
 
-  const prepDeps = {
+  const prepDeps: SessionPrepDeps = {
     resolveToolSet,
     loadMemories,
     activateWorker: activateWorkerFn,
@@ -447,6 +448,12 @@ export async function createProductionApp(options?: {
       guildHallHome,
     },
   });
+
+  // Late-bind the skill registry for progressive discovery (REQ-DAB-5).
+  // The registry is constructed during createApp() which happens after
+  // prepDeps is created. Since prepDeps is shared across all orchestrators,
+  // setting it here makes skills available to all session types.
+  prepDeps.skillRegistry = registry;
 
   return { app, registry, shutdown: () => scheduler.stop() };
 }

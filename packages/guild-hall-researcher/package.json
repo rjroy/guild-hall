@@ -11,7 +11,34 @@
     },
     "model": "opus",
     "domainToolboxes": [],
-    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
+    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit", "Bash"],
+    "canUseToolRules": [
+      {
+        "tool": "Bash",
+        "commands": [
+          "guild-hall artifact list **",
+          "guild-hall artifact read **",
+          "guild-hall briefing **",
+          "guild-hall commission list **",
+          "guild-hall commission read **",
+          "guild-hall meeting list **",
+          "guild-hall meeting read **",
+          "guild-hall health **",
+          "guild-hall models **",
+          "guild-hall workers **"
+        ],
+        "allow": true
+      },
+      {
+        "tool": "Bash",
+        "allow": false,
+        "reason": "Only read-only guild-hall commands are permitted"
+      }
+    ],
+    "skillAccess": {
+      "tiers": ["any"],
+      "readOnlyOnly": true
+    },
     "checkoutScope": "sparse",
     "resourceDefaults": {
       "maxTurns": 100

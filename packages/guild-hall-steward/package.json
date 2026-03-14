@@ -10,7 +10,22 @@
       "portraitPath": "/images/portraits/edmund-steward.webp"
     },
     "domainToolboxes": ["guild-hall-email"],
-    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"],
+    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    "canUseToolRules": [
+      {
+        "tool": "Bash",
+        "commands": ["guild-hall **"],
+        "allow": true
+      },
+      {
+        "tool": "Bash",
+        "allow": false,
+        "reason": "Only guild-hall CLI commands are permitted"
+      }
+    ],
+    "skillAccess": {
+      "tiers": ["any"]
+    },
     "checkoutScope": "sparse",
     "resourceDefaults": {
       "maxTurns": 80

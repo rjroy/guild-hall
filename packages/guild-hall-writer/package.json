@@ -19,14 +19,15 @@
         "commands": [
           "rm .lore/**", "rm -f .lore/**",
           "mkdir .lore/**", "mkdir -p .lore/**",
-          "mv .lore/**"
+          "mv .lore/**",
+          "guild-hall **"
         ],
         "allow": true
       },
       {
         "tool": "Bash",
         "allow": false,
-        "reason": "Only file operations (rm, mkdir, mv) within .lore/ are permitted"
+        "reason": "Only file operations (rm, mkdir, mv) within .lore/ and guild-hall CLI commands are permitted"
       }
     ],
     "checkoutScope": "full",

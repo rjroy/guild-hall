@@ -190,6 +190,13 @@ export interface WorkerMetadata {
   resourceDefaults?: ResourceDefaults;
   /** Determines git isolation for meetings. "project" runs in the integration worktree; "activity" (default) gets its own branch/worktree. */
   meetingScope?: "project" | "activity";
+  /** Skill eligibility constraints for CLI skill access. Determines which
+   *  daemon-governed skills this worker can invoke via guild-hall commands.
+   *  Omit for default: tier "any", no read-only restriction. */
+  skillAccess?: {
+    tiers: Array<SkillEligibility["tier"]>;
+    readOnlyOnly?: boolean;
+  };
 }
 
 /**

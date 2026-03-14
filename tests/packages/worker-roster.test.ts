@@ -30,13 +30,13 @@ const expectedRoleProfiles: Record<string, {
     identityName: "Thorne",
     descriptionIntent: /critical eye|inspects|alters nothing/i,
     checkoutScope: "full",
-    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep"],
+    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "Bash"],
   },
   "guild-hall-researcher": {
     identityName: "Verity",
     descriptionIntent: /beyond the guild walls|intelligence|never touches the forge/i,
     checkoutScope: "sparse",
-    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
+    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit", "Bash"],
   },
   "guild-hall-writer": {
     identityName: "Octavia",
@@ -54,7 +54,7 @@ const expectedRoleProfiles: Record<string, {
     identityName: "Edmund",
     descriptionIntent: /inbox|correspondence|household/i,
     checkoutScope: "sparse",
-    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"],
+    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
   },
 };
 
