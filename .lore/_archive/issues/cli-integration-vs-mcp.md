@@ -1,7 +1,7 @@
 ---
 title: Investigate integration surfaces for context efficiency
 date: 2026-03-11
-status: open
+status: resolved
 tags: [architecture, cli, mcp, rest-api, skills, integration, context-efficiency]
 modules: [cli, daemon, daemon-routes, packages]
 ---
