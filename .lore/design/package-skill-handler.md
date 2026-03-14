@@ -1,7 +1,7 @@
 ---
 title: Package Skill Handler Contract
 date: 2026-03-14
-status: draft
+status: implemented
 tags: [architecture, daemon, skills, packages, handler-contract, progressive-discovery]
 modules: [daemon, lib, packages]
 related:
