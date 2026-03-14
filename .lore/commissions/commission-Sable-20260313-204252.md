@@ -1,7 +1,7 @@
 ---
 title: "Commission: Add tests for skill registry and help endpoints (F3)"
 date: 2026-03-14
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Sable
@@ -23,6 +23,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-14T03:46:37.346Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-14T03:46:37.351Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
