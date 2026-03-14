@@ -16,10 +16,10 @@
       {
         "tool": "Bash",
         "commands": [
-          "guild-hall artifact list **",
-          "guild-hall artifact read **",
-          "guild-hall models **",
-          "guild-hall workers **"
+          "guild-hall workspace artifact document list **",
+          "guild-hall workspace artifact document read **",
+          "guild-hall system models catalog list **",
+          "guild-hall system packages worker list **"
         ],
         "allow": true
       },
