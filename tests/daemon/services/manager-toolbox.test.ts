@@ -13,7 +13,6 @@ import {
   makeCreatePrHandler,
   makeInitiateMeetingHandler,
   makeAddCommissionNoteHandler,
-  makeSyncProjectHandler,
   createManagerToolbox,
   createDaemonRouteCaller,
 } from "@/daemon/services/manager/toolbox";
@@ -974,48 +973,6 @@ describe("add_commission_note", () => {
 
     // No event should be emitted on failure
     expect(mockEventBus.emitted).toHaveLength(0);
-  });
-});
-
-// -- sync_project --
-
-describe("sync_project", () => {
-  test("delegates to daemon route with correct project name", async () => {
-    const mockCallRoute = makeMockRouteCaller();
-    const deps = makeDeps({ callRoute: mockCallRoute });
-    const handler = makeSyncProjectHandler(deps);
-
-    const result = await handler({ projectName: "test-project" });
-
-    expect(result.isError).toBeUndefined();
-
-    const parsed = JSON.parse(result.content[0].text) as {
-      action?: string;
-      summary?: string;
-    };
-    expect(parsed.action).toBe("reset");
-    expect(parsed.summary).toContain("Merged PR detected");
-
-    expect(mockCallRoute.calls).toHaveLength(1);
-    expect(mockCallRoute.calls[0].path).toBe("/workspace/git/integration/sync");
-    const body = mockCallRoute.calls[0].body as Record<string, unknown>;
-    expect(body.projectName).toBe("test-project");
-  });
-
-  test("returns error when sync route fails", async () => {
-    const mockCallRoute = makeMockRouteCaller({
-      "/workspace/git/integration/sync": () => ({
-        ok: false as const,
-        error: 'Project "bad-project" not found',
-      }),
-    });
-    const deps = makeDeps({ callRoute: mockCallRoute });
-    const handler = makeSyncProjectHandler(deps);
-
-    const result = await handler({ projectName: "bad-project" });
-
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("not found");
   });
 });
 
