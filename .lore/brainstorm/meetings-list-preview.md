@@ -1,7 +1,7 @@
 ---
 title: Meetings List Preview Text
 date: 2026-03-10
-status: complete
+status: resolved
 tags: [brainstorm, ux, meetings]
 related:
   - .lore/issues/meetings-list-no-preview.md

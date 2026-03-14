@@ -151,3 +151,4 @@ Commissions and meetings are orchestrators that compose these concerns. They seq
 - Git subprocesses spawned during hooks inherit `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_INDEX_FILE`. Any code that shells out to git (including `daemon/lib/git.ts` and test helpers) must strip these variables via `cleanGitEnv()`, or operations will target the hook's repository instead of the intended one.
 - When implementing features that interact with git internals, test under the hook execution context, not just in isolation.
 - DI seams created during refactoring must be wired in production code (createProductionApp). Fresh-eyes review by a sub-agent with no implementation context catches wiring gaps that the implementer misses.
+- YAML frontmatter values containing colons must be quoted. `title: "Implementation notes: foo"`, not `title: Implementation notes: foo`. gray-matter can't parse unquoted colons.

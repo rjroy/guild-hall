@@ -1,6 +1,6 @@
 ---
 title: Model name regex rejects hyphens, breaking local model names
-status: invalid
+status: wontfix
 tags: [bug, local-models, validation]
 date: 2026-03-10
 ---

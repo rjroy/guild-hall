@@ -1,7 +1,7 @@
 ---
 title: CLI rewrite - thin daemon client
 date: 2026-03-14
-status: draft
+status: executed
 tags: [cli, daemon, progressive-discovery, skills]
 modules: [cli, daemon]
 related:

@@ -1,7 +1,7 @@
 ---
 title: Daemon application boundary
 date: 2026-03-13
-status: approved
+status: implemented
 tags: [architecture, daemon, cli, web, agents, skills, unix-socket]
 modules: [daemon, web, cli]
 related:

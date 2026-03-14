@@ -1,7 +1,7 @@
 ---
 title: Dashboard panel ordering buries useful content
 date: 2026-03-10
-status: invalid
+status: wontfix
 tags: [ux, ui, dashboard]
 modules: [web/app/page, web/components/dashboard]
 ---

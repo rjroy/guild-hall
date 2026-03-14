@@ -1,7 +1,7 @@
 ---
 title: Daemon REST API
 date: 2026-03-13
-status: approved
+status: implemented
 tags: [architecture, daemon, rest-api, cli, discovery, skills]
 modules: [daemon, cli, web]
 related:
