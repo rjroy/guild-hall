@@ -480,6 +480,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "any", readOnly: false },
       idempotent: false,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
+      parameters: [{ name: "projectName", required: true, in: "body" as const }],
     },
     {
       skillId: "commission.request.commission.update",
@@ -492,6 +493,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "any", readOnly: false },
       idempotent: true,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
       skillId: "commission.request.commission.note",
@@ -504,6 +506,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "any", readOnly: false },
       idempotent: false,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
       skillId: "commission.request.commission.list",
@@ -516,6 +519,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "any", readOnly: true },
       idempotent: true,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
     {
       skillId: "commission.request.commission.read",
@@ -528,6 +532,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "any", readOnly: true },
       idempotent: true,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "commissionId", required: true, in: "query" as const }],
     },
     {
       skillId: "commission.run.dispatch",
@@ -540,6 +545,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "any", readOnly: false },
       idempotent: false,
       hierarchy: { root: "commission", feature: "run" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
       skillId: "commission.run.redispatch",
@@ -552,6 +558,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "any", readOnly: false },
       idempotent: false,
       hierarchy: { root: "commission", feature: "run" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
       skillId: "commission.run.cancel",
@@ -564,6 +571,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "any", readOnly: false },
       idempotent: true,
       hierarchy: { root: "commission", feature: "run" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
       skillId: "commission.run.abandon",
@@ -576,6 +584,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "any", readOnly: false },
       idempotent: true,
       hierarchy: { root: "commission", feature: "run" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
       skillId: "commission.schedule.commission.update",
@@ -588,6 +597,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "any", readOnly: false },
       idempotent: true,
       hierarchy: { root: "commission", feature: "schedule", object: "commission" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
       skillId: "commission.dependency.project.check",
@@ -600,6 +610,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       eligibility: { tier: "manager", readOnly: false },
       idempotent: true,
       hierarchy: { root: "commission", feature: "dependency", object: "project" },
+      parameters: [{ name: "projectName", required: true, in: "body" as const }],
     },
   ];
 

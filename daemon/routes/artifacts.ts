@@ -199,6 +199,7 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
       eligibility: { tier: "any", readOnly: true },
       idempotent: true,
       hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
     {
       skillId: "workspace.artifact.document.read",
@@ -211,6 +212,7 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
       eligibility: { tier: "any", readOnly: true },
       idempotent: true,
       hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "path", required: true, in: "query" as const }],
     },
     {
       skillId: "workspace.artifact.document.write",
@@ -223,6 +225,7 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
       eligibility: { tier: "any", readOnly: false },
       idempotent: true,
       hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+      parameters: [{ name: "projectName", required: true, in: "body" as const }],
     },
   ];
 

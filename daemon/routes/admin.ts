@@ -304,6 +304,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       eligibility: { tier: "admin", readOnly: false },
       idempotent: false,
       hierarchy: { root: "system", feature: "config", object: "project" },
+      parameters: [{ name: "name", required: true, in: "body" as const }, { name: "path", required: true, in: "body" as const }],
     },
     {
       skillId: "system.config.application.validate",
@@ -328,6 +329,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       eligibility: { tier: "admin", readOnly: false },
       idempotent: true,
       hierarchy: { root: "workspace", feature: "git", object: "branch" },
+      parameters: [{ name: "projectName", required: false, in: "body" as const }],
     },
     {
       skillId: "workspace.git.integration.sync",
@@ -340,6 +342,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       eligibility: { tier: "admin", readOnly: false },
       idempotent: true,
       hierarchy: { root: "workspace", feature: "git", object: "integration" },
+      parameters: [{ name: "projectName", required: false, in: "body" as const }],
     },
   ];
 

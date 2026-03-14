@@ -85,6 +85,7 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): RouteModule {
       eligibility: { tier: "any", readOnly: true },
       idempotent: true,
       hierarchy: { root: "system", feature: "config", object: "project" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
     {
       skillId: "commission.dependency.project.graph",
@@ -97,6 +98,7 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): RouteModule {
       eligibility: { tier: "any", readOnly: true },
       idempotent: true,
       hierarchy: { root: "commission", feature: "dependency", object: "project" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
   ];
 

@@ -485,3 +485,124 @@ describe("Help Routes", () => {
     expect(body.method).toBeUndefined();
   });
 });
+
+describe("GET /help/skills", () => {
+  test("returns flat list of all skills", async () => {
+    const skills = [
+      makeSkill({
+        skillId: "system.health",
+        name: "health",
+        description: "Check health",
+        hierarchy: { root: "system", feature: "health" },
+      }),
+      makeSkill({
+        skillId: "workspace.artifact.document.list",
+        name: "list",
+        description: "List artifacts",
+        hierarchy: { root: "workspace", feature: "artifact", object: "document" },
+        parameters: [{ name: "projectName", required: true, in: "query" }],
+      }),
+    ];
+
+    const registry = createSkillRegistry(skills);
+    const routes = createHelpRoutes(registry);
+
+    const res = await routes.request("/help/skills");
+    expect(res.status).toBe(200);
+
+    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+    expect(body.skills).toHaveLength(2);
+    expect(body.skills[0].skillId).toBe("system.health");
+    expect(body.skills[1].skillId).toBe("workspace.artifact.document.list");
+    expect(body.skills[1].parameters).toEqual([
+      { name: "projectName", required: true, in: "query" },
+    ]);
+  });
+
+  test("includes invocation and eligibility metadata", async () => {
+    const skill = makeSkill({
+      skillId: "commission.run.dispatch",
+      name: "dispatch",
+      invocation: { method: "POST", path: "/commission/run/dispatch" },
+      eligibility: { tier: "any", readOnly: false },
+      hierarchy: { root: "commission", feature: "run" },
+    });
+
+    const registry = createSkillRegistry([skill]);
+    const routes = createHelpRoutes(registry);
+
+    const res = await routes.request("/help/skills");
+    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+
+    expect(body.skills[0].invocation).toEqual({
+      method: "POST",
+      path: "/commission/run/dispatch",
+    });
+    expect(body.skills[0].eligibility).toEqual({
+      tier: "any",
+      readOnly: false,
+    });
+  });
+
+  test("includes streaming metadata when present", async () => {
+    const skill = makeSkill({
+      skillId: "meeting.session.message.send",
+      name: "send",
+      hierarchy: { root: "meeting", feature: "session", object: "message" },
+      streaming: { eventTypes: ["meeting_message", "meeting_status"] },
+    });
+
+    const registry = createSkillRegistry([skill]);
+    const routes = createHelpRoutes(registry);
+
+    const res = await routes.request("/help/skills");
+    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+
+    expect(body.skills[0].streaming).toEqual({
+      eventTypes: ["meeting_message", "meeting_status"],
+    });
+  });
+
+  test("omits streaming when not present", async () => {
+    const skill = makeSkill({
+      skillId: "system.health",
+      hierarchy: { root: "system", feature: "health" },
+    });
+
+    const registry = createSkillRegistry([skill]);
+    const routes = createHelpRoutes(registry);
+
+    const res = await routes.request("/help/skills");
+    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+
+    expect(body.skills[0].streaming).toBeUndefined();
+  });
+
+  test("returns empty list for empty registry", async () => {
+    const registry = createSkillRegistry([]);
+    const routes = createHelpRoutes(registry);
+
+    const res = await routes.request("/help/skills");
+    const body = await res.json() as { skills: unknown[] };
+
+    expect(body.skills).toHaveLength(0);
+  });
+
+  test("does not expose requestSchema, responseSchema, or sideEffects", async () => {
+    const skill = makeSkill({
+      skillId: "test.skill",
+      sideEffects: "Does something dangerous",
+      hierarchy: { root: "test", feature: "skills" },
+    });
+
+    const registry = createSkillRegistry([skill]);
+    const routes = createHelpRoutes(registry);
+
+    const res = await routes.request("/help/skills");
+    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+
+    expect(body.skills[0]).not.toHaveProperty("sideEffects");
+    expect(body.skills[0]).not.toHaveProperty("requestSchema");
+    expect(body.skills[0]).not.toHaveProperty("responseSchema");
+  });
+});

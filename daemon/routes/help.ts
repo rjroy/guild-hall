@@ -66,6 +66,7 @@ function findNode(
  * reflects the currently registered capabilities.
  *
  * GET /help                                     - List top-level roots
+ * GET /help/skills                              - Flat list of all skills
  * GET /:root/help                               - List features
  * GET /:root/:feature/help                      - List objects
  * GET /:root/:feature/:object/help              - List operations
@@ -154,6 +155,22 @@ export function createHelpRoutes(registry: SkillRegistry): Hono {
         c.req.param("operation"),
       ]),
     );
+  });
+
+  // GET /help/skills - Flat list of all skills with metadata
+  routes.get("/help/skills", (c) => {
+    const skills = Array.from(registry.skills.values()).map((skill) => ({
+      skillId: skill.skillId,
+      name: skill.name,
+      description: skill.description,
+      invocation: skill.invocation,
+      context: skill.context,
+      eligibility: skill.eligibility,
+      streaming: skill.streaming,
+      idempotent: skill.idempotent,
+      parameters: skill.parameters,
+    }));
+    return c.json({ skills });
   });
 
   return routes;

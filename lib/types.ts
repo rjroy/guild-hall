@@ -421,6 +421,20 @@ export interface SkillEligibility {
  * A daemon-owned capability contract. Each SkillDefinition describes
  * one invocable operation in the public API.
  */
+/** Declares a positional CLI parameter for a skill. */
+export interface SkillParameter {
+  /** Parameter name, used as the query/body field key. */
+  name: string;
+  /** Whether the parameter is required. */
+  required: boolean;
+  /** Where to place the parameter in the HTTP request. */
+  in: "query" | "body";
+}
+
+/**
+ * A daemon-owned capability contract. Each SkillDefinition describes
+ * one invocable operation in the public API.
+ */
 export interface SkillDefinition {
   /** Stable dotted name derived from the route path. Example: "commission.run.dispatch" */
   skillId: string;
@@ -459,6 +473,8 @@ export interface SkillDefinition {
     feature: string;
     object?: string;
   };
+  /** Positional CLI parameters, in order. The CLI maps trailing argv words to these. */
+  parameters?: SkillParameter[];
 }
 
 /**

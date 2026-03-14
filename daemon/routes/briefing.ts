@@ -46,6 +46,7 @@ export function createBriefingRoutes(deps: BriefingRouteDeps): RouteModule {
       eligibility: { tier: "any", readOnly: true },
       idempotent: true,
       hierarchy: { root: "coordination", feature: "review", object: "briefing" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
   ];
 

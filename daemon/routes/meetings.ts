@@ -419,6 +419,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       idempotent: false,
       streaming: { eventTypes: ["meeting_message", "meeting_status"] },
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+      parameters: [{ name: "projectName", required: true, in: "body" as const }],
     },
     {
       skillId: "meeting.request.meeting.accept",
@@ -432,6 +433,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       idempotent: false,
       streaming: { eventTypes: ["meeting_message", "meeting_status"] },
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+      parameters: [{ name: "projectName", required: true, in: "body" as const }, { name: "meetingId", required: true, in: "body" as const }],
     },
     {
       skillId: "meeting.request.meeting.decline",
@@ -444,6 +446,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       eligibility: { tier: "any", readOnly: false },
       idempotent: true,
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+      parameters: [{ name: "projectName", required: true, in: "body" as const }, { name: "meetingId", required: true, in: "body" as const }],
     },
     {
       skillId: "meeting.request.meeting.defer",
@@ -456,6 +459,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       eligibility: { tier: "any", readOnly: false },
       idempotent: true,
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+      parameters: [{ name: "projectName", required: true, in: "body" as const }, { name: "meetingId", required: true, in: "body" as const }],
     },
     {
       skillId: "meeting.request.meeting.list",
@@ -468,6 +472,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       eligibility: { tier: "any", readOnly: true },
       idempotent: true,
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
     {
       skillId: "meeting.request.meeting.read",
@@ -480,6 +485,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       eligibility: { tier: "any", readOnly: true },
       idempotent: true,
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "meetingId", required: true, in: "query" as const }],
     },
     {
       skillId: "meeting.session.message.send",
@@ -493,6 +499,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       idempotent: false,
       streaming: { eventTypes: ["meeting_message", "meeting_status"] },
       hierarchy: { root: "meeting", feature: "session", object: "message" },
+      parameters: [{ name: "meetingId", required: true, in: "body" as const }],
     },
     {
       skillId: "meeting.session.generation.interrupt",
@@ -505,6 +512,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       eligibility: { tier: "any", readOnly: false },
       idempotent: true,
       hierarchy: { root: "meeting", feature: "session", object: "generation" },
+      parameters: [{ name: "meetingId", required: true, in: "body" as const }],
     },
     {
       skillId: "meeting.session.meeting.close",
@@ -517,6 +525,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       eligibility: { tier: "any", readOnly: false },
       idempotent: true,
       hierarchy: { root: "meeting", feature: "session", object: "meeting" },
+      parameters: [{ name: "meetingId", required: true, in: "body" as const }],
     },
   ];
 
