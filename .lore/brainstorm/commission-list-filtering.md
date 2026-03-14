@@ -1,7 +1,7 @@
 ---
 title: Commission list filtering - multi-select status checkboxes
 date: 2026-03-10
-status: open
+status: resolved
 tags: [ux, commissions, filtering, ui]
 modules: [web/components/commission/CommissionList]
 related:
@@ -27,7 +27,7 @@ The commission-specific `STATUS_GROUP` map defines 10 statuses across 4 sort gro
 | Status | Sort Group | Actionable? | Default On? |
 |--------|-----------|-------------|-------------|
 | `pending` | idle (0) | Yes, waiting to dispatch | Yes |
-| `blocked` | idle (0) | Maybe, depends on context | **TBD** |
+| `blocked` | idle (0) | Yes, needs attention | Yes |
 | `paused` | idle (0) | Maybe, deliberately paused | No |
 | `dispatched` | active (1) | Yes, just sent | Yes |
 | `in_progress` | active (1) | Yes, actively running | Yes |
@@ -48,25 +48,29 @@ This matters for filtering because `statusToGem()` now derives from `ARTIFACT_ST
 
 ## Default Selection
 
-Defaults on: `pending`, `dispatched`, `in_progress`, `sleeping`, `active`, `failed`, `cancelled`
+Defaults on: `pending`, `blocked`, `dispatched`, `in_progress`, `sleeping`, `active`, `failed`, `cancelled`
 
-Defaults off: `blocked`, `paused`, `abandoned`, `completed`
+Defaults off: `paused`, `abandoned`, `completed`
 
-The logic: if you might need to act on it (run it, watch it, retry it, re-dispatch it), it's on by default. If it's terminal or deliberately parked, it's off. This means opening the commission list immediately shows you what matters.
+The logic: if you might need to act on it (run it, watch it, retry it, re-dispatch it), it's on by default. `blocked` defaults on because PR #103 reclassified it as "needs attention" (same artifact group as `failed` and `cancelled`), and a blocked commission is something you want to know about, not something deliberately parked. `paused` stays off (deliberately parked by the user). Terminal statuses (`abandoned`, `completed`) are off because they're history, not action items.
 
-## Open Questions
+## Resolved Questions
 
-1. **`blocked` default**: The original brainstorm grouped `blocked` with `paused` as "off by default." PR #103 moved `blocked` into the same artifact sort group as `failed` and `cancelled` (group 2, "Closed negative"), which signals the system now treats `blocked` as something that needs attention, not something parked. That strengthens the case for defaulting `blocked` to on. `paused` stays off (deliberately parked, unchanged in both maps). Your call on `blocked`.
+1. **`blocked` default**: **On.** PR #103 reclassified `blocked` as "needs attention" (artifact sort group 2, alongside `failed` and `cancelled`). A blocked commission is something you want to see, not something you parked.
 
-2. **Checkbox layout**: Ten checkboxes is a lot for a filter bar. Options:
-   - Flat row of checkboxes (wraps on narrow screens, but all visible)
-   - Two rows: "Show:" row with actionable defaults, "Also show:" row with terminal/parked
-   - Group checkboxes by sort group with sub-headers (Idle / Active / Failed / Done)
-   - Compact: checkboxes use the same `StatusBadge` gems as visual shorthand, no text labels needed if the gems are recognizable. This option got stronger after PR #103, since `statusToGem()` now covers all commission statuses correctly and the gems are visually distinct across all five groups.
+2. **Checkbox layout**: **Grouped by sort group, gem+label checkboxes, one row per group.** Gem-only was ruled out because 10 statuses map to only 5 gem colors (`GemIndicator` has `pending`, `active`, `blocked`, `info`, `inactive`), so statuses like `pending`/`paused` or `dispatched`/`in_progress` would be visually identical without labels. Flat row of 10 is too wide. Grouping by the commission sort groups (Idle / Active / Failed / Done) gives semantic structure, keeps each row to 2-4 items, and the group labels teach users how commissions sort in the list below.
 
-3. **"All" / "None" / "Reset" toggles**: Useful? An "All" toggle shows everything (equivalent to no filter). A "Reset" returns to defaults. Probably worth having at least "Reset to defaults" since once you start toggling, getting back to the useful default set takes multiple clicks.
+   ```
+   Idle:    [x] Pending   [x] Blocked   [ ] Paused
+   Active:  [x] Dispatched  [x] In Progress  [x] Sleeping  [x] Active
+   Failed:  [x] Failed   [x] Cancelled
+   Done:    [ ] Abandoned  [ ] Completed
+                                             [Reset]
+   ```
 
-4. **Count display**: Show counts next to each checkbox? e.g., `[x] in_progress (2)`. Answers "how many?" without toggling. Costs horizontal space.
+3. **Reset toggle**: **Yes.** A "Reset" link returns checkboxes to defaults. Once you start toggling, getting back to the useful default set takes multiple clicks without it.
+
+4. **Count display**: **Yes.** Show count after each label, e.g., `In Progress (2)`. Only display counts for statuses with at least one commission, so zeroes don't add visual noise.
 
 ## Implementation Shape
 
