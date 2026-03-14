@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research triage: soul-md-personality-techniques"
 date: 2026-03-14
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -14,6 +14,11 @@ activity_timeline:
   - timestamp: 2026-03-14T21:41:00.513Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-14T21:44:19.769Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
