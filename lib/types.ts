@@ -475,6 +475,9 @@ export interface SkillDefinition {
   };
   /** Positional CLI parameters, in order. The CLI maps trailing argv words to these. */
   parameters?: SkillParameter[];
+  /** Package that contributed this skill. Undefined for built-in skills.
+   *  Set by the daemon during registration, not by the package. */
+  sourcePackage?: string;
 }
 
 /**
