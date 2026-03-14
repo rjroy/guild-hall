@@ -7,6 +7,9 @@
  * string construction and error handling.
  */
 
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
+
 export interface EscalationOpts {
   activityType: "commission" | "meeting";
   activityId: string;
@@ -18,6 +21,7 @@ export interface EscalationOpts {
     reason: string;
   }) => Promise<void>;
   managerPackageName: string;
+  log?: Log;
 }
 
 /**
@@ -29,7 +33,8 @@ export interface EscalationOpts {
  * not block the caller's cleanup flow.
  */
 export async function escalateMergeConflict(opts: EscalationOpts): Promise<void> {
-  const { activityType, activityId, branchName, projectName, createMeetingRequest, managerPackageName } = opts;
+  const { activityType, activityId, branchName, projectName, createMeetingRequest, managerPackageName, log: logOpt } = opts;
+  const log = logOpt ?? nullLog("escalation");
 
   const activityLabel = activityType === "commission" ? "Commission" : "Meeting";
   const reason =
@@ -45,8 +50,8 @@ export async function escalateMergeConflict(opts: EscalationOpts): Promise<void>
       reason,
     });
   } catch (err: unknown) {
-    console.error(
-      `[escalation] Failed to escalate merge conflict for ${activityType} "${activityId}":`,
+    log.error(
+      `Failed to escalate merge conflict for ${activityType} "${activityId}":`,
       err instanceof Error ? err.message : String(err),
     );
   }

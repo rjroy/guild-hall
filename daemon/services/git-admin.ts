@@ -17,6 +17,8 @@ import type { AppConfig } from "@/lib/types";
 import { getGuildHallHome, integrationWorktreePath } from "@/lib/paths";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 import type { PrMarker } from "@/daemon/services/manager/toolbox";
 
 /**
@@ -105,13 +107,14 @@ export async function rebaseProject(
   ghHome?: string,
   gitOps?: GitOps,
   defaultBranch?: string,
+  log: Log = nullLog("git-admin"),
 ): Promise<boolean> {
   const home = ghHome ?? getGuildHallHome();
   const git = gitOps ?? createGitOps();
 
   if (await hasActiveActivities(home, projectName)) {
-    console.log(
-      `[rebase] Skipping "${projectName}": active activities found`,
+    log.info(
+      `Skipping rebase for "${projectName}": active activities found`,
     );
     return false;
   }
@@ -119,7 +122,7 @@ export async function rebaseProject(
   const targetBranch = defaultBranch ?? await git.detectDefaultBranch(projectPath);
   const iPath = integrationWorktreePath(home, projectName);
   await git.rebase(iPath, targetBranch);
-  console.log(`[rebase] Rebased claude onto ${targetBranch} for "${projectName}"`);
+  log.info(`Rebased claude onto ${targetBranch} for "${projectName}"`);
   return true;
 }
 
@@ -179,6 +182,7 @@ export async function syncProject(
   ghHome?: string,
   gitOps?: GitOps,
   defaultBranch?: string,
+  log: Log = nullLog("git-admin"),
 ): Promise<SyncResult> {
   return withProjectLock(projectName, async () => {
     const home = ghHome ?? getGuildHallHome();
@@ -196,8 +200,8 @@ export async function syncProject(
 
     // 2. Check for active activities
     if (await hasActiveActivities(home, projectName)) {
-      console.log(
-        `[sync] Skipping "${projectName}": active activities found`,
+      log.info(
+        `Skipping sync for "${projectName}": active activities found`,
       );
       return { action: "skip" as const, reason: "active activities" };
     }
@@ -209,7 +213,7 @@ export async function syncProject(
     if (!fetchSucceeded) {
       try {
         await git.rebase(iPath, targetBranch);
-        console.log(`[sync] Rebased ${CLAUDE_BRANCH} onto ${targetBranch} for "${projectName}" (no remote)`);
+        log.info(`Rebased ${CLAUDE_BRANCH} onto ${targetBranch} for "${projectName}" (no remote)`);
         return { action: "rebase" as const, reason: "no remote, local rebase" };
       } catch (err: unknown) {
         const reason = err instanceof Error ? err.message : String(err);
@@ -230,7 +234,7 @@ export async function syncProject(
       const claudeTip = await git.revParse(iPath, CLAUDE_BRANCH);
       const remoteTip = await git.revParse(iPath, remoteRef);
       if (claudeTip === remoteTip) {
-        console.log(`[sync] ${CLAUDE_BRANCH} is current with ${remoteRef} for "${projectName}"`);
+        log.info(`${CLAUDE_BRANCH} is current with ${remoteRef} for "${projectName}"`);
         return { action: "noop" as const, reason: "already current" };
       }
 
@@ -240,7 +244,7 @@ export async function syncProject(
         // Confirmed post-PR-merge: the PR we created was merged
         await git.resetHard(iPath, remoteRef);
         await removePrMarker(home, projectName);
-        console.log(`[sync] Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge (via marker)`);
+        log.info(`Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge (via marker)`);
         return { action: "reset" as const, reason: "PR marker matched" };
       }
 
@@ -250,8 +254,8 @@ export async function syncProject(
         // down during create_pr, or the user pushed matching content.
         await git.resetHard(iPath, remoteRef);
         await removePrMarker(home, projectName);
-        console.log(
-          `[sync] Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge ` +
+        log.info(
+          `Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge ` +
           "(marker missing, detected via tree comparison)",
         );
         return { action: "reset" as const, reason: "trees equal, marker missing" };
@@ -259,7 +263,7 @@ export async function syncProject(
 
       // User pushed independent changes to master. Rebase (existing behavior).
       await git.rebase(iPath, remoteRef);
-      console.log(`[sync] Rebased ${CLAUDE_BRANCH} onto ${remoteRef} for "${projectName}"`);
+      log.info(`Rebased ${CLAUDE_BRANCH} onto ${remoteRef} for "${projectName}"`);
       return { action: "rebase" as const, reason: "master advanced with different content" };
     }
 
@@ -268,7 +272,7 @@ export async function syncProject(
 
     if (remoteIsAncestor) {
       // claude/main is ahead of origin/<default>. PR not yet merged.
-      console.log(`[sync] ${CLAUDE_BRANCH} is ahead of ${remoteRef} for "${projectName}", no sync needed`);
+      log.info(`${CLAUDE_BRANCH} is ahead of ${remoteRef} for "${projectName}", no sync needed`);
       return { action: "noop" as const, reason: "claude/main ahead" };
     }
 
@@ -284,7 +288,7 @@ export async function syncProject(
         // Safe to hard reset.
         await git.resetHard(iPath, remoteRef);
         await removePrMarker(home, projectName);
-        console.log(`[sync] Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge (via marker, diverged)`);
+        log.info(`Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge (via marker, diverged)`);
         return { action: "reset" as const, reason: "PR marker matched (diverged)" };
       }
 
@@ -294,8 +298,8 @@ export async function syncProject(
       try {
         await git.rebaseOnto(iPath, remoteRef, markerDiverged.claudeMainTip);
         await removePrMarker(home, projectName);
-        console.log(
-          `[sync] Rebased post-PR commits onto ${remoteRef} for "${projectName}" ` +
+        log.info(
+          `Rebased post-PR commits onto ${remoteRef} for "${projectName}" ` +
           `(marker tip: ${markerDiverged.claudeMainTip.slice(0, 8)}, current: ${claudeTipDiverged.slice(0, 8)})`,
         );
         return { action: "rebase" as const, reason: "PR marker + new commits, rebaseOnto" };
@@ -310,8 +314,8 @@ export async function syncProject(
     if (await git.treesEqual(iPath, CLAUDE_BRANCH, remoteRef)) {
       await git.resetHard(iPath, remoteRef);
       await removePrMarker(home, projectName);
-      console.log(
-        `[sync] Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge ` +
+      log.info(
+        `Reset ${CLAUDE_BRANCH} to ${remoteRef} for "${projectName}" after PR merge ` +
         "(marker missing, detected via tree comparison, diverged)",
       );
       return { action: "reset" as const, reason: "trees equal (diverged)" };
@@ -328,9 +332,9 @@ export async function syncProject(
       await git.resetSoft(iPath, remoteRef);
       const hadChanges = await git.commitAll(iPath, `Sync ${CLAUDE_BRANCH} with ${remoteRef}`);
       if (hadChanges) {
-        console.log(`[sync] Merged and compacted ${CLAUDE_BRANCH} onto ${remoteRef} for "${projectName}"`);
+        log.info(`Merged and compacted ${CLAUDE_BRANCH} onto ${remoteRef} for "${projectName}"`);
       } else {
-        console.log(`[sync] Merged ${remoteRef} into ${CLAUDE_BRANCH} for "${projectName}" (no unique work remaining)`);
+        log.info(`Merged ${remoteRef} into ${CLAUDE_BRANCH} for "${projectName}" (no unique work remaining)`);
       }
       return { action: "merge" as const, reason: "diverged, merged and compacted" };
     } catch (err: unknown) {

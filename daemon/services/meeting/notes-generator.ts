@@ -20,6 +20,8 @@ import { isNodeError, resolveModel } from "@/lib/types";
 import type { AppConfig } from "@/lib/types";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 
 // -- Types --
 
@@ -36,6 +38,7 @@ export interface NotesGeneratorDeps {
   guildHallHome?: string;
   queryFn?: NotesQueryFn;
   config?: AppConfig;
+  log?: Log;
 }
 
 // -- Constants --
@@ -52,6 +55,7 @@ const MAX_TRANSCRIPT_CHARS = 50_000;
 async function readDecisions(
   meetingId: string,
   guildHallHome: string,
+  log: Log,
 ): Promise<string> {
   const decisionsPath = path.join(
     guildHallHome,
@@ -86,7 +90,7 @@ async function readDecisions(
       return `- Question: ${entry.question}\n  Decision: ${entry.decision}\n  Reasoning: ${entry.reasoning}`;
     } catch (err: unknown) {
       const reason = errorMessage(err);
-      console.error(`[notes-generator] Failed to parse JSONL line ${index} in decisions for meeting ${meetingId}: ${reason}`);
+      log.error(`Failed to parse JSONL line ${index} in decisions for meeting ${meetingId}: ${reason}`);
       return `- (unparseable entry)`;
     }
   });
@@ -110,19 +114,20 @@ export async function generateMeetingNotes(
   deps: NotesGeneratorDeps,
 ): Promise<NotesResult> {
   const guildHallHome = deps.guildHallHome ?? defaultGuildHallHome();
+  const log = deps.log ?? nullLog("notes-generator");
 
   if (!deps.queryFn) {
-    console.warn(`[notes-generator] notesQueryFn not configured for meeting ${meetingId}; notes generation skipped`);
+    log.warn(`notesQueryFn not configured for meeting ${meetingId}; notes generation skipped`);
     return { success: false, reason: "Notes generation not available." };
   }
 
   // Read transcript, decisions, and linked artifacts in parallel
   const [transcript, decisions, linkedArtifacts] = await Promise.all([
     readTranscript(meetingId, guildHallHome),
-    readDecisions(meetingId, guildHallHome),
+    readDecisions(meetingId, guildHallHome, log),
     readLinkedArtifacts(projectPath, meetingId as MeetingId).catch((err: unknown) => {
       if (isNodeError(err) && err.code === "ENOENT") return [];
-      console.error(`[notes-generator] Failed to read linked artifacts for meeting ${meetingId}: ${errorMessage(err)}`);
+      log.error(`Failed to read linked artifacts for meeting ${meetingId}: ${errorMessage(err)}`);
       return [];
     }),
   ]);
@@ -194,7 +199,7 @@ Use plain text, no markdown headers. Be factual, not conversational.`;
     return { success: true, notes: notes || "No content generated." };
   } catch (err: unknown) {
     const reason = errorMessage(err);
-    console.error(`[notes-generator] SDK invocation failed for meeting ${meetingId}: ${reason}`);
+    log.error(`SDK invocation failed for meeting ${meetingId}: ${reason}`);
     return { success: false, reason: `Notes generation failed: ${reason}` };
   }
 }

@@ -1,10 +1,22 @@
 import { describe, test, expect } from "bun:test";
 import { logSdkMessage } from "@/daemon/lib/agent-sdk/sdk-logging";
+import type { Log } from "@/daemon/lib/log";
+
+/** Creates a Log that collects info messages into an array. */
+function collectingLogForSdk(): { log: Log; logs: string[] } {
+  const logs: string[] = [];
+  const log: Log = {
+    error(...args: unknown[]) { logs.push(args.join(" ")); },
+    warn(...args: unknown[]) { logs.push(args.join(" ")); },
+    info(...args: unknown[]) { logs.push(args.join(" ")); },
+  };
+  return { log, logs };
+}
 
 describe("logSdkMessage", () => {
   function collect(msg: unknown): string[] {
-    const logs: string[] = [];
-    logSdkMessage((s) => logs.push(s), 1, msg);
+    const { log, logs } = collectingLogForSdk();
+    logSdkMessage(log, 1, msg);
     return logs;
   }
 
@@ -116,8 +128,8 @@ describe("logSdkMessage", () => {
   });
 
   test("uses message index in prefix", () => {
-    const logs: string[] = [];
-    logSdkMessage((s) => logs.push(s), 42, { type: "system" });
+    const { log, logs } = collectingLogForSdk();
+    logSdkMessage(log, 42, { type: "system" });
     expect(logs[0]).toStartWith("[msg 42]");
   });
 });

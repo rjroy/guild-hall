@@ -21,6 +21,8 @@
  * from being created (can't have a file and directory with the same name).
  */
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 
 export const CLAUDE_BRANCH = "claude/main";
 
@@ -510,6 +512,7 @@ export async function finalizeActivity(
     commitLabel: string;
     lockFn: <T>(fn: () => Promise<T>) => Promise<T>;
   },
+  log: Log = nullLog("git"),
 ): Promise<FinalizeActivityResult> {
   await git.commitAll(opts.worktreeDir, opts.commitMessage);
 
@@ -519,7 +522,7 @@ export async function finalizeActivity(
       logPrefix: opts.logPrefix,
       commitLabel: opts.commitLabel,
       activityId: opts.activityId,
-    });
+    }, log);
   });
 
   if (merged) {
@@ -527,8 +530,8 @@ export async function finalizeActivity(
       await git.removeWorktree(opts.projectPath, opts.worktreeDir);
       await git.deleteBranch(opts.projectPath, opts.branchName);
     } catch (err: unknown) {
-      console.warn(
-        `[${opts.logPrefix}] Worktree/branch cleanup failed for "${opts.activityId}":`,
+      log.warn(
+        `${opts.logPrefix}: Worktree/branch cleanup failed for "${opts.activityId}":`,
         errorMessage(err),
       );
     }
@@ -538,8 +541,8 @@ export async function finalizeActivity(
   try {
     await git.removeWorktree(opts.projectPath, opts.worktreeDir);
   } catch (err: unknown) {
-    console.warn(
-      `[${opts.logPrefix}] Failed to remove worktree for "${opts.activityId}":`,
+    log.warn(
+      `${opts.logPrefix}: Failed to remove worktree for "${opts.activityId}":`,
       errorMessage(err),
     );
   }
@@ -559,6 +562,7 @@ export async function resolveSquashMerge(
   integrationPath: string,
   sourceBranch: string,
   opts: { logPrefix: string; commitLabel: string; activityId: string },
+  log: Log = nullLog("git"),
 ): Promise<boolean> {
   const { logPrefix, commitLabel, activityId } = opts;
   const clean = await git.squashMergeNoCommit(integrationPath, sourceBranch);
@@ -571,8 +575,8 @@ export async function resolveSquashMerge(
   const conflictedFiles = await git.listConflictedFiles(integrationPath);
 
   if (conflictedFiles.length === 0) {
-    console.warn(
-      `[${logPrefix}] "${activityId}" squash-merge reported conflict but no unmerged files found. Aborting.`,
+    log.warn(
+      `${logPrefix}: "${activityId}" squash-merge reported conflict but no unmerged files found. Aborting.`,
     );
     await git.mergeAbort(integrationPath);
     return false;
@@ -582,15 +586,15 @@ export async function resolveSquashMerge(
   const nonLoreFiles = conflictedFiles.filter((f) => !f.startsWith(".lore/"));
 
   if (nonLoreFiles.length > 0) {
-    console.warn(
-      `[${logPrefix}] "${activityId}" squash-merge has non-.lore/ conflicts: ${nonLoreFiles.join(", ")}. Aborting merge.`,
+    log.warn(
+      `${logPrefix}: "${activityId}" squash-merge has non-.lore/ conflicts: ${nonLoreFiles.join(", ")}. Aborting merge.`,
     );
     await git.mergeAbort(integrationPath);
     return false;
   }
 
-  console.log(
-    `[${logPrefix}] "${activityId}" auto-resolving ${loreFiles.length} .lore/ conflict(s): ${loreFiles.join(", ")}`,
+  log.info(
+    `${logPrefix}: "${activityId}" auto-resolving ${loreFiles.length} .lore/ conflict(s): ${loreFiles.join(", ")}`,
   );
   await git.resolveConflictsTheirs(integrationPath, loreFiles);
   await git.commitAll(

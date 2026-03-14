@@ -12,6 +12,8 @@
  */
 
 import * as fs from "node:fs/promises";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 import type { CommissionId } from "@/daemon/types";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
@@ -42,6 +44,8 @@ export type MailOrchestratorDeps = {
   guildHallHome: string;
   gitOps: GitOps;
   mailRecordOps?: MailRecordOps;
+  /** Injectable logger. Defaults to nullLog("mail"). */
+  log?: Log;
 };
 
 export type SleepContext = {
@@ -163,6 +167,7 @@ export function createMailOrchestrator(
     gitOps,
   } = deps;
 
+  const log = deps.log ?? nullLog("mail");
   const mailRecordOps = deps.mailRecordOps ?? createMailRecordOps();
 
   // -- Internal state --
@@ -211,16 +216,16 @@ export function createMailOrchestrator(
     try {
       await gitOps.commitAll(worktreeDir, `Mail sent to ${targetWorker}: ${commissionId as string}`);
     } catch (err: unknown) {
-      console.warn(`[mail-orchestrator] pre-sleep commit failed for "${commissionId as string}":`, errorMessage(err));
+      log.warn(`pre-sleep commit failed for "${commissionId as string}":`, errorMessage(err));
     }
 
     // 2. Extract sessionId. If null, fail the commission.
     if (!outcome.sessionId) {
-      console.error(`[mail-orchestrator] sleep failed for "${commissionId as string}": no session ID available`);
+      log.error(`sleep failed for "${commissionId as string}": no session ID available`);
       try {
         await lifecycle.executionFailed(commissionId, "Sleep failed: no session ID available for resume");
       } catch (err: unknown) {
-        console.error(`[mail-orchestrator] executionFailed threw:`, errorMessage(err));
+        log.error(`executionFailed threw:`, errorMessage(err));
       }
       return false;
     }
@@ -231,7 +236,7 @@ export function createMailOrchestrator(
       `Waiting for mail reply from ${targetWorker}`,
     );
     if (sleepResult.outcome === "skipped") {
-      console.error(`[mail-orchestrator] sleep transition skipped for "${commissionId as string}": ${sleepResult.reason}`);
+      log.error(`sleep transition skipped for "${commissionId as string}": ${sleepResult.reason}`);
       return false;
     }
 
@@ -264,10 +269,10 @@ export function createMailOrchestrator(
         mailPath,
       });
     } catch (err: unknown) {
-      console.warn(`[mail-orchestrator] failed to append mail_sent timeline:`, errorMessage(err));
+      log.warn(`failed to append mail_sent timeline:`, errorMessage(err));
     }
 
-    console.log(`[mail-orchestrator] "${commissionId as string}" entered sleeping state, waiting for reply from ${targetWorker}`);
+    log.info(`"${commissionId as string}" entered sleeping state, waiting for reply from ${targetWorker}`);
 
     // 6. Trigger mail reader activation
     activateMailReader({
@@ -288,7 +293,7 @@ export function createMailOrchestrator(
 
   function activateMailReader(activation: PendingReaderActivation): void {
     if (isMailReaderAtCapacity(activeReaders.size, config)) {
-      console.log(`[mail-orchestrator] mail reader at capacity (${activeReaders.size}/${mailReaderCap()}), queuing activation for "${activation.commissionId as string}"`);
+      log.info(`mail reader at capacity (${activeReaders.size}/${mailReaderCap()}), queuing activation for "${activation.commissionId as string}"`);
       readerQueue.push(activation);
       return;
     }
@@ -375,7 +380,7 @@ export function createMailOrchestrator(
           commissionId: commissionId as string,
         };
 
-        const prepResult = await prepareSdkSession(prepSpec, prepDeps);
+        const prepResult = await prepareSdkSession(prepSpec, prepDeps, log);
         if (!prepResult.ok) {
           throw new Error(prepResult.error);
         }
@@ -388,7 +393,7 @@ export function createMailOrchestrator(
         // 9. Run and drain the SDK session
         const { options } = prepResult.result;
         const outcome = await drainSdkSession(
-          runSdkSession(queryFn, activationPrompt, options),
+          runSdkSession(queryFn, activationPrompt, options, log),
           { maxTurns: options.maxTurns },
         );
 
@@ -398,7 +403,7 @@ export function createMailOrchestrator(
         unsubscribe();
       }
     } catch (err: unknown) {
-      console.error(`[mail-orchestrator] mail reader error for "${commissionId as string}":`, errorMessage(err));
+      log.error(`mail reader error for "${commissionId as string}":`, errorMessage(err));
       // Record the failure in the commission timeline (REQ-LOCAL-14 gap fix)
       try {
         const artifactPath = commissionArtifactPath(worktreeDir, commissionId);
@@ -430,7 +435,7 @@ export function createMailOrchestrator(
 
     const next = readerQueue.shift();
     if (next) {
-      console.log(`[mail-orchestrator] dequeuing mail reader for "${next.commissionId as string}"`);
+      log.info(`dequeuing mail reader for "${next.commissionId as string}"`);
       startReaderSession(next);
     }
   }
@@ -451,7 +456,7 @@ export function createMailOrchestrator(
     try {
       await gitOps.commitAll(worktreeDir, `Mail reader ${readerWorkerName} work: ${commissionId as string}`);
     } catch (err: unknown) {
-      console.warn(`[mail-orchestrator] post-reader commit failed:`, errorMessage(err));
+      log.warn(`post-reader commit failed:`, errorMessage(err));
     }
 
     // 2. Build the wake-up prompt based on outcome
@@ -484,7 +489,7 @@ export function createMailOrchestrator(
         });
       }
     } catch (err: unknown) {
-      console.warn(`[mail-orchestrator] failed to append timeline event:`, errorMessage(err));
+      log.warn(`failed to append timeline event:`, errorMessage(err));
     }
 
     // 4. Wake the commission
@@ -503,14 +508,14 @@ export function createMailOrchestrator(
     const statePath = callbacks.commissionStatePath(commissionId);
     const state = await readStateFile(commissionId, statePath);
     if (!state || state.status !== "sleeping") {
-      console.warn(`[mail-orchestrator] cannot wake "${commissionId as string}": state is not sleeping`);
+      log.warn(`cannot wake "${commissionId as string}": state is not sleeping`);
       return;
     }
 
     // 2. Transition sleeping -> in_progress
     const wakeResult = await lifecycle.wake(commissionId, `Mail reply received`);
     if (wakeResult.outcome === "skipped") {
-      console.warn(`[mail-orchestrator] wake transition skipped for "${commissionId as string}": ${wakeResult.reason}`);
+      log.warn(`wake transition skipped for "${commissionId as string}": ${wakeResult.reason}`);
       return;
     }
 
@@ -519,7 +524,7 @@ export function createMailOrchestrator(
     try {
       await recordOps.appendTimeline(artifactPath, "status_in_progress", "Woke from sleep: mail reply received");
     } catch (err: unknown) {
-      console.warn(`[mail-orchestrator] failed to append wake timeline:`, errorMessage(err));
+      log.warn(`failed to append wake timeline:`, errorMessage(err));
     }
 
     // 4. Update state file: back to in_progress, clear pendingMail
@@ -535,11 +540,11 @@ export function createMailOrchestrator(
     // 5. Resume the commission session with the wake prompt
     const project = config.projects.find((p) => p.name === projectName);
     if (!project) {
-      console.error(`[mail-orchestrator] project "${projectName}" not found during wake`);
+      log.error(`project "${projectName}" not found during wake`);
       return;
     }
 
-    console.log(`[mail-orchestrator] waking "${commissionId as string}" with resume session ${state.sessionId}`);
+    log.info(`waking "${commissionId as string}" with resume session ${state.sessionId}`);
 
     // Notify the commission orchestrator to resume this commission
     // by calling back into the orchestrator's resume flow
@@ -591,12 +596,12 @@ export function createMailOrchestrator(
         flags.resultSubmitted = true;
         const e = event as typeof event & { summary: string; artifacts?: string[] };
         lifecycle.resultSubmitted(commissionId, e.summary, e.artifacts).catch((err: unknown) => {
-          console.warn(`[mail-orchestrator] resultSubmitted failed:`, errorMessage(err));
+          log.warn(`resultSubmitted failed:`, errorMessage(err));
         });
       } else if (event.type === "commission_progress") {
         const e = event as typeof event & { summary: string };
         lifecycle.progressReported(commissionId, e.summary).catch((err: unknown) => {
-          console.warn(`[mail-orchestrator] progressReported failed:`, errorMessage(err));
+          log.warn(`progressReported failed:`, errorMessage(err));
         });
       } else if (event.type === "commission_mail_sent") {
         flags.mailSent = true;
@@ -631,13 +636,13 @@ export function createMailOrchestrator(
         resume: sessionId,
       };
 
-      const prepResult = await prepareSdkSession(prepSpec, prepDeps);
+      const prepResult = await prepareSdkSession(prepSpec, prepDeps, log);
       if (!prepResult.ok) {
-        console.error(`[mail-orchestrator] resume prep failed for "${commissionId as string}": ${prepResult.error}`);
+        log.error(`resume prep failed for "${commissionId as string}": ${prepResult.error}`);
         try {
           await lifecycle.executionFailed(commissionId, `Resume failed: ${prepResult.error}`);
         } catch (err: unknown) {
-          console.error(`[mail-orchestrator] executionFailed threw:`, errorMessage(err));
+          log.error(`executionFailed threw:`, errorMessage(err));
         }
         lifecycle.forget(commissionId);
         return;
@@ -646,7 +651,7 @@ export function createMailOrchestrator(
       resumeResolvedModel = prepResult.result.resolvedModel;
       const { options } = prepResult.result;
       const outcome = await drainSdkSession(
-        runSdkSession(queryFn, wakePrompt, options),
+        runSdkSession(queryFn, wakePrompt, options, log),
         { maxTurns: options.maxTurns },
       );
 
@@ -683,11 +688,11 @@ export function createMailOrchestrator(
       }
     } catch (err: unknown) {
       const errMsg = prefixLocalModelError(errorMessage(err), resumeResolvedModel);
-      console.error(`[mail-orchestrator] resume session error for "${commissionId as string}":`, errMsg);
+      log.error(`resume session error for "${commissionId as string}":`, errMsg);
       try {
         await lifecycle.executionFailed(commissionId, `Resume error: ${errMsg}`);
       } catch (innerErr: unknown) {
-        console.error(`[mail-orchestrator] executionFailed threw:`, errorMessage(innerErr));
+        log.error(`executionFailed threw:`, errorMessage(innerErr));
       }
       lifecycle.forget(commissionId);
     } finally {
@@ -776,7 +781,7 @@ export function createMailOrchestrator(
     const queueIdx = readerQueue.findIndex((a) => a.commissionId === commissionId);
     if (queueIdx !== -1) {
       readerQueue.splice(queueIdx, 1);
-      console.log(`[mail-orchestrator] dequeued pending reader for "${cidStr}"`);
+      log.info(`dequeued pending reader for "${cidStr}"`);
       return true;
     }
 
@@ -793,7 +798,7 @@ export function createMailOrchestrator(
             // The session itself may throw; that's handled internally.
           }
         }
-        console.log(`[mail-orchestrator] aborted active reader for "${cidStr}"`);
+        log.info(`aborted active reader for "${cidStr}"`);
         return true;
       }
     }
@@ -817,13 +822,13 @@ export function createMailOrchestrator(
       mailStatus = mailData.status;
     } catch (err: unknown) {
       // Mail file unreadable: treat as sent (re-activate reader)
-      console.warn(`[mail-orchestrator] recovery: cannot read mail file for "${cidStr}":`, errorMessage(err));
+      log.warn(`recovery: cannot read mail file for "${cidStr}":`, errorMessage(err));
       mailStatus = "sent";
     }
 
     if (mailStatus === "replied") {
       // Clean case: reader finished before crash. Wake normally.
-      console.log(`[mail-orchestrator] recovery: "${cidStr}" has replied mail, waking`);
+      log.info(`recovery: "${cidStr}" has replied mail, waking`);
       const activation: PendingReaderActivation = {
         commissionId: cidStr as CommissionId,
         projectName,
@@ -842,16 +847,16 @@ export function createMailOrchestrator(
     } else if (mailStatus === "open") {
       // Reader was mid-session when daemon stopped. Commit partial work,
       // reset mail status to sent, and re-activate.
-      console.log(`[mail-orchestrator] recovery: "${cidStr}" has open mail, committing partial work and re-activating reader`);
+      log.info(`recovery: "${cidStr}" has open mail, committing partial work and re-activating reader`);
       try {
         await gitOps.commitAll(worktreeDir, `Recovery: partial mail reader work for ${cidStr}`);
       } catch (err: unknown) {
-        console.warn(`[mail-orchestrator] recovery commit failed for "${cidStr}":`, errorMessage(err));
+        log.warn(`recovery commit failed for "${cidStr}":`, errorMessage(err));
       }
       try {
         await mailRecordOps.updateMailStatus(pendingMail.mailFilePath, "sent");
       } catch (err: unknown) {
-        console.warn(`[mail-orchestrator] recovery: failed to reset mail status for "${cidStr}":`, errorMessage(err));
+        log.warn(`recovery: failed to reset mail status for "${cidStr}":`, errorMessage(err));
       }
       activateMailReader({
         commissionId: cidStr as CommissionId,
@@ -865,7 +870,7 @@ export function createMailOrchestrator(
       });
     } else {
       // sent: reader never started or was queued. Activate it.
-      console.log(`[mail-orchestrator] recovery: "${cidStr}" has sent mail, activating reader`);
+      log.info(`recovery: "${cidStr}" has sent mail, activating reader`);
       activateMailReader({
         commissionId: cidStr as CommissionId,
         projectName,

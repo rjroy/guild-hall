@@ -5,6 +5,8 @@ import { streamSSE } from "hono/streaming";
 import type { GuildHallEvent, MeetingId } from "@/daemon/types";
 import { asMeetingId } from "@/daemon/types";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import { nullLog } from "@/daemon/lib/log";
+import type { Log } from "@/daemon/lib/log";
 import type { AppConfig, Artifact, RouteModule, SkillDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveMeetingBasePath } from "@/lib/paths";
 import { scanArtifacts } from "@/lib/artifacts";
@@ -50,6 +52,8 @@ export interface MeetingRoutesDeps {
   config?: AppConfig;
   /** Required for GET read routes. */
   guildHallHome?: string;
+  /** Injectable logger. Defaults to nullLog("meetings"). */
+  log?: Log;
 }
 
 /**
@@ -66,6 +70,7 @@ export interface MeetingRoutesDeps {
  * GET  /meeting/request/meeting/read        - Read meeting detail
  */
 export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
+  const log = deps.log ?? nullLog("meetings");
   const routes = new Hono();
 
   // POST /meeting/request/meeting/create - Create meeting and stream first turn
@@ -97,7 +102,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
           await stream.writeSSE({ data: JSON.stringify(event) });
         }
       } catch (err: unknown) {
-        console.error(`[meeting-routes] Unexpected error in create stream for meeting (project: ${projectName}, worker: ${workerName}):`, err);
+        log.error(`Unexpected error in create stream for meeting (project: ${projectName}, worker: ${workerName}):`, err);
         await stream.writeSSE({
           data: JSON.stringify({ type: "error", reason: errorMessage(err) }),
         });
@@ -132,7 +137,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
           await stream.writeSSE({ data: JSON.stringify(event) });
         }
       } catch (err: unknown) {
-        console.error(`[meeting-routes] Unexpected error in sendMessage stream for meeting ${meetingId as string}:`, err);
+        log.error(`Unexpected error in sendMessage stream for meeting ${meetingId as string}:`, err);
         await stream.writeSSE({
           data: JSON.stringify({ type: "error", reason: errorMessage(err) }),
         });
@@ -157,7 +162,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       const { notes } = await deps.meetingSession.closeMeeting(meetingId);
       return c.json({ status: "ok", notes });
     } catch (err: unknown) {
-      console.error("[meeting-routes] close failed for meeting", meetingId, ":", err);
+      log.error("close failed for meeting", meetingId, ":", err);
       const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);
@@ -222,7 +227,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
           await stream.writeSSE({ data: JSON.stringify(event) });
         }
       } catch (err: unknown) {
-        console.error(`[meeting-routes] Unexpected error in accept stream for meeting ${meetingId as string} (project: ${projectName}):`, err);
+        log.error(`Unexpected error in accept stream for meeting ${meetingId as string} (project: ${projectName}):`, err);
         await stream.writeSSE({
           data: JSON.stringify({ type: "error", reason: errorMessage(err) }),
         });
@@ -254,7 +259,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       await deps.meetingSession.declineMeeting(meetingId, projectName);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
-      console.error("[meeting-routes] decline failed for meeting", meetingId, ":", err);
+      log.error("decline failed for meeting", meetingId, ":", err);
       const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);
@@ -290,7 +295,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       await deps.meetingSession.deferMeeting(meetingId, projectName, deferredUntil);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
-      console.error("[meeting-routes] defer failed for meeting", meetingId, ":", err);
+      log.error("defer failed for meeting", meetingId, ":", err);
       const message = errorMessage(err);
       if (message.includes("not found")) {
         return c.json({ error: message }, 404);

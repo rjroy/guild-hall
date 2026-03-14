@@ -1,7 +1,7 @@
 ---
 title: Plan for injectable daemon logger
 date: 2026-03-14
-status: approved
+status: executed
 tags: [logging, testing, dependency-injection, daemon, migration]
 modules: [daemon]
 related:

@@ -9,6 +9,12 @@ import {
   removePidFile,
   removeSocketFile,
 } from "./lib/socket";
+import { consoleLog } from "@/daemon/lib/log";
+
+// Pre-app logger for socket binding, PID file, and shutdown messages.
+// daemon/index.ts is the composition root and creates its own logger
+// directly via consoleLog (REQ-LOG-7).
+const log = consoleLog("daemon");
 
 // Parse CLI flags
 const { values } = parseArgs({
@@ -21,7 +27,7 @@ const { values } = parseArgs({
 
 const packagesDir = values["packages-dir"] as string | undefined;
 if (packagesDir) {
-  console.log(`[daemon] packages-dir: ${packagesDir}`);
+  log.info(`packages-dir: ${packagesDir}`);
 }
 
 const socketPath = getSocketPath();
@@ -37,13 +43,13 @@ cleanStaleSocket(socketPath);
 let app: { fetch: typeof fallbackApp.fetch };
 let schedulerShutdown: (() => void) | undefined;
 try {
-  const { app: prodApp, shutdown } = await createProductionApp({ packagesDir });
+  const { app: prodApp, shutdown } = await createProductionApp({ packagesDir, createLog: consoleLog });
   app = prodApp;
   schedulerShutdown = shutdown;
-  console.log("[daemon] production app initialized with meeting session and worker routes");
+  log.info("production app initialized with meeting session and worker routes");
 } catch (err) {
-  console.warn(
-    `[daemon] Failed to create production app, falling back to basic app: ${errorMessage(err)}`,
+  log.warn(
+    `Failed to create production app, falling back to basic app: ${errorMessage(err)}`,
   );
   app = fallbackApp;
 }
@@ -58,10 +64,10 @@ const server = Bun.serve({
 
 writePidFile(socketPath);
 
-console.log(`[daemon] listening on ${socketPath} (PID ${process.pid})`);
+log.info(`listening on ${socketPath} (PID ${process.pid})`);
 
 function shutdown() {
-  console.log("[daemon] shutting down...");
+  log.info("shutting down...");
   try {
     schedulerShutdown?.();
     void server.stop();

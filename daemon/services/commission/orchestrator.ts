@@ -31,6 +31,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import matter from "gray-matter";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 import type { CommissionId, CommissionStatus, CommissionType } from "@/daemon/types";
 import { asCommissionId } from "@/daemon/types";
 import type {
@@ -183,6 +185,8 @@ export interface CommissionOrchestratorDeps {
   managerPackageName?: string;
   /** Optional pre-built mail orchestrator (DI seam for testing). */
   mailOrchestrator?: MailOrchestrator;
+  /** Injectable logger. Defaults to nullLog("commission"). */
+  log?: Log;
   /**
    * Lazy ref for the schedule lifecycle, set after the scheduler is
    * constructed. The services bag captures this ref at dispatch time,
@@ -208,6 +212,8 @@ export function createCommissionOrchestrator(
     guildHallHome,
     gitOps,
   } = deps;
+
+  const log = deps.log ?? nullLog("commission");
 
   const managerPackageName = deps.managerPackageName ?? "guild-hall-manager";
   const fileExists = deps.fileExists ?? (async (filePath: string): Promise<boolean> => {
@@ -261,7 +267,7 @@ export function createCommissionOrchestrator(
       await fs.unlink(commissionStatePath(commissionId));
     } catch (err: unknown) {
       if (isNodeError(err) && err.code === "ENOENT") return;
-      console.warn(`[orchestrator] Failed to delete state file for "${commissionId as string}":`, errorMessage(err));
+      log.warn(`Failed to delete state file for "${commissionId as string}":`, errorMessage(err));
     }
   }
 
@@ -286,8 +292,8 @@ export function createCommissionOrchestrator(
         reason,
       );
     } catch (err: unknown) {
-      console.warn(
-        `[orchestrator] Failed to sync status "${status}" to integration worktree for ${commissionId as string}:`,
+      log.warn(
+        `Failed to sync status "${status}" to integration worktree for ${commissionId as string}:`,
         errorMessage(err),
       );
     }
@@ -343,8 +349,8 @@ export function createCommissionOrchestrator(
 
   function enqueueAutoDispatch(): void {
     autoDispatchChain = autoDispatchChain.then(() => tryAutoDispatch()).catch((err: unknown) => {
-      console.error(
-        "[orchestrator] auto-dispatch chain error:",
+      log.error(
+        "auto-dispatch chain error:",
         errorMessage(err),
       );
     });
@@ -364,6 +370,7 @@ export function createCommissionOrchestrator(
       packages,
       guildHallHome,
       gitOps,
+      log,
     },
     {
       writeStateFile,
@@ -447,7 +454,7 @@ export function createCommissionOrchestrator(
 
           pending.push({ commissionId: cId, projectName: project.name, createdAt });
         } catch (err: unknown) {
-          console.warn(`[orchestrator] scanPendingCommissions: failed to read "${cId as string}":`, errorMessage(err));
+          log.warn(`scanPendingCommissions: failed to read "${cId as string}":`, errorMessage(err));
           continue;
         }
       }
@@ -475,8 +482,8 @@ export function createCommissionOrchestrator(
       if (atLimit) continue;
 
       try {
-        console.log(
-          `[orchestrator] auto-dispatching "${candidate.commissionId as string}" from queue (FIFO)`,
+        log.info(
+          `auto-dispatching "${candidate.commissionId as string}" from queue (FIFO)`,
         );
         eventBus.emit({
           type: "commission_dequeued",
@@ -489,8 +496,8 @@ export function createCommissionOrchestrator(
           activeMap.set(id as string, { projectName: ctx.projectName });
         }
       } catch (err: unknown) {
-        console.warn(
-          `[orchestrator] auto-dispatch failed for "${candidate.commissionId as string}":`,
+        log.warn(
+          `auto-dispatch failed for "${candidate.commissionId as string}":`,
           errorMessage(err),
         );
       }
@@ -546,8 +553,8 @@ export function createCommissionOrchestrator(
     // Transition to completed
     const completeResult = await lifecycle.executionCompleted(ctx.commissionId);
     if (completeResult.outcome === "skipped") {
-      console.warn(
-        `[orchestrator] executionCompleted skipped for "${ctx.commissionId as string}": ${completeResult.reason}`,
+      log.warn(
+        `executionCompleted skipped for "${ctx.commissionId as string}": ${completeResult.reason}`,
       );
       await preserveAndCleanup(ctx, "executionCompleted skipped: " + completeResult.reason);
       return;
@@ -556,8 +563,8 @@ export function createCommissionOrchestrator(
     // Squash-merge via workspace.finalize
     const project = findProject(ctx.projectName);
     if (!project) {
-      console.error(
-        `[orchestrator] project "${ctx.projectName}" not found during finalize`,
+      log.error(
+        `project "${ctx.projectName}" not found during finalize`,
       );
       await failAndCleanup(ctx, "Project not found during finalize");
       return;
@@ -581,8 +588,8 @@ export function createCommissionOrchestrator(
       });
     } catch (err: unknown) {
       const errMsg = errorMessage(err);
-      console.error(
-        `[orchestrator] finalize threw for "${ctx.commissionId as string}":`,
+      log.error(
+        `finalize threw for "${ctx.commissionId as string}":`,
         errMsg,
       );
       await failAndCleanup(ctx, `Finalize error: ${errMsg}`);
@@ -598,8 +605,8 @@ export function createCommissionOrchestrator(
         reason: "Execution completed",
       });
       await deleteStateFile(ctx.commissionId);
-      console.log(
-        `[orchestrator] "${ctx.commissionId as string}" squash-merged to claude and cleaned up`,
+      log.info(
+        `"${ctx.commissionId as string}" squash-merged to claude and cleaned up`,
       );
     } else {
       // Merge conflict: escalate to Guild Master
@@ -620,8 +627,8 @@ export function createCommissionOrchestrator(
 
       await failAndCleanup(ctx, conflictReason, { preserveWorktree: false });
 
-      console.log(
-        `[orchestrator] "${ctx.commissionId as string}" merge failed: ${conflictReason}`,
+      log.info(
+        `"${ctx.commissionId as string}" merge failed: ${conflictReason}`,
       );
     }
   }
@@ -667,7 +674,7 @@ export function createCommissionOrchestrator(
     try {
       await lifecycle.executionFailed(ctx.commissionId, reason);
     } catch (err: unknown) {
-      console.error(`[orchestrator] executionFailed threw for "${ctx.commissionId as string}":`, errorMessage(err));
+      log.error(`executionFailed threw for "${ctx.commissionId as string}":`, errorMessage(err));
     }
     if (preserveWorktree) {
       await preserveAndCleanup(ctx, reason);
@@ -694,8 +701,8 @@ export function createCommissionOrchestrator(
         projectPath: project?.path,
       });
     } catch (err: unknown) {
-      console.warn(
-        `[orchestrator] preserveAndCleanup failed for "${ctx.commissionId as string}":`,
+      log.warn(
+        `preserveAndCleanup failed for "${ctx.commissionId as string}":`,
         errorMessage(err),
       );
     }
@@ -720,13 +727,13 @@ export function createCommissionOrchestrator(
       try {
         await lifecycle.cancel(commissionId, reason);
       } catch (err: unknown) {
-        console.warn(`[orchestrator] lifecycle.cancel failed for sleeping "${commissionId as string}":`, errorMessage(err));
+        log.warn(`lifecycle.cancel failed for sleeping "${commissionId as string}":`, errorMessage(err));
       }
     } else {
       try {
         await lifecycle.abandon(commissionId, reason);
       } catch (err: unknown) {
-        console.warn(`[orchestrator] lifecycle.abandon failed for sleeping "${commissionId as string}":`, errorMessage(err));
+        log.warn(`lifecycle.abandon failed for sleeping "${commissionId as string}":`, errorMessage(err));
       }
     }
 
@@ -761,7 +768,7 @@ export function createCommissionOrchestrator(
             projectPath: project?.path,
           });
         } catch (err: unknown) {
-          console.warn(`[orchestrator] preserveAndCleanup failed for sleeping "${commissionId as string}":`, errorMessage(err));
+          log.warn(`preserveAndCleanup failed for sleeping "${commissionId as string}":`, errorMessage(err));
         }
       }
     }
@@ -824,7 +831,7 @@ export function createCommissionOrchestrator(
         try {
           status = await recordOps.readStatus(cArtifactPath);
         } catch (err: unknown) {
-          console.warn(`[orchestrator] checkDependencyTransitions: failed to read status for "${cId as string}":`, errorMessage(err));
+          log.warn(`checkDependencyTransitions: failed to read status for "${cId as string}":`, errorMessage(err));
           return null;
         }
 
@@ -834,7 +841,7 @@ export function createCommissionOrchestrator(
         try {
           dependencies = await recordOps.readDependencies(cArtifactPath);
         } catch (err: unknown) {
-          console.warn(`[orchestrator] checkDependencyTransitions: failed to read dependencies for "${cId as string}":`, errorMessage(err));
+          log.warn(`checkDependencyTransitions: failed to read dependencies for "${cId as string}":`, errorMessage(err));
           return null;
         }
 
@@ -871,13 +878,13 @@ export function createCommissionOrchestrator(
           await lifecycle.unblock(cId);
           lifecycle.forget(cId);
           anyUnblocked = true;
-          console.log(
-            `[orchestrator] dependency auto-transition: "${cId as string}" blocked -> pending (all deps satisfied)`,
+          log.info(
+            `dependency auto-transition: "${cId as string}" blocked -> pending (all deps satisfied)`,
           );
         } catch (err: unknown) {
           lifecycle.forget(cId);
-          console.warn(
-            `[orchestrator] Failed to auto-transition "${cId as string}" blocked -> pending:`,
+          log.warn(
+            `Failed to auto-transition "${cId as string}" blocked -> pending:`,
             errorMessage(err),
           );
         }
@@ -886,13 +893,13 @@ export function createCommissionOrchestrator(
           lifecycle.register(cId, projectName, "pending", cArtifactPath);
           await lifecycle.block(cId);
           lifecycle.forget(cId);
-          console.log(
-            `[orchestrator] dependency auto-transition: "${cId as string}" pending -> blocked (missing dep)`,
+          log.info(
+            `dependency auto-transition: "${cId as string}" pending -> blocked (missing dep)`,
           );
         } catch (err: unknown) {
           lifecycle.forget(cId);
-          console.warn(
-            `[orchestrator] Failed to auto-transition "${cId as string}" pending -> blocked:`,
+          log.warn(
+            `Failed to auto-transition "${cId as string}" pending -> blocked:`,
             errorMessage(err),
           );
         }
@@ -916,7 +923,7 @@ export function createCommissionOrchestrator(
       stateFiles = await fs.readdir(stateDir);
     } catch (err: unknown) {
       if (isNodeError(err) && err.code === "ENOENT") {
-        console.log("[orchestrator-recovery] No commissions state directory found, scanning for orphaned worktrees.");
+        log.info("No commissions state directory found, scanning for orphaned worktrees.");
       } else {
         throw err;
       }
@@ -939,8 +946,8 @@ export function createCommissionOrchestrator(
         const raw = await fs.readFile(path.join(stateDir, file), "utf-8");
         state = JSON.parse(raw) as typeof state;
       } catch (err: unknown) {
-        console.warn(
-          `[orchestrator-recovery] Corrupt state file "${file}", skipping:`,
+        log.warn(
+          `Corrupt state file "${file}", skipping:`,
           errorMessage(err),
         );
         continue;
@@ -957,8 +964,8 @@ export function createCommissionOrchestrator(
 
         const project = config.projects.find((p) => p.name === state.projectName);
         if (!project) {
-          console.warn(
-            `[orchestrator-recovery] Sleeping commission "${state.commissionId}" references unknown project "${state.projectName}", skipping.`,
+          log.warn(
+            `Sleeping commission "${state.commissionId}" references unknown project "${state.projectName}", skipping.`,
           );
           continue;
         }
@@ -969,8 +976,8 @@ export function createCommissionOrchestrator(
 
         if (!worktreeExists) {
           // Worktree lost: transition to failed, preserve branch
-          console.log(
-            `[orchestrator-recovery] Sleeping commission "${state.commissionId}" has no worktree, transitioning to failed.`,
+          log.info(
+            `Sleeping commission "${state.commissionId}" has no worktree, transitioning to failed.`,
           );
           const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
           const artifactPath = commissionArtifactPath(iPath, cId);
@@ -978,8 +985,8 @@ export function createCommissionOrchestrator(
           try {
             await lifecycle.executionFailed(cId, "Worktree lost during sleep.");
           } catch (err: unknown) {
-            console.error(
-              `[orchestrator-recovery] Failed to transition sleeping "${state.commissionId}" to failed:`,
+            log.error(
+              `Failed to transition sleeping "${state.commissionId}" to failed:`,
               errorMessage(err),
             );
           }
@@ -1000,15 +1007,15 @@ export function createCommissionOrchestrator(
         const artifactPath = commissionArtifactPath(iPath, cId);
         lifecycle.register(cId, state.projectName, "sleeping", artifactPath);
 
-        console.log(
-          `[orchestrator-recovery] Recovering sleeping commission "${state.commissionId}".`,
+        log.info(
+          `Recovering sleeping commission "${state.commissionId}".`,
         );
 
         try {
           await mailOrchestrator.recoverSleepingCommission(sleepingState);
         } catch (err: unknown) {
-          console.error(
-            `[orchestrator-recovery] Failed to recover sleeping "${state.commissionId}":`,
+          log.error(
+            `Failed to recover sleeping "${state.commissionId}":`,
             errorMessage(err),
           );
           try {
@@ -1037,8 +1044,8 @@ export function createCommissionOrchestrator(
 
       const project = config.projects.find((p) => p.name === state.projectName);
       if (!project) {
-        console.warn(
-          `[orchestrator-recovery] Commission "${state.commissionId}" references unknown project "${state.projectName}", skipping.`,
+        log.warn(
+          `Commission "${state.commissionId}" references unknown project "${state.projectName}", skipping.`,
         );
         continue;
       }
@@ -1056,15 +1063,15 @@ export function createCommissionOrchestrator(
       // Register at the stored status, then transition to failed
       lifecycle.register(cId, state.projectName, state.status as CommissionStatus, artifactPath);
 
-      console.log(
-        `[orchestrator-recovery] Commission "${state.commissionId}" was ${state.status} when daemon stopped, transitioning to failed.`,
+      log.info(
+        `Commission "${state.commissionId}" was ${state.status} when daemon stopped, transitioning to failed.`,
       );
 
       try {
         await lifecycle.executionFailed(cId, "Recovery: process lost on restart");
       } catch (err: unknown) {
-        console.error(
-          `[orchestrator-recovery] Failed to transition "${state.commissionId}" to failed:`,
+        log.error(
+          `Failed to transition "${state.commissionId}" to failed:`,
           errorMessage(err),
         );
         lifecycle.forget(cId);
@@ -1084,8 +1091,8 @@ export function createCommissionOrchestrator(
               projectPath: project.path,
             });
           } catch (err: unknown) {
-            console.warn(
-              `[orchestrator-recovery] preserveAndCleanup failed for "${state.commissionId}":`,
+            log.warn(
+              `preserveAndCleanup failed for "${state.commissionId}":`,
               errorMessage(err),
             );
           }
@@ -1111,8 +1118,8 @@ export function createCommissionOrchestrator(
         dirEntries = await fs.readdir(worktreeRoot);
       } catch (err: unknown) {
         if (isNodeError(err) && err.code === "ENOENT") continue;
-        console.warn(
-          `[orchestrator-recovery] Failed to scan worktree root for "${project.name}":`,
+        log.warn(
+          `Failed to scan worktree root for "${project.name}":`,
           errorMessage(err),
         );
         continue;
@@ -1136,8 +1143,8 @@ export function createCommissionOrchestrator(
           continue;
         }
 
-        console.log(
-          `[orchestrator-recovery] Found orphaned worktree "${commissionId}" for project "${project.name}" (no state file), transitioning to failed.`,
+        log.info(
+          `Found orphaned worktree "${commissionId}" for project "${project.name}" (no state file), transitioning to failed.`,
         );
 
         const branchName = commissionBranchNameFn(commissionId);
@@ -1149,8 +1156,8 @@ export function createCommissionOrchestrator(
         try {
           await lifecycle.executionFailed(cId, "Recovery: state lost");
         } catch (err: unknown) {
-          console.error(
-            `[orchestrator-recovery] Failed to transition orphan "${commissionId}" to failed:`,
+          log.error(
+            `Failed to transition orphan "${commissionId}" to failed:`,
             errorMessage(err),
           );
           lifecycle.forget(cId);
@@ -1166,8 +1173,8 @@ export function createCommissionOrchestrator(
             projectPath: project.path,
           });
         } catch (err: unknown) {
-          console.warn(
-            `[orchestrator-recovery] preserveAndCleanup failed for orphan "${commissionId}":`,
+          log.warn(
+            `preserveAndCleanup failed for orphan "${commissionId}":`,
             errorMessage(err),
           );
         }
@@ -1179,7 +1186,7 @@ export function createCommissionOrchestrator(
     }
 
     if (recovered === 0) {
-      console.log("[orchestrator-recovery] No commissions to recover.");
+      log.info("No commissions to recover.");
     }
 
     enqueueAutoDispatch();
@@ -1280,8 +1287,8 @@ projectName: ${projectName}
     const artifactPath = commissionArtifactPath(iPath, commissionId);
     await fs.writeFile(artifactPath, content, "utf-8");
 
-    console.log(
-      `[orchestrator] created "${commissionId as string}" for project "${projectName}" (worker: ${workerName})`,
+    log.info(
+      `created "${commissionId as string}" for project "${projectName}" (worker: ${workerName})`,
     );
 
     return { commissionId: commissionId as string };
@@ -1381,8 +1388,8 @@ projectName: ${projectName}
       );
     }
 
-    console.log(
-      `[orchestrator] created scheduled commission "${commissionId as string}" for project "${projectName}" (worker: ${workerName})`,
+    log.info(
+      `created scheduled commission "${commissionId as string}" for project "${projectName}" (worker: ${workerName})`,
     );
 
     return { commissionId: commissionId as string };
@@ -1592,8 +1599,8 @@ projectName: ${projectName}
     }
     const capacityCheck = isAtCapacity(found.projectName, activeMap, config);
     if (capacityCheck.atLimit) {
-      console.log(
-        `[orchestrator] queuing "${commissionId as string}": ${capacityCheck.reason}`,
+      log.info(
+        `queuing "${commissionId as string}": ${capacityCheck.reason}`,
       );
       eventBus.emit({
         type: "commission_queued",
@@ -1643,8 +1650,8 @@ projectName: ${projectName}
         }
         await lifecycle.block(commissionId);
         lifecycle.forget(commissionId);
-        console.log(
-          `[orchestrator] blocking "${commissionId as string}": dependencies not yet satisfied`,
+        log.info(
+          `blocking "${commissionId as string}": dependencies not yet satisfied`,
         );
         eventBus.emit({
           type: "commission_queued",
@@ -1688,8 +1695,8 @@ projectName: ${projectName}
     try {
       await gitOps.commitAll(iPath, `Add commission: ${commissionId as string}`);
     } catch (err: unknown) {
-      console.warn(
-        `[orchestrator] pre-dispatch commit failed for "${commissionId as string}":`,
+      log.warn(
+        `pre-dispatch commit failed for "${commissionId as string}":`,
         errorMessage(err),
       );
     }
@@ -1705,8 +1712,8 @@ projectName: ${projectName}
       });
     } catch (err: unknown) {
       const errMsg = errorMessage(err);
-      console.error(
-        `[orchestrator] workspace.prepare failed for "${commissionId as string}":`,
+      log.error(
+        `workspace.prepare failed for "${commissionId as string}":`,
         errMsg,
       );
       await lifecycle.executionFailed(commissionId, `Workspace preparation failed: ${errMsg}`);
@@ -1730,14 +1737,14 @@ projectName: ${projectName}
     const startResult = await lifecycle.executionStarted(commissionId, worktreeArtifactPath);
     if (startResult.outcome === "skipped") {
       const reason = startResult.reason;
-      console.error(
-        `[orchestrator] executionStarted skipped for "${commissionId as string}": ${reason}`,
+      log.error(
+        `executionStarted skipped for "${commissionId as string}": ${reason}`,
       );
       await lifecycle.executionFailed(commissionId, `Failed to enter in_progress: ${reason}`);
       try {
         await workspace.removeWorktree(worktreeDir, found.projectPath);
       } catch (cleanupErr: unknown) {
-        console.warn(`[orchestrator] Failed to clean up worktree after executionStarted skip:`, errorMessage(cleanupErr));
+        log.warn(`Failed to clean up worktree after executionStarted skip:`, errorMessage(cleanupErr));
       }
       lifecycle.forget(commissionId);
       return { status: "accepted" };
@@ -1758,8 +1765,8 @@ projectName: ${projectName}
     executions.set(commissionId, execCtx);
 
     // 10. Fire-and-forget: run the session via sdk-runner
-    console.log(
-      `[orchestrator] dispatching "${commissionId as string}" -> worker="${workerName}" (in-process)`,
+    log.info(
+      `dispatching "${commissionId as string}" -> worker="${workerName}" (in-process)`,
     );
 
     // The services bag is passed to the toolbox resolver so the manager
@@ -1834,12 +1841,12 @@ projectName: ${projectName}
         resultSubmitted = true;
         const e = event as typeof event & { summary: string; artifacts?: string[] };
         lifecycle.resultSubmitted(ctx.commissionId, e.summary, e.artifacts).catch((err: unknown) => {
-          console.warn(`[orchestrator] resultSubmitted failed for "${ctx.commissionId as string}":`, errorMessage(err));
+          log.warn(`resultSubmitted failed for "${ctx.commissionId as string}":`, errorMessage(err));
         });
       } else if (event.type === "commission_progress") {
         const e = event as typeof event & { summary: string };
         lifecycle.progressReported(ctx.commissionId, e.summary).catch((err: unknown) => {
-          console.warn(`[orchestrator] progressReported failed for "${ctx.commissionId as string}":`, errorMessage(err));
+          log.warn(`progressReported failed for "${ctx.commissionId as string}":`, errorMessage(err));
         });
       } else if (event.type === "commission_mail_sent") {
         mailSent = true;
@@ -1854,7 +1861,7 @@ projectName: ${projectName}
 
     try {
       // 1. Prepare the SDK session (resolve tools, load memory, activate worker)
-      const prepResult = await prepareSdkSession(prepSpec, prepDeps);
+      const prepResult = await prepareSdkSession(prepSpec, prepDeps, log);
       if (!prepResult.ok) {
         await handleSessionError(ctx, new Error(prepResult.error));
         return;
@@ -1865,7 +1872,7 @@ projectName: ${projectName}
       // 2. Run and drain the SDK session
       const { options } = prepResult.result;
       const outcome = await drainSdkSession(
-        runSdkSession(queryFn, prompt, options),
+        runSdkSession(queryFn, prompt, options, log),
         { maxTurns: options.maxTurns },
       );
 
@@ -1904,8 +1911,8 @@ projectName: ${projectName}
       try {
         await handleSessionError(ctx, err, resolvedModel);
       } catch (innerErr: unknown) {
-        console.error(
-          `[orchestrator] handleSessionError failed for ${ctx.commissionId as string}:`,
+        log.error(
+          `handleSessionError failed for ${ctx.commissionId as string}:`,
           errorMessage(innerErr),
         );
       }
@@ -1927,7 +1934,7 @@ projectName: ${projectName}
       try {
         await lifecycle.cancel(commissionId, reason);
       } catch (err: unknown) {
-        console.warn(`[orchestrator] lifecycle.cancel failed for "${commissionId as string}" (continuing cleanup):`, errorMessage(err));
+        log.warn(`lifecycle.cancel failed for "${commissionId as string}" (continuing cleanup):`, errorMessage(err));
       }
 
       await preserveAndCleanup(ctx, reason);
@@ -2087,8 +2094,8 @@ projectName: ${projectName}
     );
     const attempt = previousDispatches + 1;
 
-    console.log(
-      `[orchestrator] redispatching "${commissionId as string}" (was ${redispatchStatus}, attempt ${attempt})`,
+    log.info(
+      `redispatching "${commissionId as string}" (was ${redispatchStatus}, attempt ${attempt})`,
     );
 
     // Reset status to pending via lifecycle
@@ -2131,8 +2138,8 @@ projectName: ${projectName}
         (isNodeError(err) && err.code === "ENOENT") ||
         (err instanceof Error && err.message.includes("artifact not found"));
       if (isNotFound && basePath !== found.integrationPath) {
-        console.warn(
-          `[orchestrator] addUserNote: activity worktree missing for "${commissionId as string}", falling back to integration worktree`,
+        log.warn(
+          `addUserNote: activity worktree missing for "${commissionId as string}", falling back to integration worktree`,
         );
         await recordOps.appendTimeline(
           commissionArtifactPath(found.integrationPath, commissionId),

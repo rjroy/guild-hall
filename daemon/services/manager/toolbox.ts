@@ -24,6 +24,8 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 import {
   createSdkMcpServer,
   tool,
@@ -95,6 +97,8 @@ export interface ManagerToolboxDeps {
   scheduleLifecycle?: ScheduleLifecycle;
   recordOps?: CommissionRecordOps;
   packages?: DiscoveredPackage[];
+  /** Injectable logger. Defaults to nullLog("manager"). */
+  log?: Log;
 }
 
 /**
@@ -127,6 +131,7 @@ function routeError(errorMsg: string): ToolResult {
 export function makeCreateCommissionHandler(
   deps: ManagerToolboxDeps,
 ) {
+  const log = deps.log ?? nullLog("manager");
   return async (args: {
     title: string;
     workerName: string;
@@ -150,8 +155,8 @@ export function makeCreateCommissionHandler(
       );
 
       if (!createResult.ok) {
-        console.error(
-          `[manager-toolbox] Failed to create commission "${args.title}":`,
+        log.error(
+          `Failed to create commission "${args.title}":`,
           createResult.error,
         );
         return routeError(createResult.error);
@@ -169,8 +174,8 @@ export function makeCreateCommissionHandler(
         );
 
         if (!dispatchResult.ok) {
-          console.error(
-            `[manager-toolbox] Failed to dispatch commission "${commissionId}":`,
+          log.error(
+            `Failed to dispatch commission "${commissionId}":`,
             dispatchResult.error,
           );
           return {
@@ -190,8 +195,8 @@ export function makeCreateCommissionHandler(
         dispatched = true;
       }
 
-      console.log(
-        `[manager-toolbox] Created commission "${args.title}" (id: ${commissionId}, dispatched: ${dispatched})`,
+      log.info(
+        `Created commission "${args.title}" (id: ${commissionId}, dispatched: ${dispatched})`,
       );
 
       return {
@@ -203,8 +208,8 @@ export function makeCreateCommissionHandler(
         ],
       };
     } catch (err: unknown) {
-      console.error(
-        `[manager-toolbox] Failed to create commission "${args.title}":`,
+      log.error(
+        `Failed to create commission "${args.title}":`,
         errorMessage(err),
       );
       return routeError(errorMessage(err));
@@ -215,6 +220,7 @@ export function makeCreateCommissionHandler(
 export function makeDispatchCommissionHandler(
   deps: ManagerToolboxDeps,
 ) {
+  const log = deps.log ?? nullLog("manager");
   return async (args: { commissionId: string }): Promise<ToolResult> => {
     try {
       const result = await deps.callRoute(
@@ -223,15 +229,15 @@ export function makeDispatchCommissionHandler(
       );
 
       if (!result.ok) {
-        console.error(
-          `[manager-toolbox] Failed to dispatch commission "${args.commissionId}":`,
+        log.error(
+          `Failed to dispatch commission "${args.commissionId}":`,
           result.error,
         );
         return routeError(result.error);
       }
 
-      console.log(
-        `[manager-toolbox] Dispatched commission "${args.commissionId}"`,
+      log.info(
+        `Dispatched commission "${args.commissionId}"`,
       );
 
       return {
@@ -243,8 +249,8 @@ export function makeDispatchCommissionHandler(
         ],
       };
     } catch (err: unknown) {
-      console.error(
-        `[manager-toolbox] Failed to dispatch commission "${args.commissionId}":`,
+      log.error(
+        `Failed to dispatch commission "${args.commissionId}":`,
         errorMessage(err),
       );
       return routeError(errorMessage(err));
@@ -267,6 +273,7 @@ export interface PrMarker {
 export function makeCreatePrHandler(
   deps: ManagerToolboxDeps,
 ) {
+  const log = deps.log ?? nullLog("manager");
   return async (args: {
     title: string;
     body?: string;
@@ -342,8 +349,8 @@ export function makeCreatePrHandler(
           "utf-8",
         );
 
-        console.log(
-          `[manager-toolbox] Created PR for "${deps.projectName}": ${url}`,
+        log.info(
+          `Created PR for "${deps.projectName}": ${url}`,
         );
 
         return {
@@ -356,8 +363,8 @@ export function makeCreatePrHandler(
         } as ToolResult;
       });
     } catch (err: unknown) {
-      console.error(
-        `[manager-toolbox] Failed to create PR for "${deps.projectName}":`,
+      log.error(
+        `Failed to create PR for "${deps.projectName}":`,
         errorMessage(err),
       );
       return routeError(errorMessage(err));
@@ -369,6 +376,7 @@ export function makeCreatePrHandler(
 export function makeInitiateMeetingHandler(
   deps: ManagerToolboxDeps,
 ) {
+  const log = deps.log ?? nullLog("manager");
   return async (args: {
     workerName: string;
     reason: string;
@@ -427,8 +435,8 @@ meeting_log:
           );
         });
       } catch (commitErr: unknown) {
-        console.error(
-          `[manager-toolbox] Failed to commit meeting request "${meetingId}":`,
+        log.error(
+          `Failed to commit meeting request "${meetingId}":`,
           errorMessage(commitErr),
         );
         return {
@@ -448,8 +456,8 @@ meeting_log:
         artifactPath,
       );
 
-      console.log(
-        `[manager-toolbox] Created meeting request for "${args.workerName}" (artifact: ${relativePath})`,
+      log.info(
+        `Created meeting request for "${args.workerName}" (artifact: ${relativePath})`,
       );
 
       return {
@@ -461,8 +469,8 @@ meeting_log:
         ],
       };
     } catch (err: unknown) {
-      console.error(
-        `[manager-toolbox] Failed to create meeting request for "${args.workerName}":`,
+      log.error(
+        `Failed to create meeting request for "${args.workerName}":`,
         errorMessage(err),
       );
       return routeError(errorMessage(err));
@@ -473,6 +481,7 @@ meeting_log:
 export function makeAddCommissionNoteHandler(
   deps: ManagerToolboxDeps,
 ) {
+  const log = deps.log ?? nullLog("manager");
   return async (args: {
     commissionId: string;
     content: string;
@@ -487,15 +496,15 @@ export function makeAddCommissionNoteHandler(
       );
 
       if (!result.ok) {
-        console.error(
-          `[manager-toolbox] Failed to add note to commission "${args.commissionId}":`,
+        log.error(
+          `Failed to add note to commission "${args.commissionId}":`,
           result.error,
         );
         return routeError(result.error);
       }
 
-      console.log(
-        `[manager-toolbox] Added note to commission "${args.commissionId}"`,
+      log.info(
+        `Added note to commission "${args.commissionId}"`,
       );
 
       return {
@@ -507,8 +516,8 @@ export function makeAddCommissionNoteHandler(
         ],
       };
     } catch (err: unknown) {
-      console.error(
-        `[manager-toolbox] Failed to add note to commission "${args.commissionId}":`,
+      log.error(
+        `Failed to add note to commission "${args.commissionId}":`,
         errorMessage(err),
       );
       return routeError(errorMessage(err));
@@ -519,6 +528,7 @@ export function makeAddCommissionNoteHandler(
 export function makeCancelCommissionHandler(
   deps: ManagerToolboxDeps,
 ) {
+  const log = deps.log ?? nullLog("manager");
   return async (args: {
     commissionId: string;
   }): Promise<ToolResult> => {
@@ -529,15 +539,15 @@ export function makeCancelCommissionHandler(
       );
 
       if (!result.ok) {
-        console.error(
-          `[manager-toolbox] Failed to cancel commission "${args.commissionId}":`,
+        log.error(
+          `Failed to cancel commission "${args.commissionId}":`,
           result.error,
         );
         return routeError(result.error);
       }
 
-      console.log(
-        `[manager-toolbox] Cancelled commission "${args.commissionId}"`,
+      log.info(
+        `Cancelled commission "${args.commissionId}"`,
       );
 
       return {
@@ -549,8 +559,8 @@ export function makeCancelCommissionHandler(
         ],
       };
     } catch (err: unknown) {
-      console.error(
-        `[manager-toolbox] Failed to cancel commission "${args.commissionId}":`,
+      log.error(
+        `Failed to cancel commission "${args.commissionId}":`,
         errorMessage(err),
       );
       return routeError(errorMessage(err));
@@ -561,6 +571,7 @@ export function makeCancelCommissionHandler(
 export function makeAbandonCommissionHandler(
   deps: ManagerToolboxDeps,
 ) {
+  const log = deps.log ?? nullLog("manager");
   return async (args: {
     commissionId: string;
     reason: string;
@@ -575,15 +586,15 @@ export function makeAbandonCommissionHandler(
       );
 
       if (!result.ok) {
-        console.error(
-          `[manager-toolbox] Failed to abandon commission "${args.commissionId}":`,
+        log.error(
+          `Failed to abandon commission "${args.commissionId}":`,
           result.error,
         );
         return routeError(result.error);
       }
 
-      console.log(
-        `[manager-toolbox] Abandoned commission "${args.commissionId}"`,
+      log.info(
+        `Abandoned commission "${args.commissionId}"`,
       );
 
       return {
@@ -595,8 +606,8 @@ export function makeAbandonCommissionHandler(
         ],
       };
     } catch (err: unknown) {
-      console.error(
-        `[manager-toolbox] Failed to abandon commission "${args.commissionId}":`,
+      log.error(
+        `Failed to abandon commission "${args.commissionId}":`,
         errorMessage(err),
       );
       return routeError(errorMessage(err));
@@ -609,6 +620,7 @@ export function makeAbandonCommissionHandler(
 export function makeCreateScheduledCommissionHandler(
   deps: ManagerToolboxDeps,
 ) {
+  const log = deps.log ?? nullLog("manager");
   return async (args: {
     title: string;
     workerName: string;
@@ -635,8 +647,8 @@ export function makeCreateScheduledCommissionHandler(
       );
 
       if (!result.ok) {
-        console.error(
-          `[manager-toolbox] Failed to create scheduled commission "${args.title}":`,
+        log.error(
+          `Failed to create scheduled commission "${args.title}":`,
           result.error,
         );
         return routeError(result.error);
@@ -644,8 +656,8 @@ export function makeCreateScheduledCommissionHandler(
 
       const { commissionId } = result.data as { commissionId: string };
 
-      console.log(
-        `[manager-toolbox] Created scheduled commission "${args.title}" (id: ${commissionId})`,
+      log.info(
+        `Created scheduled commission "${args.title}" (id: ${commissionId})`,
       );
 
       return {
@@ -657,8 +669,8 @@ export function makeCreateScheduledCommissionHandler(
         ],
       };
     } catch (err: unknown) {
-      console.error(
-        `[manager-toolbox] Failed to create scheduled commission "${args.title}":`,
+      log.error(
+        `Failed to create scheduled commission "${args.title}":`,
         errorMessage(err),
       );
       return routeError(errorMessage(err));
@@ -692,6 +704,7 @@ const SCHEDULE_STATUS_ACTIONS: Record<
 export function makeUpdateScheduleHandler(
   deps: ManagerToolboxDeps,
 ) {
+  const log = deps.log ?? nullLog("manager");
   return async (args: {
     commissionId: string;
     cron?: string;
@@ -902,8 +915,8 @@ export function makeUpdateScheduleHandler(
         await fs.writeFile(artifactPath, raw, "utf-8");
       }
 
-      console.log(
-        `[manager-toolbox] Updated schedule "${args.commissionId}" (status: ${currentStatus})`,
+      log.info(
+        `Updated schedule "${args.commissionId}" (status: ${currentStatus})`,
       );
 
       return {
@@ -915,8 +928,8 @@ export function makeUpdateScheduleHandler(
         ],
       };
     } catch (err: unknown) {
-      console.error(
-        `[manager-toolbox] Failed to update schedule "${args.commissionId}":`,
+      log.error(
+        `Failed to update schedule "${args.commissionId}":`,
         errorMessage(err),
       );
       return routeError(errorMessage(err));

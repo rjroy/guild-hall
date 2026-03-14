@@ -1,7 +1,7 @@
 ---
 title: Injectable daemon logger
 date: 2026-03-14
-status: draft
+status: implemented
 tags: [logging, testing, dependency-injection, daemon]
 modules: [daemon]
 related:

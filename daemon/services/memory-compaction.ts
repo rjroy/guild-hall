@@ -25,6 +25,8 @@ import { memoryScopeDir, type MemoryScope } from "@/daemon/services/memory-injec
 import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
 import { collectSdkText } from "@/daemon/lib/sdk-text";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 
 // -- Constants --
 
@@ -42,6 +44,7 @@ export interface CompactionDeps {
   /** DI seam: tests inject a mock, production passes the real SDK query(). */
   compactFn: CompactQueryFn;
   config?: AppConfig;
+  log?: Log;
 }
 
 interface ScopeSnapshot {
@@ -258,6 +261,7 @@ async function runCompaction(
   projectName: string,
   deps: CompactionDeps,
 ): Promise<void> {
+  const log = deps.log ?? nullLog("memory-compaction");
   // 1. Snapshot all three scopes
   const snapshots: ScopeSnapshot[] = [];
 
@@ -320,16 +324,16 @@ async function runCompaction(
   } catch (err: unknown) {
     // Compaction failure is non-fatal. Leave files as-is; next activation
     // retries implicitly via the truncated-memory path.
-    console.warn(
-      `[memory-compaction] SDK call failed for ${workerName}/${projectName}:`,
+    log.warn(
+      `SDK call failed for ${workerName}/${projectName}:`,
       errorMessage(err),
     );
     return;
   }
 
   if (!summary) {
-    console.warn(
-      `[memory-compaction] SDK returned empty summary for ${workerName}/${projectName}, skipping compaction`,
+    log.warn(
+      `SDK returned empty summary for ${workerName}/${projectName}, skipping compaction`,
     );
     return;
   }
@@ -338,14 +342,14 @@ async function runCompaction(
   try {
     await writeAndCleanup(snapshots, summary);
   } catch (err: unknown) {
-    console.warn(
-      `[memory-compaction] Write/cleanup failed for ${workerName}/${projectName}:`,
+    log.warn(
+      `Write/cleanup failed for ${workerName}/${projectName}:`,
       errorMessage(err),
     );
     return;
   }
 
-  console.log(
-    `[memory-compaction] Compacted ${snapshots.reduce((n, s) => n + s.filenames.length, 0)} file(s) for ${workerName}/${projectName}`,
+  log.info(
+    `Compacted ${snapshots.reduce((n, s) => n + s.filenames.length, 0)} file(s) for ${workerName}/${projectName}`,
   );
 }

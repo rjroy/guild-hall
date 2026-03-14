@@ -3,8 +3,10 @@
  *
  * Pure functions that extract and format content blocks from Claude Agent SDK
  * messages for debug logging. No closure dependencies; logSdkMessage takes a
- * log callback as its first parameter.
+ * Log instance as its first parameter.
  */
+
+import type { Log } from "@/daemon/lib/log";
 
 /** Truncates a string to a maximum length, appending "..." if truncated. */
 function truncateSdkStr(s: string, max = 300): string {
@@ -22,7 +24,7 @@ function sdkStr(obj: Record<string, unknown>, key: string, fallback = ""): strin
  * and logs text, tool_use (with inputs), and tool_result blocks.
  */
 export function logSdkMessage(
-  log: (msg: string) => void,
+  log: Log,
   index: number,
   msg: unknown,
 ): void {
@@ -31,7 +33,7 @@ export function logSdkMessage(
   const type = sdkStr(m, "type", "unknown");
 
   if (type === "system" || type === "rate_limit_event") {
-    log(`${prefix} ${type}`);
+    log.info(`${prefix} ${type}`);
     return;
   }
 
@@ -43,28 +45,28 @@ export function logSdkMessage(
     const stop = sdkStr(m, "stop_reason") || sdkStr(inner, "stop_reason") || "?";
     const costVal = sdkStr(m, "total_cost_usd");
     const cost = costVal ? ` cost=$${costVal}` : "";
-    log(`${prefix} result (stop=${stop}${cost})`);
+    log.info(`${prefix} result (stop=${stop}${cost})`);
   }
 
   if (!Array.isArray(content)) {
-    log(`${prefix} ${type} (no content blocks)`);
+    log.info(`${prefix} ${type} (no content blocks)`);
     return;
   }
 
   for (const block of content) {
     const bType = sdkStr(block, "type", "unknown");
     if (bType === "text") {
-      log(`${prefix} ${type}/text: ${truncateSdkStr(sdkStr(block, "text"))}`);
+      log.info(`${prefix} ${type}/text: ${truncateSdkStr(sdkStr(block, "text"))}`);
     } else if (bType === "tool_use") {
       const input = JSON.stringify(block.input ?? {});
-      log(`${prefix} ${type}/tool_use: ${sdkStr(block, "name", "?")}(${truncateSdkStr(input, 200)})`);
+      log.info(`${prefix} ${type}/tool_use: ${sdkStr(block, "name", "?")}(${truncateSdkStr(input, 200)})`);
     } else if (bType === "tool_result") {
       const resultContent = Array.isArray(block.content)
         ? (block.content as Array<Record<string, unknown>>).map((c) => truncateSdkStr(sdkStr(c, "text"), 150)).join("; ")
         : truncateSdkStr(sdkStr(block, "content"), 150);
-      log(`${prefix} tool_result [${block.is_error === true ? "ERROR" : "ok"}]: ${resultContent}`);
+      log.info(`${prefix} tool_result [${block.is_error === true ? "ERROR" : "ok"}]: ${resultContent}`);
     } else {
-      log(`${prefix} ${type}/${bType}`);
+      log.info(`${prefix} ${type}/${bType}`);
     }
   }
 }
