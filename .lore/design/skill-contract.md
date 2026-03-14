@@ -1,7 +1,7 @@
 ---
 title: Skill Contract System
 date: 2026-03-13
-status: draft
+status: implemented
 tags: [architecture, daemon, skills, discovery, agents, cli]
 modules: [daemon, lib, cli]
 related:
