@@ -1,7 +1,7 @@
 ---
 title: "Commission: DAB Migration: Full Review"
 date: 2026-03-13
-status: dispatched
+status: completed
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -46,6 +46,40 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
-current_progress: ""
+  - timestamp: 2026-03-14T03:21:55.987Z
+    event: status_in_progress
+    reason: "Execution started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-03-14T03:22:05.162Z
+    event: progress_report
+    reason: "Starting review. Reading spec, plan, and design documents."
+  - timestamp: 2026-03-14T03:22:18.673Z
+    event: progress_report
+    reason: "Read all three reference documents (spec, plan, design). Launching parallel investigations across the six review scope areas."
+  - timestamp: 2026-03-14T03:26:11.958Z
+    event: progress_report
+    reason: "Evidence gathering complete. Found critical CLI path mismatch, help endpoint disconnection from skill registry, and missing test coverage. Compiling the structured review report now."
+  - timestamp: 2026-03-14T03:27:28.042Z
+    event: progress_report
+    reason: "All evidence gathered and verified. Writing the structured review report with findings categorized by severity."
+  - timestamp: 2026-03-14T03:29:00.827Z
+    event: result_submitted
+    reason: "Completed full review of the Daemon Application Boundary migration (Phases 0-7). Three findings reported:\n\n**F1 (Critical, Blocker):** CLI commands call non-existent `/admin/*` paths. The daemon routes were reorganized to capability-oriented paths (e.g., `/workspace/git/branch/rebase`) but CLI commands still call old paths (`/admin/rebase`). All four CLI commands (register, validate, rebase, sync) return 404s.\n\n**F2 (Major):** Help endpoints serve from a static 500-line HELP_TREE constant, not the skill registry. `createHelpRoutes()` takes no parameters despite `daemon/app.ts` passing the registry to it. Two sources of truth for discovery metadata: the registry (used by agents) and HELP_TREE (used by HTTP clients). The plan explicitly called for registry-driven help, which was not completed.\n\n**F3 (Major):** Zero test files for `createSkillRegistry()`, `formatSkillDiscoveryContext()`, or help endpoints. Every other route module has tests. The Phase 6 skill contract foundation is entirely untested.\n\nAll 15 REQ-DAB requirements were checked. 12 are fully satisfied. REQ-DAB-4 is broken by F1 (CLI paths). REQ-DAB-5 and REQ-DAB-9 are partially satisfied due to F2 (help vs registry disconnection). The standing validation rule passes: no new client-side authority paths were introduced. The five-concern boundary remains internal. Web server components correctly use fetchDaemon() for all reads. Manager toolbox correctly calls daemon routes via callRoute."
+  - timestamp: 2026-03-14T03:29:05.281Z
+    event: status_completed
+    reason: "Execution completed"
+    from: "in_progress"
+    to: "completed"
+current_progress: "All evidence gathered and verified. Writing the structured review report with findings categorized by severity."
 projectName: guild-hall
 ---
+Completed full review of the Daemon Application Boundary migration (Phases 0-7). Three findings reported:
+
+**F1 (Critical, Blocker):** CLI commands call non-existent `/admin/*` paths. The daemon routes were reorganized to capability-oriented paths (e.g., `/workspace/git/branch/rebase`) but CLI commands still call old paths (`/admin/rebase`). All four CLI commands (register, validate, rebase, sync) return 404s.
+
+**F2 (Major):** Help endpoints serve from a static 500-line HELP_TREE constant, not the skill registry. `createHelpRoutes()` takes no parameters despite `daemon/app.ts` passing the registry to it. Two sources of truth for discovery metadata: the registry (used by agents) and HELP_TREE (used by HTTP clients). The plan explicitly called for registry-driven help, which was not completed.
+
+**F3 (Major):** Zero test files for `createSkillRegistry()`, `formatSkillDiscoveryContext()`, or help endpoints. Every other route module has tests. The Phase 6 skill contract foundation is entirely untested.
+
+All 15 REQ-DAB requirements were checked. 12 are fully satisfied. REQ-DAB-4 is broken by F1 (CLI paths). REQ-DAB-5 and REQ-DAB-9 are partially satisfied due to F2 (help vs registry disconnection). The standing validation rule passes: no new client-side authority paths were introduced. The five-concern boundary remains internal. Web server components correctly use fetchDaemon() for all reads. Manager toolbox correctly calls daemon routes via callRoute.
