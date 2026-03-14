@@ -2,7 +2,7 @@ import { daemonFetch, isDaemonError, daemonHealth } from "@/lib/daemon-client";
 
 /**
  * CLI entry point: rebases claude onto the default branch for one or all projects.
- * Delegates to the daemon's POST /admin/rebase endpoint.
+ * Delegates to the daemon's POST /workspace/git/branch/rebase endpoint.
  */
 export async function rebase(projectName?: string): Promise<void> {
   const health = await daemonHealth();
@@ -12,7 +12,7 @@ export async function rebase(projectName?: string): Promise<void> {
     );
   }
 
-  const result = await daemonFetch("/admin/rebase", {
+  const result = await daemonFetch("/workspace/git/branch/rebase", {
     method: "POST",
     body: JSON.stringify(projectName ? { projectName } : {}),
   });
@@ -45,7 +45,7 @@ export async function rebase(projectName?: string): Promise<void> {
 
 /**
  * CLI entry point: smart sync (fetch + detect merged PR + reset or rebase)
- * for one or all projects. Delegates to the daemon's POST /admin/sync endpoint.
+ * for one or all projects. Delegates to the daemon's POST /workspace/git/integration/sync endpoint.
  */
 export async function sync(projectName?: string): Promise<void> {
   const health = await daemonHealth();
@@ -55,7 +55,7 @@ export async function sync(projectName?: string): Promise<void> {
     );
   }
 
-  const result = await daemonFetch("/admin/sync", {
+  const result = await daemonFetch("/workspace/git/integration/sync", {
     method: "POST",
     body: JSON.stringify(projectName ? { projectName } : {}),
   });

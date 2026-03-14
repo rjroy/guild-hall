@@ -1,7 +1,7 @@
 import { daemonFetch, isDaemonError, daemonHealth } from "@/lib/daemon-client";
 
 /**
- * Validate config and projects via the daemon's GET /admin/validate endpoint.
+ * Validate config and projects via the daemon's GET /system/config/application/validate endpoint.
  *
  * Returns 0 if valid, 1 if issues found.
  */
@@ -14,7 +14,7 @@ export async function validate(): Promise<number> {
     return 1;
   }
 
-  const result = await daemonFetch("/admin/validate");
+  const result = await daemonFetch("/system/config/application/validate");
 
   if (isDaemonError(result)) {
     console.error(`Failed to reach daemon: ${result.message}`);

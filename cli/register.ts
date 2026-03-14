@@ -2,7 +2,7 @@ import * as path from "node:path";
 import { daemonFetch, isDaemonError, daemonHealth } from "@/lib/daemon-client";
 
 /**
- * Register a project via the daemon's POST /admin/register-project endpoint.
+ * Register a project via the daemon's POST /system/config/project/register endpoint.
  *
  * The daemon owns the full registration sequence: validation, git setup,
  * config write, and in-memory reload.
@@ -20,7 +20,7 @@ export async function register(
 
   const resolved = path.resolve(projectPath);
 
-  const result = await daemonFetch("/admin/register-project", {
+  const result = await daemonFetch("/system/config/project/register", {
     method: "POST",
     body: JSON.stringify({ name, path: resolved }),
   });
