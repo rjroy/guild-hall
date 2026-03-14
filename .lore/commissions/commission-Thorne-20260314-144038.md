@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research triage: agent-native-applications"
 date: 2026-03-14
-status: dispatched
+status: completed
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -19,6 +19,31 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
-current_progress: ""
+  - timestamp: 2026-03-14T21:40:38.072Z
+    event: status_in_progress
+    reason: "Execution started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-03-14T21:40:45.550Z
+    event: progress_report
+    reason: "Reading the research document and key specs to begin triage."
+  - timestamp: 2026-03-14T21:40:57.456Z
+    event: progress_report
+    reason: "Read the research document and two key specs that reference it. Now checking implementation for absorption of specific research concepts."
+  - timestamp: 2026-03-14T21:41:24.124Z
+    event: progress_report
+    reason: "Evidence gathering complete. Writing the triage assessment now."
+  - timestamp: 2026-03-14T21:42:07.398Z
+    event: result_submitted
+    reason: "**Classification: PAST**\n\nThe research document `.lore/research/agent-native-applications.md` has been fully absorbed by the current spec chain. Its core principles (parity, files-as-interface, visible progress, granularity, domain tool graduation) are codified in REQ-SYS-39, REQ-DAB-12, REQ-SYS-21, REQ-CLI-PD-14, and the EventBus/SSE architecture. Its central architectural recommendation (MCP tools as the application capability surface) was deliberately rejected in favor of the daemon application boundary with CLI-shaped skills (REQ-SYS-31, REQ-DAB-7, REQ-DAB-8). The DAB spec explicitly states it \"redirects [the research] from MCP-shaped tooling toward a daemon-owned CLI skill surface.\" Residual value (CRUD audit checklist, dynamic discovery pattern) is minor and already partially addressed by the CLI progressive discovery spec. The specs are the refined output; the research is the raw ore that produced them."
+  - timestamp: 2026-03-14T21:42:10.725Z
+    event: status_completed
+    reason: "Execution completed"
+    from: "in_progress"
+    to: "completed"
+current_progress: "Evidence gathering complete. Writing the triage assessment now."
 projectName: guild-hall
 ---
+**Classification: PAST**
+
+The research document `.lore/research/agent-native-applications.md` has been fully absorbed by the current spec chain. Its core principles (parity, files-as-interface, visible progress, granularity, domain tool graduation) are codified in REQ-SYS-39, REQ-DAB-12, REQ-SYS-21, REQ-CLI-PD-14, and the EventBus/SSE architecture. Its central architectural recommendation (MCP tools as the application capability surface) was deliberately rejected in favor of the daemon application boundary with CLI-shaped skills (REQ-SYS-31, REQ-DAB-7, REQ-DAB-8). The DAB spec explicitly states it "redirects [the research] from MCP-shaped tooling toward a daemon-owned CLI skill surface." Residual value (CRUD audit checklist, dynamic discovery pattern) is minor and already partially addressed by the CLI progressive discovery spec. The specs are the refined output; the research is the raw ore that produced them.
