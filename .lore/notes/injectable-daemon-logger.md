@@ -1,5 +1,5 @@
 ---
-title: Implementation notes: injectable-daemon-logger
+title: "Implementation notes: injectable-daemon-logger"
 date: 2026-03-14
 status: complete
 tags: [implementation, notes, logging, dependency-injection]

@@ -1,5 +1,5 @@
 ---
-title: Implementation notes: cli-progressive-discovery
+title: "Implementation notes: cli-progressive-discovery"
 date: 2026-03-14
 status: complete
 tags: [implementation, notes]
