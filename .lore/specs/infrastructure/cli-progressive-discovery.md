@@ -59,7 +59,7 @@ This fills the `[STUB: cli-progressive-discovery]` exit point from the daemon ap
 
 - REQ-CLI-PD-11: Package skill handlers receive resolved context and return a structured result. The handler does not receive raw HTTP request/response objects. The daemon owns the HTTP boundary; the package owns the capability logic.
 
-- REQ-CLI-PD-12: State transitions for package skills that modify session state (reporting progress, submitting results) are mediated by the daemon, not executed directly by the handler. The daemon applies one-call guards, mutual exclusion, and EventBus emission. The concrete signaling contract between handler and daemon is defined in the `[STUB: package-skill-handler]` exit point.
+- REQ-CLI-PD-12: State transitions for package skills that modify session state (reporting progress, submitting results) are mediated by the daemon, not executed directly by the handler. The daemon applies one-call guards, mutual exclusion, and EventBus emission. The concrete signaling contract between handler and daemon is defined in the [package skill handler design](.lore/design/package-skill-handler.md).
 
 - REQ-CLI-PD-13: Package skills can be streaming or non-streaming. Streaming skills declare their event types in the skill definition. The daemon manages the SSE transport; the package emits events through a provided callback.
 
@@ -81,7 +81,7 @@ This fills the `[STUB: cli-progressive-discovery]` exit point from the daemon ap
 |------|---------------|--------|
 | Agent skill projection | Workers need CLI skill access through `canUseToolRules` | [Plan: DAB Phase 7, agent-skill-projection] |
 | Web skill rendering | Web UI needs to render package-contributed skills | [Plan: DAB Phase 8, web migration] |
-| Package skill handler contract | Need the concrete TypeScript interface for package skill handlers | [STUB: package-skill-handler] |
+| Package skill handler contract | Need the concrete TypeScript interface for package skill handlers | [Design: package-skill-handler](.lore/design/package-skill-handler.md) |
 
 ## Success Criteria
 
@@ -110,7 +110,7 @@ Defaults apply (unit tests, 90%+ coverage, fresh-context review), plus:
 
 ## Constraints
 
-- This spec does not define the concrete TypeScript handler interface for package skills. That's implementation detail deferred to planning.
+- The concrete TypeScript handler interface for package skills is defined in the [package skill handler design](.lore/design/package-skill-handler.md), not in this spec.
 - This spec does not require all internal toolbox tools to graduate. Graduation is incremental and driven by need.
 - This spec does not change how domain toolboxes or domain plugins work. Those remain internal extension mechanisms per REQ-DAB-11.
 - Package skills use the existing `SkillDefinition` type from the skill contract design. This spec requires adding a `sourcePackage?: string` field to `SkillDefinition` for attribution (REQ-CLI-PD-17). No other type modifications are required.
