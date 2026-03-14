@@ -1,7 +1,7 @@
 ---
 title: Commission list filtering - multi-select status checkboxes
 date: 2026-03-10
-status: active
+status: open
 tags: [ux, commissions, filtering, ui]
 modules: [web/components/commission/CommissionList]
 related:

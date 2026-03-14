@@ -1,7 +1,7 @@
 ---
 title: Commission list has no status filtering or grouping
 date: 2026-03-10
-status: in_progress
+status: open
 tags: [ux, ui, commissions]
 modules: [web/app/projects, web/components/commissions]
 ---

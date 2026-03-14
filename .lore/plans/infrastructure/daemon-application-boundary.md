@@ -1,7 +1,7 @@
 ---
 title: Daemon Application Boundary Migration
 date: 2026-03-13
-status: draft
+status: executed
 tags: [architecture, daemon, rest-api, cli, web, skills, migration]
 modules: [daemon, web, cli, lib]
 related:

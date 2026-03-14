@@ -1,7 +1,7 @@
 ---
 title: CLI progressive discovery
 date: 2026-03-14
-status: draft
+status: implemented
 tags: [architecture, cli, daemon, skills, packages, progressive-discovery]
 modules: [daemon, cli, packages]
 related:

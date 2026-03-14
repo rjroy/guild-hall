@@ -1,6 +1,6 @@
 ---
 title: Commission status gem colors are mathematically inverted
-status: invalid
+status: resolved
 tags: [bug, ui, css]
 date: 2026-03-10
 ---
