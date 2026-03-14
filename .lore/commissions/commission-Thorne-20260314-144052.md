@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research triage: personal-assistant-ai-landscape"
 date: 2026-03-14
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -14,6 +14,11 @@ activity_timeline:
   - timestamp: 2026-03-14T21:40:52.980Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-14T21:42:47.602Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
