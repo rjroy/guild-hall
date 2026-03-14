@@ -4,6 +4,8 @@ import { Hono } from "hono";
 import { asCommissionId } from "../types";
 import type { CommissionSessionForRoutes } from "../services/commission/orchestrator";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import { nullLog } from "@/daemon/lib/log";
+import type { Log } from "@/daemon/lib/log";
 import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveCommissionBasePath } from "@/lib/paths";
 import { scanCommissions, readCommissionMeta, parseActivityTimeline } from "@/lib/commissions";
@@ -17,6 +19,8 @@ export interface CommissionRoutesDeps {
   config?: AppConfig;
   /** Required for GET read routes. */
   guildHallHome?: string;
+  /** Injectable logger. Defaults to nullLog("commissions"). */
+  log?: Log;
 }
 
 /**
@@ -35,6 +39,7 @@ export interface CommissionRoutesDeps {
  * GET  /commission/request/commission/read      - Read commission detail
  */
 export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule {
+  const log = deps.log ?? nullLog("commissions");
   const routes = new Hono();
 
   // POST /commission/request/commission/create - Create commission
@@ -76,7 +81,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     }
 
     try {
-      console.log(`[route] POST /commission/request/commission/create project="${projectName}" worker="${workerName}" type="${body.type ?? "one-shot"}"`);
+      log.info(`POST /commission/request/commission/create project="${projectName}" worker="${workerName}" type="${body.type ?? "one-shot"}"`);
 
       let result: { commissionId: string };
       if (body.type === "scheduled") {
@@ -179,13 +184,13 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     const commissionId = asCommissionId(body.commissionId);
 
     try {
-      console.log(`[route] POST /commission/run/dispatch commissionId="${commissionId as string}"`);
+      log.info(`POST /commission/run/dispatch commissionId="${commissionId as string}"`);
       const result =
         await deps.commissionSession.dispatchCommission(commissionId);
       return c.json(result, 202);
     } catch (err: unknown) {
       const message = errorMessage(err);
-      console.error(`[route] dispatch failed: ${message}`);
+      log.error(`dispatch failed: ${message}`);
       if (message.includes("must be \"pending\"")) {
         return c.json({ error: message }, 409);
       }
@@ -208,7 +213,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     const commissionId = asCommissionId(body.commissionId);
 
     try {
-      console.log(`[route] POST /commission/run/cancel commissionId="${commissionId as string}"`);
+      log.info(`POST /commission/run/cancel commissionId="${commissionId as string}"`);
       await deps.commissionSession.cancelCommission(commissionId);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
@@ -241,13 +246,13 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     const commissionId = asCommissionId(body.commissionId);
 
     try {
-      console.log(`[route] POST /commission/run/redispatch commissionId="${commissionId as string}"`);
+      log.info(`POST /commission/run/redispatch commissionId="${commissionId as string}"`);
       const result =
         await deps.commissionSession.redispatchCommission(commissionId);
       return c.json(result, 202);
     } catch (err: unknown) {
       const message = errorMessage(err);
-      console.error(`[route] redispatch failed: ${message}`);
+      log.error(`redispatch failed: ${message}`);
       if (
         message.includes("must be \"failed\" or \"cancelled\"") ||
         message.includes("Cannot redispatch")
@@ -278,9 +283,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     }
 
     try {
-      console.log(
-        `[route] POST /commission/run/abandon commissionId="${commissionId as string}"`,
-      );
+      log.info(`POST /commission/run/abandon commissionId="${commissionId as string}"`);
       await deps.commissionSession.abandonCommission(commissionId, reason);
       return c.json({ status: "ok" });
     } catch (err: unknown) {
@@ -318,7 +321,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     }
 
     try {
-      console.log(`[route] POST /commission/schedule/commission/update commissionId="${commissionId as string}" target="${status}"`);
+      log.info(`POST /commission/schedule/commission/update commissionId="${commissionId as string}" target="${status}"`);
       const result = await deps.commissionSession.updateScheduleStatus(commissionId, status);
       if (result.outcome === "skipped") {
         return c.json({ error: result.reason }, 409);

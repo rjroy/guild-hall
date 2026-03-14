@@ -5,21 +5,12 @@
  * - Commission activity type: reason string contains activity ID and branch name
  * - Meeting activity type: reason string contains activity ID and branch name
  * - Successful createMeetingRequest: function completes without error
- * - Failed createMeetingRequest: error is caught, logged via console.error, not rethrown
+ * - Failed createMeetingRequest: error is caught, logged via log.error, not rethrown
  */
 
-import { describe, test, expect, spyOn, afterEach } from "bun:test";
+import { describe, test, expect } from "bun:test";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
-
-// Capture console.error calls so we can verify error logging without polluting output
-let consoleErrorSpy: ReturnType<typeof spyOn<Console, "error">> | undefined;
-
-afterEach(() => {
-  if (consoleErrorSpy) {
-    consoleErrorSpy.mockRestore();
-    consoleErrorSpy = undefined;
-  }
-});
+import { collectingLog } from "@/daemon/lib/log";
 
 describe("escalateMergeConflict", () => {
   test("commission activity type: reason contains activity ID and branch name", async () => {
@@ -92,7 +83,7 @@ describe("escalateMergeConflict", () => {
   });
 
   test("failed createMeetingRequest: error is caught, logged, not rethrown", async () => {
-    consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const { log, messages } = collectingLog("escalation");
 
     // Should not throw even though createMeetingRequest rejects
     await escalateMergeConflict({
@@ -104,19 +95,20 @@ describe("escalateMergeConflict", () => {
         return Promise.reject(new Error("Network timeout"));
       },
       managerPackageName: "guild-hall-manager",
+      log,
     });
 
-    // console.error should have been called with the failure details
-    expect(consoleErrorSpy).toHaveBeenCalled();
-    const errorArgs = consoleErrorSpy.mock.calls[0];
-    expect(errorArgs[0]).toContain("Failed to escalate merge conflict");
-    expect(errorArgs[0]).toContain("meeting");
-    expect(errorArgs[0]).toContain("mtg-fail");
-    expect(errorArgs[1]).toContain("Network timeout");
+    // log.error should have been called with the failure details
+    expect(messages.error.length).toBeGreaterThan(0);
+    const errorMsg = messages.error[0];
+    expect(errorMsg).toContain("Failed to escalate merge conflict");
+    expect(errorMsg).toContain("meeting");
+    expect(errorMsg).toContain("mtg-fail");
+    expect(errorMsg).toContain("Network timeout");
   });
 
   test("failed createMeetingRequest with non-Error throwable: logs string representation", async () => {
-    consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const { log, messages } = collectingLog("escalation");
 
     await escalateMergeConflict({
       activityType: "commission",
@@ -128,10 +120,11 @@ describe("escalateMergeConflict", () => {
         return Promise.reject("something went wrong");
       },
       managerPackageName: "guild-hall-manager",
+      log,
     });
 
-    expect(consoleErrorSpy).toHaveBeenCalled();
-    const errorArgs = consoleErrorSpy.mock.calls[0];
-    expect(errorArgs[1]).toContain("something went wrong");
+    expect(messages.error.length).toBeGreaterThan(0);
+    const errorMsg = messages.error[0];
+    expect(errorMsg).toContain("something went wrong");
   });
 });

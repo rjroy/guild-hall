@@ -29,6 +29,8 @@ import * as path from "node:path";
 import type { MeetingId, MeetingStatus } from "@/daemon/types";
 import { parseLinkedArtifacts, insertLinkedArtifact, escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 import { readYamlField, replaceYamlField, appendLogEntry } from "@/daemon/lib/record-utils";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 
 // -- Path resolution --
 
@@ -190,6 +192,7 @@ export async function writeNotesToArtifact(
   projectPath: string,
   meetingId: MeetingId,
   notes: string,
+  log: Log = nullLog("meeting-record"),
 ): Promise<void> {
   const artifactPath = meetingArtifactPath(projectPath, meetingId);
   const raw = await fs.readFile(artifactPath, "utf-8");
@@ -198,12 +201,12 @@ export async function writeNotesToArtifact(
   // and has a second "---" to close the frontmatter block.
   const firstDelim = raw.indexOf("---");
   if (firstDelim === -1) {
-    console.error(`[writeNotesToArtifact] no frontmatter found in artifact for meeting ${meetingId}`);
+    log.error(`No frontmatter found in artifact for meeting ${meetingId}`);
     return;
   }
   const closingDelim = raw.indexOf("\n---", firstDelim + 3);
   if (closingDelim === -1) {
-    console.error(`[writeNotesToArtifact] no closing frontmatter delimiter found in artifact for meeting ${meetingId}`);
+    log.error(`No closing frontmatter delimiter found in artifact for meeting ${meetingId}`);
     return;
   }
 
@@ -227,6 +230,7 @@ export async function closeArtifact(
   newStatus: MeetingStatus,
   logEvent: string,
   logReason: string,
+  log: Log = nullLog("meeting-record"),
 ): Promise<void> {
   const artifactPath = meetingArtifactPath(projectPath, meetingId);
   let raw = await fs.readFile(artifactPath, "utf-8");
@@ -242,12 +246,12 @@ export async function closeArtifact(
   // 3. Replace body (everything after closing frontmatter delimiter)
   const firstDelim = raw.indexOf("---");
   if (firstDelim === -1) {
-    console.error(`[closeArtifact] no frontmatter found in artifact for meeting ${meetingId}`);
+    log.error(`No frontmatter found in artifact for meeting ${meetingId}`);
     return;
   }
   const closingDelim = raw.indexOf("\n---", firstDelim + 3);
   if (closingDelim === -1) {
-    console.error(`[closeArtifact] no closing frontmatter delimiter found in artifact for meeting ${meetingId}`);
+    log.error(`No closing frontmatter delimiter found in artifact for meeting ${meetingId}`);
     return;
   }
   const frontmatterWithDelim = raw.slice(0, closingDelim + 4);

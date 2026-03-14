@@ -19,6 +19,8 @@ import {
 } from "@/daemon/services/manager/worker";
 import { isNodeError } from "@/lib/types";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 import { loadMemories } from "@/daemon/services/memory-injector";
 
 // -- Constants --
@@ -35,6 +37,7 @@ export interface ManagerContextDeps {
   guildHallHome: string;
   /** Override the memory character limit for the manager. */
   memoryLimit?: number;
+  log?: Log;
   /**
    * DI seam: scan commissions from the integration worktree's .lore/ directory.
    * Tests provide a stub; production uses the real scanCommissions().
@@ -289,6 +292,7 @@ function truncateContext(sections: string[]): string {
 export async function buildManagerContext(
   deps: ManagerContextDeps,
 ): Promise<string> {
+  const log = deps.log ?? nullLog("manager-context");
   const lorePath = path.join(deps.integrationPath, ".lore");
 
   // Load commissions (DI seam for testing)
@@ -333,13 +337,11 @@ export async function buildManagerContext(
     );
     memorySection = memoryResult.memoryBlock;
     if (memoryResult.needsCompaction) {
-      console.log(
-        `[manager-context] Manager memory exceeds limit, needs compaction`,
-      );
+      log.info(`Manager memory exceeds limit, needs compaction`);
     }
   } catch (err: unknown) {
-    console.warn(
-      `[manager-context] Failed to load manager memories (non-fatal):`,
+    log.warn(
+      `Failed to load manager memories (non-fatal):`,
       errorMessage(err),
     );
   }

@@ -21,6 +21,8 @@ import type { CommissionSessionForRoutes } from "@/daemon/services/commission/or
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { AppConfig } from "@/lib/types";
 import { integrationWorktreePath } from "@/lib/paths";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 import { asCommissionId } from "@/daemon/types";
 
 // -- Dependency interface --
@@ -37,6 +39,7 @@ export interface SchedulerDeps {
   eventBus: EventBus;
   config: AppConfig;
   guildHallHome: string;
+  log?: Log;
 }
 
 // -- Constants --
@@ -48,6 +51,7 @@ const CONSECUTIVE_FAILURE_THRESHOLD = 3;
 
 export class SchedulerService {
   private readonly deps: SchedulerDeps;
+  private readonly log: Log;
   private intervalId: ReturnType<typeof setInterval> | null = null;
 
   /** Tracks which lastSpawnedIds have already been escalated to avoid duplicates. */
@@ -58,6 +62,7 @@ export class SchedulerService {
 
   constructor(deps: SchedulerDeps) {
     this.deps = deps;
+    this.log = deps.log ?? nullLog("scheduler");
   }
 
   start(): void {
@@ -66,7 +71,7 @@ export class SchedulerService {
 
     this.intervalId = setInterval(() => {
       void this.tick().catch((err: unknown) => {
-        console.error("[scheduler] Unhandled error in tick:", err);
+        this.log.error("Unhandled error in tick:", err);
       });
     }, TICK_INTERVAL_MS);
   }
@@ -129,8 +134,8 @@ export class SchedulerService {
           // Reset consecutive failure counter on success
           this.consecutiveFailures.delete(artifactPath);
         } catch (err: unknown) {
-          console.error(
-            `[scheduler] Error processing schedule "${scheduleId}":`,
+          this.log.error(
+            `Error processing schedule "${scheduleId}":`,
             err,
           );
 
@@ -153,8 +158,8 @@ export class SchedulerService {
                 `${CONSECUTIVE_FAILURE_THRESHOLD} consecutive tick failures`,
               );
             } catch (failErr: unknown) {
-              console.error(
-                `[scheduler] Failed to transition schedule "${scheduleId}" to failed:`,
+              this.log.error(
+                `Failed to transition schedule "${scheduleId}" to failed:`,
                 failErr,
               );
             }
@@ -244,8 +249,8 @@ export class SchedulerService {
             extraTimelineFields: { missed_since: next.toISOString() },
           });
         } catch (err: unknown) {
-          console.error(
-            `[scheduler] Error during catch-up for schedule "${scheduleId}":`,
+          this.log.error(
+            `Error during catch-up for schedule "${scheduleId}":`,
             err,
           );
         }

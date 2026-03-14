@@ -29,6 +29,8 @@ import { MANAGER_WORKER_NAME } from "@/daemon/services/manager/worker";
 import { integrationWorktreePath, briefingCachePath } from "@/lib/paths";
 import { collectSdkText, collectRunnerText } from "@/daemon/lib/sdk-text";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 import { noopEventBus } from "@/daemon/lib/event-bus";
 import {
   prepareSdkSession,
@@ -52,6 +54,7 @@ export interface BriefingGeneratorDeps {
   config: AppConfig;
   guildHallHome: string;
   clock?: () => number;
+  log?: Log;
 }
 
 export interface BriefingResult {
@@ -262,6 +265,8 @@ function makeBriefingResolveToolSet(
  * - invalidateCache(projectName): clears the cache for a specific project
  */
 export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
+  const log = deps.log ?? nullLog("briefing");
+
   return {
     async generateBriefing(projectName: string): Promise<BriefingResult> {
       const now = (deps.clock ?? Date.now)();
@@ -306,7 +311,7 @@ export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
         context = await buildManagerContext(contextDeps);
       } catch (err: unknown) {
         const reason = errorMessage(err);
-        console.error(`[briefing-generator] Failed to build context for "${projectName}": ${reason}`);
+        log.error(`Failed to build context for "${projectName}": ${reason}`);
         return {
           briefing: "Unable to assemble project state for briefing.",
           generatedAt: new Date(now).toISOString(),
@@ -319,10 +324,10 @@ export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
 
       if (deps.queryFn && deps.prepDeps) {
         // Full SDK path: multi-turn session with Guild Master activation
-        briefingText = await generateWithFullSdk(deps, projectName, project.path, integrationPath, context);
+        briefingText = await generateWithFullSdk(deps, projectName, project.path, integrationPath, context, log);
       } else if (deps.queryFn) {
         // Single-turn SDK path (backwards compat)
-        briefingText = await generateWithSingleTurn(deps.queryFn, context);
+        briefingText = await generateWithSingleTurn(deps.queryFn, context, log);
       } else {
         // No SDK: template fallback
         briefingText = generateTemplateBriefing(context);
@@ -337,7 +342,7 @@ export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
         });
       } catch (err: unknown) {
         const reason = errorMessage(err);
-        console.warn(`[briefing-generator] Failed to write cache for "${projectName}": ${reason}`);
+        log.warn(`Failed to write cache for "${projectName}": ${reason}`);
       }
 
       return {
@@ -366,6 +371,7 @@ async function generateWithFullSdk(
   projectPath: string,
   integrationPath: string,
   context: string,
+  log: Log,
 ): Promise<string> {
   const prepDeps = deps.prepDeps!;
   const queryFn = deps.queryFn!;
@@ -396,7 +402,7 @@ async function generateWithFullSdk(
   try {
     const prepResult = await prepareSdkSession(spec, wrappedPrepDeps);
     if (!prepResult.ok) {
-      console.error(`[briefing-generator] Session prep failed for "${projectName}": ${prepResult.error}`);
+      log.error(`Session prep failed for "${projectName}": ${prepResult.error}`);
       return generateTemplateBriefing(context);
     }
 
@@ -405,13 +411,13 @@ async function generateWithFullSdk(
     const text = await collectRunnerText(generator);
 
     if (!text) {
-      console.warn(`[briefing-generator] SDK session completed with no text for "${projectName}". Falling back to template.`);
+      log.warn(`SDK session completed with no text for "${projectName}". Falling back to template.`);
       return generateTemplateBriefing(context);
     }
     return text;
   } catch (err: unknown) {
     const reason = prefixLocalModelError(errorMessage(err), undefined);
-    console.error(`[briefing-generator] SDK session failed for "${projectName}": ${reason}`);
+    log.error(`SDK session failed for "${projectName}": ${reason}`);
     return generateTemplateBriefing(context);
   }
 }
@@ -419,6 +425,7 @@ async function generateWithFullSdk(
 async function generateWithSingleTurn(
   queryFn: BriefingQueryFn,
   context: string,
+  log: Log,
 ): Promise<string> {
   const prompt = `You are generating a project status briefing for the Guild Hall dashboard.
 
@@ -448,7 +455,7 @@ Be factual and direct. No headers or bullet points. Plain prose.`;
     return text;
   } catch (err: unknown) {
     const reason = errorMessage(err);
-    console.error(`[briefing-generator] SDK invocation failed: ${reason}`);
+    log.error(`SDK invocation failed: ${reason}`);
     return generateTemplateBriefing(context);
   }
 }

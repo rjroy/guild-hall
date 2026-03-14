@@ -1,10 +1,14 @@
 import { Hono } from "hono";
 import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import { nullLog } from "@/daemon/lib/log";
+import type { Log } from "@/daemon/lib/log";
 import type { RouteModule, SkillDefinition } from "@/lib/types";
 
 export interface BriefingRouteDeps {
   briefingGenerator: ReturnType<typeof createBriefingGenerator>;
+  /** Injectable logger. Defaults to nullLog("briefing"). */
+  log?: Log;
 }
 
 /**
@@ -15,6 +19,7 @@ export interface BriefingRouteDeps {
  * fallback internally.
  */
 export function createBriefingRoutes(deps: BriefingRouteDeps): RouteModule {
+  const log = deps.log ?? nullLog("briefing");
   const routes = new Hono();
 
   routes.get("/coordination/review/briefing/read", async (c) => {
@@ -29,7 +34,7 @@ export function createBriefingRoutes(deps: BriefingRouteDeps): RouteModule {
       return c.json(result);
     } catch (err: unknown) {
       const reason = errorMessage(err);
-      console.error(`[briefing-route] Error generating briefing for "${projectName}": ${reason}`);
+      log.error(`Error generating briefing for "${projectName}": ${reason}`);
       return c.json({ error: "Failed to generate briefing" }, 500);
     }
   });

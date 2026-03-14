@@ -6,6 +6,9 @@
  * implementation minimal.
  */
 
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
+
 export type SystemEvent =
   | { type: "commission_status"; commissionId: string; status: string; oldStatus?: string; projectName?: string; reason?: string }
   | { type: "commission_progress"; commissionId: string; summary: string }
@@ -37,12 +40,12 @@ export const noopEventBus: EventBus = {
  * Returns an EventBus with emit/subscribe methods. subscribe() returns
  * an unsubscribe callback. Multiple subscribers are supported.
  */
-export function createEventBus(): EventBus {
+export function createEventBus(log: Log = nullLog("event-bus")): EventBus {
   const subscribers = new Set<(event: SystemEvent) => void>();
 
   return {
     emit(event: SystemEvent): void {
-      console.log(`[event-bus] ${event.type} -> ${subscribers.size} subscriber(s)`);
+      log.info(`${event.type} -> ${subscribers.size} subscriber(s)`);
       for (const callback of subscribers) {
         callback(event);
       }
@@ -50,10 +53,10 @@ export function createEventBus(): EventBus {
 
     subscribe(callback: (event: SystemEvent) => void): () => void {
       subscribers.add(callback);
-      console.log(`[event-bus] subscriber added (total: ${subscribers.size})`);
+      log.info(`subscriber added (total: ${subscribers.size})`);
       return () => {
         subscribers.delete(callback);
-        console.log(`[event-bus] subscriber removed (total: ${subscribers.size})`);
+        log.info(`subscriber removed (total: ${subscribers.size})`);
       };
     },
   };

@@ -9,7 +9,8 @@
  * focused on the orchestration sequence rather than SDK streaming.
  */
 
-import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { collectingLog } from "@/daemon/lib/log";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -1079,8 +1080,8 @@ describe("orchestrator flows", () => {
   // ---- Error logging (Step 3) ----
 
   describe("lifecycle error logging", () => {
-    test("acceptMeetingRequest logs console.error with meetingId on failure", async () => {
-      const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
+    test("acceptMeetingRequest logs error with meetingId on failure", async () => {
+      const { log, messages } = collectingLog("meeting");
 
       const mockWorkspace = createMockWorkspace();
       // Make prepare throw to trigger the catch block
@@ -1092,6 +1093,7 @@ describe("orchestrator flows", () => {
       const session = createMeetingSession(makeDeps({
         workspace: mockWorkspace,
         registry,
+        log,
       }));
 
       const meetingId = asMeetingId("audience-Assistant-20260302-170000");
@@ -1108,19 +1110,16 @@ describe("orchestrator flows", () => {
         session.acceptMeetingRequest(meetingId, "test-project"),
       );
 
-      // console.error should have been called with the meeting ID
-      const errorCalls = consoleSpy.mock.calls;
-      const relevantCall = errorCalls.find(
-        (args) => typeof args[0] === "string" && args[0].includes(meetingId as string),
+      // Injected log should have recorded an error containing the meeting ID
+      const relevantError = messages.error.find(
+        (msg) => msg.includes(meetingId as string),
       );
-      expect(relevantCall).toBeDefined();
-      expect(relevantCall![0]).toContain("meeting-orchestrator");
-
-      consoleSpy.mockRestore();
+      expect(relevantError).toBeDefined();
+      expect(relevantError!).toContain("meeting");
     });
 
-    test("createMeeting logs console.error with meetingId and worker on failure", async () => {
-      const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
+    test("createMeeting logs error with meetingId and worker on failure", async () => {
+      const { log, messages } = collectingLog("meeting");
 
       const mockWorkspace = createMockWorkspace();
       // Make prepare throw to trigger the catch block
@@ -1130,22 +1129,19 @@ describe("orchestrator flows", () => {
 
       const session = createMeetingSession(makeDeps({
         workspace: mockWorkspace,
+        log,
       }));
 
       await collectEvents(
         session.createMeeting("test-project", "test-assistant", "Hello"),
       );
 
-      // console.error should have been called with the meeting ID
-      const errorCalls = consoleSpy.mock.calls;
-      const relevantCall = errorCalls.find(
-        (args) => typeof args[0] === "string" && args[0].includes("meeting-orchestrator"),
+      // Injected log should have recorded an error about the failure
+      const relevantError = messages.error.find(
+        (msg) => msg.includes("createMeeting failed"),
       );
-      expect(relevantCall).toBeDefined();
-      expect(relevantCall![0]).toContain("createMeeting failed");
-      expect(relevantCall![0]).toContain("test-project");
-
-      consoleSpy.mockRestore();
+      expect(relevantError).toBeDefined();
+      expect(relevantError!).toContain("test-project");
     });
   });
 });

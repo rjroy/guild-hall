@@ -18,6 +18,7 @@ import { createProductionApp } from "@/daemon/app";
 import { writeConfig } from "@/lib/config";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { GitOps } from "@/daemon/lib/git";
+import type { Log, CreateLog } from "@/daemon/lib/log";
 
 interface MockGitOps extends GitOps {
   calls: Array<{ method: string; args: unknown[] }>;
@@ -245,26 +246,23 @@ describe("createProductionApp startup sync", () => {
     const mockGit = createMockGitOps();
     mockGit.merge = () => Promise.reject(new Error("merge conflict"));
 
-    // Capture warnings
+    // Capture log output via injectable createLog
     const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(" "));
-    };
+    const createLog: CreateLog = (_tag: string): Log => ({
+      error() {},
+      warn(...args: unknown[]) { warnings.push(args.map(String).join(" ")); },
+      info() {},
+    });
 
-    try {
-      const result = await createProductionApp({ packagesDir, gitOps: mockGit });
-      shutdownFn = result.shutdown;
-      expect(result.app).toBeDefined();
+    const result = await createProductionApp({ packagesDir, gitOps: mockGit, createLog });
+    shutdownFn = result.shutdown;
+    expect(result.app).toBeDefined();
 
-      const syncWarning = warnings.find(
-        (w) =>
-          w.includes("Sync failed") && w.includes("conflict-project"),
-      );
-      expect(syncWarning).toBeDefined();
-    } finally {
-      console.warn = originalWarn;
-    }
+    const syncWarning = warnings.find(
+      (w) =>
+        w.includes("Sync failed") && w.includes("conflict-project"),
+    );
+    expect(syncWarning).toBeDefined();
   });
 
   test("syncs multiple projects at startup", async () => {

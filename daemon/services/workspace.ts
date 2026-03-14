@@ -14,6 +14,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { GitOps } from "@/daemon/lib/git";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 
 // -- Public types --
@@ -107,10 +109,12 @@ export interface WorkspaceOps {
 
 export interface WorkspaceDeps {
   git: GitOps;
+  log?: Log;
 }
 
 export function createWorkspaceOps(deps: WorkspaceDeps): WorkspaceOps {
   const { git } = deps;
+  const log = deps.log ?? nullLog("workspace");
 
   return {
     async prepare(config) {
@@ -167,6 +171,7 @@ export function createWorkspaceOps(deps: WorkspaceDeps): WorkspaceOps {
           activityBranch,
           activityId,
           commitLabel,
+          log,
         );
       });
 
@@ -176,8 +181,8 @@ export function createWorkspaceOps(deps: WorkspaceDeps): WorkspaceOps {
           await git.removeWorktree(projectPath, worktreeDir);
           await git.deleteBranch(projectPath, activityBranch);
         } catch (err: unknown) {
-          console.warn(
-            `[workspace] Worktree/branch cleanup failed for "${activityId}":`,
+          log.warn(
+            `Worktree/branch cleanup failed for "${activityId}":`,
             errorMessage(err),
           );
         }
@@ -189,8 +194,8 @@ export function createWorkspaceOps(deps: WorkspaceDeps): WorkspaceOps {
       try {
         await git.removeWorktree(projectPath, worktreeDir);
       } catch (err: unknown) {
-        console.warn(
-          `[workspace] Failed to remove worktree for "${activityId}":`,
+        log.warn(
+          `Failed to remove worktree for "${activityId}":`,
           errorMessage(err),
         );
       }
@@ -209,13 +214,11 @@ export function createWorkspaceOps(deps: WorkspaceDeps): WorkspaceOps {
       try {
         const hadChanges = await git.commitAll(worktreeDir, commitMessage);
         if (hadChanges) {
-          console.log(
-            `[workspace] Partial results committed to ${branchName}`,
-          );
+          log.info(`Partial results committed to ${branchName}`);
         }
       } catch (err: unknown) {
-        console.warn(
-          `[workspace] Failed to commit partial results:`,
+        log.warn(
+          `Failed to commit partial results:`,
           errorMessage(err),
         );
       }
@@ -225,8 +228,8 @@ export function createWorkspaceOps(deps: WorkspaceDeps): WorkspaceOps {
         try {
           await git.removeWorktree(projectPath, worktreeDir);
         } catch (err: unknown) {
-          console.warn(
-            `[workspace] Failed to remove worktree:`,
+          log.warn(
+            `Failed to remove worktree:`,
             errorMessage(err),
           );
         }
@@ -258,6 +261,7 @@ async function resolveSquashMerge(
   sourceBranch: string,
   activityId: string,
   commitLabel: string,
+  log: Log,
 ): Promise<boolean> {
   const clean = await git.squashMergeNoCommit(integrationPath, sourceBranch);
 
@@ -270,8 +274,8 @@ async function resolveSquashMerge(
 
   if (conflictedFiles.length === 0) {
     // Squash-merge reported conflict but no unmerged files. Unexpected state.
-    console.warn(
-      `[workspace] "${activityId}" squash-merge reported conflict but no unmerged files found. Aborting.`,
+    log.warn(
+      `"${activityId}" squash-merge reported conflict but no unmerged files found. Aborting.`,
     );
     await git.mergeAbort(integrationPath);
     return false;
@@ -281,8 +285,8 @@ async function resolveSquashMerge(
   const nonLoreFiles = conflictedFiles.filter((f) => !f.startsWith(".lore/"));
 
   if (nonLoreFiles.length > 0) {
-    console.warn(
-      `[workspace] "${activityId}" squash-merge has non-.lore/ conflicts: ${nonLoreFiles.join(", ")}. Aborting merge.`,
+    log.warn(
+      `"${activityId}" squash-merge has non-.lore/ conflicts: ${nonLoreFiles.join(", ")}. Aborting merge.`,
     );
     await git.mergeAbort(integrationPath);
     return false;
@@ -290,8 +294,8 @@ async function resolveSquashMerge(
 
   // All conflicts are in .lore/ files. Auto-resolve with --theirs
   // (the activity branch's version).
-  console.log(
-    `[workspace] "${activityId}" auto-resolving ${loreFiles.length} .lore/ conflict(s): ${loreFiles.join(", ")}`,
+  log.info(
+    `"${activityId}" auto-resolving ${loreFiles.length} .lore/ conflict(s): ${loreFiles.join(", ")}`,
   );
   await git.resolveConflictsTheirs(integrationPath, loreFiles);
   await git.commitAll(

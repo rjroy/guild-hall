@@ -19,6 +19,8 @@ import type {
   SkillDefinition,
   WorkerMetadata,
 } from "@/lib/types";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 import { resolveModel } from "@/lib/types";
 import type { SkillRegistry } from "@/daemon/lib/skill-registry";
 import type { EventBus } from "@/daemon/lib/event-bus";
@@ -170,6 +172,7 @@ export async function* runSdkSession(
   queryFn: (params: { prompt: string; options: SdkQueryOptions }) => AsyncGenerator<SDKMessage>,
   prompt: string,
   options: SdkQueryOptions,
+  log: Log = nullLog("sdk-runner"),
 ): AsyncGenerator<SdkRunnerEvent> {
   // The event translator extracts text from stream_event messages, not from
   // assistant messages (to avoid double-emitting when both are present).
@@ -190,7 +193,6 @@ export async function* runSdkSession(
     return;
   }
 
-  const log = (msg: string) => console.log(`[sdk-runner] ${msg}`);
   let messageIndex = 0;
 
   try {
@@ -323,8 +325,8 @@ function buildCanUseTool(
 export async function prepareSdkSession(
   spec: SessionPrepSpec,
   deps: SessionPrepDeps,
+  log: Log = nullLog("sdk-runner"),
 ): Promise<{ ok: true; result: SessionPrepResult } | { ok: false; error: string }> {
-  const log = (msg: string) => console.log(`[sdk-runner] [${spec.workerName}] ${msg}`);
 
   // 1. Find worker package
   const workerPkg = spec.packages.find((p) => {
@@ -337,7 +339,7 @@ export async function prepareSdkSession(
   const workerMeta = workerPkg.metadata as WorkerMetadata;
 
   // 2. Resolve tools
-  log("resolving tools...");
+  log.info("resolving tools...");
   let resolvedTools: ResolvedToolSet;
   try {
     resolvedTools = await deps.resolveToolSet(workerMeta, spec.packages, {
@@ -387,7 +389,7 @@ export async function prepareSdkSession(
     );
     injectedMemory = memoryResult.memoryBlock;
     if (memoryResult.needsCompaction && deps.triggerCompaction) {
-      log("memory exceeds limit, triggering compaction");
+      log.info("memory exceeds limit, triggering compaction");
       deps.triggerCompaction(workerMeta.identity.name, spec.projectName, {
         guildHallHome: spec.guildHallHome,
       });
@@ -397,7 +399,7 @@ export async function prepareSdkSession(
   }
 
   // 4. Activate worker
-  log("activating worker...");
+  log.info("activating worker...");
   let activation: ActivationResult;
   try {
     const activationContext: ActivationContext = {
@@ -514,7 +516,7 @@ export async function prepareSdkSession(
     ...(spec.resume ? { resume: spec.resume } : {}),
   };
 
-  log(`prepared session. systemPrompt length=${activation.systemPrompt.length}`);
+  log.info(`prepared session. systemPrompt length=${activation.systemPrompt.length}`);
   return { ok: true, result: { options, resolvedModel: resolvedModelResult } };
 }
 

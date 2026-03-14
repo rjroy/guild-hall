@@ -13,6 +13,8 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
   ActivationContext,
@@ -181,11 +183,14 @@ export type MeetingSessionDeps = {
    * update_schedule tool to read commission artifact types.
    */
   recordOps?: CommissionRecordOps;
+  /** Injectable logger. Defaults to nullLog("meeting"). */
+  log?: Log;
 };
 
 // -- Factory --
 
 export function createMeetingSession(deps: MeetingSessionDeps) {
+  const log = deps.log ?? nullLog("meeting");
   const ghHome = deps.guildHallHome ?? getGuildHallHome();
   const git = deps.gitOps ?? createGitOps();
   const eventBus = deps.eventBus ?? noopEventBus;
@@ -258,8 +263,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       await fs.unlink(statePath(meetingId));
     } catch (err: unknown) {
       if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") return;
-      console.warn(
-        `[meeting] Failed to delete state file for "${meetingId as string}":`,
+      log.warn(
+        `Failed to delete state file for "${meetingId as string}":`,
         err instanceof Error ? err.message : String(err),
       );
     }
@@ -340,8 +345,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       await createTranscript(entry.meetingId, entry.workerName, entry.projectName, ghHome);
       await appendUserTurn(entry.meetingId, prompt, ghHome);
     } catch (err: unknown) {
-      console.warn(
-        `[meeting] Failed to create transcript for "${entry.meetingId as string}":`,
+      log.warn(
+        `Failed to create transcript for "${entry.meetingId as string}":`,
         errorMessage(err),
       );
       // Non-fatal: transcript failure shouldn't block meeting creation
@@ -359,8 +364,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         const workspace = await getWorkspace();
         await workspace.removeWorktree(entry.worktreeDir, projectPath);
       } catch (err: unknown) {
-        console.warn(
-          `[meeting] Failed to clean up worktree for "${entry.meetingId as string}":`,
+        log.warn(
+          `Failed to clean up worktree for "${entry.meetingId as string}":`,
           errorMessage(err),
         );
       }
@@ -379,8 +384,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
             await git.deleteBranch(projectPath, entry.branchName);
           }
         } catch (err: unknown) {
-          console.warn(
-            `[meeting] Failed to check/delete branch "${entry.branchName}" for "${entry.meetingId as string}":`,
+          log.warn(
+            `Failed to check/delete branch "${entry.branchName}" for "${entry.meetingId as string}":`,
             errorMessage(err),
           );
         }
@@ -403,8 +408,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       try {
         return await loadMemories(workerName, projectName, memDeps);
       } catch (err: unknown) {
-        console.warn(
-          `[meeting] Failed to load memories for "${workerName}" (non-fatal):`,
+        log.warn(
+          `Failed to load memories for "${workerName}" (non-fatal):`,
           errorMessage(err),
         );
         return { memoryBlock: "", needsCompaction: false };
@@ -513,14 +518,14 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     let lastError: string | null = null;
     let hasExpiryError = false;
 
-    for await (const event of runSdkSession(deps.queryFn, prompt, options)) {
+    for await (const event of runSdkSession(deps.queryFn, prompt, options, log)) {
       // Capture session ID (guard against empty string from SDK init)
       if (event.type === "session") {
         if (event.sessionId) {
           meeting.sdkSessionId = asSdkSessionId(event.sessionId);
         } else {
-          console.warn(
-            `[meeting] SDK init message for "${meeting.meetingId as string}" had no session_id`,
+          log.warn(
+            `SDK init message for "${meeting.meetingId as string}" had no session_id`,
           );
         }
       }
@@ -586,21 +591,21 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     opts?: { isInitial?: boolean },
   ): AsyncGenerator<GuildHallEvent> {
     if (!deps.queryFn) {
-      console.error(`[meeting-orchestrator] startSession failed for meeting ${meeting.meetingId as string}: No queryFn provided`);
+      log.error(`startSession failed for meeting ${meeting.meetingId as string}: No queryFn provided`);
       yield { type: "error", reason: "No queryFn provided" };
       return;
     }
 
     const prepSpecResult = await buildMeetingPrepSpec(meeting, prompt);
     if (!prepSpecResult.ok) {
-      console.error(`[meeting-orchestrator] startSession failed for meeting ${meeting.meetingId as string}: ${prepSpecResult.reason}`);
+      log.error(`startSession failed for meeting ${meeting.meetingId as string}: ${prepSpecResult.reason}`);
       yield { type: "error", reason: prepSpecResult.reason };
       return;
     }
 
-    const prep = await prepareSdkSession(prepSpecResult.spec, prepDeps);
+    const prep = await prepareSdkSession(prepSpecResult.spec, prepDeps, log);
     if (!prep.ok) {
-      console.error(`[meeting-orchestrator] startSession failed for meeting ${meeting.meetingId as string}: ${prep.error}`);
+      log.error(`startSession failed for meeting ${meeting.meetingId as string}: ${prep.error}`);
       yield { type: "error", reason: prep.error };
       return;
     }
@@ -612,8 +617,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     try {
       await writeStateFile(meeting.meetingId, serializeMeetingState(meeting));
     } catch (err: unknown) {
-      console.warn(
-        `[meeting] Failed to update state file for "${meeting.meetingId as string}" after session start (non-fatal):`,
+      log.warn(
+        `Failed to update state file for "${meeting.meetingId as string}" after session start (non-fatal):`,
         err instanceof Error ? err.message : String(err),
       );
     }
@@ -778,7 +783,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       // Set up transcript and state file (both scopes)
       await setupTranscriptAndState(entry, prompt);
     } catch (err: unknown) {
-      console.error(`[meeting-orchestrator] acceptMeetingRequest failed for meeting ${meetingId as string} (project: ${projectName}):`, err);
+      log.error(`acceptMeetingRequest failed for meeting ${meetingId as string} (project: ${projectName}):`, err);
       await cleanupFailedEntry(entry, project.path);
       yield { type: "error", reason: errorMessage(err) };
       return;
@@ -791,8 +796,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       worker: entry.workerName,
     });
 
-    console.log(
-      `[meeting] "${meetingId as string}" open: branch="${entry.branchName}", worktree="${entry.worktreeDir}"`,
+    log.info(
+      `"${meetingId as string}" open: branch="${entry.branchName}", worktree="${entry.worktreeDir}"`,
     );
 
     // Start the SDK session (outside lock, streaming can take arbitrarily long)
@@ -933,7 +938,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       // Set up transcript and state file (both scopes)
       await setupTranscriptAndState(entry, prompt);
     } catch (err: unknown) {
-      console.error(`[meeting-orchestrator] createMeeting failed for meeting ${entry.meetingId as string} (project: ${projectName}, worker: ${workerName}):`, err);
+      log.error(`createMeeting failed for meeting ${entry.meetingId as string} (project: ${projectName}, worker: ${workerName}):`, err);
       await cleanupFailedEntry(entry, project.path);
       yield { type: "error", reason: errorMessage(err) };
       return;
@@ -946,8 +951,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       worker: entry.workerName,
     });
 
-    console.log(
-      `[meeting] "${entry.meetingId as string}" open: branch="${entry.branchName}", worktree="${entry.worktreeDir}"`,
+    log.info(
+      `"${entry.meetingId as string}" open: branch="${entry.branchName}", worktree="${entry.worktreeDir}"`,
     );
 
     // Start the SDK session (outside lock, streaming can take arbitrarily long)
@@ -976,8 +981,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       try {
         await appendUserTurn(meetingId, message, ghHome);
       } catch (err: unknown) {
-        console.warn(
-          `[meeting] Transcript append failed for "${meetingId as string}" (non-fatal):`,
+        log.warn(
+          `Transcript append failed for "${meetingId as string}" (non-fatal):`,
           err instanceof Error ? err.message : String(err),
         );
       }
@@ -986,8 +991,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       try {
         transcript = await readTranscript(meetingId, ghHome);
       } catch (err: unknown) {
-        console.warn(
-          `[meeting] Transcript read failed for "${meetingId as string}", proceeding without context:`,
+        log.warn(
+          `Transcript read failed for "${meetingId as string}", proceeding without context:`,
           err instanceof Error ? err.message : String(err),
         );
       }
@@ -1008,8 +1013,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     try {
       await appendUserTurn(meetingId, message, ghHome);
     } catch (err: unknown) {
-      console.warn(
-        `[meeting] Transcript append failed for "${meetingId as string}" (non-fatal):`,
+      log.warn(
+        `Transcript append failed for "${meetingId as string}" (non-fatal):`,
         err instanceof Error ? err.message : String(err),
       );
     }
@@ -1018,14 +1023,14 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
 
     const resumePrepResult = await buildMeetingPrepSpec(meeting, message, meeting.sdkSessionId);
     if (!resumePrepResult.ok) {
-      console.error(`[meeting-orchestrator] sendMessage prep failed for meeting ${meetingId as string}:`, resumePrepResult.reason);
+      log.error(`sendMessage prep failed for meeting ${meetingId as string}:`, resumePrepResult.reason);
       yield { type: "error", reason: resumePrepResult.reason };
       return;
     }
 
-    const resumePrep = await prepareSdkSession(resumePrepResult.spec, prepDeps);
+    const resumePrep = await prepareSdkSession(resumePrepResult.spec, prepDeps, log);
     if (!resumePrep.ok) {
-      console.error(`[meeting-orchestrator] sendMessage prep failed for meeting ${meetingId as string}:`, resumePrep.error);
+      log.error(`sendMessage prep failed for meeting ${meetingId as string}:`, resumePrep.error);
       yield { type: "error", reason: resumePrep.error };
       return;
     }
@@ -1045,8 +1050,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       try {
         await writeStateFile(meetingId, serializeMeetingState(meeting));
       } catch (err: unknown) {
-        console.warn(
-          `[meeting] Failed to update state file for "${meetingId as string}" (non-fatal):`,
+        log.warn(
+          `Failed to update state file for "${meetingId as string}" (non-fatal):`,
           err instanceof Error ? err.message : String(err),
         );
       }
@@ -1062,8 +1067,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     try {
       transcript = await readTranscript(meetingId, ghHome);
     } catch (err: unknown) {
-      console.warn(
-        `[meeting] Transcript read failed for "${meetingId as string}" during renewal, proceeding without context:`,
+      log.warn(
+        `Transcript read failed for "${meetingId as string}" during renewal, proceeding without context:`,
         err instanceof Error ? err.message : String(err),
       );
     }
@@ -1092,8 +1097,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         `SDK session expired. Old: ${oldSessionId}, New: ${String(meeting.sdkSessionId)}`,
       );
     } catch (err: unknown) {
-      console.warn(
-        `[meeting] Meeting log append failed for "${meetingId as string}" (non-fatal):`,
+      log.warn(
+        `Meeting log append failed for "${meetingId as string}" (non-fatal):`,
         err instanceof Error ? err.message : String(err),
       );
     }
@@ -1132,8 +1137,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         );
       } catch (err: unknown) {
         const errMsg = errorMessage(err);
-        console.error(
-          `[meeting] Notes generation threw for "${meetingId as string}":`,
+        log.error(
+          `Notes generation threw for "${meetingId as string}":`,
           errMsg,
         );
         notesResult = { success: false, reason: `Notes generation failed: ${errMsg}` };
@@ -1148,8 +1153,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
           "closed", "closed", "User closed audience",
         );
       } catch (err: unknown) {
-        console.error(
-          `[meeting] Failed to update artifact for "${meetingId as string}":`,
+        log.error(
+          `Failed to update artifact for "${meetingId as string}":`,
           errorMessage(err),
         );
       }
@@ -1166,8 +1171,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
             );
           });
         } catch (err: unknown) {
-          console.error(
-            `[meeting] Direct commit failed for project-scoped meeting "${meetingId as string}":`,
+          log.error(
+            `Direct commit failed for project-scoped meeting "${meetingId as string}":`,
             errorMessage(err),
           );
         }
@@ -1177,15 +1182,15 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
           try {
             await deps.commissionSession.checkDependencyTransitions(meeting.projectName);
           } catch (err: unknown) {
-            console.warn(
-              `[meeting] Dependency transition check failed after close for "${meetingId as string}":`,
+            log.warn(
+              `Dependency transition check failed after close for "${meetingId as string}":`,
               errorMessage(err),
             );
           }
         }
 
-        console.log(
-          `[meeting] "${meetingId as string}" project-scoped meeting closed and committed`,
+        log.info(
+          `"${meetingId as string}" project-scoped meeting closed and committed`,
         );
       } else if (meeting.worktreeDir && meeting.branchName) {
         // Activity scope: existing workspace.finalize() path (squash-merge)
@@ -1208,14 +1213,14 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
             merged = result.merged;
           } catch (err: unknown) {
             const errMsg = errorMessage(err);
-            console.error(
-              `[meeting] finalizeActivity threw for "${meetingId as string}":`,
+            log.error(
+              `finalizeActivity threw for "${meetingId as string}":`,
               errMsg,
             );
           }
         } else {
-          console.warn(
-            `[meeting] "${meetingId as string}" closed but project "${meeting.projectName}" not found, skipping merge`,
+          log.warn(
+            `"${meetingId as string}" closed but project "${meeting.projectName}" not found, skipping merge`,
           );
         }
 
@@ -1225,15 +1230,15 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
             try {
               await deps.commissionSession.checkDependencyTransitions(meeting.projectName);
             } catch (err: unknown) {
-              console.warn(
-                `[meeting] Dependency transition check failed after merge for "${meetingId as string}":`,
+              log.warn(
+                `Dependency transition check failed after merge for "${meetingId as string}":`,
                 errorMessage(err),
               );
             }
           }
 
-          console.log(
-            `[meeting] "${meetingId as string}" squash-merged to claude and cleaned up`,
+          log.info(
+            `"${meetingId as string}" squash-merged to claude and cleaned up`,
           );
         } else {
           // Merge failed (non-.lore/ conflicts) or skipped. Escalate.
@@ -1248,13 +1253,13 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
             });
           }
 
-          console.log(
-            `[meeting] "${meetingId as string}" merge failed: non-.lore/ conflicts. Branch preserved.`,
+          log.info(
+            `"${meetingId as string}" merge failed: non-.lore/ conflicts. Branch preserved.`,
           );
         }
       } else {
-        console.warn(
-          `[meeting] "${meetingId as string}" closed but missing worktree/branch info, skipping merge`,
+        log.warn(
+          `"${meetingId as string}" closed but missing worktree/branch info, skipping merge`,
         );
       }
 
@@ -1264,8 +1269,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         try {
           await removeTranscript(meetingId, ghHome);
         } catch (err: unknown) {
-          console.debug(
-            `[meeting] Transcript removal skipped for "${meetingId as string}":`,
+          log.info(
+            `Transcript removal skipped for "${meetingId as string}":`,
             err instanceof Error ? err.message : String(err),
           );
         }
@@ -1275,8 +1280,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       try {
         await deleteStateFile(meetingId);
       } catch (err: unknown) {
-        console.warn(
-          `[meeting] Failed to delete state file for "${meetingId as string}":`,
+        log.warn(
+          `Failed to delete state file for "${meetingId as string}":`,
           errorMessage(err),
         );
       }
@@ -1325,8 +1330,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
       meetingId: meetingId as string,
     });
 
-    console.log(
-      `[meeting] "${meetingId as string}" declined: User declined meeting request`,
+    log.info(
+      `"${meetingId as string}" declined: User declined meeting request`,
     );
   }
 
@@ -1400,8 +1405,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         const raw = await fs.readFile(path.join(stateDir, file), "utf-8");
         state = JSON.parse(raw) as typeof state;
       } catch (err: unknown) {
-        console.warn(
-          `[recoverMeetings] Skipping unreadable state file "${file}":`,
+        log.warn(
+          `Skipping unreadable state file "${file}":`,
           err instanceof Error ? err.message : String(err),
         );
         continue;
@@ -1437,14 +1442,14 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         try {
           await fs.access(worktreeDir);
         } catch {
-          console.warn(`[recoverMeetings] Worktree missing for meeting ${meetingId}, closing`);
+          log.warn(`Worktree missing for meeting ${meetingId}, closing`);
           try {
             const iPath = integrationWorktreePathFn(ghHome, state.projectName);
             await updateArtifactStatus(iPath, meetingId, "closed");
             await appendMeetingLog(iPath, meetingId, "closed", "Stale worktree detected on recovery");
           } catch (err: unknown) {
-            console.warn(
-              `[recoverMeetings] Failed to update artifact for stale meeting "${meetingId as string}":`,
+            log.warn(
+              `Failed to update artifact for stale meeting "${meetingId as string}":`,
               err instanceof Error ? err.message : String(err),
             );
           }
@@ -1452,8 +1457,8 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
           try {
             await deleteStateFile(meetingId);
           } catch (err: unknown) {
-            console.warn(
-              `[recoverMeetings] Failed to delete state file for stale meeting "${meetingId as string}":`,
+            log.warn(
+              `Failed to delete state file for stale meeting "${meetingId as string}":`,
               err instanceof Error ? err.message : String(err),
             );
           }

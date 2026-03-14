@@ -2,6 +2,8 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Hono } from "hono";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import { nullLog } from "@/daemon/lib/log";
+import type { Log } from "@/daemon/lib/log";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath, activityWorktreeRoot } from "@/lib/paths";
 import { readConfig, writeConfig } from "@/lib/config";
@@ -17,6 +19,8 @@ export interface AdminDeps {
   guildHallHome: string;
   gitOps: GitOps;
   readConfigFromDisk: () => Promise<AppConfig>;
+  /** Injectable logger. Defaults to nullLog("admin"). */
+  log?: Log;
   /** Optional DI override for syncProject (used by reload-config for testability). */
   syncProject?: (
     projectPath: string,
@@ -37,6 +41,7 @@ export interface AdminDeps {
  * POST /workspace/git/integration/sync     - Smart sync: fetch, detect merged PRs, rebase
  */
 export function createAdminRoutes(deps: AdminDeps): RouteModule {
+  const log = deps.log ?? nullLog("admin");
   const routes = new Hono();
   const doSyncProject = deps.syncProject ?? syncProjectDefault;
 
@@ -60,9 +65,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       try {
         await fs.access(iPath);
       } catch {
-        console.log(
-          `[daemon] Creating integration worktree for new project "${project.name}"`,
-        );
+        log.info(`Creating integration worktree for new project "${project.name}"`);
         try {
           await fs.mkdir(path.dirname(iPath), { recursive: true });
           await deps.gitOps.initClaudeBranch(project.path);
@@ -72,10 +75,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
             CLAUDE_BRANCH,
           );
         } catch (err: unknown) {
-          console.warn(
-            `[daemon] Failed to create worktree for "${project.name}":`,
-            errorMessage(err),
-          );
+          log.warn(`Failed to create worktree for "${project.name}":`, errorMessage(err));
         }
       }
 
@@ -88,10 +88,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
           project.defaultBranch,
         );
       } catch (err: unknown) {
-        console.warn(
-          `[daemon] Sync failed for new project "${project.name}":`,
-          errorMessage(err),
-        );
+        log.warn(`Sync failed for new project "${project.name}":`, errorMessage(err));
       }
     }
 
@@ -168,7 +165,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       // Update the in-memory config so all daemon references see the new project
       deps.config.projects.push({ name, path: resolved, defaultBranch });
 
-      console.log(`[admin] Registered project '${name}' at ${resolved}`);
+      log.info(`Registered project '${name}' at ${resolved}`);
 
       return c.json({
         registered: true,
@@ -177,7 +174,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
         defaultBranch,
       });
     } catch (err: unknown) {
-      console.error("[admin] register-project failed:", errorMessage(err));
+      log.error("register-project failed:", errorMessage(err));
       return c.json({ error: errorMessage(err) }, 500);
     }
   });

@@ -22,6 +22,8 @@ import * as path from "node:path";
 import { getGuildHallHome } from "@/lib/paths";
 import { isNodeError } from "@/lib/types";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
+import type { Log } from "@/daemon/lib/log";
+import { nullLog } from "@/daemon/lib/log";
 
 // -- Types --
 
@@ -195,6 +197,7 @@ export async function appendAssistantTurnSafe(
   textParts: string[],
   toolUses: ToolUseEntry[],
   guildHallHome: string,
+  log: Log = nullLog("transcript"),
 ): Promise<void> {
   const text = textParts.join("");
   if (!text && toolUses.length === 0) return;
@@ -207,7 +210,7 @@ export async function appendAssistantTurnSafe(
     );
   } catch (err: unknown) {
     const reason = errorMessage(err);
-    console.warn(`[transcript] Transcript append failed for meeting ${meetingId} (non-fatal): ${reason}`);
+    log.warn(`Transcript append failed for meeting ${meetingId} (non-fatal): ${reason}`);
   }
 }
 

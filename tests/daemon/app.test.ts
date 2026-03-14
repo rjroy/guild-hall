@@ -17,6 +17,7 @@ import { createProductionApp } from "@/daemon/app";
 import { writeConfig } from "@/lib/config";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { GitOps } from "@/daemon/lib/git";
+import type { Log, CreateLog } from "@/daemon/lib/log";
 
 function createMockGitOps(): GitOps & { calls: string[] } {
   const calls: string[] = [];
@@ -134,26 +135,23 @@ describe("createProductionApp worktree verification", () => {
       return Promise.reject(new Error("git init failed"));
     };
 
-    // Capture console.warn output
+    // Capture log output via injectable createLog
     const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(" "));
-    };
+    const createLog: CreateLog = (_tag: string): Log => ({
+      error() {},
+      warn(...args: unknown[]) { warnings.push(args.map(String).join(" ")); },
+      info() {},
+    });
 
-    try {
-      // Should not throw, daemon stays up
-      const result = await createProductionApp({ packagesDir, gitOps: mockGit });
-      shutdownFn = result.shutdown;
-      expect(result.app).toBeDefined();
+    // Should not throw, daemon stays up
+    const result = await createProductionApp({ packagesDir, gitOps: mockGit, createLog });
+    shutdownFn = result.shutdown;
+    expect(result.app).toBeDefined();
 
-      // Should have logged a warning about the failure
-      const worktreeWarning = warnings.find((w) =>
-        w.includes("Failed to recreate worktree") && w.includes("broken-project"),
-      );
-      expect(worktreeWarning).toBeDefined();
-    } finally {
-      console.warn = originalWarn;
-    }
+    // Should have logged a warning about the failure
+    const worktreeWarning = warnings.find((w) =>
+      w.includes("Failed to recreate worktree") && w.includes("broken-project"),
+    );
+    expect(worktreeWarning).toBeDefined();
   });
 });

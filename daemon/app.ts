@@ -27,6 +27,8 @@ import type { EventBus } from "@/daemon/lib/event-bus";
 import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import type { SessionPrepDeps } from "@/daemon/lib/agent-sdk/sdk-runner";
+import { nullLog } from "@/daemon/lib/log";
+import type { CreateLog } from "@/daemon/lib/log";
 
 export interface AppDeps {
   health: HealthDeps;
@@ -42,6 +44,9 @@ export interface AppDeps {
   /** Route module from package-contributed skills. When provided, its skills
    *  enter the same registry as built-in skills and its routes are mounted. */
   packageSkillRouteModule?: RouteModule;
+  /** Factory for creating tagged loggers. Optional so tests that construct
+   *  AppDeps directly don't need to provide it. */
+  createLog?: CreateLog;
 }
 
 /**
@@ -55,6 +60,7 @@ export interface AppDeps {
  * Returns the Hono app and the skill registry built from all route modules.
  */
 export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry } {
+  const createLog: CreateLog = deps.createLog ?? nullLog;
   const app = new Hono();
   const allSkills: SkillDefinition[] = [];
   const allDescriptions: Record<string, string> = {};
@@ -77,6 +83,7 @@ export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry }
       meetingSession: deps.meetingSession,
       config: deps.config,
       guildHallHome: deps.configRoutes?.guildHallHome,
+      log: createLog("meetings"),
     }));
   }
 
@@ -85,6 +92,7 @@ export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry }
       commissionSession: deps.commissionSession,
       config: deps.config,
       guildHallHome: deps.configRoutes?.guildHallHome,
+      log: createLog("commissions"),
     }));
   }
 
@@ -97,7 +105,10 @@ export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry }
   }
 
   if (deps.briefingGenerator) {
-    mount(createBriefingRoutes({ briefingGenerator: deps.briefingGenerator }));
+    mount(createBriefingRoutes({
+      briefingGenerator: deps.briefingGenerator,
+      log: createLog("briefing"),
+    }));
   }
 
   if (deps.config) {
@@ -105,7 +116,7 @@ export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry }
   }
 
   if (deps.admin) {
-    mount(createAdminRoutes(deps.admin));
+    mount(createAdminRoutes({ ...deps.admin, log: createLog("admin") }));
   }
 
   if (deps.artifacts) {
@@ -140,6 +151,7 @@ export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry }
 export async function createProductionApp(options?: {
   packagesDir?: string;
   gitOps?: GitOps;
+  createLog?: CreateLog;
 }): Promise<{ app: Hono; registry: SkillRegistry; shutdown: () => void }> {
   const { readConfig } = await import("@/lib/config");
   const { discoverPackages, validatePackageModels } = await import("@/lib/packages");
@@ -168,9 +180,12 @@ export async function createProductionApp(options?: {
 
   const { createEventBus } = await import("@/daemon/lib/event-bus");
 
+  const createLog: CreateLog = options?.createLog ?? nullLog;
+  const log = createLog("app");
+
   const config = await readConfig();
   const guildHallHome = getGuildHallHome();
-  const eventBus = createEventBus();
+  const eventBus = createEventBus(createLog("event-bus"));
   const git = options?.gitOps ?? createGitOps();
 
   // Verify integration worktrees for all registered projects.
@@ -182,16 +197,13 @@ export async function createProductionApp(options?: {
     try {
       await fs.access(iPath);
     } catch {
-      console.log(`[daemon] Recreating integration worktree for "${project.name}"`);
+      log.info(`Recreating integration worktree for "${project.name}"`);
       try {
         await fs.mkdir(nodePath.dirname(iPath), { recursive: true });
         await git.initClaudeBranch(project.path);
         await git.createWorktree(project.path, iPath, CLAUDE_BRANCH);
       } catch (err: unknown) {
-        console.warn(
-          `[daemon] Failed to recreate worktree for "${project.name}":`,
-          errorMessage(err),
-        );
+        log.warn(`Failed to recreate worktree for "${project.name}":`, errorMessage(err));
       }
     }
   }
@@ -205,7 +217,7 @@ export async function createProductionApp(options?: {
       await syncProject(project.path, project.name, guildHallHome, git, project.defaultBranch);
     } catch (err: unknown) {
       const reason = errorMessage(err);
-      console.warn(`[daemon] Sync failed for "${project.name}": ${reason}`);
+      log.warn(`Sync failed for "${project.name}": ${reason}`);
     }
   }
 
@@ -237,16 +249,16 @@ export async function createProductionApp(options?: {
         const proc = Bun.spawn(["which", "bwrap"], { stdout: "ignore", stderr: "ignore" });
         const exitCode = await proc.exited;
         if (exitCode !== 0) {
-          console.warn(
-            "[daemon] WARNING: Bash-capable workers are loaded but bubblewrap (bwrap) " +
+          log.warn(
+            "Bash-capable workers are loaded but bubblewrap (bwrap) " +
               "is not installed. SDK sandbox isolation requires bubblewrap and socat. " +
               "Install with: sudo pacman -S bubblewrap socat (Arch) or " +
               "sudo apt install bubblewrap socat (Debian/Ubuntu).",
           );
         }
       } catch {
-        console.warn(
-          "[daemon] WARNING: Could not check for bubblewrap availability. " +
+        log.warn(
+          "Could not check for bubblewrap availability. " +
             "SDK sandbox isolation requires bubblewrap and socat on Linux.",
         );
       }
@@ -262,8 +274,8 @@ export async function createProductionApp(options?: {
       queryFn = sdk.query as MeetingSessionDeps["queryFn"];
     }
   } catch {
-    console.warn(
-      "[daemon] Claude Agent SDK query function not available. " +
+    log.warn(
+      "Claude Agent SDK query function not available. " +
         "Meetings will fail until the SDK is properly installed.",
     );
   }
@@ -281,8 +293,8 @@ export async function createProductionApp(options?: {
     reason: string;
   }) => {
     if (!meetingSessionRef) {
-      console.error(
-        `[daemon] createMeetingRequestFn called before meetingSession initialized. ` +
+      log.error(
+        `createMeetingRequestFn called before meetingSession initialized. ` +
         `Merge conflict escalation for project "${params.projectName}" will be lost.`,
       );
       return;
@@ -301,7 +313,7 @@ export async function createProductionApp(options?: {
   });
 
   // Layer 3: Workspace operations (git branch/worktree/merge)
-  const workspaceOps = createWorkspaceOps({ git });
+  const workspaceOps = createWorkspaceOps({ git, log: createLog("workspace") });
 
   // Layer 4: Session preparation deps (sdk-runner)
   const { resolveToolSet } = await import("@/daemon/services/toolbox-resolver");
@@ -348,6 +360,7 @@ export async function createProductionApp(options?: {
     gitOps: git,
     createMeetingRequestFn,
     scheduleLifecycleRef,
+    log: createLog("commission"),
   });
 
   // Meeting registry (singleton for the daemon process)
@@ -367,6 +380,7 @@ export async function createProductionApp(options?: {
     registry: meetingRegistry,
     scheduleLifecycleRef,
     recordOps,
+    log: createLog("meeting"),
   });
   meetingSessionRef = meetingSession;
 
@@ -374,7 +388,7 @@ export async function createProductionApp(options?: {
   // sessions that survived a daemon restart.
   const recoveredMeetings = await meetingSession.recoverMeetings();
   if (recoveredMeetings > 0) {
-    console.log(`[daemon] Recovered ${recoveredMeetings} open meeting(s) from state files.`);
+    log.info(`Recovered ${recoveredMeetings} open meeting(s) from state files.`);
   }
 
   // Recover active commissions from persisted state files. All in-process
@@ -405,6 +419,7 @@ export async function createProductionApp(options?: {
     eventBus,
     config,
     guildHallHome,
+    log: createLog("scheduler"),
   });
 
   // Catch-up: reconcile any missed scheduled runs during downtime
@@ -425,6 +440,7 @@ export async function createProductionApp(options?: {
     packages: allPackages,
     config,
     guildHallHome,
+    log: createLog("briefing"),
   });
 
   // -- Package skill loading --
@@ -549,6 +565,7 @@ export async function createProductionApp(options?: {
       guildHallHome,
     },
     packageSkillRouteModule,
+    createLog,
   });
 
   // Late-bind the skill registry for progressive discovery (REQ-DAB-5).
