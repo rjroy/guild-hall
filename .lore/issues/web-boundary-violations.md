@@ -1,7 +1,7 @@
 ---
 title: Two web API routes bypass the daemon and need replacement during DAB migration
 date: 2026-03-14
-status: open
+status: invalid
 tags: [architecture, daemon, api, boundary-violation]
 modules: [web/app/api]
 related:
