@@ -1,7 +1,7 @@
 ---
 title: Artifact Request Meeting
 date: 2026-03-14
-status: draft
+status: implemented
 tags: [ui, meetings, artifact, sidebar]
 modules: [guild-hall-ui]
 related:
