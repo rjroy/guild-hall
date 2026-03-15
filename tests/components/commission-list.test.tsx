@@ -6,7 +6,7 @@ import {
   filterCommissions,
   countByStatus,
   isDefaultSelection,
-} from "@/web/components/commission/CommissionList";
+} from "@/web/components/commission/commission-filter";
 
 function makeCommission(status: string, id?: string): CommissionMeta {
   return {

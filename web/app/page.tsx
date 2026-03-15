@@ -90,7 +90,7 @@ export default async function DashboardPage({
         <ManagerBriefing projectName={selectedProject ?? config.projects[0]?.name} />
       </div>
       <div className={styles.depMap}>
-        <DependencyMap commissions={allCommissions} />
+        <DependencyMap commissions={allCommissions} selectedProject={selectedProject} />
       </div>
       <div className={styles.recentArtifacts}>
         <RecentArtifacts

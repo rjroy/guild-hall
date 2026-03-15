@@ -90,6 +90,12 @@
   background-color: rgba(184, 134, 11, 0.2);
 }
 
+.allProjectsItem .projectLink {
+  /* No GemIndicator, so left-align the text with the project names below
+     by adding padding equal to the gem width (16px) + gap */
+  padding-left: calc(var(--space-sm) + 16px + var(--space-sm));
+}
+
 /* --- Responsive --- */
 
 @media (max-width: 1200px) {

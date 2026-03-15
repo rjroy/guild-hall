@@ -1,98 +1,101 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import Panel from "@/web/components/ui/Panel";
 import StatusBadge from "@/web/components/ui/StatusBadge";
 import EmptyState from "@/web/components/ui/EmptyState";
 import { statusToGem } from "@/lib/types";
-import { buildDependencyGraph } from "@/lib/dependency-graph";
 import type { CommissionMeta } from "@/lib/commissions";
 import { commissionHref } from "@/lib/commission-href";
-import { buildTreeList } from "./build-tree-list";
+import {
+  DEFAULT_STATUSES,
+  filterCommissions,
+} from "@/web/components/commission/commission-filter";
+import CommissionFilterPanel from "@/web/components/commission/CommissionFilterPanel";
 import styles from "./DependencyMap.module.css";
 
-export { commissionHref };
-
-const DEPTH_CLASSES: Record<number, string> = {
-  1: styles.depth1,
-  2: styles.depth2,
-  3: styles.depth3,
-  4: styles.depth4,
-};
-
-interface DependencyMapProps {
+interface InFlightProps {
   commissions: CommissionMeta[];
+  selectedProject?: string;
 }
 
 /**
- * Dashboard panel showing commission dependencies as an indented tree list.
- * When commissions have dependencies, dependent commissions render indented
- * under their parent with CSS connector lines. When no dependencies exist,
- * the result is a flat card list.
- * Server component that receives pre-scanned commission data from the page.
+ * Dashboard "In Flight" card. Shows a filtered commission list with the
+ * shared filter panel. Replaces the former "Task Dependency Map" tree list.
+ * Client component (filter state requires useState).
  */
-export default function DependencyMap({ commissions }: DependencyMapProps) {
+export default function InFlight({ commissions, selectedProject }: InFlightProps) {
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(DEFAULT_STATUSES),
+  );
+
+  const showProjectLabel = !selectedProject;
+
   if (commissions.length === 0) {
     return (
-      <Panel title="Task Dependency Map">
+      <Panel title="In Flight">
         <EmptyState message="No active commissions." />
       </Panel>
     );
   }
 
-  const graph = buildDependencyGraph(commissions);
-  const treeItems = buildTreeList(commissions, graph);
+  const filtered = filterCommissions(commissions, selected);
+
+  const handleToggle = (status: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
+
+  const handleReset = () => setSelected(new Set(DEFAULT_STATUSES));
 
   return (
-    <Panel title="Task Dependency Map">
-      <ul className={styles.list}>
-        {treeItems.map(({ commission, depth, awaits }) => {
-          const gemStatus = statusToGem(commission.status);
-          const depthClass = depth > 0
-            ? DEPTH_CLASSES[Math.min(depth, 4)]
-            : undefined;
+    <Panel title="In Flight">
+      <CommissionFilterPanel
+        commissions={commissions}
+        selected={selected}
+        onToggle={handleToggle}
+        onReset={handleReset}
+      />
+      {filtered.length === 0 ? (
+        <EmptyState message="No commissions match the current filter." />
+      ) : (
+        <ul className={styles.list}>
+          {filtered.map((commission) => {
+            const gem = statusToGem(commission.status);
+            const displayTitle = commission.title || commission.commissionId;
 
-          return (
-            <li
-              key={`${commission.projectName}-${commission.commissionId}`}
-              className={[
-                styles.card,
-                commission.type === "scheduled" ? styles.scheduledCard : "",
-                depth > 0 ? styles.treeItem : "",
-                depthClass ?? "",
-              ].filter(Boolean).join(" ")}
-            >
-              <Link
-                href={commissionHref(commission.projectName, commission.commissionId)}
-                className={styles.link}
+            return (
+              <li
+                key={`${commission.projectName}-${commission.commissionId}`}
+                className={styles.row}
               >
-                <StatusBadge gem={gemStatus} label={commission.status} size="sm" />
-                <div className={styles.info}>
-                  <span className={styles.title}>
-                    {commission.title || commission.commissionId}
-                    {commission.type === "scheduled" && (
-                      <span className={styles.scheduledBadge}>Recurring</span>
-                    )}
-                  </span>
+                <Link
+                  href={commissionHref(commission.projectName, commission.commissionId)}
+                  className={styles.link}
+                >
+                  <StatusBadge gem={gem} label={commission.status} size="sm" />
+                  <span className={styles.title}>{displayTitle}</span>
                   {commission.workerDisplayTitle && (
                     <span className={styles.worker}>
                       {commission.workerDisplayTitle}
                     </span>
                   )}
-                  {commission.current_progress && (
-                    <span className={styles.progress}>
-                      {commission.current_progress}
+                  {showProjectLabel && (
+                    <span className={styles.projectLabel}>
+                      {commission.projectName}
                     </span>
                   )}
-                  {awaits && awaits.length > 0 && (
-                    <span className={styles.awaitsAnnotation}>
-                      Awaits: {awaits.join(", ")}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </Panel>
   );
 }
