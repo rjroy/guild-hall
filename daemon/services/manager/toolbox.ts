@@ -1,7 +1,7 @@
 /**
  * Manager toolbox: exclusive tools for the Guild Master worker.
  *
- * Provides ten tools for project coordination:
+ * Provides eleven tools for project coordination:
  * - create_commission: create (and optionally dispatch) a new commission
  * - dispatch_commission: dispatch an existing pending commission
  * - cancel_commission: cancel an active or pending commission
@@ -12,6 +12,7 @@
  * - sync_project: post-merge sync (detect merged PRs, reset claude branch)
  * - create_scheduled_commission: create a recurring scheduled commission
  * - update_schedule: update schedule config or transition schedule status
+ * - check_commission_status: read commission detail or list all commissions
  *
  * Phase 7 (REQ-DAB-7): Tools that map to existing daemon routes call those
  * routes via the Unix socket instead of service methods directly. This makes
@@ -41,7 +42,11 @@ import { withProjectLock } from "@/daemon/lib/project-lock";
 import { hasActiveActivities } from "@/daemon/services/git-admin";
 import { isValidModel } from "@/lib/types";
 import type { AppConfig, ProjectConfig, DiscoveredPackage } from "@/lib/types";
-import { integrationWorktreePath } from "@/lib/paths";
+import { integrationWorktreePath, resolveCommissionBasePath } from "@/lib/paths";
+import { readCommissionMeta, scanCommissions } from "@/lib/commissions";
+import type { CommissionMeta } from "@/lib/commissions";
+import { nextOccurrence } from "@/daemon/services/scheduler/cron";
+import matter from "gray-matter";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
@@ -937,6 +942,153 @@ export function makeUpdateScheduleHandler(
   };
 }
 
+// -- Commission status tool --
+
+/**
+ * Status-to-summary-group mapping for list mode counts.
+ * Groups: pending (0), active (1), failed (2), completed (3).
+ */
+const SUMMARY_GROUP: Record<string, "pending" | "active" | "failed" | "completed"> = {
+  pending: "pending",
+  blocked: "pending",
+  dispatched: "active",
+  in_progress: "active",
+  sleeping: "active",
+  failed: "failed",
+  cancelled: "failed",
+  completed: "completed",
+  abandoned: "completed",
+};
+
+function truncate(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  return text.slice(0, maxLen - 3) + "...";
+}
+
+/**
+ * Projects a CommissionMeta to the compact list entry format.
+ */
+function projectForList(c: CommissionMeta) {
+  return {
+    commissionId: c.commissionId,
+    title: c.title,
+    status: c.status,
+    worker: c.worker,
+    type: c.type,
+    current_progress: truncate(c.current_progress, 200),
+    result_summary: truncate(c.result_summary, 200),
+  };
+}
+
+export function makeCheckCommissionStatusHandler(
+  deps: ManagerToolboxDeps,
+) {
+  return async (args: { commissionId?: string }): Promise<ToolResult> => {
+    try {
+      if (args.commissionId) {
+        // Single commission mode (REQ-CST-3, REQ-CST-4, REQ-CST-5)
+        const basePath = await resolveCommissionBasePath(
+          deps.guildHallHome,
+          deps.projectName,
+          args.commissionId,
+        );
+        const filePath = path.join(
+          basePath, ".lore", "commissions", `${args.commissionId}.md`,
+        );
+
+        let meta: CommissionMeta;
+        try {
+          meta = await readCommissionMeta(filePath, deps.projectName);
+        } catch (err: unknown) {
+          if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+            return {
+              content: [{ type: "text", text: `Commission not found: ${args.commissionId}` }],
+              isError: true,
+            };
+          }
+          throw err;
+        }
+
+        const result: Record<string, unknown> = {
+          commissionId: meta.commissionId,
+          title: meta.title,
+          status: meta.status,
+          worker: meta.worker,
+          type: meta.type,
+          date: meta.date,
+          current_progress: meta.current_progress,
+          result_summary: meta.result_summary,
+          linked_artifacts: meta.linked_artifacts,
+        };
+
+        // REQ-CST-5: schedule metadata for scheduled commissions
+        if (meta.type === "scheduled") {
+          const raw = await fs.readFile(filePath, "utf-8");
+          const parsed = matter(raw);
+          const sched = parsed.data.schedule as Record<string, unknown> | undefined;
+          if (sched && typeof sched === "object") {
+            const lastRun = sched.last_run;
+            let lastRunStr: string | null = null;
+            if (lastRun instanceof Date) {
+              lastRunStr = lastRun.toISOString();
+            } else if (typeof lastRun === "string" && lastRun) {
+              lastRunStr = lastRun;
+            }
+
+            const cronExpr = typeof sched.cron === "string" ? sched.cron : "";
+            let nextRunStr: string | null = null;
+            if (cronExpr) {
+              const referenceDate = lastRunStr ? new Date(lastRunStr) : new Date(0);
+              const nextDate = nextOccurrence(cronExpr, referenceDate);
+              if (nextDate) nextRunStr = nextDate.toISOString();
+            }
+
+            result.schedule = {
+              cron: cronExpr,
+              runsCompleted: typeof sched.runs_completed === "number" ? sched.runs_completed : 0,
+              lastRun: lastRunStr,
+              nextRun: nextRunStr,
+            };
+          }
+        }
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(result) }],
+        };
+      }
+
+      // List mode (REQ-CST-6, REQ-CST-7, REQ-CST-8)
+      const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
+      const lorePath = path.join(intPath, ".lore");
+
+      let commissions: CommissionMeta[];
+      try {
+        commissions = await scanCommissions(lorePath, deps.projectName);
+      } catch {
+        commissions = [];
+      }
+
+      const summary = { pending: 0, active: 0, failed: 0, completed: 0, total: commissions.length };
+      for (const c of commissions) {
+        const group = SUMMARY_GROUP[c.status];
+        if (group) summary[group]++;
+      }
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            summary,
+            commissions: commissions.map(projectForList),
+          }),
+        }],
+      };
+    } catch (err: unknown) {
+      return routeError(errorMessage(err));
+    }
+  };
+}
+
 // -- MCP server factory --
 
 /**
@@ -960,6 +1112,7 @@ export function createManagerToolbox(
   const addCommissionNote = makeAddCommissionNoteHandler(deps);
   const createScheduledCommission = makeCreateScheduledCommissionHandler(deps);
   const updateSchedule = makeUpdateScheduleHandler(deps);
+  const checkCommissionStatus = makeCheckCommissionStatusHandler(deps);
 
   return createSdkMcpServer({
     name: "guild-hall-manager",
@@ -1069,6 +1222,14 @@ export function createManagerToolbox(
           }).optional().describe("Updated resource overrides for spawned commissions"),
         },
         (args) => updateSchedule(args),
+      ),
+      tool(
+        "check_commission_status",
+        "Check the status of a specific commission by ID, or get a summary list of all commissions for the current project. [skillId: commission.request.commission.read, commission.request.commission.list]",
+        {
+          commissionId: z.string().optional().describe("Commission ID to look up. Omit for a summary list of all commissions."),
+        },
+        (args) => checkCommissionStatus(args),
       ),
     ],
   });
