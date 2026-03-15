@@ -7,7 +7,6 @@ modules: [web/components/project/ArtifactList, daemon/routes/artifacts, daemon/r
 related:
   - .lore/design/daemon-rest-api.md
   - .lore/specs/infrastructure/daemon-application-boundary.md
-  - .lore/issues/web-boundary-violations.md
 ---
 
 # Brainstorm: Commit .lore Changes from the Web UI
