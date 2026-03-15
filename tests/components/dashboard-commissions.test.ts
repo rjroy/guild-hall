@@ -2,7 +2,8 @@ import { describe, test, expect } from "bun:test";
 import type { CommissionMeta } from "@/lib/commissions";
 import { sortCommissions } from "@/lib/commissions";
 import { commissionHref } from "@/web/components/dashboard/DependencyMap";
-import { buildDependencyGraph, getNeighborhood, layoutGraph } from "@/lib/dependency-graph";
+import { buildDependencyGraph, getNeighborhood } from "@/lib/dependency-graph";
+import { buildTreeList } from "@/web/components/dashboard/build-tree-list";
 import { statusToGem } from "@/lib/types";
 
 /**
@@ -11,10 +12,10 @@ import { statusToGem } from "@/lib/types";
  *
  * Component rendering is validated through the exported pure functions;
  * the React tree is a server component that wires these together with
- * Panel, GemIndicator, EmptyState, and Link.
+ * Panel, StatusBadge, EmptyState, and Link.
  *
- * Graph integration tests validate the decision logic that determines
- * whether the SVG graph or flat card list is rendered.
+ * Tree construction tests validate the indentation logic that replaces
+ * the former SVG graph vs flat card list decision.
  */
 
 function makeCommission(overrides: Partial<CommissionMeta> = {}): CommissionMeta {
@@ -224,10 +225,9 @@ describe("commission status gem mapping completeness", () => {
 });
 
 // -- Graph integration tests --
-// These validate the decision logic used in DependencyMap to choose
-// between the SVG graph and the flat card list.
+// These validate the graph construction used by DependencyMap's tree list.
 
-describe("DependencyMap graph vs flat list decision", () => {
+describe("DependencyMap graph construction", () => {
   test("commissions with no inter-commission dependencies produce no edges (flat list path)", () => {
     const commissions = [
       makeCommission({ commissionId: "a", dependencies: [] }),
@@ -252,7 +252,7 @@ describe("DependencyMap graph vs flat list decision", () => {
     const graph = buildDependencyGraph(commissions);
     expect(graph.edges.length).toBe(1);
     expect(graph.edges[0]).toEqual({ from: "a", to: "b" });
-    // DependencyMap renders CommissionGraph when edges.length > 0
+    // DependencyMap renders tree list with indentation when edges exist
   });
 
   test("graph nodes preserve projectName for multi-project dashboard navigation", () => {
@@ -272,7 +272,7 @@ describe("DependencyMap graph vs flat list decision", () => {
     expect(nodeA.projectName).toBe("project-alpha");
     expect(nodeB.projectName).toBe("project-beta");
 
-    // CommissionGraph uses node.projectName for navigation hrefs
+    // Tree list cards use node.projectName for navigation hrefs
     expect(commissionHref(nodeA.projectName, nodeA.id)).toBe(
       "/projects/project-alpha/commissions/a",
     );
@@ -321,32 +321,162 @@ describe("NeighborhoodGraph data flow", () => {
     expect(ids).not.toContain("unrelated");
   });
 
-  test("layout produces valid compact dimensions for neighborhood graph", () => {
+});
+
+// -- Tree construction tests --
+
+describe("buildTreeList", () => {
+  test("single-parent chain: items at correct depths", () => {
     const commissions = [
-      makeCommission({ commissionId: "a" }),
+      makeCommission({ commissionId: "a", title: "A", dependencies: [] }),
+      makeCommission({ commissionId: "b", title: "B", dependencies: ["commissions/a.md"] }),
+      makeCommission({ commissionId: "c", title: "C", dependencies: ["commissions/b.md"] }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    const tree = buildTreeList(commissions, graph);
+
+    expect(tree).toHaveLength(3);
+    expect(tree[0].commission.commissionId).toBe("a");
+    expect(tree[0].depth).toBe(0);
+    expect(tree[1].commission.commissionId).toBe("b");
+    expect(tree[1].depth).toBe(1);
+    expect(tree[2].commission.commissionId).toBe("c");
+    expect(tree[2].depth).toBe(2);
+  });
+
+  test("diamond dependency: multi-parent node at root with Awaits list", () => {
+    const commissions = [
+      makeCommission({ commissionId: "a", title: "Alpha", dependencies: [] }),
+      makeCommission({ commissionId: "b", title: "Bravo", dependencies: [] }),
       makeCommission({
-        commissionId: "b",
-        dependencies: ["commissions/a.md"],
+        commissionId: "d",
+        title: "Delta",
+        dependencies: ["commissions/a.md", "commissions/b.md"],
       }),
     ];
 
     const graph = buildDependencyGraph(commissions);
-    const neighborhood = getNeighborhood(graph, "b");
-    const layout = layoutGraph(neighborhood, {
-      nodeWidth: 120,
-      nodeHeight: 40,
-      horizontalGap: 30,
-      verticalGap: 50,
-    });
+    const tree = buildTreeList(commissions, graph);
 
-    expect(layout.nodes.length).toBe(2);
-    expect(layout.width).toBeGreaterThan(0);
-    expect(layout.height).toBeGreaterThan(0);
+    // d has 2 incoming edges, so it renders at root level
+    const deltaItem = tree.find((t) => t.commission.commissionId === "d")!;
+    expect(deltaItem.depth).toBe(0);
+    expect(deltaItem.awaits).toBeDefined();
+    expect(deltaItem.awaits!.sort()).toEqual(["Alpha", "Bravo"]);
 
-    // All nodes fit within layout dimensions
-    for (const node of layout.nodes) {
-      expect(node.x + 120).toBeLessThanOrEqual(layout.width);
-      expect(node.y + 40).toBeLessThanOrEqual(layout.height);
+    // a and b are also root level (no incoming edges)
+    expect(tree.find((t) => t.commission.commissionId === "a")!.depth).toBe(0);
+    expect(tree.find((t) => t.commission.commissionId === "b")!.depth).toBe(0);
+  });
+
+  test("isolated nodes: all at depth 0, no Awaits annotations", () => {
+    const commissions = [
+      makeCommission({ commissionId: "x", dependencies: [] }),
+      makeCommission({ commissionId: "y", dependencies: [] }),
+      makeCommission({ commissionId: "z", dependencies: [] }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    const tree = buildTreeList(commissions, graph);
+
+    expect(tree).toHaveLength(3);
+    for (const item of tree) {
+      expect(item.depth).toBe(0);
+      expect(item.awaits).toBeUndefined();
     }
+  });
+
+  test("mixed: independent, chained, and diamond", () => {
+    const commissions = [
+      makeCommission({ commissionId: "independent", title: "Ind", dependencies: [] }),
+      makeCommission({ commissionId: "root", title: "Root", dependencies: [] }),
+      makeCommission({ commissionId: "child", title: "Child", dependencies: ["commissions/root.md"] }),
+      makeCommission({ commissionId: "fork-a", title: "Fork A", dependencies: [] }),
+      makeCommission({ commissionId: "fork-b", title: "Fork B", dependencies: [] }),
+      makeCommission({
+        commissionId: "diamond",
+        title: "Diamond",
+        dependencies: ["commissions/fork-a.md", "commissions/fork-b.md"],
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    const tree = buildTreeList(commissions, graph);
+
+    expect(tree).toHaveLength(6);
+
+    // child indents under root
+    const childItem = tree.find((t) => t.commission.commissionId === "child")!;
+    expect(childItem.depth).toBe(1);
+
+    // diamond is at root with Awaits
+    const diamondItem = tree.find((t) => t.commission.commissionId === "diamond")!;
+    expect(diamondItem.depth).toBe(0);
+    expect(diamondItem.awaits).toBeDefined();
+
+    // independent is at root, no Awaits
+    const indItem = tree.find((t) => t.commission.commissionId === "independent")!;
+    expect(indItem.depth).toBe(0);
+    expect(indItem.awaits).toBeUndefined();
+  });
+
+  test("children within a parent group sorted by sortCommissions, not globally", () => {
+    // Parent has two children: one active (in_progress), one idle (pending).
+    // sortCommissions puts idle before active.
+    const commissions = [
+      makeCommission({ commissionId: "parent", title: "Parent", status: "pending", dependencies: [] }),
+      makeCommission({
+        commissionId: "child-active",
+        title: "Active Child",
+        status: "in_progress",
+        date: "2026-02-20",
+        dependencies: ["commissions/parent.md"],
+      }),
+      makeCommission({
+        commissionId: "child-idle",
+        title: "Idle Child",
+        status: "pending",
+        date: "2026-02-21",
+        dependencies: ["commissions/parent.md"],
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    const tree = buildTreeList(commissions, graph);
+
+    // Children should be sorted: idle (pending) before active (in_progress)
+    const childIndices = tree
+      .filter((t) => t.depth === 1)
+      .map((t) => t.commission.commissionId);
+    expect(childIndices[0]).toBe("child-idle");
+    expect(childIndices[1]).toBe("child-active");
+  });
+
+  test("children of multi-parent root nodes indent at depth 1", () => {
+    // diamond has 2 parents, so it's at root. diamond has a single-parent child.
+    const commissions = [
+      makeCommission({ commissionId: "p1", title: "P1", dependencies: [] }),
+      makeCommission({ commissionId: "p2", title: "P2", dependencies: [] }),
+      makeCommission({
+        commissionId: "diamond",
+        title: "Diamond",
+        dependencies: ["commissions/p1.md", "commissions/p2.md"],
+      }),
+      makeCommission({
+        commissionId: "grandchild",
+        title: "Grandchild",
+        dependencies: ["commissions/diamond.md"],
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    const tree = buildTreeList(commissions, graph);
+
+    const diamondItem = tree.find((t) => t.commission.commissionId === "diamond")!;
+    expect(diamondItem.depth).toBe(0);
+
+    const grandchildItem = tree.find((t) => t.commission.commissionId === "grandchild")!;
+    expect(grandchildItem.depth).toBe(1);
   });
 });

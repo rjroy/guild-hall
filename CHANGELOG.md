@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Commission status tool:** `check_commission_status` in the manager toolbox lets the Guild Master check a single commission's detail by ID or get a sorted summary list of all commissions with status counts.
 - **Commit .lore from Web UI:** "Commit .lore" button on the Artifacts tab expands an inline form to commit pending `.lore/` changes with a user-authored message. New daemon endpoints `GET /workspace/git/lore/status` and `POST /workspace/git/lore/commit` enforce a staging boundary that only commits `.lore/` files.
 
 ## [1.0.0] - 2026-03-08

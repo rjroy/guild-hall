@@ -1,7 +1,7 @@
 ---
 title: "Commit .lore Changes from the Web UI"
 date: 2026-03-14
-status: draft
+status: executed
 tags: [ui, artifacts, git, web, daemon]
 modules: [daemon/lib/git, daemon/routes/git-lore, daemon/app, "web/app/projects/[name]/page", web/components/project/CommitLoreButton]
 related:

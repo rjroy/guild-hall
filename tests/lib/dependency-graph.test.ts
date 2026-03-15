@@ -1,9 +1,9 @@
-import { describe, test, expect, spyOn } from "bun:test";
+import { describe, test, expect } from "bun:test";
 import type { CommissionMeta } from "@/lib/commissions";
 import {
   buildDependencyGraph,
   getNeighborhood,
-  layoutGraph,
+  buildAdjacencyList,
   type DependencyGraph,
 } from "@/lib/dependency-graph";
 
@@ -336,46 +336,15 @@ describe("getNeighborhood", () => {
   });
 });
 
-// -- layoutGraph --
+// -- buildAdjacencyList --
 
-describe("layoutGraph", () => {
-  test("produces valid coordinates (no overlapping nodes within same layer)", () => {
-    // Three nodes in the same layer (no edges)
+describe("buildAdjacencyList", () => {
+  test("single-parent chain: A→B→C", () => {
     const graph: DependencyGraph = {
       nodes: [
-        makeNode({ id: "a", title: "A" }),
-        makeNode({ id: "b", title: "B" }),
-        makeNode({ id: "c", title: "C" }),
-      ],
-      edges: [],
-    };
-
-    const result = layoutGraph(graph, { nodeWidth: 100, horizontalGap: 20 });
-
-    // All nodes should be in layer 0
-    for (const node of result.nodes) {
-      expect(node.layer).toBe(0);
-    }
-
-    // No two nodes should have the same x coordinate
-    const xCoords = result.nodes.map((n) => n.x);
-    const uniqueXCoords = new Set(xCoords);
-    expect(uniqueXCoords.size).toBe(3);
-
-    // Check no overlapping: each pair of nodes has at least nodeWidth gap
-    const sortedX = [...xCoords].sort((a, b) => a - b);
-    for (let i = 1; i < sortedX.length; i++) {
-      expect(sortedX[i] - sortedX[i - 1]).toBeGreaterThanOrEqual(100 + 20);
-    }
-  });
-
-  test("correct layer assignment (roots at layer 0, dependencies above dependents)", () => {
-    // A -> B -> C
-    const graph: DependencyGraph = {
-      nodes: [
-        makeNode({ id: "a", title: "A", status: "completed" }),
-        makeNode({ id: "b", title: "B", status: "in_progress" }),
-        makeNode({ id: "c", title: "C", status: "pending" }),
+        makeNode({ id: "a" }),
+        makeNode({ id: "b" }),
+        makeNode({ id: "c" }),
       ],
       edges: [
         { from: "a", to: "b" },
@@ -383,193 +352,19 @@ describe("layoutGraph", () => {
       ],
     };
 
-    const result = layoutGraph(graph);
-
-    const nodeA = result.nodes.find((n) => n.id === "a")!;
-    const nodeB = result.nodes.find((n) => n.id === "b")!;
-    const nodeC = result.nodes.find((n) => n.id === "c")!;
-
-    expect(nodeA.layer).toBe(0);
-    expect(nodeB.layer).toBe(1);
-    expect(nodeC.layer).toBe(2);
-
-    // Y coordinate should increase with layer
-    expect(nodeA.y).toBeLessThan(nodeB.y);
-    expect(nodeB.y).toBeLessThan(nodeC.y);
+    const adj = buildAdjacencyList(graph);
+    expect(adj.get("a")).toEqual(["b"]);
+    expect(adj.get("b")).toEqual(["c"]);
+    expect(adj.has("c")).toBe(false);
   });
 
-  test("returns dimensions large enough to contain all nodes", () => {
-    const nodeWidth = 160;
-    const nodeHeight = 60;
-    const hGap = 40;
-    const vGap = 80;
-
-    // A -> B, A -> C (two nodes in layer 1, one in layer 0)
+  test("diamond: A→B, A→C, B→D, C→D", () => {
     const graph: DependencyGraph = {
       nodes: [
-        makeNode({ id: "a", title: "A" }),
-        makeNode({ id: "b", title: "B" }),
-        makeNode({ id: "c", title: "C" }),
-      ],
-      edges: [
-        { from: "a", to: "b" },
-        { from: "a", to: "c" },
-      ],
-    };
-
-    const result = layoutGraph(graph, { nodeWidth, nodeHeight, horizontalGap: hGap, verticalGap: vGap });
-
-    // Every node's position + size should fit within dimensions
-    for (const node of result.nodes) {
-      expect(node.x).toBeGreaterThanOrEqual(0);
-      expect(node.y).toBeGreaterThanOrEqual(0);
-      expect(node.x + nodeWidth).toBeLessThanOrEqual(result.width);
-      expect(node.y + nodeHeight).toBeLessThanOrEqual(result.height);
-    }
-  });
-
-  test("handles single-node graph", () => {
-    const graph: DependencyGraph = {
-      nodes: [
-        makeNode({ id: "solo", title: "Solo" }),
-      ],
-      edges: [],
-    };
-
-    const result = layoutGraph(graph);
-
-    expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0].id).toBe("solo");
-    expect(result.nodes[0].layer).toBe(0);
-    expect(result.edges).toHaveLength(0);
-    expect(result.width).toBeGreaterThan(0);
-    expect(result.height).toBeGreaterThan(0);
-  });
-
-  test("handles disconnected graph (multiple components)", () => {
-    // Component 1: A -> B
-    // Component 2: C -> D
-    // No edges between components
-    const graph: DependencyGraph = {
-      nodes: [
-        makeNode({ id: "a", title: "A" }),
-        makeNode({ id: "b", title: "B" }),
-        makeNode({ id: "c", title: "C" }),
-        makeNode({ id: "d", title: "D" }),
-      ],
-      edges: [
-        { from: "a", to: "b" },
-        { from: "c", to: "d" },
-      ],
-    };
-
-    const result = layoutGraph(graph);
-
-    expect(result.nodes).toHaveLength(4);
-
-    // Roots (A, C) should be at layer 0
-    const nodeA = result.nodes.find((n) => n.id === "a")!;
-    const nodeC = result.nodes.find((n) => n.id === "c")!;
-    expect(nodeA.layer).toBe(0);
-    expect(nodeC.layer).toBe(0);
-
-    // Dependents (B, D) should be at layer 1
-    const nodeB = result.nodes.find((n) => n.id === "b")!;
-    const nodeD = result.nodes.find((n) => n.id === "d")!;
-    expect(nodeB.layer).toBe(1);
-    expect(nodeD.layer).toBe(1);
-
-    // All edges should be present
-    expect(result.edges).toHaveLength(2);
-  });
-
-  test("handles graph with cycles (breaks cycle, logs warning)", () => {
-    // A -> B -> C -> A (cycle)
-    const graph: DependencyGraph = {
-      nodes: [
-        makeNode({ id: "a", title: "A" }),
-        makeNode({ id: "b", title: "B" }),
-        makeNode({ id: "c", title: "C" }),
-      ],
-      edges: [
-        { from: "a", to: "b" },
-        { from: "b", to: "c" },
-        { from: "c", to: "a" },
-      ],
-    };
-
-    const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
-
-    const result = layoutGraph(graph);
-
-    // Should produce a valid layout despite the cycle
-    expect(result.nodes).toHaveLength(3);
-
-    // At least one edge should be removed to break the cycle
-    expect(result.edges.length).toBeLessThan(3);
-
-    // Should have warned about the cycle
-    expect(warnSpy).toHaveBeenCalled();
-    const warnMsg = warnSpy.mock.calls[0][0] as string;
-    expect(warnMsg).toContain("cycles");
-
-    // All nodes should have valid coordinates
-    for (const node of result.nodes) {
-      expect(typeof node.x).toBe("number");
-      expect(typeof node.y).toBe("number");
-      expect(typeof node.layer).toBe("number");
-      expect(node.x).toBeGreaterThanOrEqual(0);
-      expect(node.y).toBeGreaterThanOrEqual(0);
-    }
-
-    warnSpy.mockRestore();
-  });
-
-  test("empty graph returns zero dimensions", () => {
-    const graph: DependencyGraph = {
-      nodes: [],
-      edges: [],
-    };
-
-    const result = layoutGraph(graph);
-
-    expect(result.nodes).toHaveLength(0);
-    expect(result.edges).toHaveLength(0);
-    expect(result.width).toBe(0);
-    expect(result.height).toBe(0);
-  });
-
-  test("respects custom layout options", () => {
-    const graph: DependencyGraph = {
-      nodes: [
-        makeNode({ id: "a", title: "A" }),
-        makeNode({ id: "b", title: "B" }),
-      ],
-      edges: [{ from: "a", to: "b" }],
-    };
-
-    const opts = { nodeWidth: 200, nodeHeight: 80, horizontalGap: 50, verticalGap: 100 };
-    const result = layoutGraph(graph, opts);
-
-    const nodeA = result.nodes.find((n) => n.id === "a")!;
-    const nodeB = result.nodes.find((n) => n.id === "b")!;
-
-    // B should be one verticalGap + nodeHeight below A
-    expect(nodeB.y - nodeA.y).toBe(80 + 100);
-  });
-
-  test("diamond dependency produces correct layers", () => {
-    //   A
-    //  / \
-    // B   C
-    //  \ /
-    //   D
-    const graph: DependencyGraph = {
-      nodes: [
-        makeNode({ id: "a", title: "A", status: "completed" }),
-        makeNode({ id: "b", title: "B", status: "completed" }),
-        makeNode({ id: "c", title: "C", status: "completed" }),
-        makeNode({ id: "d", title: "D", status: "pending" }),
+        makeNode({ id: "a" }),
+        makeNode({ id: "b" }),
+        makeNode({ id: "c" }),
+        makeNode({ id: "d" }),
       ],
       edges: [
         { from: "a", to: "b" },
@@ -579,17 +374,45 @@ describe("layoutGraph", () => {
       ],
     };
 
-    const result = layoutGraph(graph);
+    const adj = buildAdjacencyList(graph);
+    expect(adj.get("a")!.sort()).toEqual(["b", "c"]);
+    expect(adj.get("b")).toEqual(["d"]);
+    expect(adj.get("c")).toEqual(["d"]);
+    expect(adj.has("d")).toBe(false);
+  });
 
-    const nodeA = result.nodes.find((n) => n.id === "a")!;
-    const nodeB = result.nodes.find((n) => n.id === "b")!;
-    const nodeC = result.nodes.find((n) => n.id === "c")!;
-    const nodeD = result.nodes.find((n) => n.id === "d")!;
+  test("isolated nodes: no edges, returns empty map", () => {
+    const graph: DependencyGraph = {
+      nodes: [
+        makeNode({ id: "x" }),
+        makeNode({ id: "y" }),
+      ],
+      edges: [],
+    };
 
-    expect(nodeA.layer).toBe(0);
-    expect(nodeB.layer).toBe(1);
-    expect(nodeC.layer).toBe(1);
-    // D depends on both B and C (layer 1), so D is at layer 2
-    expect(nodeD.layer).toBe(2);
+    const adj = buildAdjacencyList(graph);
+    expect(adj.size).toBe(0);
+  });
+
+  test("schedule→spawned edges appear in the adjacency list", () => {
+    const commissions = [
+      makeCommission({
+        commissionId: "schedule-daily",
+        type: "scheduled",
+      }),
+      makeCommission({
+        commissionId: "spawned-1",
+        sourceSchedule: "schedule-daily",
+      }),
+      makeCommission({
+        commissionId: "spawned-2",
+        sourceSchedule: "schedule-daily",
+      }),
+    ];
+
+    const graph = buildDependencyGraph(commissions);
+    const adj = buildAdjacencyList(graph);
+    expect(adj.get("schedule-daily")!.sort()).toEqual(["spawned-1", "spawned-2"]);
   });
 });
+

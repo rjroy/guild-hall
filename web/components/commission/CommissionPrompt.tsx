@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useDaemonStatus } from "@/web/components/ui/DaemonContext";
 import styles from "./CommissionPrompt.module.css";
 
@@ -84,7 +86,13 @@ export default function CommissionPrompt({
           )}
         </>
       ) : (
-        <p className={styles.readOnly}>{value || "No prompt provided."}</p>
+        <div className={styles.readOnly}>
+          {value ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
+          ) : (
+            <p>No prompt provided.</p>
+          )}
+        </div>
       )}
     </div>
   );

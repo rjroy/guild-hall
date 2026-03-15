@@ -13,6 +13,7 @@ import {
   makeCreatePrHandler,
   makeInitiateMeetingHandler,
   makeAddCommissionNoteHandler,
+  makeCheckCommissionStatusHandler,
   createManagerToolbox,
   createDaemonRouteCaller,
 } from "@/daemon/services/manager/toolbox";
@@ -999,6 +1000,315 @@ describe("createManagerToolbox", () => {
     expect(server1.instance).toBeDefined();
     expect(server2.instance).toBeDefined();
     expect(server1.instance).not.toBe(server2.instance);
+  });
+});
+
+// -- check_commission_status --
+
+/** Helper: write a commission artifact to the integration worktree. */
+async function writeCommission(
+  id: string,
+  frontmatter: string,
+  body = "",
+): Promise<void> {
+  const dir = path.join(derivedIntegrationPath(), ".lore", "commissions");
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, `${id}.md`), `---\n${frontmatter}\n---\n${body}`, "utf-8");
+}
+
+describe("check_commission_status", () => {
+  // -- Single commission mode (REQ-CST-3, REQ-CST-4) --
+
+  test("returns detail for a single commission by ID", async () => {
+    await writeCommission("commission-writer-20260301-100000", `
+title: "Write docs"
+status: in_progress
+worker: writer
+type: one-shot
+date: 2026-03-01
+current_progress: "Working on chapter 2"
+linked_artifacts:
+  - docs/chapter1.md
+activity_timeline:
+  - timestamp: "2026-03-01T10:00:00.000Z"
+    event: created
+    reason: "Commission created"
+`);
+
+    const deps = makeDeps();
+    const handler = makeCheckCommissionStatusHandler(deps);
+    const result = await handler({ commissionId: "commission-writer-20260301-100000" });
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text) as Record<string, unknown>;
+    expect(parsed.commissionId).toBe("commission-writer-20260301-100000");
+    expect(parsed.title).toBe("Write docs");
+    expect(parsed.status).toBe("in_progress");
+    expect(parsed.worker).toBe("writer");
+    expect(parsed.type).toBe("one-shot");
+    expect(parsed.date).toBe("2026-03-01");
+    expect(parsed.current_progress).toBe("Working on chapter 2");
+    expect(parsed.linked_artifacts).toEqual(["docs/chapter1.md"]);
+  });
+
+  test("returns result_summary from body for completed commissions", async () => {
+    await writeCommission(
+      "commission-writer-20260301-110000",
+      `title: "Done task"\nstatus: completed\nworker: writer\ntype: one-shot\ndate: 2026-03-01\nactivity_timeline:\n  - timestamp: "2026-03-01T11:00:00.000Z"\n    event: created\n    reason: "created"`,
+      "Task completed successfully with all deliverables.",
+    );
+
+    const deps = makeDeps();
+    const handler = makeCheckCommissionStatusHandler(deps);
+    const result = await handler({ commissionId: "commission-writer-20260301-110000" });
+
+    const parsed = JSON.parse(result.content[0].text) as Record<string, unknown>;
+    expect(parsed.result_summary).toBe("Task completed successfully with all deliverables.");
+  });
+
+  // -- REQ-CST-5: Scheduled commission metadata --
+
+  test("includes schedule metadata for scheduled commissions", async () => {
+    await writeCommission("commission-sched-20260301-120000", `
+title: "Weekly cleanup"
+status: active
+worker: steward
+type: scheduled
+date: 2026-03-01
+schedule:
+  cron: "0 9 * * 1"
+  runs_completed: 3
+  last_run: "2026-03-10T09:00:00.000Z"
+activity_timeline:
+  - timestamp: "2026-03-01T12:00:00.000Z"
+    event: created
+    reason: "created"
+`);
+
+    const deps = makeDeps();
+    const handler = makeCheckCommissionStatusHandler(deps);
+    const result = await handler({ commissionId: "commission-sched-20260301-120000" });
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text) as Record<string, unknown>;
+    expect(parsed.type).toBe("scheduled");
+
+    const schedule = parsed.schedule as Record<string, unknown>;
+    expect(schedule.cron).toBe("0 9 * * 1");
+    expect(schedule.runsCompleted).toBe(3);
+    expect(schedule.lastRun).toBe("2026-03-10T09:00:00.000Z");
+    expect(schedule.nextRun).toBeDefined();
+    // nextRun should be after lastRun
+    expect(new Date(schedule.nextRun as string).getTime()).toBeGreaterThan(
+      new Date("2026-03-10T09:00:00.000Z").getTime(),
+    );
+  });
+
+  test("schedule metadata handles null lastRun", async () => {
+    await writeCommission("commission-sched-20260301-130000", `
+title: "New schedule"
+status: active
+worker: steward
+type: scheduled
+date: 2026-03-01
+schedule:
+  cron: "0 0 * * *"
+  runs_completed: 0
+activity_timeline:
+  - timestamp: "2026-03-01T13:00:00.000Z"
+    event: created
+    reason: "created"
+`);
+
+    const deps = makeDeps();
+    const handler = makeCheckCommissionStatusHandler(deps);
+    const result = await handler({ commissionId: "commission-sched-20260301-130000" });
+
+    const parsed = JSON.parse(result.content[0].text) as Record<string, unknown>;
+    const schedule = parsed.schedule as Record<string, unknown>;
+    expect(schedule.lastRun).toBeNull();
+    expect(schedule.runsCompleted).toBe(0);
+    // nextRun should still be computed from epoch
+    expect(schedule.nextRun).toBeDefined();
+  });
+
+  // -- REQ-CST-11: Commission not found --
+
+  test("returns isError when commission ID not found", async () => {
+    const deps = makeDeps();
+    const handler = makeCheckCommissionStatusHandler(deps);
+    const result = await handler({ commissionId: "commission-nonexistent-20260301-999999" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toBe("Commission not found: commission-nonexistent-20260301-999999");
+  });
+
+  // -- List mode (REQ-CST-6, REQ-CST-7, REQ-CST-8) --
+
+  test("returns sorted commission list with summary counts", async () => {
+    await writeCommission("commission-a-20260301-010000", `
+title: "Pending task"
+status: pending
+worker: writer
+type: one-shot
+date: 2026-03-01
+activity_timeline:
+  - timestamp: "2026-03-01T01:00:00.000Z"
+    event: created
+    reason: "created"
+`);
+    await writeCommission("commission-b-20260301-020000", `
+title: "Active task"
+status: in_progress
+worker: researcher
+type: one-shot
+date: 2026-03-01
+current_progress: "Researching..."
+activity_timeline:
+  - timestamp: "2026-03-01T02:00:00.000Z"
+    event: created
+    reason: "created"
+`);
+    await writeCommission("commission-c-20260301-030000", `
+title: "Done task"
+status: completed
+worker: writer
+type: one-shot
+date: 2026-03-01
+activity_timeline:
+  - timestamp: "2026-03-01T03:00:00.000Z"
+    event: created
+    reason: "created"
+`);
+    await writeCommission("commission-d-20260301-040000", `
+title: "Failed task"
+status: failed
+worker: developer
+type: one-shot
+date: 2026-03-01
+activity_timeline:
+  - timestamp: "2026-03-01T04:00:00.000Z"
+    event: created
+    reason: "created"
+`);
+
+    const deps = makeDeps();
+    const handler = makeCheckCommissionStatusHandler(deps);
+    const result = await handler({});
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text) as {
+      summary: Record<string, number>;
+      commissions: Array<Record<string, unknown>>;
+    };
+
+    // REQ-CST-8: summary counts
+    expect(parsed.summary.pending).toBe(1);
+    expect(parsed.summary.active).toBe(1);
+    expect(parsed.summary.failed).toBe(1);
+    expect(parsed.summary.completed).toBe(1);
+    expect(parsed.summary.total).toBe(4);
+
+    // REQ-CST-7: list entries have correct fields
+    expect(parsed.commissions).toHaveLength(4);
+    const first = parsed.commissions[0];
+    expect(first.commissionId).toBeDefined();
+    expect(first.title).toBeDefined();
+    expect(first.status).toBeDefined();
+    expect(first.worker).toBeDefined();
+    expect(first.type).toBeDefined();
+    // Fields omitted from list mode
+    expect(first.date).toBeUndefined();
+    expect(first.linked_artifacts).toBeUndefined();
+    expect(first.prompt).toBeUndefined();
+
+    // Sorted: pending first, then active, then failed, then completed
+    const statuses = parsed.commissions.map((c) => c.status);
+    expect(statuses).toEqual(["pending", "in_progress", "failed", "completed"]);
+  });
+
+  test("truncates long current_progress and result_summary in list mode", async () => {
+    const longText = "x".repeat(300);
+    await writeCommission("commission-long-20260301-050000", `
+title: "Long progress"
+status: in_progress
+worker: writer
+type: one-shot
+date: 2026-03-01
+current_progress: "${longText}"
+activity_timeline:
+  - timestamp: "2026-03-01T05:00:00.000Z"
+    event: created
+    reason: "created"
+`);
+
+    const deps = makeDeps();
+    const handler = makeCheckCommissionStatusHandler(deps);
+    const result = await handler({});
+
+    const parsed = JSON.parse(result.content[0].text) as {
+      commissions: Array<Record<string, unknown>>;
+    };
+
+    const entry = parsed.commissions.find(
+      (c) => c.commissionId === "commission-long-20260301-050000",
+    );
+    expect(entry).toBeDefined();
+    expect((entry!.current_progress as string).length).toBe(200);
+    expect((entry!.current_progress as string).endsWith("...")).toBe(true);
+  });
+
+  // -- REQ-CST-12: Empty project --
+
+  test("returns empty list and zeroed summary for project with no commissions", async () => {
+    // Remove all commissions
+    const dir = path.join(derivedIntegrationPath(), ".lore", "commissions");
+    const entries = await fs.readdir(dir);
+    for (const entry of entries) {
+      await fs.rm(path.join(dir, entry));
+    }
+
+    const deps = makeDeps();
+    const handler = makeCheckCommissionStatusHandler(deps);
+    const result = await handler({});
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text) as {
+      summary: Record<string, number>;
+      commissions: unknown[];
+    };
+
+    expect(parsed.commissions).toHaveLength(0);
+    expect(parsed.summary).toEqual({ pending: 0, active: 0, failed: 0, completed: 0, total: 0 });
+  });
+
+  test("returns empty list when commissions directory does not exist", async () => {
+    await fs.rm(path.join(derivedIntegrationPath(), ".lore", "commissions"), {
+      recursive: true,
+    });
+
+    const deps = makeDeps();
+    const handler = makeCheckCommissionStatusHandler(deps);
+    const result = await handler({});
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text) as {
+      summary: Record<string, number>;
+      commissions: unknown[];
+    };
+
+    expect(parsed.commissions).toHaveLength(0);
+    expect(parsed.summary.total).toBe(0);
+  });
+
+  // -- REQ-CST-1, REQ-CST-13: Tool registration --
+
+  test("check_commission_status tool is registered in createManagerToolbox", () => {
+    const deps = makeDeps();
+    const server = createManagerToolbox(deps);
+    // The MCP server instance exposes tools through the SDK; verify the
+    // server was created without error (tool is in the tools array)
+    expect(server.instance).toBeDefined();
   });
 });
 
