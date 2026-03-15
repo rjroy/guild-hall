@@ -2,13 +2,13 @@ import Link from "next/link";
 import Panel from "@/web/components/ui/Panel";
 import StatusBadge from "@/web/components/ui/StatusBadge";
 import EmptyState from "@/web/components/ui/EmptyState";
-import type { Artifact } from "@/lib/types";
+import type { Artifact, ArtifactWithProject } from "@/lib/types";
 import { statusToGem } from "@/lib/types";
 import styles from "./RecentArtifacts.module.css";
 
 interface RecentArtifactsProps {
-  artifacts: Artifact[];
-  projectName?: string;
+  artifacts: ArtifactWithProject[];
+  selectedProject?: string;
 }
 
 /**
@@ -61,27 +61,27 @@ export function artifactHref(
   return `/projects/${encodedName}/artifacts/${artifact.relativePath}`;
 }
 
-// Server component: receives Artifact[] with lastModified: Date.
+// Server component: receives ArtifactWithProject[] with lastModified: Date.
 // Do NOT add "use client" — Date objects don't serialize cleanly
 // through the RSC protocol and would cause hydration mismatches.
 export default function RecentArtifacts({
   artifacts,
-  projectName,
+  selectedProject,
 }: RecentArtifactsProps) {
+  const showProjectLabel = !selectedProject;
+
   return (
     <Panel title="Recent Scrolls">
-      {!projectName ? (
-        <EmptyState message="Select a project to view recent artifacts." />
-      ) : artifacts.length === 0 ? (
-        <EmptyState message="No artifacts found." />
+      {artifacts.length === 0 ? (
+        <EmptyState message="No recent artifacts." />
       ) : (
         <ul className={styles.list}>
           {artifacts.map((artifact) => {
             const gemStatus = statusToGem(artifact.meta.status);
             return (
-              <li key={artifact.relativePath} className={styles.item}>
+              <li key={`${artifact.projectName}-${artifact.relativePath}`} className={styles.item}>
                 <Link
-                  href={artifactHref(artifact, projectName)}
+                  href={artifactHref(artifact, artifact.projectName)}
                   className={styles.link}
                 >
                   {/* Static decorative icon. next/image optimization not beneficial. */}
@@ -96,6 +96,9 @@ export default function RecentArtifacts({
                     <span className={styles.title}>
                       {displayTitle(artifact)}
                     </span>
+                    {showProjectLabel && (
+                      <span className={styles.projectLabel}>{artifact.projectName}</span>
+                    )}
                     {artifact.meta.date && (
                       <span className={styles.date}>{artifact.meta.date}</span>
                     )}

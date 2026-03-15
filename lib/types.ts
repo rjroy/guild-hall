@@ -60,6 +60,9 @@ export interface Artifact {
   lastModified: Date;
 }
 
+/** Artifact annotated with its source project name for cross-project views. */
+export type ArtifactWithProject = Artifact & { projectName: string };
+
 /**
  * Five-group status priority for artifact browsing views.
  * Groups are ordered by actionability: work needing attention surfaces first,
