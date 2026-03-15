@@ -1,5 +1,5 @@
 ---
-title: "Commit .lore changes from the web UI"
+title: "Commit lore changes from the web UI"
 date: 2026-03-14
 status: draft
 tags: [ux, artifacts, git, web, daemon]
