@@ -280,7 +280,7 @@ export default function MeetingRequestCard({
           />
           <button
             type="button"
-            className={styles.dateConfirmButton}
+            className={`${styles.actionButton} ${styles.dateConfirmButton}`}
             disabled={!deferDate || !isOnline}
             title={!isOnline ? "Daemon offline" : undefined}
             onClick={() => void handleDefer()}
@@ -289,7 +289,7 @@ export default function MeetingRequestCard({
           </button>
           <button
             type="button"
-            className={styles.dateCancelButton}
+            className={`${styles.actionButton} ${styles.dateCancelButton}`}
             onClick={() => {
               setShowDatePicker(false);
               setDeferDate("");
@@ -311,7 +311,7 @@ export default function MeetingRequestCard({
           <div className={styles.quickCommentActions}>
             <button
               type="button"
-              className={styles.quickCommentSendButton}
+              className={`${styles.actionButton} ${styles.quickCommentSendButton}`}
               disabled={!quickCommentPrompt.trim() || !isOnline}
               title={!isOnline ? "Daemon offline" : undefined}
               onClick={() => void handleQuickComment()}
@@ -320,7 +320,7 @@ export default function MeetingRequestCard({
             </button>
             <button
               type="button"
-              className={styles.quickCommentCancelButton}
+              className={`${styles.actionButton} ${styles.quickCommentCancelButton}`}
               onClick={() => {
                 setShowQuickComment(false);
                 setQuickCommentPrompt("");
@@ -334,7 +334,7 @@ export default function MeetingRequestCard({
         <div className={styles.actions}>
           <button
             type="button"
-            className={styles.openButton}
+            className={`${styles.actionButton} ${styles.openButton}`}
             disabled={!isOnline}
             title={!isOnline ? "Daemon offline" : undefined}
             onClick={() => void handleOpen()}
@@ -343,7 +343,7 @@ export default function MeetingRequestCard({
           </button>
           <button
             type="button"
-            className={styles.quickCommentButton}
+            className={`${styles.actionButton} ${styles.quickCommentButton}`}
             disabled={!isOnline}
             title={!isOnline ? "Daemon offline" : undefined}
             onClick={() => setShowQuickComment(true)}
@@ -352,7 +352,7 @@ export default function MeetingRequestCard({
           </button>
           <button
             type="button"
-            className={styles.deferButton}
+            className={`${styles.actionButton} ${styles.deferButton}`}
             disabled={!isOnline}
             title={!isOnline ? "Daemon offline" : undefined}
             onClick={() => setShowDatePicker(true)}
@@ -361,7 +361,7 @@ export default function MeetingRequestCard({
           </button>
           <button
             type="button"
-            className={styles.ignoreButton}
+            className={`${styles.actionButton} ${styles.ignoreButton}`}
             disabled={!isOnline}
             title={!isOnline ? "Daemon offline" : undefined}
             onClick={() => void handleIgnore()}
