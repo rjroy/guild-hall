@@ -1,7 +1,7 @@
 ---
 title: Replacing SVG commission graph with tree list
 date: 2026-03-14
-status: open
+status: resolved
 tags: [ux, commissions, visualization, dashboard, dependency-graph]
 modules: [web/components/dashboard/CommissionGraph, web/components/dashboard/DependencyMap, web/components/commission/NeighborhoodGraph, lib/dependency-graph]
 related:
@@ -151,8 +151,8 @@ Net: roughly 370 lines of layout algorithm and 320 lines of SVG rendering remove
 
 ## Open Questions
 
-1. **Sort order within the tree.** The flat list uses `sortCommissions()` which groups by status priority. In a tree, children should appear under their parent regardless of status. Should root-level items still sort by status, with children sorted by status within their parent group? Or should the entire tree follow topological order?
+1. **Sort order within the tree.** *Resolved:* Root-level items sort by status (current `sortCommissions()` behavior). Children sort by status within their parent group. No urgency bubbling from children to parents. Keep it simple.
 
-2. **Collapsibility.** Should dependency chains be collapsible? The flat list has no need for it, but a tree with spawned schedule children could get long. Leaning "no" for now, since the existing card list doesn't collapse either, and the commission list filtering feature (`.lore/brainstorm/commission-list-filtering.md`) already provides status-based filtering.
+2. **Collapsibility.** *Resolved:* No. Commission list filtering (`.lore/brainstorm/commission-list-filtering.md`) handles long lists better than manual collapse. No interaction state to persist.
 
-3. **Performance of parent lookup.** The tree rendering needs a "children of node X" lookup. `buildDependencyGraph()` returns edges as `{from, to}` pairs. Building an adjacency list (Map<parentId, childId[]>) from the edges is O(n) and trivial, but it's a new data structure that doesn't exist yet. Minor concern.
+3. **Performance of parent lookup.** *Resolved:* Add a `buildAdjacencyList(graph: DependencyGraph): Map<string, string[]>` utility to `lib/dependency-graph.ts`. O(n) from the edge list, testable in isolation. Tree component calls it once.
