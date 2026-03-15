@@ -775,9 +775,13 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         // Activity scope: existing path (creates branch + worktree + sparse checkout)
         await provisionWorkspace(entry, project.path);
 
-        // Update artifact: status to "open" + log entry (on the activity worktree)
+        // Update artifact on the activity worktree
         await updateArtifactStatus(entry.worktreeDir, meetingId, "open");
         await appendMeetingLog(entry.worktreeDir, meetingId, "opened", "User accepted meeting request");
+
+        // Also update the integration worktree so the web UI sees status: open
+        const integrationPath = integrationWorktreePathFn(ghHome, projectName);
+        await updateArtifactStatus(integrationPath, meetingId, "open");
       }
 
       // Set up transcript and state file (both scopes)
