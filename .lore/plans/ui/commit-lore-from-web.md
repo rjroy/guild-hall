@@ -3,7 +3,7 @@ title: "Commit .lore Changes from the Web UI"
 date: 2026-03-14
 status: draft
 tags: [ui, artifacts, git, web, daemon]
-modules: [daemon/lib/git, daemon/routes/git-lore, daemon/app, web/app/projects/[name]/page, web/components/project/CommitLoreButton]
+modules: [daemon/lib/git, daemon/routes/git-lore, daemon/app, "web/app/projects/[name]/page", web/components/project/CommitLoreButton]
 related:
   - .lore/specs/ui/commit-lore-from-web.md
   - .lore/brainstorm/commit-lore-from-web.md
