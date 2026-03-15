@@ -1,9 +1,9 @@
 ---
-title: "Commit lore changes from the web UI"
+title: "Commit .lore changes from the web UI"
 date: 2026-03-14
 status: draft
 tags: [ux, artifacts, git, web, daemon]
-modules: [web/app/projects/[name]/page, web/components/project/CommitLoreButton, daemon/routes/git-lore]
+modules: ["web/app/projects/[name]/page", web/components/project/CommitLoreButton, daemon/routes/git-lore]
 related:
   - .lore/brainstorm/commit-lore-from-web.md
   - .lore/design/daemon-rest-api.md
