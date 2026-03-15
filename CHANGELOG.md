@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Commit .lore from Web UI:** "Commit .lore" button on the Artifacts tab expands an inline form to commit pending `.lore/` changes with a user-authored message. New daemon endpoints `GET /workspace/git/lore/status` and `POST /workspace/git/lore/commit` enforce a staging boundary that only commits `.lore/` files.
+
 ## [1.0.0] - 2026-03-08
 
 _First release of Guild Hall, a multi-agent workspace for delegating work to AI specialists._

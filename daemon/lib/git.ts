@@ -198,6 +198,16 @@ export interface GitOps {
    * Aborts a merge in progress, restoring the worktree to its pre-merge state.
    */
   mergeAbort(worktreePath: string): Promise<void>;
+
+  /** Returns the count of uncommitted .lore/ changes in the worktree. */
+  lorePendingChanges(worktreePath: string): Promise<{ hasPendingChanges: boolean; fileCount: number }>;
+
+  /**
+   * Stages .lore/ changes and commits with the given message.
+   * Uses `git add -- .lore/` (not `git add -A`) and `--no-verify`.
+   * Returns committed: false if there is nothing to stage in .lore/.
+   */
+  commitLore(worktreePath: string, message: string): Promise<{ committed: boolean }>;
 }
 
 export function createGitOps(): GitOps {
@@ -479,6 +489,28 @@ export function createGitOps(): GitOps {
       } catch {
         // merge --abort may fail if no merge is in progress
       }
+    },
+
+    async lorePendingChanges(worktreePath) {
+      const { stdout } = await runGit(worktreePath, ["status", "--porcelain", "--", ".lore/"]);
+      if (stdout === "") {
+        return { hasPendingChanges: false, fileCount: 0 };
+      }
+      const fileCount = stdout.split("\n").filter(Boolean).length;
+      return { hasPendingChanges: true, fileCount };
+    },
+
+    async commitLore(worktreePath, message) {
+      const { stdout } = await runGit(worktreePath, ["status", "--porcelain", "--", ".lore/"]);
+      if (stdout === "") {
+        return { committed: false };
+      }
+      await runGit(worktreePath, ["add", "--", ".lore/"]);
+      // --no-verify: consistent with commitAll and squashMerge.
+      // Integration worktrees share the project's hook config but aren't
+      // full working copies; pre-commit hooks (linters, tests) will fail.
+      await runGit(worktreePath, ["commit", "--no-verify", "-m", message]);
+      return { committed: true };
     },
   };
 }

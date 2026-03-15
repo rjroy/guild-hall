@@ -60,6 +60,8 @@ function makeMockGitOps(overrides: Partial<GitOps> = {}): GitOps {
     revParse: () => Promise.resolve(""),
     isAncestor: () => Promise.resolve(false),
     listBranches: () => Promise.resolve([]),
+    lorePendingChanges: () => Promise.resolve({ hasPendingChanges: false, fileCount: 0 }),
+    commitLore: () => Promise.resolve({ committed: false }),
     ...overrides,
   } as GitOps;
 }
