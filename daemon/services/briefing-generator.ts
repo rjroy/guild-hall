@@ -18,6 +18,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as crypto from "node:crypto";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { DiscoveredPackage, AppConfig } from "@/lib/types";
 import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
@@ -26,7 +27,7 @@ import {
   type ManagerContextDeps,
 } from "@/daemon/services/manager/context";
 import { MANAGER_WORKER_NAME } from "@/daemon/services/manager/worker";
-import { integrationWorktreePath, briefingCachePath } from "@/lib/paths";
+import { integrationWorktreePath, briefingCachePath, allProjectsBriefingCachePath } from "@/lib/paths";
 import { collectSdkText, collectRunnerText } from "@/daemon/lib/sdk-text";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import type { Log } from "@/daemon/lib/log";
@@ -70,8 +71,6 @@ interface CacheEntry {
 }
 
 // -- Constants --
-
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 const BRIEFING_PROMPT = `Generate a project status briefing for the Guild Hall dashboard.
 
@@ -266,6 +265,7 @@ function makeBriefingResolveToolSet(
  */
 export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
   const log = deps.log ?? nullLog("briefing");
+  const cacheTtlMs = (deps.config.briefingCacheTtlMinutes ?? 60) * 60 * 1000;
 
   return {
     async generateBriefing(projectName: string): Promise<BriefingResult> {
@@ -279,7 +279,7 @@ export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
       const cachePath = briefingCachePath(deps.guildHallHome, projectName);
       const cached = await readCacheFile(cachePath);
       const headMatch = currentHead && cached?.headCommit === currentHead;
-      const withinTtl = cached && (now - cached.generatedAt) < CACHE_TTL_MS;
+      const withinTtl = cached && (now - cached.generatedAt) < cacheTtlMs;
       if (cached && (headMatch || withinTtl)) {
         return {
           briefing: cached.text,
@@ -360,6 +360,108 @@ export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
         // File didn't exist, nothing to invalidate
       }
     },
+
+    async generateAllProjectsBriefing(): Promise<BriefingResult> {
+      const now = (deps.clock ?? Date.now)();
+      const projects = deps.config.projects;
+
+      if (projects.length === 0) {
+        return {
+          briefing: "No projects registered. Register a project to see briefings.",
+          generatedAt: new Date(now).toISOString(),
+          cached: false,
+        };
+      }
+
+      // 1. Compute composite HEAD hash: concatenate HEADs sorted by project name, SHA-256
+      const sortedProjects = [...projects].sort((a, b) => a.name.localeCompare(b.name));
+      const heads: string[] = [];
+      for (const project of sortedProjects) {
+        const integrationPath = integrationWorktreePath(deps.guildHallHome, project.name);
+        const head = await readHeadCommit(integrationPath);
+        heads.push(head ?? "unknown");
+      }
+      const compositeHash = crypto.createHash("sha256").update(heads.join("")).digest("hex");
+
+      // 2. Check cache
+      const allCachePath = allProjectsBriefingCachePath(deps.guildHallHome);
+      const cached = await readCacheFile(allCachePath);
+      const headMatch = cached?.headCommit === compositeHash;
+      const withinTtl = cached && (now - cached.generatedAt) < cacheTtlMs;
+      if (cached && (headMatch || withinTtl)) {
+        return {
+          briefing: cached.text,
+          generatedAt: new Date(cached.generatedAt).toISOString(),
+          cached: true,
+        };
+      }
+
+      // 3. Generate per-project briefings sequentially
+      const FALLBACK_MARKERS = ["Unable to assemble", "Unable to generate"];
+      const projectBriefings: Array<{ name: string; text: string }> = [];
+      const failedProjects: string[] = [];
+      for (const project of sortedProjects) {
+        const result = await this.generateBriefing(project.name);
+        projectBriefings.push({ name: project.name, text: result.briefing });
+        if (FALLBACK_MARKERS.some((m) => result.briefing.startsWith(m))) {
+          failedProjects.push(project.name);
+        }
+      }
+      if (failedProjects.length > 0) {
+        log.warn(`Per-project briefing failed for: ${failedProjects.join(", ")}`);
+      }
+
+      // 4. Build synthesis prompt
+      const projectSections = projectBriefings
+        .map((pb) => `[PROJECT: ${pb.name}]\n${pb.text}`)
+        .join("\n\n");
+
+      const synthesisPrompt = `Cross-project status synthesis for Guild Hall.
+
+The following briefings were generated for each registered project:
+
+${projectSections}
+
+Synthesize these into a unified Guild Hall briefing. Cover: which projects have the most activity, which have blocked or failed commissions, any cross-project patterns, and what needs the most attention. Write in the Guild Master's voice. Plain prose, no headers or bullets.`;
+
+      // 5. Generate synthesis (cascade: full SDK → single turn → concatenation)
+      const concatenationFallback = () =>
+        projectBriefings.map((pb) => `${pb.name}: ${pb.text}`).join(" ");
+
+      let synthesisText: string | undefined;
+
+      if (deps.queryFn && deps.prepDeps) {
+        const result = await generateSynthesisWithFullSdk(deps, synthesisPrompt, log);
+        if (result) synthesisText = result;
+      }
+
+      if (!synthesisText && deps.queryFn) {
+        const result = await generateSynthesisWithSingleTurn(deps.queryFn, synthesisPrompt, log);
+        if (result) synthesisText = result;
+      }
+
+      if (!synthesisText) {
+        synthesisText = concatenationFallback();
+      }
+
+      // 6. Cache and return
+      try {
+        await writeCacheFile(allCachePath, {
+          text: synthesisText,
+          generatedAt: now,
+          headCommit: compositeHash,
+        });
+      } catch (err: unknown) {
+        const reason = errorMessage(err);
+        log.warn(`Failed to write all-projects cache: ${reason}`);
+      }
+
+      return {
+        briefing: synthesisText,
+        generatedAt: new Date(now).toISOString(),
+        cached: false,
+      };
+    },
   };
 }
 
@@ -373,6 +475,7 @@ async function generateWithFullSdk(
   context: string,
   log: Log,
 ): Promise<string> {
+  // Caller guards both deps.queryFn and deps.prepDeps before calling this function
   const prepDeps = deps.prepDeps!;
   const queryFn = deps.queryFn!;
 
@@ -457,5 +560,100 @@ Be factual and direct. No headers or bullet points. Plain prose.`;
     const reason = errorMessage(err);
     log.error(`SDK invocation failed: ${reason}`);
     return generateTemplateBriefing(context);
+  }
+}
+
+/**
+ * Generates synthesis text using the full SDK pipeline.
+ * Uses the first project as workspace context since the synthesis
+ * doesn't need project-specific tools.
+ */
+async function generateSynthesisWithFullSdk(
+  deps: BriefingGeneratorDeps,
+  synthesisPrompt: string,
+  log: Log,
+): Promise<string | undefined> {
+  // Caller guards both deps.queryFn and deps.prepDeps before calling this function
+  const prepDeps = deps.prepDeps!;
+  const queryFn = deps.queryFn!;
+  const firstProject = deps.config.projects[0];
+  const integrationPath = integrationWorktreePath(deps.guildHallHome, firstProject.name);
+
+  const abortController = new AbortController();
+
+  const spec: SessionPrepSpec = {
+    workerName: MANAGER_WORKER_NAME,
+    packages: deps.packages,
+    config: deps.config,
+    guildHallHome: deps.guildHallHome,
+    projectName: firstProject.name,
+    projectPath: firstProject.path,
+    workspaceDir: integrationPath,
+    contextId: "briefing-all-projects",
+    contextType: "briefing",
+    eventBus: noopEventBus,
+    abortController,
+    resourceOverrides: { maxTurns: 10, model: deps.config.systemModels?.briefing ?? "sonnet" },
+    activationExtras: { managerContext: "" },
+  };
+
+  const wrappedPrepDeps: SessionPrepDeps = {
+    ...prepDeps,
+    resolveToolSet: makeBriefingResolveToolSet(prepDeps.resolveToolSet),
+  };
+
+  try {
+    const prepResult = await prepareSdkSession(spec, wrappedPrepDeps);
+    if (!prepResult.ok) {
+      log.error(`All-projects synthesis prep failed: ${prepResult.error}`);
+      return undefined;
+    }
+
+    const options = prepResult.result.options;
+    const generator = runSdkSession(queryFn, synthesisPrompt, options);
+    const text = await collectRunnerText(generator);
+
+    if (!text) {
+      log.warn("All-projects synthesis completed with no text.");
+      return undefined;
+    }
+    return text;
+  } catch (err: unknown) {
+    const reason = prefixLocalModelError(errorMessage(err), undefined);
+    log.error(`All-projects synthesis failed: ${reason}`);
+    return undefined;
+  }
+}
+
+/**
+ * Generates synthesis text using a single-turn SDK call.
+ */
+async function generateSynthesisWithSingleTurn(
+  queryFn: BriefingQueryFn,
+  synthesisPrompt: string,
+  log: Log,
+): Promise<string | undefined> {
+  try {
+    const generator = queryFn({
+      prompt: synthesisPrompt,
+      options: {
+        systemPrompt: "You are the Guild Master, producing a cross-project synthesis briefing. Plain prose, no headers or bullets.",
+        maxTurns: 1,
+        model: "sonnet",
+        permissionMode: "dontAsk",
+        settingSources: [],
+      },
+    });
+
+    const text = await collectSdkText(generator);
+    if (!text) {
+      log.warn("All-projects single-turn synthesis completed with no text.");
+      return undefined;
+    }
+    return text;
+  } catch (err: unknown) {
+    const reason = errorMessage(err);
+    log.error(`All-projects synthesis SDK invocation failed: ${reason}`);
+    return undefined;
   }
 }

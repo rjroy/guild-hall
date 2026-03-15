@@ -717,6 +717,201 @@ describe("createBriefingGenerator - edge cases", () => {
   });
 });
 
+describe("createBriefingGenerator - configurable TTL", () => {
+  test("briefingCacheTtlMinutes: 30 causes 31-minute-old cache to be stale", async () => {
+    let currentTime = 1_000_000;
+    const mock = createMockQueryFn("Briefing text.");
+    const config: AppConfig = {
+      ...makeConfig(),
+      briefingCacheTtlMinutes: 30,
+    };
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, config, clock: () => currentTime }),
+    );
+
+    // First call: cache miss
+    await generator.generateBriefing("test-project");
+    expect(mock.getCallCount()).toBe(1);
+
+    // Advance HEAD + 31 minutes (past the 30-minute TTL)
+    const integrationPath = path.join(guildHallHome, "projects", "test-project");
+    await advanceHead(integrationPath);
+    currentTime += 31 * 60 * 1000;
+
+    const result = await generator.generateBriefing("test-project");
+    expect(result.cached).toBe(false);
+    expect(mock.getCallCount()).toBe(2);
+  });
+
+  test("briefingCacheTtlMinutes: 120 keeps 90-minute-old cache valid", async () => {
+    let currentTime = 1_000_000;
+    const mock = createMockQueryFn("Briefing text.");
+    const config: AppConfig = {
+      ...makeConfig(),
+      briefingCacheTtlMinutes: 120,
+    };
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, config, clock: () => currentTime }),
+    );
+
+    // First call: cache miss
+    await generator.generateBriefing("test-project");
+    expect(mock.getCallCount()).toBe(1);
+
+    // Advance HEAD + 90 minutes (within 120-minute TTL)
+    const integrationPath = path.join(guildHallHome, "projects", "test-project");
+    await advanceHead(integrationPath);
+    currentTime += 90 * 60 * 1000;
+
+    const result = await generator.generateBriefing("test-project");
+    expect(result.cached).toBe(true);
+    expect(mock.getCallCount()).toBe(1);
+  });
+
+  test("default TTL is 60 minutes when briefingCacheTtlMinutes is absent", async () => {
+    let currentTime = 1_000_000;
+    const mock = createMockQueryFn("Briefing text.");
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, clock: () => currentTime }),
+    );
+
+    await generator.generateBriefing("test-project");
+    expect(mock.getCallCount()).toBe(1);
+
+    // Advance HEAD + 59 minutes (within default 60-minute TTL)
+    const integrationPath = path.join(guildHallHome, "projects", "test-project");
+    await advanceHead(integrationPath);
+    currentTime += 59 * 60 * 1000;
+
+    const result = await generator.generateBriefing("test-project");
+    expect(result.cached).toBe(true);
+    expect(mock.getCallCount()).toBe(1);
+  });
+});
+
+describe("createBriefingGenerator - all-projects briefing", () => {
+  test("returns sensible message when no projects registered", async () => {
+    const config: AppConfig = { projects: [] };
+    const generator = createBriefingGenerator(makeDeps({ config }));
+
+    const result = await generator.generateAllProjectsBriefing();
+
+    expect(result.briefing).toContain("No projects registered");
+    expect(result.cached).toBe(false);
+  });
+
+  test("calls generateBriefing per project when cache is cold", async () => {
+    const mock = createMockQueryFn("Briefing text.");
+    const config: AppConfig = {
+      projects: [
+        { name: "alpha", path: "/tmp/alpha" },
+        { name: "beta", path: "/tmp/beta" },
+      ],
+    };
+
+    // Create integration worktrees with git repos
+    for (const name of ["alpha", "beta"]) {
+      const integrationPath = path.join(guildHallHome, "projects", name);
+      await fs.mkdir(path.join(integrationPath, ".lore", "commissions"), { recursive: true });
+      await fs.mkdir(path.join(integrationPath, ".lore", "meetings"), { recursive: true });
+      await initGitRepo(integrationPath);
+    }
+
+    const generator = createBriefingGenerator(makeDeps({ queryFn: mock.queryFn, config }));
+
+    const result = await generator.generateAllProjectsBriefing();
+
+    expect(result.cached).toBe(false);
+    // queryFn is called for each project briefing + synthesis
+    // Each project generates a briefing, so at least 2 calls
+    expect(mock.getCallCount()).toBeGreaterThanOrEqual(2);
+  });
+
+  test("composite HEAD hash changes when one project's HEAD changes", async () => {
+    const config: AppConfig = {
+      projects: [
+        { name: "alpha", path: "/tmp/alpha" },
+        { name: "beta", path: "/tmp/beta" },
+      ],
+    };
+
+    for (const name of ["alpha", "beta"]) {
+      const integrationPath = path.join(guildHallHome, "projects", name);
+      await fs.mkdir(path.join(integrationPath, ".lore", "commissions"), { recursive: true });
+      await fs.mkdir(path.join(integrationPath, ".lore", "meetings"), { recursive: true });
+      await initGitRepo(integrationPath);
+    }
+
+    let currentTime = 1_000_000;
+    const mock = createMockQueryFn("Briefing text.");
+    const generator = createBriefingGenerator(
+      makeDeps({ queryFn: mock.queryFn, config, clock: () => currentTime }),
+    );
+
+    // First call: cache cold
+    const first = await generator.generateAllProjectsBriefing();
+    expect(first.cached).toBe(false);
+    const firstCallCount = mock.getCallCount();
+
+    // Second call: same HEADs, should be cached
+    const second = await generator.generateAllProjectsBriefing();
+    expect(second.cached).toBe(true);
+    expect(mock.getCallCount()).toBe(firstCallCount);
+
+    // Advance one project's HEAD + expire TTL
+    const alphaPath = path.join(guildHallHome, "projects", "alpha");
+    await advanceHead(alphaPath);
+    currentTime += 61 * 60 * 1000; // past default 60-minute TTL
+
+    // Third call: composite hash changed, should regenerate
+    const third = await generator.generateAllProjectsBriefing();
+    expect(third.cached).toBe(false);
+    expect(mock.getCallCount()).toBeGreaterThan(firstCallCount);
+  });
+
+  test("all-projects cache is read from _all.json", async () => {
+    const config: AppConfig = {
+      projects: [{ name: "alpha", path: "/tmp/alpha" }],
+    };
+
+    const integrationPath = path.join(guildHallHome, "projects", "alpha");
+    await fs.mkdir(path.join(integrationPath, ".lore", "commissions"), { recursive: true });
+    await fs.mkdir(path.join(integrationPath, ".lore", "meetings"), { recursive: true });
+    await initGitRepo(integrationPath);
+
+    const mock = createMockQueryFn("Fresh all-projects briefing.");
+    const generator = createBriefingGenerator(makeDeps({ queryFn: mock.queryFn, config }));
+
+    // Generate to populate cache
+    const first = await generator.generateAllProjectsBriefing();
+    expect(first.cached).toBe(false);
+    const callsAfterFirst = mock.getCallCount();
+
+    // Second call should hit _all.json cache
+    const second = await generator.generateAllProjectsBriefing();
+    expect(second.cached).toBe(true);
+    expect(mock.getCallCount()).toBe(callsAfterFirst);
+  });
+
+  test("no-SDK fallback concatenates project briefings", async () => {
+    const config: AppConfig = {
+      projects: [{ name: "alpha", path: "/tmp/alpha" }],
+    };
+
+    const integrationPath = path.join(guildHallHome, "projects", "alpha");
+    await fs.mkdir(path.join(integrationPath, ".lore", "commissions"), { recursive: true });
+    await fs.mkdir(path.join(integrationPath, ".lore", "meetings"), { recursive: true });
+    await initGitRepo(integrationPath);
+
+    const generator = createBriefingGenerator(makeDeps({ config }));
+
+    const result = await generator.generateAllProjectsBriefing();
+    expect(result.cached).toBe(false);
+    // Fallback concatenates project name + template briefing
+    expect(result.briefing).toContain("alpha");
+  });
+});
+
 describe("createBriefingGenerator - system model configuration", () => {
   test("uses configured briefing model from config.systemModels.briefing", async () => {
     const mock = createMockQueryFn("Briefing with haiku.");

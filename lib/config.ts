@@ -86,6 +86,7 @@ export const appConfigSchema = z.object({
   settings: z.record(z.string(), z.unknown()).optional(),
   maxConcurrentCommissions: z.number().optional(),
   maxConcurrentMailReaders: z.number().optional(),
+  briefingCacheTtlMinutes: z.number().int().positive().optional(),
 });
 
 // -- Functions --

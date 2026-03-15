@@ -2,7 +2,7 @@ import { fetchDaemon } from "@/web/lib/daemon-api";
 import type { AppConfig, Artifact, ArtifactWithProject, CommissionMeta, MeetingMeta } from "@/lib/types";
 import WorkspaceSidebar from "@/web/components/dashboard/WorkspaceSidebar";
 import ManagerBriefing from "@/web/components/dashboard/ManagerBriefing";
-import DependencyMap from "@/web/components/dashboard/DependencyMap";
+import InFlight from "@/web/components/dashboard/DependencyMap";
 import RecentArtifacts from "@/web/components/dashboard/RecentArtifacts";
 import PendingAudiences from "@/web/components/dashboard/PendingAudiences";
 import DaemonError from "@/web/components/ui/DaemonError";
@@ -101,10 +101,10 @@ export default async function DashboardPage({
         />
       </div>
       <div className={styles.briefing}>
-        <ManagerBriefing projectName={selectedProject ?? config.projects[0]?.name} />
+        <ManagerBriefing projectName={selectedProject} />
       </div>
       <div className={styles.depMap}>
-        <DependencyMap commissions={allCommissions} selectedProject={selectedProject} />
+        <InFlight commissions={allCommissions} selectedProject={selectedProject} />
       </div>
       <div className={styles.recentArtifacts}>
         <RecentArtifacts

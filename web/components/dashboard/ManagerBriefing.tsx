@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Panel from "@/web/components/ui/Panel";
-import EmptyState from "@/web/components/ui/EmptyState";
 import styles from "./ManagerBriefing.module.css";
 import remarkGfm from "remark-gfm";
 import ReactMarkdown from "react-markdown";
@@ -47,15 +46,17 @@ export default function ManagerBriefing({ projectName }: ManagerBriefingProps) {
   const [state, setState] = useState<FetchState>({ status: "idle" });
 
   useEffect(() => {
-    if (!projectName) return;
-
     let cancelled = false;
 
     const fetchBriefing = async () => {
       setState({ status: "loading" });
 
+      const url = projectName
+        ? `/api/briefing/${encodeURIComponent(projectName)}`
+        : `/api/briefing/all`;
+
       try {
-        const res = await fetch(`/api/briefing/${encodeURIComponent(projectName)}`);
+        const res = await fetch(url);
         if (cancelled) return;
 
         if (!res.ok) {
@@ -95,11 +96,8 @@ export default function ManagerBriefing({ projectName }: ManagerBriefingProps) {
         className={styles.divider}
         aria-hidden="true"
       />
-      {!projectName && (
-        <EmptyState message="Select a project to see the briefing." />
-      )}
-      {projectName && state.status === "idle" && null}
-      {projectName && state.status === "loading" && (
+      {state.status === "idle" && null}
+      {state.status === "loading" && (
         <div className={styles.skeleton}>
           <div className={styles.skeletonLine} />
           <div className={styles.skeletonLine} />

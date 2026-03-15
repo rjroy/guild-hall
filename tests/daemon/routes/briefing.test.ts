@@ -15,6 +15,11 @@ function makeMockBriefingGenerator(overrides: Partial<BriefingGenerator> = {}): 
       generatedAt: new Date().toISOString(),
       cached: false,
     }),
+    generateAllProjectsBriefing: async () => ({
+      briefing: "All projects synthesis: everything is running smoothly.",
+      generatedAt: new Date().toISOString(),
+      cached: false,
+    }),
     invalidateCache: async () => {},
     ...overrides,
   };
@@ -31,6 +36,43 @@ function makeTestApp(briefingGenerator: BriefingGenerator) {
 }
 
 // -- Tests --
+
+describe("GET /coordination/review/briefing/read - all projects", () => {
+  test("returns all-projects synthesis when projectName=all", async () => {
+    const app = makeTestApp(makeMockBriefingGenerator());
+
+    const res = await app.request("/coordination/review/briefing/read?projectName=all");
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.briefing).toContain("All projects synthesis");
+  });
+
+  test("returns all-projects synthesis when projectName is omitted", async () => {
+    const app = makeTestApp(makeMockBriefingGenerator());
+
+    const res = await app.request("/coordination/review/briefing/read");
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.briefing).toContain("All projects synthesis");
+  });
+
+  test("returns 500 when all-projects generator throws", async () => {
+    const generator = makeMockBriefingGenerator({
+      generateAllProjectsBriefing: async () => {
+        throw new Error("Synthesis failed");
+      },
+    });
+    const app = makeTestApp(generator);
+
+    const res = await app.request("/coordination/review/briefing/read?projectName=all");
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toContain("Failed to generate briefing");
+  });
+});
 
 describe("GET /coordination/review/briefing/read", () => {
   test("returns briefing with metadata", async () => {

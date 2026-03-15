@@ -1,7 +1,7 @@
 ---
 title: Recent Scrolls panel is empty and unhelpful on first load
 date: 2026-03-10
-status: open
+status: resolved
 tags: [ux, ui, dashboard]
 modules: [web/app/page, web/components/dashboard]
 ---
@@ -23,3 +23,7 @@ Options:
 1. **Default to most active project.** Auto-select the project with the most recent activity and show its artifacts. If there's only one project with recent work, that's the obvious default.
 2. **Show across all projects.** Show the N most recently modified artifacts across all registered projects. This makes the panel immediately useful regardless of project selection.
 3. **Hide when empty.** If no project is selected and there's no sensible default, don't render the panel. Show it only when the user explicitly selects a project.
+
+## Resolution
+
+Resolved by dashboard selection model implementation. All-projects mode fetches artifacts across all projects (REQ-DASH-11, REQ-DASH-12). The "Select a project" empty state was removed; replaced with cross-project artifact fetch on default page load.

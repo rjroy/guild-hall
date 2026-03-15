@@ -11,6 +11,8 @@ import {
   meetingWorktreePath,
   commissionBranchName,
   meetingBranchName,
+  briefingCachePath,
+  allProjectsBriefingCachePath,
   resolveCommissionBasePath,
   resolveMeetingBasePath,
 } from "@/lib/paths";
@@ -98,6 +100,20 @@ describe("commissionBranchName", () => {
 describe("meetingBranchName", () => {
   test("returns correct branch name", () => {
     expect(meetingBranchName("kickoff")).toBe("claude/meeting/kickoff");
+  });
+});
+
+describe("briefingCachePath", () => {
+  test("returns correct path", () => {
+    expect(briefingCachePath("/home/user/.guild-hall", "my-project"))
+      .toBe("/home/user/.guild-hall/state/briefings/my-project.json");
+  });
+});
+
+describe("allProjectsBriefingCachePath", () => {
+  test("returns _all.json path", () => {
+    expect(allProjectsBriefingCachePath("/home/user/.guild-hall"))
+      .toBe("/home/user/.guild-hall/state/briefings/_all.json");
   });
 });
 

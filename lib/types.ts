@@ -38,6 +38,7 @@ export interface AppConfig {
   settings?: Record<string, unknown>;
   maxConcurrentCommissions?: number;
   maxConcurrentMailReaders?: number;
+  briefingCacheTtlMinutes?: number;
 }
 
 export interface ArtifactMeta {
