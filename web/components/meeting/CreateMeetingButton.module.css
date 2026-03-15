@@ -11,6 +11,8 @@
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .createButton:hover {
