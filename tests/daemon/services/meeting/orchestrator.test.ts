@@ -680,6 +680,62 @@ describe("orchestrator flows", () => {
     });
   });
 
+  // ---- Accept meeting request (activity scope) ----
+
+  describe("acceptMeetingRequest activity scope", () => {
+    test("updates integration worktree artifact to status open", async () => {
+      const mockWorkspace = createMockWorkspace();
+      // Override prepare to also copy the artifact into the activity worktree,
+      // simulating what a real sparse checkout would do.
+      mockWorkspace.prepare = async (config) => {
+        await fs.mkdir(config.worktreeDir, { recursive: true });
+        const srcDir = path.join(integrationDir, ".lore", "meetings");
+        const destDir = path.join(config.worktreeDir, ".lore", "meetings");
+        await fs.mkdir(destDir, { recursive: true });
+        const files = await fs.readdir(srcDir);
+        for (const file of files) {
+          await fs.copyFile(path.join(srcDir, file), path.join(destDir, file));
+        }
+        return { worktreeDir: config.worktreeDir };
+      };
+
+      const registry = new MeetingRegistry();
+      const session = createMeetingSession(makeDeps({
+        workspace: mockWorkspace,
+        registry,
+      }));
+
+      // Write a meeting request artifact to the integration worktree
+      const meetingId = asMeetingId("audience-Assistant-20260302-150000");
+      await writeMeetingArtifact(
+        integrationDir,
+        meetingId,
+        "Guild Assistant",
+        "Discuss architecture",
+        "Assistant",
+        "requested",
+      );
+
+      // Verify integration artifact starts as requested
+      const artifactPath = path.join(
+        integrationDir,
+        ".lore",
+        "meetings",
+        `${meetingId}.md`,
+      );
+      const before = await fs.readFile(artifactPath, "utf-8");
+      expect(before).toContain("status: requested");
+
+      await collectEvents(
+        session.acceptMeetingRequest(meetingId, "test-project"),
+      );
+
+      // Integration worktree artifact should now be status: open
+      const after = await fs.readFile(artifactPath, "utf-8");
+      expect(after).toContain("status: open");
+    });
+  });
+
   // ---- Cap enforcement ----
 
   describe("cap enforcement", () => {
