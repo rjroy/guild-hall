@@ -411,8 +411,33 @@ export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
         log.warn(`Per-project briefing failed for: ${failedProjects.join(", ")}`);
       }
 
-      // 4. Build synthesis prompt
-      const projectSections = projectBriefings
+      // 4. If all projects failed, skip synthesis entirely
+      if (failedProjects.length === projectBriefings.length) {
+        const fallbackText = "Unable to generate cross-project briefing: all project briefings failed.";
+        try {
+          await writeCacheFile(allCachePath, {
+            text: fallbackText,
+            generatedAt: now,
+            headCommit: compositeHash,
+          });
+        } catch (err: unknown) {
+          const reason = errorMessage(err);
+          log.warn(`Failed to write all-projects cache: ${reason}`);
+        }
+        return {
+          briefing: fallbackText,
+          generatedAt: new Date(now).toISOString(),
+          cached: false,
+        };
+      }
+
+      // Filter out failed briefings so synthesis only sees successful ones
+      const successfulBriefings = projectBriefings.filter(
+        (pb) => !FALLBACK_MARKERS.some((m) => pb.text.startsWith(m)),
+      );
+
+      // Build synthesis prompt
+      const projectSections = successfulBriefings
         .map((pb) => `[PROJECT: ${pb.name}]\n${pb.text}`)
         .join("\n\n");
 
@@ -426,7 +451,7 @@ Synthesize these into a unified Guild Hall briefing. Cover: which projects have 
 
       // 5. Generate synthesis (cascade: full SDK → single turn → concatenation)
       const concatenationFallback = () =>
-        projectBriefings.map((pb) => `${pb.name}: ${pb.text}`).join(" ");
+        successfulBriefings.map((pb) => `${pb.name}: ${pb.text}`).join(" ");
 
       let synthesisText: string | undefined;
 

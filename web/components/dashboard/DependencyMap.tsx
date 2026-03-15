@@ -80,9 +80,9 @@ export default function InFlight({ commissions, selectedProject }: InFlightProps
                 >
                   <StatusBadge gem={gem} label={commission.status} size="sm" />
                   <span className={styles.title}>{displayTitle}</span>
-                  {commission.workerDisplayTitle && (
+                  {commission.worker && (
                     <span className={styles.worker}>
-                      {commission.workerDisplayTitle}
+                      {commission.workerDisplayTitle || commission.worker}
                     </span>
                   )}
                   {showProjectLabel && (

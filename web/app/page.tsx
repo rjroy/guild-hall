@@ -104,7 +104,12 @@ export default async function DashboardPage({
         <ManagerBriefing projectName={selectedProject} />
       </div>
       <div className={styles.depMap}>
-        <InFlight commissions={allCommissions} selectedProject={selectedProject} />
+        <InFlight
+          commissions={selectedProject
+            ? allCommissions.filter(c => c.projectName === selectedProject)
+            : allCommissions}
+          selectedProject={selectedProject}
+        />
       </div>
       <div className={styles.recentArtifacts}>
         <RecentArtifacts
