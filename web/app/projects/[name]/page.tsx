@@ -8,6 +8,8 @@ import MeetingList from "@/web/components/project/MeetingList";
 import CommissionList from "@/web/components/commission/CommissionList";
 import CommissionGraph from "@/web/components/dashboard/CommissionGraph";
 import CreateCommissionButton from "@/web/components/commission/CreateCommissionButton";
+import CreateMeetingButton from "@/web/components/meeting/CreateMeetingButton";
+import CommitLoreButton from "@/web/components/project/CommitLoreButton";
 import DaemonError from "@/web/components/ui/DaemonError";
 import styles from "./page.module.css";
 
@@ -16,10 +18,10 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ tab?: string; newCommission?: string; dep?: string }>;
+  searchParams: Promise<{ tab?: string; newCommission?: string; dep?: string; newMeeting?: string; artifact?: string }>;
 }) {
   const { name: rawName } = await params;
-  const { tab = "artifacts", newCommission, dep } = await searchParams;
+  const { tab = "artifacts", newCommission, dep, newMeeting, artifact } = await searchParams;
 
   const projectName = decodeURIComponent(rawName);
   const encoded = encodeURIComponent(projectName);
@@ -35,18 +37,23 @@ export default async function ProjectPage({
   const project = projectResult.data;
 
   // Fetch all data in parallel
-  const [artifactsResult, meetingsResult, commissionsResult, graphResult] = await Promise.all([
+  const [artifactsResult, meetingsResult, commissionsResult, graphResult, loreStatusResult] = await Promise.all([
     fetchDaemon<{ artifacts: Artifact[] }>(`/workspace/artifact/document/list?projectName=${encoded}`),
     // view=artifacts returns all meetings as Artifact[] with active worktree merging, pre-sorted
     fetchDaemon<{ meetings: Artifact[] }>(`/meeting/request/meeting/list?projectName=${encoded}&view=artifacts`),
     fetchDaemon<{ commissions: CommissionMeta[] }>(`/commission/request/commission/list?projectName=${encoded}`),
     fetchDaemon<DependencyGraph>(`/commission/dependency/project/graph?projectName=${encoded}`),
+    fetchDaemon<{ hasPendingChanges: boolean; fileCount: number }>(
+      `/workspace/git/lore/status?projectName=${encoded}`
+    ),
   ]);
 
   const artifacts = artifactsResult.ok ? artifactsResult.data.artifacts : [];
   const meetingArtifacts = meetingsResult.ok ? meetingsResult.data.meetings : [];
   const commissions = commissionsResult.ok ? commissionsResult.data.commissions : [];
   const commissionGraph = graphResult.ok ? graphResult.data : { nodes: [], edges: [] };
+  const hasPendingChanges = loreStatusResult.ok ? loreStatusResult.data.hasPendingChanges : false;
+  const pendingFileCount = loreStatusResult.ok ? loreStatusResult.data.fileCount : 0;
 
   return (
     <div className={styles.projectView}>
@@ -54,7 +61,16 @@ export default async function ProjectPage({
       <ProjectTabs projectName={projectName} activeTab={tab} />
       <div className={styles.tabContent}>
         {tab === "artifacts" && (
-          <ArtifactList artifacts={artifacts} projectName={projectName} />
+          <div className={styles.artifactTab}>
+            <div className={styles.artifactActions}>
+              <CommitLoreButton
+                projectName={projectName}
+                hasPendingChanges={hasPendingChanges}
+                pendingFileCount={pendingFileCount}
+              />
+            </div>
+            <ArtifactList artifacts={artifacts} projectName={projectName} />
+          </div>
         )}
         {tab === "commissions" && (
           <div className={styles.commissionTab}>
@@ -76,7 +92,16 @@ export default async function ProjectPage({
           </div>
         )}
         {tab === "meetings" && (
-          <MeetingList meetings={meetingArtifacts} projectName={projectName} />
+          <div className={styles.meetingTab}>
+            <div className={styles.meetingActions}>
+              <CreateMeetingButton
+                projectName={projectName}
+                defaultOpen={newMeeting === "true"}
+                initialArtifact={artifact}
+              />
+            </div>
+            <MeetingList meetings={meetingArtifacts} projectName={projectName} />
+          </div>
         )}
       </div>
     </div>

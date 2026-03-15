@@ -73,7 +73,7 @@ export default async function DashboardPage({
   if (workersResult.ok) {
     for (const w of workersResult.data.workers) {
       if (w.portraitUrl) {
-        workerPortraits[w.name] = w.portraitUrl;
+        workerPortraits[w.displayName] = w.portraitUrl;
       }
     }
   }

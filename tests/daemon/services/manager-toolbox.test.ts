@@ -129,6 +129,8 @@ function makeMockGitOps(overrides?: Partial<GitOps>): GitOps {
     async listConflictedFiles() { return []; },
     async resolveConflictsTheirs() {},
     async mergeAbort() {},
+    async lorePendingChanges() { return { hasPendingChanges: false, fileCount: 0 }; },
+    async commitLore() { return { committed: false }; },
     ...overrides,
   };
 }

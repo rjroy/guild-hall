@@ -79,7 +79,7 @@ export default async function MeetingPage({
 
   // Portrait and model resolved from workers endpoint (REQ-WID-10)
   const workers = workersResult.ok ? workersResult.data.workers : [];
-  const workerInfo = workers.find((w) => w.name === workerName);
+  const workerInfo = workers.find((w) => w.displayName === workerName);
   const workerPortraitUrl = workerInfo?.portraitUrl ?? undefined;
   const workerModel = workerInfo?.model?.name ?? "opus";
 

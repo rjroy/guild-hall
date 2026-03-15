@@ -237,6 +237,8 @@ function createMockGitOps(options?: {
     resolveConflictsTheirs: () => { calls.push("resolveConflictsTheirs"); return Promise.resolve(); },
     mergeAbort: () => { calls.push("mergeAbort"); return Promise.resolve(); },
     hasCommitsBeyond: () => { calls.push("hasCommitsBeyond"); return Promise.resolve(false); },
+    lorePendingChanges: () => { calls.push("lorePendingChanges"); return Promise.resolve({ hasPendingChanges: false, fileCount: 0 }); },
+    commitLore: () => { calls.push("commitLore"); return Promise.resolve({ committed: false }); },
   };
 }
 

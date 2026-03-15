@@ -89,6 +89,8 @@ function createMockGitOps(overrides?: Partial<{
     resolveConflictsTheirs: async (...args) => { track("resolveConflictsTheirs", ...args); },
     mergeAbort: async (...args) => { track("mergeAbort", ...args); },
     hasCommitsBeyond: async (...args) => { track("hasCommitsBeyond", ...args); return false; },
+    lorePendingChanges: async (...args) => { track("lorePendingChanges", ...args); return { hasPendingChanges: false, fileCount: 0 }; },
+    commitLore: async (...args) => { track("commitLore", ...args); return { committed: false }; },
   };
 }
 

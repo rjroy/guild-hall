@@ -1,7 +1,7 @@
 ---
 title: AskUserQuestion tool needs async response mechanism
 date: 2026-02-25
-status: open
+status: wontfix
 tags: [feature, meetings, toolbox, async, user-interaction]
 modules: [meeting-chat, meeting-toolbox, daemon]
 ---

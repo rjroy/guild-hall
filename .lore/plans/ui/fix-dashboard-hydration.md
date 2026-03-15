@@ -1,7 +1,7 @@
 ---
 title: Fix Dashboard Hydration Mismatch
 date: 2026-03-10
-status: draft
+status: executed
 tags: [ui, next-js, hydration, bug-fix]
 modules: [web/app/page, web/components/dashboard]
 related:

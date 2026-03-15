@@ -2,6 +2,7 @@ import { describe, test, expect } from "bun:test";
 import MetadataSidebar, {
   relatedToHref,
   createCommissionHref,
+  requestMeetingHref,
 } from "@/web/components/artifact/MetadataSidebar";
 import type { CommissionMeta } from "@/lib/commissions";
 import type { ArtifactMeta } from "@/lib/types";
@@ -170,6 +171,88 @@ describe("createCommissionHref", () => {
   test("handles deeply nested artifact paths", () => {
     const href = createCommissionHref("proj", "plans/phase-1/step-3.md");
     expect(href).toContain("dep=plans%2Fphase-1%2Fstep-3.md");
+  });
+});
+
+// -- requestMeetingHref --
+
+describe("requestMeetingHref", () => {
+  test("builds href with tab, newMeeting, and artifact params", () => {
+    const href = requestMeetingHref("my-project", "specs/api.md");
+    expect(href).toBe(
+      "/projects/my-project?tab=meetings&newMeeting=true&artifact=specs%2Fapi.md",
+    );
+  });
+
+  test("encodes project name with special characters", () => {
+    const href = requestMeetingHref("my project", "specs/api.md");
+    expect(href).toContain("/projects/my%20project?");
+  });
+
+  test("encodes artifact path (slashes become %2F)", () => {
+    const href = requestMeetingHref("proj", "plans/phase-1/step-3.md");
+    expect(href).toContain("artifact=plans%2Fphase-1%2Fstep-3.md");
+  });
+});
+
+// -- MetadataSidebar Actions section --
+
+describe("MetadataSidebar Actions section", () => {
+  test("renders request-meeting link when artifactPath is provided", () => {
+    const el = MetadataSidebar({
+      meta: makeArtifactMeta(),
+      projectName: "test-project",
+      artifactPath: "specs/api.md",
+      associatedCommissions: [],
+    }) as AnyElement;
+
+    const meetingLinks = findElements(
+      el,
+      (e) =>
+        typeof e.props.href === "string" &&
+        e.props.href.includes("newMeeting=true"),
+    );
+    expect(meetingLinks).toHaveLength(1);
+    expect(meetingLinks[0].props.href).toContain("artifact=specs%2Fapi.md");
+  });
+
+  test("renders both commission and meeting links as peers", () => {
+    const el = MetadataSidebar({
+      meta: makeArtifactMeta(),
+      projectName: "test-project",
+      artifactPath: "specs/api.md",
+      associatedCommissions: [],
+    }) as AnyElement;
+
+    const commissionLinks = findElements(
+      el,
+      (e) =>
+        typeof e.props.href === "string" &&
+        e.props.href.includes("newCommission=true"),
+    );
+    const meetingLinks = findElements(
+      el,
+      (e) =>
+        typeof e.props.href === "string" &&
+        e.props.href.includes("newMeeting=true"),
+    );
+    expect(commissionLinks).toHaveLength(1);
+    expect(meetingLinks).toHaveLength(1);
+  });
+
+  test("does not render meeting link without artifactPath", () => {
+    const el = MetadataSidebar({
+      meta: makeArtifactMeta(),
+      projectName: "test-project",
+    }) as AnyElement;
+
+    const meetingLinks = findElements(
+      el,
+      (e) =>
+        typeof e.props.href === "string" &&
+        e.props.href.includes("newMeeting=true"),
+    );
+    expect(meetingLinks).toHaveLength(0);
   });
 });
 

@@ -430,6 +430,8 @@ function makeMockGitOps(): GitOps {
     async resolveConflictsTheirs() {},
     async mergeAbort() {},
     async hasCommitsBeyond() { return false; },
+    async lorePendingChanges() { return { hasPendingChanges: false, fileCount: 0 }; },
+    async commitLore() { return { committed: false }; },
   };
 }
 

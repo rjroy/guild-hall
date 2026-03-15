@@ -112,7 +112,7 @@ export default async function CommissionPage({
 
   // Resolve effective model from worker packages and commission overrides
   const workers = workersResult.ok ? workersResult.data.workers : [];
-  const workerInfo = workers.find((w) => w.name === commission.worker);
+  const workerInfo = workers.find((w) => w.displayName === commission.worker);
   const workerDefaultModel = workerInfo?.model?.name;
   const effectiveModel = commission.resource_overrides.model ?? workerDefaultModel ?? "opus";
   const isModelOverride =

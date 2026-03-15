@@ -1,7 +1,7 @@
 ---
 title: Fastmail JMAP Integration Research
 date: 2026-03-06
-status: active
+status: implemented
 tags: [jmap, fastmail, email, toolbox, mcp, integration]
 modules: [packages]
 ---

@@ -209,6 +209,8 @@ function createMockGitOps(overrides?: Partial<GitOps>): GitOps & { calls: string
     listConflictedFiles: () => { calls.push("listConflictedFiles"); return Promise.resolve([]); },
     resolveConflictsTheirs: () => { calls.push("resolveConflictsTheirs"); return Promise.resolve(); },
     mergeAbort: () => { calls.push("mergeAbort"); return Promise.resolve(); },
+    lorePendingChanges: () => { calls.push("lorePendingChanges"); return Promise.resolve({ hasPendingChanges: false, fileCount: 0 }); },
+    commitLore: () => { calls.push("commitLore"); return Promise.resolve({ committed: false }); },
     ...overrides,
   };
   return base;

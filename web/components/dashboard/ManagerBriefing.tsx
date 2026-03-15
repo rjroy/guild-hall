@@ -19,8 +19,7 @@ type FetchState =
   | { status: "loaded"; data: BriefingData }
   | { status: "error"; message: string };
 
-function formatRelativeTime(isoDate: string): string {
-  const now = Date.now();
+export function formatRelativeTime(isoDate: string, now = Date.now()): string {
   const then = new Date(isoDate).getTime();
   const diffMs = now - then;
 
@@ -119,7 +118,10 @@ export default function ManagerBriefing({ projectName }: ManagerBriefingProps) {
 
           </div>
           <div className={styles.meta}>
-            <span className={styles.timestamp}>
+            {/* Server and client may disagree on relative time due to fetch timing.
+                suppressHydrationWarning is appropriate because the value is approximate
+                and updates on every briefing refresh. */}
+            <span className={styles.timestamp} suppressHydrationWarning>
               Last updated: {formatRelativeTime(state.data.generatedAt)}
             </span>
           </div>

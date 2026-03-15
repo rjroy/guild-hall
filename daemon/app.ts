@@ -13,6 +13,7 @@ import { createBriefingRoutes } from "./routes/briefing";
 import { createModelsRoutes } from "./routes/models";
 import { createAdminRoutes, type AdminDeps } from "./routes/admin";
 import { createArtifactRoutes, type ArtifactDeps } from "./routes/artifacts";
+import { createGitLoreRoutes, type GitLoreDeps } from "./routes/git-lore";
 import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
 import { createHelpRoutes } from "./routes/help";
 import { createSkillRegistry, type SkillRegistry } from "@/daemon/lib/skill-registry";
@@ -40,6 +41,7 @@ export interface AppDeps {
   config?: AppConfig;
   admin?: AdminDeps;
   artifacts?: ArtifactDeps;
+  gitLore?: GitLoreDeps;
   configRoutes?: ConfigRoutesDeps;
   /** Route module from package-contributed skills. When provided, its skills
    *  enter the same registry as built-in skills and its routes are mounted. */
@@ -121,6 +123,10 @@ export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry }
 
   if (deps.artifacts) {
     mount(createArtifactRoutes(deps.artifacts));
+  }
+
+  if (deps.gitLore) {
+    mount(createGitLoreRoutes(deps.gitLore));
   }
 
   if (deps.configRoutes) {
@@ -559,6 +565,11 @@ export async function createProductionApp(options?: {
       gitOps: git,
       checkDependencyTransitions: (projectName: string) =>
         commissionSession.checkDependencyTransitions(projectName),
+    },
+    gitLore: {
+      config,
+      guildHallHome,
+      gitOps: git,
     },
     configRoutes: {
       config,

@@ -41,6 +41,8 @@ function makeAdminDeps(overrides?: Partial<AdminDeps>): AdminDeps {
       resolveConflictsTheirs: () => Promise.resolve(),
       mergeAbort: () => Promise.resolve(),
       hasCommitsBeyond: () => Promise.resolve(false),
+      lorePendingChanges: () => Promise.resolve({ hasPendingChanges: false, fileCount: 0 }),
+      commitLore: () => Promise.resolve({ committed: false }),
     },
     readConfigFromDisk: () => Promise.resolve({ projects: [] }),
     syncProject: () => Promise.resolve(),
