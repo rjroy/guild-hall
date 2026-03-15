@@ -1,17 +1,17 @@
 ---
 title: Dashboard selection model
 date: 2026-03-15
-status: open
-tags: [ux, ui, dashboard, project-selection, briefing, recent-scrolls, dependency-map]
-modules: [web/app/page, web/components/dashboard/ManagerBriefing, web/components/dashboard/RecentArtifacts, web/components/dashboard/DependencyMap, web/components/dashboard/WorkspaceSidebar]
-related: [.lore/issues/recent-scrolls-empty-state.md]
+status: resolved
+tags: [ux, ui, dashboard, project-selection, briefing, recent-scrolls, commission-filter]
+modules: [web/app/page, web/components/dashboard/ManagerBriefing, web/components/dashboard/RecentArtifacts, web/components/dashboard/DependencyMap, web/components/dashboard/WorkspaceSidebar, web/components/commission/CommissionList]
+related: [.lore/issues/recent-scrolls-empty-state.md, .lore/specs/ui/commission-list-filtering.md]
 ---
 
 # Brainstorm: Dashboard Selection Model
 
 ## Context
 
-The three dashboard cards (Briefing, Task Dependency Map, Recent Scrolls) have inconsistent behavior around project selection, and there's no explicit deselection mechanism. The intent is for the dashboard to show an overall view across all projects by default, and a project-specific view when one is selected.
+The three dashboard cards (Briefing, Task Dependency Map, Recent Scrolls) have inconsistent behavior around project selection, and there's no explicit deselection mechanism. The intent is for the dashboard to show an overall view across all projects by default, and a project-specific view when one is selected. (Note: the Task Dependency Map was reframed during resolution as an "In Flight" filtered commission list; see that section below.)
 
 The current behavior (verified from source):
 
@@ -66,26 +66,22 @@ What if only one project has recent activity? Then the all-projects feed looks i
 
 ---
 
-### Task Dependency Map: should it filter?
+### Task Dependency Map: reframed as "In Flight" view
 
-This is a more interesting question. The map currently shows all commissions from all projects and is the only card that does so intentionally.
+Investigation revealed that cross-project commission dependencies don't exist in practice. The `awaits` field resolves dependencies within a single project's `.lore/commissions/` directory; a cross-project reference would fail at dispatch time. The dependency graph adds visual complexity without much payoff when commissions rarely have dependencies.
 
-When a project is selected, should the map filter to show only that project's commissions?
+The card's real value is answering "what is in flight?" not "what depends on what?" This reframes the card from a graph visualization to a filtered commission list.
 
-**Arguments for filtering:**
-- Consistent with the project focus mode — you selected a project to drill into it
-- Reduces noise when there are many projects
+The Commission List Filter on the project page's Commission Tab (`CommissionList.tsx`) already solves this well: multi-select checkboxes grouped by status category (Idle, Active, Failed, Done), count annotations, reset to defaults, all client-side. The filter logic is pure functions (`filterCommissions`, `countByStatus`, `isDefaultSelection`) with a `FILTER_GROUPS` array defining the checkbox layout.
 
-**Arguments against filtering:**
-- Commissions can depend on commissions in other projects (the `awaits` field references commission IDs, and the `CommissionMeta` type includes `projectName` on each node). Filtering hides cross-project dependencies.
-- The dependency map is a workload overview. Its value comes from showing everything at once so you can see what's blocking what. Scoping it to one project makes it less useful as a planning tool.
-- The map already handles the single-project case well — if only one project has commissions, the map only shows that project's commissions.
+**Decision: extract a generic status filter component from CommissionList.tsx and reuse it on the dashboard.** Two levels of extraction were considered:
 
-**A middle path:** Filter the list but mark cross-project dependencies. When a commission in project A `awaits` a commission in project B, show a greyed-out node for the dependency with a project label. This preserves the dependency context while still giving the focused view.
+1. **Filter logic + filter UI only** (pure functions + filter panel component). Each consumer renders its own list. The project page renders commission rows with prompt previews; the dashboard renders a compact "in flight" summary with project labels.
+2. **Full parameterized CommissionListFilter** that handles both filter panel and list rendering. Over-abstracts when the two consumers want different row layouts.
 
-This middle path adds complexity. For the first pass, the simplest viable answer is probably: **the dependency map stays global.** It becomes an intentionally cross-cutting card. If the user wants to see a project's commissions in isolation, the project page already has a commissions view.
+Level 1 is the right call. The filter panel becomes a shared component; list rendering stays specific to each consumer.
 
-If the map stays global, it's worth making that explicit in the UI — a small "All Projects" label on the card title when a project is selected. This signals "this card intentionally shows everything" rather than making the user wonder whether filtering is broken.
+In all-projects mode, the card shows commissions from all projects with project labels on each row. When a project is selected, it filters to that project's commissions. Consistent with how every other card responds to selection.
 
 ---
 
@@ -113,20 +109,32 @@ What if the all-projects briefing could be seeded from project briefings rather 
 
 ---
 
-## Open Questions
+## Resolved Questions
 
-1. **Cross-project dependencies in the dependency map**: How common are they in practice? If they're rare or nonexistent, the filtering question becomes less fraught. Worth checking whether any active commissions actually reference cross-project `awaits`.
+1. **Cross-project dependencies in the dependency map**: Nonexistent. The `awaits` field resolves within a single project; cross-project references fail at dispatch. No commission artifacts contain cross-project references. This made the dependency map filtering question moot and led to reframing the card entirely (see "In Flight" section above).
 
-2. **Briefing cache on all-projects**: If project briefings are already cached, can the all-projects summary be derived from cached content rather than re-running? This would require either (a) the all-projects endpoint fetching individual briefings first, or (b) storing briefing text in a way the all-projects endpoint can read without re-generating.
+2. **Briefing cache on all-projects**: Yes. Briefing cache is file-based at `~/.guild-hall/state/briefings/<projectName>.json`, storing `{ text, generatedAt, headCommit }`. An all-projects endpoint reads cached briefing text for each project and passes the collection to a single Guild Master session for synthesis. Cache hits are instant; only stale projects incur LLM cost. This makes Option B (LLM cross-project summary) viable as a follow-on to Option C (static summary).
 
-3. **The dependency map's scope when a project is selected**: The brainstorm leans toward keeping it global. Is this the right call? A user who selects a project to focus on it might find the global dependency map disorienting ("why am I still seeing other projects' work?"). Worth validating against actual usage patterns.
+3. **"In Flight" card scope when a project is selected**: Filter to the selected project's commissions. Show all in "All Projects" mode. Consistent with how every other card responds to selection. The dependency graph visualization is replaced by a filtered commission list, so the "global graph for cross-project context" argument no longer applies.
 
-4. **"All Projects" entry in sidebar — position and label**: Should it appear above the project list or as a special treatment of the "Guild Hall" title? If above, it competes visually with the section heading "Active Projects." Needs a design pass.
+4. **"All Projects" entry in sidebar**: First item in the project list, same visual treatment as project items but distinct (no gem, or a different icon). Selected by default. Links to `/`. Sits below the "Active Projects" section heading.
 
-5. **Default state on first load with a single project**: If there's only one project registered, should the dashboard auto-select it? Or should the all-projects and project-specific views be identical when there's only one project, making the distinction moot?
+5. **Default state on first load with a single project**: Always start in "All Projects" mode regardless of project count. Single-project users see identical content either way. Keeps the model consistent: the dashboard always starts the same way.
+
+## Decisions Summary
+
+| Decision | Resolution |
+|----------|------------|
+| Deselection mechanism | "All Projects" entry at top of sidebar (Option B) |
+| Visual state | Sidebar highlight is sufficient when all cards respond consistently |
+| Recent Scrolls empty state | Fetch across all projects in all-projects mode, show project labels |
+| Task Dependency Map | Reframed as "In Flight" filtered list, reusing Commission List Filter pattern |
+| Filter extraction | Level 1: extract filter panel as shared component, keep list rendering per-consumer |
+| All-projects briefing | LLM synthesis seeded from cached per-project briefings (Option B directly; Option C skipped) |
+| Default mode | Always "All Projects" |
 
 ## Next Steps
 
-1. Resolve the dependency map scope question (global vs. filtered) — this determines whether cards have divergent scopes, which affects the visual state design.
-2. Spec the selection model: define the two modes, what each card shows in each, and the interaction for toggling between them.
-3. Decide on the all-projects briefing approach (LLM vs. static) before speccing the briefing changes — the implementation cost differs significantly.
+1. Spec the selection model: define the two modes (All Projects, single project), what each card shows in each, and the interaction for toggling between them.
+2. Spec the filter panel extraction from `CommissionList.tsx` and its reuse on the dashboard "In Flight" card.
+3. Spec the all-projects briefing (Option C first, Option B as enhancement).
