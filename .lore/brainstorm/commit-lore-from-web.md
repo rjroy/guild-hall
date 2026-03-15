@@ -1,7 +1,7 @@
 ---
 title: "Commit .lore changes from the web UI"
 date: 2026-03-14
-status: open
+status: resolved
 tags: [ux, artifacts, git, web, daemon]
 modules: [web/components/project/ArtifactList, daemon/routes/artifacts, daemon/routes/admin]
 related:
@@ -183,12 +183,12 @@ The daemon side enforces that only `.lore/` files are staged. The git command is
 
 ---
 
-## Open questions
+## Resolved questions
 
-1. **Should the commit push to the remote?** The integration worktree is on the `claude` branch. A push would require `git push origin claude`, which is the same action `workspace/git/integration/sync` handles indirectly. Probably not: keep commit and push as separate operations. The user can trigger a sync from the admin panel if they want to push. Keeping commit local is the safer default.
+1. **Should the commit push to the remote?** No. Commit stays local. The user can sync from the admin panel if they want to push. Keeps commit and push as separate operations.
 
-2. **Empty commit message.** What happens if the user submits without typing a message? The handler could reject it (400) or generate a default message like "Update .lore artifacts". Rejecting it encourages good practice; defaulting reduces friction. The UI should validate before submitting.
+2. **Empty commit message.** Reject with 400. The whole point is deliberate commits with meaningful messages. UI validates before submitting.
 
-3. **Conflict with per-write auto-commits.** Each `write` call already commits with "Edit artifact: ...". The new feature commits any remaining unstaged changes. There is no conflict, but the history will show both auto-commits and user-authored commits interleaved. This is fine — it mirrors how a developer commits both incremental saves and deliberate checkpoints.
+3. **Conflict with per-write auto-commits.** No conflict. Auto-commits and user-authored commits coexist in history, mirroring normal developer workflow (incremental saves plus deliberate checkpoints). No action needed.
 
-4. **`fileCount` in the status response.** Including the number of uncommitted files in `status` could make the indicator more informative ("3 uncommitted changes"). Consider including it but not surfacing it in the initial UI iteration.
+4. **`fileCount` in the status response.** Include `fileCount` in the API response and display it in the inline commit form (not just the button state). A file count that doesn't match the user's expectation is a natural pause signal before committing.
