@@ -82,7 +82,7 @@ export default function CommitLoreButton({
   return (
     <div>
       <button
-        className={hasPendingChanges ? styles.commitButton : styles.commitButtonMuted}
+        className={hasPendingChanges ? styles.commitButton : `${styles.commitButton} ${styles.commitButtonMuted}`}
         onClick={handleToggle}
         title={hasPendingChanges ? undefined : "No uncommitted .lore changes"}
       >

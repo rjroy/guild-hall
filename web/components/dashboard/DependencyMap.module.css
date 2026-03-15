@@ -1,3 +1,5 @@
+/* InFlight card - filtered commission list on the dashboard */
+
 .list {
   list-style: none;
   display: flex;
@@ -5,12 +7,12 @@
   gap: var(--space-xs);
 }
 
-.card {
+.row {
   border-radius: 4px;
   transition: background-color 0.15s ease;
 }
 
-.card:hover {
+.row:hover {
   background-color: rgba(184, 134, 11, 0.1);
 }
 
@@ -23,14 +25,6 @@
   color: inherit;
 }
 
-.info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
 .title {
   font-size: 0.9rem;
   font-weight: 500;
@@ -38,93 +32,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .worker {
   font-size: 0.75rem;
   color: var(--color-text-muted);
-}
-
-.progress {
-  font-size: 0.8rem;
-  color: var(--color-text);
-  margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
 }
 
-.scheduledCard {
-  border-left: 3px solid var(--color-brass);
-}
-
-.scheduledBadge {
-  display: inline-block;
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-brass);
-  background: rgba(184, 134, 11, 0.12);
-  border: 1px solid rgba(184, 134, 11, 0.3);
-  border-radius: 3px;
-  padding: 1px 5px;
-  margin-left: var(--space-xs);
-  vertical-align: middle;
-}
-
-/* -- Tree indentation and connector lines -- */
-
-.treeItem {
-  position: relative;
-}
-
-.treeItem::before {
-  content: "";
-  position: absolute;
-  border-left: 1px solid var(--color-brass);
-  border-top: 1px solid var(--color-brass);
-  opacity: 0.6;
-  bottom: 50%;
-  height: 50%;
-  width: 12px;
-}
-
-.depth1 {
-  margin-left: 24px;
-}
-
-.depth1::before {
-  left: -12px;
-}
-
-.depth2 {
-  margin-left: 48px;
-}
-
-.depth2::before {
-  left: -12px;
-}
-
-.depth3 {
-  margin-left: 72px;
-}
-
-.depth3::before {
-  left: -12px;
-}
-
-.depth4 {
-  margin-left: 96px;
-}
-
-.depth4::before {
-  left: -12px;
-}
-
-.awaitsAnnotation {
+.projectLabel {
   font-size: 0.75rem;
-  color: var(--color-text-muted);
-  margin-top: 2px;
+  color: var(--color-brass);
+  white-space: nowrap;
 }

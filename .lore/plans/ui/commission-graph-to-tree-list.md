@@ -1,7 +1,7 @@
 ---
 title: Commission graph to tree list
 date: 2026-03-15
-status: draft
+status: executed
 tags: [ui, commissions, visualization, dashboard, dependency-graph, tree-list, css, deletion]
 modules: [web/components/dashboard/DependencyMap, web/components/commission/NeighborhoodGraph, lib/dependency-graph, web/app/projects]
 related:

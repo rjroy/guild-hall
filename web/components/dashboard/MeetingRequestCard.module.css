@@ -86,7 +86,6 @@
 }
 
 .openButton {
-  composes: actionButton;
   background-color: rgba(184, 134, 11, 0.15);
   color: var(--color-text-heading);
 }
@@ -97,7 +96,6 @@
 }
 
 .deferButton {
-  composes: actionButton;
   background-color: transparent;
   color: var(--color-text-muted);
 }
@@ -108,7 +106,6 @@
 }
 
 .ignoreButton {
-  composes: actionButton;
   background-color: transparent;
   color: var(--color-text-muted);
 }
@@ -136,7 +133,6 @@
 }
 
 .dateConfirmButton {
-  composes: actionButton;
   background-color: rgba(184, 134, 11, 0.12);
   color: var(--color-text);
 }
@@ -146,7 +142,6 @@
 }
 
 .dateCancelButton {
-  composes: actionButton;
   background-color: transparent;
   color: var(--color-text-muted);
 }
@@ -156,7 +151,6 @@
 }
 
 .quickCommentButton {
-  composes: actionButton;
   background-color: rgba(184, 134, 11, 0.08);
   color: var(--color-text-muted);
 }
@@ -203,7 +197,6 @@
 }
 
 .quickCommentSendButton {
-  composes: actionButton;
   background-color: rgba(184, 134, 11, 0.15);
   color: var(--color-text-heading);
 }
@@ -214,7 +207,6 @@
 }
 
 .quickCommentCancelButton {
-  composes: actionButton;
   background-color: transparent;
   color: var(--color-text-muted);
 }

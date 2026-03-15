@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { translateSdkMessage } from "@/daemon/lib/agent-sdk/event-translator";
+import { translateSdkMessage, createStreamTranslator } from "@/daemon/lib/agent-sdk/event-translator";
 import type { GuildHallEvent, MeetingId, SdkSessionId } from "@/daemon/types";
 import { asMeetingId, asSdkSessionId } from "@/daemon/types";
 
@@ -682,6 +682,136 @@ describe("branded types", () => {
   });
 });
 
+describe("createStreamTranslator (input_json_delta accumulation)", () => {
+  function makeToolUseStart(name: string, id: string, index: number): SDKMessage {
+    return {
+      type: "stream_event",
+      event: {
+        type: "content_block_start",
+        index,
+        content_block: { type: "tool_use", id, name, input: {} },
+      },
+      parent_tool_use_id: null,
+      uuid: "00000000-0000-0000-0000-100000000001" as `${string}-${string}-${string}-${string}-${string}`,
+      session_id: "sdk-session-abc",
+    } as unknown as SDKMessage;
+  }
+
+  function makeInputJsonDelta(index: number, partialJson: string): SDKMessage {
+    return {
+      type: "stream_event",
+      event: {
+        type: "content_block_delta",
+        index,
+        delta: { type: "input_json_delta", partial_json: partialJson },
+      },
+      parent_tool_use_id: null,
+      uuid: "00000000-0000-0000-0000-100000000002" as `${string}-${string}-${string}-${string}-${string}`,
+      session_id: "sdk-session-abc",
+    } as unknown as SDKMessage;
+  }
+
+  function makeBlockStop(index: number): SDKMessage {
+    return {
+      type: "stream_event",
+      event: { type: "content_block_stop", index },
+      parent_tool_use_id: null,
+      uuid: "00000000-0000-0000-0000-100000000003" as `${string}-${string}-${string}-${string}-${string}`,
+      session_id: "sdk-session-abc",
+    } as unknown as SDKMessage;
+  }
+
+  test("accumulates input_json_delta and emits tool_input on content_block_stop", () => {
+    const translate = createStreamTranslator();
+
+    // Start tool_use block at index 1
+    const startEvents = translate(makeToolUseStart("Read", "tool-42", 1));
+    expect(startEvents).toEqual([
+      { type: "tool_use", name: "Read", input: {}, id: "tool-42" },
+    ]);
+
+    // Send input_json_delta chunks
+    expect(translate(makeInputJsonDelta(1, '{"file_'))).toEqual([]);
+    expect(translate(makeInputJsonDelta(1, 'path":"/foo/'))).toEqual([]);
+    expect(translate(makeInputJsonDelta(1, 'bar.ts"}'))).toEqual([]);
+
+    // content_block_stop triggers tool_input emission
+    const stopEvents = translate(makeBlockStop(1));
+    expect(stopEvents).toEqual([
+      { type: "tool_input", toolUseId: "tool-42", input: { file_path: "/foo/bar.ts" } },
+    ]);
+  });
+
+  test("handles multiple concurrent tool_use blocks at different indices", () => {
+    const translate = createStreamTranslator();
+
+    // Start two tool blocks
+    translate(makeToolUseStart("Read", "tool-a", 1));
+    translate(makeToolUseStart("Glob", "tool-b", 2));
+
+    // Interleave input deltas
+    translate(makeInputJsonDelta(1, '{"file_path":'));
+    translate(makeInputJsonDelta(2, '{"pattern":'));
+    translate(makeInputJsonDelta(1, '"/src/index.ts"}'));
+    translate(makeInputJsonDelta(2, '"**/*.ts"}'));
+
+    // Stop block 2 first
+    const stopB = translate(makeBlockStop(2));
+    expect(stopB).toEqual([
+      { type: "tool_input", toolUseId: "tool-b", input: { pattern: "**/*.ts" } },
+    ]);
+
+    // Stop block 1
+    const stopA = translate(makeBlockStop(1));
+    expect(stopA).toEqual([
+      { type: "tool_input", toolUseId: "tool-a", input: { file_path: "/src/index.ts" } },
+    ]);
+  });
+
+  test("content_block_stop for non-tool block (e.g., text) emits nothing", () => {
+    const translate = createStreamTranslator();
+
+    // Text block stop at index 0 (no tool_use start recorded)
+    const events = translate(makeBlockStop(0));
+    expect(events).toEqual([]);
+  });
+
+  test("text_delta events still pass through", () => {
+    const translate = createStreamTranslator();
+
+    const events = translate(makeStreamEventTextDelta("Hello"));
+    expect(events).toEqual([{ type: "text_delta", text: "Hello" }]);
+  });
+
+  test("non-stream_event messages delegate to stateless translator", () => {
+    const translate = createStreamTranslator();
+
+    const events = translate(makeInitMessage("sess-99"));
+    expect(events).toEqual([{ type: "session", sessionId: "sess-99" }]);
+  });
+
+  test("malformed JSON in accumulated chunks emits nothing on block stop", () => {
+    const translate = createStreamTranslator();
+
+    translate(makeToolUseStart("Read", "tool-bad", 1));
+    translate(makeInputJsonDelta(1, '{"broken": '));
+    // No closing brace
+
+    const events = translate(makeBlockStop(1));
+    expect(events).toEqual([]);
+  });
+
+  test("tool_use block with no input deltas emits nothing on block stop", () => {
+    const translate = createStreamTranslator();
+
+    translate(makeToolUseStart("Read", "tool-empty", 1));
+    // No input_json_delta events
+
+    const events = translate(makeBlockStop(1));
+    expect(events).toEqual([]);
+  });
+});
+
 describe("GuildHallEvent type coverage", () => {
   // Verifies all 6 event types can be constructed and are properly shaped
   test("all event types are constructible", () => {
@@ -690,6 +820,7 @@ describe("GuildHallEvent type coverage", () => {
       { type: "text_delta", text: "hello" },
       { type: "tool_use", name: "Read", input: { path: "/foo" } },
       { type: "tool_use", name: "Read", input: { path: "/foo" }, id: "tool-1" },
+      { type: "tool_input", toolUseId: "tool-1", input: { path: "/foo" } },
       { type: "tool_result", name: "Read", output: "contents" },
       { type: "tool_result", name: "Read", output: "contents", toolUseId: "tool-1" },
       { type: "turn_end", cost: 0.01 },
@@ -697,7 +828,7 @@ describe("GuildHallEvent type coverage", () => {
       { type: "error", reason: "something went wrong" },
     ];
 
-    expect(events).toHaveLength(9);
+    expect(events).toHaveLength(10);
     // Verify each has a type field
     for (const event of events) {
       expect(event.type).toBeDefined();

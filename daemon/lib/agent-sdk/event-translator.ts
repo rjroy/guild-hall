@@ -51,7 +51,103 @@ interface SdkResultMessage {
   errors?: string[];
 }
 
-// -- Translator --
+// -- Stateful stream translator --
+
+/**
+ * Creates a stateful translator that accumulates input_json_delta chunks
+ * and emits tool_input events when content blocks complete.
+ *
+ * Each SDK session should use its own translator instance. The translator
+ * tracks block index → tool_use ID mapping and accumulates partial JSON
+ * to reconstruct the complete tool input that the streaming API delivers
+ * incrementally.
+ */
+export function createStreamTranslator(): (message: SDKMessage) => SdkRunnerEvent[] {
+  // Track which block index corresponds to which tool_use ID
+  const blockToolIds = new Map<number, string>();
+  // Accumulate partial JSON chunks per block index
+  const blockInputChunks = new Map<number, string[]>();
+
+  return (message: SDKMessage): SdkRunnerEvent[] => {
+    const msg = message as unknown as { type: string };
+
+    // Only stream_event messages need stateful handling
+    if (msg.type !== "stream_event") {
+      return translateSdkMessage(message);
+    }
+
+    const event = (message as unknown as SdkStreamEventMessage).event;
+    const eventType = event.type as string | undefined;
+
+    // Record block index → tool_use ID on content_block_start
+    if (eventType === "content_block_start") {
+      const index = event.index as number | undefined;
+      const contentBlock = event.content_block as Record<string, unknown> | undefined;
+      if (
+        index !== undefined &&
+        contentBlock?.type === "tool_use" &&
+        typeof contentBlock.id === "string"
+      ) {
+        blockToolIds.set(index, contentBlock.id);
+        blockInputChunks.set(index, []);
+      }
+      // Delegate to the stateless translator for the tool_use event
+      return translateSdkMessage(message);
+    }
+
+    // Accumulate input_json_delta chunks
+    if (eventType === "content_block_delta") {
+      const index = event.index as number | undefined;
+      const delta = event.delta as Record<string, unknown> | undefined;
+
+      if (
+        delta?.type === "input_json_delta" &&
+        typeof delta.partial_json === "string" &&
+        index !== undefined
+      ) {
+        const chunks = blockInputChunks.get(index);
+        if (chunks) {
+          chunks.push(delta.partial_json);
+        }
+        // Don't emit anything yet; input is incomplete
+        return [];
+      }
+
+      // Other delta types (text_delta) go through the stateless path
+      return translateSdkMessage(message);
+    }
+
+    // Emit tool_input on content_block_stop when we have accumulated input
+    if (eventType === "content_block_stop") {
+      const index = event.index as number | undefined;
+      if (index !== undefined) {
+        const toolUseId = blockToolIds.get(index);
+        const chunks = blockInputChunks.get(index);
+        if (toolUseId && chunks && chunks.length > 0) {
+          const jsonStr = chunks.join("");
+          blockToolIds.delete(index);
+          blockInputChunks.delete(index);
+          try {
+            const input: unknown = JSON.parse(jsonStr);
+            return [{ type: "tool_input", toolUseId, input }];
+          } catch {
+            // Malformed JSON; drop silently rather than surfacing a broken event
+            return [];
+          }
+        }
+        // Clean up even if no chunks (e.g., text block stop)
+        blockToolIds.delete(index);
+        blockInputChunks.delete(index);
+      }
+      return [];
+    }
+
+    // Everything else: stateless path
+    return translateSdkMessage(message);
+  };
+}
+
+// -- Stateless translator --
 
 /**
  * Converts a single SDK message into zero or more Guild Hall events.

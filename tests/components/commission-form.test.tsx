@@ -90,8 +90,8 @@ describe("CommissionList", () => {
     expect(typeof mod.default).toBe("function");
   });
 
-  test("exports filter logic functions", async () => {
-    const mod = await import("@/web/components/commission/CommissionList");
+  test("exports filter logic functions from commission-filter module", async () => {
+    const mod = await import("@/web/components/commission/commission-filter");
     expect(mod.DEFAULT_STATUSES).toBeInstanceOf(Set);
     expect(Array.isArray(mod.FILTER_GROUPS)).toBe(true);
     expect(typeof mod.filterCommissions).toBe("function");

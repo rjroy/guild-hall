@@ -1,7 +1,7 @@
 ---
 title: Commission Status Tool
 date: 2026-03-14
-status: draft
+status: implemented
 tags: [manager-toolbox, commissions, read-tool, guild-master]
 modules: [guild-hall-manager, commissions]
 related:

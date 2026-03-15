@@ -9,7 +9,7 @@ import { statusToGem } from "@/lib/types";
 import type { GemStatus } from "@/lib/types";
 import { relatedToHref } from "@/web/components/artifact/MetadataSidebar";
 import { artifactHref } from "@/web/components/dashboard/RecentArtifacts";
-import { commissionHref } from "@/web/components/dashboard/DependencyMap";
+import { commissionHref } from "@/lib/commission-href";
 import { scanCommissions } from "@/lib/commissions";
 
 /**

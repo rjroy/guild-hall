@@ -1,8 +1,8 @@
 import { fetchDaemon } from "@/web/lib/daemon-api";
-import type { AppConfig, Artifact, CommissionMeta, MeetingMeta } from "@/lib/types";
+import type { AppConfig, Artifact, ArtifactWithProject, CommissionMeta, MeetingMeta } from "@/lib/types";
 import WorkspaceSidebar from "@/web/components/dashboard/WorkspaceSidebar";
 import ManagerBriefing from "@/web/components/dashboard/ManagerBriefing";
-import DependencyMap from "@/web/components/dashboard/DependencyMap";
+import InFlight from "@/web/components/dashboard/DependencyMap";
 import RecentArtifacts from "@/web/components/dashboard/RecentArtifacts";
 import PendingAudiences from "@/web/components/dashboard/PendingAudiences";
 import DaemonError from "@/web/components/ui/DaemonError";
@@ -29,15 +29,29 @@ export default async function DashboardPage({
   }
   const config = configResult.data;
 
-  // Fetch recent artifacts for selected project
-  let artifacts: Artifact[] = [];
+  // Fetch recent artifacts: single project or merged across all projects
+  let artifacts: ArtifactWithProject[] = [];
   if (selectedProject) {
     const artResult = await fetchDaemon<{ artifacts: Artifact[] }>(
       `/workspace/artifact/document/list?projectName=${encodeURIComponent(selectedProject)}&recent=true&limit=10`,
     );
     if (artResult.ok) {
-      artifacts = artResult.data.artifacts;
+      artifacts = artResult.data.artifacts.map((a) => ({ ...a, projectName: selectedProject }));
     }
+  } else {
+    const perProjectArtifacts = await Promise.all(
+      config.projects.map(async (p) => {
+        const r = await fetchDaemon<{ artifacts: Artifact[] }>(
+          `/workspace/artifact/document/list?projectName=${encodeURIComponent(p.name)}&recent=true&limit=10`,
+        );
+        if (!r.ok) return [];
+        return r.data.artifacts.map((a) => ({ ...a, projectName: p.name }));
+      }),
+    );
+    artifacts = perProjectArtifacts
+      .flat()
+      .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
+      .slice(0, 10);
   }
 
   // Fetch commissions and meeting requests for all projects in parallel
@@ -87,19 +101,27 @@ export default async function DashboardPage({
         />
       </div>
       <div className={styles.briefing}>
-        <ManagerBriefing projectName={selectedProject ?? config.projects[0]?.name} />
+        <ManagerBriefing projectName={selectedProject} />
       </div>
       <div className={styles.depMap}>
-        <DependencyMap commissions={allCommissions} />
+        <InFlight
+          commissions={selectedProject
+            ? allCommissions.filter(c => c.projectName === selectedProject)
+            : allCommissions}
+          selectedProject={selectedProject}
+        />
       </div>
       <div className={styles.recentArtifacts}>
         <RecentArtifacts
           artifacts={artifacts}
-          projectName={selectedProject}
+          selectedProject={selectedProject}
         />
       </div>
       <div className={styles.audiences}>
-        <PendingAudiences requests={allRequests} workerPortraits={workerPortraits} />
+        <PendingAudiences
+          requests={selectedProject ? allRequests.filter((r) => r.projectName === selectedProject) : allRequests}
+          workerPortraits={workerPortraits}
+        />
       </div>
     </div>
   );

@@ -25,16 +25,17 @@ export function createBriefingRoutes(deps: BriefingRouteDeps): RouteModule {
   routes.get("/coordination/review/briefing/read", async (c) => {
     const projectName = c.req.query("projectName");
 
-    if (!projectName) {
-      return c.json({ error: "Missing required query parameter: projectName" }, 400);
-    }
-
     try {
+      if (!projectName || projectName === "all") {
+        const result = await deps.briefingGenerator.generateAllProjectsBriefing();
+        return c.json(result);
+      }
+
       const result = await deps.briefingGenerator.generateBriefing(projectName);
       return c.json(result);
     } catch (err: unknown) {
       const reason = errorMessage(err);
-      log.error(`Error generating briefing for "${projectName}": ${reason}`);
+      log.error(`Error generating briefing for "${projectName ?? "all"}": ${reason}`);
       return c.json({ error: "Failed to generate briefing" }, 500);
     }
   });
@@ -44,14 +45,14 @@ export function createBriefingRoutes(deps: BriefingRouteDeps): RouteModule {
       skillId: "coordination.review.briefing.read",
       version: "1",
       name: "read",
-      description: "Generate project status briefing",
+      description: "Generate project status briefing (single project or all-projects synthesis)",
       invocation: { method: "GET", path: "/coordination/review/briefing/read" },
       sideEffects: "",
-      context: { project: true },
+      context: {},
 
       idempotent: true,
       hierarchy: { root: "coordination", feature: "review", object: "briefing" },
-      parameters: [{ name: "projectName", required: true, in: "query" as const }],
+      parameters: [{ name: "projectName", required: false, in: "query" as const }],
     },
   ];
 

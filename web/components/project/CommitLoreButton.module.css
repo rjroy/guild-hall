@@ -18,7 +18,6 @@
 }
 
 .commitButtonMuted {
-  composes: commitButton;
   opacity: 0.45;
 }
 

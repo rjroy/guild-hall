@@ -48,6 +48,11 @@
   white-space: nowrap;
 }
 
+.projectLabel {
+  font-size: 0.75rem;
+  color: var(--color-brass);
+}
+
 .date {
   font-size: 0.75rem;
   color: var(--color-text-muted);

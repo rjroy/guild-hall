@@ -114,6 +114,14 @@ export function briefingCachePath(ghHome: string, projectName: string): string {
 }
 
 /**
+ * Returns the file path for the all-projects composite briefing cache.
+ * Stored at `<ghHome>/state/briefings/_all.json`.
+ */
+export function allProjectsBriefingCachePath(ghHome: string): string {
+  return path.join(ghHome, "state", "briefings", "_all.json");
+}
+
+/**
  * Resolves the base path for reading a commission's artifacts.
  *
  * Active commissions (dispatched/in_progress) have their own activity worktree

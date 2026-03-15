@@ -152,3 +152,4 @@ Commissions and meetings are orchestrators that compose these concerns. They seq
 - When implementing features that interact with git internals, test under the hook execution context, not just in isolation.
 - DI seams created during refactoring must be wired in production code (createProductionApp). Fresh-eyes review by a sub-agent with no implementation context catches wiring gaps that the implementer misses.
 - YAML frontmatter values containing colons must be quoted. `title: "Implementation notes: foo"`, not `title: Implementation notes: foo`. gray-matter can't parse unquoted colons.
+- Turbopack does not support CSS Modules `composes`. The directive is silently ignored. Use TSX-side class composition (`className={`${styles.base} ${styles.variant}`}`) instead.

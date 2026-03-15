@@ -38,6 +38,7 @@ export interface AppConfig {
   settings?: Record<string, unknown>;
   maxConcurrentCommissions?: number;
   maxConcurrentMailReaders?: number;
+  briefingCacheTtlMinutes?: number;
 }
 
 export interface ArtifactMeta {
@@ -59,6 +60,9 @@ export interface Artifact {
   rawContent?: string;
   lastModified: Date;
 }
+
+/** Artifact annotated with its source project name for cross-project views. */
+export type ArtifactWithProject = Artifact & { projectName: string };
 
 /**
  * Five-group status priority for artifact browsing views.

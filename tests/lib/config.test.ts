@@ -497,3 +497,62 @@ systemModels:
     expect(result.success).toBe(true);
   });
 });
+
+describe("briefingCacheTtlMinutes config", () => {
+  const baseConfig = { projects: [{ name: "p", path: "/p" }] };
+
+  test("parses briefingCacheTtlMinutes: 30 from config", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      briefingCacheTtlMinutes: 30,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.briefingCacheTtlMinutes).toBe(30);
+    }
+  });
+
+  test("missing briefingCacheTtlMinutes defaults to undefined", () => {
+    const result = appConfigSchema.safeParse(baseConfig);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.briefingCacheTtlMinutes).toBeUndefined();
+    }
+  });
+
+  test("rejects non-integer briefingCacheTtlMinutes", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      briefingCacheTtlMinutes: 30.5,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects zero briefingCacheTtlMinutes", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      briefingCacheTtlMinutes: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects negative briefingCacheTtlMinutes", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      briefingCacheTtlMinutes: -10,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("briefingCacheTtlMinutes parses from YAML via readConfig", async () => {
+    const yamlContent = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+briefingCacheTtlMinutes: 30
+`;
+    await fs.writeFile(configPath(), yamlContent, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.briefingCacheTtlMinutes).toBe(30);
+  });
+});

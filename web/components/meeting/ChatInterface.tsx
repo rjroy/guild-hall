@@ -211,6 +211,15 @@ export default function ChatInterface({
                 break;
               }
 
+              case "tool_input": {
+                const toolUseId = event.toolUseId as string;
+                accumulatedTools = accumulatedTools.map((t) =>
+                  t.id === toolUseId ? { ...t, input: event.input } : t,
+                );
+                setStreamingTools(accumulatedTools);
+                break;
+              }
+
               case "tool_result": {
                 const toolName = event.name as string;
                 const toolUseId = event.toolUseId as string | undefined;
