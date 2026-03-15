@@ -162,6 +162,8 @@ function createMockGitOps(): GitOps & { calls: string[] } {
     resolveConflictsTheirs: async () => { calls.push("resolveConflictsTheirs"); },
     mergeAbort: async () => { calls.push("mergeAbort"); },
     hasCommitsBeyond: async () => { calls.push("hasCommitsBeyond"); return false; },
+    lorePendingChanges: async () => { calls.push("lorePendingChanges"); return { hasPendingChanges: false, fileCount: 0 }; },
+    commitLore: async () => { calls.push("commitLore"); return { committed: false }; },
   };
 }
 

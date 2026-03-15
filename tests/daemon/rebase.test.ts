@@ -145,6 +145,14 @@ function createMockGitOps(): MockGitOps {
       calls.push({ method: "hasCommitsBeyond", args });
       return Promise.resolve(false);
     },
+    lorePendingChanges: (...args) => {
+      calls.push({ method: "lorePendingChanges", args });
+      return Promise.resolve({ hasPendingChanges: false, fileCount: 0 });
+    },
+    commitLore: (...args) => {
+      calls.push({ method: "commitLore", args });
+      return Promise.resolve({ committed: false });
+    },
   };
 }
 
