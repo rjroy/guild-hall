@@ -1,7 +1,7 @@
 ---
 title: "Commission: Implement: Dashboard selection model - Phase 3 (briefing synthesis)"
 date: 2026-03-15
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-15T16:23:49.740Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-15T16:30:17.101Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---

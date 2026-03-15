@@ -1,7 +1,7 @@
 ---
 title: "Commission: Implement: Dashboard selection model - Phase 2 (data flow)"
 date: 2026-03-15
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-15T16:23:36.568Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-15T16:30:17.104Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
