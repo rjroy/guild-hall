@@ -91,3 +91,64 @@
 .sourceScheduleLink:hover {
   text-decoration: underline;
 }
+
+/* Filter panel */
+
+.filterPanel {
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid rgba(184, 134, 11, 0.15);
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 2px 0;
+}
+
+.filterGroupLabel {
+  min-width: 5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filterCheckboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.filterCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.filterCount {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.filterReset {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-xs);
+}
+
+.resetButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-brass);
+  font-size: 0.85rem;
+  padding: 0;
+}
+
+.resetButton:hover {
+  text-decoration: underline;
+}
