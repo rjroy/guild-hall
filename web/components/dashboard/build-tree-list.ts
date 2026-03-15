@@ -1,7 +1,6 @@
 import type { CommissionMeta } from "@/lib/commissions";
 import { sortCommissions } from "@/lib/commissions";
 import {
-  buildDependencyGraph,
   buildAdjacencyList,
   type DependencyGraph,
 } from "@/lib/dependency-graph";

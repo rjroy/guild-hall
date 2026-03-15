@@ -1,4 +1,7 @@
 import { describe, test, expect } from "bun:test";
+import { createElement } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import CommissionHeader from "@/web/components/commission/CommissionHeader";
 import CommissionLinkedArtifacts from "@/web/components/commission/CommissionLinkedArtifacts";
 import {
@@ -509,15 +512,10 @@ describe("CommissionPrompt Markdown rendering", () => {
     // Verify ReactMarkdown processes Markdown syntax into React elements.
     // This tests the rendering pipeline that CommissionPrompt uses in
     // read-only mode, without requiring a full React render context.
-    const ReactMarkdown = require("react-markdown").default;
-    const remarkGfm = require("remark-gfm").default;
-    const { createElement } = require("react");
-
     const markdownPrompt = "## Task\n\n- Step one\n- Step two\n\n**Important**: do this";
     const element = createElement(ReactMarkdown, {
       remarkPlugins: [remarkGfm],
-      children: markdownPrompt,
-    }) as AnyElement;
+    }, markdownPrompt) as AnyElement;
 
     // ReactMarkdown produces a component element, confirming the pipeline works
     expect(element).toBeDefined();
