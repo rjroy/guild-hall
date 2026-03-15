@@ -26,13 +26,14 @@ import type { SkillRegistry } from "@/daemon/lib/skill-registry";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import { translateSdkMessage } from "@/daemon/lib/agent-sdk/event-translator";
+import { createStreamTranslator } from "@/daemon/lib/agent-sdk/event-translator";
 import { logSdkMessage } from "./sdk-logging";
 
 export type SdkRunnerEvent =
   | { type: "session"; sessionId: string }
   | { type: "text_delta"; text: string }
   | { type: "tool_use"; name: string; input: unknown; id?: string }
+  | { type: "tool_input"; toolUseId: string; input: unknown }
   | { type: "tool_result"; name: string; output: string; toolUseId?: string }
   | { type: "turn_end"; cost?: number }
   | { type: "error"; reason: string }
@@ -194,13 +195,14 @@ export async function* runSdkSession(
   }
 
   let messageIndex = 0;
+  const translate = createStreamTranslator();
 
   try {
     for await (const sdkMessage of generator) {
       messageIndex++;
       logSdkMessage(log, messageIndex, sdkMessage);
 
-      for (const event of translateSdkMessage(sdkMessage)) {
+      for (const event of translate(sdkMessage)) {
         yield event;
       }
     }

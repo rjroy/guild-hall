@@ -567,7 +567,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
           yield { type: "error", reason: prefixed };
         }
       } else {
-        // text_delta, tool_use, tool_result, turn_end pass through
+        // text_delta, tool_use, tool_input, tool_result, turn_end pass through
         yield event;
       }
     }
