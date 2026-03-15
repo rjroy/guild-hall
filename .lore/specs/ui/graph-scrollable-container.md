@@ -1,7 +1,7 @@
 ---
 title: Scrollable container for commission dependency graph
 date: 2026-03-10
-status: implemented
+status: superseded
 tags: [ui, layout, responsive, dependency-graph, svg]
 modules: [commission-graph]
 related:
@@ -12,6 +12,8 @@ req-prefix: GRAPH
 ---
 
 # Spec: Scrollable Container for Commission Dependency Graph
+
+**Superseded by**: [Commission Graph to Tree List](commission-graph-to-tree-list.md). The SVG graph this spec addressed has been replaced with a CSS tree list. The scrolling problems described here no longer exist.
 
 ## Overview
 

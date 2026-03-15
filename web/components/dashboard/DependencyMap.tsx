@@ -2,29 +2,35 @@ import Link from "next/link";
 import Panel from "@/web/components/ui/Panel";
 import StatusBadge from "@/web/components/ui/StatusBadge";
 import EmptyState from "@/web/components/ui/EmptyState";
-import CommissionGraph from "@/web/components/dashboard/CommissionGraph";
 import { statusToGem } from "@/lib/types";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
-import { sortCommissions } from "@/lib/commissions";
 import type { CommissionMeta } from "@/lib/commissions";
 import { commissionHref } from "@/lib/commission-href";
+import { buildTreeList } from "./build-tree-list";
 import styles from "./DependencyMap.module.css";
 
 export { commissionHref };
+
+const DEPTH_CLASSES: Record<number, string> = {
+  1: styles.depth1,
+  2: styles.depth2,
+  3: styles.depth3,
+  4: styles.depth4,
+};
 
 interface DependencyMapProps {
   commissions: CommissionMeta[];
 }
 
 /**
- * Dashboard panel showing commission dependencies as an SVG graph when
- * inter-commission edges exist, or as a flat card list otherwise.
+ * Dashboard panel showing commission dependencies as an indented tree list.
+ * When commissions have dependencies, dependent commissions render indented
+ * under their parent with CSS connector lines. When no dependencies exist,
+ * the result is a flat card list.
  * Server component that receives pre-scanned commission data from the page.
  */
 export default function DependencyMap({ commissions }: DependencyMapProps) {
-  const sorted = sortCommissions(commissions);
-
-  if (sorted.length === 0) {
+  if (commissions.length === 0) {
     return (
       <Panel title="Task Dependency Map">
         <EmptyState message="No active commissions." />
@@ -33,28 +39,25 @@ export default function DependencyMap({ commissions }: DependencyMapProps) {
   }
 
   const graph = buildDependencyGraph(commissions);
-
-  // When commissions have inter-commission dependencies, render the SVG graph.
-  // Otherwise fall back to the flat card list.
-  if (graph.edges.length > 0) {
-    return (
-      <Panel title="Task Dependency Map">
-        <CommissionGraph graph={graph} />
-      </Panel>
-    );
-  }
+  const treeItems = buildTreeList(commissions, graph);
 
   return (
     <Panel title="Task Dependency Map">
       <ul className={styles.list}>
-        {sorted.map((commission) => {
+        {treeItems.map(({ commission, depth, awaits }) => {
           const gemStatus = statusToGem(commission.status);
+          const depthClass = depth > 0
+            ? DEPTH_CLASSES[Math.min(depth, 4)]
+            : undefined;
+
           return (
             <li
               key={`${commission.projectName}-${commission.commissionId}`}
               className={[
                 styles.card,
                 commission.type === "scheduled" ? styles.scheduledCard : "",
+                depth > 0 ? styles.treeItem : "",
+                depthClass ?? "",
               ].filter(Boolean).join(" ")}
             >
               <Link
@@ -77,6 +80,11 @@ export default function DependencyMap({ commissions }: DependencyMapProps) {
                   {commission.current_progress && (
                     <span className={styles.progress}>
                       {commission.current_progress}
+                    </span>
+                  )}
+                  {awaits && awaits.length > 0 && (
+                    <span className={styles.awaitsAnnotation}>
+                      Awaits: {awaits.join(", ")}
                     </span>
                   )}
                 </div>

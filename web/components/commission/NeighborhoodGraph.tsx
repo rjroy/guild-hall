@@ -1,7 +1,8 @@
-"use client";
-
+import Link from "next/link";
 import { getNeighborhood, type DependencyGraph } from "@/lib/dependency-graph";
-import CommissionGraph from "@/web/components/dashboard/CommissionGraph";
+import { statusToGem } from "@/lib/types";
+import StatusBadge from "@/web/components/ui/StatusBadge";
+import { commissionHref } from "@/lib/commission-href";
 import styles from "./NeighborhoodGraph.module.css";
 
 interface NeighborhoodGraphProps {
@@ -11,12 +12,10 @@ interface NeighborhoodGraphProps {
 }
 
 /**
- * Mini dependency graph showing a commission and its immediate neighbors
- * (direct dependencies and direct dependents). The focal commission is
- * highlighted with a distinct border via the focalNodeId prop.
+ * Server component showing a commission's upstream dependencies ("Depends on")
+ * and downstream dependents ("Blocks") as linked text lists.
  *
- * Only renders if the neighborhood contains more than one node (the
- * commission itself has at least one dependency or dependent).
+ * Only renders if the commission has at least one dependency or dependent.
  */
 export default function NeighborhoodGraph({
   graph,
@@ -30,15 +29,62 @@ export default function NeighborhoodGraph({
     return null;
   }
 
+  // Build node lookup for titles and status
+  const nodeMap = new Map(neighborhood.nodes.map((n) => [n.id, n]));
+
+  // Upstream: edges where edge.to === commissionId (these commissions are depended upon)
+  const upstream = neighborhood.edges
+    .filter((e) => e.to === commissionId)
+    .map((e) => nodeMap.get(e.from))
+    .filter((n) => n != null);
+
+  // Downstream: edges where edge.from === commissionId (these commissions depend on us)
+  const downstream = neighborhood.edges
+    .filter((e) => e.from === commissionId)
+    .map((e) => nodeMap.get(e.to))
+    .filter((n) => n != null);
+
   return (
     <div className={styles.wrapper}>
       <p className={styles.heading}>Dependencies</p>
-      <CommissionGraph
-        graph={neighborhood}
-        compact
-        projectName={projectName}
-        focalNodeId={commissionId}
-      />
+      {upstream.length > 0 && (
+        <div className={styles.section}>
+          <p className={styles.sectionHeading}>Depends on</p>
+          <ul className={styles.neighborList}>
+            {upstream.map((node) => (
+              <li key={node.id} className={styles.neighborItem}>
+                <StatusBadge gem={statusToGem(node.status)} label={node.status} size="sm" />
+                <Link
+                  href={commissionHref(node.projectName || projectName, node.id)}
+                  className={styles.neighborLink}
+                >
+                  {node.title || node.id}
+                </Link>
+                <span className={styles.neighborStatus}>({node.status})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {downstream.length > 0 && (
+        <div className={styles.section}>
+          <p className={styles.sectionHeading}>Blocks</p>
+          <ul className={styles.neighborList}>
+            {downstream.map((node) => (
+              <li key={node.id} className={styles.neighborItem}>
+                <StatusBadge gem={statusToGem(node.status)} label={node.status} size="sm" />
+                <Link
+                  href={commissionHref(node.projectName || projectName, node.id)}
+                  className={styles.neighborLink}
+                >
+                  {node.title || node.id}
+                </Link>
+                <span className={styles.neighborStatus}>({node.status})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

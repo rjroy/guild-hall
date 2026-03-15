@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation";
 import { fetchDaemon } from "@/web/lib/daemon-api";
-import type { ProjectConfig, Artifact, CommissionMeta, DependencyGraph } from "@/lib/types";
+import type { ProjectConfig, Artifact, CommissionMeta } from "@/lib/types";
 import ProjectHeader from "@/web/components/project/ProjectHeader";
 import ProjectTabs from "@/web/components/project/ProjectTabs";
 import ArtifactList from "@/web/components/project/ArtifactList";
 import MeetingList from "@/web/components/project/MeetingList";
 import CommissionList from "@/web/components/commission/CommissionList";
-import CommissionGraph from "@/web/components/dashboard/CommissionGraph";
 import CreateCommissionButton from "@/web/components/commission/CreateCommissionButton";
 import CreateMeetingButton from "@/web/components/meeting/CreateMeetingButton";
 import CommitLoreButton from "@/web/components/project/CommitLoreButton";
@@ -37,12 +36,11 @@ export default async function ProjectPage({
   const project = projectResult.data;
 
   // Fetch all data in parallel
-  const [artifactsResult, meetingsResult, commissionsResult, graphResult, loreStatusResult] = await Promise.all([
+  const [artifactsResult, meetingsResult, commissionsResult, loreStatusResult] = await Promise.all([
     fetchDaemon<{ artifacts: Artifact[] }>(`/workspace/artifact/document/list?projectName=${encoded}`),
     // view=artifacts returns all meetings as Artifact[] with active worktree merging, pre-sorted
     fetchDaemon<{ meetings: Artifact[] }>(`/meeting/request/meeting/list?projectName=${encoded}&view=artifacts`),
     fetchDaemon<{ commissions: CommissionMeta[] }>(`/commission/request/commission/list?projectName=${encoded}`),
-    fetchDaemon<DependencyGraph>(`/commission/dependency/project/graph?projectName=${encoded}`),
     fetchDaemon<{ hasPendingChanges: boolean; fileCount: number }>(
       `/workspace/git/lore/status?projectName=${encoded}`
     ),
@@ -51,7 +49,6 @@ export default async function ProjectPage({
   const artifacts = artifactsResult.ok ? artifactsResult.data.artifacts : [];
   const meetingArtifacts = meetingsResult.ok ? meetingsResult.data.meetings : [];
   const commissions = commissionsResult.ok ? commissionsResult.data.commissions : [];
-  const commissionGraph = graphResult.ok ? graphResult.data : { nodes: [], edges: [] };
   const hasPendingChanges = loreStatusResult.ok ? loreStatusResult.data.hasPendingChanges : false;
   const pendingFileCount = loreStatusResult.ok ? loreStatusResult.data.fileCount : 0;
 
@@ -81,13 +78,6 @@ export default async function ProjectPage({
                 initialDependencies={dep}
               />
             </div>
-            {commissionGraph.edges.length > 0 && (
-              <CommissionGraph
-                graph={commissionGraph}
-                compact
-                projectName={projectName}
-              />
-            )}
             <CommissionList commissions={commissions} projectName={projectName} />
           </div>
         )}

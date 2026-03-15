@@ -73,3 +73,58 @@
   margin-left: var(--space-xs);
   vertical-align: middle;
 }
+
+/* -- Tree indentation and connector lines -- */
+
+.treeItem {
+  position: relative;
+}
+
+.treeItem::before {
+  content: "";
+  position: absolute;
+  border-left: 1px solid var(--color-brass);
+  border-top: 1px solid var(--color-brass);
+  opacity: 0.6;
+  bottom: 50%;
+  height: 50%;
+  width: 12px;
+}
+
+.depth1 {
+  margin-left: 24px;
+}
+
+.depth1::before {
+  left: -12px;
+}
+
+.depth2 {
+  margin-left: 48px;
+}
+
+.depth2::before {
+  left: -12px;
+}
+
+.depth3 {
+  margin-left: 72px;
+}
+
+.depth3::before {
+  left: -12px;
+}
+
+.depth4 {
+  margin-left: 96px;
+}
+
+.depth4::before {
+  left: -12px;
+}
+
+.awaitsAnnotation {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
