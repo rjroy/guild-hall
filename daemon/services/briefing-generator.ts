@@ -74,20 +74,19 @@ interface CacheEntry {
 
 const BRIEFING_PROMPT = `Generate a project status briefing for the Guild Hall dashboard.
 
+This is a dashboard widget, not a report. Write a status line, not a status document.
+
 Use your tools to explore the project workspace. Key locations:
 - .lore/commissions/ for active and completed commissions
 - .lore/plans/ for implementation plans (check status in frontmatter)
-- .lore/specs/ for specifications
 - .lore/issues/ for known issues and investigations
 - .lore/notes/ for context on current work
-- .lore/retros/ for recent retrospectives
 
-Cover: what's actively being worked on, what's planned but not started,
-any open issues or blockers, and what recently completed. Reference
-specific artifacts by name when relevant.
-
-Scale your response to the activity level. A quiet project gets 1-2 sentences.
-An active project gets a short paragraph. Plain prose, no headers or bullets.`;
+Write plain prose. No headers, no bullets. Never exceed 4 sentences.
+A quiet project with no recent activity gets exactly 1 sentence.
+An active project gets 2-4 sentences covering what's in progress,
+any blockers, and what recently completed. Stop when you've said
+the essential facts. Do not elaborate.`;
 
 // -- Cache helpers --
 
@@ -447,7 +446,7 @@ The following briefings were generated for each registered project:
 
 ${projectSections}
 
-Synthesize these into a unified Guild Hall briefing. Cover: which projects have the most activity, which have blocked or failed commissions, any cross-project patterns, and what needs the most attention. Write in the Guild Master's voice. Plain prose, no headers or bullets.`;
+Write one short paragraph (2-4 sentences) summarizing Guild Hall activity across all projects. Name the most active or blocked projects. Skip anything uneventful. Write in the Guild Master's voice. Plain prose, no headers or bullets. Do not repeat details already in the individual briefings — synthesize, don't concatenate.`;
 
       // 5. Generate synthesis (cascade: full SDK → single turn → concatenation)
       const concatenationFallback = () =>
@@ -560,15 +559,13 @@ async function generateWithSingleTurn(
 ## Current Project State
 ${context}
 
-Based on the current state of this project, provide a concise briefing (3-5 sentences) covering: what's in progress, what's blocked, what recently completed, and what needs attention next.
-
-Be factual and direct. No headers or bullet points. Plain prose.`;
+Write a dashboard status widget, not a report. Cover what's in progress, any blockers, and what recently completed. Never exceed 4 sentences. A quiet project gets 1 sentence. Be factual and direct. No headers or bullets. Plain prose.`;
 
   try {
     const generator = queryFn({
       prompt,
       options: {
-        systemPrompt: "You are a project status briefing generator. Produce clear, concise summaries in 3-5 sentences.",
+        systemPrompt: "You are a project status briefing generator. Write dashboard widgets: 1 sentence for quiet projects, 2-4 sentences maximum for active ones. Plain prose only.",
         maxTurns: 1,
         model: "sonnet",
         permissionMode: "dontAsk",

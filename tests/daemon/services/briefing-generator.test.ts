@@ -392,7 +392,7 @@ describe("createBriefingGenerator - single-turn SDK path (backwards compat)", ()
     // Single-turn path includes context in the prompt
     const prompt = mock.getCapturedPrompts()[0];
     expect(prompt).toContain("Current Project State");
-    expect(prompt).toContain("concise briefing");
+    expect(prompt).toContain("dashboard status widget");
   });
 
   test("SDK response is returned with ISO timestamp", async () => {
