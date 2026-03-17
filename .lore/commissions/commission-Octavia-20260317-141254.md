@@ -1,7 +1,7 @@
 ---
 title: "Commission: Brainstorm: Meeting layer separation"
 date: 2026-03-17
-status: failed
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -22,6 +22,16 @@ activity_timeline:
   - timestamp: 2026-03-17T21:17:10.734Z
     event: status_failed
     reason: "Session error: Claude Code returned an error result: API Error: 500 {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"Internal server error\"},\"request_id\":\"req_011CZ9M6KV3Jdqv4XDutK7XH\"}"
+  - timestamp: 2026-03-17T21:21:04.658Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "failed"
+    to: "pending"
+  - timestamp: 2026-03-17T21:21:04.659Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
