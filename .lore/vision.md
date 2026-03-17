@@ -90,4 +90,4 @@ Tools do mechanics. Agents make decisions. A tool reads a file, writes a file, r
 
 - **Local-only packages.** Worker and toolbox packages live in the filesystem with no distribution, registry, or version resolution mechanism. The package distribution model is an open issue. Review when multi-project package sharing becomes friction rather than future planning.
 
-- **Web reads from filesystem.** The web layer still reads some data directly from the filesystem rather than through the daemon API. This is a known deviation from Principle 5 (One Boundary). Each feature should move toward daemon API reads. The constraint expires when the migration is complete.
+- **Web-to-daemon migration complete.** The web layer previously read data directly from the filesystem, deviating from Principle 5 (One Boundary). All web reads now go through the daemon API via `fetchDaemon()`. Migration completed across PRs #108 (DAB migration) and #112.
