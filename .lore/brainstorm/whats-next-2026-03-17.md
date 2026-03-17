@@ -1,7 +1,7 @@
 ---
 title: "What's Next: Guild Hall Survey (March 2026)"
 date: 2026-03-17
-status: open
+status: resolved
 author: Celeste
 tags: [brainstorm, survey, roadmap]
 ---
