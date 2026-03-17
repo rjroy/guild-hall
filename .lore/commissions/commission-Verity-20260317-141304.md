@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research: Claude Code hooks for artifact provenance stamping"
 date: 2026-03-17
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Verity
@@ -14,6 +14,11 @@ activity_timeline:
   - timestamp: 2026-03-17T21:13:04.737Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-17T21:15:13.113Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
