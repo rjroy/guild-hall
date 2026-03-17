@@ -1763,9 +1763,9 @@ projectName: ${projectName}
         `Cannot read status from commission "${commissionId as string}" artifact. The file may be corrupted.`,
       );
     }
-    if (status !== "pending") {
+    if (status !== "pending" && status !== "halted") {
       throw new Error(
-        `Cannot update commission "${commissionId as string}": status is "${status}", must be "pending"`,
+        `Cannot update commission "${commissionId as string}": status is "${status}", must be "pending" or "halted"`,
       );
     }
 

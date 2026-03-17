@@ -32,6 +32,7 @@ export interface CommissionMeta {
   resource_overrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
   current_progress: string;
   result_summary: string;
+  halt_count?: number;
   projectName: string;
   date: string;
   /** ISO timestamp most relevant for the commission's current status. */
@@ -110,6 +111,7 @@ function parseCommissionData(
       : "",
     result_summary: body.trim()
       || (typeof data.result_summary === "string" ? data.result_summary : ""),
+    halt_count: typeof data.halt_count === "number" ? data.halt_count : undefined,
     projectName,
     date,
     relevantDate: extractRelevantDate(status, date, timeline),

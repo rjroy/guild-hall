@@ -116,7 +116,7 @@ Extends: [Spec: Guild Hall Commissions](guild-hall-commissions.md) (REQ-COM-5, R
   6. If the merge succeeds: transitions to `completed`, cleans up the worktree, deletes the branch, removes the state file.
   7. If the merge fails (conflict): transitions to `failed` with the conflict reason, escalates to Guild Master (same as REQ-COM-31).
 
-- REQ-COM-44: A saved commission's result is recorded as partial. The `result_summary` field is set to a system-generated message: "Partial work saved by {actor} (commission was halted at {turnsUsed} turns). Last progress: {lastProgress}". The `save` action accepts an optional `reason` string that, if provided, replaces the system-generated message. This lets the Guild Master or user add context about why the partial work was worth keeping.
+- REQ-COM-44: A saved commission's result is recorded as partial. The `result_summary` field is set to a system-generated message: "Partial work saved (commission was halted at {turnsUsed} turns). Last progress: {lastProgress}". The `save` action accepts an optional `reason` string that, if provided, replaces the system-generated message. This lets the Guild Master or user add context about why the partial work was worth keeping.
 
   The timeline entry for the save event records `event: "status_completed"` with `reason: "Saved partial work"` and `partial: true`. Downstream consumers (briefings, status tool) can distinguish a fully completed commission from a saved-partial one by checking for the `partial` field in the completion timeline entry.
 

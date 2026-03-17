@@ -1304,7 +1304,29 @@ describe("updateCommission", () => {
 
     await expect(
       orchestrator.updateCommission(commissionId, { prompt: "nope" }),
-    ).rejects.toThrow(/must be "pending"/);
+    ).rejects.toThrow(/must be "pending" or "halted"/);
+  });
+
+  test("allows update on halted commission", async () => {
+    const { orchestrator } = buildDeps();
+
+    const commissionId = asCommissionId("commission-test-update-halted-001");
+    await writeCommissionArtifact(integrationPath, commissionId as string, {
+      status: "halted",
+    });
+
+    await orchestrator.updateCommission(commissionId, {
+      resourceOverrides: { maxTurns: 50 },
+    });
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${commissionId as string}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("maxTurns: 50");
   });
 });
 
