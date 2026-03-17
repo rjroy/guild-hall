@@ -2638,3 +2638,322 @@ describe("halt entry (maxTurns without result)", () => {
     expect(haltedEvents.length).toBe(0);
   });
 });
+
+// -- Phase 3: Continue action tests --
+
+describe("continueCommission", () => {
+  /**
+   * Helper: writes a halted state file and a commission artifact directly,
+   * then registers the commission as halted in the lifecycle. Returns deps
+   * for the continue tests. The queryFn can be configured to submit a
+   * result or not on each run.
+   */
+  async function setupHaltedCommission(opts: {
+    commissionId: string;
+    capacityConfig?: AppConfig;
+    /** If true, the continued session submits a result. */
+    submitResultOnContinue?: boolean;
+  }) {
+    const workspace = createMockWorkspace();
+    const eventBus = createTestEventBus();
+    const cId = asCommissionId(opts.commissionId);
+
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: opts.submitResultOnContinue ?? false,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: opts.commissionId,
+    });
+
+    const prepDeps = createMockPrepDeps({
+      activateWorker: async () => ({
+        systemPrompt: "Test system prompt",
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        resourceBounds: { maxTurns: 1 },
+      }),
+    });
+
+    const { orchestrator, lifecycle, eventBus: eb, gitOps } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+      prepDeps,
+      config: opts.capacityConfig,
+    });
+
+    // Write the commission artifact to integration worktree
+    await writeCommissionArtifact(integrationPath, opts.commissionId);
+
+    // Create the activity worktree directory with the artifact
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, opts.commissionId);
+    const wtCommDir = path.join(worktreeDir, ".lore", "commissions");
+    await fs.mkdir(wtCommDir, { recursive: true });
+    await fs.copyFile(
+      path.join(integrationPath, ".lore", "commissions", `${opts.commissionId}.md`),
+      path.join(wtCommDir, `${opts.commissionId}.md`),
+    );
+
+    // Write the halted state file
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${opts.commissionId}.json`);
+    const stateData = {
+      commissionId: opts.commissionId,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      status: "halted",
+      worktreeDir,
+      branchName: `claude/commission/${opts.commissionId}`,
+      sessionId: "test-session-halted",
+      haltedAt: new Date().toISOString(),
+      turnsUsed: 50,
+      lastProgress: "Made progress on the task",
+    };
+    await fs.writeFile(stateFilePath, JSON.stringify(stateData, null, 2), "utf-8");
+
+    // Register in lifecycle as halted
+    const artifactPath = path.join(integrationPath, ".lore", "commissions", `${opts.commissionId}.md`);
+    lifecycle.register(cId, TEST_PROJECT, "halted", artifactPath);
+
+    return { orchestrator, lifecycle, eventBus: eb, workspace, gitOps, cId, worktreeDir };
+  }
+
+  test("continues a halted commission: session launched with continuation prompt", async () => {
+    const commissionId = "commission-test-continue-001";
+    const { orchestrator, eventBus: eb, cId, worktreeDir } = await setupHaltedCommission({
+      commissionId,
+      submitResultOnContinue: true,
+    });
+
+    // Continue the halted commission
+    const result = await orchestrator.continueCommission(cId);
+    expect(result.status).toBe("accepted");
+
+    // Wait for the continued session to complete
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Timeline should contain "Continued from halted state"
+    const artifactPath = path.join(worktreeDir, ".lore", "commissions", `${commissionId}.md`);
+    try {
+      const raw = await fs.readFile(artifactPath, "utf-8");
+      expect(raw).toContain("Continued from halted state");
+    } catch {
+      // Worktree may have been cleaned up after completion. Check integration.
+      const iArtifactPath = path.join(integrationPath, ".lore", "commissions", `${commissionId}.md`);
+      const raw = await fs.readFile(iArtifactPath, "utf-8");
+      expect(raw).toContain("Continued from halted state");
+    }
+  });
+
+  test("continue with missing worktree transitions to failed", async () => {
+    const commissionId = "commission-test-continue-missing-wt-001";
+    const { orchestrator, eventBus: eb, cId } = await setupHaltedCommission({
+      commissionId,
+    });
+
+    // Point the state file at a non-existent worktree
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${commissionId}.json`);
+    const stateRaw = await fs.readFile(stateFilePath, "utf-8");
+    const stateData = JSON.parse(stateRaw) as Record<string, unknown>;
+    stateData.worktreeDir = "/tmp/nonexistent-worktree-path";
+    await fs.writeFile(stateFilePath, JSON.stringify(stateData, null, 2), "utf-8");
+
+    // Attempt to continue should throw (worktree not found)
+    try {
+      await orchestrator.continueCommission(cId);
+      expect(true).toBe(false);
+    } catch (err: unknown) {
+      expect((err as Error).message).toContain("worktree not found");
+    }
+
+    // Commission should have been transitioned to failed
+    const failedEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "failed",
+    );
+    expect(failedEvents.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("continue at capacity returns capacity_error, commission stays halted", async () => {
+    const commissionId = "commission-test-continue-cap-001";
+    const cId = asCommissionId(commissionId);
+    const workspace = createMockWorkspace();
+    const eventBus = createTestEventBus();
+
+    // Use manual-mode query so dispatched commissions stay active
+    const mockQueryFn = createMockQueryFn({
+      resolveAfterMs: -1,
+      eventBus,
+    });
+
+    const prepDeps = createMockPrepDeps({
+      activateWorker: async () => ({
+        systemPrompt: "Test system prompt",
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        resourceBounds: { maxTurns: 10 },
+      }),
+    });
+
+    const capacityConfig: AppConfig = {
+      projects: [{ name: TEST_PROJECT, path: projectPath, commissionCap: 1 }],
+      maxConcurrentCommissions: 1,
+    };
+
+    const { orchestrator, lifecycle } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+      prepDeps,
+      config: capacityConfig,
+    });
+
+    // Write the halted commission's artifact and state file
+    await writeCommissionArtifact(integrationPath, commissionId);
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, commissionId);
+    const wtCommDir = path.join(worktreeDir, ".lore", "commissions");
+    await fs.mkdir(wtCommDir, { recursive: true });
+    await fs.copyFile(
+      path.join(integrationPath, ".lore", "commissions", `${commissionId}.md`),
+      path.join(wtCommDir, `${commissionId}.md`),
+    );
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${commissionId}.json`);
+    await fs.writeFile(stateFilePath, JSON.stringify({
+      commissionId, projectName: TEST_PROJECT, workerName: TEST_WORKER,
+      status: "halted", worktreeDir, branchName: `claude/commission/${commissionId}`,
+      sessionId: "test-session-halted", haltedAt: new Date().toISOString(),
+      turnsUsed: 50, lastProgress: "Made progress",
+    }, null, 2), "utf-8");
+    const artifactPath = path.join(integrationPath, ".lore", "commissions", `${commissionId}.md`);
+    lifecycle.register(cId, TEST_PROJECT, "halted", artifactPath);
+
+    // Dispatch another commission to fill the capacity (blocks in manual mode)
+    const otherCId = asCommissionId("commission-other-active-001");
+    await writeCommissionArtifact(integrationPath, otherCId as string);
+    await orchestrator.dispatchCommission(otherCId);
+    await new Promise<void>((r) => setTimeout(r, 50));
+
+    // Attempt to continue the halted commission
+    const result = await orchestrator.continueCommission(cId);
+    expect(result.status).toBe("capacity_error");
+
+    // Commission should still be halted (status unchanged)
+    const status = lifecycle.getStatus(cId);
+    expect(status).toBe("halted");
+
+    // Clean up: resolve the blocking session
+    mockQueryFn.resolve({ resultSubmitted: true });
+    await new Promise<void>((r) => setTimeout(r, 100));
+  });
+
+  test("multi-continuation: halt -> continue -> halt -> continue with incrementing halt_count", async () => {
+    const commissionId = "commission-test-multi-cont-001";
+    const workspace = createMockWorkspace();
+    const eventBus = createTestEventBus();
+    const cId = asCommissionId(commissionId);
+
+    // Never submit result: always halt
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: false,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId,
+    });
+
+    const prepDeps = createMockPrepDeps({
+      activateWorker: async () => ({
+        systemPrompt: "Test system prompt",
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        resourceBounds: { maxTurns: 1 },
+      }),
+    });
+
+    const { orchestrator, eventBus: eb } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+      prepDeps,
+    });
+
+    // Dispatch -> halt (halt #1)
+    await writeCommissionArtifact(integrationPath, commissionId);
+    await orchestrator.dispatchCommission(cId);
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Verify halt #1
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${commissionId}.json`);
+    let stateRaw = await fs.readFile(stateFilePath, "utf-8");
+    let stateData = JSON.parse(stateRaw) as Record<string, unknown>;
+    expect(stateData.status).toBe("halted");
+
+    // Check halt_count = 1
+    const worktreeDir = stateData.worktreeDir as string;
+    const artifactPath = path.join(worktreeDir, ".lore", "commissions", `${commissionId}.md`);
+    let raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("halt_count: 1");
+
+    // Continue -> halt again (halt #2)
+    const result1 = await orchestrator.continueCommission(cId);
+    expect(result1.status).toBe("accepted");
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Verify halt #2
+    stateRaw = await fs.readFile(stateFilePath, "utf-8");
+    stateData = JSON.parse(stateRaw) as Record<string, unknown>;
+    expect(stateData.status).toBe("halted");
+
+    // Check halt_count = 2
+    raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("halt_count: 2");
+
+    // Count halted events in EventBus
+    const haltedEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "halted",
+    );
+    expect(haltedEvents.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("continued session completes with result: normal completion", async () => {
+    const commissionId = "commission-test-continue-complete-001";
+    const { orchestrator, eventBus: eb, cId } = await setupHaltedCommission({
+      commissionId,
+      submitResultOnContinue: true,
+    });
+
+    // Continue the commission
+    const result = await orchestrator.continueCommission(cId);
+    expect(result.status).toBe("accepted");
+
+    // Wait for completion
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Should have completed
+    const completedEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "completed",
+    );
+    expect(completedEvents.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("continued session hits maxTurns again: re-halts", async () => {
+    const commissionId = "commission-test-continue-rehalt-001";
+    const { orchestrator, eventBus: eb, cId } = await setupHaltedCommission({
+      commissionId,
+      // Don't submit result: will halt again
+    });
+
+    // Continue the commission
+    const result = await orchestrator.continueCommission(cId);
+    expect(result.status).toBe("accepted");
+
+    // Wait for re-halt
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Should have halted again
+    const haltedEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "halted",
+    );
+    expect(haltedEvents.length).toBeGreaterThanOrEqual(1);
+
+    // State should be halted
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${commissionId}.json`);
+    const stateRaw = await fs.readFile(stateFilePath, "utf-8");
+    const stateData = JSON.parse(stateRaw) as Record<string, unknown>;
+    expect(stateData.status).toBe("halted");
+  });
+});

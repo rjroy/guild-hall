@@ -133,6 +133,7 @@ export interface CommissionSessionForRoutes {
     commissionId: CommissionId,
     targetStatus: string,
   ): Promise<{ outcome: string; status?: string; reason?: string }>;
+  continueCommission(commissionId: CommissionId): Promise<{ status: "accepted" | "capacity_error" }>;
   checkDependencyTransitions(projectName: string): Promise<void>;
   recoverCommissions(): Promise<number>;
   getActiveCommissions(): number;
@@ -2048,6 +2049,208 @@ projectName: ${projectName}
     }
   }
 
+  /**
+   * Continue a halted commission. Reads the halted state file, verifies the
+   * worktree, checks capacity, transitions halted -> in_progress, and
+   * launches a resumed SDK session with a continuation prompt
+   * (REQ-COM-39, REQ-COM-40, REQ-COM-40a, REQ-COM-41).
+   */
+  async function continueCommission(
+    commissionId: CommissionId,
+  ): Promise<{ status: "accepted" | "capacity_error" }> {
+    // 1. Read halted state file
+    const statePath = commissionStatePath(commissionId);
+    let state: HaltedCommissionState;
+    try {
+      const raw = await fs.readFile(statePath, "utf-8");
+      state = JSON.parse(raw) as HaltedCommissionState;
+    } catch {
+      throw new Error(
+        `Cannot continue commission "${commissionId as string}": state file not found or corrupt`,
+      );
+    }
+
+    if (state.status !== "halted") {
+      throw new Error(
+        `Cannot continue commission "${commissionId as string}": state is "${state.status}", expected "halted"`,
+      );
+    }
+
+    // 2. Verify worktree exists
+    const worktreeExists = await fileExists(state.worktreeDir);
+    if (!worktreeExists) {
+      // Worktree is gone: transition to failed
+      const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+      const artifactPath = commissionArtifactPath(iPath, commissionId);
+      if (!lifecycle.isTracked(commissionId)) {
+        lifecycle.register(commissionId, state.projectName, "halted", artifactPath);
+      }
+      await lifecycle.executionFailed(commissionId, "Worktree not found for halted commission.");
+      await syncStatusToIntegration(commissionId, state.projectName, "failed", "Worktree not found for halted commission.");
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: state.projectName,
+        workerName: state.workerName,
+        status: "failed",
+      });
+      lifecycle.forget(commissionId);
+      throw new Error(
+        `Cannot continue commission "${commissionId as string}": worktree not found`,
+      );
+    }
+
+    // 3. Check capacity (REQ-COM-47)
+    const activeMap = new Map<string, { projectName: string }>();
+    for (const [id, ctx] of executions) {
+      activeMap.set(id as string, { projectName: ctx.projectName });
+    }
+    const capacityCheck = isAtCapacity(state.projectName, activeMap, config);
+    if (capacityCheck.atLimit) {
+      log.info(
+        `cannot continue "${commissionId as string}": ${capacityCheck.reason}`,
+      );
+      return { status: "capacity_error" };
+    }
+
+    // 4. Transition halted -> in_progress
+    const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+    const artifactPath = commissionArtifactPath(iPath, commissionId);
+    if (!lifecycle.isTracked(commissionId)) {
+      lifecycle.register(commissionId, state.projectName, "halted", artifactPath);
+    }
+    const continueResult = await lifecycle.continueHalted(
+      commissionId,
+      "Continued from halted state",
+    );
+    if (continueResult.outcome === "skipped") {
+      throw new Error(
+        `Cannot continue commission "${commissionId as string}": ${continueResult.reason}`,
+      );
+    }
+
+    // 5. Update state file to in_progress
+    await writeStateFile(commissionId, {
+      commissionId: commissionId as string,
+      projectName: state.projectName,
+      workerName: state.workerName,
+      status: "in_progress",
+      worktreeDir: state.worktreeDir,
+      branchName: state.branchName,
+    });
+
+    // 6. Append timeline event (REQ-COM-45a)
+    const worktreeArtifactPath = commissionArtifactPath(state.worktreeDir, commissionId);
+    try {
+      await recordOps.appendTimeline(
+        worktreeArtifactPath,
+        "status_in_progress",
+        "Continued from halted state",
+      );
+    } catch (err: unknown) {
+      log.warn(`failed to append continuation timeline:`, errorMessage(err));
+    }
+
+    // 7. Build continuation prompt (REQ-COM-41)
+    const lastProgress = state.lastProgress || "(no progress recorded)";
+    const continuationPrompt = [
+      `This commission was halted because it reached the turn limit (${state.turnsUsed} turns used).`,
+      "",
+      `Your last progress update was: ${lastProgress}`,
+      "",
+      "Continue working on the commission from where you left off. Your worktree contains all the work you've done so far. Review what remains and complete the task. When finished, call submit_result with your summary.",
+    ].join("\n");
+
+    // 8. Read resource_overrides from integration artifact for fresh turn budget (REQ-COM-40a)
+    let resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string } | undefined;
+    try {
+      const iArtifactPath = commissionArtifactPath(iPath, commissionId);
+      const artRaw = await fs.readFile(iArtifactPath, "utf-8");
+      const { data } = matter(artRaw);
+      const overrides = data.resource_overrides as { maxTurns?: number; maxBudgetUsd?: number; model?: string } | undefined;
+      if (overrides && Object.keys(overrides).length > 0) {
+        resourceOverrides = {};
+        if (overrides.maxTurns !== undefined) resourceOverrides.maxTurns = Number(overrides.maxTurns);
+        if (overrides.maxBudgetUsd !== undefined) resourceOverrides.maxBudgetUsd = Number(overrides.maxBudgetUsd);
+        if (overrides.model !== undefined) resourceOverrides.model = String(overrides.model);
+      }
+    } catch (err: unknown) {
+      log.warn(`failed to read resource_overrides for "${commissionId as string}":`, errorMessage(err));
+    }
+
+    // 9. Create ExecutionContext and add to executions map
+    const abortController = new AbortController();
+    const execCtx: ExecutionContext = {
+      commissionId,
+      projectName: state.projectName,
+      workerName: state.workerName,
+      worktreeDir: state.worktreeDir,
+      branchName: state.branchName,
+      abortController,
+      attempt: 0,
+      checkoutScope: "full",
+    };
+    executions.set(commissionId, execCtx);
+
+    // 10. Find project for the session
+    const project = findProject(state.projectName);
+    if (!project) {
+      executions.delete(commissionId);
+      throw new Error(
+        `Project "${state.projectName}" not found during continue`,
+      );
+    }
+
+    // 11. Build SessionPrepSpec with resume (REQ-COM-40)
+    const workerPkg = packages.find((p) => {
+      if (!("identity" in p.metadata)) return false;
+      return p.metadata.identity.name === state.workerName;
+    });
+    const isManager = workerPkg?.name === (deps.managerPackageName ?? "guild-hall-manager");
+    const services = isManager && selfRef.current
+      ? {
+          commissionSession: selfRef.current,
+          gitOps: gitOps,
+          config,
+          scheduleLifecycle: deps.scheduleLifecycleRef?.current,
+          recordOps,
+          packages,
+        }
+      : undefined;
+
+    const prepSpec: SessionPrepSpec = {
+      workerName: state.workerName,
+      packages,
+      config,
+      guildHallHome,
+      projectName: state.projectName,
+      projectPath: project.path,
+      workspaceDir: state.worktreeDir,
+      contextId: commissionId as string,
+      contextType: "commission",
+      eventBus,
+      services,
+      activationExtras: {
+        commissionContext: {
+          commissionId: commissionId as string,
+          prompt: continuationPrompt,
+          dependencies: [],
+        },
+      },
+      abortController,
+      resume: state.sessionId,
+      resourceOverrides,
+    };
+
+    log.info(
+      `continuing "${commissionId as string}" -> worker="${state.workerName}" (resume session ${state.sessionId})`,
+    );
+
+    // 12. Fire-and-forget: run the resumed session
+    void runCommissionSession(execCtx, prepSpec, continuationPrompt);
+
+    return { status: "accepted" };
+  }
+
   async function cancelCommission(
     commissionId: CommissionId,
     reason = "Commission cancelled by user",
@@ -2308,6 +2511,7 @@ projectName: ${projectName}
     updateScheduleStatus,
     updateCommission,
     dispatchCommission,
+    continueCommission,
     cancelCommission,
     abandonCommission,
     redispatchCommission,
