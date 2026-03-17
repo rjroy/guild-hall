@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research: Claude Code hooks for artifact provenance stamping"
 date: 2026-03-17
-status: dispatched
+status: failed
 type: one-shot
 tags: [commission]
 worker: Verity
@@ -32,6 +32,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-17T21:24:54.754Z
+    event: status_failed
+    reason: "Session error: Claude Code returned an error result: API Error: 529 {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded. https://docs.claude.com/en/api/errors\"},\"request_id\":\"req_011CZ9MhkzSFGpbPrtKrfxZz\"}"
 current_progress: ""
 projectName: guild-hall
 ---
