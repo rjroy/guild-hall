@@ -35,7 +35,7 @@
     ],
     "checkoutScope": "full",
     "resourceDefaults": {
-      "maxTurns": 60
+      "maxTurns": 300
     }
   }
 }
