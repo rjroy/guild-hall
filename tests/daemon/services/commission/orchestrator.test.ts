@@ -2400,3 +2400,241 @@ describe("createCommission with type options", () => {
     expect(raw).not.toContain("source_schedule:");
   });
 });
+
+// -- Phase 2: Halt entry path tests --
+
+describe("halt entry (maxTurns without result)", () => {
+  test("maxTurns without result transitions to halted, preserves worktree", async () => {
+    const workspace = createMockWorkspace();
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-halt-001");
+    // No result submitted, maxTurns: 1 triggers reason: "maxTurns"
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: false,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const prepDeps = createMockPrepDeps({
+      activateWorker: async () => ({
+        systemPrompt: "Test system prompt",
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        resourceBounds: { maxTurns: 1 },
+      }),
+    });
+    const { orchestrator, eventBus: eb } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+      prepDeps,
+    });
+
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+    await orchestrator.dispatchCommission(commissionId);
+
+    // Wait for session completion
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Commission should be halted, not failed
+    const haltedEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "halted",
+    );
+    expect(haltedEvents.length).toBeGreaterThanOrEqual(1);
+
+    // preserveAndCleanup should NOT have been called (worktree preserved)
+    const preserveCalls = workspace.calls.filter((c) => c.method === "preserveAndCleanup");
+    expect(preserveCalls.length).toBe(0);
+
+    // State file should exist and contain halted state
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${commissionId}.json`);
+    const stateRaw = await fs.readFile(stateFilePath, "utf-8");
+    const stateData = JSON.parse(stateRaw) as Record<string, unknown>;
+    expect(stateData.status).toBe("halted");
+    expect(stateData.commissionId).toBe(commissionId as string);
+    expect(stateData.sessionId).toBeTruthy();
+    expect(stateData.turnsUsed).toBe(1);
+    expect(stateData.haltedAt).toBeTruthy();
+    expect(stateData.worktreeDir).toBeTruthy();
+    expect(stateData.branchName).toBeTruthy();
+  });
+
+  test("maxTurns with result submitted: normal completion (result wins)", async () => {
+    const workspace = createMockWorkspace();
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-halt-result-001");
+    // Result IS submitted, even though maxTurns: 1
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: true,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const prepDeps = createMockPrepDeps({
+      activateWorker: async () => ({
+        systemPrompt: "Test system prompt",
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        resourceBounds: { maxTurns: 1 },
+      }),
+    });
+    const { orchestrator, eventBus: eb } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+      prepDeps,
+    });
+
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+    await orchestrator.dispatchCommission(commissionId);
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Should have completed, not halted
+    const completedEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "completed",
+    );
+    expect(completedEvents.length).toBeGreaterThanOrEqual(1);
+
+    const haltedEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "halted",
+    );
+    expect(haltedEvents.length).toBe(0);
+  });
+
+  test("halt_count is incremented in the artifact", async () => {
+    const workspace = createMockWorkspace();
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-haltcount-001");
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: false,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const prepDeps = createMockPrepDeps({
+      activateWorker: async () => ({
+        systemPrompt: "Test system prompt",
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        resourceBounds: { maxTurns: 1 },
+      }),
+    });
+    const { orchestrator } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+      prepDeps,
+    });
+
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+    await orchestrator.dispatchCommission(commissionId);
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Read the activity worktree artifact to check halt_count.
+    // The mock workspace copies artifacts from integration to activity worktree.
+    // The halt path writes to the activity worktree artifact.
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, commissionId as string);
+    const artifactPath = path.join(worktreeDir, ".lore", "commissions", `${commissionId}.md`);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("halt_count: 1");
+  });
+
+  test("timeline records status_halted event with turnsUsed", async () => {
+    const workspace = createMockWorkspace();
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-halttimeline-001");
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: false,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const prepDeps = createMockPrepDeps({
+      activateWorker: async () => ({
+        systemPrompt: "Test system prompt",
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        resourceBounds: { maxTurns: 1 },
+      }),
+    });
+    const { orchestrator } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+      prepDeps,
+    });
+
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+    await orchestrator.dispatchCommission(commissionId);
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Check timeline in the activity worktree artifact
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, commissionId as string);
+    const artifactPath = path.join(worktreeDir, ".lore", "commissions", `${commissionId}.md`);
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("event: status_halted");
+    expect(raw).toContain("turnsUsed: \"1\"");
+  });
+
+  test("halted commission is removed from executions (does not count against capacity)", async () => {
+    const workspace = createMockWorkspace();
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-haltcap-001");
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: false,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const prepDeps = createMockPrepDeps({
+      activateWorker: async () => ({
+        systemPrompt: "Test system prompt",
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        resourceBounds: { maxTurns: 1 },
+      }),
+    });
+    const { orchestrator } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+      prepDeps,
+    });
+
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+    await orchestrator.dispatchCommission(commissionId);
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // After halting, getActiveCommissions should be 0 (removed from executions)
+    expect(orchestrator.getActiveCommissions()).toBe(0);
+  });
+
+  test("non-maxTurns failure without result still transitions to failed", async () => {
+    const workspace = createMockWorkspace();
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-nonhalt-001");
+    // Session error, not maxTurns
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: false,
+      error: "Something went wrong",
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const { orchestrator, eventBus: eb } = buildDeps({
+      workspace,
+      mockQueryFn,
+      eventBus,
+    });
+
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+    await orchestrator.dispatchCommission(commissionId);
+    await new Promise<void>((r) => setTimeout(r, 300));
+
+    // Should have failed, not halted
+    const failedEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "failed",
+    );
+    expect(failedEvents.length).toBeGreaterThanOrEqual(1);
+
+    const haltedEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "halted",
+    );
+    expect(haltedEvents.length).toBe(0);
+  });
+});

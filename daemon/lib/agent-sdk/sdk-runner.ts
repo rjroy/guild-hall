@@ -156,6 +156,8 @@ export type SdkRunnerOutcome = {
   error?: string;
   /** How the session ended. Populated by drainSdkSession when maxTurns is provided. */
   reason?: "completed" | "maxTurns" | "maxBudget";
+  /** Number of turns consumed by the session. */
+  turnsUsed: number;
 };
 
 /** Detects expired/not-found SDK session from error strings. */
@@ -248,7 +250,7 @@ export async function drainSdkSession(
     reason = "completed";
   }
 
-  return { sessionId, aborted, error: firstError, reason };
+  return { sessionId, aborted, error: firstError, reason, turnsUsed: turnCount };
 }
 
 export async function defaultCheckReachability(

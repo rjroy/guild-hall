@@ -83,6 +83,7 @@ import { isAtCapacity } from "@/daemon/services/commission/capacity";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
 import { createMailOrchestrator, type MailOrchestrator } from "@/daemon/services/mail/orchestrator";
 import type { SleepingCommissionState } from "@/daemon/services/mail/types";
+import type { HaltedCommissionState } from "@/daemon/services/commission/halted-types";
 
 // -- CommissionSessionForRoutes interface --
 
@@ -528,6 +529,19 @@ export function createCommissionOrchestrator(
       return;
     }
 
+    // maxTurns without result: halt instead of fail (REQ-COM-36)
+    if (!resultSubmitted && outcome.reason === "maxTurns") {
+      const halted = await handleHalt(ctx, outcome);
+      if (halted) {
+        // Halted commissions leave lifecycle tracked but exit executions.
+        // Don't call lifecycle.forget (commission stays as "halted").
+        executions.delete(ctx.commissionId);
+        enqueueAutoDispatch();
+        return;
+      }
+      // Fall through to normal fail path if halt failed (e.g. no sessionId)
+    }
+
     try {
       if (resultSubmitted) {
         // Result was submitted: attempt finalize (squash-merge)
@@ -547,6 +561,119 @@ export function createCommissionOrchestrator(
 
     enqueueAutoDispatch();
     await checkDependencyTransitions(ctx.projectName);
+  }
+
+  /**
+   * Halt entry path: commission hit maxTurns without submitting a result.
+   * Preserves the worktree, writes halted state file, increments halt_count,
+   * and records a timeline event (REQ-COM-36, REQ-COM-37, REQ-COM-38,
+   * REQ-COM-45, REQ-COM-45a).
+   *
+   * Returns true if halt succeeded, false if it failed (caller should
+   * fall through to the normal fail path).
+   */
+  async function handleHalt(
+    ctx: ExecutionContext,
+    outcome: SdkRunnerOutcome,
+  ): Promise<boolean> {
+    // 1. Commit pending changes (like sleep entry)
+    try {
+      await gitOps.commitAll(ctx.worktreeDir, `Halted (maxTurns): ${ctx.commissionId as string}`);
+    } catch (err: unknown) {
+      log.warn(`pre-halt commit failed for "${ctx.commissionId as string}":`, errorMessage(err));
+    }
+
+    // 2. Must have a sessionId for resume
+    if (!outcome.sessionId) {
+      log.error(`halt failed for "${ctx.commissionId as string}": no session ID available`);
+      return false;
+    }
+
+    // 3. Transition in_progress -> halted
+    const haltResult = await lifecycle.halt(
+      ctx.commissionId,
+      `Turn limit reached (${outcome.turnsUsed} turns used)`,
+    );
+    if (haltResult.outcome === "skipped") {
+      log.error(`halt transition skipped for "${ctx.commissionId as string}": ${haltResult.reason}`);
+      return false;
+    }
+
+    // 4. Read current progress and increment halt_count
+    const artifactPath = commissionArtifactPath(ctx.worktreeDir, ctx.commissionId);
+    let lastProgress = "";
+    let haltCount = 1;
+    try {
+      lastProgress = await recordOps.readProgress(artifactPath);
+    } catch (err: unknown) {
+      log.warn(`readProgress failed for "${ctx.commissionId as string}":`, errorMessage(err));
+    }
+    try {
+      haltCount = await recordOps.incrementHaltCount(artifactPath);
+    } catch (err: unknown) {
+      log.error(`incrementHaltCount failed for "${ctx.commissionId as string}":`, errorMessage(err));
+    }
+
+    // 5. Write halted state file (REQ-COM-37)
+    const turnsUsed = outcome.turnsUsed;
+    const stateData: HaltedCommissionState = {
+      commissionId: ctx.commissionId as string,
+      projectName: ctx.projectName,
+      workerName: ctx.workerName,
+      status: "halted",
+      worktreeDir: ctx.worktreeDir,
+      branchName: ctx.branchName,
+      sessionId: outcome.sessionId,
+      haltedAt: new Date().toISOString(),
+      turnsUsed,
+      lastProgress,
+    };
+    try {
+      await writeStateFile(
+        ctx.commissionId,
+        stateData as Record<string, unknown>,
+      );
+    } catch (err: unknown) {
+      log.error(
+        `writeStateFile failed for "${ctx.commissionId as string}", rolling back to failed:`,
+        errorMessage(err),
+      );
+      await lifecycle.executionFailed(
+        ctx.commissionId,
+        `Halt state file write failed: ${errorMessage(err)}`,
+      );
+      return false;
+    }
+
+    // 6. Append timeline event (REQ-COM-45a)
+    try {
+      await recordOps.appendTimeline(
+        artifactPath,
+        "status_halted",
+        `Turn limit reached (${turnsUsed} turns used)`,
+        {
+          turnsUsed: String(turnsUsed),
+          lastProgress,
+          haltCount: String(haltCount),
+        },
+      );
+    } catch (err: unknown) {
+      log.warn(`failed to append status_halted timeline:`, errorMessage(err));
+    }
+
+    // 7. Sync halted status to integration worktree
+    await syncStatusToIntegration(
+      ctx.commissionId,
+      ctx.projectName,
+      "halted",
+      `Turn limit reached (${turnsUsed} turns used)`,
+    );
+
+    log.info(
+      `"${ctx.commissionId as string}" halted after ${turnsUsed} turns (halt #${haltCount})`,
+    );
+
+    return true;
   }
 
   async function handleSuccessfulCompletion(ctx: ExecutionContext): Promise<void> {

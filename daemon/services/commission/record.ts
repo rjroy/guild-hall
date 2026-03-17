@@ -55,6 +55,8 @@ export interface CommissionRecordOps {
     summary: string,
     artifacts?: string[],
   ): Promise<void>;
+  readProgress(artifactPath: string): Promise<string>;
+  incrementHaltCount(artifactPath: string): Promise<number>;
   readScheduleMetadata(artifactPath: string): Promise<ScheduleMetadata>;
   writeScheduleFields(
     artifactPath: string,
@@ -183,6 +185,37 @@ function createRecordOps(): CommissionRecordOps {
         .split("\n")
         .filter((line) => line.startsWith("  - "))
         .map((line) => line.replace(/^  - /, "").trim());
+    },
+
+    async readProgress(artifactPath: string): Promise<string> {
+      const raw = await readArtifact(artifactPath, "readProgress");
+      const match = raw.match(/^current_progress: "?(.*?)"?\s*$/m);
+      if (!match) return "";
+      return match[1];
+    },
+
+    async incrementHaltCount(artifactPath: string): Promise<number> {
+      let raw = await readArtifact(artifactPath, "incrementHaltCount");
+      const match = raw.match(/^halt_count: (\d+)$/m);
+      if (match) {
+        const newCount = Number(match[1]) + 1;
+        raw = raw.replace(/^halt_count: \d+$/m, `halt_count: ${newCount}`);
+        await fs.writeFile(artifactPath, raw, "utf-8");
+        return newCount;
+      }
+      // Field doesn't exist yet: insert it before current_progress
+      const inserted = raw.replace(
+        /^current_progress:/m,
+        `halt_count: 1\ncurrent_progress:`,
+      );
+      if (inserted === raw) {
+        // current_progress field missing too; insert before end of frontmatter
+        const withField = raw.replace(/^---\s*$/m, `halt_count: 1\n---`);
+        await fs.writeFile(artifactPath, withField, "utf-8");
+        return 1;
+      }
+      await fs.writeFile(artifactPath, inserted, "utf-8");
+      return 1;
     },
 
     async updateProgress(artifactPath: string, summary: string): Promise<void> {
