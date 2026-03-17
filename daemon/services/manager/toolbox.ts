@@ -954,6 +954,7 @@ const SUMMARY_GROUP: Record<string, "pending" | "active" | "failed" | "completed
   dispatched: "active",
   in_progress: "active",
   sleeping: "active",
+  halted: "active",
   failed: "failed",
   cancelled: "failed",
   completed: "completed",

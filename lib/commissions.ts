@@ -252,6 +252,7 @@ const STATUS_GROUP: Record<string, number> = {
   dispatched: 1,
   in_progress: 1,
   sleeping: 1,
+  halted: 1,
   active: 1,
   failed: 2,
   cancelled: 2,
@@ -299,6 +300,7 @@ function extractRelevantDate(
     dispatched: "status_dispatched",
     in_progress: "status_in_progress",
     sleeping: "status_sleeping",
+    halted: "status_halted",
   };
 
   const eventName = targetEvent[status];

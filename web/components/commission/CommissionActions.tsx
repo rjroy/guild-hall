@@ -126,13 +126,14 @@ export default function CommissionActions({
 
   const showDispatch = status === "pending";
   const showQueued = status === "queued";
-  const showCancel = status === "dispatched" || status === "in_progress" || status === "queued";
+  const showCancel = status === "dispatched" || status === "in_progress" || status === "queued" || status === "halted";
   const showRedispatch = status === "failed" || status === "cancelled";
   const showAbandon =
     status === "pending" ||
     status === "blocked" ||
     status === "failed" ||
-    status === "cancelled";
+    status === "cancelled" ||
+    status === "halted";
   const offlineTitle = !isOnline ? "Daemon offline" : undefined;
 
   return (
