@@ -1,7 +1,7 @@
 ---
 title: "Plan: Commission halted state and continuation"
 date: 2026-03-16
-status: draft
+status: approved
 tags: [commissions, lifecycle, halted, continuation, maxTurns, recovery]
 modules: [commission/lifecycle, commission/orchestrator, manager-toolbox, commission-routes, lib/commissions, daemon/types]
 related:
