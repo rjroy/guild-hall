@@ -44,6 +44,8 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     getActiveCommissions: () => 0,
     recoverCommissions: () => Promise.resolve(0),
     updateScheduleStatus: () => Promise.resolve({ outcome: "ok" as const, status: "active" }),
+    continueCommission: () => Promise.resolve({ status: "accepted" as const }),
+    saveCommission: () => Promise.resolve(),
     shutdown: () => {},
   } as CommissionSessionForRoutes;
 }

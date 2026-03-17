@@ -885,7 +885,7 @@ describe("POST /commission/run/save", () => {
 
   test("returns 409 when commission cannot be saved", async () => {
     const { app } = makeTestApp({
-      saveCommission: async () => {
+      saveCommission: () => {
         throw new Error('Cannot save commission: state is "in_progress"');
       },
     });
@@ -900,7 +900,7 @@ describe("POST /commission/run/save", () => {
 
   test("returns 404 when state file not found", async () => {
     const { app } = makeTestApp({
-      saveCommission: async () => {
+      saveCommission: () => {
         throw new Error("Cannot save commission: state file not found or corrupt");
       },
     });

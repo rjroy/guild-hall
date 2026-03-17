@@ -923,6 +923,89 @@ export function createCommissionOrchestrator(
     enqueueAutoDispatch();
   }
 
+  // -- Halted commission cancel/abandon --
+
+  /**
+   * Cancel or abandon a halted commission with worktree cleanup.
+   * Reads the state file for worktree info, transitions, preserves branch,
+   * cleans up worktree, and forgets the commission (REQ-COM-35).
+   */
+  async function cancelHaltedCommission(
+    commissionId: CommissionId,
+    reason: string,
+    targetState: "cancelled" | "abandoned",
+  ): Promise<void> {
+    const projectName = lifecycle.getProjectName(commissionId);
+
+    // 1. Transition lifecycle first
+    if (targetState === "cancelled") {
+      try {
+        await lifecycle.cancel(commissionId, reason);
+      } catch (err: unknown) {
+        log.warn(`lifecycle.cancel failed for halted "${commissionId as string}":`, errorMessage(err));
+      }
+    } else {
+      try {
+        await lifecycle.abandon(commissionId, reason);
+      } catch (err: unknown) {
+        log.warn(`lifecycle.abandon failed for halted "${commissionId as string}":`, errorMessage(err));
+      }
+    }
+
+    // 2. Read state file for worktree info
+    const statePath = commissionStatePath(commissionId);
+    let stateData: { worktreeDir?: string; branchName?: string; workerName?: string; projectName?: string } = {};
+    try {
+      const raw = await fs.readFile(statePath, "utf-8");
+      stateData = JSON.parse(raw) as typeof stateData;
+    } catch {
+      // State file missing or corrupt; best-effort cleanup
+    }
+
+    const workerName = stateData.workerName ?? "";
+    const worktreeDir = stateData.worktreeDir;
+    const branchName = stateData.branchName ?? "";
+    const resolvedProjectName = projectName ?? stateData.projectName ?? "";
+
+    // 3. Preserve branch and clean up worktree
+    if (worktreeDir) {
+      const exists = await fileExists(worktreeDir);
+      if (exists) {
+        const project = findProject(resolvedProjectName);
+        try {
+          await workspace.preserveAndCleanup({
+            worktreeDir,
+            branchName,
+            commitMessage: `Partial work preserved (${targetState}): ${commissionId as string}`,
+            projectPath: project?.path,
+          });
+        } catch (err: unknown) {
+          log.warn(`preserveAndCleanup failed for halted "${commissionId as string}":`, errorMessage(err));
+        }
+      }
+    }
+
+    // 4. Sync status to integration and write state file
+    if (resolvedProjectName) {
+      await syncStatusToIntegration(commissionId, resolvedProjectName, targetState, reason);
+    }
+    await writeStateFile(commissionId, {
+      commissionId: commissionId as string,
+      projectName: resolvedProjectName,
+      workerName,
+      status: targetState,
+    });
+
+    lifecycle.forget(commissionId);
+
+    // Unblock dependents when abandoning
+    if (targetState === "abandoned" && resolvedProjectName) {
+      await checkDependencyTransitions(resolvedProjectName);
+    }
+
+    enqueueAutoDispatch();
+  }
+
   // -- Dependency auto-transitions --
 
   async function checkDependencyTransitions(projectName: string): Promise<void> {
@@ -2126,7 +2209,7 @@ projectName: ${projectName}
 
     if (state.status !== "halted") {
       throw new Error(
-        `Cannot continue commission "${commissionId as string}": state is "${state.status}", expected "halted"`,
+        `Cannot continue commission "${commissionId as string}": state is "${state.status as string}", expected "halted"`,
       );
     }
 
@@ -2329,7 +2412,7 @@ projectName: ${projectName}
 
     if (state.status !== "halted") {
       throw new Error(
-        `Cannot save commission "${commissionId as string}": state is "${state.status}", expected "halted"`,
+        `Cannot save commission "${commissionId as string}": state is "${state.status as string}", expected "halted"`,
       );
     }
 
@@ -2526,6 +2609,12 @@ projectName: ${projectName}
       return;
     }
 
+    // Halted commission: cancel with worktree cleanup (REQ-COM-35)
+    if (status === "halted") {
+      await cancelHaltedCommission(commissionId, reason, "cancelled");
+      return;
+    }
+
     // Pending/blocked commission: cancel via lifecycle, then forget
     if (status !== undefined) {
       await lifecycle.cancel(commissionId, reason);
@@ -2587,6 +2676,12 @@ projectName: ${projectName}
     const status = lifecycle.getStatus(commissionId);
     if (status === "sleeping") {
       await cancelSleepingCommission(commissionId, reason, "abandoned");
+      return;
+    }
+
+    // Halted commission: abandon with worktree cleanup (REQ-COM-35)
+    if (status === "halted") {
+      await cancelHaltedCommission(commissionId, reason, "abandoned");
       return;
     }
 

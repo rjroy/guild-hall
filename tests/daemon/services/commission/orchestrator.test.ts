@@ -2833,7 +2833,7 @@ describe("continueCommission", () => {
 
   test("continues a halted commission: session launched with continuation prompt", async () => {
     const commissionId = "commission-test-continue-001";
-    const { orchestrator, eventBus: eb, cId, worktreeDir } = await setupHaltedCommission({
+    const { orchestrator, eventBus: _eb, cId, worktreeDir } = await setupHaltedCommission({
       commissionId,
       submitResultOnContinue: true,
     });
@@ -3216,7 +3216,7 @@ describe("saveCommission", () => {
 
   test("save with merge conflict transitions to failed", async () => {
     const commissionId = "commission-test-save-conflict-001";
-    const { orchestrator, eventBus: eb, cId } = await setupHaltedForSave({
+    const { orchestrator, eventBus: _eb, cId } = await setupHaltedForSave({
       commissionId,
       finalize: async () => ({ merged: false, reason: "Conflict on src/main.ts" } as FinalizeResult),
     });
@@ -3230,5 +3230,116 @@ describe("saveCommission", () => {
     const stateRaw = await fs.readFile(stateFilePath, "utf-8");
     const state = JSON.parse(stateRaw) as Record<string, unknown>;
     expect(state.status).toBe("failed");
+  });
+});
+
+describe("cancel halted commission", () => {
+  test("cancels a halted commission: worktree cleaned up, branch preserved", async () => {
+    const commissionId = "commission-test-cancel-halted-001";
+    const cId = asCommissionId(commissionId);
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, commissionId);
+    const branchName = `claude/commission/${commissionId}`;
+    await fs.mkdir(worktreeDir, { recursive: true });
+
+    // Write halted state file
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${commissionId}.json`);
+    await fs.writeFile(stateFilePath, JSON.stringify({
+      commissionId,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      status: "halted",
+      worktreeDir,
+      branchName,
+      sessionId: "test-session-halted",
+      haltedAt: new Date().toISOString(),
+      turnsUsed: 100,
+      lastProgress: "Halfway done",
+    }, null, 2), "utf-8");
+
+    // Write commission artifact
+    const artifactPath = await writeCommissionArtifact(integrationPath, commissionId, { status: "halted" });
+
+    const workspace = createMockWorkspace();
+    const { orchestrator, lifecycle, eventBus: eb } = buildDeps({ workspace });
+
+    // Register the halted commission in lifecycle
+    lifecycle.register(cId, TEST_PROJECT, "halted", artifactPath);
+
+    await orchestrator.cancelCommission(cId, "No longer needed");
+
+    // preserveAndCleanup was called
+    const preserveCalls = workspace.calls.filter((c) => c.method === "preserveAndCleanup");
+    expect(preserveCalls.length).toBe(1);
+    const preserveArgs = preserveCalls[0].args[0] as Record<string, unknown>;
+    expect(preserveArgs.worktreeDir).toBe(worktreeDir);
+    expect(preserveArgs.branchName).toBe(branchName);
+
+    // Cancelled event emitted
+    const cancelledEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "cancelled",
+    );
+    expect(cancelledEvents.length).toBeGreaterThanOrEqual(1);
+
+    // State file updated to cancelled
+    const stateRaw = await fs.readFile(stateFilePath, "utf-8");
+    const stateData = JSON.parse(stateRaw) as Record<string, unknown>;
+    expect(stateData.status).toBe("cancelled");
+
+    // Commission is no longer tracked
+    expect(lifecycle.isTracked(cId)).toBe(false);
+  });
+});
+
+describe("abandon halted commission", () => {
+  test("abandons a halted commission: worktree cleaned up, branch preserved", async () => {
+    const commissionId = "commission-test-abandon-halted-001";
+    const cId = asCommissionId(commissionId);
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, commissionId);
+    const branchName = `claude/commission/${commissionId}`;
+    await fs.mkdir(worktreeDir, { recursive: true });
+
+    // Write halted state file
+    const stateFilePath = path.join(ghHome, "state", "commissions", `${commissionId}.json`);
+    await fs.writeFile(stateFilePath, JSON.stringify({
+      commissionId,
+      projectName: TEST_PROJECT,
+      workerName: TEST_WORKER,
+      status: "halted",
+      worktreeDir,
+      branchName,
+      sessionId: "test-session-halted",
+      haltedAt: new Date().toISOString(),
+      turnsUsed: 100,
+      lastProgress: "Halfway done",
+    }, null, 2), "utf-8");
+
+    // Write commission artifact
+    const artifactPath = await writeCommissionArtifact(integrationPath, commissionId, { status: "halted" });
+
+    const workspace = createMockWorkspace();
+    const { orchestrator, lifecycle, eventBus: eb } = buildDeps({ workspace });
+
+    // Register the halted commission in lifecycle
+    lifecycle.register(cId, TEST_PROJECT, "halted", artifactPath);
+
+    await orchestrator.abandonCommission(cId, "Work is obsolete");
+
+    // preserveAndCleanup was called
+    const preserveCalls = workspace.calls.filter((c) => c.method === "preserveAndCleanup");
+    expect(preserveCalls.length).toBe(1);
+
+    // Abandoned event emitted
+    const abandonedEvents = eb.events.filter(
+      (e) => e.type === "commission_status" && "status" in e && e.status === "abandoned",
+    );
+    expect(abandonedEvents.length).toBeGreaterThanOrEqual(1);
+
+    // State file updated to abandoned
+    const stateRaw = await fs.readFile(stateFilePath, "utf-8");
+    const stateData = JSON.parse(stateRaw) as Record<string, unknown>;
+    expect(stateData.status).toBe("abandoned");
+
+    // Commission is no longer tracked
+    expect(lifecycle.isTracked(cId)).toBe(false);
   });
 });

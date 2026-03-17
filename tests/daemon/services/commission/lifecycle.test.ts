@@ -86,6 +86,14 @@ function createMockRecordOps(): CommissionRecordOps & {
       calls.push({ method: "writeScheduleFields", args: [artifactPath, updates] });
       return Promise.resolve();
     },
+    readProgress(_artifactPath: string): Promise<string> {
+      calls.push({ method: "readProgress", args: [_artifactPath] });
+      return Promise.resolve("");
+    },
+    incrementHaltCount(_artifactPath: string): Promise<number> {
+      calls.push({ method: "incrementHaltCount", args: [_artifactPath] });
+      return Promise.resolve(1);
+    },
   };
 }
 
