@@ -546,7 +546,7 @@ describe("Sleep flow (Step 5)", () => {
       targetWorker: TEST_READER,
       mailSequence: 1,
       mailPath: "/tmp/mail-001.md",
-      outcome: { sessionId: "test-session-1", aborted: true },
+      outcome: { sessionId: "test-session-1", aborted: true, turnsUsed: 0 },
     });
 
     expect(sleepResult).toBe(true);
@@ -609,7 +609,7 @@ describe("Sleep flow (Step 5)", () => {
       targetWorker: TEST_READER,
       mailSequence: 1,
       mailPath: "/tmp/mail-001.md",
-      outcome: { sessionId: "saved-session-42", aborted: true },
+      outcome: { sessionId: "saved-session-42", aborted: true, turnsUsed: 0 },
     });
 
     expect(writtenData).not.toBeNull();
@@ -672,7 +672,7 @@ describe("Sleep flow (Step 5)", () => {
       targetWorker: TEST_READER,
       mailSequence: 1,
       mailPath: "/tmp/mail-001.md",
-      outcome: { sessionId: "test-session-1", aborted: true },
+      outcome: { sessionId: "test-session-1", aborted: true, turnsUsed: 0 },
     });
 
     // commitAll should have been called on the worktree
@@ -731,7 +731,7 @@ describe("Sleep flow (Step 5)", () => {
       targetWorker: TEST_READER,
       mailSequence: 1,
       mailPath: "/tmp/mail-001.md",
-      outcome: { sessionId: null, aborted: true },
+      outcome: { sessionId: null, aborted: true, turnsUsed: 0 },
     });
 
     expect(result).toBe(false);
@@ -2925,7 +2925,7 @@ describe("Multiple sleep/wake cycles (REQ-MAIL-4)", () => {
       targetWorker: TEST_READER,
       mailSequence: 2,
       mailPath: "/tmp/mail-002.md",
-      outcome: { sessionId: "session-2", aborted: true },
+      outcome: { sessionId: "session-2", aborted: true, turnsUsed: 0 },
     });
 
     expect(writtenData).not.toBeNull();
@@ -3449,7 +3449,7 @@ describe("Recovery uses persisted mailSequence", () => {
       targetWorker: TEST_READER,
       mailSequence: 3,
       mailPath: "/tmp/mail-003.md",
-      outcome: { sessionId: "test-session-1", aborted: true },
+      outcome: { sessionId: "test-session-1", aborted: true, turnsUsed: 0 },
     });
 
     expect(writtenData).not.toBeNull();

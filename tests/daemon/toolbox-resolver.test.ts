@@ -390,6 +390,8 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     async abandonCommission() {},
     async redispatchCommission() { return { status: "accepted" as const }; },
     async addUserNote() {},
+    async continueCommission() { return { status: "accepted" as const }; },
+    async saveCommission() {},
     async checkDependencyTransitions() {},
     async createScheduledCommission() { return { commissionId: "schedule-001" }; },
     async updateScheduleStatus() { return { outcome: "executed", status: "paused" }; },

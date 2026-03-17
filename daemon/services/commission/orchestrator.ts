@@ -83,6 +83,7 @@ import { isAtCapacity } from "@/daemon/services/commission/capacity";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
 import { createMailOrchestrator, type MailOrchestrator } from "@/daemon/services/mail/orchestrator";
 import type { SleepingCommissionState } from "@/daemon/services/mail/types";
+import type { HaltedCommissionState } from "@/daemon/services/commission/halted-types";
 
 // -- CommissionSessionForRoutes interface --
 
@@ -132,6 +133,8 @@ export interface CommissionSessionForRoutes {
     commissionId: CommissionId,
     targetStatus: string,
   ): Promise<{ outcome: string; status?: string; reason?: string }>;
+  continueCommission(commissionId: CommissionId): Promise<{ status: "accepted" | "capacity_error" }>;
+  saveCommission(commissionId: CommissionId, reason?: string): Promise<void>;
   checkDependencyTransitions(projectName: string): Promise<void>;
   recoverCommissions(): Promise<number>;
   getActiveCommissions(): number;
@@ -528,6 +531,19 @@ export function createCommissionOrchestrator(
       return;
     }
 
+    // maxTurns without result: halt instead of fail (REQ-COM-36)
+    if (!resultSubmitted && outcome.reason === "maxTurns") {
+      const halted = await handleHalt(ctx, outcome);
+      if (halted) {
+        // Halted commissions leave lifecycle tracked but exit executions.
+        // Don't call lifecycle.forget (commission stays as "halted").
+        executions.delete(ctx.commissionId);
+        enqueueAutoDispatch();
+        return;
+      }
+      // Fall through to normal fail path if halt failed (e.g. no sessionId)
+    }
+
     try {
       if (resultSubmitted) {
         // Result was submitted: attempt finalize (squash-merge)
@@ -547,6 +563,119 @@ export function createCommissionOrchestrator(
 
     enqueueAutoDispatch();
     await checkDependencyTransitions(ctx.projectName);
+  }
+
+  /**
+   * Halt entry path: commission hit maxTurns without submitting a result.
+   * Preserves the worktree, writes halted state file, increments halt_count,
+   * and records a timeline event (REQ-COM-36, REQ-COM-37, REQ-COM-38,
+   * REQ-COM-45, REQ-COM-45a).
+   *
+   * Returns true if halt succeeded, false if it failed (caller should
+   * fall through to the normal fail path).
+   */
+  async function handleHalt(
+    ctx: ExecutionContext,
+    outcome: SdkRunnerOutcome,
+  ): Promise<boolean> {
+    // 1. Commit pending changes (like sleep entry)
+    try {
+      await gitOps.commitAll(ctx.worktreeDir, `Halted (maxTurns): ${ctx.commissionId as string}`);
+    } catch (err: unknown) {
+      log.warn(`pre-halt commit failed for "${ctx.commissionId as string}":`, errorMessage(err));
+    }
+
+    // 2. Must have a sessionId for resume
+    if (!outcome.sessionId) {
+      log.error(`halt failed for "${ctx.commissionId as string}": no session ID available`);
+      return false;
+    }
+
+    // 3. Transition in_progress -> halted
+    const haltResult = await lifecycle.halt(
+      ctx.commissionId,
+      `Turn limit reached (${outcome.turnsUsed} turns used)`,
+    );
+    if (haltResult.outcome === "skipped") {
+      log.error(`halt transition skipped for "${ctx.commissionId as string}": ${haltResult.reason}`);
+      return false;
+    }
+
+    // 4. Read current progress and increment halt_count
+    const artifactPath = commissionArtifactPath(ctx.worktreeDir, ctx.commissionId);
+    let lastProgress = "";
+    let haltCount = 1;
+    try {
+      lastProgress = await recordOps.readProgress(artifactPath);
+    } catch (err: unknown) {
+      log.warn(`readProgress failed for "${ctx.commissionId as string}":`, errorMessage(err));
+    }
+    try {
+      haltCount = await recordOps.incrementHaltCount(artifactPath);
+    } catch (err: unknown) {
+      log.error(`incrementHaltCount failed for "${ctx.commissionId as string}":`, errorMessage(err));
+    }
+
+    // 5. Write halted state file (REQ-COM-37)
+    const turnsUsed = outcome.turnsUsed;
+    const stateData: HaltedCommissionState = {
+      commissionId: ctx.commissionId as string,
+      projectName: ctx.projectName,
+      workerName: ctx.workerName,
+      status: "halted",
+      worktreeDir: ctx.worktreeDir,
+      branchName: ctx.branchName,
+      sessionId: outcome.sessionId,
+      haltedAt: new Date().toISOString(),
+      turnsUsed,
+      lastProgress,
+    };
+    try {
+      await writeStateFile(
+        ctx.commissionId,
+        stateData as Record<string, unknown>,
+      );
+    } catch (err: unknown) {
+      log.error(
+        `writeStateFile failed for "${ctx.commissionId as string}", rolling back to failed:`,
+        errorMessage(err),
+      );
+      await lifecycle.executionFailed(
+        ctx.commissionId,
+        `Halt state file write failed: ${errorMessage(err)}`,
+      );
+      return false;
+    }
+
+    // 6. Append timeline event (REQ-COM-45a)
+    try {
+      await recordOps.appendTimeline(
+        artifactPath,
+        "status_halted",
+        `Turn limit reached (${turnsUsed} turns used)`,
+        {
+          turnsUsed: String(turnsUsed),
+          lastProgress,
+          haltCount: String(haltCount),
+        },
+      );
+    } catch (err: unknown) {
+      log.warn(`failed to append status_halted timeline:`, errorMessage(err));
+    }
+
+    // 7. Sync halted status to integration worktree
+    await syncStatusToIntegration(
+      ctx.commissionId,
+      ctx.projectName,
+      "halted",
+      `Turn limit reached (${turnsUsed} turns used)`,
+    );
+
+    log.info(
+      `"${ctx.commissionId as string}" halted after ${turnsUsed} turns (halt #${haltCount})`,
+    );
+
+    return true;
   }
 
   async function handleSuccessfulCompletion(ctx: ExecutionContext): Promise<void> {
@@ -794,6 +923,89 @@ export function createCommissionOrchestrator(
     enqueueAutoDispatch();
   }
 
+  // -- Halted commission cancel/abandon --
+
+  /**
+   * Cancel or abandon a halted commission with worktree cleanup.
+   * Reads the state file for worktree info, transitions, preserves branch,
+   * cleans up worktree, and forgets the commission (REQ-COM-35).
+   */
+  async function cancelHaltedCommission(
+    commissionId: CommissionId,
+    reason: string,
+    targetState: "cancelled" | "abandoned",
+  ): Promise<void> {
+    const projectName = lifecycle.getProjectName(commissionId);
+
+    // 1. Transition lifecycle first
+    if (targetState === "cancelled") {
+      try {
+        await lifecycle.cancel(commissionId, reason);
+      } catch (err: unknown) {
+        log.warn(`lifecycle.cancel failed for halted "${commissionId as string}":`, errorMessage(err));
+      }
+    } else {
+      try {
+        await lifecycle.abandon(commissionId, reason);
+      } catch (err: unknown) {
+        log.warn(`lifecycle.abandon failed for halted "${commissionId as string}":`, errorMessage(err));
+      }
+    }
+
+    // 2. Read state file for worktree info
+    const statePath = commissionStatePath(commissionId);
+    let stateData: { worktreeDir?: string; branchName?: string; workerName?: string; projectName?: string } = {};
+    try {
+      const raw = await fs.readFile(statePath, "utf-8");
+      stateData = JSON.parse(raw) as typeof stateData;
+    } catch {
+      // State file missing or corrupt; best-effort cleanup
+    }
+
+    const workerName = stateData.workerName ?? "";
+    const worktreeDir = stateData.worktreeDir;
+    const branchName = stateData.branchName ?? "";
+    const resolvedProjectName = projectName ?? stateData.projectName ?? "";
+
+    // 3. Preserve branch and clean up worktree
+    if (worktreeDir) {
+      const exists = await fileExists(worktreeDir);
+      if (exists) {
+        const project = findProject(resolvedProjectName);
+        try {
+          await workspace.preserveAndCleanup({
+            worktreeDir,
+            branchName,
+            commitMessage: `Partial work preserved (${targetState}): ${commissionId as string}`,
+            projectPath: project?.path,
+          });
+        } catch (err: unknown) {
+          log.warn(`preserveAndCleanup failed for halted "${commissionId as string}":`, errorMessage(err));
+        }
+      }
+    }
+
+    // 4. Sync status to integration and write state file
+    if (resolvedProjectName) {
+      await syncStatusToIntegration(commissionId, resolvedProjectName, targetState, reason);
+    }
+    await writeStateFile(commissionId, {
+      commissionId: commissionId as string,
+      projectName: resolvedProjectName,
+      workerName,
+      status: targetState,
+    });
+
+    lifecycle.forget(commissionId);
+
+    // Unblock dependents when abandoning
+    if (targetState === "abandoned" && resolvedProjectName) {
+      await checkDependencyTransitions(resolvedProjectName);
+    }
+
+    enqueueAutoDispatch();
+  }
+
   // -- Dependency auto-transitions --
 
   async function checkDependencyTransitions(projectName: string): Promise<void> {
@@ -1024,6 +1236,59 @@ export function createCommissionOrchestrator(
             // Already logged
           }
           await syncStatusToIntegration(cId, state.projectName, "failed", `Recovery failed: ${errorMessage(err)}`);
+          await writeStateFile(cId, {
+            commissionId: state.commissionId,
+            projectName: state.projectName,
+            workerName: state.workerName,
+            status: "failed",
+          });
+          lifecycle.forget(cId);
+        }
+
+        recovered++;
+        continue;
+      }
+
+      // Recover halted commissions: worktree exists -> stay halted, worktree missing -> fail
+      if (state.status === "halted") {
+        const cId = asCommissionId(state.commissionId);
+
+        if (lifecycle.isTracked(cId)) continue;
+
+        const project = config.projects.find((p) => p.name === state.projectName);
+        if (!project) {
+          log.warn(
+            `Halted commission "${state.commissionId}" references unknown project "${state.projectName}", skipping.`,
+          );
+          continue;
+        }
+
+        const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+        const artifactPath = commissionArtifactPath(iPath, cId);
+        const worktreeDir = state.worktreeDir;
+        const worktreeExists = worktreeDir ? await fileExists(worktreeDir) : false;
+
+        if (worktreeExists) {
+          // Worktree intact: register as halted, wait for user action
+          lifecycle.register(cId, state.projectName, "halted", artifactPath);
+          log.info(
+            `Recovered halted commission "${state.commissionId}" with intact worktree.`,
+          );
+        } else {
+          // Worktree lost: register as halted, transition to failed
+          log.info(
+            `Halted commission "${state.commissionId}" has no worktree, transitioning to failed.`,
+          );
+          lifecycle.register(cId, state.projectName, "halted", artifactPath);
+          try {
+            await lifecycle.executionFailed(cId, "Worktree lost during restart.");
+          } catch (err: unknown) {
+            log.error(
+              `Failed to transition halted "${state.commissionId}" to failed:`,
+              errorMessage(err),
+            );
+          }
+          await syncStatusToIntegration(cId, state.projectName, "failed", "Worktree lost during restart.");
           await writeStateFile(cId, {
             commissionId: state.commissionId,
             projectName: state.projectName,
@@ -1498,9 +1763,9 @@ projectName: ${projectName}
         `Cannot read status from commission "${commissionId as string}" artifact. The file may be corrupted.`,
       );
     }
-    if (status !== "pending") {
+    if (status !== "pending" && status !== "halted") {
       throw new Error(
-        `Cannot update commission "${commissionId as string}": status is "${status}", must be "pending"`,
+        `Cannot update commission "${commissionId as string}": status is "${status}", must be "pending" or "halted"`,
       );
     }
 
@@ -1921,6 +2186,391 @@ projectName: ${projectName}
     }
   }
 
+  /**
+   * Continue a halted commission. Reads the halted state file, verifies the
+   * worktree, checks capacity, transitions halted -> in_progress, and
+   * launches a resumed SDK session with a continuation prompt
+   * (REQ-COM-39, REQ-COM-40, REQ-COM-40a, REQ-COM-41).
+   */
+  async function continueCommission(
+    commissionId: CommissionId,
+  ): Promise<{ status: "accepted" | "capacity_error" }> {
+    // 1. Read halted state file
+    const statePath = commissionStatePath(commissionId);
+    let state: HaltedCommissionState;
+    try {
+      const raw = await fs.readFile(statePath, "utf-8");
+      state = JSON.parse(raw) as HaltedCommissionState;
+    } catch {
+      throw new Error(
+        `Cannot continue commission "${commissionId as string}": state file not found or corrupt`,
+      );
+    }
+
+    if (state.status !== "halted") {
+      throw new Error(
+        `Cannot continue commission "${commissionId as string}": state is "${state.status as string}", expected "halted"`,
+      );
+    }
+
+    // 2. Verify worktree exists
+    const worktreeExists = await fileExists(state.worktreeDir);
+    if (!worktreeExists) {
+      // Worktree is gone: transition to failed
+      const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+      const artifactPath = commissionArtifactPath(iPath, commissionId);
+      if (!lifecycle.isTracked(commissionId)) {
+        lifecycle.register(commissionId, state.projectName, "halted", artifactPath);
+      }
+      await lifecycle.executionFailed(commissionId, "Worktree not found for halted commission.");
+      await syncStatusToIntegration(commissionId, state.projectName, "failed", "Worktree not found for halted commission.");
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: state.projectName,
+        workerName: state.workerName,
+        status: "failed",
+      });
+      lifecycle.forget(commissionId);
+      throw new Error(
+        `Cannot continue commission "${commissionId as string}": worktree not found`,
+      );
+    }
+
+    // 3. Check capacity (REQ-COM-47)
+    const activeMap = new Map<string, { projectName: string }>();
+    for (const [id, ctx] of executions) {
+      activeMap.set(id as string, { projectName: ctx.projectName });
+    }
+    const capacityCheck = isAtCapacity(state.projectName, activeMap, config);
+    if (capacityCheck.atLimit) {
+      log.info(
+        `cannot continue "${commissionId as string}": ${capacityCheck.reason}`,
+      );
+      return { status: "capacity_error" };
+    }
+
+    // 4. Transition halted -> in_progress
+    const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+    const artifactPath = commissionArtifactPath(iPath, commissionId);
+    if (!lifecycle.isTracked(commissionId)) {
+      lifecycle.register(commissionId, state.projectName, "halted", artifactPath);
+    }
+    const continueResult = await lifecycle.continueHalted(
+      commissionId,
+      "Continued from halted state",
+    );
+    if (continueResult.outcome === "skipped") {
+      throw new Error(
+        `Cannot continue commission "${commissionId as string}": ${continueResult.reason}`,
+      );
+    }
+
+    // 5. Update state file to in_progress
+    await writeStateFile(commissionId, {
+      commissionId: commissionId as string,
+      projectName: state.projectName,
+      workerName: state.workerName,
+      status: "in_progress",
+      worktreeDir: state.worktreeDir,
+      branchName: state.branchName,
+    });
+
+    // 6. Append timeline event (REQ-COM-45a)
+    const worktreeArtifactPath = commissionArtifactPath(state.worktreeDir, commissionId);
+    try {
+      await recordOps.appendTimeline(
+        worktreeArtifactPath,
+        "status_in_progress",
+        "Continued from halted state",
+      );
+    } catch (err: unknown) {
+      log.warn(`failed to append continuation timeline:`, errorMessage(err));
+    }
+
+    // 7. Build continuation prompt (REQ-COM-41)
+    const lastProgress = state.lastProgress || "(no progress recorded)";
+    const continuationPrompt = [
+      `This commission was halted because it reached the turn limit (${state.turnsUsed} turns used).`,
+      "",
+      `Your last progress update was: ${lastProgress}`,
+      "",
+      "Continue working on the commission from where you left off. Your worktree contains all the work you've done so far. Review what remains and complete the task. When finished, call submit_result with your summary.",
+    ].join("\n");
+
+    // 8. Read resource_overrides from integration artifact for fresh turn budget (REQ-COM-40a)
+    let resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string } | undefined;
+    try {
+      const iArtifactPath = commissionArtifactPath(iPath, commissionId);
+      const artRaw = await fs.readFile(iArtifactPath, "utf-8");
+      const { data } = matter(artRaw);
+      const overrides = data.resource_overrides as { maxTurns?: number; maxBudgetUsd?: number; model?: string } | undefined;
+      if (overrides && Object.keys(overrides).length > 0) {
+        resourceOverrides = {};
+        if (overrides.maxTurns !== undefined) resourceOverrides.maxTurns = Number(overrides.maxTurns);
+        if (overrides.maxBudgetUsd !== undefined) resourceOverrides.maxBudgetUsd = Number(overrides.maxBudgetUsd);
+        if (overrides.model !== undefined) resourceOverrides.model = String(overrides.model);
+      }
+    } catch (err: unknown) {
+      log.warn(`failed to read resource_overrides for "${commissionId as string}":`, errorMessage(err));
+    }
+
+    // 9. Create ExecutionContext and add to executions map
+    const abortController = new AbortController();
+    const execCtx: ExecutionContext = {
+      commissionId,
+      projectName: state.projectName,
+      workerName: state.workerName,
+      worktreeDir: state.worktreeDir,
+      branchName: state.branchName,
+      abortController,
+      attempt: 0,
+      checkoutScope: "full",
+    };
+    executions.set(commissionId, execCtx);
+
+    // 10. Find project for the session
+    const project = findProject(state.projectName);
+    if (!project) {
+      executions.delete(commissionId);
+      throw new Error(
+        `Project "${state.projectName}" not found during continue`,
+      );
+    }
+
+    // 11. Build SessionPrepSpec with resume (REQ-COM-40)
+    const workerPkg = packages.find((p) => {
+      if (!("identity" in p.metadata)) return false;
+      return p.metadata.identity.name === state.workerName;
+    });
+    const isManager = workerPkg?.name === (deps.managerPackageName ?? "guild-hall-manager");
+    const services = isManager && selfRef.current
+      ? {
+          commissionSession: selfRef.current,
+          gitOps: gitOps,
+          config,
+          scheduleLifecycle: deps.scheduleLifecycleRef?.current,
+          recordOps,
+          packages,
+        }
+      : undefined;
+
+    const prepSpec: SessionPrepSpec = {
+      workerName: state.workerName,
+      packages,
+      config,
+      guildHallHome,
+      projectName: state.projectName,
+      projectPath: project.path,
+      workspaceDir: state.worktreeDir,
+      contextId: commissionId as string,
+      contextType: "commission",
+      eventBus,
+      services,
+      activationExtras: {
+        commissionContext: {
+          commissionId: commissionId as string,
+          prompt: continuationPrompt,
+          dependencies: [],
+        },
+      },
+      abortController,
+      resume: state.sessionId,
+      resourceOverrides,
+    };
+
+    log.info(
+      `continuing "${commissionId as string}" -> worker="${state.workerName}" (resume session ${state.sessionId})`,
+    );
+
+    // 12. Fire-and-forget: run the resumed session
+    void runCommissionSession(execCtx, prepSpec, continuationPrompt);
+
+    return { status: "accepted" };
+  }
+
+  /**
+   * Save partial work from a halted commission. Reads the halted state file,
+   * verifies the worktree, commits changes, updates result_summary, runs
+   * squash-merge, and transitions to completed with partial flag
+   * (REQ-COM-42, REQ-COM-43, REQ-COM-44, REQ-COM-45a).
+   */
+  async function saveCommission(
+    commissionId: CommissionId,
+    reason?: string,
+  ): Promise<void> {
+    // 1. Read halted state file
+    const statePath = commissionStatePath(commissionId);
+    let state: HaltedCommissionState;
+    try {
+      const raw = await fs.readFile(statePath, "utf-8");
+      state = JSON.parse(raw) as HaltedCommissionState;
+    } catch {
+      throw new Error(
+        `Cannot save commission "${commissionId as string}": state file not found or corrupt`,
+      );
+    }
+
+    if (state.status !== "halted") {
+      throw new Error(
+        `Cannot save commission "${commissionId as string}": state is "${state.status as string}", expected "halted"`,
+      );
+    }
+
+    // 2. Verify worktree exists
+    const worktreeExists = await fileExists(state.worktreeDir);
+    if (!worktreeExists) {
+      const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+      const artifactPath = commissionArtifactPath(iPath, commissionId);
+      if (!lifecycle.isTracked(commissionId)) {
+        lifecycle.register(commissionId, state.projectName, "halted", artifactPath);
+      }
+      await lifecycle.executionFailed(commissionId, "Worktree not found for save.");
+      await syncStatusToIntegration(commissionId, state.projectName, "failed", "Worktree not found for save.");
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: state.projectName,
+        workerName: state.workerName,
+        status: "failed",
+      });
+      lifecycle.forget(commissionId);
+      throw new Error(
+        `Cannot save commission "${commissionId as string}": worktree not found`,
+      );
+    }
+
+    // 3. Commit any uncommitted changes (safety net per REQ-COM-43)
+    try {
+      await gitOps.commitAll(state.worktreeDir, `Saved partial work: ${commissionId as string}`);
+    } catch (err: unknown) {
+      log.warn(`pre-save commit failed for "${commissionId as string}":`, errorMessage(err));
+    }
+
+    // 4. Update result_summary on the artifact (REQ-COM-44)
+    const lastProgress = state.lastProgress || "(no progress recorded)";
+    const resultSummary = reason
+      ?? `Partial work saved (commission was halted at ${state.turnsUsed} turns). Last progress: ${lastProgress}`;
+
+    const worktreeArtifactPath = commissionArtifactPath(state.worktreeDir, commissionId);
+    try {
+      await recordOps.updateResult(worktreeArtifactPath, resultSummary);
+    } catch (err: unknown) {
+      log.warn(`updateResult failed for "${commissionId as string}":`, errorMessage(err));
+    }
+
+    // 5. Transition halted -> completed
+    const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+    const artifactPath = commissionArtifactPath(iPath, commissionId);
+    if (!lifecycle.isTracked(commissionId)) {
+      lifecycle.register(commissionId, state.projectName, "halted", artifactPath);
+    }
+    const completeResult = await lifecycle.executionCompleted(commissionId);
+    if (completeResult.outcome === "skipped") {
+      throw new Error(
+        `Cannot save commission "${commissionId as string}": ${completeResult.reason}`,
+      );
+    }
+
+    // 6. Append timeline event before merge (REQ-COM-45a)
+    try {
+      await recordOps.appendTimeline(
+        worktreeArtifactPath,
+        "status_completed",
+        reason ?? "Saved partial work",
+        { partial: "true" },
+      );
+    } catch (err: unknown) {
+      log.warn(`failed to append save timeline:`, errorMessage(err));
+    }
+
+    // 7. Squash-merge via workspace.finalize (same as handleSuccessfulCompletion)
+    const project = findProject(state.projectName);
+    if (!project) {
+      log.error(`project "${state.projectName}" not found during save`);
+      await lifecycle.executionFailed(commissionId, "Project not found during save");
+      await syncStatusToIntegration(commissionId, state.projectName, "failed", "Project not found during save");
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: state.projectName,
+        workerName: state.workerName,
+        status: "failed",
+      });
+      lifecycle.forget(commissionId);
+      throw new Error(`Project "${state.projectName}" not found during save`);
+    }
+
+    let finalizeResult: FinalizeResult;
+    try {
+      finalizeResult = await workspace.finalize({
+        activityBranch: state.branchName,
+        worktreeDir: state.worktreeDir,
+        projectPath: project.path,
+        integrationPath: iPath,
+        activityId: commissionId as string,
+        commitMessage: `Commission saved (partial): ${commissionId as string}`,
+        commitLabel: "Commission",
+        lockFn: (fn) => withProjectLock(state.projectName, fn),
+      });
+    } catch (err: unknown) {
+      const errMsg = errorMessage(err);
+      log.error(`finalize threw during save for "${commissionId as string}":`, errMsg);
+      await lifecycle.executionFailed(commissionId, `Save finalize error: ${errMsg}`);
+      await syncStatusToIntegration(commissionId, state.projectName, "failed", `Save finalize error: ${errMsg}`);
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: state.projectName,
+        workerName: state.workerName,
+        status: "failed",
+      });
+      lifecycle.forget(commissionId);
+      throw new Error(`Save finalize error: ${errMsg}`);
+    }
+
+    if (finalizeResult.merged) {
+      // 8. Clean merge: emit event, delete state file, cleanup
+      eventBus.emit({
+        type: "commission_status",
+        commissionId: commissionId as string,
+        status: "completed",
+        reason: "Saved partial work",
+      });
+      await deleteStateFile(commissionId);
+      log.info(
+        `"${commissionId as string}" saved and squash-merged to claude`,
+      );
+    } else {
+      // 9. Merge conflict: escalate and fail (same as handleSuccessfulCompletion)
+      const conflictReason = finalizeResult.merged === false && "reason" in finalizeResult
+        ? finalizeResult.reason
+        : "Squash-merge conflict on non-.lore/ files";
+
+      if (deps.createMeetingRequestFn) {
+        await escalateMergeConflict({
+          activityType: "commission",
+          activityId: commissionId as string,
+          branchName: state.branchName,
+          projectName: state.projectName,
+          createMeetingRequest: deps.createMeetingRequestFn,
+          managerPackageName,
+        });
+      }
+
+      await lifecycle.executionFailed(commissionId, conflictReason);
+      await syncStatusToIntegration(commissionId, state.projectName, "failed", conflictReason);
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: state.projectName,
+        workerName: state.workerName,
+        status: "failed",
+      });
+
+      log.info(`"${commissionId as string}" save merge failed: ${conflictReason}`);
+    }
+
+    lifecycle.forget(commissionId);
+    enqueueAutoDispatch();
+    await checkDependencyTransitions(state.projectName);
+  }
+
   async function cancelCommission(
     commissionId: CommissionId,
     reason = "Commission cancelled by user",
@@ -1956,6 +2606,12 @@ projectName: ${projectName}
     const status = lifecycle.getStatus(commissionId);
     if (status === "sleeping") {
       await cancelSleepingCommission(commissionId, reason, "cancelled");
+      return;
+    }
+
+    // Halted commission: cancel with worktree cleanup (REQ-COM-35)
+    if (status === "halted") {
+      await cancelHaltedCommission(commissionId, reason, "cancelled");
       return;
     }
 
@@ -2020,6 +2676,12 @@ projectName: ${projectName}
     const status = lifecycle.getStatus(commissionId);
     if (status === "sleeping") {
       await cancelSleepingCommission(commissionId, reason, "abandoned");
+      return;
+    }
+
+    // Halted commission: abandon with worktree cleanup (REQ-COM-35)
+    if (status === "halted") {
+      await cancelHaltedCommission(commissionId, reason, "abandoned");
       return;
     }
 
@@ -2181,6 +2843,8 @@ projectName: ${projectName}
     updateScheduleStatus,
     updateCommission,
     dispatchCommission,
+    continueCommission,
+    saveCommission,
     cancelCommission,
     abandonCommission,
     redispatchCommission,

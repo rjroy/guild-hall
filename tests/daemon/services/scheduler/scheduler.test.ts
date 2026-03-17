@@ -223,6 +223,14 @@ function createMockRecordOps(): MockRecordOps {
       calls.push({ method: "readScheduleMetadata", args: [artifactPath] });
       return readScheduleMetadataImpl(artifactPath);
     },
+    readProgress(artifactPath: string): Promise<string> {
+      calls.push({ method: "readProgress", args: [artifactPath] });
+      return Promise.resolve("");
+    },
+    incrementHaltCount(artifactPath: string): Promise<number> {
+      calls.push({ method: "incrementHaltCount", args: [artifactPath] });
+      return Promise.resolve(1);
+    },
     writeScheduleFields(
       artifactPath: string,
       updates: Partial<{ runsCompleted: number; lastRun: string; lastSpawnedId: string; cron: string; repeat: number | null }>,
@@ -281,6 +289,10 @@ function createMockCommissionSession(): MockCommissionSession {
     updateScheduleStatus(): Promise<{ outcome: string; status?: string }> {
       return Promise.resolve({ outcome: "executed", status: "paused" });
     },
+    continueCommission(): Promise<{ status: "accepted" | "capacity_error" }> {
+      return Promise.resolve({ status: "accepted" });
+    },
+    saveCommission(): Promise<void> { return Promise.resolve(); },
     checkDependencyTransitions(): Promise<void> { return Promise.resolve(); },
     recoverCommissions(): Promise<number> { return Promise.resolve(0); },
     getActiveCommissions(): number { return 0; },

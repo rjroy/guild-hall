@@ -31,6 +31,8 @@ export interface CommissionRoutesDeps {
  * POST /commission/request/commission/update    - Update pending commission
  * POST /commission/run/dispatch                 - Dispatch commission to worker
  * POST /commission/run/cancel                   - Cancel commission
+ * POST /commission/run/continue                 - Continue halted commission
+ * POST /commission/run/save                     - Save partial work from halted commission
  * POST /commission/run/redispatch               - Re-dispatch failed/cancelled commission
  * POST /commission/run/abandon                  - Abandon a commission
  * POST /commission/request/commission/note      - User adds note
@@ -257,6 +259,71 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
         message.includes("must be \"failed\" or \"cancelled\"") ||
         message.includes("Cannot redispatch")
       ) {
+        return c.json({ error: message }, 409);
+      }
+      return c.json({ error: message }, 500);
+    }
+  });
+
+  // POST /commission/run/continue - Continue a halted commission
+  routes.post("/commission/run/continue", async (c) => {
+    let body: { commissionId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
+
+    try {
+      log.info(`POST /commission/run/continue commissionId="${commissionId as string}"`);
+      const result = await deps.commissionSession.continueCommission(commissionId);
+      if (result.status === "capacity_error") {
+        return c.json({ error: "At capacity, cannot continue commission" }, 429);
+      }
+      return c.json(result, 202);
+    } catch (err: unknown) {
+      const message = errorMessage(err);
+      log.error(`continue failed: ${message}`);
+      if (message.includes("not found")) {
+        return c.json({ error: message }, 404);
+      }
+      if (message.includes("Cannot continue")) {
+        return c.json({ error: message }, 409);
+      }
+      return c.json({ error: message }, 500);
+    }
+  });
+
+  // POST /commission/run/save - Save partial work from halted commission
+  routes.post("/commission/run/save", async (c) => {
+    let body: { commissionId?: string; reason?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
+
+    try {
+      log.info(`POST /commission/run/save commissionId="${commissionId as string}"`);
+      await deps.commissionSession.saveCommission(commissionId, body.reason);
+      return c.json({ status: "ok" });
+    } catch (err: unknown) {
+      const message = errorMessage(err);
+      log.error(`save failed: ${message}`);
+      if (message.includes("not found")) {
+        return c.json({ error: message }, 404);
+      }
+      if (message.includes("Cannot save")) {
         return c.json({ error: message }, 409);
       }
       return c.json({ error: message }, 500);
@@ -562,6 +629,32 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       idempotent: false,
       hierarchy: { root: "commission", feature: "run" },
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+    },
+    {
+      skillId: "commission.run.continue",
+      version: "1",
+      name: "continue",
+      description: "Continue a halted commission",
+      invocation: { method: "POST", path: "/commission/run/continue" },
+      sideEffects: "Transitions commission from halted to in_progress, resumes worker session",
+      context: { commissionId: true },
+
+      idempotent: false,
+      hierarchy: { root: "commission", feature: "run" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+    },
+    {
+      skillId: "commission.run.save",
+      version: "1",
+      name: "save",
+      description: "Save partial work from a halted commission",
+      invocation: { method: "POST", path: "/commission/run/save" },
+      sideEffects: "Merges partial work to integration branch, transitions to completed",
+      context: { commissionId: true },
+
+      idempotent: false,
+      hierarchy: { root: "commission", feature: "run" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }, { name: "reason", required: false, in: "body" as const }],
     },
     {
       skillId: "commission.run.cancel",

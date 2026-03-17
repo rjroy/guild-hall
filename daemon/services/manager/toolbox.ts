@@ -1,11 +1,13 @@
 /**
  * Manager toolbox: exclusive tools for the Guild Master worker.
  *
- * Provides eleven tools for project coordination:
+ * Provides thirteen tools for project coordination:
  * - create_commission: create (and optionally dispatch) a new commission
  * - dispatch_commission: dispatch an existing pending commission
- * - cancel_commission: cancel an active or pending commission
+ * - cancel_commission: cancel an active, pending, or halted commission
  * - abandon_commission: abandon a commission with a required reason
+ * - continue_commission: resume a halted commission (REQ-COM-49)
+ * - save_commission: merge partial work from a halted commission (REQ-COM-49)
  * - create_pr: push claude/main and open a PR on the hosting platform
  * - initiate_meeting: create a meeting request artifact
  * - add_commission_note: annotate a commission with a manager note
@@ -620,6 +622,109 @@ export function makeAbandonCommissionHandler(
   };
 }
 
+// -- Halted commission tools (REQ-COM-49) --
+
+export function makeContinueCommissionHandler(
+  deps: ManagerToolboxDeps,
+) {
+  const log = deps.log ?? nullLog("manager");
+  return async (args: {
+    commissionId: string;
+  }): Promise<ToolResult> => {
+    try {
+      const result = await deps.callRoute(
+        "/commission/run/continue",
+        { commissionId: args.commissionId },
+      );
+
+      if (!result.ok) {
+        log.error(
+          `Failed to continue commission "${args.commissionId}":`,
+          result.error,
+        );
+        return routeError(result.error);
+      }
+
+      const data = result.data as { status?: string };
+
+      if (data.status === "capacity_error") {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              commissionId: args.commissionId,
+              status: "capacity_error",
+              message: "Cannot continue: concurrent commission limit reached. The commission remains halted.",
+            }),
+          }],
+        };
+      }
+
+      log.info(
+        `Continued commission "${args.commissionId}"`,
+      );
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ commissionId: args.commissionId, status: "continued" }),
+        }],
+      };
+    } catch (err: unknown) {
+      log.error(
+        `Failed to continue commission "${args.commissionId}":`,
+        errorMessage(err),
+      );
+      return routeError(errorMessage(err));
+    }
+  };
+}
+
+export function makeSaveCommissionHandler(
+  deps: ManagerToolboxDeps,
+) {
+  const log = deps.log ?? nullLog("manager");
+  return async (args: {
+    commissionId: string;
+    reason?: string;
+  }): Promise<ToolResult> => {
+    try {
+      const result = await deps.callRoute(
+        "/commission/run/save",
+        {
+          commissionId: args.commissionId,
+          ...(args.reason !== undefined && { reason: args.reason }),
+        },
+      );
+
+      if (!result.ok) {
+        log.error(
+          `Failed to save commission "${args.commissionId}":`,
+          result.error,
+        );
+        return routeError(result.error);
+      }
+
+      log.info(
+        `Saved commission "${args.commissionId}"`,
+      );
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ commissionId: args.commissionId, status: "saved" }),
+        }],
+      };
+    } catch (err: unknown) {
+      log.error(
+        `Failed to save commission "${args.commissionId}":`,
+        errorMessage(err),
+      );
+      return routeError(errorMessage(err));
+    }
+  };
+}
+
 // -- Scheduled commission tools --
 
 export function makeCreateScheduledCommissionHandler(
@@ -954,6 +1059,7 @@ const SUMMARY_GROUP: Record<string, "pending" | "active" | "failed" | "completed
   dispatched: "active",
   in_progress: "active",
   sleeping: "active",
+  halted: "active",
   failed: "failed",
   cancelled: "failed",
   completed: "completed",
@@ -1020,6 +1126,28 @@ export function makeCheckCommissionStatusHandler(
           result_summary: meta.result_summary,
           linked_artifacts: meta.linked_artifacts,
         };
+
+        // REQ-COM-48: halted commission diagnostic fields
+        if (meta.status === "halted") {
+          const stateFilePath = path.join(
+            deps.guildHallHome, "state", "commissions", `${args.commissionId}.json`,
+          );
+          try {
+            const stateRaw = await fs.readFile(stateFilePath, "utf-8");
+            const stateData = JSON.parse(stateRaw) as {
+              turnsUsed?: number;
+              lastProgress?: string;
+            };
+            if (stateData.turnsUsed !== undefined) {
+              result.turnsUsed = stateData.turnsUsed;
+            }
+            if (stateData.lastProgress !== undefined) {
+              result.lastProgress = stateData.lastProgress;
+            }
+          } catch {
+            // State file missing or corrupt; omit halted diagnostic fields
+          }
+        }
 
         // REQ-CST-5: schedule metadata for scheduled commissions
         if (meta.type === "scheduled") {
@@ -1107,6 +1235,8 @@ export function createManagerToolbox(
   const dispatchCommission = makeDispatchCommissionHandler(deps);
   const cancelCommission = makeCancelCommissionHandler(deps);
   const abandonCommission = makeAbandonCommissionHandler(deps);
+  const continueCommission = makeContinueCommissionHandler(deps);
+  const saveCommission = makeSaveCommissionHandler(deps);
   const createPr = makeCreatePrHandler(deps);
   const initiateMeeting = makeInitiateMeetingHandler(deps);
   const addCommissionNote = makeAddCommissionNoteHandler(deps);
@@ -1145,7 +1275,7 @@ export function createManagerToolbox(
       ),
       tool(
         "cancel_commission",
-        "Cancel an active or pending commission. For running commissions, signals the in-process session to stop immediately. Valid from pending, blocked, or in_progress states. [skillId: commission.run.cancel]",
+        "Cancel an active, pending, or halted commission. For running commissions, signals the in-process session to stop immediately. For halted commissions, preserves the branch and cleans up the worktree. [skillId: commission.run.cancel]",
         {
           commissionId: z.string().describe("The commission ID to cancel"),
         },
@@ -1153,12 +1283,29 @@ export function createManagerToolbox(
       ),
       tool(
         "abandon_commission",
-        "Abandon a commission that won't be completed through the commission process. Use when work was done elsewhere, is no longer relevant, or isn't worth retrying. Valid from pending, blocked, failed, or cancelled states. Requires a reason for the audit trail. [skillId: commission.run.abandon]",
+        "Abandon a commission that won't be completed through the commission process. Use when work was done elsewhere, is no longer relevant, or isn't worth retrying. Valid from pending, blocked, failed, cancelled, or halted states. Requires a reason for the audit trail. [skillId: commission.run.abandon]",
         {
           commissionId: z.string().describe("The commission ID to abandon"),
           reason: z.string().describe("Why the commission is being abandoned"),
         },
         (args) => abandonCommission(args),
+      ),
+      tool(
+        "continue_commission",
+        "Continue a halted commission from where it stopped. Resumes the session in the same worktree with a fresh turn budget. Only valid for commissions in 'halted' status. Returns capacity_error if the concurrent limit is reached. [skillId: commission.run.continue]",
+        {
+          commissionId: z.string().describe("The commission ID to continue"),
+        },
+        (args) => continueCommission(args),
+      ),
+      tool(
+        "save_commission",
+        "Save partial work from a halted commission. Merges the work done so far into the integration branch and marks the commission as completed (partial). Only valid for commissions in 'halted' status. [skillId: commission.run.save]",
+        {
+          commissionId: z.string().describe("The commission ID to save"),
+          reason: z.string().optional().describe("Why the partial work is being saved. If omitted, a system-generated message is used."),
+        },
+        (args) => saveCommission(args),
       ),
       tool(
         "create_pr",

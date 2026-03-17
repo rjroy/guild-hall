@@ -42,6 +42,7 @@ export type CommissionStatus =
   | "dispatched"
   | "in_progress"
   | "sleeping"
+  | "halted"
   | "completed"
   | "failed"
   | "cancelled"

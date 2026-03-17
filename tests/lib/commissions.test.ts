@@ -166,6 +166,26 @@ describe("readCommissionMeta", () => {
     const meta = await readCommissionMeta(filePath, "test-project");
     expect(meta.result_summary).toBe("New body value.");
   });
+
+  test("parses halt_count when present", async () => {
+    const filePath = await writeCommission(
+      "commission-halted.md",
+      `title: Halted Commission\nstatus: halted\nworker: researcher\nhalt_count: 2`,
+    );
+
+    const meta = await readCommissionMeta(filePath, "test-project");
+    expect(meta.halt_count).toBe(2);
+  });
+
+  test("halt_count is undefined when absent", async () => {
+    const filePath = await writeCommission(
+      "commission-no-halt.md",
+      `title: Normal Commission\nstatus: pending\nworker: researcher`,
+    );
+
+    const meta = await readCommissionMeta(filePath, "test-project");
+    expect(meta.halt_count).toBeUndefined();
+  });
 });
 
 // -- scanCommissions --

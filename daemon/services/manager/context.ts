@@ -147,7 +147,7 @@ function buildCommissionSection(commissions: CommissionMeta[]): string {
   }
 
   const active = commissions.filter(
-    (c) => c.status === "dispatched" || c.status === "in_progress",
+    (c) => c.status === "dispatched" || c.status === "in_progress" || c.status === "sleeping" || c.status === "halted",
   );
   const pending = commissions.filter(
     (c) => c.status === "pending" || c.status === "blocked",
