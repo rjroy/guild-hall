@@ -2,10 +2,10 @@
 title: Guild Hall Vision
 date: 2026-03-17
 version: 1
-status: active
+status: approved
 last_reviewed: 2026-03-17
-approved_by: null
-approved_date: null
+approved_by: Ronald Roy
+approved_date: 2026-03-17
 review_trigger: "after major architectural changes or quarterly"
 tags: [vision]
 changelog:
