@@ -1,7 +1,7 @@
 ---
 title: "Commission: Halted commission: Phase 5 - Crash recovery"
 date: 2026-03-17
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-17T03:07:57.373Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-17T03:15:10.334Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---

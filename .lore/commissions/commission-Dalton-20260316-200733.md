@@ -1,7 +1,7 @@
 ---
 title: "Commission: Halted commission: Phase 2 - Halt entry path"
 date: 2026-03-17
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-17T03:07:33.352Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-17T03:15:10.334Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
