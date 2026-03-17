@@ -134,6 +134,7 @@ export interface CommissionSessionForRoutes {
     targetStatus: string,
   ): Promise<{ outcome: string; status?: string; reason?: string }>;
   continueCommission(commissionId: CommissionId): Promise<{ status: "accepted" | "capacity_error" }>;
+  saveCommission(commissionId: CommissionId, reason?: string): Promise<void>;
   checkDependencyTransitions(projectName: string): Promise<void>;
   recoverCommissions(): Promise<number>;
   getActiveCommissions(): number;
@@ -2251,6 +2252,189 @@ projectName: ${projectName}
     return { status: "accepted" };
   }
 
+  /**
+   * Save partial work from a halted commission. Reads the halted state file,
+   * verifies the worktree, commits changes, updates result_summary, runs
+   * squash-merge, and transitions to completed with partial flag
+   * (REQ-COM-42, REQ-COM-43, REQ-COM-44, REQ-COM-45a).
+   */
+  async function saveCommission(
+    commissionId: CommissionId,
+    reason?: string,
+  ): Promise<void> {
+    // 1. Read halted state file
+    const statePath = commissionStatePath(commissionId);
+    let state: HaltedCommissionState;
+    try {
+      const raw = await fs.readFile(statePath, "utf-8");
+      state = JSON.parse(raw) as HaltedCommissionState;
+    } catch {
+      throw new Error(
+        `Cannot save commission "${commissionId as string}": state file not found or corrupt`,
+      );
+    }
+
+    if (state.status !== "halted") {
+      throw new Error(
+        `Cannot save commission "${commissionId as string}": state is "${state.status}", expected "halted"`,
+      );
+    }
+
+    // 2. Verify worktree exists
+    const worktreeExists = await fileExists(state.worktreeDir);
+    if (!worktreeExists) {
+      const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+      const artifactPath = commissionArtifactPath(iPath, commissionId);
+      if (!lifecycle.isTracked(commissionId)) {
+        lifecycle.register(commissionId, state.projectName, "halted", artifactPath);
+      }
+      await lifecycle.executionFailed(commissionId, "Worktree not found for save.");
+      await syncStatusToIntegration(commissionId, state.projectName, "failed", "Worktree not found for save.");
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: state.projectName,
+        workerName: state.workerName,
+        status: "failed",
+      });
+      lifecycle.forget(commissionId);
+      throw new Error(
+        `Cannot save commission "${commissionId as string}": worktree not found`,
+      );
+    }
+
+    // 3. Commit any uncommitted changes (safety net per REQ-COM-43)
+    try {
+      await gitOps.commitAll(state.worktreeDir, `Saved partial work: ${commissionId as string}`);
+    } catch (err: unknown) {
+      log.warn(`pre-save commit failed for "${commissionId as string}":`, errorMessage(err));
+    }
+
+    // 4. Update result_summary on the artifact (REQ-COM-44)
+    const lastProgress = state.lastProgress || "(no progress recorded)";
+    const resultSummary = reason
+      ?? `Partial work saved (commission was halted at ${state.turnsUsed} turns). Last progress: ${lastProgress}`;
+
+    const worktreeArtifactPath = commissionArtifactPath(state.worktreeDir, commissionId);
+    try {
+      await recordOps.updateResult(worktreeArtifactPath, resultSummary);
+    } catch (err: unknown) {
+      log.warn(`updateResult failed for "${commissionId as string}":`, errorMessage(err));
+    }
+
+    // 5. Transition halted -> completed
+    const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+    const artifactPath = commissionArtifactPath(iPath, commissionId);
+    if (!lifecycle.isTracked(commissionId)) {
+      lifecycle.register(commissionId, state.projectName, "halted", artifactPath);
+    }
+    const completeResult = await lifecycle.executionCompleted(commissionId);
+    if (completeResult.outcome === "skipped") {
+      throw new Error(
+        `Cannot save commission "${commissionId as string}": ${completeResult.reason}`,
+      );
+    }
+
+    // 6. Append timeline event before merge (REQ-COM-45a)
+    try {
+      await recordOps.appendTimeline(
+        worktreeArtifactPath,
+        "status_completed",
+        reason ?? "Saved partial work",
+        { partial: "true" },
+      );
+    } catch (err: unknown) {
+      log.warn(`failed to append save timeline:`, errorMessage(err));
+    }
+
+    // 7. Squash-merge via workspace.finalize (same as handleSuccessfulCompletion)
+    const project = findProject(state.projectName);
+    if (!project) {
+      log.error(`project "${state.projectName}" not found during save`);
+      await lifecycle.executionFailed(commissionId, "Project not found during save");
+      await syncStatusToIntegration(commissionId, state.projectName, "failed", "Project not found during save");
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: state.projectName,
+        workerName: state.workerName,
+        status: "failed",
+      });
+      lifecycle.forget(commissionId);
+      throw new Error(`Project "${state.projectName}" not found during save`);
+    }
+
+    let finalizeResult: FinalizeResult;
+    try {
+      finalizeResult = await workspace.finalize({
+        activityBranch: state.branchName,
+        worktreeDir: state.worktreeDir,
+        projectPath: project.path,
+        integrationPath: iPath,
+        activityId: commissionId as string,
+        commitMessage: `Commission saved (partial): ${commissionId as string}`,
+        commitLabel: "Commission",
+        lockFn: (fn) => withProjectLock(state.projectName, fn),
+      });
+    } catch (err: unknown) {
+      const errMsg = errorMessage(err);
+      log.error(`finalize threw during save for "${commissionId as string}":`, errMsg);
+      await lifecycle.executionFailed(commissionId, `Save finalize error: ${errMsg}`);
+      await syncStatusToIntegration(commissionId, state.projectName, "failed", `Save finalize error: ${errMsg}`);
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: state.projectName,
+        workerName: state.workerName,
+        status: "failed",
+      });
+      lifecycle.forget(commissionId);
+      throw new Error(`Save finalize error: ${errMsg}`);
+    }
+
+    if (finalizeResult.merged) {
+      // 8. Clean merge: emit event, delete state file, cleanup
+      eventBus.emit({
+        type: "commission_status",
+        commissionId: commissionId as string,
+        status: "completed",
+        reason: "Saved partial work",
+      });
+      await deleteStateFile(commissionId);
+      log.info(
+        `"${commissionId as string}" saved and squash-merged to claude`,
+      );
+    } else {
+      // 9. Merge conflict: escalate and fail (same as handleSuccessfulCompletion)
+      const conflictReason = finalizeResult.merged === false && "reason" in finalizeResult
+        ? finalizeResult.reason
+        : "Squash-merge conflict on non-.lore/ files";
+
+      if (deps.createMeetingRequestFn) {
+        await escalateMergeConflict({
+          activityType: "commission",
+          activityId: commissionId as string,
+          branchName: state.branchName,
+          projectName: state.projectName,
+          createMeetingRequest: deps.createMeetingRequestFn,
+          managerPackageName,
+        });
+      }
+
+      await lifecycle.executionFailed(commissionId, conflictReason);
+      await syncStatusToIntegration(commissionId, state.projectName, "failed", conflictReason);
+      await writeStateFile(commissionId, {
+        commissionId: commissionId as string,
+        projectName: state.projectName,
+        workerName: state.workerName,
+        status: "failed",
+      });
+
+      log.info(`"${commissionId as string}" save merge failed: ${conflictReason}`);
+    }
+
+    lifecycle.forget(commissionId);
+    enqueueAutoDispatch();
+    await checkDependencyTransitions(state.projectName);
+  }
+
   async function cancelCommission(
     commissionId: CommissionId,
     reason = "Commission cancelled by user",
@@ -2512,6 +2696,7 @@ projectName: ${projectName}
     updateCommission,
     dispatchCommission,
     continueCommission,
+    saveCommission,
     cancelCommission,
     abandonCommission,
     redispatchCommission,
