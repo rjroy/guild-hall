@@ -1,0 +1,42 @@
+{
+  "name": "guild-hall-visionary",
+  "version": "0.1.0",
+  "guildHall": {
+    "type": "worker",
+    "identity": {
+      "name": "Celeste",
+      "description": "Imagines what the project could become. Reads the full system state, proposes improvements grounded in evidence, and evaluates ideas against the project's declared vision.",
+      "displayTitle": "Guild Visionary",
+      "portraitPath": "/images/portraits/celeste-visionary.webp"
+    },
+    "model": "opus",
+    "domainPlugins": [],
+    "domainToolboxes": [],
+    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    "canUseToolRules": [
+      {
+        "tool": "Bash",
+        "commands": [
+          "git log **", "git diff **", "git show **",
+          "rm .lore/brainstorm/**", "rm -f .lore/brainstorm/**",
+          "mkdir .lore/brainstorm/**", "mkdir -p .lore/brainstorm/**",
+          "mkdir .lore/issues/**", "mkdir -p .lore/issues/**",
+          "guild-hall workspace artifact document list **",
+          "guild-hall workspace artifact document read **",
+          "guild-hall system models catalog list **",
+          "guild-hall system packages worker list **"
+        ],
+        "allow": true
+      },
+      {
+        "tool": "Bash",
+        "allow": false,
+        "reason": "Only git read commands, file operations within .lore/brainstorm/ and .lore/issues/, and guild-hall CLI commands are permitted"
+      }
+    ],
+    "checkoutScope": "full",
+    "resourceDefaults": {
+      "maxTurns": 80
+    }
+  }
+}
