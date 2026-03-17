@@ -1,7 +1,7 @@
 ---
 title: "Commission: Vision doc: Remove resolved filesystem constraint"
 date: 2026-03-17
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -14,6 +14,11 @@ activity_timeline:
   - timestamp: 2026-03-17T21:13:08.535Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-17T21:15:49.656Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---

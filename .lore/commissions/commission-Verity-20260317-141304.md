@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research: Claude Code hooks for artifact provenance stamping"
 date: 2026-03-17
-status: dispatched
+status: failed
 type: one-shot
 tags: [commission]
 worker: Verity
@@ -19,6 +19,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-17T21:15:49.655Z
+    event: status_failed
+    reason: "Session error: Claude Code returned an error result: API Error: 500 {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"Internal server error\"},\"request_id\":\"req_011CZ9LzNFpFEhQTu3UbV9An\"}"
 current_progress: ""
 projectName: guild-hall
 ---
