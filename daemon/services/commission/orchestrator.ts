@@ -1166,6 +1166,59 @@ export function createCommissionOrchestrator(
         continue;
       }
 
+      // Recover halted commissions: worktree exists -> stay halted, worktree missing -> fail
+      if (state.status === "halted") {
+        const cId = asCommissionId(state.commissionId);
+
+        if (lifecycle.isTracked(cId)) continue;
+
+        const project = config.projects.find((p) => p.name === state.projectName);
+        if (!project) {
+          log.warn(
+            `Halted commission "${state.commissionId}" references unknown project "${state.projectName}", skipping.`,
+          );
+          continue;
+        }
+
+        const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
+        const artifactPath = commissionArtifactPath(iPath, cId);
+        const worktreeDir = state.worktreeDir;
+        const worktreeExists = worktreeDir ? await fileExists(worktreeDir) : false;
+
+        if (worktreeExists) {
+          // Worktree intact: register as halted, wait for user action
+          lifecycle.register(cId, state.projectName, "halted", artifactPath);
+          log.info(
+            `Recovered halted commission "${state.commissionId}" with intact worktree.`,
+          );
+        } else {
+          // Worktree lost: register as halted, transition to failed
+          log.info(
+            `Halted commission "${state.commissionId}" has no worktree, transitioning to failed.`,
+          );
+          lifecycle.register(cId, state.projectName, "halted", artifactPath);
+          try {
+            await lifecycle.executionFailed(cId, "Worktree lost during restart.");
+          } catch (err: unknown) {
+            log.error(
+              `Failed to transition halted "${state.commissionId}" to failed:`,
+              errorMessage(err),
+            );
+          }
+          await syncStatusToIntegration(cId, state.projectName, "failed", "Worktree lost during restart.");
+          await writeStateFile(cId, {
+            commissionId: state.commissionId,
+            projectName: state.projectName,
+            workerName: state.workerName,
+            status: "failed",
+          });
+          lifecycle.forget(cId);
+        }
+
+        recovered++;
+        continue;
+      }
+
       // Only recover active commissions (dispatched or in_progress)
       if (state.status !== "dispatched" && state.status !== "in_progress") {
         continue;

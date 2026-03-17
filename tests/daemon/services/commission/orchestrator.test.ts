@@ -849,6 +849,121 @@ describe("recovery flow", () => {
     const recovered = await orchestrator.recoverCommissions();
     expect(recovered).toBe(0);
   });
+
+  test("recovers halted commission with existing worktree: stays halted", async () => {
+    const haltedId = "commission-halted-001";
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, haltedId);
+    await fs.mkdir(worktreeDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(ghHome, "state", "commissions", `${haltedId}.json`),
+      JSON.stringify({
+        commissionId: haltedId,
+        projectName: TEST_PROJECT,
+        workerName: TEST_WORKER,
+        status: "halted",
+        worktreeDir,
+        branchName: `claude/commission/${haltedId}`,
+        sessionId: "test-session-halted",
+        haltedAt: new Date().toISOString(),
+        turnsUsed: 150,
+        lastProgress: "Working on tests",
+      }),
+      "utf-8",
+    );
+
+    await writeCommissionArtifact(integrationPath, haltedId, { status: "halted" });
+
+    const workspace = createMockWorkspace();
+    const { orchestrator, lifecycle } = buildDeps({ workspace });
+
+    const recovered = await orchestrator.recoverCommissions();
+    expect(recovered).toBe(1);
+
+    // Commission should be registered as halted, not transitioned to failed
+    const status = lifecycle.getStatus(asCommissionId(haltedId));
+    expect(status).toBe("halted");
+
+    // No preserveAndCleanup should have been called (worktree stays)
+    const preserveCalls = workspace.calls.filter((c) => c.method === "preserveAndCleanup");
+    expect(preserveCalls.length).toBe(0);
+  });
+
+  test("recovers halted commission with missing worktree: transitions to failed", async () => {
+    const haltedId = "commission-halted-002";
+    // Deliberately NOT creating the worktree directory
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, haltedId);
+
+    await fs.writeFile(
+      path.join(ghHome, "state", "commissions", `${haltedId}.json`),
+      JSON.stringify({
+        commissionId: haltedId,
+        projectName: TEST_PROJECT,
+        workerName: TEST_WORKER,
+        status: "halted",
+        worktreeDir,
+        branchName: `claude/commission/${haltedId}`,
+        sessionId: "test-session-halted",
+        haltedAt: new Date().toISOString(),
+        turnsUsed: 100,
+        lastProgress: "Partial progress",
+      }),
+      "utf-8",
+    );
+
+    await writeCommissionArtifact(integrationPath, haltedId, { status: "halted" });
+
+    const workspace = createMockWorkspace();
+    const { orchestrator, lifecycle } = buildDeps({ workspace });
+
+    const recovered = await orchestrator.recoverCommissions();
+    expect(recovered).toBe(1);
+
+    // Commission should have transitioned to failed and been forgotten
+    expect(lifecycle.isTracked(asCommissionId(haltedId))).toBe(false);
+
+    // State file should be updated to failed
+    const stateRaw = await fs.readFile(
+      path.join(ghHome, "state", "commissions", `${haltedId}.json`),
+      "utf-8",
+    );
+    const stateData = JSON.parse(stateRaw) as { status: string };
+    expect(stateData.status).toBe("failed");
+  });
+
+  test("halted commission does not count against capacity after recovery", async () => {
+    const haltedId = "commission-halted-cap";
+    const worktreeDir = path.join(ghHome, "worktrees", TEST_PROJECT, haltedId);
+    await fs.mkdir(worktreeDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(ghHome, "state", "commissions", `${haltedId}.json`),
+      JSON.stringify({
+        commissionId: haltedId,
+        projectName: TEST_PROJECT,
+        workerName: TEST_WORKER,
+        status: "halted",
+        worktreeDir,
+        branchName: `claude/commission/${haltedId}`,
+        sessionId: "test-session-cap",
+        haltedAt: new Date().toISOString(),
+        turnsUsed: 50,
+        lastProgress: "",
+      }),
+      "utf-8",
+    );
+
+    await writeCommissionArtifact(integrationPath, haltedId, { status: "halted" });
+
+    const { orchestrator, lifecycle } = buildDeps();
+
+    await orchestrator.recoverCommissions();
+
+    // The halted commission is tracked but should not be in activeCount
+    expect(lifecycle.isTracked(asCommissionId(haltedId))).toBe(true);
+    expect(lifecycle.getStatus(asCommissionId(haltedId))).toBe("halted");
+    expect(lifecycle.activeCount).toBe(0);
+  });
 });
 
 describe("dependency auto-transitions", () => {
