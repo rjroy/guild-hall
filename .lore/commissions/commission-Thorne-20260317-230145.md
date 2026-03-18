@@ -1,7 +1,7 @@
 ---
 title: "Commission: Email refactor: Validation review (Step 9)"
 date: 2026-03-18
-status: cancelled
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -26,6 +26,11 @@ activity_timeline:
     reason: "Commission cancelled by user"
     from: "blocked"
     to: "cancelled"
+  - timestamp: 2026-03-18T12:58:32.195Z
+    event: status_abandoned
+    reason: "Incorrect dependency. It's been recreated. "
+    from: "cancelled"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---

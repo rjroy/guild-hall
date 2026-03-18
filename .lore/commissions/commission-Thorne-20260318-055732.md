@@ -1,7 +1,7 @@
 ---
 title: "Commission: Email refactor: Validation review (Step 9)"
 date: 2026-03-18
-status: dispatched
+status: failed
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -19,6 +19,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-18T13:01:16.927Z
+    event: status_failed
+    reason: "Session error: Claude Code returned an error result: API Error: 529 {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"},\"request_id\":\"req_011CZAb6riPGwzCh9qHzvF5H\"}"
 current_progress: ""
 projectName: guild-hall
 ---
