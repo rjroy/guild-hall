@@ -1,7 +1,7 @@
 ---
 title: "Commission: Skill-to-Operations: Lore docs + CLAUDE.md (Steps 10-11)"
 date: 2026-03-18
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -20,6 +20,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-18T03:59:25.911Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-18T03:59:25.913Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
