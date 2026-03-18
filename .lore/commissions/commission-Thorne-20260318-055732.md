@@ -1,7 +1,7 @@
 ---
 title: "Commission: Email refactor: Validation review (Step 9)"
 date: 2026-03-18
-status: failed
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -22,6 +22,16 @@ activity_timeline:
   - timestamp: 2026-03-18T13:01:16.927Z
     event: status_failed
     reason: "Session error: Claude Code returned an error result: API Error: 529 {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"},\"request_id\":\"req_011CZAb6riPGwzCh9qHzvF5H\"}"
+  - timestamp: 2026-03-18T13:28:50.072Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "failed"
+    to: "pending"
+  - timestamp: 2026-03-18T13:28:50.073Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
