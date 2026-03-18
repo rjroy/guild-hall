@@ -1,7 +1,7 @@
 ---
 title: Commission Halted State and Continuation
 date: 2026-03-16
-status: approved
+status: implemented
 tags: [commissions, lifecycle, halted, continuation, maxTurns, recovery]
 modules: [commission-orchestrator, commission-lifecycle, sdk-runner]
 related:
