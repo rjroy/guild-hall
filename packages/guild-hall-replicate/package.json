@@ -1,9 +1,0 @@
-{
-  "name": "guild-hall-replicate",
-  "version": "0.1.0",
-  "guildHall": {
-    "type": "toolbox",
-    "name": "guild-hall-replicate",
-    "description": "Image generation, editing, and background removal via Replicate."
-  }
-}
