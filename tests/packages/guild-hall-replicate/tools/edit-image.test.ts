@@ -105,7 +105,8 @@ describe("edit_image handler", () => {
 
     expect(result.isError).toBeUndefined();
     const data = JSON.parse(result.content[0].text);
-    expect(data.files).toHaveLength(1);
+    expect(typeof data.file).toBe("string");
+    expect(data.file).toContain("edit_image");
     expect(data.prediction_id).toBe("pred-edit123");
   });
 

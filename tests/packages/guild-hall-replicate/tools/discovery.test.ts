@@ -134,6 +134,8 @@ describe("check_prediction handler", () => {
         output: ["https://replicate.delivery/img.png"],
         metrics: { predict_time: 2.1 },
         created_at: "2026-01-01T00:00:00Z",
+        started_at: "2026-01-01T00:00:01Z",
+        completed_at: "2026-01-01T00:00:03Z",
       },
     }]);
     const client = new ReplicateClient("test-token", fetchFn);
@@ -145,6 +147,7 @@ describe("check_prediction handler", () => {
     expect(data.status).toBe("succeeded");
     expect(data.output).toEqual(["https://replicate.delivery/img.png"]);
     expect(data.prediction_id).toBe("pred-1");
+    expect(data.elapsed_seconds).toBe(2);
   });
 
   test("returns status and error for failed prediction", async () => {

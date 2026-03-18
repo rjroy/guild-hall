@@ -78,22 +78,14 @@ export function makeEditImageHandler(client: ReplicateClient, deps: EditImageDep
       }
 
       const outputDir = await resolveOutputDir(deps);
-      const outputs = Array.isArray(prediction.output)
-        ? prediction.output
-        : prediction.output
-          ? [prediction.output]
-          : [];
+      const outputUrl = Array.isArray(prediction.output)
+        ? prediction.output[0]
+        : prediction.output ?? "";
 
-      const files: string[] = [];
-      for (const url of outputs) {
-        const ext = detectExtension(url);
-        const filename = files.length === 0
-          ? generateFilename("edit_image", prediction.id, ext, args.output_filename)
-          : generateFilename("edit_image", prediction.id, ext);
-        const outputPath = path.join(outputDir, filename);
-        await client.downloadFile(url, outputPath);
-        files.push(outputPath);
-      }
+      const ext = detectExtension(outputUrl);
+      const filename = generateFilename("edit_image", prediction.id, ext, args.output_filename);
+      const outputPath = path.join(outputDir, filename);
+      await client.downloadFile(outputUrl, outputPath);
 
       const elapsed_ms = Date.now() - start;
       const cost_estimate = getCostEstimate(model);
@@ -103,14 +95,14 @@ export function makeEditImageHandler(client: ReplicateClient, deps: EditImageDep
         action: "generated",
         tool: "edit_image",
         model,
-        files,
+        files: [outputPath],
         cost: cost_estimate,
         projectName: deps.projectName,
         contextId: deps.contextId,
       });
 
       return textResult({
-        files,
+        file: outputPath,
         model,
         prediction_id: prediction.id,
         cost_estimate,
