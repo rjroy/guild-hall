@@ -2,7 +2,7 @@
 title: "Commission maxTurns abandons partial work with no recovery path"
 description: "When a commission hits maxTurns, the session ends with no clear recovery mechanism or distinction from other failures"
 date: 2026-03-14
-status: open
+status: resolved
 tags: [commission, maxTurns, recovery, UX]
 ---
 
