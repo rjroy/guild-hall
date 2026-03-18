@@ -63,7 +63,24 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
       "model": "sonnet",
       "domainToolboxes": ["guild-hall-replicate"],
       "domainPlugins": [],
-      "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit"],
+      "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+      "canUseToolRules": [
+        {
+          "tool": "Bash",
+          "commands": [
+            "mv .lore/**", "cp .lore/**",
+            "rm .lore/**", "rm -f .lore/**",
+            "mkdir .lore/**", "mkdir -p .lore/**",
+            "ls .lore/**"
+          ],
+          "allow": true
+        },
+        {
+          "tool": "Bash",
+          "allow": false,
+          "reason": "Only file operations (mv, cp, rm, mkdir, ls) within .lore/ are permitted"
+        }
+      ],
       "checkoutScope": "sparse",
       "resourceDefaults": {
         "maxTurns": 120
@@ -101,18 +118,68 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
 
 ### Built-in Tools and Access Rules
 
-- REQ-ILL-6: The `builtInTools` declaration is `["Read", "Glob", "Grep", "Write", "Edit"]`. These are the base file tools for reading project context and writing artifacts.
+- REQ-ILL-6: The `builtInTools` declaration is `["Read", "Glob", "Grep", "Write", "Edit", "Bash"]`. These are the file tools for reading project context, writing artifacts, and organizing generated image files.
 
   **Included and why:**
   - `Read`, `Glob`, `Grep`: Reading project context (specs, briefs, previous commission results, style guide artifacts) to inform creative decisions. Reading existing images in `.lore/generated/` for visual consistency.
   - `Write`, `Edit`: Writing creative briefs and style guide artifacts to `.lore/`. Updating memory sections at commission end.
+  - `Bash`: File operations on generated images (rename, move, delete, directory creation). The domain toolbox controls where files are initially written (`.lore/generated/`), but the Illuminator needs to organize them as part of her creative workflow: renaming outputs to meaningful names, moving files to project-specific subdirectories, deleting failed drafts during iteration. Claude Code has no built-in Delete, Mkdir, or Move tool, so Bash is required for these operations. Constrained by `canUseToolRules` (REQ-ILL-7).
 
   **Excluded and why:**
-  - `Bash`: No shell commands needed. The domain toolbox handles all external API interaction. No file deletion, directory creation, or git commands are part of the Illuminator's workflow.
   - `WebSearch`, `WebFetch`: Visual references come from the project's own assets and the Replicate toolbox, not from web scraping. Web research is Verity's domain.
   - `Skill`, `Task`: The Illuminator's work is self-contained within the domain toolbox. No sub-agent delegation or skill invocation needed in the initial version.
 
-- REQ-ILL-7: The Illuminator MUST NOT have `canUseToolRules`. Without Bash in `builtInTools`, there is no tool that needs runtime argument filtering. The trust boundary is the tool set itself (REQ-WKR-17). Write and Edit access is constrained by posture (write to `.lore/` only), following the same pattern as other workers.
+- REQ-ILL-7: The Illuminator MUST declare `canUseToolRules` that restrict Bash to file operations within `.lore/`. This follows the allowlist-then-deny pattern established in the worker tool rules spec (REQ-WTR-4 through REQ-WTR-7 for Octavia's precedent).
+
+  **Justification:** The Illuminator needs to rename, move, and delete generated images, and create subdirectories for organization. These are file management operations, not general shell access. The rules constrain Bash to the minimum needed for the creative workflow.
+
+  The allowed commands:
+
+  | Pattern | Purpose |
+  |---------|---------|
+  | `mv .lore/**` | Rename or move generated images within `.lore/` (e.g., rename `output_1.png` to `cover-art-dark-v2.png`, move to project subdirectory) |
+  | `cp .lore/**` | Copy generated images within `.lore/` (e.g., preserve a draft before editing) |
+  | `rm .lore/**` | Delete failed drafts or superseded outputs |
+  | `rm -f .lore/**` | Delete with force flag (suppresses "not found" errors during batch cleanup) |
+  | `mkdir .lore/**` | Create a subdirectory within `.lore/` |
+  | `mkdir -p .lore/**` | Create a subdirectory and parents within `.lore/` |
+  | `ls .lore/**` | List directory contents within `.lore/` (inventory generated images) |
+
+  Catch-all deny reason: `"Only file operations (mv, cp, rm, mkdir, ls) within .lore/ are permitted"`
+
+  > **`mv` pattern limitation:** Same as documented in worker-tool-rules.md (REQ-WTR-5 note): `mv .lore/**` validates the source is within `.lore/` but cannot validate the destination. Acceptable because the Illuminator operates in a sandboxed worktree (Gate 2) and `canUseToolRules` is an intent filter, not a security boundary.
+
+  > **No recursive deletion:** The patterns do not include `-r`, `-rf`, or `-ri` flags. `rm .lore/**` and `rm -f .lore/**` delete individual files only. Micromatch prefix matching ensures `rm -rf` does not match the `rm -f` pattern (the prefix is `rm -rf `, not `rm -f `). Same logic as REQ-WTR-7.
+
+  The exact `package.json` `canUseToolRules` declaration:
+
+  ```json
+  {
+    "guildHall": {
+      "canUseToolRules": [
+        {
+          "tool": "Bash",
+          "commands": [
+            "mv .lore/**", "cp .lore/**",
+            "rm .lore/**", "rm -f .lore/**",
+            "mkdir .lore/**", "mkdir -p .lore/**",
+            "ls .lore/**"
+          ],
+          "allow": true
+        },
+        {
+          "tool": "Bash",
+          "allow": false,
+          "reason": "Only file operations (mv, cp, rm, mkdir, ls) within .lore/ are permitted"
+        }
+      ]
+    }
+  }
+  ```
+
+  With Bash added to `builtInTools`, Phase 1 sandbox enforcement activates automatically (per REQ-SBX-2). Even if a command passed the `canUseToolRules` check, the sandbox restricts filesystem writes to the worktree and blocks network access. Defense in depth.
+
+  Write and Edit access remains constrained by posture (write to `.lore/` only), following the same pattern as other workers.
 
 ### Checkout Scope
 
@@ -351,7 +418,7 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
 
 **Model: Sonnet over Opus.** This is the first roster worker to default to Sonnet. The reasoning: the Illuminator's cognitive load is lighter than synthesis workers. Read a brief, make creative decisions, call tools, iterate. The expensive part is the Replicate API calls, not the model reasoning. If quality proves insufficient, upgrade to Opus in the package metadata.
 
-**No Bash.** The Illuminator has no shell command needs. The domain toolbox handles all external API interaction. File creation is handled by the toolbox (REQ-RPL-17). No file deletion, directory creation, or git commands are required. This is the tightest built-in tool set of any roster worker.
+**Bash with canUseToolRules.** The domain toolbox handles API interaction and initial file creation (REQ-RPL-17), but the Illuminator needs to organize generated outputs: rename files to meaningful names, move them to project subdirectories, delete failed drafts during iteration, and list directory contents. Claude Code has no built-in Delete, Mkdir, or Move tool. Bash is constrained by `canUseToolRules` to file operations (`mv`, `cp`, `rm`, `mkdir`, `ls`) within `.lore/` only. No git, no network commands, no package management, no operations outside `.lore/`. This follows the same allowlist-then-deny pattern used by Octavia (REQ-WTR-4) and the Guild Master (REQ-WTR-10). The Phase 1 SDK sandbox provides the hard security boundary; `canUseToolRules` narrows intent.
 
 **No Skill or Task.** The Illuminator's work is self-contained. No sub-agent delegation, no domain plugin skills. If future use cases reveal a need (e.g., delegating a reference research sub-task to Verity via Task), these can be added to `builtInTools` without a spec change.
 
@@ -401,8 +468,8 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
 3. `soul.md` contains three sections: Character, Voice (with anti-examples and calibration pairs), and Vibe (REQ-ILL-10)
 4. `posture.md` contains three sections: Principles, Workflow, and Quality Standards. No personality content (REQ-ILL-11)
 5. Package discovery test: Illuminator package is discovered as a valid worker; identity, soul, and posture load correctly; `guild-hall-replicate` appears in resolved toolbox set
-6. Activation test: Sienna activates with sparse checkout scope and the declared built-in tools; no `canUseToolRules` present; domain toolbox tools are available
-7. Tool availability test: Sienna's resolved tool set includes `generate_image`, `edit_image`, `remove_background`, `upscale_image`, `list_models`, `get_model_params`, `check_prediction`, `cancel_prediction` (from domain toolbox), plus `Read`, `Glob`, `Grep`, `Write`, `Edit` (built-in), plus base toolbox tools (memory, artifacts, decisions). It does NOT include `Bash`, `WebSearch`, `WebFetch`, `Skill`, or `Task`.
+6. Activation test: Sienna activates with sparse checkout scope and the declared built-in tools; `canUseToolRules` constrain Bash to file operations within `.lore/`; domain toolbox tools are available
+7. Tool availability test: Sienna's resolved tool set includes `generate_image`, `edit_image`, `remove_background`, `upscale_image`, `list_models`, `get_model_params`, `check_prediction`, `cancel_prediction` (from domain toolbox), plus `Read`, `Glob`, `Grep`, `Write`, `Edit`, `Bash` (built-in), plus base toolbox tools (memory, artifacts, decisions). It does NOT include `WebSearch`, `WebFetch`, `Skill`, or `Task`. Bash is constrained by `canUseToolRules` to `mv`, `cp`, `rm`, `mkdir`, `ls` within `.lore/` only.
 8. Memory integration test: commission reads `## Style Preferences` and `## Generation Notes` at start; updates both sections at end via `edit_memory` with `operation: "upsert"`
 9. Creative brief test: commission result includes a creative brief documenting model selection, prompt text, palette/composition decisions, and file paths to generated images
 10. Cost visibility test: commission result summary includes cost estimates derived from Replicate tool responses
@@ -413,7 +480,7 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
 
 - No source code modification. The Illuminator reads `.lore/` to inform visual direction; she does not change code, tests, or configuration.
 - Sparse checkout. `.lore/` only. No access to source code, tests, or build artifacts.
-- No Bash access. The tightest built-in tool set of any roster worker.
+- Bash access constrained by `canUseToolRules` to file operations (`mv`, `cp`, `rm`, `mkdir`, `ls`) within `.lore/` only. No git, no network commands, no package management, no commands outside `.lore/`. Phase 1 SDK sandbox provides defense in depth.
 - Read-only relationship to other workers' artifacts. The Illuminator reads specs, briefs, and commission results for context. She does not edit them.
 - Visual output goes to `.lore/generated/` per REQ-RPL-17. The toolbox controls output paths; the worker does not override them.
 - No Pencil MCP integration in this version. Design canvas work is deferred.
@@ -430,7 +497,7 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
 - [Spec: Guild Hall Workers](guild-hall-workers.md): Worker package API (REQ-WKR-2), toolbox resolution (REQ-WKR-12), memory injection (REQ-WKR-22), Agent SDK integration (REQ-WKR-14 through REQ-WKR-16).
 - [Spec: Guild Hall Worker Roster](guild-hall-worker-roster.md): Roster conventions (REQ-WRS-1 through REQ-WRS-4), shared activation pattern (REQ-WRS-3), description for manager routing (REQ-WRS-10).
 - [Spec: Worker Identity and Personality](worker-identity-and-personality.md): Soul file requirements (REQ-WID-1 through REQ-WID-9), soul vs. posture boundary, assembly order (REQ-WID-13).
-- [Spec: Worker can-use-toolRules Declarations](worker-tool-rules.md): Decision framework for canUseToolRules. The Illuminator falls in the "no Bash, no rules needed" category alongside Thorne and Verity.
+- [Spec: Worker can-use-toolRules Declarations](worker-tool-rules.md): Decision framework for canUseToolRules. The Illuminator follows the allowlist-then-deny pattern established by Octavia (REQ-WTR-4 through REQ-WTR-7), scoped to file operations within `.lore/`.
 - [Spec: Guild Hall Steward Worker](guild-hall-steward-worker.md): Closest structural precedent. Same pattern: specialist worker + domain toolbox, sparse checkout, structured memory, advisory boundary with Guild Master via `send_mail`.
 - [Spec: Guild Hall Visionary Worker](guild-hall-visionary-worker.md): Soul and posture content examples. canUseToolRules pattern for Bash restrictions (not applicable to the Illuminator, but the spec structure is referenced).
 - `packages/guild-hall-email/package.json`: Domain toolbox package precedent. `guild-hall-replicate` follows the same `guildHall.type: "toolbox"` pattern.
