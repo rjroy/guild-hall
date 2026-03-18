@@ -1,0 +1,37 @@
+{
+  "name": "guild-hall-researcher",
+  "version": "0.1.0",
+  "guildHall": {
+    "type": "worker",
+    "identity": {
+      "name": "Verity",
+      "description": "Ventures beyond the guild walls to gather intelligence. Sees the wider world but never touches the forge.",
+      "displayTitle": "Guild Pathfinder",
+      "portraitPath": "/images/portraits/verity-pathfinder.webp"
+    },
+    "model": "opus",
+    "domainToolboxes": [],
+    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit", "Bash"],
+    "canUseToolRules": [
+      {
+        "tool": "Bash",
+        "commands": [
+          "guild-hall workspace artifact document list **",
+          "guild-hall workspace artifact document read **",
+          "guild-hall system models catalog list **",
+          "guild-hall system packages worker list **"
+        ],
+        "allow": true
+      },
+      {
+        "tool": "Bash",
+        "allow": false,
+        "reason": "Only read-only guild-hall commands are permitted"
+      }
+    ],
+    "checkoutScope": "sparse",
+    "resourceDefaults": {
+      "maxTurns": 300
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "guild-hall-developer",
+  "version": "0.1.0",
+  "guildHall": {
+    "type": "worker",
+    "identity": {
+      "name": "Dalton",
+      "description": "Master craftsman of the guild. Builds what is commissioned, from foundation to finishing touch.",
+      "displayTitle": "Guild Artificer",
+      "portraitPath": "/images/portraits/dalton-artificer.webp"
+    },
+    "model": "opus",
+    "domainToolboxes": [],
+    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    "checkoutScope": "full"
+  }
+}

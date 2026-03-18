@@ -1,0 +1,21 @@
+.errorRow {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-md);
+}
+
+.errorBubble {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background-color: rgba(224, 96, 96, 0.1);
+  border: 1px solid rgba(224, 96, 96, 0.3);
+  border-radius: 6px;
+  max-width: 80%;
+}
+
+.errorText {
+  font-size: 0.85rem;
+  color: #e06060;
+}

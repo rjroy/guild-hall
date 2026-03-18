@@ -1,0 +1,27 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-lg);
+}
+
+.heading {
+  font-size: 1.5rem;
+  margin-bottom: var(--space-sm);
+}
+
+.message {
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-lg);
+}
+
+.link {
+  color: var(--color-brass);
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.link:hover {
+  color: var(--color-amber);
+}

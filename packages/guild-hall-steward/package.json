@@ -1,0 +1,31 @@
+{
+  "name": "guild-hall-steward",
+  "version": "0.1.0",
+  "guildHall": {
+    "type": "worker",
+    "identity": {
+      "name": "Edmund",
+      "description": "Manages the guild's household affairs and correspondence. Reads the inbox so you don't have to wade through it yourself.",
+      "displayTitle": "Guild Steward",
+      "portraitPath": "/images/portraits/edmund-steward.webp"
+    },
+    "domainToolboxes": ["guild-hall-email"],
+    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    "canUseToolRules": [
+      {
+        "tool": "Bash",
+        "commands": ["guild-hall **"],
+        "allow": true
+      },
+      {
+        "tool": "Bash",
+        "allow": false,
+        "reason": "Only guild-hall CLI commands are permitted"
+      }
+    ],
+    "checkoutScope": "sparse",
+    "resourceDefaults": {
+      "maxTurns": 300
+    }
+  }
+}
