@@ -141,7 +141,9 @@ function createConfiguredServer(client: JmapClient) {
   });
 }
 
-// -- Factory --
+// -- Factories --
+
+export { operationFactory } from "./operations";
 
 /**
  * ToolboxFactory for the email toolbox. Reads FASTMAIL_API_TOKEN from
