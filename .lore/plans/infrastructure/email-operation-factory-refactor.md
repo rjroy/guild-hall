@@ -1,7 +1,7 @@
 ---
 title: "Email package refactor: shared core with dual factory exports"
 date: 2026-03-17
-status: draft
+status: executed
 tags: [refactor, operations, toolbox, email, architecture, pattern]
 modules: [guild-hall-email, daemon]
 related:
