@@ -1,0 +1,61 @@
+.chatInterface {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-panel-bg);
+  padding: 3px;
+  border: 1px solid rgba(184, 134, 11, 0.15);
+  border-radius: 8px;
+  /* Fill available vertical space in the meeting view */
+  flex: 1;
+  min-height: 400px;
+
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.chatInterface::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: -3px;
+  border: 40px solid transparent;
+  border-image-source: url("/images/ui/border-ornate.webp");
+  border-image-slice: 120 120 120 120 fill;
+  border-image-width: 40px;
+}
+
+
+.messageArea {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg);
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar styling for the message area */
+.messageArea::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messageArea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messageArea::-webkit-scrollbar-thumb {
+  background-color: rgba(184, 134, 11, 0.3);
+  border-radius: 3px;
+}
+
+.messageArea::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(184, 134, 11, 0.5);
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 480px) {
+  .chatInterface::before {
+    border-width: 24px;
+    border-image-width: 24px;
+  }
+}

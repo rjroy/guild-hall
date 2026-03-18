@@ -1,0 +1,27 @@
+/* StartAudienceButton inherits audienceButton styling from ProjectHeader.module.css.
+   These styles add enabled (interactive) state on top of the base disabled look. */
+
+.audienceButton {
+  padding: var(--space-sm) var(--space-md);
+  background-color: rgba(184, 134, 11, 0.15);
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.audienceButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.25);
+}
+
+.audienceButton:disabled {
+  opacity: 0.4;
+  border-color: var(--color-text-muted);
+  color: var(--color-text-muted);
+  background-color: rgba(168, 152, 120, 0.1);
+  cursor: not-allowed;
+}

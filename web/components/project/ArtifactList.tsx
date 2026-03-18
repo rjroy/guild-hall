@@ -1,0 +1,191 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import Panel from "@/web/components/ui/Panel";
+import StatusBadge from "@/web/components/ui/StatusBadge";
+import EmptyState from "@/web/components/ui/EmptyState";
+import type { Artifact } from "@/lib/types";
+import { statusToGem } from "@/lib/types";
+import { displayTitle, buildArtifactTree } from "@/lib/artifact-grouping";
+import type { TreeNode } from "@/lib/artifact-grouping";
+import styles from "./ArtifactList.module.css";
+
+const INDENT_PX_PER_DEPTH = 24;
+
+interface ArtifactListProps {
+  artifacts: Artifact[];
+  projectName: string;
+}
+
+// Module-level component (not inside ArtifactTree's render body) to prevent
+// React from treating it as a new component type on each render.
+interface TreeNodeRowProps {
+  node: TreeNode;
+  expanded: Set<string>;
+  toggleNode: (path: string) => void;
+  encodedProjectName: string;
+}
+
+function TreeNodeRow({
+  node,
+  expanded,
+  toggleNode,
+  encodedProjectName,
+}: TreeNodeRowProps) {
+  if (node.artifact) {
+    const gemStatus = statusToGem(node.artifact.meta.status);
+    return (
+      <li
+        className={styles.item}
+        style={{ paddingLeft: `${node.depth * INDENT_PX_PER_DEPTH}px` }}
+      >
+        <Link
+          href={`/projects/${encodedProjectName}/artifacts/${node.artifact.relativePath}`}
+          className={styles.link}
+        >
+          {/* Static decorative icon. next/image optimization not beneficial. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/ui/scroll-icon.webp"
+            alt=""
+            className={styles.scrollIcon}
+            aria-hidden="true"
+          />
+          <div className={styles.info}>
+            <span className={styles.title}>{displayTitle(node.artifact)}</span>
+            <div className={styles.meta}>
+              {node.artifact.meta.date && (
+                <span className={styles.date}>{node.artifact.meta.date}</span>
+              )}
+              {node.artifact.meta.tags.length > 0 && (
+                <div className={styles.tags}>
+                  {node.artifact.meta.tags.map((tag) => (
+                    <span key={tag} className={styles.tag}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <StatusBadge gem={gemStatus} label={node.artifact.meta.status} size="sm" />
+        </Link>
+      </li>
+    );
+  }
+
+  const isExpanded = expanded.has(node.path);
+  const depthStyle = node.depth === 0 ? styles.directoryRowDepth0 : styles.directoryRowDeep;
+  const dirRowClass = `${styles.directoryRow} ${depthStyle}`;
+
+  const sectionClass = node.depth === 0 ? `${styles.item} ${styles.treeSection}` : styles.item;
+  return (
+    <li className={sectionClass} style={{ paddingLeft: `${node.depth * INDENT_PX_PER_DEPTH}px` }}>
+      <button
+        type="button"
+        className={dirRowClass}
+        onClick={() => toggleNode(node.path)}
+        aria-expanded={isExpanded}
+      >
+        <span
+          className={`${styles.chevron} ${isExpanded ? styles.chevronExpanded : ""}`}
+          aria-hidden="true"
+        >
+          {"\u25B6"}
+        </span>
+        {node.label}
+      </button>
+      {isExpanded && node.children.length > 0 && (
+        <ul className={styles.children}>
+          {node.children.map((child) => (
+            <TreeNodeRow
+              key={child.path}
+              node={child}
+              expanded={expanded}
+              toggleNode={toggleNode}
+              encodedProjectName={encodedProjectName}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+interface ArtifactTreeProps {
+  tree: TreeNode[];
+  encodedProjectName: string;
+}
+
+// Separated from ArtifactList so the empty-state early return does not
+// violate rules-of-hooks.
+function ArtifactTree({ tree, encodedProjectName }: ArtifactTreeProps) {
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set()
+  );
+
+  function toggleNode(path: string): void {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }
+
+  return (
+    <Panel size="lg">
+      <ul className={styles.list}>
+        {tree.map((node) => {
+          if (node.name === "root") {
+            return node.children.map((child) => (
+              <TreeNodeRow
+                key={child.path}
+                node={child}
+                expanded={expanded}
+                toggleNode={toggleNode}
+                encodedProjectName={encodedProjectName}
+              />
+            ));
+          }
+            return (
+            <TreeNodeRow
+              key={node.path}
+              node={node}
+              expanded={expanded}
+              toggleNode={toggleNode}
+              encodedProjectName={encodedProjectName}
+            />
+          );
+        })}
+      </ul>
+    </Panel>
+  );
+}
+
+export default function ArtifactList({
+  artifacts,
+  projectName,
+}: ArtifactListProps) {
+  if (artifacts.length === 0) {
+    return (
+      <Panel>
+        <EmptyState message="No artifacts found in this project." />
+      </Panel>
+    );
+  }
+
+  const tree = buildArtifactTree(artifacts);
+  const encodedName = encodeURIComponent(projectName);
+
+  return (
+    <ArtifactTree
+      tree={tree}
+      encodedProjectName={encodedName}
+    />
+  );
+}

@@ -1,0 +1,37 @@
+{
+  "name": "guild-hall-reviewer",
+  "version": "0.1.0",
+  "guildHall": {
+    "type": "worker",
+    "identity": {
+      "name": "Thorne",
+      "description": "Oversees all work with a critical eye. Inspects everything, alters nothing.",
+      "displayTitle": "Guild Warden",
+      "portraitPath": "/images/portraits/thorne-warden.webp"
+    },
+    "model": "opus",
+    "domainToolboxes": [],
+    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Bash"],
+    "canUseToolRules": [
+      {
+        "tool": "Bash",
+        "commands": [
+          "guild-hall workspace artifact document list **",
+          "guild-hall workspace artifact document read **",
+          "guild-hall system models catalog list **",
+          "guild-hall system packages worker list **"
+        ],
+        "allow": true
+      },
+      {
+        "tool": "Bash",
+        "allow": false,
+        "reason": "Only read-only guild-hall commands are permitted"
+      }
+    ],
+    "checkoutScope": "full",
+    "resourceDefaults": {
+      "maxTurns": 300
+    }
+  }
+}
