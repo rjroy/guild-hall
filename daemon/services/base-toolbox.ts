@@ -319,7 +319,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
     tools: [
       tool(
         "read_memory",
-        "Read from the shared memory system. Scope: global (shared across all workers and projects), project (shared across all workers in the active project), worker (private to you, no other worker can access). Worker scope always reads YOUR memory; you cannot access another worker's memory. If path is a directory, lists contents. If path is a file, returns content. If path omitted, lists the scope root.",
+        "Read from the shared memory system. Scope: global (shared across all workers and projects), project (shared across all workers in the active project), worker (private to you, no other worker can access). Worker scope always reads YOUR memory; you cannot access another worker's memory. Without a section parameter, returns the full memory file. With a section parameter, returns only that section's content (case-insensitive match).",
         {
           scope: z.enum(["global", "project", "worker"]),
           section: z.string().optional(),

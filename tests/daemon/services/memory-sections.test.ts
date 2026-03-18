@@ -82,6 +82,36 @@ describe("parseMemorySections", () => {
     expect(result[0].content).toContain("This has ## in the middle of a line");
   });
 
+  test("bare '## ' (empty name) is treated as body content, not a section boundary", () => {
+    const input = "## \nContent after bare header\n";
+    const result = parseMemorySections(input);
+    // Should be a single preamble section, not a section with empty name
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("");
+    expect(result[0].content).toContain("## ");
+    expect(result[0].content).toContain("Content after bare header");
+  });
+
+  test("bare '## ' between named sections stays as body content", () => {
+    const input = [
+      "## User",
+      "Info here",
+      "## ",
+      "Orphaned content",
+      "## Feedback",
+      "Be concise",
+      "",
+    ].join("\n");
+
+    const result = parseMemorySections(input);
+    expect(result).toHaveLength(2);
+    expect(result[0].name).toBe("User");
+    // The bare `## ` and its following content belong to the User section
+    expect(result[0].content).toContain("## ");
+    expect(result[0].content).toContain("Orphaned content");
+    expect(result[1].name).toBe("Feedback");
+  });
+
   test("preamble followed by sections", () => {
     const input = [
       "This is preamble content",
@@ -190,6 +220,13 @@ describe("round-trip fidelity", () => {
 
   test("content with ## mid-line", () => {
     const input = "## Section\nThis has ## in the middle\nNormal line\n";
+    expect(renderMemorySections(parseMemorySections(input))).toBe(
+      normalize(input),
+    );
+  });
+
+  test("bare '## ' (empty header name) round-trips", () => {
+    const input = "## Section\nSome text\n## \nOrphaned\n";
     expect(renderMemorySections(parseMemorySections(input))).toBe(
       normalize(input),
     );

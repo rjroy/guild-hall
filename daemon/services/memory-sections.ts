@@ -28,8 +28,13 @@ export function parseMemorySections(markdown: string): MemorySection[] {
   let inSection = false;
 
   for (const line of lines) {
-    // Match exactly `## ` at line start (not `### ` or deeper)
-    if (line.startsWith("## ") && !line.startsWith("### ")) {
+    // Match exactly `## ` at line start (not `### ` or deeper).
+    // Bare `## ` (empty name after slice) is treated as body content to avoid
+    // collision with the preamble sentinel (empty string name).
+    const sectionName = line.startsWith("## ") && !line.startsWith("### ")
+      ? line.slice(3)
+      : null;
+    if (sectionName !== null && sectionName !== "") {
       // Flush previous section
       if (inSection || currentLines.length > 0) {
         sections.push({
@@ -37,7 +42,7 @@ export function parseMemorySections(markdown: string): MemorySection[] {
           content: currentLines.join("\n"),
         });
       }
-      currentName = line.slice(3);
+      currentName = sectionName;
       currentLines = [];
       inSection = true;
     } else {
