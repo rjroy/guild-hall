@@ -1,7 +1,7 @@
 ---
 title: "Meeting request: Explore \"what could be\" for Guild Hall — new toolboxes, new workers, new capabilities. The user wants to think out loud about where Guild Hall should grow, and use Celeste's output to inform a growth directions section for the vision. Starting open-ended: what expansion is welcome, what integrations matter, how far beyond code-adjacent work should the system reach."
 date: 2026-03-17
-status: requested
+status: open
 tags: [meeting]
 worker: Celeste
 workerDisplayTitle: "Celeste"
