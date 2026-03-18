@@ -10,7 +10,7 @@ import type {
 import { z } from "zod/v4";
 import type { ToolResult } from "@/daemon/types";
 import { isNodeError } from "@/lib/types";
-import { memoryScopeFile } from "./memory-injector";
+import { memoryScopeFile, memoryScopeDir, migrateIfNeeded } from "./memory-injector";
 import type { MemoryScope } from "./memory-injector";
 import {
   parseMemorySections,
@@ -87,6 +87,10 @@ export function makeReadMemoryHandler(
   }): Promise<ToolResult> => {
     const scopeKey = resolveScopeKey(args.scope, workerName, projectName);
     const filePath = memoryScopeFile(guildHallHome, args.scope, scopeKey);
+
+    // Auto-migrate legacy directory on first read (REQ-MEM-23)
+    const legacyDir = memoryScopeDir(guildHallHome, args.scope, scopeKey);
+    await migrateIfNeeded(filePath, legacyDir);
 
     const content = await readScopeFile(filePath);
 

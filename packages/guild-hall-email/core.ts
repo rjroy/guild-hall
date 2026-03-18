@@ -223,9 +223,9 @@ export async function readEmail(
   const attachments = (
     (email.attachments ?? []) as Array<Record<string, unknown>>
   ).map((att) => ({
-    filename: att.name ?? att.filename ?? null,
-    size: att.size ?? null,
-    type: att.type ?? null,
+    filename: (att.name ?? att.filename ?? null) as string | null,
+    size: (att.size ?? null) as number | null,
+    type: (att.type ?? null) as string | null,
   }));
 
   return {

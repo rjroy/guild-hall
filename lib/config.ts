@@ -48,6 +48,7 @@ export const modelDefinitionSchema = z.object({
 });
 
 const systemModelsSchema = z.object({
+  /** @deprecated Unused. Memory compaction was removed in the single-file redesign. */
   memoryCompaction: z.string().min(1).optional(),
   meetingNotes: z.string().min(1).optional(),
   briefing: z.string().min(1).optional(),

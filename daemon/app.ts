@@ -180,10 +180,6 @@ export async function createProductionApp(options?: {
   const { createWorkspaceOps } = await import(
     "@/daemon/services/workspace"
   );
-  const { triggerCompaction } = await import(
-    "@/daemon/services/memory-compaction"
-  );
-
   const { createEventBus } = await import("@/daemon/lib/event-bus");
 
   const createLog: CreateLog = options?.createLog ?? nullLog;
@@ -332,20 +328,6 @@ export async function createProductionApp(options?: {
     resolveToolSet,
     loadMemories,
     activateWorker: activateWorkerFn,
-    triggerCompaction: (
-      workerName: string,
-      projectName: string,
-      opts: { guildHallHome: string },
-    ) => {
-      // Fire-and-forget compaction using the SDK queryFn.
-      // This fixes the commission compaction gap: commissions now trigger
-      // memory compaction the same way meetings do.
-      void triggerCompaction(workerName, projectName, {
-        guildHallHome: opts.guildHallHome,
-        compactFn: queryFn!,
-        config,
-      });
-    },
   };
 
   // Lazy ref for schedule lifecycle: set after the scheduler is constructed.

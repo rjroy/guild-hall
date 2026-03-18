@@ -25,6 +25,7 @@ export interface ModelDefinition {
 }
 
 export interface SystemModels {
+  /** @deprecated Unused. Memory compaction was removed in the single-file redesign. */
   memoryCompaction?: string;
   meetingNotes?: string;
   briefing?: string;

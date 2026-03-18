@@ -80,7 +80,6 @@ import {
 } from "@/daemon/services/meeting/notes-generator";
 import { isNodeError } from "@/lib/types";
 import { loadMemories } from "@/daemon/services/memory-injector";
-import { triggerCompaction } from "@/daemon/services/memory-compaction";
 import { MeetingRegistry, type ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
 import type { WorkspaceOps } from "@/daemon/services/workspace";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
@@ -92,9 +91,9 @@ export const MEETING_GREETING_PROMPT =
   "Briefly introduce yourself and summarize your understanding of the meeting agenda, then ask how the user would like to proceed.";
 
 // -- Re-exports for backward compatibility --
-// QueryOptions re-exported so notes-generator, briefing-generator, and
-// memory-compaction can keep importing from the meeting orchestrator without
-// reaching into sdk-runner. Remove once those modules migrate (Task 008).
+// QueryOptions re-exported so notes-generator and briefing-generator
+// can keep importing from the meeting orchestrator without reaching into
+// sdk-runner. Remove once those modules migrate (Task 008).
 
 export type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
 export type { SdkQueryOptions as QueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
@@ -412,19 +411,10 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
           `Failed to load memories for "${workerName}" (non-fatal):`,
           errorMessage(err),
         );
-        return { memoryBlock: "", needsCompaction: false };
+        return { memoryBlock: "" };
       }
     },
     activateWorker,
-    triggerCompaction: deps.queryFn
-      ? (workerName, projectName, opts) => {
-          void triggerCompaction(workerName, projectName, {
-            guildHallHome: opts.guildHallHome,
-            compactFn: deps.queryFn!,
-            config: deps.config,
-          });
-        }
-      : undefined,
   };
 
   /**

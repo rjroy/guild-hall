@@ -250,6 +250,7 @@ describe("withMemoryLock", () => {
       return "a";
     });
 
+    // eslint-disable-next-line @typescript-eslint/require-await
     const op2 = withMemoryLock("test:key", async () => {
       order.push(3);
       return "b";
@@ -285,6 +286,7 @@ describe("withMemoryLock", () => {
 
   test("releases lock on error", async () => {
     try {
+      // eslint-disable-next-line @typescript-eslint/require-await
       await withMemoryLock("err:key", async () => {
         throw new Error("boom");
       });
@@ -293,6 +295,7 @@ describe("withMemoryLock", () => {
     }
 
     // Should be able to acquire the lock again
+    // eslint-disable-next-line @typescript-eslint/require-await
     const result = await withMemoryLock("err:key", async () => "recovered");
     expect(result).toBe("recovered");
   });

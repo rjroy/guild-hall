@@ -449,7 +449,7 @@ describe("workspace scoping", () => {
         /* eslint-disable @typescript-eslint/require-await */
         scanCommissionsFn: async () => projectACommissions,
         scanMeetingRequestsFn: async () => [],
-        loadMemoriesFn: async () => ({ memoryBlock: "", needsCompaction: false }),
+        loadMemoriesFn: async () => ({ memoryBlock: "" }),
         /* eslint-enable @typescript-eslint/require-await */
       };
       const contextA = await buildManagerContext(depsA);
@@ -463,7 +463,7 @@ describe("workspace scoping", () => {
         /* eslint-disable @typescript-eslint/require-await */
         scanCommissionsFn: async () => projectBCommissions,
         scanMeetingRequestsFn: async () => [],
-        loadMemoriesFn: async () => ({ memoryBlock: "", needsCompaction: false }),
+        loadMemoriesFn: async () => ({ memoryBlock: "" }),
         /* eslint-enable @typescript-eslint/require-await */
       };
       const contextB = await buildManagerContext(depsB);
@@ -508,7 +508,7 @@ describe("workspace scoping", () => {
         /* eslint-disable @typescript-eslint/require-await */
         scanCommissionsFn: async () => [],
         scanMeetingRequestsFn: async () => [],
-        loadMemoriesFn: async () => ({ memoryBlock: "", needsCompaction: false }),
+        loadMemoriesFn: async () => ({ memoryBlock: "" }),
         /* eslint-enable @typescript-eslint/require-await */
       });
 

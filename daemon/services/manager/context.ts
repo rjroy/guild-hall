@@ -56,7 +56,7 @@ export interface ManagerContextDeps {
     workerName: string,
     projectName: string,
     deps: { guildHallHome: string; memoryLimit?: number },
-  ) => Promise<{ memoryBlock: string; needsCompaction: boolean }>;
+  ) => Promise<{ memoryBlock: string }>;
 }
 
 // -- Internal helpers --
@@ -336,9 +336,6 @@ export async function buildManagerContext(
       },
     );
     memorySection = memoryResult.memoryBlock;
-    if (memoryResult.needsCompaction) {
-      log.info(`Manager memory exceeds limit, needs compaction`);
-    }
   } catch (err: unknown) {
     log.warn(
       `Failed to load manager memories (non-fatal):`,
