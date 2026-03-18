@@ -56,6 +56,10 @@ The user dispatches commissions and walks away. Right now, the only way to know 
 
 Medium. The EventRouter is a new daemon service (~150 lines). The channel package type is a small extension to `lib/packages.ts`. The first channel implementation (desktop notification via `notify-send` on Linux) is trivial. Telegram or email channels follow the same pattern but require API integration.
 
+### User Response
+
+This is a good idea. We should break this out into a brainstorm to find where this breaks or what it expands into.
+
 ---
 
 ## Proposal 2: Standing Commissions — Scheduled Templates as Autonomous Initiative
@@ -92,6 +96,10 @@ The gap between "the user manually creates every commission" and "workers autono
 ### Scope
 
 Small. One new tool in the manager toolbox (delegates to existing schedule creation logic). The scheduler, lifecycle, and artifact format don't change.
+
+### User Response
+
+This already exists. Validating the current design. The `daemon/services/manager/toolbox.ts` in fact has `create_scheduled_commission`.
 
 ---
 
