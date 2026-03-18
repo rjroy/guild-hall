@@ -21,6 +21,7 @@ function makeMockBriefingGenerator(overrides: Partial<BriefingGenerator> = {}): 
       cached: false,
     }),
     invalidateCache: async () => {},
+    getCachedBriefing: async () => null,
     ...overrides,
   };
 }
