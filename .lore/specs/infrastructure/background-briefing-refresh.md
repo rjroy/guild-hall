@@ -1,7 +1,7 @@
 ---
 title: Background briefing refresh
 date: 2026-03-15
-status: draft
+status: approved
 tags: [briefing, scheduler, daemon, performance]
 modules: [daemon]
 related:
