@@ -27,7 +27,7 @@ A read tool in the manager toolbox that lets the Guild Master check commission s
 
 - REQ-CST-1: The manager toolbox registers a tool named `check_commission_status`. It accepts an optional `commissionId` string parameter. When `commissionId` is provided, it returns detail for that commission. When omitted, it returns a summary list of commissions for the current project.
 
-- REQ-CST-2: The tool description includes both skill IDs: `[skillId: commission.request.commission.read, commission.request.commission.list]`. Existing tools have one skillId each, but this tool backs two read routes through a single optional parameter. Both IDs appear in the static description string.
+- REQ-CST-2: The tool description includes both operation IDs: `[operationId: commission.request.commission.read, commission.request.commission.list]`. Existing tools have one operationId each, but this tool backs two read routes through a single optional parameter. Both IDs appear in the static description string.
 
 ### Single Commission Mode
 

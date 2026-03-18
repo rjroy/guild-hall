@@ -71,8 +71,8 @@ Guild Hall's target architecture treats the daemon as the application. The daemo
 
 This spec uses specific terms to avoid confusion between Guild Hall concepts and Claude Code concepts:
 
-- **Operation**: A daemon-owned REST/CLI capability with a stable name, hierarchy position, and invocation contract. Exposed to humans through CLI commands and REST endpoints. The existing implementation uses `SkillDefinition`/`SkillRegistry`/`skillId` for what this spec calls operations; those names are candidates for migration to `OperationDefinition`/`OperationsRegistry`/`operationId`.
-- **OperationsRegistry**: The daemon component that collects operation definitions from route factories and package-contributed operation factories, builds a navigation tree, and serves the help endpoints. Currently implemented as `SkillRegistry` in `daemon/lib/skill-registry.ts`.
+- **Operation**: A daemon-owned REST/CLI capability with a stable name, hierarchy position, and invocation contract. Exposed to humans through CLI commands and REST endpoints. Implemented as `OperationDefinition`/`OperationsRegistry`/`operationId` in the codebase.
+- **OperationsRegistry**: The daemon component that collects operation definitions from route factories and package-contributed operation factories, builds a navigation tree, and serves the help endpoints. Implemented in `daemon/lib/operations-registry.ts`.
 - **MCP tool**: A tool provided to agents inside daemon-managed sessions through the toolbox resolver. The agent interaction mechanism.
 - **Claude Code skill**: A slash-command skill defined in a `.claude-plugin/` directory (SKILL.md files). These are Claude Code plugin artifacts, not daemon operations. Worker packages may include Claude Code skills via `domainPlugins`.
 
@@ -128,4 +128,4 @@ This is a target-architecture spec with no implementation deliverable. Standard 
 ## Revision History
 
 - 2026-03-13: Initial spec. Defined daemon as application boundary with skill-convergence model (agents and humans share a single skill surface). REQ-DAB-7 through -15.
-- 2026-03-17: Removed skill-convergence model. Agents use MCP tools through the toolbox system; humans use operations through CLI/REST. Guild Master gets CLI access as a special case. Renamed "skill" to "operation" for daemon capabilities to avoid confusion with Claude Code skills. **REQ-DAB-7 through -15 are retired.** New requirements start from REQ-DAB-16. Documents still referencing REQ-DAB-7 through -15 (including `cli-progressive-discovery.md`, `skill-contract.md`, and the DAB migration plan) use the old meanings and need updating.
+- 2026-03-17: Removed skill-convergence model. Agents use MCP tools through the toolbox system; humans use operations through CLI/REST. Guild Master gets CLI access as a special case. Renamed "skill" to "operation" for daemon capabilities to avoid confusion with Claude Code skills. **REQ-DAB-7 through -15 are retired.** New requirements start from REQ-DAB-16. Codebase renamed: `SkillDefinition` → `OperationDefinition`, `SkillRegistry` → `OperationsRegistry`, `skillId` → `operationId`. Design docs renamed: `skill-contract.md` → `operation-contract.md`, `package-skill-handler.md` → `package-operation-handler.md`. Active specs updated. Historical plans carry stale-terminology notes.

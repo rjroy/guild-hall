@@ -382,7 +382,7 @@ if (!projectName || projectName === "all") {
 }
 ```
 
-Remove the 400 error for missing `projectName` — "all projects" is now a valid call. Add a `SkillDefinition` entry for the all-projects variant.
+Remove the 400 error for missing `projectName` — "all projects" is now a valid call. Add an `OperationDefinition` entry for the all-projects variant.
 
 Write unit tests:
 - Composite HEAD hash changes when any project's HEAD changes (mock `readHeadCommit`).

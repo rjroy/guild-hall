@@ -6,19 +6,21 @@ tags: [architecture, daemon, skills, packages, progressive-discovery, cli]
 modules: [daemon, lib, packages]
 related:
   - .lore/specs/infrastructure/cli-progressive-discovery.md
-  - .lore/design/package-skill-handler.md
-  - .lore/design/skill-contract.md
+  - .lore/design/package-operation-handler.md
+  - .lore/design/operation-contract.md
   - .lore/plans/infrastructure/daemon-application-boundary.md
   - .lore/plans/effervescent-splashing-bubble.md
 ---
 
 # Plan: CLI Progressive Discovery - Package Skills
 
+> **Note (2026-03-17):** The "skill" terminology in this plan refers to what the codebase now calls "operations." Types have been renamed: `SkillDefinition` → `OperationDefinition`, `SkillRegistry` → `OperationsRegistry`, `skillFactory` → `operationFactory`, `skillId` → `operationId`. Files renamed: `skill-contract.md` → `operation-contract.md`, `package-skill-handler.md` → `package-operation-handler.md`, `skill-registry.ts` → `operations-registry.ts`, `skill-loader.ts` → `operations-loader.ts`, `skill-types.ts` → `operation-types.ts`. See `.lore/plans/infrastructure/skill-to-operations-rename.md`.
+
 ## Spec Reference
 
 **Spec**: `.lore/specs/infrastructure/cli-progressive-discovery.md`
-**Design**: `.lore/design/package-skill-handler.md` (handler contract)
-**Design**: `.lore/design/skill-contract.md` (skill system)
+**Design**: `.lore/design/package-operation-handler.md` (handler contract)
+**Design**: `.lore/design/operation-contract.md` (operation system)
 
 Requirements addressed:
 - REQ-CLI-PD-1: Package skill declarations using `SkillDefinition` + `sourcePackage` → Steps 1, 2

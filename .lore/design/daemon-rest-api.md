@@ -117,7 +117,7 @@ That means:
 - the web should not depend on hidden daemon-only routes
 - agents should not get direct application callbacks that bypass the capability contract
 
-Each skill must also have a stable `skillId` owned by the daemon. Paths and transport details may evolve, but `skillId` is the durable identity used by discovery metadata, CLI mapping, and future deprecation/version handling.
+Each operation must also have a stable `operationId` owned by the daemon. Paths and transport details may evolve, but `operationId` is the durable identity used by discovery metadata, CLI mapping, and future deprecation/version handling.
 
 ### 5. Public roots must be durable application domains
 
@@ -272,7 +272,7 @@ Minimum fields:
 
 ```json
 {
-  "skillId": "workspace.artifact.document",
+  "operationId": "workspace.artifact.document",
   "version": "1",
   "path": "/workspace/artifact/document",
   "kind": "object",
@@ -281,14 +281,14 @@ Minimum fields:
   "visibility": "available",
   "children": [
     {
-      "skillId": "workspace.artifact.document.read",
+      "operationId": "workspace.artifact.document.read",
       "name": "read",
       "method": "POST",
       "path": "/workspace/artifact/document/read",
       "summary": "Read a document from a workspace by relative lore path."
     },
     {
-      "skillId": "workspace.artifact.document.write",
+      "operationId": "workspace.artifact.document.write",
       "name": "write",
       "method": "POST",
       "path": "/workspace/artifact/document/write",
@@ -300,7 +300,7 @@ Minimum fields:
 
 At the operation level, `help` must additionally expose:
 
-- `skillId`
+- `operationId`
 - version
 - deprecation status when relevant
 - request schema

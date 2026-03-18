@@ -19,8 +19,8 @@ modules: [daemon, lib, packages]
 
 ## Log
 
-### Phase 1: Add package skill handler types
-- Dispatched: Create `daemon/services/skill-types.ts` with all handler types, add `sourcePackage` to `SkillDefinition`, write unit tests for `SkillHandlerError`
+### Phase 1: Add package operation handler types
+- Dispatched: Create `daemon/services/operation-types.ts` (was `skill-types.ts`) with all handler types, add `sourcePackage` to `OperationDefinition` (was `SkillDefinition`), write unit tests for `OperationHandlerError` (was `SkillHandlerError`)
 - Result: All types created. `SkillStreamEmitter` simplified from interface to plain function type (cleaner for consumers). `SkillHandlerContext.params` uses `Record<string, unknown>` per plan.
 - Tests: 6/6 new tests pass, 2670/2670 full suite, typecheck clean
 - Review: No non-conformances. Pre-existing duplicate JSDoc on `SkillParameter` noted but not in scope.

@@ -1,8 +1,8 @@
 ---
-title: Skill Contract System
+title: Operation Contract System
 date: 2026-03-13
 status: implemented
-tags: [architecture, daemon, skills, discovery, agents, cli]
+tags: [architecture, daemon, operations, discovery, agents, cli]
 modules: [daemon, lib, cli]
 related:
   - .lore/specs/infrastructure/daemon-application-boundary.md
@@ -12,7 +12,9 @@ related:
   - .lore/specs/workers/guild-hall-worker-roster.md
 ---
 
-# Design: Skill Contract System
+# Design: Operation Contract System
+
+> **Note (2026-03-17):** This design was written using "skill" terminology that the codebase has since renamed to "operations." All code examples and type names in this document use the original names (`SkillDefinition`, `SkillRegistry`, `skillId`, etc.). The current codebase uses `OperationDefinition`, `OperationsRegistry`, `operationId`, etc. File renamed from `skill-contract.md`. See `.lore/plans/infrastructure/skill-to-operations-rename.md`.
 
 ## Problem
 

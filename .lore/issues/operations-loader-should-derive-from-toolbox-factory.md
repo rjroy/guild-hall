@@ -27,8 +27,8 @@ The loader looks for a standalone `operationFactory` export that no packages pro
 
 ## Impact
 
-Low. No packages currently export `operationFactory` (or `skillFactory`). The infrastructure exists but has zero consumers. This is a design gap, not a bug.
+Low. No packages currently export `operationFactory`. The infrastructure exists but has zero consumers. This is a design gap, not a bug.
 
 ## Notes
 
-This issue should be addressed when a package first needs to contribute REST/CLI operations. Until then, the loader infrastructure can sit idle. The rename from `skillFactory` to `operationFactory` is tracked separately in `.lore/plans/infrastructure/skill-to-operations-rename.md`.
+This issue should be addressed when a package first needs to contribute REST/CLI operations. Until then, the loader infrastructure can sit idle.

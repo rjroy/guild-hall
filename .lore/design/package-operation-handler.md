@@ -1,17 +1,19 @@
 ---
-title: Package Skill Handler Contract
+title: Package Operation Handler Contract
 date: 2026-03-14
 status: implemented
-tags: [architecture, daemon, skills, packages, handler-contract, progressive-discovery]
+tags: [architecture, daemon, operations, packages, handler-contract, progressive-discovery]
 modules: [daemon, lib, packages]
 related:
   - .lore/specs/infrastructure/cli-progressive-discovery.md
-  - .lore/design/skill-contract.md
+  - .lore/design/operation-contract.md
   - .lore/specs/infrastructure/daemon-application-boundary.md
   - .lore/brainstorm/commission-layer-separation.md
 ---
 
-# Design: Package Skill Handler Contract
+# Design: Package Operation Handler Contract
+
+> **Note (2026-03-17):** This design was written using "skill" terminology that the codebase has since renamed to "operations." All code examples and type names in this document use the original names (`SkillDefinition`, `SkillFactory`, `skillFactory`, `skillId`, etc.). The current codebase uses `OperationDefinition`, `OperationFactory`, `operationFactory`, `operationId`, etc. File renamed from `package-skill-handler.md`. See `.lore/plans/infrastructure/skill-to-operations-rename.md`.
 
 ## Problem
 

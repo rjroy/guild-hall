@@ -8,7 +8,7 @@ related:
   - .lore/vision.md
   - .lore/brainstorm/whats-next-2026-03-17.md
   - .lore/brainstorm/commission-outcomes-to-memory.md
-  - .lore/design/skill-contract.md
+  - .lore/design/operation-contract.md
 ---
 
 # Growth Surface: Capabilities Hiding in Plain Sight
@@ -160,7 +160,7 @@ The briefing generator (`daemon/services/briefing-generator.ts`) produces projec
 
 Workers executing commissions have no access to this. The commission context includes the task prompt, dependencies, and the commission protocol, but not "what else is happening in this project right now." If Dalton is implementing a feature while Octavia is documenting the same area, neither knows about the other unless the user mentioned it in their prompts.
 
-The skill contract design (`skill-contract.md`, Decision 4) already classifies `coordination.review.briefing.read` as `readOnly: true`, eligible for all workers. When Phase 7 of the DAB migration completes (agent skill projection), workers will be able to invoke `guild-hall briefing` as a CLI command during commissions.
+The operation contract design (`operation-contract.md`, Decision 4) already classifies `coordination.review.briefing.read` as `readOnly: true`, eligible for all workers. When Phase 7 of the DAB migration completes (agent operation projection), workers will be able to invoke `guild-hall briefing` as a CLI command during commissions.
 
 But Phase 7 isn't shipped yet. And even when it is, workers won't spontaneously check the briefing. They'd need to know it exists and decide to look.
 
@@ -238,7 +238,7 @@ Might be a good idea. Still don't even know if we can get this to work at all. I
 
 ### Evidence
 
-The skill registry (`daemon/lib/skill-registry.ts`) builds a navigable tree from `SkillDefinition` entries. Package skills are loaded via `loadPackageSkills()` and mounted as daemon routes. Workers discover their eligible skills during session prep (`sdk-runner.ts:430-436`) and can invoke them via `guild-hall` CLI commands.
+The operations registry (`daemon/lib/operations-registry.ts`) builds a navigable tree from `OperationDefinition` entries. Package operations are loaded via `loadPackageOperations()` and mounted as daemon routes. Workers can invoke eligible operations via `guild-hall` CLI commands.
 
 The mail system (`daemon/services/mail/`) lets workers consult each other: worker A sends mail to worker B, B reads the message and replies with findings. This is the only inter-worker communication channel.
 

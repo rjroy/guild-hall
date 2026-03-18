@@ -7,7 +7,7 @@ modules: [daemon, lib, cli]
 related:
   - .lore/specs/infrastructure/daemon-application-boundary.md
   - .lore/specs/infrastructure/cli-progressive-discovery.md
-  - .lore/design/skill-contract.md
+  - .lore/design/operation-contract.md
 ---
 
 # Plan: Rename Skill Infrastructure to Operations Infrastructure

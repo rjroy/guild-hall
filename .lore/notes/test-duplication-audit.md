@@ -165,9 +165,9 @@ These route test files have no corresponding service test file, so duplication i
 |----------------|---------------|
 | `artifacts.test.ts` | Artifact CRUD routes (list, read, write), path traversal protection, git commit integration |
 | `events.test.ts` | SSE event streaming from EventBus |
-| `help.test.ts` | Hierarchical help/discovery routes from SkillRegistry |
+| `help.test.ts` | Hierarchical help/discovery routes from OperationsRegistry |
 | `models.test.ts` | Model catalog listing (built-in + local) |
-| `package-skills.test.ts` | Package skill route generation, parameter extraction, Zod validation, context validation, streaming |
+| `package-operations.test.ts` | Package operation route generation, parameter extraction, Zod validation, context validation, streaming |
 | `workers.test.ts` | Worker metadata listing |
 | `config.test.ts` | Config read and dependency graph |
 | `admin.test.ts` | Admin operations (reload, register, validate, rebase, sync) |
