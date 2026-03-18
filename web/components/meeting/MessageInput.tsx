@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { useDaemonStatus } from "@/web/components/ui/DaemonContext";
 import styles from "./MessageInput.module.css";
 
@@ -37,6 +37,12 @@ export default function MessageInput({
     // Cap at roughly 8 lines (200px)
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
   }, []);
+
+  // Reset height when value changes externally (cleared after send)
+  // or when streaming ends and the textarea becomes editable again.
+  useEffect(() => {
+    adjustHeight();
+  }, [value, isStreaming, adjustHeight]);
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onChange(e.target.value);
