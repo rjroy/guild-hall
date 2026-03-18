@@ -351,6 +351,17 @@ export function createBriefingGenerator(deps: BriefingGeneratorDeps) {
       };
     },
 
+    async getCachedBriefing(projectName: string): Promise<BriefingResult | null> {
+      const cachePath = briefingCachePath(deps.guildHallHome, projectName);
+      const cached = await readCacheFile(cachePath);
+      if (!cached) return null;
+      return {
+        briefing: cached.text,
+        generatedAt: new Date(cached.generatedAt).toISOString(),
+        cached: true,
+      };
+    },
+
     async invalidateCache(projectName: string): Promise<void> {
       const cachePath = briefingCachePath(deps.guildHallHome, projectName);
       try {
