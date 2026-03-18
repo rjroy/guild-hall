@@ -6,7 +6,7 @@ import type { CommissionSessionForRoutes } from "../services/commission/orchestr
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
-import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
+import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveCommissionBasePath } from "@/lib/paths";
 import { scanCommissions, readCommissionMeta, parseActivityTimeline } from "@/lib/commissions";
 import { nextOccurrence } from "@/daemon/services/scheduler/cron";
@@ -538,9 +538,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     }
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "commission.request.commission.create",
+      operationId: "commission.request.commission.create",
       version: "1",
       name: "create",
       description: "Create a new commission",
@@ -553,7 +553,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "projectName", required: true, in: "body" as const }],
     },
     {
-      skillId: "commission.request.commission.update",
+      operationId: "commission.request.commission.update",
       version: "1",
       name: "update",
       description: "Update a pending commission",
@@ -566,7 +566,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
-      skillId: "commission.request.commission.note",
+      operationId: "commission.request.commission.note",
       version: "1",
       name: "note",
       description: "Add a user note to a commission",
@@ -579,7 +579,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
-      skillId: "commission.request.commission.list",
+      operationId: "commission.request.commission.list",
       version: "1",
       name: "list",
       description: "List commissions for a project",
@@ -592,7 +592,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
     {
-      skillId: "commission.request.commission.read",
+      operationId: "commission.request.commission.read",
       version: "1",
       name: "read",
       description: "Read commission detail",
@@ -605,7 +605,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "commissionId", required: true, in: "query" as const }],
     },
     {
-      skillId: "commission.run.dispatch",
+      operationId: "commission.run.dispatch",
       version: "1",
       name: "dispatch",
       description: "Dispatch a commission to a worker",
@@ -618,7 +618,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
-      skillId: "commission.run.redispatch",
+      operationId: "commission.run.redispatch",
       version: "1",
       name: "redispatch",
       description: "Re-dispatch a failed or cancelled commission",
@@ -631,7 +631,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
-      skillId: "commission.run.continue",
+      operationId: "commission.run.continue",
       version: "1",
       name: "continue",
       description: "Continue a halted commission",
@@ -644,7 +644,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
-      skillId: "commission.run.save",
+      operationId: "commission.run.save",
       version: "1",
       name: "save",
       description: "Save partial work from a halted commission",
@@ -657,7 +657,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "commissionId", required: true, in: "body" as const }, { name: "reason", required: false, in: "body" as const }],
     },
     {
-      skillId: "commission.run.cancel",
+      operationId: "commission.run.cancel",
       version: "1",
       name: "cancel",
       description: "Cancel a pending commission",
@@ -670,7 +670,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
-      skillId: "commission.run.abandon",
+      operationId: "commission.run.abandon",
       version: "1",
       name: "abandon",
       description: "Abandon a running commission",
@@ -683,7 +683,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
-      skillId: "commission.schedule.commission.update",
+      operationId: "commission.schedule.commission.update",
       version: "1",
       name: "update",
       description: "Update schedule status (pause/resume/complete)",
@@ -696,7 +696,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
-      skillId: "commission.dependency.project.check",
+      operationId: "commission.dependency.project.check",
       version: "1",
       name: "check",
       description: "Trigger dependency auto-transitions",
@@ -719,5 +719,5 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     "commission.schedule.commission": "Scheduled commission lifecycle",
   };
 
-  return { routes, skills, descriptions };
+  return { routes, operations, descriptions };
 }

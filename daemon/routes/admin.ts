@@ -7,7 +7,7 @@ import type { Log } from "@/daemon/lib/log";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath, activityWorktreeRoot } from "@/lib/paths";
 import { readConfig, writeConfig } from "@/lib/config";
-import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
+import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import {
   syncProject as syncProjectDefault,
   rebaseAll,
@@ -277,9 +277,9 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
     }
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "system.config.application.reload",
+      operationId: "system.config.application.reload",
       version: "1",
       name: "reload",
       description: "Reload configuration from disk",
@@ -291,7 +291,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       hierarchy: { root: "system", feature: "config", object: "application" },
     },
     {
-      skillId: "system.config.project.register",
+      operationId: "system.config.project.register",
       version: "1",
       name: "register",
       description: "Register a new project",
@@ -304,7 +304,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       parameters: [{ name: "name", required: true, in: "body" as const }, { name: "path", required: true, in: "body" as const }],
     },
     {
-      skillId: "system.config.application.validate",
+      operationId: "system.config.application.validate",
       version: "1",
       name: "validate",
       description: "Validate configuration and project paths",
@@ -316,7 +316,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       hierarchy: { root: "system", feature: "config", object: "application" },
     },
     {
-      skillId: "workspace.git.branch.rebase",
+      operationId: "workspace.git.branch.rebase",
       version: "1",
       name: "rebase",
       description: "Rebase claude branch onto default branch",
@@ -329,7 +329,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       parameters: [{ name: "projectName", required: false, in: "body" as const }],
     },
     {
-      skillId: "workspace.git.integration.sync",
+      operationId: "workspace.git.integration.sync",
       version: "1",
       name: "sync",
       description: "Smart sync: fetch, detect merged PRs, rebase",
@@ -349,5 +349,5 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
     "workspace.git.integration": "Integration worktree sync",
   };
 
-  return { routes, skills, descriptions };
+  return { routes, operations, descriptions };
 }

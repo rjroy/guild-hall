@@ -18,7 +18,7 @@ import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
 import { createHelpRoutes } from "./routes/help";
 import { createOperationsRegistry, type OperationsRegistry } from "@/daemon/lib/operations-registry";
 import type { AppConfig, DiscoveredPackage, RouteModule, OperationDefinition } from "@/lib/types";
-import { createPackageSkillRoutes, type PackageSkillRouteDeps } from "@/daemon/routes/package-skills";
+import { createPackageOperationRoutes, type PackageOperationRouteDeps } from "@/daemon/routes/package-operations";
 import { loadPackageOperations } from "@/daemon/services/operations-loader";
 import { OperationHandlerError } from "@/daemon/services/operation-types";
 import { asCommissionId, asMeetingId } from "@/daemon/types";
@@ -537,7 +537,7 @@ export async function createProductionApp(options?: {
 
   let packageOperationRouteModule: RouteModule | undefined;
   if (packageOperations.length > 0) {
-    const routeDeps: PackageSkillRouteDeps = {
+    const routeDeps: PackageOperationRouteDeps = {
       config,
       guildHallHome,
       getCommissionStatus: (commissionId) => {
@@ -548,7 +548,7 @@ export async function createProductionApp(options?: {
         return Promise.resolve(entry?.status);
       },
     };
-    packageOperationRouteModule = createPackageSkillRoutes(packageOperations, routeDeps);
+    packageOperationRouteModule = createPackageOperationRoutes(packageOperations, routeDeps);
   }
 
   const startTime = Date.now();

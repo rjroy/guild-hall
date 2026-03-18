@@ -8,29 +8,29 @@ import {
   buildBody,
   validateArgs,
 } from "./resolve";
-import type { CliSkill } from "./resolve";
+import type { CliOperation } from "./resolve";
 import {
   extractFlags,
   shouldOutputJson,
   formatResponse,
   formatHelpTree,
-  formatSkillHelp,
+  formatOperationHelp,
   suggestCommand,
 } from "./format";
 import type { HelpNode } from "./format";
-import { streamSkill } from "./stream";
+import { streamOperation } from "./stream";
 
 /**
- * Fetches the flat skill list from the daemon.
+ * Fetches the flat operation list from the daemon.
  * Returns null if the daemon is unreachable.
  */
-async function fetchSkills(): Promise<CliSkill[] | null> {
-  const result = await daemonFetch("/help/skills");
+async function fetchOperations(): Promise<CliOperation[] | null> {
+  const result = await daemonFetch("/help/operations");
   if (isDaemonError(result)) return null;
   if (!result.ok) return null;
 
-  const data = (await result.json()) as { skills: CliSkill[] };
-  return data.skills;
+  const data = (await result.json()) as { operations: CliOperation[] };
+  return data.operations;
 }
 
 /**
@@ -61,8 +61,8 @@ async function main(): Promise<void> {
     process.exit(exitCode);
   }
 
-  // Fetch skill catalog from daemon
-  const skills = await fetchSkills();
+  // Fetch operation catalog from daemon
+  const skills = await fetchOperations();
   if (!skills) {
     console.error(
       "Daemon is not running. Start the daemon first: bun run dev:daemon",
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
           if (jsonMode) {
             console.log(JSON.stringify(skill, null, 2));
           } else {
-            console.log(formatSkillHelp(skill));
+            console.log(formatOperationHelp(skill));
           }
           return;
         }
@@ -116,7 +116,7 @@ async function main(): Promise<void> {
     }
 
     case "command": {
-      const { skill, positionalArgs } = resolved.command;
+      const { operation: skill, positionalArgs } = resolved.command;
 
       // For register, resolve the path argument before sending
       const cmdSegments = skill.invocation.path.split("/").filter(Boolean);
@@ -136,7 +136,7 @@ async function main(): Promise<void> {
       // Streaming skills use SSE
       if (skill.streaming) {
         const body = buildBody(skill, resolvedArgs);
-        await streamSkill(skill.invocation.path, body);
+        await streamOperation(skill.invocation.path, body);
         return;
       }
 

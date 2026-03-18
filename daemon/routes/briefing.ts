@@ -3,7 +3,7 @@ import type { createBriefingGenerator } from "@/daemon/services/briefing-generat
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
-import type { RouteModule, SkillDefinition } from "@/lib/types";
+import type { RouteModule, OperationDefinition } from "@/lib/types";
 
 export interface BriefingRouteDeps {
   briefingGenerator: ReturnType<typeof createBriefingGenerator>;
@@ -43,9 +43,9 @@ export function createBriefingRoutes(deps: BriefingRouteDeps): RouteModule {
     }
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "coordination.review.briefing.read",
+      operationId: "coordination.review.briefing.read",
       version: "1",
       name: "read",
       description: "Generate project status briefing (single project or all-projects synthesis)",
@@ -59,5 +59,5 @@ export function createBriefingRoutes(deps: BriefingRouteDeps): RouteModule {
     },
   ];
 
-  return { routes, skills };
+  return { routes, operations };
 }

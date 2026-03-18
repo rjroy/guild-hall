@@ -1225,7 +1225,7 @@ export function makeCheckCommissionStatusHandler(
  * commissions, dispatching work, creating PRs, syncing branches, and
  * initiating meetings.
  *
- * Tool descriptions include skillId references for tools that map to
+ * Tool descriptions include operationId references for tools that map to
  * daemon-governed skills (REQ-DAB-7).
  */
 export function createManagerToolbox(
@@ -1250,7 +1250,7 @@ export function createManagerToolbox(
     tools: [
       tool(
         "create_commission",
-        "Create a new commission for a specialist worker. By default, the commission is dispatched immediately after creation. Set dispatch=false to create without dispatching. Use resourceOverrides.model to override the worker's default model. [skillId: commission.request.commission.create]",
+        "Create a new commission for a specialist worker. By default, the commission is dispatched immediately after creation. Set dispatch=false to create without dispatching. Use resourceOverrides.model to override the worker's default model. [operationId: commission.request.commission.create]",
         {
           title: z.string().describe("Short title for the commission"),
           workerName: z.string().describe("Name of the worker to assign"),
@@ -1267,7 +1267,7 @@ export function createManagerToolbox(
       ),
       tool(
         "dispatch_commission",
-        "Dispatch an existing pending commission to its assigned worker. The commission must be in 'pending' status. [skillId: commission.run.dispatch]",
+        "Dispatch an existing pending commission to its assigned worker. The commission must be in 'pending' status. [operationId: commission.run.dispatch]",
         {
           commissionId: z.string().describe("The commission ID to dispatch"),
         },
@@ -1275,7 +1275,7 @@ export function createManagerToolbox(
       ),
       tool(
         "cancel_commission",
-        "Cancel an active, pending, or halted commission. For running commissions, signals the in-process session to stop immediately. For halted commissions, preserves the branch and cleans up the worktree. [skillId: commission.run.cancel]",
+        "Cancel an active, pending, or halted commission. For running commissions, signals the in-process session to stop immediately. For halted commissions, preserves the branch and cleans up the worktree. [operationId: commission.run.cancel]",
         {
           commissionId: z.string().describe("The commission ID to cancel"),
         },
@@ -1283,7 +1283,7 @@ export function createManagerToolbox(
       ),
       tool(
         "abandon_commission",
-        "Abandon a commission that won't be completed through the commission process. Use when work was done elsewhere, is no longer relevant, or isn't worth retrying. Valid from pending, blocked, failed, cancelled, or halted states. Requires a reason for the audit trail. [skillId: commission.run.abandon]",
+        "Abandon a commission that won't be completed through the commission process. Use when work was done elsewhere, is no longer relevant, or isn't worth retrying. Valid from pending, blocked, failed, cancelled, or halted states. Requires a reason for the audit trail. [operationId: commission.run.abandon]",
         {
           commissionId: z.string().describe("The commission ID to abandon"),
           reason: z.string().describe("Why the commission is being abandoned"),
@@ -1292,7 +1292,7 @@ export function createManagerToolbox(
       ),
       tool(
         "continue_commission",
-        "Continue a halted commission from where it stopped. Resumes the session in the same worktree with a fresh turn budget. Only valid for commissions in 'halted' status. Returns capacity_error if the concurrent limit is reached. [skillId: commission.run.continue]",
+        "Continue a halted commission from where it stopped. Resumes the session in the same worktree with a fresh turn budget. Only valid for commissions in 'halted' status. Returns capacity_error if the concurrent limit is reached. [operationId: commission.run.continue]",
         {
           commissionId: z.string().describe("The commission ID to continue"),
         },
@@ -1300,7 +1300,7 @@ export function createManagerToolbox(
       ),
       tool(
         "save_commission",
-        "Save partial work from a halted commission. Merges the work done so far into the integration branch and marks the commission as completed (partial). Only valid for commissions in 'halted' status. [skillId: commission.run.save]",
+        "Save partial work from a halted commission. Merges the work done so far into the integration branch and marks the commission as completed (partial). Only valid for commissions in 'halted' status. [operationId: commission.run.save]",
         {
           commissionId: z.string().describe("The commission ID to save"),
           reason: z.string().optional().describe("Why the partial work is being saved. If omitted, a system-generated message is used."),
@@ -1328,7 +1328,7 @@ export function createManagerToolbox(
       ),
       tool(
         "add_commission_note",
-        "Add a coordination note to a commission's timeline. Use for status observations, recommendations, or context that helps the user understand commission progress. [skillId: commission.request.commission.note]",
+        "Add a coordination note to a commission's timeline. Use for status observations, recommendations, or context that helps the user understand commission progress. [operationId: commission.request.commission.note]",
         {
           commissionId: z.string().describe("The commission ID to annotate"),
           content: z.string().describe("The note content"),
@@ -1337,7 +1337,7 @@ export function createManagerToolbox(
       ),
       tool(
         "create_scheduled_commission",
-        "Create a recurring scheduled commission that spawns one-shot commissions on a cron schedule. The schedule starts in 'active' status and the scheduler will dispatch commissions at each cron interval. [skillId: commission.request.commission.create]",
+        "Create a recurring scheduled commission that spawns one-shot commissions on a cron schedule. The schedule starts in 'active' status and the scheduler will dispatch commissions at each cron interval. [operationId: commission.request.commission.create]",
         {
           title: z.string().describe("Short title for the scheduled commission"),
           workerName: z.string().describe("Name of the worker to assign each run to"),
@@ -1355,7 +1355,7 @@ export function createManagerToolbox(
       ),
       tool(
         "update_schedule",
-        "Update a scheduled commission's configuration or status. Can change the cron expression, repeat limit, prompt, status (active/paused/completed), or resource overrides. Status transitions follow the schedule lifecycle state machine. [skillId: commission.schedule.commission.update]",
+        "Update a scheduled commission's configuration or status. Can change the cron expression, repeat limit, prompt, status (active/paused/completed), or resource overrides. Status transitions follow the schedule lifecycle state machine. [operationId: commission.schedule.commission.update]",
         {
           commissionId: z.string().describe("The scheduled commission ID to update"),
           cron: z.string().optional().describe("New 5-field cron expression"),
@@ -1372,7 +1372,7 @@ export function createManagerToolbox(
       ),
       tool(
         "check_commission_status",
-        "Check the status of a specific commission by ID, or get a summary list of all commissions for the current project. [skillId: commission.request.commission.read, commission.request.commission.list]",
+        "Check the status of a specific commission by ID, or get a summary list of all commissions for the current project. [operationId: commission.request.commission.read, commission.request.commission.list]",
         {
           commissionId: z.string().optional().describe("Commission ID to look up. Omit for a summary list of all commissions."),
         },

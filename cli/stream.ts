@@ -11,7 +11,7 @@ function str(val: unknown): string {
  * Connects to a streaming (SSE) daemon endpoint and prints events as they arrive.
  * Exits when the stream closes.
  */
-export async function streamSkill(
+export async function streamOperation(
   path: string,
   body?: string,
 ): Promise<void> {

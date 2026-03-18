@@ -1,19 +1,19 @@
-import type { SkillParameter } from "@/lib/types";
+import type { OperationParameter } from "@/lib/types";
 
-/** Skill metadata as returned by GET /help/skills. */
-export interface CliSkill {
-  skillId: string;
+/** Operation metadata as returned by GET /help/operations. */
+export interface CliOperation {
+  operationId: string;
   name: string;
   description: string;
   invocation: { method: "GET" | "POST"; path: string };
   context: Record<string, boolean>;
   streaming?: { eventTypes: string[] };
   idempotent: boolean;
-  parameters?: SkillParameter[];
+  parameters?: OperationParameter[];
 }
 
 export interface ResolvedCommand {
-  skill: CliSkill;
+  operation: CliOperation;
   /** Positional argument values, in parameter order. */
   positionalArgs: string[];
 }
@@ -32,7 +32,7 @@ export type ResolveResult =
  * Returns the path segments for a skill's invocation path.
  * "/workspace/artifact/document/list" → ["workspace", "artifact", "document", "list"]
  */
-function pathSegments(skill: CliSkill): string[] {
+function pathSegments(skill: CliOperation): string[] {
   return skill.invocation.path.split("/").filter(Boolean);
 }
 
@@ -53,7 +53,7 @@ function pathSegments(skill: CliSkill): string[] {
  */
 export function resolveCommand(
   segments: string[],
-  skills: CliSkill[],
+  skills: CliOperation[],
 ): ResolveResult {
   if (segments.length === 0) {
     return { type: "help", help: { segments: [] } };
@@ -65,7 +65,7 @@ export function resolveCommand(
   }
 
   // Build a map from invocation path to skill for matching
-  const pathMap = new Map<string, CliSkill>();
+  const pathMap = new Map<string, CliOperation>();
   for (const skill of skills) {
     const segs = pathSegments(skill);
     pathMap.set(segs.join(" "), skill);
@@ -74,12 +74,12 @@ export function resolveCommand(
   // Greedy: try longest prefix first
   for (let len = segments.length; len > 0; len--) {
     const prefix = segments.slice(0, len).join(" ");
-    const skill = pathMap.get(prefix);
-    if (skill) {
+    const operation = pathMap.get(prefix);
+    if (operation) {
       return {
         type: "command",
         command: {
-          skill,
+          operation,
           positionalArgs: segments.slice(len),
         },
       };
@@ -93,7 +93,7 @@ export function resolveCommand(
  * Builds a query string from positional args mapped to GET parameters.
  */
 export function buildQueryString(
-  skill: CliSkill,
+  skill: CliOperation,
   positionalArgs: string[],
 ): string {
   const params = (skill.parameters ?? []).filter((p) => p.in === "query");
@@ -112,7 +112,7 @@ export function buildQueryString(
  * Builds a JSON body from positional args mapped to POST parameters.
  */
 export function buildBody(
-  skill: CliSkill,
+  skill: CliOperation,
   positionalArgs: string[],
 ): string | undefined {
   const params = (skill.parameters ?? []).filter((p) => p.in === "body");
@@ -131,7 +131,7 @@ export function buildBody(
  * Returns an error message if validation fails, or null if valid.
  */
 export function validateArgs(
-  skill: CliSkill,
+  skill: CliOperation,
   positionalArgs: string[],
 ): string | null {
   const params = skill.parameters ?? [];

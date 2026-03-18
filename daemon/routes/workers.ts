@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { AppConfig, DiscoveredPackage, RouteModule, SkillDefinition, WorkerMetadata } from "@/lib/types";
+import type { AppConfig, DiscoveredPackage, RouteModule, OperationDefinition, WorkerMetadata } from "@/lib/types";
 import { resolveModel } from "@/lib/types";
 import { getWorkers } from "@/lib/packages";
 
@@ -60,9 +60,9 @@ export function createWorkerRoutes(deps: WorkerRoutesDeps): RouteModule {
     return c.json({ workers });
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "system.packages.worker.list",
+      operationId: "system.packages.worker.list",
       version: "1",
       name: "list",
       description: "List discovered worker packages",
@@ -75,5 +75,5 @@ export function createWorkerRoutes(deps: WorkerRoutesDeps): RouteModule {
     },
   ];
 
-  return { routes, skills };
+  return { routes, operations };
 }

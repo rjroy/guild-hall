@@ -1,18 +1,18 @@
 import { Hono } from "hono";
-import type { SkillRegistry, SkillTreeNode } from "@/daemon/lib/skill-registry";
+import type { OperationsRegistry, OperationTreeNode } from "@/daemon/lib/operations-registry";
 
 /**
- * Serializes a skill tree node into the response shape.
+ * Serializes an operation tree node into the response shape.
  */
 function serializeNode(
-  node: SkillTreeNode,
+  node: OperationTreeNode,
   segments: string[],
 ): Record<string, unknown> {
-  const skillId = segments.join(".");
+  const operationId = segments.join(".");
   const path = "/" + segments.join("/");
 
   const result: Record<string, unknown> = {
-    skillId,
+    operationId,
     version: "1",
     path,
     kind: node.kind,
@@ -21,14 +21,14 @@ function serializeNode(
     visibility: "available",
   };
 
-  // For operation nodes with skill metadata, include the method
-  if (node.skill?.invocation.method) {
-    result.method = node.skill.invocation.method;
+  // For operation nodes with operation metadata, include the method
+  if (node.operation?.invocation.method) {
+    result.method = node.operation.invocation.method;
   }
 
-  // Include source package attribution for package-contributed skills
-  if (node.skill?.sourcePackage) {
-    result.sourcePackage = node.skill.sourcePackage;
+  // Include source package attribution for package-contributed operations
+  if (node.operation?.sourcePackage) {
+    result.sourcePackage = node.operation.sourcePackage;
   }
 
   // Include children summary for non-operation nodes
@@ -48,13 +48,13 @@ function serializeNode(
  * Finds a node in the tree at the given path segments.
  */
 function findNode(
-  tree: SkillTreeNode[],
+  tree: OperationTreeNode[],
   segments: string[],
-): SkillTreeNode | undefined {
+): OperationTreeNode | undefined {
   if (segments.length === 0) return undefined;
 
-  let nodes: SkillTreeNode[] = tree;
-  let current: SkillTreeNode | undefined;
+  let nodes: OperationTreeNode[] = tree;
+  let current: OperationTreeNode | undefined;
 
   for (const segment of segments) {
     current = nodes.find((n) => n.name === segment);
@@ -71,19 +71,19 @@ function findNode(
  * reflects the currently registered capabilities.
  *
  * GET /help                                     - List top-level roots
- * GET /help/skills                              - Flat list of all skills
+ * GET /help/operations                           - Flat list of all operations
  * GET /:root/help                               - List features
  * GET /:root/:feature/help                      - List objects
  * GET /:root/:feature/:object/help              - List operations
  * GET /:root/:feature/:object/:operation/help   - Full operation metadata
  */
-export function createHelpRoutes(registry: SkillRegistry): Hono {
+export function createHelpRoutes(registry: OperationsRegistry): Hono {
   const routes = new Hono();
 
   // GET /help - List top-level roots
   routes.get("/help", (c) => {
     return c.json({
-      skillId: "",
+      operationId: "",
       version: "1",
       path: "/",
       kind: "root",
@@ -162,25 +162,25 @@ export function createHelpRoutes(registry: SkillRegistry): Hono {
     );
   });
 
-  // GET /help/skills - Flat list of all skills with metadata
-  routes.get("/help/skills", (c) => {
-    const skills = Array.from(registry.skills.values()).map((skill) => {
+  // GET /help/operations - Flat list of all operations with metadata
+  routes.get("/help/operations", (c) => {
+    const operations = Array.from(registry.operations.values()).map((op) => {
       const entry: Record<string, unknown> = {
-        skillId: skill.skillId,
-        name: skill.name,
-        description: skill.description,
-        invocation: skill.invocation,
-        context: skill.context,
-        streaming: skill.streaming,
-        idempotent: skill.idempotent,
-        parameters: skill.parameters,
+        operationId: op.operationId,
+        name: op.name,
+        description: op.description,
+        invocation: op.invocation,
+        context: op.context,
+        streaming: op.streaming,
+        idempotent: op.idempotent,
+        parameters: op.parameters,
       };
-      if (skill.sourcePackage) {
-        entry.sourcePackage = skill.sourcePackage;
+      if (op.sourcePackage) {
+        entry.sourcePackage = op.sourcePackage;
       }
       return entry;
     });
-    return c.json({ skills });
+    return c.json({ operations });
   });
 
   return routes;
