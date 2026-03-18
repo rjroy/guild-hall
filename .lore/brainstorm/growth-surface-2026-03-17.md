@@ -228,6 +228,10 @@ A user who lives in this system daily will browse `.lore/` artifacts months afte
 
 Small for the write-time stamp. Medium for the backlink system (needs to handle concurrent writes, missing artifacts, and artifact moves).
 
+### User Response
+
+Might be a good idea. Still don't even know if we can get this to work at all. It only works if we can do this via hooks.
+
 ---
 
 ## Proposal 6: Package Skill Composition — Workers That Teach Each Other
@@ -262,6 +266,10 @@ The vision's Growth Surface 3 (Worker Growth) says "workers become more capable 
 ### Scope
 
 Small. One read-only tool in the base toolbox that queries existing registry and roster data. No new infrastructure.
+
+### User Response
+
+This is a missing feature. There is no incentive for one worker to mail another.
 
 ---
 
