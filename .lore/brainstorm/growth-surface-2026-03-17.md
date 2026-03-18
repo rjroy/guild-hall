@@ -1,5 +1,5 @@
 ---
-title: "Growth Surface: Capabilities Hiding in Plain Sight"
+title: "Growth Surface: Capabilities Hiding in Plain Sight (March 17, 2026)"
 date: 2026-03-17
 status: open
 author: Celeste
@@ -186,6 +186,10 @@ The commission-outcomes-to-memory proposal (open brainstorm) addresses the "what
 ### Scope
 
 Small. One tool added to the base toolbox factory. The briefing generator already exists with caching. No new infrastructure.
+
+### User Response
+
+This has surfaced several things. First, Phase 7 is actually a bad idea. I was wrong. Or its at least questionable. This trusts the agent to always use the tool correctly. When there is lots of room for messing with a project it doesn't mean to. But we can ignore that and focus on the good bits here which is the simple base tool of `project_briefing`. Good idea. 
 
 ---
 
