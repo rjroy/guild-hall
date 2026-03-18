@@ -11,38 +11,43 @@ import { htmlToText } from "./html-to-text";
 
 // -- Domain types --
 
+export interface EmailAddress {
+  name: string;
+  email: string;
+}
+
 export interface EmailSummary {
-  id: unknown;
-  threadId: unknown;
-  from: unknown;
-  to: unknown;
-  subject: unknown;
-  receivedAt: unknown;
-  preview: unknown;
-  hasAttachment: unknown;
+  id: string;
+  threadId: string;
+  from: EmailAddress[];
+  to: EmailAddress[];
+  subject: string;
+  receivedAt: string;
+  preview: string;
+  hasAttachment: boolean;
   isUnread: boolean;
   isFlagged: boolean;
-  mailboxIds: unknown;
+  mailboxIds: Record<string, boolean>;
 }
 
 export interface EmailDetail {
-  id: unknown;
-  threadId: unknown;
-  from: unknown;
-  to: unknown;
-  cc: unknown;
-  replyTo: unknown;
-  subject: unknown;
-  sentAt: unknown;
-  receivedAt: unknown;
+  id: string;
+  threadId: string;
+  from: EmailAddress[];
+  to: EmailAddress[];
+  cc: EmailAddress[];
+  replyTo: EmailAddress[] | null;
+  subject: string;
+  sentAt: string | null;
+  receivedAt: string;
   isUnread: boolean;
   isFlagged: boolean;
   mailboxes: string[];
   body: string;
   attachments: Array<{
-    filename: unknown;
-    size: unknown;
-    type: unknown;
+    filename: string | null;
+    size: number | null;
+    type: string | null;
   }>;
 }
 
@@ -62,17 +67,17 @@ export interface SearchEmailsArgs {
 
 function mapEmailSummary(email: Record<string, unknown>): EmailSummary {
   return {
-    id: email.id,
-    threadId: email.threadId,
-    from: email.from,
-    to: email.to,
-    subject: email.subject,
-    receivedAt: email.receivedAt,
-    preview: email.preview,
-    hasAttachment: email.hasAttachment,
+    id: email.id as string,
+    threadId: email.threadId as string,
+    from: email.from as EmailAddress[],
+    to: email.to as EmailAddress[],
+    subject: email.subject as string,
+    receivedAt: email.receivedAt as string,
+    preview: email.preview as string,
+    hasAttachment: email.hasAttachment as boolean,
     isUnread: !(email.keywords as Record<string, boolean> | null)?.$seen,
     isFlagged: !!(email.keywords as Record<string, boolean> | null)?.$flagged,
-    mailboxIds: email.mailboxIds,
+    mailboxIds: email.mailboxIds as Record<string, boolean>,
   };
 }
 
@@ -224,15 +229,15 @@ export async function readEmail(
   }));
 
   return {
-    id: email.id,
-    threadId: email.threadId,
-    from: email.from,
-    to: email.to,
-    cc: email.cc,
-    replyTo: email.replyTo,
-    subject: email.subject,
-    sentAt: email.sentAt,
-    receivedAt: email.receivedAt,
+    id: email.id as string,
+    threadId: email.threadId as string,
+    from: email.from as EmailAddress[],
+    to: email.to as EmailAddress[],
+    cc: (email.cc ?? []) as EmailAddress[],
+    replyTo: (email.replyTo as EmailAddress[] | null) ?? null,
+    subject: email.subject as string,
+    sentAt: (email.sentAt as string | null) ?? null,
+    receivedAt: email.receivedAt as string,
     isUnread: !(email.keywords as Record<string, boolean> | null)?.$seen,
     isFlagged: !!(email.keywords as Record<string, boolean> | null)?.$flagged,
     mailboxes: mailboxNames,
@@ -300,11 +305,7 @@ export async function getThread(
 
   const emails = emailData.list
     .map(mapEmailSummary)
-    .sort((a, b) => {
-      const dateA = typeof a.receivedAt === "string" ? a.receivedAt : "";
-      const dateB = typeof b.receivedAt === "string" ? b.receivedAt : "";
-      return dateA.localeCompare(dateB);
-    });
+    .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
 
   return { threadId, emails, total: emails.length };
 }

@@ -21,7 +21,7 @@ import type {
 import { OperationHandlerError } from "@/daemon/services/operation-types";
 import type { OperationDefinition } from "@/lib/types";
 
-// -- Zod request schemas (Step 5) --
+// -- Zod request schemas --
 
 const searchEmailsSchema = z.object({
   from: z.string().optional(),
