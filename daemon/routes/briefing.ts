@@ -31,7 +31,10 @@ export function createBriefingRoutes(deps: BriefingRouteDeps): RouteModule {
         return c.json(result);
       }
 
-      const result = await deps.briefingGenerator.generateBriefing(projectName);
+      const result = await deps.briefingGenerator.getCachedBriefing(projectName);
+      if (!result) {
+        return c.json({ briefing: null, generatedAt: null, cached: false, pending: true });
+      }
       return c.json(result);
     } catch (err: unknown) {
       const reason = errorMessage(err);

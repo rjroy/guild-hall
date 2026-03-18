@@ -449,6 +449,18 @@ export async function createProductionApp(options?: {
     log: createLog("briefing"),
   });
 
+  // Background briefing refresh: pre-warms the briefing cache so route
+  // reads return instantly. Uses post-completion scheduling (setTimeout).
+  const { createBriefingRefreshService } = await import(
+    "@/daemon/services/briefing-refresh"
+  );
+  const briefingRefresh = createBriefingRefreshService({
+    briefingGenerator,
+    config,
+    log: createLog("briefing-refresh"),
+  });
+  briefingRefresh.start();
+
   // -- Package skill loading --
   // Load skills contributed by packages and build the route module.
   // This happens after all sessions are constructed so that SkillFactoryDeps
@@ -585,7 +597,14 @@ export async function createProductionApp(options?: {
   // setting it here makes skills available to all session types.
   prepDeps.skillRegistry = registry;
 
-  return { app, registry, shutdown: () => scheduler.stop() };
+  return {
+    app,
+    registry,
+    shutdown: () => {
+      scheduler.stop();
+      briefingRefresh.stop();
+    },
+  };
 }
 
 /**
