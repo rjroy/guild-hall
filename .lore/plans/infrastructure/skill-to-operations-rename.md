@@ -1,7 +1,7 @@
 ---
 title: Rename skill infrastructure to operations infrastructure
 date: 2026-03-17
-status: draft
+status: approved
 tags: [rename, operations, architecture, cleanup]
 modules: [daemon, lib, cli]
 related:
