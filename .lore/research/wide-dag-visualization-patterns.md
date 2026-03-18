@@ -1,7 +1,7 @@
 ---
 title: Wide DAG Visualization Patterns
 date: 2026-03-10
-status: active
+status: abandoned
 tags: [visualization, dag, graph, layout]
 ---
 # Wide DAG Visualization Patterns
