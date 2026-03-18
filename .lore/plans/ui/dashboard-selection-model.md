@@ -1,7 +1,7 @@
 ---
 title: Dashboard Selection Model
 date: 2026-03-15
-status: draft
+status: executed
 tags: [ux, ui, dashboard, project-selection, briefing, commission-filter, in-flight]
 modules:
   [
