@@ -15,6 +15,8 @@ related:
 
 # Plan: Daemon Application Boundary Migration
 
+> **Note (2026-03-17):** This plan uses "skill" terminology (Phase 6, Phase 7) that has since been renamed to "operations" in the codebase. `SkillDefinition` → `OperationDefinition`, `SkillRegistry` → `OperationsRegistry`, `skillId` → `operationId`. Design docs renamed: `skill-contract.md` → `operation-contract.md`. See `.lore/plans/infrastructure/skill-to-operations-rename.md`.
+
 ## Spec Reference
 
 **Spec**: `.lore/specs/infrastructure/daemon-application-boundary.md`

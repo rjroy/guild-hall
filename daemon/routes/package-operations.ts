@@ -1,9 +1,10 @@
 /**
- * Generic route factory for package-contributed skills.
+ * Generic route factory for package-contributed operations.
  *
- * Reads PackageSkill definitions (from skill factories) and generates Hono
- * routes with context validation, parameter extraction, and error handling.
- * Each PackageSkill gets a route at its declared invocation path/method.
+ * Reads PackageOperation definitions (from operation factories) and generates
+ * Hono routes with context validation, parameter extraction, and error
+ * handling. Each PackageOperation gets a route at its declared invocation
+ * path/method.
  *
  * Context validation checks that required context fields (project, commission,
  * meeting) exist and are not in an outcome state before invoking the handler.
@@ -12,20 +13,20 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { streamSSE } from "hono/streaming";
-import type { AppConfig, RouteModule, SkillContext, SkillDefinition } from "@/lib/types";
+import type { AppConfig, RouteModule, OperationContext, OperationDefinition } from "@/lib/types";
 import type {
-  PackageSkill,
-  SkillHandlerContext,
-  SkillStreamEmitter,
-} from "@/daemon/services/skill-types";
-import { SkillHandlerError } from "@/daemon/services/skill-types";
+  PackageOperation,
+  OperationHandlerContext,
+  OperationStreamEmitter,
+} from "@/daemon/services/operation-types";
+import { OperationHandlerError } from "@/daemon/services/operation-types";
 import type { CommissionStatus, MeetingStatus } from "@/daemon/types";
 
 // -- Outcome states --
-// States that block skill invocation. These are distinct from the state
+// States that block operation invocation. These are distinct from the state
 // machine's concept of terminal (which means no outgoing transitions).
 // Commissions and meetings in these states have produced an outcome and
-// should not accept new skill operations.
+// should not accept new operations.
 
 const COMMISSION_OUTCOME_STATES: Set<CommissionStatus> = new Set([
   "completed",
@@ -39,13 +40,13 @@ const MEETING_OUTCOME_STATES: Set<MeetingStatus> = new Set(["closed", "declined"
 // -- Deps interface --
 
 /**
- * Minimal dependencies for package skill route generation.
+ * Minimal dependencies for package operation route generation.
  *
  * Commission and meeting lookups are abstracted behind functions so the
  * route factory doesn't import session internals. The daemon wires these
  * to the actual record layer and registry during production startup.
  */
-export interface PackageSkillRouteDeps {
+export interface PackageOperationRouteDeps {
   config: AppConfig;
   guildHallHome: string;
 
@@ -65,29 +66,29 @@ export interface PackageSkillRouteDeps {
 // -- Context validation --
 
 /**
- * Validates and resolves context fields declared by a skill definition.
+ * Validates and resolves context fields declared by an operation definition.
  *
  * Checks that required context params are present, that referenced entities
  * exist, and that they are not in outcome states. Returns a populated
- * SkillHandlerContext on success, or throws SkillHandlerError with the
- * appropriate HTTP status on failure.
+ * OperationHandlerContext on success, or throws OperationHandlerError with
+ * the appropriate HTTP status on failure.
  */
-async function validateSkillContext(
-  definition: SkillDefinition,
+async function validateOperationContext(
+  definition: OperationDefinition,
   params: Record<string, unknown>,
-  deps: PackageSkillRouteDeps,
-): Promise<SkillHandlerContext> {
-  const ctx: SkillHandlerContext = { params };
-  const context: SkillContext = definition.context;
+  deps: PackageOperationRouteDeps,
+): Promise<OperationHandlerContext> {
+  const ctx: OperationHandlerContext = { params };
+  const context: OperationContext = definition.context;
 
   if (context.project) {
     const projectName = params.projectName;
     if (!projectName || typeof projectName !== "string") {
-      throw new SkillHandlerError("Missing required context parameter: projectName", 400);
+      throw new OperationHandlerError("Missing required context parameter: projectName", 400);
     }
     const found = deps.config.projects.find((p) => p.name === projectName);
     if (!found) {
-      throw new SkillHandlerError(`Project not found: ${projectName}`, 404);
+      throw new OperationHandlerError(`Project not found: ${projectName}`, 404);
     }
     ctx.projectName = projectName;
   }
@@ -95,14 +96,14 @@ async function validateSkillContext(
   if (context.commissionId) {
     const commissionId = params.commissionId;
     if (!commissionId || typeof commissionId !== "string") {
-      throw new SkillHandlerError("Missing required context parameter: commissionId", 400);
+      throw new OperationHandlerError("Missing required context parameter: commissionId", 400);
     }
     const status = await deps.getCommissionStatus(commissionId);
     if (status === undefined) {
-      throw new SkillHandlerError(`Commission not found: ${commissionId}`, 404);
+      throw new OperationHandlerError(`Commission not found: ${commissionId}`, 404);
     }
     if (COMMISSION_OUTCOME_STATES.has(status as CommissionStatus)) {
-      throw new SkillHandlerError(
+      throw new OperationHandlerError(
         `Commission "${commissionId}" is in outcome state "${status}"`,
         409,
       );
@@ -113,14 +114,14 @@ async function validateSkillContext(
   if (context.meetingId) {
     const meetingId = params.meetingId;
     if (!meetingId || typeof meetingId !== "string") {
-      throw new SkillHandlerError("Missing required context parameter: meetingId", 400);
+      throw new OperationHandlerError("Missing required context parameter: meetingId", 400);
     }
     const status = await deps.getMeetingStatus(meetingId);
     if (status === undefined) {
-      throw new SkillHandlerError(`Meeting not found: ${meetingId}`, 404);
+      throw new OperationHandlerError(`Meeting not found: ${meetingId}`, 404);
     }
     if (MEETING_OUTCOME_STATES.has(status as MeetingStatus)) {
-      throw new SkillHandlerError(
+      throw new OperationHandlerError(
         `Meeting "${meetingId}" is in outcome state "${status}"`,
         409,
       );
@@ -129,8 +130,8 @@ async function validateSkillContext(
   }
 
   if (context.scheduleId) {
-    // Startup validation in skill-loader.ts rejects skills declaring scheduleId
-    // context. This guard catches anything that bypasses that validation.
+    // Startup validation in operations-loader.ts rejects operations declaring
+    // scheduleId context. This guard catches anything that bypasses that validation.
     throw new Error("scheduleId context is not supported");
   }
 
@@ -166,28 +167,28 @@ async function extractParams(
 // -- Route factory --
 
 /**
- * Creates Hono routes for an array of package skills.
+ * Creates Hono routes for an array of package operations.
  *
- * Each skill gets a route at its declared path and method. The route handler:
+ * Each operation gets a route at its declared path and method. The route handler:
  * 1. Extracts parameters from query string (GET) or JSON body (POST)
- * 2. Validates parameters against the skill's request schema (if any)
+ * 2. Validates parameters against the operation's request schema (if any)
  * 3. Validates and resolves context fields
  * 4. Calls the handler or stream handler
  * 5. Returns the result as JSON or streams SSE events
  *
- * SkillHandlerError is caught and returned as `{ error }` with the specified
+ * OperationHandlerError is caught and returned as `{ error }` with the specified
  * status. Other errors propagate to Hono's error handler.
  */
-export function createPackageSkillRoutes(
-  packageSkills: PackageSkill[],
-  deps: PackageSkillRouteDeps,
+export function createPackageOperationRoutes(
+  packageOperations: PackageOperation[],
+  deps: PackageOperationRouteDeps,
 ): RouteModule {
   const routes = new Hono();
-  const skills: SkillDefinition[] = [];
+  const operations: OperationDefinition[] = [];
 
-  for (const pkgSkill of packageSkills) {
-    const { definition } = pkgSkill;
-    skills.push(definition);
+  for (const pkgOp of packageOperations) {
+    const { definition } = pkgOp;
+    operations.push(definition);
 
     const routeHandler = async (c: Context) => {
       try {
@@ -210,17 +211,17 @@ export function createPackageSkillRoutes(
         }
 
         // 3. Validate context
-        const ctx = await validateSkillContext(definition, validatedParams, deps);
+        const ctx = await validateOperationContext(definition, validatedParams, deps);
 
         // 4. Call handler
-        if (pkgSkill.streamHandler) {
+        if (pkgOp.streamHandler) {
           return streamSSE(c, async (stream) => {
             // Buffer write promises so we can await them before the stream
-            // closes. SkillStreamEmitter is synchronous (returns void) but
+            // closes. OperationStreamEmitter is synchronous (returns void) but
             // writeSSE is async. Without this, the stream closes before
             // pending writes flush.
             const pending: Promise<void>[] = [];
-            const emitter: SkillStreamEmitter = (event, data) => {
+            const emitter: OperationStreamEmitter = (event, data) => {
               pending.push(
                 stream.writeSSE({
                   event,
@@ -229,11 +230,11 @@ export function createPackageSkillRoutes(
               );
             };
             try {
-              await pkgSkill.streamHandler!(ctx, emitter);
+              await pkgOp.streamHandler!(ctx, emitter);
               await Promise.all(pending);
             } catch (err: unknown) {
               await Promise.all(pending);
-              if (err instanceof SkillHandlerError) {
+              if (err instanceof OperationHandlerError) {
                 await stream.writeSSE({
                   event: "error",
                   data: JSON.stringify({ error: err.message, status: err.status }),
@@ -248,14 +249,14 @@ export function createPackageSkillRoutes(
           });
         }
 
-        if (!pkgSkill.handler) {
-          return c.json({ error: "No handler configured for this skill" }, 500);
+        if (!pkgOp.handler) {
+          return c.json({ error: "No handler configured for this operation" }, 500);
         }
 
-        const result = await pkgSkill.handler(ctx);
+        const result = await pkgOp.handler(ctx);
         return c.json(result.data, (result.status ?? 200) as ContentfulStatusCode);
       } catch (err: unknown) {
-        if (err instanceof SkillHandlerError) {
+        if (err instanceof OperationHandlerError) {
           return c.json({ error: err.message }, err.status as ContentfulStatusCode);
         }
         throw err;
@@ -270,5 +271,5 @@ export function createPackageSkillRoutes(
     }
   }
 
-  return { routes, skills };
+  return { routes, operations };
 }

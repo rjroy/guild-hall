@@ -1,4 +1,4 @@
-import type { CliSkill } from "./resolve";
+import type { CliOperation } from "./resolve";
 
 export interface FormatOptions {
   /** Force JSON output regardless of TTY detection. */
@@ -148,9 +148,9 @@ export function formatHelpTree(
 }
 
 /**
- * Formats a skill's metadata for terminal display (leaf help).
+ * Formats an operation's metadata for terminal display (leaf help).
  */
-export function formatSkillHelp(skill: CliSkill): string {
+export function formatOperationHelp(skill: CliOperation): string {
   const lines: string[] = [];
   const cmdSegments = skill.invocation.path.split("/").filter(Boolean).join(" ");
 
@@ -185,11 +185,11 @@ export function formatSkillHelp(skill: CliSkill): string {
 }
 
 /**
- * Suggests a close match from available skill invocation paths.
+ * Suggests a close match from available operation invocation paths.
  */
 export function suggestCommand(
   segments: string[],
-  skills: CliSkill[],
+  skills: CliOperation[],
 ): string | null {
   const input = segments.join(" ");
   let bestMatch: string | null = null;

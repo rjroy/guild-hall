@@ -1,57 +1,57 @@
 import { describe, test, expect } from "bun:test";
-import { createSkillRegistry } from "@/daemon/lib/skill-registry";
-import type { SkillDefinition } from "@/lib/types";
+import { createOperationsRegistry } from "@/daemon/lib/operations-registry";
+import type { OperationDefinition } from "@/lib/types";
 
-function makeSkill(
-  overrides: Partial<SkillDefinition>,
-): SkillDefinition {
+function makeOperation(
+  overrides: Partial<OperationDefinition>,
+): OperationDefinition {
   return {
-    skillId: "test.skill",
+    operationId: "test.operation",
     version: "1",
     name: "test",
-    description: "Test skill",
+    description: "Test operation",
     invocation: { method: "GET", path: "/test" },
     sideEffects: "",
     context: {},
     idempotent: true,
-    hierarchy: { root: "test", feature: "skills" },
+    hierarchy: { root: "test", feature: "operations" },
     ...overrides,
   };
 }
 
-describe("createSkillRegistry", () => {
-  test("builds registry from empty skill list", () => {
-    const registry = createSkillRegistry([]);
+describe("createOperationsRegistry", () => {
+  test("builds registry from empty operation list", () => {
+    const registry = createOperationsRegistry([]);
 
-    expect(registry.skills.size).toBe(0);
+    expect(registry.operations.size).toBe(0);
     expect(registry.tree).toEqual([]);
   });
 
-  test("registers a single skill with two-level hierarchy", () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+  test("registers a single operation with two-level hierarchy", () => {
+    const op = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
-    expect(registry.skills.size).toBe(1);
-    expect(registry.get("commission.run")).toEqual(skill);
+    expect(registry.operations.size).toBe(1);
+    expect(registry.get("commission.run")).toEqual(op);
     expect(registry.tree).toHaveLength(1);
     expect(registry.tree[0].name).toBe("commission");
     expect(registry.tree[0].kind).toBe("root");
   });
 
-  test("registers a skill with three-level hierarchy (object)", () => {
-    const skill = makeSkill({
-      skillId: "commission.run.dispatch",
+  test("registers an operation with three-level hierarchy (object)", () => {
+    const op = makeOperation({
+      operationId: "commission.run.dispatch",
       name: "create",
       hierarchy: { root: "commission", feature: "run", object: "dispatch" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
-    expect(registry.get("commission.run.dispatch")).toEqual(skill);
+    expect(registry.get("commission.run.dispatch")).toEqual(op);
 
     const root = registry.tree[0];
     expect(root.name).toBe("commission");
@@ -63,54 +63,54 @@ describe("createSkillRegistry", () => {
     const operation = object.children[0];
     expect(operation.name).toBe("create");
     expect(operation.kind).toBe("operation");
-    expect(operation.skill).toEqual(skill);
+    expect(operation.operation).toEqual(op);
   });
 
-  test("registers multiple skills under same root", () => {
-    const skill1 = makeSkill({
-      skillId: "commission.run",
+  test("registers multiple operations under same root", () => {
+    const op1 = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
-    const skill2 = makeSkill({
-      skillId: "commission.list",
+    const op2 = makeOperation({
+      operationId: "commission.list",
       hierarchy: { root: "commission", feature: "list" },
     });
 
-    const registry = createSkillRegistry([skill1, skill2]);
+    const registry = createOperationsRegistry([op1, op2]);
 
-    expect(registry.skills.size).toBe(2);
+    expect(registry.operations.size).toBe(2);
     const root = registry.tree[0];
     expect(root.children).toHaveLength(2);
     expect(root.children.map((c) => c.name)).toEqual(["run", "list"]);
   });
 
-  test("registers skills under multiple roots", () => {
-    const skill1 = makeSkill({
-      skillId: "commission.run",
+  test("registers operations under multiple roots", () => {
+    const op1 = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
-    const skill2 = makeSkill({
-      skillId: "system.health",
+    const op2 = makeOperation({
+      operationId: "system.health",
       hierarchy: { root: "system", feature: "health" },
     });
 
-    const registry = createSkillRegistry([skill1, skill2]);
+    const registry = createOperationsRegistry([op1, op2]);
 
     expect(registry.tree).toHaveLength(2);
     expect(registry.tree.map((r) => r.name)).toEqual(["commission", "system"]);
   });
 
-  test("registers skills with nested objects", () => {
-    const skill1 = makeSkill({
-      skillId: "commission.run.dispatch",
+  test("registers operations with nested objects", () => {
+    const op1 = makeOperation({
+      operationId: "commission.run.dispatch",
       hierarchy: { root: "commission", feature: "run", object: "dispatch" },
     });
-    const skill2 = makeSkill({
-      skillId: "commission.run.status",
+    const op2 = makeOperation({
+      operationId: "commission.run.status",
       hierarchy: { root: "commission", feature: "run", object: "status" },
     });
 
-    const registry = createSkillRegistry([skill1, skill2]);
+    const registry = createOperationsRegistry([op1, op2]);
 
     const root = registry.tree[0];
     const feature = root.children[0];
@@ -118,24 +118,24 @@ describe("createSkillRegistry", () => {
     expect(feature.children.map((o) => o.name)).toEqual(["dispatch", "status"]);
   });
 
-  test("rejects duplicate skillIds", () => {
-    const skill1 = makeSkill({
-      skillId: "commission.run",
+  test("rejects duplicate operationIds", () => {
+    const op1 = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
-    const skill2 = makeSkill({
-      skillId: "commission.run",
+    const op2 = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "list" },
     });
 
-    expect(() => createSkillRegistry([skill1, skill2])).toThrow(
-      /Duplicate skillId "commission.run"/,
+    expect(() => createOperationsRegistry([op1, op2])).toThrow(
+      /Duplicate operationId "commission.run"/,
     );
   });
 
   test("uses provided descriptions for non-leaf nodes", () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+    const op = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
@@ -144,7 +144,7 @@ describe("createSkillRegistry", () => {
       "commission.run": "Run a commission",
     };
 
-    const registry = createSkillRegistry([skill], descriptions);
+    const registry = createOperationsRegistry([op], descriptions);
 
     expect(registry.tree[0].description).toBe(
       "Commission management operations",
@@ -153,12 +153,12 @@ describe("createSkillRegistry", () => {
   });
 
   test("uses fallback descriptions when not provided", () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+    const op = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
     expect(registry.tree[0].description).toBe("Operations for commission");
     expect(registry.tree[0].children[0].description).toBe(
@@ -167,8 +167,8 @@ describe("createSkillRegistry", () => {
   });
 
   test("uses partial descriptions (some provided, some fallback)", () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+    const op = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
@@ -176,7 +176,7 @@ describe("createSkillRegistry", () => {
       commission: "Commission management",
     };
 
-    const registry = createSkillRegistry([skill], descriptions);
+    const registry = createOperationsRegistry([op], descriptions);
 
     expect(registry.tree[0].description).toBe("Commission management");
     expect(registry.tree[0].children[0].description).toBe(
@@ -184,55 +184,55 @@ describe("createSkillRegistry", () => {
     );
   });
 
-  test("get() returns undefined for missing skillId", () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+  test("get() returns undefined for missing operationId", () => {
+    const op = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
     expect(registry.get("commission.missing")).toBeUndefined();
   });
 
-  test("filter() returns matching skills", () => {
-    const skill1 = makeSkill({
-      skillId: "commission.run",
+  test("filter() returns matching operations", () => {
+    const op1 = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
-    const skill2 = makeSkill({
-      skillId: "commission.list",
+    const op2 = makeOperation({
+      operationId: "commission.list",
       sideEffects: "does stuff",
       hierarchy: { root: "commission", feature: "list" },
     });
 
-    const registry = createSkillRegistry([skill1, skill2]);
+    const registry = createOperationsRegistry([op1, op2]);
 
     const withSideEffects = registry.filter(
       (s) => s.sideEffects !== "",
     );
     expect(withSideEffects).toHaveLength(1);
-    expect(withSideEffects[0].skillId).toBe("commission.list");
+    expect(withSideEffects[0].operationId).toBe("commission.list");
   });
 
   test("subtree() returns undefined for empty segments", () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+    const op = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
     expect(registry.subtree([])).toBeUndefined();
   });
 
   test("subtree() returns root node by name", () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+    const op = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
     const root = registry.subtree(["commission"]);
     expect(root).toBeDefined();
@@ -241,12 +241,12 @@ describe("createSkillRegistry", () => {
   });
 
   test("subtree() returns feature node", () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+    const op = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
     const feature = registry.subtree(["commission", "run"]);
     expect(feature).toBeDefined();
@@ -255,12 +255,12 @@ describe("createSkillRegistry", () => {
   });
 
   test("subtree() returns object node", () => {
-    const skill = makeSkill({
-      skillId: "commission.run.dispatch",
+    const op = makeOperation({
+      operationId: "commission.run.dispatch",
       hierarchy: { root: "commission", feature: "run", object: "dispatch" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
     const object = registry.subtree(["commission", "run", "dispatch"]);
     expect(object).toBeDefined();
@@ -269,13 +269,13 @@ describe("createSkillRegistry", () => {
   });
 
   test("subtree() returns operation node", () => {
-    const skill = makeSkill({
-      skillId: "commission.run.dispatch",
+    const op = makeOperation({
+      operationId: "commission.run.dispatch",
       name: "dispatch",
       hierarchy: { root: "commission", feature: "run", object: "dispatch" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
     const operation = registry.subtree([
       "commission",
@@ -285,76 +285,76 @@ describe("createSkillRegistry", () => {
     ]);
     expect(operation).toBeDefined();
     expect(operation?.kind).toBe("operation");
-    expect(operation?.skill).toEqual(skill);
+    expect(operation?.operation).toEqual(op);
   });
 
   test("subtree() returns undefined for invalid path", () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+    const op = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
     expect(registry.subtree(["invalid"])).toBeUndefined();
     expect(registry.subtree(["commission", "invalid"])).toBeUndefined();
   });
 
   test("subtree() returns children list for non-operation nodes", () => {
-    const skill1 = makeSkill({
-      skillId: "commission.run",
+    const op1 = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
-    const skill2 = makeSkill({
-      skillId: "commission.list",
+    const op2 = makeOperation({
+      operationId: "commission.list",
       hierarchy: { root: "commission", feature: "list" },
     });
 
-    const registry = createSkillRegistry([skill1, skill2]);
+    const registry = createOperationsRegistry([op1, op2]);
 
     const root = registry.subtree(["commission"]);
     expect(root?.children).toHaveLength(2);
     expect(root?.children.map((c) => c.name).sort()).toEqual(["list", "run"]);
   });
 
-  test("operation node contains skill reference", () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+  test("operation node contains operation reference", () => {
+    const op = makeOperation({
+      operationId: "commission.run",
       name: "run",
       description: "Run a commission",
       invocation: { method: "POST", path: "/commission/run" },
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([op]);
 
     const feature = registry.subtree(["commission", "run"]);
     const operation = feature?.children[0];
-    expect(operation?.skill).toEqual(skill);
-    expect(operation?.skill?.invocation.method).toBe("POST");
+    expect(operation?.operation).toEqual(op);
+    expect(operation?.operation?.invocation.method).toBe("POST");
   });
 
   test("complex multi-level hierarchy", () => {
-    const skills = [
-      makeSkill({
-        skillId: "commission.run.dispatch",
+    const operations = [
+      makeOperation({
+        operationId: "commission.run.dispatch",
         hierarchy: { root: "commission", feature: "run", object: "dispatch" },
       }),
-      makeSkill({
-        skillId: "commission.run.status",
+      makeOperation({
+        operationId: "commission.run.status",
         hierarchy: { root: "commission", feature: "run", object: "status" },
       }),
-      makeSkill({
-        skillId: "commission.list",
+      makeOperation({
+        operationId: "commission.list",
         hierarchy: { root: "commission", feature: "list" },
       }),
-      makeSkill({
-        skillId: "meeting.create",
+      makeOperation({
+        operationId: "meeting.create",
         hierarchy: { root: "meeting", feature: "create" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(operations);
 
     expect(registry.tree).toHaveLength(2);
 

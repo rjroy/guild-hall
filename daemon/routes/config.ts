@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
+import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath } from "@/lib/paths";
 import { scanCommissions } from "@/lib/commissions";
 import { buildDependencyGraph } from "@/lib/dependency-graph";
@@ -61,9 +61,9 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): RouteModule {
     }
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "system.config.application.read",
+      operationId: "system.config.application.read",
       version: "1",
       name: "read",
       description: "Read application configuration",
@@ -75,7 +75,7 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): RouteModule {
       hierarchy: { root: "system", feature: "config", object: "application" },
     },
     {
-      skillId: "system.config.project.read",
+      operationId: "system.config.project.read",
       version: "1",
       name: "read",
       description: "Read single project configuration",
@@ -88,7 +88,7 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
     {
-      skillId: "commission.dependency.project.graph",
+      operationId: "commission.dependency.project.graph",
       version: "1",
       name: "graph",
       description: "Get commission dependency graph",
@@ -110,5 +110,5 @@ export function createConfigRoutes(deps: ConfigRoutesDeps): RouteModule {
     "commission.dependency.project": "Project-level dependency operations",
   };
 
-  return { routes, skills, descriptions };
+  return { routes, operations, descriptions };
 }

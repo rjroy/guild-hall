@@ -21,6 +21,7 @@ function makeMockBriefingGenerator(overrides: Partial<BriefingGenerator> = {}): 
       cached: false,
     }),
     invalidateCache: async () => {},
+    getCachedBriefing: async () => null,
     ...overrides,
   };
 }
@@ -74,9 +75,16 @@ describe("GET /coordination/review/briefing/read - all projects", () => {
   });
 });
 
-describe("GET /coordination/review/briefing/read", () => {
-  test("returns briefing with metadata", async () => {
-    const app = makeTestApp(makeMockBriefingGenerator());
+describe("GET /coordination/review/briefing/read - single project", () => {
+  test("returns cached briefing on cache hit", async () => {
+    const generator = makeMockBriefingGenerator({
+      getCachedBriefing: async (projectName: string) => ({
+        briefing: `Briefing for ${projectName}: all systems operational.`,
+        generatedAt: "2026-03-17T10:00:00.000Z",
+        cached: true,
+      }),
+    });
+    const app = makeTestApp(generator);
 
     const res = await app.request("/coordination/review/briefing/read?projectName=my-project");
 
@@ -84,51 +92,28 @@ describe("GET /coordination/review/briefing/read", () => {
     const body = await res.json();
     expect(body.briefing).toContain("my-project");
     expect(body.briefing).toContain("all systems operational");
-    expect(body.generatedAt).toBeTruthy();
-    expect(typeof body.cached).toBe("boolean");
-  });
-
-  test("returns cached briefing when generator cache hits", async () => {
-    const generator = makeMockBriefingGenerator({
-      generateBriefing: async () => ({
-        briefing: "Cached briefing text.",
-        generatedAt: "2026-02-23T12:00:00.000Z",
-        cached: true,
-      }),
-    });
-    const app = makeTestApp(generator);
-
-    const res = await app.request("/coordination/review/briefing/read?projectName=test-project");
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.briefing).toBe("Cached briefing text.");
+    expect(body.generatedAt).toBe("2026-03-17T10:00:00.000Z");
     expect(body.cached).toBe(true);
   });
 
-  test("returns 200 with error message for unknown project", async () => {
-    // The briefing generator returns a not-found message (not an HTTP error),
-    // because the project might have been removed after the page loaded.
-    const generator = makeMockBriefingGenerator({
-      generateBriefing: async (projectName: string) => ({
-        briefing: `Project "${projectName}" not found.`,
-        generatedAt: new Date().toISOString(),
-        cached: false,
-      }),
-    });
-    const app = makeTestApp(generator);
+  test("returns pending response on cache miss", async () => {
+    // Default getCachedBriefing returns null
+    const app = makeTestApp(makeMockBriefingGenerator());
 
-    const res = await app.request("/coordination/review/briefing/read?projectName=nonexistent");
+    const res = await app.request("/coordination/review/briefing/read?projectName=my-project");
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.briefing).toContain("not found");
+    expect(body.briefing).toBeNull();
+    expect(body.generatedAt).toBeNull();
+    expect(body.cached).toBe(false);
+    expect(body.pending).toBe(true);
   });
 
-  test("returns 500 when generator throws", async () => {
+  test("returns 500 when getCachedBriefing throws", async () => {
     const generator = makeMockBriefingGenerator({
-      generateBriefing: async () => {
-        throw new Error("Unexpected failure");
+      getCachedBriefing: async () => {
+        throw new Error("Cache read error");
       },
     });
     const app = makeTestApp(generator);
@@ -141,7 +126,13 @@ describe("GET /coordination/review/briefing/read", () => {
   });
 
   test("handles URL-encoded project names", async () => {
-    const generator = makeMockBriefingGenerator();
+    const generator = makeMockBriefingGenerator({
+      getCachedBriefing: async (projectName: string) => ({
+        briefing: `Briefing for ${projectName}`,
+        generatedAt: new Date().toISOString(),
+        cached: true,
+      }),
+    });
     const app = makeTestApp(generator);
 
     const res = await app.request("/coordination/review/briefing/read?projectName=my%20project");

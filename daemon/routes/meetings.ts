@@ -7,7 +7,7 @@ import { asMeetingId } from "@/daemon/types";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
-import type { AppConfig, Artifact, RouteModule, SkillDefinition } from "@/lib/types";
+import type { AppConfig, Artifact, RouteModule, OperationDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveMeetingBasePath } from "@/lib/paths";
 import { scanArtifacts } from "@/lib/artifacts";
 import {
@@ -411,9 +411,9 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
     }
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "meeting.request.meeting.create",
+      operationId: "meeting.request.meeting.create",
       version: "1",
       name: "create",
       description: "Create a new meeting and stream first turn",
@@ -427,7 +427,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "body" as const }],
     },
     {
-      skillId: "meeting.request.meeting.accept",
+      operationId: "meeting.request.meeting.accept",
       version: "1",
       name: "accept",
       description: "Accept a meeting request and stream first turn",
@@ -441,7 +441,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "body" as const }, { name: "meetingId", required: true, in: "body" as const }],
     },
     {
-      skillId: "meeting.request.meeting.decline",
+      operationId: "meeting.request.meeting.decline",
       version: "1",
       name: "decline",
       description: "Decline a meeting request",
@@ -454,7 +454,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "body" as const }, { name: "meetingId", required: true, in: "body" as const }],
     },
     {
-      skillId: "meeting.request.meeting.defer",
+      operationId: "meeting.request.meeting.defer",
       version: "1",
       name: "defer",
       description: "Defer a meeting request",
@@ -467,7 +467,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "body" as const }, { name: "meetingId", required: true, in: "body" as const }],
     },
     {
-      skillId: "meeting.request.meeting.list",
+      operationId: "meeting.request.meeting.list",
       version: "1",
       name: "list",
       description: "List meeting requests for a project",
@@ -480,7 +480,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
     {
-      skillId: "meeting.request.meeting.read",
+      operationId: "meeting.request.meeting.read",
       version: "1",
       name: "read",
       description: "Read meeting detail",
@@ -493,7 +493,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "meetingId", required: true, in: "query" as const }],
     },
     {
-      skillId: "meeting.session.message.send",
+      operationId: "meeting.session.message.send",
       version: "1",
       name: "send",
       description: "Send a message and stream response",
@@ -507,7 +507,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       parameters: [{ name: "meetingId", required: true, in: "body" as const }],
     },
     {
-      skillId: "meeting.session.generation.interrupt",
+      operationId: "meeting.session.generation.interrupt",
       version: "1",
       name: "interrupt",
       description: "Stop current generation",
@@ -520,7 +520,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       parameters: [{ name: "meetingId", required: true, in: "body" as const }],
     },
     {
-      skillId: "meeting.session.meeting.close",
+      operationId: "meeting.session.meeting.close",
       version: "1",
       name: "close",
       description: "Close an active meeting",
@@ -544,7 +544,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
     "meeting.session.meeting": "Meeting session lifecycle",
   };
 
-  return { routes, skills, descriptions };
+  return { routes, operations, descriptions };
 }
 
 /**

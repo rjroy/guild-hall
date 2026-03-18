@@ -1,13 +1,13 @@
 import { describe, test, expect } from "bun:test";
-import { createSkillRegistry } from "@/daemon/lib/skill-registry";
+import { createOperationsRegistry } from "@/daemon/lib/operations-registry";
 import { createHelpRoutes } from "@/daemon/routes/help";
-import type { SkillDefinition } from "@/lib/types";
+import type { OperationDefinition } from "@/lib/types";
 
-function makeSkill(
-  overrides: Partial<SkillDefinition>,
-): SkillDefinition {
+function makeOperation(
+  overrides: Partial<OperationDefinition>,
+): OperationDefinition {
   return {
-    skillId: "test.skill",
+    operationId: "test.skill",
     version: "1",
     name: "test",
     description: "Test skill",
@@ -23,24 +23,24 @@ function makeSkill(
 describe("Help Routes", () => {
   test("GET /help returns top-level roots", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run",
+      makeOperation({
+        operationId: "commission.run",
         hierarchy: { root: "commission", feature: "run" },
       }),
-      makeSkill({
-        skillId: "system.health",
+      makeOperation({
+        operationId: "system.health",
         hierarchy: { root: "system", feature: "health" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/help");
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.skillId).toBe("");
+    expect(body.operationId).toBe("");
     expect(body.version).toBe("1");
     expect(body.path).toBe("/");
     expect(body.kind).toBe("root");
@@ -53,13 +53,13 @@ describe("Help Routes", () => {
 
   test("GET /help includes correct child structure", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run",
+      makeOperation({
+        operationId: "commission.run",
         hierarchy: { root: "commission", feature: "run" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/help");
@@ -74,24 +74,24 @@ describe("Help Routes", () => {
 
   test("GET /:root/help returns features under a root", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run",
+      makeOperation({
+        operationId: "commission.run",
         hierarchy: { root: "commission", feature: "run" },
       }),
-      makeSkill({
-        skillId: "commission.list",
+      makeOperation({
+        operationId: "commission.list",
         hierarchy: { root: "commission", feature: "list" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/commission/help");
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.skillId).toBe("commission");
+    expect(body.operationId).toBe("commission");
     expect(body.path).toBe("/commission");
     expect(body.kind).toBe("root");
     expect(body.name).toBe("commission");
@@ -103,13 +103,13 @@ describe("Help Routes", () => {
 
   test("GET /:root/help returns 404 for invalid root", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run",
+      makeOperation({
+        operationId: "commission.run",
         hierarchy: { root: "commission", feature: "run" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/invalid/help");
@@ -121,24 +121,24 @@ describe("Help Routes", () => {
 
   test("GET /:root/:feature/help returns objects under a feature", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run.dispatch",
+      makeOperation({
+        operationId: "commission.run.dispatch",
         hierarchy: { root: "commission", feature: "run", object: "dispatch" },
       }),
-      makeSkill({
-        skillId: "commission.run.status",
+      makeOperation({
+        operationId: "commission.run.status",
         hierarchy: { root: "commission", feature: "run", object: "status" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/commission/run/help");
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.skillId).toBe("commission.run");
+    expect(body.operationId).toBe("commission.run");
     expect(body.path).toBe("/commission/run");
     expect(body.kind).toBe("feature");
     expect(body.children).toHaveLength(2);
@@ -149,13 +149,13 @@ describe("Help Routes", () => {
 
   test("GET /:root/:feature/help returns 404 for invalid feature", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run",
+      makeOperation({
+        operationId: "commission.run",
         hierarchy: { root: "commission", feature: "run" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/commission/invalid/help");
@@ -164,28 +164,28 @@ describe("Help Routes", () => {
 
   test("GET /:root/:feature/:object/help returns operations under an object", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run.dispatch",
+      makeOperation({
+        operationId: "commission.run.dispatch",
         name: "dispatch",
         description: "Dispatch a commission",
         hierarchy: { root: "commission", feature: "run", object: "dispatch" },
       }),
-      makeSkill({
-        skillId: "commission.run.abort",
+      makeOperation({
+        operationId: "commission.run.abort",
         name: "abort",
         description: "Abort a commission",
         hierarchy: { root: "commission", feature: "run", object: "dispatch" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/commission/run/dispatch/help");
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.skillId).toBe("commission.run.dispatch");
+    expect(body.operationId).toBe("commission.run.dispatch");
     expect(body.path).toBe("/commission/run/dispatch");
     expect(body.kind).toBe("object");
     expect(body.children).toHaveLength(2);
@@ -196,13 +196,13 @@ describe("Help Routes", () => {
 
   test("GET /:root/:feature/:object/help returns 404 for invalid object", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run.dispatch",
+      makeOperation({
+        operationId: "commission.run.dispatch",
         hierarchy: { root: "commission", feature: "run", object: "dispatch" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request(
@@ -212,15 +212,15 @@ describe("Help Routes", () => {
   });
 
   test("GET /:root/:feature/:object/:operation/help returns full operation metadata", async () => {
-    const skill = makeSkill({
-      skillId: "commission.request.commission.create",
+    const skill = makeOperation({
+      operationId: "commission.request.commission.create",
       name: "create",
       description: "Create a commission",
       invocation: { method: "POST", path: "/commission/request/commission/create" },
       hierarchy: { root: "commission", feature: "request", object: "commission" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request(
@@ -229,7 +229,7 @@ describe("Help Routes", () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.skillId).toBe("commission.request.commission.create");
+    expect(body.operationId).toBe("commission.request.commission.create");
     expect(body.path).toBe("/commission/request/commission/create");
     expect(body.kind).toBe("operation");
     expect(body.name).toBe("create");
@@ -240,14 +240,14 @@ describe("Help Routes", () => {
   });
 
   test("GET /:root/:feature/:object/:operation/help includes HTTP method", async () => {
-    const skill = makeSkill({
-      skillId: "commission.run.dispatch",
+    const skill = makeOperation({
+      operationId: "commission.run.dispatch",
       name: "dispatch",
       invocation: { method: "POST", path: "/commission/run/dispatch" },
       hierarchy: { root: "commission", feature: "run", object: "dispatch" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request(
@@ -259,13 +259,13 @@ describe("Help Routes", () => {
   });
 
   test("GET /:root/:feature/:object/:operation/help returns 404 for invalid operation", async () => {
-    const skill = makeSkill({
-      skillId: "commission.run.dispatch",
+    const skill = makeOperation({
+      operationId: "commission.run.dispatch",
       name: "dispatch",
       hierarchy: { root: "commission", feature: "run", object: "dispatch" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request(
@@ -275,14 +275,14 @@ describe("Help Routes", () => {
   });
 
   test("handles hierarchies without objects (two-level)", async () => {
-    const skill = makeSkill({
-      skillId: "system.health",
+    const skill = makeOperation({
+      operationId: "system.health",
       name: "health",
       description: "Get health status",
       hierarchy: { root: "system", feature: "health" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     // GET /:root/:feature/help - should list operations directly under feature
@@ -298,17 +298,17 @@ describe("Help Routes", () => {
 
   test("handles mixed hierarchies (some with objects, some without)", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run.dispatch",
+      makeOperation({
+        operationId: "commission.run.dispatch",
         hierarchy: { root: "commission", feature: "run", object: "dispatch" },
       }),
-      makeSkill({
-        skillId: "system.health",
+      makeOperation({
+        operationId: "system.health",
         hierarchy: { root: "system", feature: "health" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res1 = await routes.request("/commission/help");
@@ -321,7 +321,7 @@ describe("Help Routes", () => {
   });
 
   test("GET /help with empty registry", async () => {
-    const registry = createSkillRegistry([]);
+    const registry = createOperationsRegistry([]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/help");
@@ -333,12 +333,12 @@ describe("Help Routes", () => {
   });
 
   test("response includes visibility field", async () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+    const skill = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/commission/help");
@@ -348,12 +348,12 @@ describe("Help Routes", () => {
   });
 
   test("response includes version", async () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+    const skill = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/commission/help");
@@ -364,17 +364,17 @@ describe("Help Routes", () => {
 
   test("child entries include path", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run",
+      makeOperation({
+        operationId: "commission.run",
         hierarchy: { root: "commission", feature: "run" },
       }),
-      makeSkill({
-        skillId: "commission.list",
+      makeOperation({
+        operationId: "commission.list",
         hierarchy: { root: "commission", feature: "list" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/commission/help");
@@ -384,29 +384,29 @@ describe("Help Routes", () => {
     expect(body.children[1].path).toBe("/commission/list");
   });
 
-  test("operation without object has skillId derived from path", async () => {
-    const skill = makeSkill({
-      skillId: "system.health",
+  test("operation without object has operationId derived from path", async () => {
+    const skill = makeOperation({
+      operationId: "system.health",
       hierarchy: { root: "system", feature: "health" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/system/health/help");
     const body = await res.json();
 
-    expect(body.skillId).toBe("system.health");
+    expect(body.operationId).toBe("system.health");
   });
 
-  test("operation with object has full skillId in response", async () => {
-    const skill = makeSkill({
-      skillId: "commission.request.commission.update",
+  test("operation with object has full operationId in response", async () => {
+    const skill = makeOperation({
+      operationId: "commission.request.commission.update",
       name: "update",
       hierarchy: { root: "commission", feature: "request", object: "commission" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request(
@@ -414,29 +414,29 @@ describe("Help Routes", () => {
     );
     const body = await res.json();
 
-    expect(body.skillId).toBe("commission.request.commission.update");
+    expect(body.operationId).toBe("commission.request.commission.update");
   });
 
   test("multiple operations under same object", async () => {
     const skills = [
-      makeSkill({
-        skillId: "commission.run.dispatch",
+      makeOperation({
+        operationId: "commission.run.dispatch",
         name: "dispatch",
         hierarchy: { root: "commission", feature: "run", object: "dispatch" },
       }),
-      makeSkill({
-        skillId: "commission.run.cancel",
+      makeOperation({
+        operationId: "commission.run.cancel",
         name: "cancel",
         hierarchy: { root: "commission", feature: "run", object: "dispatch" },
       }),
-      makeSkill({
-        skillId: "commission.run.status",
+      makeOperation({
+        operationId: "commission.run.status",
         name: "status",
         hierarchy: { root: "commission", feature: "run", object: "dispatch" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request(
@@ -453,14 +453,14 @@ describe("Help Routes", () => {
   });
 
   test("skill metadata includes method for operation nodes", async () => {
-    const skill = makeSkill({
-      skillId: "commission.run.dispatch",
+    const skill = makeOperation({
+      operationId: "commission.run.dispatch",
       name: "dispatch",
       invocation: { method: "POST", path: "/commission/run/dispatch" },
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/commission/run/dispatch/help");
@@ -470,8 +470,8 @@ describe("Help Routes", () => {
   });
 
   test("operation help for package skill includes sourcePackage", async () => {
-    const skill = makeSkill({
-      skillId: "workspace.artifact.document.cleanup",
+    const skill = makeOperation({
+      operationId: "workspace.artifact.document.cleanup",
       name: "cleanup",
       description: "Clean up old artifacts",
       invocation: { method: "POST", path: "/workspace/artifact/document/cleanup" },
@@ -479,7 +479,7 @@ describe("Help Routes", () => {
       sourcePackage: "guild-hall-writer",
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request(
@@ -491,15 +491,15 @@ describe("Help Routes", () => {
   });
 
   test("operation help for built-in skill omits sourcePackage", async () => {
-    const skill = makeSkill({
-      skillId: "system.health",
+    const skill = makeOperation({
+      operationId: "system.health",
       name: "health",
       description: "Check health",
       hierarchy: { root: "system", feature: "health" },
       // No sourcePackage set - built-in skill
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/system/health/health/help");
@@ -509,21 +509,21 @@ describe("Help Routes", () => {
   });
 
   test("package skill appears in correct hierarchy position", async () => {
-    const builtIn = makeSkill({
-      skillId: "workspace.artifact.document.list",
+    const builtIn = makeOperation({
+      operationId: "workspace.artifact.document.list",
       name: "list",
       description: "List artifacts",
       hierarchy: { root: "workspace", feature: "artifact", object: "document" },
     });
-    const packageSkill = makeSkill({
-      skillId: "workspace.artifact.document.cleanup",
+    const packageSkill = makeOperation({
+      operationId: "workspace.artifact.document.cleanup",
       name: "cleanup",
       description: "Clean up old artifacts",
       hierarchy: { root: "workspace", feature: "artifact", object: "document" },
       sourcePackage: "guild-hall-writer",
     });
 
-    const registry = createSkillRegistry([builtIn, packageSkill]);
+    const registry = createOperationsRegistry([builtIn, packageSkill]);
     const routes = createHelpRoutes(registry);
 
     // Both should appear as children of the same object node
@@ -539,12 +539,12 @@ describe("Help Routes", () => {
   });
 
   test("non-operation nodes omit method field", async () => {
-    const skill = makeSkill({
-      skillId: "commission.run",
+    const skill = makeOperation({
+      operationId: "commission.run",
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
     const res = await routes.request("/commission/help");
@@ -554,17 +554,17 @@ describe("Help Routes", () => {
   });
 });
 
-describe("GET /help/skills", () => {
-  test("returns flat list of all skills", async () => {
+describe("GET /help/operations", () => {
+  test("returns flat list of all operations", async () => {
     const skills = [
-      makeSkill({
-        skillId: "system.health",
+      makeOperation({
+        operationId: "system.health",
         name: "health",
         description: "Check health",
         hierarchy: { root: "system", feature: "health" },
       }),
-      makeSkill({
-        skillId: "workspace.artifact.document.list",
+      makeOperation({
+        operationId: "workspace.artifact.document.list",
         name: "list",
         description: "List artifacts",
         hierarchy: { root: "workspace", feature: "artifact", object: "document" },
@@ -572,134 +572,134 @@ describe("GET /help/skills", () => {
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
-    const res = await routes.request("/help/skills");
+    const res = await routes.request("/help/operations");
     expect(res.status).toBe(200);
 
-    const body = await res.json() as { skills: Array<Record<string, unknown>> };
-    expect(body.skills).toHaveLength(2);
-    expect(body.skills[0].skillId).toBe("system.health");
-    expect(body.skills[1].skillId).toBe("workspace.artifact.document.list");
-    expect(body.skills[1].parameters).toEqual([
+    const body = await res.json() as { operations: Array<Record<string, unknown>> };
+    expect(body.operations).toHaveLength(2);
+    expect(body.operations[0].operationId).toBe("system.health");
+    expect(body.operations[1].operationId).toBe("workspace.artifact.document.list");
+    expect(body.operations[1].parameters).toEqual([
       { name: "projectName", required: true, in: "query" },
     ]);
   });
 
   test("includes invocation metadata", async () => {
-    const skill = makeSkill({
-      skillId: "commission.run.dispatch",
+    const skill = makeOperation({
+      operationId: "commission.run.dispatch",
       name: "dispatch",
       invocation: { method: "POST", path: "/commission/run/dispatch" },
       hierarchy: { root: "commission", feature: "run" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
-    const res = await routes.request("/help/skills");
-    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+    const res = await routes.request("/help/operations");
+    const body = await res.json() as { operations: Array<Record<string, unknown>> };
 
-    expect(body.skills[0].invocation).toEqual({
+    expect(body.operations[0].invocation).toEqual({
       method: "POST",
       path: "/commission/run/dispatch",
     });
   });
 
   test("includes streaming metadata when present", async () => {
-    const skill = makeSkill({
-      skillId: "meeting.session.message.send",
+    const skill = makeOperation({
+      operationId: "meeting.session.message.send",
       name: "send",
       hierarchy: { root: "meeting", feature: "session", object: "message" },
       streaming: { eventTypes: ["meeting_message", "meeting_status"] },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
-    const res = await routes.request("/help/skills");
-    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+    const res = await routes.request("/help/operations");
+    const body = await res.json() as { operations: Array<Record<string, unknown>> };
 
-    expect(body.skills[0].streaming).toEqual({
+    expect(body.operations[0].streaming).toEqual({
       eventTypes: ["meeting_message", "meeting_status"],
     });
   });
 
   test("omits streaming when not present", async () => {
-    const skill = makeSkill({
-      skillId: "system.health",
+    const skill = makeOperation({
+      operationId: "system.health",
       hierarchy: { root: "system", feature: "health" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
-    const res = await routes.request("/help/skills");
-    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+    const res = await routes.request("/help/operations");
+    const body = await res.json() as { operations: Array<Record<string, unknown>> };
 
-    expect(body.skills[0].streaming).toBeUndefined();
+    expect(body.operations[0].streaming).toBeUndefined();
   });
 
   test("returns empty list for empty registry", async () => {
-    const registry = createSkillRegistry([]);
+    const registry = createOperationsRegistry([]);
     const routes = createHelpRoutes(registry);
 
-    const res = await routes.request("/help/skills");
-    const body = await res.json() as { skills: unknown[] };
+    const res = await routes.request("/help/operations");
+    const body = await res.json() as { operations: unknown[] };
 
-    expect(body.skills).toHaveLength(0);
+    expect(body.operations).toHaveLength(0);
   });
 
   test("includes sourcePackage for package skills", async () => {
     const skills = [
-      makeSkill({
-        skillId: "workspace.artifact.document.cleanup",
+      makeOperation({
+        operationId: "workspace.artifact.document.cleanup",
         name: "cleanup",
         description: "Clean up old artifacts",
         hierarchy: { root: "workspace", feature: "artifact", object: "document" },
         sourcePackage: "guild-hall-writer",
       }),
-      makeSkill({
-        skillId: "system.health",
+      makeOperation({
+        operationId: "system.health",
         name: "health",
         description: "Check health",
         hierarchy: { root: "system", feature: "health" },
       }),
     ];
 
-    const registry = createSkillRegistry(skills);
+    const registry = createOperationsRegistry(skills);
     const routes = createHelpRoutes(registry);
 
-    const res = await routes.request("/help/skills");
-    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+    const res = await routes.request("/help/operations");
+    const body = await res.json() as { operations: Array<Record<string, unknown>> };
 
-    const packageSkill = body.skills.find(
-      (s) => s.skillId === "workspace.artifact.document.cleanup",
+    const packageSkill = body.operations.find(
+      (s) => s.operationId === "workspace.artifact.document.cleanup",
     );
     expect(packageSkill?.sourcePackage).toBe("guild-hall-writer");
 
-    const builtInSkill = body.skills.find(
-      (s) => s.skillId === "system.health",
+    const builtInSkill = body.operations.find(
+      (s) => s.operationId === "system.health",
     );
     expect(builtInSkill).not.toHaveProperty("sourcePackage");
   });
 
   test("does not expose requestSchema, responseSchema, or sideEffects", async () => {
-    const skill = makeSkill({
-      skillId: "test.skill",
+    const skill = makeOperation({
+      operationId: "test.skill",
       sideEffects: "Does something dangerous",
       hierarchy: { root: "test", feature: "skills" },
     });
 
-    const registry = createSkillRegistry([skill]);
+    const registry = createOperationsRegistry([skill]);
     const routes = createHelpRoutes(registry);
 
-    const res = await routes.request("/help/skills");
-    const body = await res.json() as { skills: Array<Record<string, unknown>> };
+    const res = await routes.request("/help/operations");
+    const body = await res.json() as { operations: Array<Record<string, unknown>> };
 
-    expect(body.skills[0]).not.toHaveProperty("sideEffects");
-    expect(body.skills[0]).not.toHaveProperty("requestSchema");
-    expect(body.skills[0]).not.toHaveProperty("responseSchema");
+    expect(body.operations[0]).not.toHaveProperty("sideEffects");
+    expect(body.operations[0]).not.toHaveProperty("requestSchema");
+    expect(body.operations[0]).not.toHaveProperty("responseSchema");
   });
 });

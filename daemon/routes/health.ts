@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { RouteModule, SkillDefinition } from "@/lib/types";
+import type { RouteModule, OperationDefinition } from "@/lib/types";
 
 export interface HealthDeps {
   /** Returns the number of active meetings. */
@@ -28,9 +28,9 @@ export function createHealthRoutes(deps: HealthDeps): RouteModule {
     });
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "system.runtime.daemon.health",
+      operationId: "system.runtime.daemon.health",
       version: "1",
       name: "health",
       description: "Check daemon health status",
@@ -43,5 +43,5 @@ export function createHealthRoutes(deps: HealthDeps): RouteModule {
     },
   ];
 
-  return { routes, skills };
+  return { routes, operations };
 }

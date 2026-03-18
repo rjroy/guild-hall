@@ -5,13 +5,13 @@ import {
   buildBody,
   validateArgs,
 } from "@/cli/resolve";
-import type { CliSkill } from "@/cli/resolve";
+import type { CliOperation } from "@/cli/resolve";
 
-function makeSkill(overrides: Partial<CliSkill> = {}): CliSkill {
+function makeOperation(overrides: Partial<CliOperation> = {}): CliOperation {
   return {
-    skillId: "test.skill",
+    operationId: "test.skill",
     name: "test",
-    description: "Test skill",
+    description: "Test operation",
     invocation: { method: "GET", path: "/test" },
     context: {},
     idempotent: true,
@@ -20,15 +20,15 @@ function makeSkill(overrides: Partial<CliSkill> = {}): CliSkill {
 }
 
 describe("resolveCommand", () => {
-  const skills: CliSkill[] = [
-    makeSkill({
-      skillId: "workspace.artifact.document.list",
+  const skills: CliOperation[] = [
+    makeOperation({
+      operationId: "workspace.artifact.document.list",
       name: "list",
       invocation: { method: "GET", path: "/workspace/artifact/document/list" },
       parameters: [{ name: "projectName", required: true, in: "query" }],
     }),
-    makeSkill({
-      skillId: "workspace.artifact.document.read",
+    makeOperation({
+      operationId: "workspace.artifact.document.read",
       name: "read",
       invocation: { method: "GET", path: "/workspace/artifact/document/read" },
       parameters: [
@@ -36,19 +36,19 @@ describe("resolveCommand", () => {
         { name: "path", required: true, in: "query" },
       ],
     }),
-    makeSkill({
-      skillId: "system.runtime.daemon.health",
+    makeOperation({
+      operationId: "system.runtime.daemon.health",
       name: "health",
       invocation: { method: "GET", path: "/system/runtime/daemon/health" },
     }),
-    makeSkill({
-      skillId: "workspace.git.branch.rebase",
+    makeOperation({
+      operationId: "workspace.git.branch.rebase",
       name: "rebase",
       invocation: { method: "POST", path: "/workspace/git/branch/rebase" },
       parameters: [{ name: "projectName", required: false, in: "body" }],
     }),
-    makeSkill({
-      skillId: "commission.run.dispatch",
+    makeOperation({
+      operationId: "commission.run.dispatch",
       name: "dispatch",
       invocation: { method: "POST", path: "/commission/run/dispatch" },
       parameters: [{ name: "commissionId", required: true, in: "body" }],
@@ -102,7 +102,7 @@ describe("resolveCommand", () => {
     );
     expect(result.type).toBe("command");
     if (result.type === "command") {
-      expect(result.command.skill.skillId).toBe(
+      expect(result.command.operation.operationId).toBe(
         "system.runtime.daemon.health",
       );
       expect(result.command.positionalArgs).toEqual([]);
@@ -116,7 +116,7 @@ describe("resolveCommand", () => {
     );
     expect(result.type).toBe("command");
     if (result.type === "command") {
-      expect(result.command.skill.skillId).toBe(
+      expect(result.command.operation.operationId).toBe(
         "workspace.artifact.document.list",
       );
       expect(result.command.positionalArgs).toEqual(["my-project"]);
@@ -137,7 +137,7 @@ describe("resolveCommand", () => {
     );
     expect(result.type).toBe("command");
     if (result.type === "command") {
-      expect(result.command.skill.skillId).toBe(
+      expect(result.command.operation.operationId).toBe(
         "workspace.artifact.document.read",
       );
       expect(result.command.positionalArgs).toEqual([
@@ -154,7 +154,7 @@ describe("resolveCommand", () => {
     );
     expect(result.type).toBe("command");
     if (result.type === "command") {
-      expect(result.command.skill.skillId).toBe(
+      expect(result.command.operation.operationId).toBe(
         "workspace.git.branch.rebase",
       );
       expect(result.command.positionalArgs).toEqual(["my-project"]);
@@ -168,7 +168,7 @@ describe("resolveCommand", () => {
     );
     expect(result.type).toBe("command");
     if (result.type === "command") {
-      expect(result.command.skill.skillId).toBe(
+      expect(result.command.operation.operationId).toBe(
         "workspace.git.branch.rebase",
       );
       expect(result.command.positionalArgs).toEqual([]);
@@ -190,7 +190,7 @@ describe("resolveCommand", () => {
     );
     expect(result.type).toBe("command");
     if (result.type === "command") {
-      expect(result.command.skill.skillId).toBe("commission.run.dispatch");
+      expect(result.command.operation.operationId).toBe("commission.run.dispatch");
       expect(result.command.positionalArgs).toEqual(["abc123"]);
     }
   });
@@ -198,7 +198,7 @@ describe("resolveCommand", () => {
 
 describe("buildQueryString", () => {
   test("builds query string from positional args for GET parameters", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       parameters: [
         { name: "projectName", required: true, in: "query" },
         { name: "path", required: true, in: "query" },
@@ -209,19 +209,19 @@ describe("buildQueryString", () => {
   });
 
   test("returns empty string with no query params", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       parameters: [{ name: "name", required: true, in: "body" }],
     });
     expect(buildQueryString(skill, ["test"])).toBe("");
   });
 
   test("returns empty string with no parameters", () => {
-    const skill = makeSkill();
+    const skill = makeOperation();
     expect(buildQueryString(skill, [])).toBe("");
   });
 
   test("handles fewer args than params", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       parameters: [
         { name: "a", required: true, in: "query" },
         { name: "b", required: false, in: "query" },
@@ -233,7 +233,7 @@ describe("buildQueryString", () => {
 
 describe("buildBody", () => {
   test("builds JSON body from positional args for POST parameters", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       parameters: [
         { name: "name", required: true, in: "body" },
         { name: "path", required: true, in: "body" },
@@ -247,14 +247,14 @@ describe("buildBody", () => {
   });
 
   test("returns undefined when no body params and no args", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       parameters: [{ name: "a", required: true, in: "query" }],
     });
     expect(buildBody(skill, [])).toBeUndefined();
   });
 
   test("ignores query params", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       parameters: [
         { name: "q", required: true, in: "query" },
         { name: "b", required: true, in: "body" },
@@ -268,7 +268,7 @@ describe("buildBody", () => {
 
 describe("validateArgs", () => {
   test("passes when all required args provided", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       invocation: { method: "GET", path: "/workspace/artifact/document/list" },
       parameters: [{ name: "projectName", required: true, in: "query" }],
     });
@@ -276,7 +276,7 @@ describe("validateArgs", () => {
   });
 
   test("passes when optional args are missing", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       invocation: { method: "POST", path: "/workspace/git/branch/rebase" },
       parameters: [{ name: "projectName", required: false, in: "body" }],
     });
@@ -284,7 +284,7 @@ describe("validateArgs", () => {
   });
 
   test("fails when required arg is missing", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       invocation: { method: "GET", path: "/workspace/artifact/document/list" },
       parameters: [{ name: "projectName", required: true, in: "query" }],
     });
@@ -295,7 +295,7 @@ describe("validateArgs", () => {
   });
 
   test("fails when multiple required args are missing", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       invocation: { method: "GET", path: "/workspace/artifact/document/read" },
       parameters: [
         { name: "projectName", required: true, in: "query" },
@@ -308,7 +308,7 @@ describe("validateArgs", () => {
   });
 
   test("passes with no parameters defined", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       invocation: { method: "GET", path: "/system/runtime/daemon/health" },
     });
     expect(validateArgs(skill, [])).toBeNull();

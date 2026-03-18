@@ -61,7 +61,7 @@ One surface: the Artifacts tab on the project page (`/projects/[name]`), rendere
 
   `fileCount` is the count of lines in the `--porcelain` output (each line is one changed file). Returns 404 if `projectName` is not in config.
 
-- REQ-CLORE-6: Register a `SkillDefinition` for the status endpoint with `skillId: "workspace.git.lore.status"`, `idempotent: true`, `sideEffects: ""`, and hierarchy `{ root: "workspace", feature: "git", object: "lore" }`. Follow the `SkillDefinition` shape used throughout `daemon/routes/admin.ts:280-343`.
+- REQ-CLORE-6: Register an `OperationDefinition` for the status endpoint with `operationId: "workspace.git.lore.status"`, `idempotent: true`, `sideEffects: ""`, and hierarchy `{ root: "workspace", feature: "git", object: "lore" }`. Follow the `OperationDefinition` shape used throughout `daemon/routes/admin.ts:280-343`.
 
 ### Daemon: commit endpoint
 
@@ -81,7 +81,7 @@ One surface: the Artifacts tab on the project page (`/projects/[name]`), rendere
 
 - REQ-CLORE-9: The commit uses `--no-verify` to skip project hooks. This is consistent with existing daemon commits (`commitAll` in `daemon/lib/git.ts:251` and merge commits at line 265). Pre-commit hooks on the project are not relevant to lore housekeeping operations performed by the daemon.
 
-- REQ-CLORE-10: Register a `SkillDefinition` for the commit endpoint with `skillId: "workspace.git.lore.commit"`, `idempotent: false`, `sideEffects: "Stages .lore/ changes and commits to the integration worktree"`, and hierarchy `{ root: "workspace", feature: "git", object: "lore" }`.
+- REQ-CLORE-10: Register an `OperationDefinition` for the commit endpoint with `operationId: "workspace.git.lore.commit"`, `idempotent: false`, `sideEffects: "Stages .lore/ changes and commits to the integration worktree"`, and hierarchy `{ root: "workspace", feature: "git", object: "lore" }`.
 
 - REQ-CLORE-11: Add a `descriptions` entry for `"workspace.git.lore"` in the route module, following the pattern in `admin.ts:346-351`. Value: `"Commit .lore changes to the integration worktree"`.
 

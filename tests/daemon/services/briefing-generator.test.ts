@@ -912,6 +912,64 @@ describe("createBriefingGenerator - all-projects briefing", () => {
   });
 });
 
+describe("createBriefingGenerator - getCachedBriefing", () => {
+  test("returns cached result when cache file exists", async () => {
+    const mock = createMockQueryFn("Cached briefing text.");
+    const generator = createBriefingGenerator(makeDeps({ queryFn: mock.queryFn }));
+
+    // Populate cache via generateBriefing
+    await generator.generateBriefing("test-project");
+    expect(mock.getCallCount()).toBe(1);
+
+    // getCachedBriefing should return the cached entry
+    const cached = await generator.getCachedBriefing("test-project");
+    expect(cached).not.toBeNull();
+    expect(cached!.briefing).toBe("Cached briefing text.");
+    expect(cached!.cached).toBe(true);
+    expect(new Date(cached!.generatedAt).getTime()).not.toBeNaN();
+  });
+
+  test("returns null when no cache file exists", async () => {
+    const generator = createBriefingGenerator(makeDeps());
+
+    const cached = await generator.getCachedBriefing("test-project");
+    expect(cached).toBeNull();
+  });
+
+  test("returns null when cache file is malformed JSON", async () => {
+    const generator = createBriefingGenerator(makeDeps());
+
+    // Write malformed content directly to the cache path
+    const cachePath = path.join(guildHallHome, "state", "briefings", "test-project.json");
+    await fs.mkdir(path.dirname(cachePath), { recursive: true });
+    await fs.writeFile(cachePath, "not valid json {{{", "utf-8");
+
+    const cached = await generator.getCachedBriefing("test-project");
+    expect(cached).toBeNull();
+  });
+
+  test("does not trigger generation", async () => {
+    const mock = createMockQueryFn("Should not be called.");
+    const generator = createBriefingGenerator(makeDeps({ queryFn: mock.queryFn }));
+
+    // Call getCachedBriefing without ever generating — should not invoke queryFn
+    await generator.getCachedBriefing("test-project");
+    expect(mock.getCallCount()).toBe(0);
+  });
+
+  test("returns null when cache file has missing fields", async () => {
+    const generator = createBriefingGenerator(makeDeps());
+
+    // Write cache with missing 'text' field
+    const cachePath = path.join(guildHallHome, "state", "briefings", "test-project.json");
+    await fs.mkdir(path.dirname(cachePath), { recursive: true });
+    await fs.writeFile(cachePath, JSON.stringify({ generatedAt: Date.now() }), "utf-8");
+
+    const cached = await generator.getCachedBriefing("test-project");
+    expect(cached).toBeNull();
+  });
+});
+
 describe("createBriefingGenerator - system model configuration", () => {
   test("uses configured briefing model from config.systemModels.briefing", async () => {
     const mock = createMockQueryFn("Briefing with haiku.");

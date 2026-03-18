@@ -1,7 +1,7 @@
 ---
 title: Dashboard selection model
 date: 2026-03-15
-status: draft
+status: implemented
 tags: [ux, ui, dashboard, project-selection, briefing, commission-filter]
 modules: [web/app/page, web/components/dashboard, web/components/commission, daemon/services/briefing-generator, daemon/routes/briefing, lib/config]
 related:

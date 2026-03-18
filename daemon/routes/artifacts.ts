@@ -12,7 +12,7 @@ import {
   readArtifact,
   writeRawArtifactContent,
 } from "@/lib/artifacts";
-import type { Artifact, AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
+import type { Artifact, AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import type { GitOps } from "@/daemon/lib/git";
 
 export interface ArtifactDeps {
@@ -187,9 +187,9 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
     return c.json({ success: true });
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "workspace.artifact.document.list",
+      operationId: "workspace.artifact.document.list",
       version: "1",
       name: "list",
       description: "List artifacts for a project",
@@ -202,7 +202,7 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
     {
-      skillId: "workspace.artifact.document.read",
+      operationId: "workspace.artifact.document.read",
       version: "1",
       name: "read",
       description: "Read a single artifact",
@@ -215,7 +215,7 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "path", required: true, in: "query" as const }],
     },
     {
-      skillId: "workspace.artifact.document.write",
+      operationId: "workspace.artifact.document.write",
       version: "1",
       name: "write",
       description: "Write artifact content",
@@ -235,7 +235,7 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
     "workspace.artifact.document": "Artifact documents",
   };
 
-  return { routes, skills, descriptions };
+  return { routes, operations, descriptions };
 }
 
 // -- Serialization --

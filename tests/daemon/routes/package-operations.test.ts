@@ -2,20 +2,20 @@ import { describe, test, expect } from "bun:test";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
-  createPackageSkillRoutes,
-  type PackageSkillRouteDeps,
-} from "@/daemon/routes/package-skills";
-import type { SkillDefinition } from "@/lib/types";
+  createPackageOperationRoutes,
+  type PackageOperationRouteDeps,
+} from "@/daemon/routes/package-operations";
+import type { OperationDefinition } from "@/lib/types";
 import type {
-  PackageSkill,
-  SkillHandlerContext,
-  SkillHandlerResult,
-} from "@/daemon/services/skill-types";
-import { SkillHandlerError } from "@/daemon/services/skill-types";
+  PackageOperation,
+  OperationHandlerContext,
+  OperationHandlerResult,
+} from "@/daemon/services/operation-types";
+import { OperationHandlerError } from "@/daemon/services/operation-types";
 
 // -- Test helpers --
 
-function makeDeps(overrides: Partial<PackageSkillRouteDeps> = {}): PackageSkillRouteDeps {
+function makeDeps(overrides: Partial<PackageOperationRouteDeps> = {}): PackageOperationRouteDeps {
   return {
     config: {
       projects: [
@@ -30,9 +30,9 @@ function makeDeps(overrides: Partial<PackageSkillRouteDeps> = {}): PackageSkillR
   };
 }
 
-function makeSkillDefinition(overrides: Partial<SkillDefinition> = {}): SkillDefinition {
+function makeOperationDefinition(overrides: Partial<OperationDefinition> = {}): OperationDefinition {
   return {
-    skillId: "test.feature.operation",
+    operationId: "test.feature.operation",
     version: "1",
     name: "operation",
     description: "A test operation",
@@ -45,16 +45,16 @@ function makeSkillDefinition(overrides: Partial<SkillDefinition> = {}): SkillDef
   };
 }
 
-function makePackageSkill(
-  definition: SkillDefinition,
-  handler: PackageSkill["handler"],
-  streamHandler?: PackageSkill["streamHandler"],
-): PackageSkill {
+function makePackageOperation(
+  definition: OperationDefinition,
+  handler: PackageOperation["handler"],
+  streamHandler?: PackageOperation["streamHandler"],
+): PackageOperation {
   return { definition, handler, streamHandler };
 }
 
-function mountRoutes(skills: PackageSkill[], deps: PackageSkillRouteDeps): Hono {
-  const mod = createPackageSkillRoutes(skills, deps);
+function mountRoutes(skills: PackageOperation[], deps: PackageOperationRouteDeps): Hono {
+  const mod = createPackageOperationRoutes(skills, deps);
   const app = new Hono();
   app.route("/", mod.routes);
   return app;
@@ -62,16 +62,16 @@ function mountRoutes(skills: PackageSkill[], deps: PackageSkillRouteDeps): Hono 
 
 // -- Tests --
 
-describe("createPackageSkillRoutes", () => {
+describe("createPackageOperationRoutes", () => {
   describe("route generation", () => {
     test("registers GET route at the correct path", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         invocation: { method: "GET", path: "/test/items/list" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({
         data: { items: [] },
       });
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       const res = await app.request("/test/items/list");
       expect(res.status).toBe(200);
@@ -80,14 +80,14 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("registers POST route at the correct path", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         invocation: { method: "POST", path: "/test/items/create" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({
         data: { created: true },
         status: 201,
       });
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       const res = await app.request("/test/items/create", {
         method: "POST",
@@ -99,48 +99,48 @@ describe("createPackageSkillRoutes", () => {
       expect(body).toEqual({ created: true });
     });
 
-    test("returns RouteModule with skills array", () => {
-      const def = makeSkillDefinition();
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
-      const mod = createPackageSkillRoutes(
-        [makePackageSkill(def, handler)],
+    test("returns RouteModule with operations array", () => {
+      const def = makeOperationDefinition();
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
+      const mod = createPackageOperationRoutes(
+        [makePackageOperation(def, handler)],
         makeDeps(),
       );
 
-      expect(mod.skills).toHaveLength(1);
-      expect(mod.skills[0].skillId).toBe("test.feature.operation");
+      expect(mod.operations).toHaveLength(1);
+      expect(mod.operations[0].operationId).toBe("test.feature.operation");
     });
 
-    test("handles multiple skills", () => {
-      const def1 = makeSkillDefinition({
-        skillId: "test.a.op1",
+    test("handles multiple operations", () => {
+      const def1 = makeOperationDefinition({
+        operationId: "test.a.op1",
         invocation: { method: "GET", path: "/test/a/op1" },
       });
-      const def2 = makeSkillDefinition({
-        skillId: "test.a.op2",
+      const def2 = makeOperationDefinition({
+        operationId: "test.a.op2",
         invocation: { method: "POST", path: "/test/a/op2" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
-      const mod = createPackageSkillRoutes(
-        [makePackageSkill(def1, handler), makePackageSkill(def2, handler)],
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
+      const mod = createPackageOperationRoutes(
+        [makePackageOperation(def1, handler), makePackageOperation(def2, handler)],
         makeDeps(),
       );
 
-      expect(mod.skills).toHaveLength(2);
+      expect(mod.operations).toHaveLength(2);
     });
   });
 
   describe("parameter extraction", () => {
     test("GET extracts query params", async () => {
-      let receivedCtx: SkillHandlerContext | undefined;
-      const def = makeSkillDefinition({
+      let receivedCtx: OperationHandlerContext | undefined;
+      const def = makeOperationDefinition({
         invocation: { method: "GET", path: "/test/read" },
       });
-      const handler = (ctx: SkillHandlerContext): Promise<SkillHandlerResult> => {
+      const handler = (ctx: OperationHandlerContext): Promise<OperationHandlerResult> => {
         receivedCtx = ctx;
         return Promise.resolve({ data: { ok: true } });
       };
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       await app.request("/test/read?foo=bar&count=42");
 
@@ -150,15 +150,15 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("POST extracts body params", async () => {
-      let receivedCtx: SkillHandlerContext | undefined;
-      const def = makeSkillDefinition({
+      let receivedCtx: OperationHandlerContext | undefined;
+      const def = makeOperationDefinition({
         invocation: { method: "POST", path: "/test/write" },
       });
-      const handler = (ctx: SkillHandlerContext): Promise<SkillHandlerResult> => {
+      const handler = (ctx: OperationHandlerContext): Promise<OperationHandlerResult> => {
         receivedCtx = ctx;
         return Promise.resolve({ data: { ok: true } });
       };
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       await app.request("/test/write", {
         method: "POST",
@@ -178,12 +178,12 @@ describe("createPackageSkillRoutes", () => {
         name: z.string(),
         count: z.number(),
       });
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         invocation: { method: "POST", path: "/test/validated" },
         requestSchema: schema,
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       const res = await app.request("/test/validated", {
         method: "POST",
@@ -197,20 +197,20 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("passes valid params through schema", async () => {
-      let receivedCtx: SkillHandlerContext | undefined;
+      let receivedCtx: OperationHandlerContext | undefined;
       const schema = z.object({
         name: z.string(),
         count: z.number(),
       });
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         invocation: { method: "POST", path: "/test/validated" },
         requestSchema: schema,
       });
-      const handler = (ctx: SkillHandlerContext): Promise<SkillHandlerResult> => {
+      const handler = (ctx: OperationHandlerContext): Promise<OperationHandlerResult> => {
         receivedCtx = ctx;
         return Promise.resolve({ data: { ok: true } });
       };
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       await app.request("/test/validated", {
         method: "POST",
@@ -226,12 +226,12 @@ describe("createPackageSkillRoutes", () => {
 
   describe("context validation", () => {
     test("missing required project returns 400", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         context: { project: true },
         invocation: { method: "POST", path: "/test/ctx" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       const res = await app.request("/test/ctx", {
         method: "POST",
@@ -245,12 +245,12 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("non-existent project returns 404", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         context: { project: true },
         invocation: { method: "POST", path: "/test/ctx" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       const res = await app.request("/test/ctx", {
         method: "POST",
@@ -264,16 +264,16 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("valid project passes context validation", async () => {
-      let receivedCtx: SkillHandlerContext | undefined;
-      const def = makeSkillDefinition({
+      let receivedCtx: OperationHandlerContext | undefined;
+      const def = makeOperationDefinition({
         context: { project: true },
         invocation: { method: "POST", path: "/test/ctx" },
       });
-      const handler = (ctx: SkillHandlerContext): Promise<SkillHandlerResult> => {
+      const handler = (ctx: OperationHandlerContext): Promise<OperationHandlerResult> => {
         receivedCtx = ctx;
         return Promise.resolve({ data: {} });
       };
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       await app.request("/test/ctx", {
         method: "POST",
@@ -286,12 +286,12 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("missing required commissionId returns 400", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         context: { commissionId: true },
         invocation: { method: "POST", path: "/test/ctx" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       const res = await app.request("/test/ctx", {
         method: "POST",
@@ -305,15 +305,15 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("non-existent commission returns 404", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         context: { commissionId: true },
         invocation: { method: "POST", path: "/test/ctx" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
       const deps = makeDeps({
         getCommissionStatus: () => Promise.resolve(undefined),
       });
-      const app = mountRoutes([makePackageSkill(def, handler)], deps);
+      const app = mountRoutes([makePackageOperation(def, handler)], deps);
 
       const res = await app.request("/test/ctx", {
         method: "POST",
@@ -327,15 +327,15 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("outcome state commission returns 409", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         context: { commissionId: true },
         invocation: { method: "POST", path: "/test/ctx" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
       const deps = makeDeps({
         getCommissionStatus: () => Promise.resolve("completed"),
       });
-      const app = mountRoutes([makePackageSkill(def, handler)], deps);
+      const app = mountRoutes([makePackageOperation(def, handler)], deps);
 
       const res = await app.request("/test/ctx", {
         method: "POST",
@@ -349,19 +349,19 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("non-outcome-state commission passes validation", async () => {
-      let receivedCtx: SkillHandlerContext | undefined;
-      const def = makeSkillDefinition({
+      let receivedCtx: OperationHandlerContext | undefined;
+      const def = makeOperationDefinition({
         context: { commissionId: true },
         invocation: { method: "POST", path: "/test/ctx" },
       });
-      const handler = (ctx: SkillHandlerContext): Promise<SkillHandlerResult> => {
+      const handler = (ctx: OperationHandlerContext): Promise<OperationHandlerResult> => {
         receivedCtx = ctx;
         return Promise.resolve({ data: {} });
       };
       const deps = makeDeps({
         getCommissionStatus: () => Promise.resolve("in_progress"),
       });
-      const app = mountRoutes([makePackageSkill(def, handler)], deps);
+      const app = mountRoutes([makePackageOperation(def, handler)], deps);
 
       await app.request("/test/ctx", {
         method: "POST",
@@ -374,12 +374,12 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("missing required meetingId returns 400", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         context: { meetingId: true },
         invocation: { method: "POST", path: "/test/ctx" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       const res = await app.request("/test/ctx", {
         method: "POST",
@@ -391,15 +391,15 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("non-existent meeting returns 404", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         context: { meetingId: true },
         invocation: { method: "POST", path: "/test/ctx" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
       const deps = makeDeps({
         getMeetingStatus: () => Promise.resolve(undefined),
       });
-      const app = mountRoutes([makePackageSkill(def, handler)], deps);
+      const app = mountRoutes([makePackageOperation(def, handler)], deps);
 
       const res = await app.request("/test/ctx", {
         method: "POST",
@@ -411,15 +411,15 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("outcome state meeting returns 409", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         context: { meetingId: true },
         invocation: { method: "POST", path: "/test/ctx" },
       });
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
       const deps = makeDeps({
         getMeetingStatus: () => Promise.resolve("closed"),
       });
-      const app = mountRoutes([makePackageSkill(def, handler)], deps);
+      const app = mountRoutes([makePackageOperation(def, handler)], deps);
 
       const res = await app.request("/test/ctx", {
         method: "POST",
@@ -436,16 +436,16 @@ describe("createPackageSkillRoutes", () => {
       const outcomeStates = ["completed", "failed", "cancelled", "abandoned"];
 
       for (const state of outcomeStates) {
-        const def = makeSkillDefinition({
-          skillId: `test.outcome.${state}`,
+        const def = makeOperationDefinition({
+          operationId: `test.outcome.${state}`,
           context: { commissionId: true },
           invocation: { method: "POST", path: `/test/outcome/${state}` },
         });
-        const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
+        const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
         const deps = makeDeps({
           getCommissionStatus: () => Promise.resolve(state),
         });
-        const app = mountRoutes([makePackageSkill(def, handler)], deps);
+        const app = mountRoutes([makePackageOperation(def, handler)], deps);
 
         const res = await app.request(`/test/outcome/${state}`, {
           method: "POST",
@@ -461,16 +461,16 @@ describe("createPackageSkillRoutes", () => {
       const outcomeStates = ["closed", "declined"];
 
       for (const state of outcomeStates) {
-        const def = makeSkillDefinition({
-          skillId: `test.meeting.${state}`,
+        const def = makeOperationDefinition({
+          operationId: `test.meeting.${state}`,
           context: { meetingId: true },
           invocation: { method: "POST", path: `/test/meeting/${state}` },
         });
-        const handler = (): Promise<SkillHandlerResult> => Promise.resolve({ data: {} });
+        const handler = (): Promise<OperationHandlerResult> => Promise.resolve({ data: {} });
         const deps = makeDeps({
           getMeetingStatus: () => Promise.resolve(state),
         });
-        const app = mountRoutes([makePackageSkill(def, handler)], deps);
+        const app = mountRoutes([makePackageOperation(def, handler)], deps);
 
         const res = await app.request(`/test/meeting/${state}`, {
           method: "POST",
@@ -484,17 +484,17 @@ describe("createPackageSkillRoutes", () => {
   });
 
   describe("handler invocation", () => {
-    test("handler receives correct SkillHandlerContext with resolved context", async () => {
-      let receivedCtx: SkillHandlerContext | undefined;
-      const def = makeSkillDefinition({
+    test("handler receives correct OperationHandlerContext with resolved context", async () => {
+      let receivedCtx: OperationHandlerContext | undefined;
+      const def = makeOperationDefinition({
         context: { project: true },
         invocation: { method: "POST", path: "/test/full" },
       });
-      const handler = (ctx: SkillHandlerContext): Promise<SkillHandlerResult> => {
+      const handler = (ctx: OperationHandlerContext): Promise<OperationHandlerResult> => {
         receivedCtx = ctx;
         return Promise.resolve({ data: { received: true } });
       };
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       await app.request("/test/full", {
         method: "POST",
@@ -509,11 +509,11 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("handler result status defaults to 200", async () => {
-      const def = makeSkillDefinition();
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({
+      const def = makeOperationDefinition();
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({
         data: { ok: true },
       });
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       const res = await app.request("/test/feature/operation", {
         method: "POST",
@@ -525,12 +525,12 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("handler result uses custom status code", async () => {
-      const def = makeSkillDefinition();
-      const handler = (): Promise<SkillHandlerResult> => Promise.resolve({
+      const def = makeOperationDefinition();
+      const handler = (): Promise<OperationHandlerResult> => Promise.resolve({
         data: { created: true },
         status: 201,
       });
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       const res = await app.request("/test/feature/operation", {
         method: "POST",
@@ -543,12 +543,12 @@ describe("createPackageSkillRoutes", () => {
   });
 
   describe("error handling", () => {
-    test("SkillHandlerError returns specified status code", async () => {
-      const def = makeSkillDefinition();
-      const handler = (): Promise<SkillHandlerResult> => {
-        return Promise.reject(new SkillHandlerError("Not allowed", 403));
+    test("OperationHandlerError returns specified status code", async () => {
+      const def = makeOperationDefinition();
+      const handler = (): Promise<OperationHandlerResult> => {
+        return Promise.reject(new OperationHandlerError("Not allowed", 403));
       };
-      const app = mountRoutes([makePackageSkill(def, handler)], makeDeps());
+      const app = mountRoutes([makePackageOperation(def, handler)], makeDeps());
 
       const res = await app.request("/test/feature/operation", {
         method: "POST",
@@ -561,14 +561,14 @@ describe("createPackageSkillRoutes", () => {
       expect(body.error).toBe("Not allowed");
     });
 
-    test("non-SkillHandlerError propagates as 500", async () => {
-      const def = makeSkillDefinition();
-      const handler = (): Promise<SkillHandlerResult> => {
+    test("non-OperationHandlerError propagates as 500", async () => {
+      const def = makeOperationDefinition();
+      const handler = (): Promise<OperationHandlerResult> => {
         return Promise.reject(new Error("Unexpected crash"));
       };
 
-      const mod = createPackageSkillRoutes(
-        [makePackageSkill(def, handler)],
+      const mod = createPackageOperationRoutes(
+        [makePackageOperation(def, handler)],
         makeDeps(),
       );
       const app = new Hono();
@@ -648,18 +648,18 @@ describe("createPackageSkillRoutes", () => {
     }
 
     test("streamHandler receives emitter and events are written to SSE", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         streaming: { eventTypes: ["progress", "done"] },
         invocation: { method: "POST", path: "/test/stream" },
       });
-      const streamHandler: PackageSkill["streamHandler"] = (_ctx, emit) => {
+      const streamHandler: PackageOperation["streamHandler"] = (_ctx, emit) => {
         emit("progress", { step: 1 });
         emit("progress", { step: 2 });
         emit("done", { result: "complete" });
         return Promise.resolve();
       };
       const app = mountRoutes(
-        [makePackageSkill(def, undefined, streamHandler)],
+        [makePackageOperation(def, undefined, streamHandler)],
         makeDeps(),
       );
 
@@ -683,15 +683,15 @@ describe("createPackageSkillRoutes", () => {
     });
 
     test("streamHandler error emits error event", async () => {
-      const def = makeSkillDefinition({
+      const def = makeOperationDefinition({
         streaming: { eventTypes: ["data"] },
         invocation: { method: "POST", path: "/test/stream-error" },
       });
-      const streamHandler: PackageSkill["streamHandler"] = () => {
-        return Promise.reject(new SkillHandlerError("Stream failed", 422));
+      const streamHandler: PackageOperation["streamHandler"] = () => {
+        return Promise.reject(new OperationHandlerError("Stream failed", 422));
       };
       const app = mountRoutes(
-        [makePackageSkill(def, undefined, streamHandler)],
+        [makePackageOperation(def, undefined, streamHandler)],
         makeDeps(),
       );
 
@@ -713,9 +713,9 @@ describe("createPackageSkillRoutes", () => {
 
   describe("no handler configured", () => {
     test("returns 500 when neither handler nor streamHandler is set", async () => {
-      const def = makeSkillDefinition();
+      const def = makeOperationDefinition();
       const app = mountRoutes(
-        [{ definition: def } as PackageSkill],
+        [{ definition: def } as PackageOperation],
         makeDeps(),
       );
 

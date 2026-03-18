@@ -3,17 +3,17 @@ import {
   shouldOutputJson,
   formatResponse,
   formatHelpTree,
-  formatSkillHelp,
+  formatOperationHelp,
   suggestCommand,
   extractFlags,
 } from "@/cli/format";
-import type { CliSkill } from "@/cli/resolve";
+import type { CliOperation } from "@/cli/resolve";
 
-function makeSkill(overrides: Partial<CliSkill> = {}): CliSkill {
+function makeOperation(overrides: Partial<CliOperation> = {}): CliOperation {
   return {
-    skillId: "test.skill",
+    operationId: "test.skill",
     name: "test",
-    description: "Test skill",
+    description: "Test operation",
     invocation: { method: "GET", path: "/test" },
     context: {},
     idempotent: true,
@@ -131,17 +131,17 @@ describe("formatHelpTree", () => {
   });
 });
 
-describe("formatSkillHelp", () => {
+describe("formatOperationHelp", () => {
   test("formats skill with parameters", () => {
-    const skill = makeSkill({
-      skillId: "workspace.artifact.document.list",
+    const skill = makeOperation({
+      operationId: "workspace.artifact.document.list",
       name: "list",
       description: "List artifacts for a project",
       invocation: { method: "GET", path: "/workspace/artifact/document/list" },
       parameters: [{ name: "projectName", required: true, in: "query" }],
     });
 
-    const output = formatSkillHelp(skill);
+    const output = formatOperationHelp(skill);
     expect(output).toContain("guild-hall workspace artifact document list");
     expect(output).toContain("List artifacts for a project");
     expect(output).toContain("GET");
@@ -152,7 +152,7 @@ describe("formatSkillHelp", () => {
   });
 
   test("formats streaming skill", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       name: "send",
       description: "Send a message",
       invocation: { method: "POST", path: "/meeting/session/message/send" },
@@ -160,29 +160,29 @@ describe("formatSkillHelp", () => {
       parameters: [{ name: "meetingId", required: true, in: "body" }],
     });
 
-    const output = formatSkillHelp(skill);
+    const output = formatOperationHelp(skill);
     expect(output).toContain("Stream:");
     expect(output).toContain("meeting_message");
   });
 
   test("formats skill without parameters", () => {
-    const skill = makeSkill({
+    const skill = makeOperation({
       name: "health",
       description: "Check health",
       invocation: { method: "GET", path: "/system/runtime/daemon/health" },
     });
 
-    const output = formatSkillHelp(skill);
+    const output = formatOperationHelp(skill);
     expect(output).not.toContain("Parameters:");
     expect(output).not.toContain("Usage:");
   });
 });
 
 describe("suggestCommand", () => {
-  const skills: CliSkill[] = [
-    makeSkill({ invocation: { method: "GET", path: "/system/runtime/daemon/health" } }),
-    makeSkill({ invocation: { method: "POST", path: "/workspace/git/branch/rebase" } }),
-    makeSkill({ invocation: { method: "GET", path: "/system/config/application/validate" } }),
+  const skills: CliOperation[] = [
+    makeOperation({ invocation: { method: "GET", path: "/system/runtime/daemon/health" } }),
+    makeOperation({ invocation: { method: "POST", path: "/workspace/git/branch/rebase" } }),
+    makeOperation({ invocation: { method: "GET", path: "/system/config/application/validate" } }),
   ];
 
   test("suggests close match", () => {
@@ -190,7 +190,7 @@ describe("suggestCommand", () => {
     // "validate" paths are too long for short input
     // This tests the mechanism works with short paths
     const shortSkills = [
-      makeSkill({ invocation: { method: "GET", path: "/health" } }),
+      makeOperation({ invocation: { method: "GET", path: "/health" } }),
     ];
     expect(suggestCommand(["helth"], shortSkills)).toBe("health");
   });

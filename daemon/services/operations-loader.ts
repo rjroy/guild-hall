@@ -1,36 +1,36 @@
 /**
- * Loads package skills from discovered packages.
+ * Loads package operations from discovered packages.
  *
  * Mirrors the toolbox loading pattern in toolbox-resolver.ts: iterate
  * discovered packages, dynamically import each entry point, check for
- * a skillFactory export, call it with deps, and validate the output.
+ * an operationFactory export, call it with deps, and validate the output.
  */
 
 import * as path from "node:path";
 import type { DiscoveredPackage } from "@/lib/types";
 import type {
-  PackageSkill,
-  SkillFactoryDeps,
-  SkillFactoryOutput,
-} from "./skill-types";
+  PackageOperation,
+  OperationFactoryDeps,
+  OperationFactoryOutput,
+} from "./operation-types";
 
 export type ImportModule = (modulePath: string) => Promise<unknown>;
 
 /**
- * Loads and validates package skills from all discovered packages.
+ * Loads and validates package operations from all discovered packages.
  *
- * For each package, attempts to import its entry point and look for a
- * `skillFactory` export. Packages without one are silently skipped.
- * Individual skills that fail validation are skipped with a warning;
+ * For each package, attempts to import its entry point and look for an
+ * `operationFactory` export. Packages without one are silently skipped.
+ * Individual operations that fail validation are skipped with a warning;
  * failures in one package don't affect others.
  */
-export async function loadPackageSkills(
+export async function loadPackageOperations(
   packages: DiscoveredPackage[],
-  deps: SkillFactoryDeps,
+  deps: OperationFactoryDeps,
   logger: { warn: (msg: string) => void } = console,
   importModule: ImportModule = (p) => import(p),
-): Promise<PackageSkill[]> {
-  const result: PackageSkill[] = [];
+): Promise<PackageOperation[]> {
+  const result: PackageOperation[] = [];
 
   for (const pkg of packages) {
     const entryPoint = path.resolve(pkg.path, "index.ts");
@@ -40,40 +40,40 @@ export async function loadPackageSkills(
       mod = (await importModule(entryPoint)) as Record<string, unknown>;
     } catch (err) {
       logger.warn(
-        `[skill-loader] Failed to import package "${pkg.name}" from ${entryPoint}: ${String(err)}`,
+        `[operations-loader] Failed to import package "${pkg.name}" from ${entryPoint}: ${String(err)}`,
       );
       continue;
     }
 
-    // Skip silently if no skillFactory export (same as toolbox resolution)
-    if (typeof mod.skillFactory !== "function") {
+    // Skip silently if no operationFactory export (same as toolbox resolution)
+    if (typeof mod.operationFactory !== "function") {
       continue;
     }
 
-    let output: SkillFactoryOutput;
+    let output: OperationFactoryOutput;
     try {
-      output = (mod.skillFactory as (deps: SkillFactoryDeps) => SkillFactoryOutput)(deps);
+      output = (mod.operationFactory as (deps: OperationFactoryDeps) => OperationFactoryOutput)(deps);
     } catch (err) {
       logger.warn(
-        `[skill-loader] skillFactory threw in package "${pkg.name}": ${String(err)}`,
+        `[operations-loader] operationFactory threw in package "${pkg.name}": ${String(err)}`,
       );
       continue;
     }
 
-    for (const skill of output.skills) {
-      const validationError = validateSkill(skill);
+    for (const op of output.operations) {
+      const validationError = validateOperation(op);
       if (validationError) {
         logger.warn(
-          `[skill-loader] Skipping skill "${skill.definition.skillId}" from package "${pkg.name}": ${validationError}`,
+          `[operations-loader] Skipping operation "${op.definition.operationId}" from package "${pkg.name}": ${validationError}`,
         );
         continue;
       }
 
       // Stamp sourcePackage from the discovered package name, overriding
       // whatever the package may have set in the definition.
-      skill.definition.sourcePackage = pkg.name;
+      op.definition.sourcePackage = pkg.name;
 
-      result.push(skill);
+      result.push(op);
     }
   }
 
@@ -81,12 +81,12 @@ export async function loadPackageSkills(
 }
 
 /**
- * Validates a single PackageSkill. Returns an error message string
+ * Validates a single PackageOperation. Returns an error message string
  * if invalid, or undefined if valid.
  */
-function validateSkill(skill: PackageSkill): string | undefined {
-  const hasHandler = typeof skill.handler === "function";
-  const hasStreamHandler = typeof skill.streamHandler === "function";
+function validateOperation(op: PackageOperation): string | undefined {
+  const hasHandler = typeof op.handler === "function";
+  const hasStreamHandler = typeof op.streamHandler === "function";
 
   // Exactly one of handler or streamHandler must be present
   if (!hasHandler && !hasStreamHandler) {
@@ -98,19 +98,19 @@ function validateSkill(skill: PackageSkill): string | undefined {
 
   // streamHandler requires streaming.eventTypes
   if (hasStreamHandler) {
-    const eventTypes = skill.definition.streaming?.eventTypes;
+    const eventTypes = op.definition.streaming?.eventTypes;
     if (!eventTypes || eventTypes.length === 0) {
       return "streamHandler requires definition.streaming.eventTypes (non-empty array)";
     }
   }
 
   // handler must not have streaming defined
-  if (hasHandler && skill.definition.streaming) {
+  if (hasHandler && op.definition.streaming) {
     return "non-streaming handler must not have definition.streaming defined";
   }
 
   // scheduleId context is unsupported in this phase
-  if (skill.definition.context?.scheduleId) {
+  if (op.definition.context?.scheduleId) {
     return "scheduleId context is not supported in this phase";
   }
 

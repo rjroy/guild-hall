@@ -4,7 +4,7 @@ import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
 import type { GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";
-import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
+import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 
 export interface GitLoreDeps {
   config: AppConfig;
@@ -79,9 +79,9 @@ export function createGitLoreRoutes(deps: GitLoreDeps): RouteModule {
     }
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "workspace.git.lore.status",
+      operationId: "workspace.git.lore.status",
       version: "1",
       name: "status",
       description: "Check for uncommitted .lore/ changes in the integration worktree",
@@ -93,7 +93,7 @@ export function createGitLoreRoutes(deps: GitLoreDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "query" as const }],
     },
     {
-      skillId: "workspace.git.lore.commit",
+      operationId: "workspace.git.lore.commit",
       version: "1",
       name: "commit",
       description: "Stage .lore/ changes and commit to the integration worktree",
@@ -114,5 +114,5 @@ export function createGitLoreRoutes(deps: GitLoreDeps): RouteModule {
     "workspace.git.lore": "Commit .lore changes to the integration worktree",
   };
 
-  return { routes, skills, descriptions };
+  return { routes, operations, descriptions };
 }

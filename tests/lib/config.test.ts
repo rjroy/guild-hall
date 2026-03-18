@@ -498,6 +498,65 @@ systemModels:
   });
 });
 
+describe("briefingRefreshIntervalMinutes config", () => {
+  const baseConfig = { projects: [{ name: "p", path: "/p" }] };
+
+  test("parses briefingRefreshIntervalMinutes: 30 from config", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      briefingRefreshIntervalMinutes: 30,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.briefingRefreshIntervalMinutes).toBe(30);
+    }
+  });
+
+  test("missing briefingRefreshIntervalMinutes defaults to undefined", () => {
+    const result = appConfigSchema.safeParse(baseConfig);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.briefingRefreshIntervalMinutes).toBeUndefined();
+    }
+  });
+
+  test("rejects non-integer briefingRefreshIntervalMinutes", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      briefingRefreshIntervalMinutes: 30.5,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects zero briefingRefreshIntervalMinutes", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      briefingRefreshIntervalMinutes: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects negative briefingRefreshIntervalMinutes", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      briefingRefreshIntervalMinutes: -10,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("briefingRefreshIntervalMinutes parses from YAML via readConfig", async () => {
+    const yamlContent = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+briefingRefreshIntervalMinutes: 45
+`;
+    await fs.writeFile(configPath(), yamlContent, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.briefingRefreshIntervalMinutes).toBe(45);
+  });
+});
+
 describe("briefingCacheTtlMinutes config", () => {
   const baseConfig = { projects: [{ name: "p", path: "/p" }] };
 

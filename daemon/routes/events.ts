@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { EventBus } from "@/daemon/lib/event-bus";
-import type { RouteModule, SkillDefinition } from "@/lib/types";
+import type { RouteModule, OperationDefinition } from "@/lib/types";
 
 export interface EventRoutesDeps {
   eventBus: EventBus;
@@ -41,9 +41,9 @@ export function createEventRoutes(deps: EventRoutesDeps): RouteModule {
     });
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "system.events.stream.subscribe",
+      operationId: "system.events.stream.subscribe",
       version: "1",
       name: "subscribe",
       description: "Subscribe to system event stream (SSE)",
@@ -57,5 +57,5 @@ export function createEventRoutes(deps: EventRoutesDeps): RouteModule {
     },
   ];
 
-  return { routes, skills };
+  return { routes, operations };
 }

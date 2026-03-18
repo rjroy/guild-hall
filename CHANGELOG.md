@@ -4,8 +4,49 @@
 
 ### Added
 
-- **Commission status tool:** `check_commission_status` in the manager toolbox lets the Guild Master check a single commission's detail by ID or get a sorted summary list of all commissions with status counts.
-- **Commit .lore from Web UI:** "Commit .lore" button on the Artifacts tab expands an inline form to commit pending `.lore/` changes with a user-authored message. New daemon endpoints `GET /workspace/git/lore/status` and `POST /workspace/git/lore/commit` enforce a staging boundary that only commits `.lore/` files.
+- **Commission halted state and continuation:** Commissions that hit `maxTurns` without submitting a result enter a `halted` state with worktree and session preserved. New `continue` action resumes the exact session, `save` merges partial work. Manager tools `continue_commission` and `save_commission`, crash recovery, halt count tracking ([#117](https://github.com/rjroy/guild-hall/pull/117))
+- **Dashboard selection model:** Two-mode dashboard with "All Projects" default view and per-project selection. Filterable "In Flight" card, cross-project Recent Scrolls, all-projects briefing synthesis via LLM, configurable `briefingCacheTtlMinutes` ([#116](https://github.com/rjroy/guild-hall/pull/116))
+- **Commission tree list and status tool:** `check_commission_status` in the manager toolbox lets the Guild Master check a single commission's detail by ID or get a sorted summary list of all commissions with status counts. Replaced SVG commission graph with CSS tree list ([#115](https://github.com/rjroy/guild-hall/pull/115))
+- **Commission list filtering:** Multi-select status checkboxes grouped by sort group with counts and reset button, defaulting to actionable statuses ([#112](https://github.com/rjroy/guild-hall/pull/112))
+- **Request Meeting from Artifact:** "Request Meeting" button in artifact sidebar with worker picker and artifact context ([#112](https://github.com/rjroy/guild-hall/pull/112))
+- **Commit .lore from Web UI:** "Commit .lore" button on the Artifacts tab expands an inline form to commit pending `.lore/` changes with a user-authored message. New daemon endpoints `GET /workspace/git/lore/status` and `POST /workspace/git/lore/commit` ([#112](https://github.com/rjroy/guild-hall/pull/112))
+- **Injectable daemon logger:** `Log` interface with `consoleLog`, `nullLog`, and `collectingLog` implementations wired through daemon DI. Migrated ~239 raw `console.*` calls across 23 daemon files ([#110](https://github.com/rjroy/guild-hall/pull/110))
+- **Package skill handler system:** Worker and toolbox packages can declare `SkillDefinition` entries in `package.json`, discovered and registered by the daemon. CLI progressive discovery via `GET /help/skills` and `POST /package-skills/:skillId/invoke` ([#109](https://github.com/rjroy/guild-hall/pull/109))
+- **Sandboxed execution environments:** Phase 1 and Phase 2 of sandboxed execution for worker sessions ([#105](https://github.com/rjroy/guild-hall/pull/105))
+- **Local model support:** Config-driven local model definitions, model resolution chain, SDK env injection for Ollama endpoints, reachability checks, `/models` API endpoint, UI provenance indicators, and commission creation model selector ([#94](https://github.com/rjroy/guild-hall/pull/94))
+- **Model selection and scheduled commissions:** Model selection for sessions, scheduled commission support, mail reader toolbox, and portrait resolution improvements ([#92](https://github.com/rjroy/guild-hall/pull/92))
+- **Steward Worker MVP:** New Steward worker with status text visibility and infrastructure fixes ([#95](https://github.com/rjroy/guild-hall/pull/95))
+- **Artifact copy path button:** Copies `.lore/`-relative path to clipboard from the artifact provenance bar ([#94](https://github.com/rjroy/guild-hall/pull/94))
+- **Mail orchestrator integration tests:** Commission lifecycle (682 lines) and mail orchestrator (656 lines) integration test suites ([#91](https://github.com/rjroy/guild-hall/pull/91))
+- **Celeste worker package:** Guild Visionary worker for vision and strategic direction ([#117](https://github.com/rjroy/guild-hall/pull/117))
+- **Skill tool for workers:** Added `Skill` to `builtInTools` in all six worker packages ([#100](https://github.com/rjroy/guild-hall/pull/100))
+
+### Changed
+
+- **Daemon Application Boundary migration:** Reorganized daemon routes from flat CRUD to capability-oriented REST grammar, migrated web layer to daemon API calls via `fetchDaemon()`, refactored manager toolbox to invoke daemon routes, added skill registry and help endpoints ([#108](https://github.com/rjroy/guild-hall/pull/108))
+- **Worker canUseToolRules declarations:** Workers declare tool access rules, enforced during session preparation ([#106](https://github.com/rjroy/guild-hall/pull/106), [#97](https://github.com/rjroy/guild-hall/pull/97))
+- **Refactor artifact status handling:** Improved gem status mapping with correct CSS hue-rotate values and added `sleeping`/`abandoned` status support ([#103](https://github.com/rjroy/guild-hall/pull/103), [#94](https://github.com/rjroy/guild-hall/pull/94))
+- **Briefing prompt tuning:** Tightened briefing prompts for conciseness, 1 sentence for quiet projects, 2-4 max for active ones ([#117](https://github.com/rjroy/guild-hall/pull/117))
+- **Octavia allowed Bash commands:** Added `mkdir` and `mv` to Octavia's allowed commands ([#107](https://github.com/rjroy/guild-hall/pull/107))
+
+### Fixed
+
+- **Meeting status not visible after accept:** Integration worktree artifact now updates to `status: open` on accept, so the web UI no longer shows meetings stuck in "requested" ([#114](https://github.com/rjroy/guild-hall/pull/114))
+- **Commission filter and button readability:** Added backdrop blur and design system tokens to filter panel and action buttons ([#113](https://github.com/rjroy/guild-hall/pull/113))
+- **Tool use input display:** Streaming tool input (`input_json_delta`) now accumulated via stateful `createStreamTranslator()` instead of always showing `{}` ([#116](https://github.com/rjroy/guild-hall/pull/116))
+- **Meeting request artifact commit:** Artifacts written to integration worktree are now committed, fixing activity branches missing meeting request data ([#90](https://github.com/rjroy/guild-hall/pull/90))
+- **Orphaned branch cleanup:** Empty branches from failed meeting/commission creation are cleaned up, branches with commits preserved ([#90](https://github.com/rjroy/guild-hall/pull/90))
+- **Daemon lifecycle error logging:** All lifecycle generator and route catch blocks now log errors daemon-side ([#90](https://github.com/rjroy/guild-hall/pull/90))
+- **Commission dependency resolution:** `checkDependencyTransitions` now resolves through `commissionArtifactPath()` instead of joining raw IDs, unblocking blocked commissions ([#94](https://github.com/rjroy/guild-hall/pull/94))
+- **Meeting request page status:** Now reads from activity worktree when it exists, not just the integration branch ([#94](https://github.com/rjroy/guild-hall/pull/94))
+- **Worker resolution by identity name:** Guild Master can now reference workers by display name (e.g. "Scribe"), not just package name ([#89](https://github.com/rjroy/guild-hall/pull/89))
+- **Duplicate timeline entry on merge:** Removed redundant `status_completed` entry written by `syncStatusToIntegration` ([#88](https://github.com/rjroy/guild-hall/pull/88))
+- **Briefing cache semantics:** Fixed from AND to OR logic, cache valid when either HEAD matches or TTL fresh ([#102](https://github.com/rjroy/guild-hall/pull/102))
+- **Config reload and scheduler catch-up:** Fixed config reload, scheduler catch-up logic, and graph scrolling ([#96](https://github.com/rjroy/guild-hall/pull/96))
+- **Worker plugins and identity enforcement:** Fixed worker plugin resolution, identity handling, tool enforcement, and UI cleanup ([#98](https://github.com/rjroy/guild-hall/pull/98))
+- **Mobile keyboard premature send:** Return key no longer sends messages prematurely in meeting MessageInput ([#91](https://github.com/rjroy/guild-hall/pull/91))
+- **Invalid headers in daemonFetch:** Removed invalid `headers` option from daemonFetch call ([#93](https://github.com/rjroy/guild-hall/pull/93))
+- **Meeting portrait display:** Meeting page worker lookup now matches on display name instead of package name ([#112](https://github.com/rjroy/guild-hall/pull/112))
 
 ## [1.0.0] - 2026-03-08
 

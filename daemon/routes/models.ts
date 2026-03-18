@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { AppConfig, RouteModule, SkillDefinition } from "@/lib/types";
+import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import { VALID_MODELS } from "@/lib/types";
 
 export interface ModelsRouteDeps {
@@ -41,9 +41,9 @@ export function createModelsRoutes(deps: ModelsRouteDeps): RouteModule {
     });
   });
 
-  const skills: SkillDefinition[] = [
+  const operations: OperationDefinition[] = [
     {
-      skillId: "system.models.catalog.list",
+      operationId: "system.models.catalog.list",
       version: "1",
       name: "list",
       description: "List available AI models",
@@ -56,5 +56,5 @@ export function createModelsRoutes(deps: ModelsRouteDeps): RouteModule {
     },
   ];
 
-  return { routes, skills };
+  return { routes, operations };
 }

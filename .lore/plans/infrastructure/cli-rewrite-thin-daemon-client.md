@@ -10,6 +10,8 @@ related:
 
 # Plan: CLI Rewrite - Thin Daemon Client
 
+> **Note (2026-03-17):** This plan uses "skill" terminology that has since been renamed to "operations" in the codebase. `SkillDefinition` → `OperationDefinition`, `skillId` → `operationId`, `GET /help/skills` → `GET /help/operations`. See `.lore/plans/infrastructure/skill-to-operations-rename.md`.
+
 ## Context
 
 The CLI (`cli/index.ts`) has a hardcoded switch statement routing to individual command files (`register.ts`, `rebase.ts`, `validate.ts`), each with bespoke response parsing. Adding a daemon capability requires writing a new CLI file and updating the switch. Three worker packages reference CLI commands (`guild-hall artifact list`, `guild-hall artifact read`, `guild-hall models`, `guild-hall workers`) that don't exist because nobody built the corresponding CLI files.

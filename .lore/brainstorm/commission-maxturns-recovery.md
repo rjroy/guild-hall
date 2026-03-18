@@ -1,7 +1,7 @@
 ---
 title: "Commission maxTurns recovery"
 date: 2026-03-16
-status: open
+status: resolved
 tags: [commission, maxTurns, recovery, lifecycle, UX]
 modules: [commission-orchestrator, commission-lifecycle, sdk-runner]
 related:
