@@ -398,22 +398,18 @@ export function compareArtifactsByStatusAndTitle(a: Artifact, b: Artifact): numb
   return aTitle.localeCompare(bTitle);
 }
 
-// -- Skill contract types (REQ-DAB-8 through REQ-DAB-10) --
+// -- Operation contract types (REQ-DAB-18) --
 
-/** Context fields a skill requires from the caller. */
-export interface SkillContext {
+/** Context fields an operation requires from the caller. */
+export interface OperationContext {
   project?: boolean;
   commissionId?: boolean;
   meetingId?: boolean;
   scheduleId?: boolean;
 }
 
-/**
- * A daemon-owned capability contract. Each SkillDefinition describes
- * one invocable operation in the public API.
- */
-/** Declares a positional CLI parameter for a skill. */
-export interface SkillParameter {
+/** Declares a positional CLI parameter for an operation. */
+export interface OperationParameter {
   /** Parameter name, used as the query/body field key. */
   name: string;
   /** Whether the parameter is required. */
@@ -423,17 +419,17 @@ export interface SkillParameter {
 }
 
 /**
- * A daemon-owned capability contract. Each SkillDefinition describes
- * one invocable operation in the public API.
+ * A daemon-owned capability contract. Each OperationDefinition describes
+ * one invocable operation in the public API (REQ-DAB-18).
  */
-export interface SkillDefinition {
+export interface OperationDefinition {
   /** Stable dotted name derived from the route path. Example: "commission.run.dispatch" */
-  skillId: string;
+  operationId: string;
   /** Semver-ish version string. Starts at "1". Bump on breaking changes. */
   version: string;
   /** Human-readable operation name. Example: "dispatch" */
   name: string;
-  /** One-sentence description of what the skill does. */
+  /** One-sentence description of what the operation does. */
   description: string;
   /** HTTP invocation contract. */
   invocation: {
@@ -448,7 +444,7 @@ export interface SkillDefinition {
   /** Free-text summary of side effects. Empty string for read-only operations. */
   sideEffects: string;
   /** What context fields the caller must provide. */
-  context: SkillContext;
+  context: OperationContext;
   /** Streaming metadata. Omit for non-streaming operations. */
   streaming?: {
     /** SSE event type discriminators the client should expect. */
@@ -463,19 +459,19 @@ export interface SkillDefinition {
     object?: string;
   };
   /** Positional CLI parameters, in order. The CLI maps trailing argv words to these. */
-  parameters?: SkillParameter[];
-  /** Package that contributed this skill. Undefined for built-in skills.
+  parameters?: OperationParameter[];
+  /** Package that contributed this operation. Undefined for built-in operations.
    *  Set by the daemon during registration, not by the package. */
   sourcePackage?: string;
 }
 
 /**
  * Return type for route factories. Each factory returns its Hono routes
- * plus skill metadata for the registry.
+ * plus operation metadata for the registry.
  */
 export interface RouteModule {
   routes: Hono;
-  skills: SkillDefinition[];
+  operations: OperationDefinition[];
   /** Descriptions for non-leaf navigation nodes (root, feature, object).
    *  Keyed by dotted path (e.g., "commission" for root, "commission.run" for feature). */
   descriptions?: Record<string, string>;

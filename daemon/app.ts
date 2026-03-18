@@ -16,11 +16,11 @@ import { createArtifactRoutes, type ArtifactDeps } from "./routes/artifacts";
 import { createGitLoreRoutes, type GitLoreDeps } from "./routes/git-lore";
 import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
 import { createHelpRoutes } from "./routes/help";
-import { createSkillRegistry, type SkillRegistry } from "@/daemon/lib/skill-registry";
-import type { AppConfig, DiscoveredPackage, RouteModule, SkillDefinition } from "@/lib/types";
+import { createOperationsRegistry, type OperationsRegistry } from "@/daemon/lib/operations-registry";
+import type { AppConfig, DiscoveredPackage, RouteModule, OperationDefinition } from "@/lib/types";
 import { createPackageSkillRoutes, type PackageSkillRouteDeps } from "@/daemon/routes/package-skills";
-import { loadPackageSkills } from "@/daemon/services/skill-loader";
-import { SkillHandlerError } from "@/daemon/services/skill-types";
+import { loadPackageOperations } from "@/daemon/services/operations-loader";
+import { OperationHandlerError } from "@/daemon/services/operation-types";
 import { asCommissionId, asMeetingId } from "@/daemon/types";
 import type { MeetingSessionDeps } from "@/daemon/services/meeting/orchestrator";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
@@ -43,9 +43,9 @@ export interface AppDeps {
   artifacts?: ArtifactDeps;
   gitLore?: GitLoreDeps;
   configRoutes?: ConfigRoutesDeps;
-  /** Route module from package-contributed skills. When provided, its skills
-   *  enter the same registry as built-in skills and its routes are mounted. */
-  packageSkillRouteModule?: RouteModule;
+  /** Route module from package-contributed operations. When provided, its operations
+   *  enter the same registry as built-in operations and its routes are mounted. */
+  packageOperationRouteModule?: RouteModule;
   /** Factory for creating tagged loggers. Optional so tests that construct
    *  AppDeps directly don't need to provide it. */
   createLog?: CreateLog;
@@ -59,17 +59,17 @@ export interface AppDeps {
  * are mounted. This allows tests to provide mocks while production wires
  * real instances.
  *
- * Returns the Hono app and the skill registry built from all route modules.
+ * Returns the Hono app and the operations registry built from all route modules.
  */
-export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry } {
+export function createApp(deps: AppDeps): { app: Hono; registry: OperationsRegistry } {
   const createLog: CreateLog = deps.createLog ?? nullLog;
   const app = new Hono();
-  const allSkills: SkillDefinition[] = [];
+  const allOperations: OperationDefinition[] = [];
   const allDescriptions: Record<string, string> = {};
 
   function mount(mod: RouteModule): void {
     app.route("/", mod.routes);
-    allSkills.push(...mod.skills);
+    allOperations.push(...mod.operations);
     if (mod.descriptions) {
       Object.assign(allDescriptions, mod.descriptions);
     }
@@ -133,12 +133,12 @@ export function createApp(deps: AppDeps): { app: Hono; registry: SkillRegistry }
     mount(createConfigRoutes(deps.configRoutes));
   }
 
-  if (deps.packageSkillRouteModule) {
-    mount(deps.packageSkillRouteModule);
+  if (deps.packageOperationRouteModule) {
+    mount(deps.packageOperationRouteModule);
   }
 
-  // Build the skill registry from all collected skills
-  const registry = createSkillRegistry(allSkills, allDescriptions);
+  // Build the operations registry from all collected operations
+  const registry = createOperationsRegistry(allOperations, allDescriptions);
 
   // Mount help routes last so they can query the registry
   app.route("/", createHelpRoutes(registry));
@@ -158,7 +158,7 @@ export async function createProductionApp(options?: {
   packagesDir?: string;
   gitOps?: GitOps;
   createLog?: CreateLog;
-}): Promise<{ app: Hono; registry: SkillRegistry; shutdown: () => void }> {
+}): Promise<{ app: Hono; registry: OperationsRegistry; shutdown: () => void }> {
   const { readConfig } = await import("@/lib/config");
   const { discoverPackages, validatePackageModels } = await import("@/lib/packages");
   const { getGuildHallHome, integrationWorktreePath } = await import("@/lib/paths");
@@ -461,12 +461,12 @@ export async function createProductionApp(options?: {
   });
   briefingRefresh.start();
 
-  // -- Package skill loading --
-  // Load skills contributed by packages and build the route module.
-  // This happens after all sessions are constructed so that SkillFactoryDeps
+  // -- Package operation loading --
+  // Load operations contributed by packages and build the route module.
+  // This happens after all sessions are constructed so that OperationFactoryDeps
   // can wire adapters to the commission lifecycle and meeting session.
 
-  const packageSkills = await loadPackageSkills(allPackages, {
+  const packageOperations = await loadPackageOperations(allPackages, {
     config,
     guildHallHome,
     emitEvent: (event) => eventBus.emit(event),
@@ -474,23 +474,23 @@ export async function createProductionApp(options?: {
       const id = asCommissionId(commissionId);
       const methodMap: Record<string, () => Promise<import("@/daemon/services/commission/lifecycle").TransitionResult>> = {
         dispatch: () => lifecycle.dispatch(id),
-        cancel: () => lifecycle.cancel(id, (payload?.reason as string) ?? "Cancelled via skill"),
-        abandon: () => lifecycle.abandon(id, (payload?.reason as string) ?? "Abandoned via skill"),
+        cancel: () => lifecycle.cancel(id, (payload?.reason as string) ?? "Cancelled via operation"),
+        abandon: () => lifecycle.abandon(id, (payload?.reason as string) ?? "Abandoned via operation"),
         redispatch: () => lifecycle.redispatch(id),
         block: () => lifecycle.block(id),
         unblock: () => lifecycle.unblock(id),
-        sleep: () => lifecycle.sleep(id, (payload?.reason as string) ?? "Sleep via skill"),
-        wake: () => lifecycle.wake(id, (payload?.reason as string) ?? "Wake via skill"),
+        sleep: () => lifecycle.sleep(id, (payload?.reason as string) ?? "Sleep via operation"),
+        wake: () => lifecycle.wake(id, (payload?.reason as string) ?? "Wake via operation"),
         complete: () => lifecycle.executionCompleted(id),
-        fail: () => lifecycle.executionFailed(id, (payload?.reason as string) ?? "Failed via skill"),
+        fail: () => lifecycle.executionFailed(id, (payload?.reason as string) ?? "Failed via operation"),
       };
       const method = methodMap[transition];
       if (!method) {
-        throw new SkillHandlerError(`Unknown commission transition: "${transition}"`, 400);
+        throw new OperationHandlerError(`Unknown commission transition: "${transition}"`, 400);
       }
       const result = await method();
       if (result.outcome === "skipped") {
-        throw new SkillHandlerError(result.reason, 409);
+        throw new OperationHandlerError(result.reason, 409);
       }
     },
     transitionMeeting: async (meetingId, transition, payload) => {
@@ -498,7 +498,7 @@ export async function createProductionApp(options?: {
       if (transition === "decline") {
         const projectName = (payload?.projectName as string) ?? "";
         if (!projectName) {
-          throw new SkillHandlerError(
+          throw new OperationHandlerError(
             `"decline" transition requires a "projectName" parameter`,
             400,
           );
@@ -517,26 +517,26 @@ export async function createProductionApp(options?: {
       };
       const method = methodMap[transition];
       if (!method) {
-        throw new SkillHandlerError(`Unknown meeting transition: "${transition}"`, 400);
+        throw new OperationHandlerError(`Unknown meeting transition: "${transition}"`, 400);
       }
       try {
         await method();
       } catch (err) {
-        if (err instanceof SkillHandlerError) throw err;
+        if (err instanceof OperationHandlerError) throw err;
         const msg = errorMessage(err);
         if (/not found/i.test(msg)) {
-          throw new SkillHandlerError(msg, 404);
+          throw new OperationHandlerError(msg, 404);
         }
         if (/invalid/i.test(msg)) {
-          throw new SkillHandlerError(msg, 409);
+          throw new OperationHandlerError(msg, 409);
         }
-        throw new SkillHandlerError(msg, 500);
+        throw new OperationHandlerError(msg, 500);
       }
     },
   });
 
-  let packageSkillRouteModule: RouteModule | undefined;
-  if (packageSkills.length > 0) {
+  let packageOperationRouteModule: RouteModule | undefined;
+  if (packageOperations.length > 0) {
     const routeDeps: PackageSkillRouteDeps = {
       config,
       guildHallHome,
@@ -548,7 +548,7 @@ export async function createProductionApp(options?: {
         return Promise.resolve(entry?.status);
       },
     };
-    packageSkillRouteModule = createPackageSkillRoutes(packageSkills, routeDeps);
+    packageOperationRouteModule = createPackageSkillRoutes(packageOperations, routeDeps);
   }
 
   const startTime = Date.now();
@@ -587,15 +587,9 @@ export async function createProductionApp(options?: {
       config,
       guildHallHome,
     },
-    packageSkillRouteModule,
+    packageOperationRouteModule,
     createLog,
   });
-
-  // Late-bind the skill registry for progressive discovery (REQ-DAB-5).
-  // The registry is constructed during createApp() which happens after
-  // prepDeps is created. Since prepDeps is shared across all orchestrators,
-  // setting it here makes skills available to all session types.
-  prepDeps.skillRegistry = registry;
 
   return {
     app,

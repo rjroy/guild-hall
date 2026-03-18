@@ -1,28 +1,28 @@
 /**
- * Types for the package skill handler contract.
+ * Types for the package operation handler contract.
  *
- * Package skills are the public API surface that packages contribute to the
- * daemon. They parallel toolbox factories (agent-facing tools) but serve a
- * different purpose: CLI and HTTP invocation by humans and scripts.
+ * Package operations are the public API surface that packages contribute to
+ * the daemon. They parallel toolbox factories (agent-facing tools) but serve
+ * a different purpose: CLI and HTTP invocation by humans and scripts.
  *
- * The factory pattern mirrors toolboxFactory: the daemon calls skillFactory
+ * The factory pattern mirrors toolboxFactory: the daemon calls operationFactory
  * during startup with deps, and handlers receive per-request context at
  * invocation time.
  */
 
-import type { AppConfig, SkillDefinition } from "@/lib/types";
+import type { AppConfig, OperationDefinition } from "@/lib/types";
 import type { SystemEvent } from "@/daemon/lib/event-bus";
 
 /**
- * Context provided to a package skill handler at invocation time.
+ * Context provided to a package operation handler at invocation time.
  * Contains only request-specific data. Daemon services come from
  * the factory deps, not from here.
  */
-export interface SkillHandlerContext {
+export interface OperationHandlerContext {
   /** Validated request parameters (query or body), keyed by parameter name. */
   params: Record<string, unknown>;
 
-  /** Resolved context fields. Present only when the skill's SkillContext
+  /** Resolved context fields. Present only when the operation's OperationContext
    *  declares them as required. The daemon resolves and validates these
    *  before calling the handler. */
   projectName?: string;
@@ -35,7 +35,7 @@ export interface SkillHandlerContext {
  * Result returned by a non-streaming handler.
  * The daemon serializes this to JSON for the HTTP response.
  */
-export interface SkillHandlerResult {
+export interface OperationHandlerResult {
   /** The response payload. Must be JSON-serializable. */
   data: unknown;
 
@@ -47,40 +47,40 @@ export interface SkillHandlerResult {
  * Error type for handler failures. The daemon catches these and
  * returns an appropriate HTTP error response.
  */
-export class SkillHandlerError extends Error {
+export class OperationHandlerError extends Error {
   constructor(
     message: string,
     public readonly status: number = 500,
   ) {
     super(message);
-    this.name = "SkillHandlerError";
+    this.name = "OperationHandlerError";
   }
 }
 
 /**
- * A non-streaming skill handler.
+ * A non-streaming operation handler.
  */
-export type SkillHandler = (ctx: SkillHandlerContext) => Promise<SkillHandlerResult>;
+export type OperationHandler = (ctx: OperationHandlerContext) => Promise<OperationHandlerResult>;
 
 /**
  * Callback for streaming handlers to emit SSE events.
  * The daemon wraps this in SSE transport.
  */
-export type SkillStreamEmitter = (event: string, data: unknown) => void;
+export type OperationStreamEmitter = (event: string, data: unknown) => void;
 
 /**
- * A streaming skill handler. The daemon closes the SSE connection
+ * A streaming operation handler. The daemon closes the SSE connection
  * when the returned promise resolves. To signal completion, simply
- * return. To signal an error, throw SkillHandlerError.
+ * return. To signal an error, throw OperationHandlerError.
  */
-export type SkillStreamHandler = (
-  ctx: SkillHandlerContext,
-  emit: SkillStreamEmitter,
+export type OperationStreamHandler = (
+  ctx: OperationHandlerContext,
+  emit: OperationStreamEmitter,
 ) => Promise<void>;
 
 /**
  * Commission transition function signature. The daemon implements
- * this; the handler calls it. Throws SkillHandlerError on invalid
+ * this; the handler calls it. Throws OperationHandlerError on invalid
  * transitions. Returns void on success.
  */
 export type CommissionTransitionFn = (
@@ -100,13 +100,13 @@ export type MeetingTransitionFn = (
 ) => Promise<void>;
 
 /**
- * Dependencies injected into the skill factory at construction time.
+ * Dependencies injected into the operation factory at construction time.
  * The daemon provides these; packages consume them.
  *
  * This is intentionally narrow. Handlers that need more daemon
  * services indicate a design problem: the handler is doing too much.
  */
-export interface SkillFactoryDeps {
+export interface OperationFactoryDeps {
   /** Application configuration (read-only). */
   config: AppConfig;
 
@@ -121,8 +121,8 @@ export interface SkillFactoryDeps {
    * transition, applies guards and mutual exclusion, emits the
    * appropriate event, and returns void on success.
    *
-   * Throws SkillHandlerError if the transition is invalid.
-   * Only provided when the package declares skills that need it.
+   * Throws OperationHandlerError if the transition is invalid.
+   * Only provided when the package declares operations that need it.
    */
   transitionCommission?: CommissionTransitionFn;
 
@@ -134,30 +134,30 @@ export interface SkillFactoryDeps {
 }
 
 /**
- * A skill definition paired with its handler.
+ * An operation definition paired with its handler.
  */
-export interface PackageSkill {
-  /** The skill definition, registered in the daemon's SkillRegistry. */
-  definition: SkillDefinition;
+export interface PackageOperation {
+  /** The operation definition, registered in the daemon's OperationsRegistry. */
+  definition: OperationDefinition;
 
-  /** Handler for non-streaming skills. Exactly one of handler or
+  /** Handler for non-streaming operations. Exactly one of handler or
    *  streamHandler must be provided. */
-  handler?: SkillHandler;
+  handler?: OperationHandler;
 
-  /** Handler for streaming skills. The skill's definition must include
+  /** Handler for streaming operations. The operation's definition must include
    *  streaming.eventTypes when this is provided. */
-  streamHandler?: SkillStreamHandler;
+  streamHandler?: OperationStreamHandler;
 }
 
 /**
- * Output from a skill factory. Contains the skills the package contributes.
+ * Output from an operation factory. Contains the operations the package contributes.
  */
-export interface SkillFactoryOutput {
-  skills: PackageSkill[];
+export interface OperationFactoryOutput {
+  operations: PackageOperation[];
 }
 
 /**
- * Factory function exported by packages that contribute skills.
+ * Factory function exported by packages that contribute operations.
  * Called once during daemon startup with daemon-provided deps.
  */
-export type SkillFactory = (deps: SkillFactoryDeps) => SkillFactoryOutput;
+export type OperationFactory = (deps: OperationFactoryDeps) => OperationFactoryOutput;

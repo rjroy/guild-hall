@@ -16,13 +16,11 @@ import type {
   DiscoveredPackage,
   ResolvedModel,
   ResolvedToolSet,
-  SkillDefinition,
   WorkerMetadata,
 } from "@/lib/types";
 import type { Log } from "@/daemon/lib/log";
 import { nullLog } from "@/daemon/lib/log";
 import { resolveModel } from "@/lib/types";
-import type { SkillRegistry } from "@/daemon/lib/skill-registry";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
@@ -140,10 +138,6 @@ export type SessionPrepDeps = {
   ) => void;
 
   checkReachability?: (url: string) => Promise<{ reachable: boolean; error?: string }>;
-
-  /** Skill registry for progressive discovery (REQ-DAB-5). Set after
-   *  createApp() constructs the registry. */
-  skillRegistry?: SkillRegistry;
 
   memoryLimit?: number;
 };
@@ -427,14 +421,6 @@ export async function prepareSdkSession(
     return { ok: false, error: `Worker activation failed: ${errorMessage(err)}` };
   }
 
-  // 4b. Inject skill discovery context (REQ-DAB-5)
-  if (deps.skillRegistry && workerMeta.builtInTools.includes("Bash")) {
-    const skillContext = formatSkillDiscoveryContext(deps.skillRegistry, workerMeta.canUseToolRules ?? []);
-    if (skillContext) {
-      activation.systemPrompt += `\n\n${skillContext}`;
-    }
-  }
-
   // 5. Build SDK query options
   const maxTurns = spec.resourceOverrides?.maxTurns ?? activation.resourceBounds.maxTurns;
   const maxBudgetUsd = spec.resourceOverrides?.maxBudgetUsd ?? activation.resourceBounds.maxBudgetUsd;
@@ -524,73 +510,3 @@ export async function prepareSdkSession(
   return { ok: true, result: { options, resolvedModel: resolvedModelResult } };
 }
 
-/**
- * Derives the set of eligible skills from canUseToolRules and formats
- * them as a system prompt section.
- *
- * A skill is eligible if its CLI command (`guild-hall <skillId with dots as spaces>`)
- * matches an allow rule and is not blocked by a subsequent deny rule.
- * Rules are evaluated in declaration order (first match wins), matching
- * the runtime canUseTool callback behavior.
- */
-export function formatSkillDiscoveryContext(
-  registry: SkillRegistry,
-  canUseToolRules: CanUseToolRule[],
-): string | null {
-  const bashRules = canUseToolRules.filter((r) => r.tool === "Bash");
-  if (bashRules.length === 0) return null;
-
-  const allSkills = registry.filter(() => true);
-  const eligibleSkills: SkillDefinition[] = [];
-
-  for (const skill of allSkills) {
-    const command = `guild-hall ${skill.skillId.replace(/\./g, " ")}`;
-    if (isCommandAllowed(command, bashRules)) {
-      eligibleSkills.push(skill);
-    }
-  }
-
-  if (eligibleSkills.length === 0) return null;
-
-  // Group by hierarchy root for readable output
-  const grouped = new Map<string, SkillDefinition[]>();
-  for (const skill of eligibleSkills) {
-    const root = skill.hierarchy.root;
-    if (!grouped.has(root)) grouped.set(root, []);
-    grouped.get(root)!.push(skill);
-  }
-
-  const lines: string[] = [
-    "# Available Skills",
-    "",
-    "The following operations are available through the `guild-hall` CLI.",
-    "Use `guild-hall help` for detailed usage information.",
-    "",
-  ];
-
-  for (const [root, skills] of grouped) {
-    lines.push(`## ${root}`);
-    for (const skill of skills) {
-      lines.push(`- **${skill.skillId}**: ${skill.description}`);
-    }
-    lines.push("");
-  }
-
-  return lines.join("\n");
-}
-
-/**
- * Checks whether a command string would be allowed by the given Bash rules.
- * Mirrors the first-match-wins logic in buildCanUseTool.
- */
-function isCommandAllowed(command: string, bashRules: CanUseToolRule[]): boolean {
-  for (const rule of bashRules) {
-    if (rule.commands !== undefined) {
-      if (!micromatch.isMatch(command, rule.commands, { dot: true })) continue;
-    }
-    // Rule with no commands field matches any Bash command
-    return rule.allow;
-  }
-  // No rule matched: allow (REQ-SBX-14)
-  return true;
-}
