@@ -1,9 +1,11 @@
 "use client";
 
+import type { Components } from "react-markdown";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { resolveImageSrc } from "@/web/lib/resolve-image-src";
 import styles from "./ArtifactContent.module.css";
 
 interface ArtifactContentProps {
@@ -112,6 +114,23 @@ export default function ArtifactContent({
     );
   }
 
+  const markdownComponents: Components = {
+    img: ({ src, alt, ...props }) => {
+      const srcStr = typeof src === "string" ? src : undefined;
+      const resolvedSrc = resolveImageSrc(srcStr, projectName, artifactPath);
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          {...props}
+          src={resolvedSrc}
+          alt={alt ?? ""}
+          loading="lazy"
+          className={styles.inlineImage}
+        />
+      );
+    },
+  };
+
   return (
     <div className={styles.viewer}>
       <div className={styles.toolbar}>
@@ -122,7 +141,7 @@ export default function ArtifactContent({
       </div>
       <div className={styles.markdownContent}>
         {body.trim() ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{body}</ReactMarkdown>
         ) : (
           <pre className={styles.rawFallback}>{rawContent}</pre>
         )}

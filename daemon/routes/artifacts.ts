@@ -216,18 +216,16 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
     }
 
     try {
-      // Resolve base path: activity worktree for meetings/commissions, integration otherwise
+      // Resolve base path: activity worktree for meetings/commissions, integration otherwise.
+      // Uses pop() to extract the ID from the last path segment, matching document read behavior.
       let basePath: string;
       if (imagePath.startsWith("meetings/")) {
-        const parts = imagePath.split("/");
-        // meetings/<meetingId>/... or meetings/<meetingId>.ext
-        const meetingSegment = parts[1] ?? "";
-        const meetingId = meetingSegment.replace(/\.[^.]+$/, "");
+        const filename = imagePath.split("/").pop() ?? "";
+        const meetingId = filename.replace(/\.[^.]+$/, "");
         basePath = await resolveMeetingBasePath(deps.guildHallHome, projectName, meetingId);
       } else if (imagePath.startsWith("commissions/")) {
-        const parts = imagePath.split("/");
-        const commissionSegment = parts[1] ?? "";
-        const commissionId = commissionSegment.replace(/\.[^.]+$/, "");
+        const filename = imagePath.split("/").pop() ?? "";
+        const commissionId = filename.replace(/\.[^.]+$/, "");
         basePath = await resolveCommissionBasePath(deps.guildHallHome, projectName, commissionId);
       } else {
         basePath = integrationWorktreePath(deps.guildHallHome, projectName);
@@ -241,6 +239,77 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
         "Content-Type": mimeType,
         "Cache-Control": "max-age=300, stale-while-revalidate=60",
         "Content-Length": String(buffer.length),
+      });
+    } catch (err: unknown) {
+      if (isNotFound(err)) {
+        return c.json({ error: `Image not found: ${imagePath}` }, 404);
+      }
+      if (isPathTraversal(err)) {
+        return c.json({ error: "Path traversal detected" }, 400);
+      }
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  // GET /workspace/artifact/image/meta - image metadata without file bytes
+  routes.get("/workspace/artifact/image/meta", async (c) => {
+    const projectName = c.req.query("projectName");
+    if (!projectName) {
+      return c.json({ error: "Missing required query parameter: projectName" }, 400);
+    }
+
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
+      return c.json({ error: `Project not found: ${projectName}` }, 404);
+    }
+
+    const imagePath = c.req.query("path");
+    if (!imagePath) {
+      return c.json({ error: "Missing required query parameter: path" }, 400);
+    }
+
+    // Validate file extension
+    const ext = nodePath.extname(imagePath).toLowerCase();
+    const mimeType = IMAGE_MIME_TYPES[ext];
+    if (!mimeType) {
+      return c.json({ error: `Unsupported image type: ${ext}` }, 415);
+    }
+
+    try {
+      // Resolve base path: activity worktree for meetings/commissions, integration otherwise.
+      let basePath: string;
+      if (imagePath.startsWith("meetings/")) {
+        const filename = imagePath.split("/").pop() ?? "";
+        const meetingId = filename.replace(/\.[^.]+$/, "");
+        basePath = await resolveMeetingBasePath(deps.guildHallHome, projectName, meetingId);
+      } else if (imagePath.startsWith("commissions/")) {
+        const filename = imagePath.split("/").pop() ?? "";
+        const commissionId = filename.replace(/\.[^.]+$/, "");
+        basePath = await resolveCommissionBasePath(deps.guildHallHome, projectName, commissionId);
+      } else {
+        basePath = integrationWorktreePath(deps.guildHallHome, projectName);
+      }
+
+      const lorePath = projectLorePath(basePath);
+      const filePath = validatePath(lorePath, imagePath);
+      const stat = await fs.stat(filePath);
+
+      const filename = nodePath.basename(imagePath, ext);
+      const title = filename
+        .replace(/[-_]/g, " ")
+        .replace(/\b\w/g, (ch) => ch.toUpperCase());
+
+      return c.json({
+        relativePath: imagePath,
+        meta: {
+          title,
+          date: stat.mtime.toISOString().split("T")[0],
+          status: "complete",
+          tags: [],
+        },
+        lastModified: stat.mtime.toISOString(),
+        fileSize: stat.size,
+        mimeType,
       });
     } catch (err: unknown) {
       if (isNotFound(err)) {
@@ -286,6 +355,19 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
       name: "read",
       description: "Serve raw image bytes for an artifact image",
       invocation: { method: "GET", path: "/workspace/artifact/image/read" },
+      sideEffects: "",
+      context: { project: true },
+
+      idempotent: true,
+      hierarchy: { root: "workspace", feature: "artifact", object: "image" },
+      parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "path", required: true, in: "query" as const }],
+    },
+    {
+      operationId: "workspace.artifact.image.meta",
+      version: "1",
+      name: "meta",
+      description: "Get image artifact metadata without file bytes",
+      invocation: { method: "GET", path: "/workspace/artifact/image/meta" },
       sideEffects: "",
       context: { project: true },
 

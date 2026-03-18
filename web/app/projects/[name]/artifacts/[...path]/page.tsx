@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchDaemon } from "@/web/lib/daemon-api";
-import type { Artifact, CommissionMeta } from "@/lib/types";
+import type { Artifact, ArtifactMeta, CommissionMeta } from "@/lib/types";
 import ArtifactProvenance from "@/web/components/artifact/ArtifactProvenance";
 import ArtifactContent from "@/web/components/artifact/ArtifactContent";
 import MetadataSidebar from "@/web/components/artifact/MetadataSidebar";
+import ImageArtifactView from "@/web/components/artifact/ImageArtifactView";
+import ImageMetadataSidebar from "@/web/components/artifact/ImageMetadataSidebar";
 import DaemonError from "@/web/components/ui/DaemonError";
 import styles from "./page.module.css";
 
@@ -12,6 +14,16 @@ import styles from "./page.module.css";
 type SerializedArtifact = Omit<Artifact, "lastModified" | "filePath"> & {
   lastModified: string;
 };
+
+interface ImageMetaResponse {
+  relativePath: string;
+  meta: ArtifactMeta;
+  lastModified: string;
+  fileSize: number;
+  mimeType: string;
+}
+
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg"]);
 
 export default async function ArtifactPage({
   params,
@@ -32,7 +44,51 @@ export default async function ArtifactPage({
     return <DaemonError message={projectResult.error} />;
   }
 
-  // Read artifact from daemon (handles activity worktree resolution)
+  // Check if this is an image artifact
+  const ext = relativePath.split(".").pop()?.toLowerCase() ?? "";
+  const isImage = IMAGE_EXTENSIONS.has(ext);
+
+  if (isImage) {
+    const metaResult = await fetchDaemon<ImageMetaResponse>(
+      `/workspace/artifact/image/meta?projectName=${encoded}&path=${encodeURIComponent(relativePath)}`,
+    );
+    if (!metaResult.ok) {
+      if (metaResult.error.includes("not found")) {
+        notFound();
+      }
+      return <DaemonError message={metaResult.error} />;
+    }
+    const { meta, fileSize, mimeType, lastModified } = metaResult.data;
+    const imageTitle = meta.title || relativePath;
+    const filename = relativePath.split("/").pop() ?? "";
+
+    return (
+      <div className={styles.artifactView}>
+        <div className={styles.main}>
+          <ArtifactProvenance
+            projectName={projectName}
+            artifactTitle={imageTitle}
+            artifactPath={relativePath}
+          />
+          <ImageArtifactView
+            projectName={projectName}
+            artifactPath={relativePath}
+          />
+        </div>
+        <div className={styles.sidebar}>
+          <ImageMetadataSidebar
+            filename={filename}
+            mimeType={mimeType}
+            fileSize={fileSize}
+            lastModified={lastModified}
+            projectName={projectName}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Read document artifact from daemon (handles activity worktree resolution)
   const artifactResult = await fetchDaemon<SerializedArtifact>(
     `/workspace/artifact/document/read?projectName=${encoded}&path=${relativePath}`,
   );

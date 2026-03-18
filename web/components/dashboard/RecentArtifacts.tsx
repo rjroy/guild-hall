@@ -22,7 +22,7 @@ function displayTitle(artifact: Artifact): string {
   }
   const segments = artifact.relativePath.split("/");
   const filename = segments[segments.length - 1];
-  return filename.replace(/\.md$/, "");
+  return filename.replace(/\.(md|png|jpe?g|webp|gif|svg)$/i, "");
 }
 
 /**
@@ -84,14 +84,18 @@ export default function RecentArtifacts({
                   href={artifactHref(artifact, artifact.projectName)}
                   className={styles.link}
                 >
-                  {/* Static decorative icon. next/image optimization not beneficial. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/images/ui/scroll-icon.webp"
-                    alt=""
-                    className={styles.scrollIcon}
-                    aria-hidden="true"
-                  />
+                  {artifact.artifactType === "image" ? (
+                    <span className={styles.imageIcon} aria-hidden="true">{"\uD83D\uDDBC"}</span>
+                  ) : (
+                    /* Static decorative icon. next/image optimization not beneficial. */
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src="/images/ui/scroll-icon.webp"
+                      alt=""
+                      className={styles.scrollIcon}
+                      aria-hidden="true"
+                    />
+                  )}
                   <div className={styles.info}>
                     <span className={styles.title}>
                       {displayTitle(artifact)}

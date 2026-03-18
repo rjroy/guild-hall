@@ -603,8 +603,9 @@ describe("response shape", () => {
     const body = await res.json();
     expect(body.artifacts).toHaveLength(2);
 
-    const doc = body.artifacts.find((a: Record<string, unknown>) => a.artifactType === "document");
-    const img = body.artifacts.find((a: Record<string, unknown>) => a.artifactType === "image");
+    const artifacts = body.artifacts as Array<{ artifactType: string; relativePath: string; content: string }>;
+    const doc = artifacts.find((a) => a.artifactType === "document");
+    const img = artifacts.find((a) => a.artifactType === "image");
     expect(doc).toBeDefined();
     expect(img).toBeDefined();
     expect(img.relativePath).toBe("generated/hero.png");
@@ -733,5 +734,103 @@ describe("GET /workspace/artifact/image/read", () => {
     expect(body.length).toBe(256);
     expect(body[0]).toBe(0);
     expect(body[255]).toBe(255);
+  });
+});
+
+// -- Tests: GET /workspace/artifact/image/meta --
+
+describe("GET /workspace/artifact/image/meta", () => {
+  test("returns 400 when projectName is missing", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/meta?path=test.png");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("projectName");
+  });
+
+  test("returns 400 when path is missing", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/meta?projectName=test-project");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("path");
+  });
+
+  test("returns 404 for unknown project", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/meta?projectName=nonexistent&path=test.png");
+    expect(res.status).toBe(404);
+  });
+
+  test("returns 415 for unsupported extension", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/meta?projectName=test-project&path=file.bmp");
+    expect(res.status).toBe(415);
+  });
+
+  test("returns 404 for missing image file", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/meta?projectName=test-project&path=nonexistent.png");
+    expect(res.status).toBe(404);
+  });
+
+  test("rejects path traversal attempts", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/meta?projectName=test-project&path=../../etc/passwd.png");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Path traversal");
+  });
+
+  test("returns synthetic metadata for a PNG file", async () => {
+    const pngData = Buffer.from(Array.from({ length: 1024 }, (_, i) => i % 256));
+    await writeTestImage("generated/hero-image.png", pngData);
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/meta?projectName=test-project&path=generated/hero-image.png");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.relativePath).toBe("generated/hero-image.png");
+    expect(body.meta.title).toBe("Hero Image");
+    expect(body.meta.status).toBe("complete");
+    expect(body.meta.tags).toEqual([]);
+    expect(body.meta.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(body.fileSize).toBe(1024);
+    expect(body.mimeType).toBe("image/png");
+    expect(body.lastModified).toBeDefined();
+    // Validate lastModified is an ISO date string
+    expect(new Date(body.lastModified).toISOString()).toBe(body.lastModified);
+  });
+
+  test("returns correct mimeType for each supported format", async () => {
+    const extensions: Array<[string, string]> = [
+      ["test.jpg", "image/jpeg"],
+      ["test.jpeg", "image/jpeg"],
+      ["test.webp", "image/webp"],
+      ["test.gif", "image/gif"],
+      ["test.svg", "image/svg+xml"],
+    ];
+
+    const app = makeTestApp();
+    for (const [filename, expectedMime] of extensions) {
+      await writeTestImage(filename);
+      const res = await app.request(
+        `/workspace/artifact/image/meta?projectName=test-project&path=${filename}`,
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.mimeType).toBe(expectedMime);
+    }
+  });
+
+  test("derives title from filename with hyphens and underscores", async () => {
+    await writeTestImage("my_cool-screenshot.png");
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/meta?projectName=test-project&path=my_cool-screenshot.png");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.meta.title).toBe("My Cool Screenshot");
   });
 });

@@ -24,10 +24,15 @@ export async function GET(request: NextRequest) {
   }
 
   if (result.status !== 200) {
-    return new NextResponse(result.body, { status: result.status });
+    return new NextResponse(new Uint8Array(result.body), {
+      status: result.status,
+      headers: {
+        "Content-Type": result.headers["content-type"] ?? "application/json",
+      },
+    });
   }
 
-  return new NextResponse(result.body, {
+  return new NextResponse(new Uint8Array(result.body), {
     status: 200,
     headers: {
       "Content-Type": result.headers["content-type"] ?? "application/octet-stream",
