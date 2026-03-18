@@ -1,9 +1,0 @@
-{
-  "name": "guild-hall-email",
-  "version": "0.1.0",
-  "guildHall": {
-    "type": "toolbox",
-    "name": "guild-hall-email",
-    "description": "Read-only access to the user's Fastmail inbox via JMAP."
-  }
-}
