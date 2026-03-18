@@ -64,6 +64,8 @@ The current memory system stores one file per memory entry per scope, with a `ME
 
 - REQ-MEM-12: Section identification is case-insensitive. `edit_memory` with section "feedback" matches a `## Feedback` header. The header's original casing is preserved on match; on create, the provided casing is used.
 
+- REQ-MEM-27: `edit_memory` rejects calls unless the current SDK session has called `read_memory` for the same scope since session start. On rejection, the tool returns the error: "Read memory before editing. Call read_memory with scope '{scope}' first." Implementation: each toolbox instance tracks a `Set<string>` of scopes that have been read via `read_memory`. The `read_memory` handler adds the scope to the set on any successful call. The `edit_memory` handler checks the set before proceeding. Since each SDK session gets its own toolbox instance, no cross-session coordination is needed. The deprecated `write_memory` alias (decision 6) is also subject to this guard.
+
 ### Tool: `read_memory`
 
 - REQ-MEM-13: The `read_memory` tool is updated to this schema:
@@ -173,6 +175,7 @@ Note: the commission-outcomes-to-memory feature itself is out of scope for this 
 - [ ] `write_memory` works as a deprecated alias mapping to `edit_memory upsert`
 - [ ] Budget warning appears in tool response when file exceeds 16k characters
 - [ ] `MEMORY_GUIDANCE` references `edit_memory` and section-based organization
+- [ ] `edit_memory` rejects calls when `read_memory` has not been called for the same scope in the current session
 - [ ] All existing memory tests are updated or replaced; new tests cover section parsing, edit operations, migration, and concurrency
 
 ## AI Validation
@@ -189,6 +192,8 @@ Note: the commission-outcomes-to-memory feature itself is out of scope for this 
 - Migration test (read_memory path): create a legacy directory, call `read_memory`, verify migration is triggered and content is returned from the new single file
 - Migration test (no _compacted.md): create a legacy directory without `_compacted.md`, trigger migration, verify no preamble in the resulting file
 - Budget test: create a file exceeding 16k chars, verify `loadMemories` drops sections from worker scope first and includes a complete (not truncated) set of remaining sections
+- Read-before-edit guard test (rejection): call `edit_memory` with scope "project" without a prior `read_memory` call for that scope, verify the tool returns the error message and does not write to the file
+- Read-before-edit guard test (success after read): call `read_memory` with scope "project", then call `edit_memory` with scope "project", verify the edit succeeds. Also verify that reading scope "global" does not authorize editing scope "project" (scopes are tracked independently)
 
 ## Constraints
 
