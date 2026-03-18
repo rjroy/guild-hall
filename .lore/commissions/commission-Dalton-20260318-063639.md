@@ -1,7 +1,7 @@
 ---
 title: "Commission: Memory redesign: Phases 3-5 (injection, migration, compaction removal)"
 date: 2026-03-18
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -20,6 +20,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-18T13:47:13.839Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-18T13:47:13.841Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
