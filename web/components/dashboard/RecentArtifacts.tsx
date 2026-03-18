@@ -2,6 +2,7 @@ import Link from "next/link";
 import Panel from "@/web/components/ui/Panel";
 import StatusBadge from "@/web/components/ui/StatusBadge";
 import EmptyState from "@/web/components/ui/EmptyState";
+import { displayTitle } from "@/lib/artifact-grouping";
 import type { Artifact, ArtifactWithProject } from "@/lib/types";
 import { statusToGem } from "@/lib/types";
 import styles from "./RecentArtifacts.module.css";
@@ -9,20 +10,6 @@ import styles from "./RecentArtifacts.module.css";
 interface RecentArtifactsProps {
   artifacts: ArtifactWithProject[];
   selectedProject?: string;
-}
-
-/**
- * Derives a display title from an artifact.
- * Uses the frontmatter title if available, otherwise falls back to the
- * filename without extension.
- */
-function displayTitle(artifact: Artifact): string {
-  if (artifact.meta.title) {
-    return artifact.meta.title;
-  }
-  const segments = artifact.relativePath.split("/");
-  const filename = segments[segments.length - 1];
-  return filename.replace(/\.(md|png|jpe?g|webp|gif|svg)$/i, "");
 }
 
 /**

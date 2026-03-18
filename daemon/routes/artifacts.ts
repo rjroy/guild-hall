@@ -216,20 +216,12 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
     }
 
     try {
-      // Resolve base path: activity worktree for meetings/commissions, integration otherwise.
-      // Uses pop() to extract the ID from the last path segment, matching document read behavior.
-      let basePath: string;
-      if (imagePath.startsWith("meetings/")) {
-        const filename = imagePath.split("/").pop() ?? "";
-        const meetingId = filename.replace(/\.[^.]+$/, "");
-        basePath = await resolveMeetingBasePath(deps.guildHallHome, projectName, meetingId);
-      } else if (imagePath.startsWith("commissions/")) {
-        const filename = imagePath.split("/").pop() ?? "";
-        const commissionId = filename.replace(/\.[^.]+$/, "");
-        basePath = await resolveCommissionBasePath(deps.guildHallHome, projectName, commissionId);
-      } else {
-        basePath = integrationWorktreePath(deps.guildHallHome, projectName);
-      }
+      // Image files can't carry activity IDs in their filenames the way
+      // .md artifacts do (commission-ID.md). Use the integration worktree
+      // for all image paths. If activity worktree image resolution becomes
+      // needed, the path structure will need to encode the activity ID in
+      // a directory segment, not the filename.
+      const basePath = integrationWorktreePath(deps.guildHallHome, projectName);
 
       const lorePath = projectLorePath(basePath);
       const filePath = validatePath(lorePath, imagePath);
@@ -276,19 +268,8 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
     }
 
     try {
-      // Resolve base path: activity worktree for meetings/commissions, integration otherwise.
-      let basePath: string;
-      if (imagePath.startsWith("meetings/")) {
-        const filename = imagePath.split("/").pop() ?? "";
-        const meetingId = filename.replace(/\.[^.]+$/, "");
-        basePath = await resolveMeetingBasePath(deps.guildHallHome, projectName, meetingId);
-      } else if (imagePath.startsWith("commissions/")) {
-        const filename = imagePath.split("/").pop() ?? "";
-        const commissionId = filename.replace(/\.[^.]+$/, "");
-        basePath = await resolveCommissionBasePath(deps.guildHallHome, projectName, commissionId);
-      } else {
-        basePath = integrationWorktreePath(deps.guildHallHome, projectName);
-      }
+      // Same as image/read: images don't carry activity IDs in filenames.
+      const basePath = integrationWorktreePath(deps.guildHallHome, projectName);
 
       const lorePath = projectLorePath(basePath);
       const filePath = validatePath(lorePath, imagePath);

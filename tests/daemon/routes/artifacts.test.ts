@@ -834,3 +834,59 @@ describe("GET /workspace/artifact/image/meta", () => {
     expect(body.meta.title).toBe("My Cool Screenshot");
   });
 });
+
+// -- Tests: Image endpoints resolve from integration worktree for meetings/commissions paths --
+
+describe("image endpoints resolve from integration worktree", () => {
+  test("image/read serves image from commissions/ path via integration worktree", async () => {
+    const imageData = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    await writeTestImage("commissions/diagram.png", imageData);
+
+    const app = makeTestApp();
+    const res = await app.request(
+      "/workspace/artifact/image/read?projectName=test-project&path=commissions/diagram.png",
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(body).toEqual(imageData);
+  });
+
+  test("image/read serves image from meetings/ path via integration worktree", async () => {
+    const imageData = Buffer.from([0xff, 0xd8, 0xff]);
+    await writeTestImage("meetings/whiteboard.jpg", imageData);
+
+    const app = makeTestApp();
+    const res = await app.request(
+      "/workspace/artifact/image/read?projectName=test-project&path=meetings/whiteboard.jpg",
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+  });
+
+  test("image/meta returns metadata for image in commissions/ path", async () => {
+    await writeTestImage("commissions/architecture-diagram.png");
+
+    const app = makeTestApp();
+    const res = await app.request(
+      "/workspace/artifact/image/meta?projectName=test-project&path=commissions/architecture-diagram.png",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.meta.title).toBe("Architecture Diagram");
+    expect(body.mimeType).toBe("image/png");
+  });
+
+  test("image/meta returns metadata for image in meetings/ path", async () => {
+    await writeTestImage("meetings/sketch.svg", Buffer.from("<svg></svg>"));
+
+    const app = makeTestApp();
+    const res = await app.request(
+      "/workspace/artifact/image/meta?projectName=test-project&path=meetings/sketch.svg",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.meta.title).toBe("Sketch");
+    expect(body.mimeType).toBe("image/svg+xml");
+  });
+});
