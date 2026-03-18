@@ -1,7 +1,7 @@
 ---
 title: "Commission: Email refactor: New tests for core and operations (Steps 6-7)"
 date: 2026-03-18
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Sable
@@ -20,6 +20,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-18T06:04:36.576Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-18T06:04:36.579Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
