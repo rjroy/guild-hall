@@ -1,7 +1,7 @@
 ---
 title: Operations loader should derive from toolboxFactory, not a separate operationFactory
 date: 2026-03-17
-status: open
+status: invalid
 tags: [architecture, operations, toolbox, packages]
 modules: [daemon]
 related:

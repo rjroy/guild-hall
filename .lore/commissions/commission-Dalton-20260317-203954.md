@@ -1,7 +1,7 @@
 ---
 title: "Commission: Fix: Operations loader should derive from toolboxFactory"
 date: 2026-03-18
-status: dispatched
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -30,6 +30,14 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-18T04:14:26.905Z
+    event: status_cancelled
+    reason: "Commission cancelled by user"
+  - timestamp: 2026-03-18T04:28:01.699Z
+    event: status_abandoned
+    reason: "this was a bad idea."
+    from: "cancelled"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---
