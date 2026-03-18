@@ -1,7 +1,7 @@
 ---
 title: "Memory Single-File Redesign"
 date: 2026-03-17
-status: approved
+status: executed
 tags: [memory, architecture, toolbox, agent-ux, migration]
 modules: [daemon/services/memory-injector, daemon/services/memory-compaction, daemon/services/base-toolbox, daemon/lib/agent-sdk/sdk-runner, daemon/services/meeting/orchestrator, daemon/app]
 related:
