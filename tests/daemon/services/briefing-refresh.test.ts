@@ -24,7 +24,7 @@ function makeMockGenerator(opts: MockGeneratorOptions = {}) {
   const calls: string[] = [];
   const generateBriefing =
     opts.generateBriefing ??
-    (async (_name: string) => ({
+    ((_name: string) => Promise.resolve({
       briefing: "test",
       generatedAt: new Date().toISOString(),
       cached: false,
@@ -32,43 +32,19 @@ function makeMockGenerator(opts: MockGeneratorOptions = {}) {
 
   return {
     generator: {
-      generateBriefing: async (name: string) => {
+      generateBriefing: (name: string) => {
         calls.push(name);
         return generateBriefing(name);
       },
-      getCachedBriefing: async () => null,
-      invalidateCache: async () => {},
-      generateAllProjectsBriefing: async () => ({
+      getCachedBriefing: () => Promise.resolve(null),
+      invalidateCache: () => Promise.resolve(),
+      generateAllProjectsBriefing: () => Promise.resolve({
         briefing: "",
         generatedAt: "",
         cached: false,
       }),
     },
     calls,
-  };
-}
-
-function makeDeps(
-  overrides: Partial<BriefingRefreshDeps> & {
-    projects?: Array<{ name: string; path: string }>;
-    configOverrides?: Partial<AppConfig>;
-  } = {},
-): BriefingRefreshDeps & { calls: string[]; logMessages: ReturnType<typeof collectingLog>["messages"] } {
-  const { projects = [{ name: "alpha", path: "/alpha" }], configOverrides, ...rest } = overrides;
-  const { log, messages } = collectingLog("briefing-refresh-test");
-  const mock = makeMockGenerator(
-    rest.briefingGenerator
-      ? undefined
-      : undefined,
-  );
-
-  return {
-    briefingGenerator: rest.briefingGenerator ?? mock.generator as BriefingRefreshDeps["briefingGenerator"],
-    config: makeConfig(projects, configOverrides),
-    log,
-    calls: mock.calls,
-    logMessages: messages,
-    ...rest,
   };
 }
 
@@ -93,9 +69,9 @@ describe("BriefingRefreshService", () => {
   test("immediate first cycle on start()", async () => {
     const calls: string[] = [];
     const generator = makeMockGenerator({
-      generateBriefing: async (name) => {
+      generateBriefing: (name: string) => {
         calls.push(name);
-        return { briefing: "ok", generatedAt: new Date().toISOString(), cached: false };
+        return Promise.resolve({ briefing: "ok", generatedAt: new Date().toISOString(), cached: false });
       },
     });
 
@@ -121,9 +97,9 @@ describe("BriefingRefreshService", () => {
   test("post-completion scheduling runs subsequent cycles", async () => {
     let cycleCount = 0;
     const generator = makeMockGenerator({
-      generateBriefing: async () => {
+      generateBriefing: () => {
         cycleCount++;
-        return { briefing: "ok", generatedAt: new Date().toISOString(), cached: false };
+        return Promise.resolve({ briefing: "ok", generatedAt: new Date().toISOString(), cached: false });
       },
     });
 
@@ -149,12 +125,12 @@ describe("BriefingRefreshService", () => {
   test("per-project error isolation", async () => {
     const calls: string[] = [];
     const generator = makeMockGenerator({
-      generateBriefing: async (name) => {
+      generateBriefing: (name: string) => {
         calls.push(name);
         if (name === "failing") {
-          throw new Error("generation failed");
+          return Promise.reject(new Error("generation failed"));
         }
-        return { briefing: "ok", generatedAt: new Date().toISOString(), cached: false };
+        return Promise.resolve({ briefing: "ok", generatedAt: new Date().toISOString(), cached: false });
       },
     });
 
@@ -181,9 +157,9 @@ describe("BriefingRefreshService", () => {
   test("stop cancels pending timer", async () => {
     let cycleCount = 0;
     const generator = makeMockGenerator({
-      generateBriefing: async () => {
+      generateBriefing: () => {
         cycleCount++;
-        return { briefing: "ok", generatedAt: new Date().toISOString(), cached: false };
+        return Promise.resolve({ briefing: "ok", generatedAt: new Date().toISOString(), cached: false });
       },
     });
 
@@ -271,9 +247,9 @@ describe("BriefingRefreshService", () => {
     // a very short interval and confirming rapid cycling
     let cycleCount = 0;
     const generator = makeMockGenerator({
-      generateBriefing: async () => {
+      generateBriefing: () => {
         cycleCount++;
-        return { briefing: "ok", generatedAt: new Date().toISOString(), cached: false };
+        return Promise.resolve({ briefing: "ok", generatedAt: new Date().toISOString(), cached: false });
       },
     });
 
@@ -302,9 +278,9 @@ describe("BriefingRefreshService", () => {
   test("defaults to 60-minute interval when config omits field", async () => {
     let cycleCount = 0;
     const generator = makeMockGenerator({
-      generateBriefing: async () => {
+      generateBriefing: () => {
         cycleCount++;
-        return { briefing: "ok", generatedAt: new Date().toISOString(), cached: false };
+        return Promise.resolve({ briefing: "ok", generatedAt: new Date().toISOString(), cached: false });
       },
     });
 
@@ -329,9 +305,9 @@ describe("BriefingRefreshService", () => {
   test("runCycle can be called directly for testing", async () => {
     const calls: string[] = [];
     const generator = makeMockGenerator({
-      generateBriefing: async (name) => {
+      generateBriefing: (name: string) => {
         calls.push(name);
-        return { briefing: "ok", generatedAt: new Date().toISOString(), cached: false };
+        return Promise.resolve({ briefing: "ok", generatedAt: new Date().toISOString(), cached: false });
       },
     });
 
