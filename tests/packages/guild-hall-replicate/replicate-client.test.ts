@@ -268,6 +268,17 @@ describe("ReplicateClient", () => {
       );
     });
 
+    test("rejects when status is canceled", async () => {
+      const fetchFn = mockFetch([
+        { status: 200, body: { id: "pred-1", status: "canceled" } },
+      ]);
+      const client = new ReplicateClient("test-token", fetchFn);
+
+      await expect(client.waitForCompletion("pred-1", 10, 5000)).rejects.toThrow(
+        /canceled/,
+      );
+    });
+
     test("rejects on timeout", async () => {
       const fetchFn = mockFetch(
         Array.from({ length: 20 }, () => ({

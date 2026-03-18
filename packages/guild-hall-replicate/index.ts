@@ -17,6 +17,15 @@ import {
 import { z } from "zod/v4";
 import type { ToolResult } from "@/daemon/types";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
+import { ReplicateClient } from "./replicate-client";
+import { makeGenerateImageHandler } from "./tools/generate-image";
+import { makeEditImageHandler } from "./tools/edit-image";
+import { makeRemoveBackgroundHandler } from "./tools/remove-background";
+import { makeUpscaleImageHandler } from "./tools/upscale-image";
+import { makeListModelsHandler } from "./tools/list-models";
+import { makeGetModelParamsHandler } from "./tools/get-model-params";
+import { makeCheckPredictionHandler } from "./tools/check-prediction";
+import { makeCancelPredictionHandler } from "./tools/cancel-prediction";
 
 // -- Unconfigured state helpers --
 
@@ -83,15 +92,6 @@ const cancelPredictionSchema = {
   prediction_id: z.string().describe("Replicate prediction ID"),
 };
 
-// -- Stub handler for configured-but-not-yet-implemented tools --
-
-function makeStubHandler() {
-  return (): Promise<ToolResult> =>
-    Promise.resolve({
-      content: [{ type: "text", text: "not yet implemented" }],
-    });
-}
-
 // -- Server creators --
 
 function createUnconfiguredServer() {
@@ -112,32 +112,57 @@ function createUnconfiguredServer() {
   });
 }
 
-function createConfiguredServer() {
-  const stub = makeStubHandler();
+function createConfiguredServer(client: ReplicateClient, deps: { guildHallHome: string; projectName: string; contextId: string; contextType: "meeting" | "commission" | "mail" | "briefing"; eventBus: import("@/daemon/lib/event-bus").EventBus }) {
+  const toolDeps = {
+    guildHallHome: deps.guildHallHome,
+    projectName: deps.projectName,
+    contextId: deps.contextId,
+    contextType: deps.contextType,
+    eventBus: deps.eventBus,
+  };
+
+  const generateImage = makeGenerateImageHandler(client, toolDeps);
+  const editImage = makeEditImageHandler(client, toolDeps);
+  const removeBackground = makeRemoveBackgroundHandler(client, toolDeps);
+  const upscaleImage = makeUpscaleImageHandler(client, toolDeps);
+  const listModels = makeListModelsHandler();
+  const getModelParams = makeGetModelParamsHandler(client);
+  const checkPrediction = makeCheckPredictionHandler(client);
+  const cancelPrediction = makeCancelPredictionHandler(client);
+
   return createSdkMcpServer({
     name: "guild-hall-replicate",
     version: "0.1.0",
     tools: [
-      tool("generate_image", "Generate an image from a text prompt using Replicate.", generateImageSchema, () => stub()),
-      tool("edit_image", "Transform an existing image using an img2img model on Replicate.", editImageSchema, () => stub()),
-      tool("remove_background", "Remove the background from an image, producing a transparent PNG.", removeBackgroundSchema, () => stub()),
-      tool("upscale_image", "Increase the resolution of an existing image.", upscaleImageSchema, () => stub()),
-      tool("list_models", "List available Replicate models with cost and speed metadata.", listModelsSchema, () => stub()),
-      tool("get_model_params", "Discover what parameters a specific Replicate model accepts.", getModelParamsSchema, () => stub()),
-      tool("check_prediction", "Check the status of a running Replicate prediction.", checkPredictionSchema, () => stub()),
-      tool("cancel_prediction", "Cancel a running Replicate prediction.", cancelPredictionSchema, () => stub()),
+      tool("generate_image", "Generate an image from a text prompt using Replicate.", generateImageSchema, (args) => generateImage(args)),
+      tool("edit_image", "Transform an existing image using an img2img model on Replicate.", editImageSchema, (args) => editImage(args)),
+      tool("remove_background", "Remove the background from an image, producing a transparent PNG.", removeBackgroundSchema, (args) => removeBackground(args)),
+      tool("upscale_image", "Increase the resolution of an existing image.", upscaleImageSchema, (args) => upscaleImage(args)),
+      tool("list_models", "List available Replicate models with cost and speed metadata.", listModelsSchema, (args) => listModels(args)),
+      tool("get_model_params", "Discover what parameters a specific Replicate model accepts.", getModelParamsSchema, (args) => getModelParams(args)),
+      tool("check_prediction", "Check the status of a running Replicate prediction.", checkPredictionSchema, (args) => checkPrediction(args)),
+      tool("cancel_prediction", "Cancel a running Replicate prediction.", cancelPredictionSchema, (args) => cancelPrediction(args)),
     ],
   });
 }
 
 // -- Factory --
 
-export const toolboxFactory: ToolboxFactory = () => {
+export const toolboxFactory: ToolboxFactory = (deps) => {
   const token = process.env.REPLICATE_API_TOKEN;
 
   if (!token) {
     return { server: createUnconfiguredServer() };
   }
 
-  return { server: createConfiguredServer() };
+  const client = new ReplicateClient(token);
+  return {
+    server: createConfiguredServer(client, {
+      guildHallHome: deps.guildHallHome,
+      projectName: deps.projectName,
+      contextId: deps.contextId,
+      contextType: deps.contextType,
+      eventBus: deps.eventBus,
+    }),
+  };
 };
