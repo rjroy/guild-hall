@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Vision
 date: 2026-03-17
-version: 1
+version: 2
 status: approved
 last_reviewed: 2026-03-17
 approved_by: Ronald Roy
@@ -9,6 +9,9 @@ approved_date: 2026-03-17
 review_trigger: "after major architectural changes or quarterly"
 tags: [vision]
 changelog:
+  - version: 2
+    date: 2026-03-17
+    summary: "Added Growth Surface section"
   - version: 1
     date: 2026-03-17
     summary: "Initial draft from excavation commission"
@@ -83,6 +86,34 @@ Tools do mechanics. Agents make decisions. A tool reads a file, writes a file, r
 | Files (3) vs. Performance | Files | If a file-based approach creates measurable, user-facing latency (not theoretical concern), a faster mechanism can be used for hot paths, but the file remains the source of truth and the fallback. |
 | Metaphor (4) vs. Usability | Usability | When the guild metaphor would confuse a new user or add friction to a common workflow, drop the metaphor for that surface. The metaphor serves the architecture; it should never obstruct the experience. |
 | One Boundary (5) vs. Development Speed | One Boundary | During active development, temporary client-side reads from the filesystem are acceptable as transitional adapters, but new features should not deepen boundary bypasses. Each release should reduce them. |
+| Domain Independence (GS-1) vs. General-purpose assistant (anti-goal 3) | Domain Independence | Adding workers and toolboxes for new domains is growth. Collapsing domain boundaries so one worker handles everything is the anti-goal. The test: does a new domain come with its own workers, postures, and toolboxes, or does it ask existing workers to be more flexible? The former is growth. The latter is drift toward general-purpose. |
+| Autonomous Initiative (GS-3) vs. User Authority (2) | User Authority | Workers can observe, surface, and propose. They do not decide and act without the user's involvement. The boundary is between "the guild noticed something and told you" and "the guild decided something and did it." Autonomous initiative expands what the guild can see and suggest, not what it can unilaterally do. Exception: when the user has explicitly delegated standing authority for a bounded action (e.g., "always triage new issues"), the worker may act within that grant. |
+| Multi-Channel Communication (GS-2) vs. Localhost (anti-goal 2) | Multi-Channel Communication | The guild communicates through more surfaces than just the web UI and CLI. New channels (messaging, email, notifications) are additional ways for the guild to reach the user, not replacements for the existing ones. The daemon remains the trust boundary and runs on localhost; channels are clients of the daemon API, same as the web UI. The localhost anti-goal constrains where the daemon runs, not how many ways it can talk. Bidirectional channels (replying to approve work) require careful scoping so the external surface doesn't become an unauthenticated control plane. |
+
+# Growth Surface
+
+The principles and anti-goals define what Guild Hall is and isn't. The growth surface defines where it expands. These are not planned features. They are commitments about the kinds of growth the system says "yes" to, so that new workers, toolboxes, and integrations have a direction to point toward.
+
+## 1. Domain Independence
+
+Guild Hall is not a software development tool. It is a workspace that started with software development because that's what the builder needed first. The worker model, commission system, and artifact pipeline are domain-agnostic by design. A worker that manages a writing project, tracks research, or coordinates event planning uses the same session infrastructure as one that writes code. Growth happens by adding workers and toolboxes for new domains, not by generalizing existing workers into doing everything.
+
+**Looks like:** A writing project has workers with postures tuned for drafting, editing, and continuity review. Their toolboxes include document structure tools, style reference lookups, and revision tracking. The commission and meeting models are unchanged.
+**Doesn't look like:** Forcing development workers to also handle writing by adding "be flexible about project type" to their postures. Or building a separate system for non-code projects.
+
+## 2. Multi-Channel Communication
+
+The guild communicates through more surfaces than just the web UI and CLI. Right now, those two channels are the only way to interact with the guild. Multi-channel growth means adding new ways for the guild to reach the user and for the user to reach the guild: messaging services, email, desktop notifications, mobile push. Each channel is a client of the daemon API, architecturally identical to the web UI. The daemon remains the trust boundary and runs on localhost. The user controls which channels are active and what triggers messages through them.
+
+**Looks like:** A commission completes and the user gets a Telegram message with the summary and a link to the artifact. The manager notices a failed commission and sends a desktop notification. The user replies to a message to approve a follow-up, and that approval flows back through the daemon.
+**Doesn't look like:** A chatbot running inside Telegram that duplicates the web UI. Or a notification system that fires on every event with no user control over what's worth interrupting for. Or hosting an inbound webhook that accepts commands from the internet.
+
+## 3. Worker Growth
+
+Workers become more capable over time through new toolboxes, not through changes to the worker model. A toolbox that gives a worker access to external APIs, calendar systems, or project management tools expands what that worker can do without changing how workers work. This includes autonomous initiative: toolboxes that let workers observe project state, notice patterns, and propose or initiate action within boundaries the user has set. The worker model (identity, soul, posture, memory, sessions) stays stable. What changes is what tools are available inside that model.
+
+**Looks like:** The manager gets a triage toolbox that monitors open issues across projects and proposes commissions when patterns emerge. A research worker gets a web search toolbox. A project management worker gets calendar and task tracker integrations. Each is a package, installed like any other toolbox.
+**Doesn't look like:** Hardcoding new capabilities into the daemon. Or giving workers ambient authority to act on external systems without the user configuring access.
 
 # Current Constraints
 
