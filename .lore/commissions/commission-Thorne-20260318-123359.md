@@ -1,7 +1,7 @@
 ---
 title: "Commission: Replicate toolbox full spec validation (Step 9)"
 date: 2026-03-18
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-18T19:33:59.575Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-18T19:40:06.647Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---

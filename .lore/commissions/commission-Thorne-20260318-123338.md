@@ -1,7 +1,7 @@
 ---
 title: "Commission: Replicate toolbox foundation review"
 date: 2026-03-18
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-18T19:33:38.525Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-18T19:40:06.649Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
