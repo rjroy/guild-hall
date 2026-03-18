@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import {
   makeReadMemoryHandler,
-  makeWriteMemoryHandler,
+  makeEditMemoryHandler,
   createBaseToolbox,
 } from "@/daemon/services/base-toolbox";
 import type { GuildHallToolboxDeps } from "@/daemon/services/toolbox-types";
@@ -27,82 +27,68 @@ afterEach(async () => {
 // -- Worker scope isolation --
 
 describe("worker scope isolation", () => {
-  test("worker A writes to its own memory directory", async () => {
-    const write = makeWriteMemoryHandler(guildHallHome, "worker-a", "my-project");
+  test("worker A writes to its own memory file", async () => {
+    const readScopes = new Set<string>();
+    const read = makeReadMemoryHandler(guildHallHome, "worker-a", "my-project", readScopes);
+    const edit = makeEditMemoryHandler(guildHallHome, "worker-a", "my-project", readScopes);
 
-    await write({ scope: "worker", path: "notes.md", content: "A's notes" });
+    await read({ scope: "worker" });
+    await edit({ scope: "worker", section: "Notes", operation: "upsert", content: "A's notes" });
 
-    // Verify the file lands in the correct worker-specific directory
-    const filePath = path.join(guildHallHome, "memory", "workers", "worker-a", "notes.md");
+    const filePath = path.join(guildHallHome, "memory", "workers", "worker-a.md");
     const content = await fs.readFile(filePath, "utf-8");
-    expect(content).toBe("A's notes");
+    expect(content).toContain("A's notes");
   });
 
-  test("worker A reads from its own memory directory", async () => {
+  test("worker A reads from its own memory file", async () => {
     // Pre-populate worker A's memory
-    const workerDir = path.join(guildHallHome, "memory", "workers", "worker-a");
-    await fs.mkdir(workerDir, { recursive: true });
-    await fs.writeFile(path.join(workerDir, "data.txt"), "A's data", "utf-8");
+    const filePath = path.join(guildHallHome, "memory", "workers", "worker-a.md");
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, "## Data\nA's data\n", "utf-8");
 
-    const read = makeReadMemoryHandler(guildHallHome, "worker-a", "my-project");
-    const result = await read({ scope: "worker", path: "data.txt" });
+    const readScopes = new Set<string>();
+    const read = makeReadMemoryHandler(guildHallHome, "worker-a", "my-project", readScopes);
+    const result = await read({ scope: "worker" });
 
     expect(result.isError).toBeUndefined();
-    expect(result.content[0]).toEqual({ type: "text", text: "A's data" });
+    expect(result.content[0].text).toContain("A's data");
   });
 
   test("worker A cannot read worker B's memory (separate handler instances)", async () => {
     // Worker B writes data
-    const writeB = makeWriteMemoryHandler(guildHallHome, "worker-b", "my-project");
-    await writeB({ scope: "worker", path: "secret.txt", content: "B's secret" });
+    const readScopesB = new Set<string>();
+    const readB = makeReadMemoryHandler(guildHallHome, "worker-b", "my-project", readScopesB);
+    const editB = makeEditMemoryHandler(guildHallHome, "worker-b", "my-project", readScopesB);
+    await readB({ scope: "worker" });
+    await editB({ scope: "worker", section: "Secret", operation: "upsert", content: "B's secret" });
 
-    // Worker A's handler reads from A's directory, which doesn't have B's file
-    const readA = makeReadMemoryHandler(guildHallHome, "worker-a", "my-project");
-    const result = await readA({ scope: "worker", path: "secret.txt" });
+    // Worker A's handler reads from A's file, which doesn't have B's data
+    const readScopesA = new Set<string>();
+    const readA = makeReadMemoryHandler(guildHallHome, "worker-a", "my-project", readScopesA);
+    const result = await readA({ scope: "worker" });
 
-    expect(result.isError).toBe(true);
-    if (result.content[0].type === "text") {
-      expect(result.content[0].text).toContain("Not found");
-    }
-  });
-
-  test("worker scope parameter is not in the tool input schema (workerName is implicit)", () => {
-    // The tool schema only accepts scope and path, not workerName.
-    // The workerName is bound at handler creation time. Verify by creating a
-    // handler and confirming it always targets the bound worker's directory.
-    const writeA = makeWriteMemoryHandler(guildHallHome, "worker-a", "my-project");
-    const writeB = makeWriteMemoryHandler(guildHallHome, "worker-b", "my-project");
-
-    // Both write to the same relative path but different absolute directories
-    const promiseA = writeA({ scope: "worker", path: "shared-name.txt", content: "from A" });
-    const promiseB = writeB({ scope: "worker", path: "shared-name.txt", content: "from B" });
-
-    return Promise.all([promiseA, promiseB]).then(async () => {
-      const pathA = path.join(guildHallHome, "memory", "workers", "worker-a", "shared-name.txt");
-      const pathB = path.join(guildHallHome, "memory", "workers", "worker-b", "shared-name.txt");
-
-      const contentA = await fs.readFile(pathA, "utf-8");
-      const contentB = await fs.readFile(pathB, "utf-8");
-
-      expect(contentA).toBe("from A");
-      expect(contentB).toBe("from B");
-    });
+    // Worker A's file doesn't exist, so "No memories saved yet."
+    expect(result.content[0].text).toBe("No memories saved yet.");
   });
 
   test("two workers with different names have isolated worker scope", async () => {
-    const writeA = makeWriteMemoryHandler(guildHallHome, "analyst", "project-x");
-    const readA = makeReadMemoryHandler(guildHallHome, "analyst", "project-x");
-    const writeB = makeWriteMemoryHandler(guildHallHome, "coder", "project-x");
-    const readB = makeReadMemoryHandler(guildHallHome, "coder", "project-x");
+    const readScopesA = new Set<string>();
+    const readScopesB = new Set<string>();
+    const readA = makeReadMemoryHandler(guildHallHome, "analyst", "project-x", readScopesA);
+    const editA = makeEditMemoryHandler(guildHallHome, "analyst", "project-x", readScopesA);
+    const readB = makeReadMemoryHandler(guildHallHome, "coder", "project-x", readScopesB);
+    const editB = makeEditMemoryHandler(guildHallHome, "coder", "project-x", readScopesB);
 
-    await writeA({ scope: "worker", path: "state.json", content: '{"role":"analyst"}' });
-    await writeB({ scope: "worker", path: "state.json", content: '{"role":"coder"}' });
+    await readA({ scope: "worker" });
+    await editA({ scope: "worker", section: "Role", operation: "upsert", content: "analyst" });
+    await readB({ scope: "worker" });
+    await editB({ scope: "worker", section: "Role", operation: "upsert", content: "coder" });
 
-    const resultA = await readA({ scope: "worker", path: "state.json" });
-    const resultB = await readB({ scope: "worker", path: "state.json" });
+    const resultA = await readA({ scope: "worker", section: "Role" });
+    const resultB = await readB({ scope: "worker", section: "Role" });
 
-    expect(resultA.content[0]).toEqual({ type: "text", text: '{"role":"analyst"}' });
-    expect(resultB.content[0]).toEqual({ type: "text", text: '{"role":"coder"}' });
+    expect(resultA.content[0].text).toContain("analyst");
+    expect(resultB.content[0].text).toContain("coder");
   });
 });
 
@@ -110,54 +96,50 @@ describe("worker scope isolation", () => {
 
 describe("project scope resolution", () => {
   test("project scope uses the provided project name", async () => {
-    const write = makeWriteMemoryHandler(guildHallHome, "any-worker", "my-project");
+    const readScopes = new Set<string>();
+    const read = makeReadMemoryHandler(guildHallHome, "any-worker", "my-project", readScopes);
+    const edit = makeEditMemoryHandler(guildHallHome, "any-worker", "my-project", readScopes);
 
-    await write({ scope: "project", path: "context.md", content: "project notes" });
+    await read({ scope: "project" });
+    await edit({ scope: "project", section: "Context", operation: "upsert", content: "project notes" });
 
-    const filePath = path.join(guildHallHome, "memory", "projects", "my-project", "context.md");
+    const filePath = path.join(guildHallHome, "memory", "projects", "my-project.md");
     const content = await fs.readFile(filePath, "utf-8");
-    expect(content).toBe("project notes");
-  });
-
-  test("project scope never falls back to 'unknown'", async () => {
-    // With the new interface, projectName is required, so there's no fallback.
-    // Verify the directory is named correctly (not "unknown").
-    const write = makeWriteMemoryHandler(guildHallHome, "worker", "guild-hall");
-
-    await write({ scope: "project", path: "file.txt", content: "test" });
-
-    const correctPath = path.join(guildHallHome, "memory", "projects", "guild-hall", "file.txt");
-    const unknownPath = path.join(guildHallHome, "memory", "projects", "unknown", "file.txt");
-
-    const correctExists = await fs.access(correctPath).then(() => true, () => false);
-    const unknownExists = await fs.access(unknownPath).then(() => true, () => false);
-
-    expect(correctExists).toBe(true);
-    expect(unknownExists).toBe(false);
+    expect(content).toContain("project notes");
   });
 
   test("workers on different projects write to different project scopes", async () => {
-    const writeX = makeWriteMemoryHandler(guildHallHome, "worker", "project-x");
-    const writeY = makeWriteMemoryHandler(guildHallHome, "worker", "project-y");
+    const readScopesX = new Set<string>();
+    const readScopesY = new Set<string>();
+    const readX = makeReadMemoryHandler(guildHallHome, "worker", "project-x", readScopesX);
+    const editX = makeEditMemoryHandler(guildHallHome, "worker", "project-x", readScopesX);
+    const readY = makeReadMemoryHandler(guildHallHome, "worker", "project-y", readScopesY);
+    const editY = makeEditMemoryHandler(guildHallHome, "worker", "project-y", readScopesY);
 
-    await writeX({ scope: "project", path: "data.txt", content: "from X" });
-    await writeY({ scope: "project", path: "data.txt", content: "from Y" });
+    await readX({ scope: "project" });
+    await editX({ scope: "project", section: "Data", operation: "upsert", content: "from X" });
+    await readY({ scope: "project" });
+    await editY({ scope: "project", section: "Data", operation: "upsert", content: "from Y" });
 
-    const pathX = path.join(guildHallHome, "memory", "projects", "project-x", "data.txt");
-    const pathY = path.join(guildHallHome, "memory", "projects", "project-y", "data.txt");
+    const pathX = path.join(guildHallHome, "memory", "projects", "project-x.md");
+    const pathY = path.join(guildHallHome, "memory", "projects", "project-y.md");
 
-    expect(await fs.readFile(pathX, "utf-8")).toBe("from X");
-    expect(await fs.readFile(pathY, "utf-8")).toBe("from Y");
+    expect(await fs.readFile(pathX, "utf-8")).toContain("from X");
+    expect(await fs.readFile(pathY, "utf-8")).toContain("from Y");
   });
 
   test("different workers on the same project share project scope", async () => {
-    const writeA = makeWriteMemoryHandler(guildHallHome, "analyst", "shared-project");
-    const readB = makeReadMemoryHandler(guildHallHome, "coder", "shared-project");
+    const readScopesA = new Set<string>();
+    const readScopesB = new Set<string>();
+    const readA = makeReadMemoryHandler(guildHallHome, "analyst", "shared-project", readScopesA);
+    const editA = makeEditMemoryHandler(guildHallHome, "analyst", "shared-project", readScopesA);
+    const readB = makeReadMemoryHandler(guildHallHome, "coder", "shared-project", readScopesB);
 
-    await writeA({ scope: "project", path: "shared.md", content: "shared data" });
-    const result = await readB({ scope: "project", path: "shared.md" });
+    await readA({ scope: "project" });
+    await editA({ scope: "project", section: "Shared", operation: "upsert", content: "shared data" });
 
-    expect(result.content[0]).toEqual({ type: "text", text: "shared data" });
+    const result = await readB({ scope: "project" });
+    expect(result.content[0].text).toContain("shared data");
   });
 });
 
@@ -165,31 +147,39 @@ describe("project scope resolution", () => {
 
 describe("global scope", () => {
   test("any worker can write to global scope", async () => {
-    const writeA = makeWriteMemoryHandler(guildHallHome, "worker-a", "project-1");
-    const writeB = makeWriteMemoryHandler(guildHallHome, "worker-b", "project-2");
+    const readScopesA = new Set<string>();
+    const readScopesB = new Set<string>();
+    const readA = makeReadMemoryHandler(guildHallHome, "worker-a", "project-1", readScopesA);
+    const editA = makeEditMemoryHandler(guildHallHome, "worker-a", "project-1", readScopesA);
+    const readB = makeReadMemoryHandler(guildHallHome, "worker-b", "project-2", readScopesB);
+    const editB = makeEditMemoryHandler(guildHallHome, "worker-b", "project-2", readScopesB);
 
-    await writeA({ scope: "global", path: "from-a.txt", content: "hello from A" });
-    await writeB({ scope: "global", path: "from-b.txt", content: "hello from B" });
+    await readA({ scope: "global" });
+    await editA({ scope: "global", section: "From-A", operation: "upsert", content: "hello from A" });
+    await readB({ scope: "global" });
+    await editB({ scope: "global", section: "From-B", operation: "upsert", content: "hello from B" });
 
-    const globalDir = path.join(guildHallHome, "memory", "global");
-    expect(await fs.readFile(path.join(globalDir, "from-a.txt"), "utf-8")).toBe("hello from A");
-    expect(await fs.readFile(path.join(globalDir, "from-b.txt"), "utf-8")).toBe("hello from B");
+    const globalPath = path.join(guildHallHome, "memory", "global.md");
+    const content = await fs.readFile(globalPath, "utf-8");
+    expect(content).toContain("hello from A");
+    expect(content).toContain("hello from B");
   });
 
   test("any worker can read global scope", async () => {
-    // Pre-populate global memory
-    const globalDir = path.join(guildHallHome, "memory", "global");
-    await fs.mkdir(globalDir, { recursive: true });
-    await fs.writeFile(path.join(globalDir, "global.txt"), "global data", "utf-8");
+    const globalPath = path.join(guildHallHome, "memory", "global.md");
+    await fs.mkdir(path.dirname(globalPath), { recursive: true });
+    await fs.writeFile(globalPath, "## Shared\nglobal data\n", "utf-8");
 
-    const readA = makeReadMemoryHandler(guildHallHome, "worker-a", "project-1");
-    const readB = makeReadMemoryHandler(guildHallHome, "worker-b", "project-2");
+    const readScopesA = new Set<string>();
+    const readScopesB = new Set<string>();
+    const readA = makeReadMemoryHandler(guildHallHome, "worker-a", "project-1", readScopesA);
+    const readB = makeReadMemoryHandler(guildHallHome, "worker-b", "project-2", readScopesB);
 
-    const resultA = await readA({ scope: "global", path: "global.txt" });
-    const resultB = await readB({ scope: "global", path: "global.txt" });
+    const resultA = await readA({ scope: "global" });
+    const resultB = await readB({ scope: "global" });
 
-    expect(resultA.content[0]).toEqual({ type: "text", text: "global data" });
-    expect(resultB.content[0]).toEqual({ type: "text", text: "global data" });
+    expect(resultA.content[0].text).toContain("global data");
+    expect(resultB.content[0].text).toContain("global data");
   });
 });
 

@@ -167,6 +167,28 @@ export function memoryScopeDir(
   }
 }
 
+/**
+ * Returns the single-file path for a memory scope (REQ-MEM-1).
+ * - Global: ~/.guild-hall/memory/global.md
+ * - Project: ~/.guild-hall/memory/projects/{projectName}.md
+ * - Worker: ~/.guild-hall/memory/workers/{workerName}.md
+ */
+export function memoryScopeFile(
+  guildHallHome: string,
+  scope: MemoryScope,
+  scopeKey: string,
+): string {
+  const memoryRoot = path.join(guildHallHome, "memory");
+  switch (scope) {
+    case "global":
+      return path.join(memoryRoot, "global.md");
+    case "project":
+      return path.join(memoryRoot, "projects", `${scopeKey}.md`);
+    case "worker":
+      return path.join(memoryRoot, "workers", `${scopeKey}.md`);
+  }
+}
+
 // -- Public API --
 
 /**
