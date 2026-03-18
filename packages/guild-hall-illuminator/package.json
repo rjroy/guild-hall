@@ -1,0 +1,38 @@
+{
+  "name": "guild-hall-illuminator",
+  "version": "0.1.0",
+  "guildHall": {
+    "type": "worker",
+    "identity": {
+      "name": "Sienna",
+      "description": "The guild's visual craft specialist. Turns prompts into images with creative intention: selecting models, composing visual direction, iterating on drafts, and maintaining consistency across a project's visual assets.",
+      "displayTitle": "Guild Illuminator",
+      "portraitPath": "/images/portraits/sienna-illuminator.webp"
+    },
+    "model": "sonnet",
+    "domainToolboxes": ["guild-hall-replicate"],
+    "domainPlugins": [],
+    "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    "canUseToolRules": [
+      {
+        "tool": "Bash",
+        "commands": [
+          "mv .lore/**", "cp .lore/**",
+          "rm .lore/**", "rm -f .lore/**",
+          "mkdir .lore/**", "mkdir -p .lore/**",
+          "ls .lore/**"
+        ],
+        "allow": true
+      },
+      {
+        "tool": "Bash",
+        "allow": false,
+        "reason": "Only file operations (mv, cp, rm, mkdir, ls) within .lore/ are permitted"
+      }
+    ],
+    "checkoutScope": "sparse",
+    "resourceDefaults": {
+      "maxTurns": 120
+    }
+  }
+}
