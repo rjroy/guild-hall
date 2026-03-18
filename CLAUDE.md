@@ -118,7 +118,7 @@ Commissions and meetings are orchestrators that compose these concerns. They seq
 
 **Worker domain plugins.** Worker packages can ship Claude Code plugins in `plugin/.claude-plugin/`. Workers declare `domainPlugins` referencing package names; plugin paths are resolved during `prepareSdkSession` and passed to the SDK. The guild-hall-writer package contains a `cleanup-commissions` skill as the first domain plugin.
 
-**Memory compaction.** Long-running sessions get async memory summarization via `daemon/services/memory-compaction.ts`, preventing context window exhaustion.
+**Memory system.** Each scope (global, project, worker) stores memory in a single file with named `## sections`. Workers read via `read_memory` and edit via `edit_memory` (upsert, append, or delete sections). `write_memory` exists as a deprecated alias. Implementation: `daemon/services/memory-injector.ts` (loading), `daemon/services/base-toolbox.ts` (tools).
 
 **Type boundaries.** Daemon-specific types live in `daemon/` (e.g., `GuildHallEvent`, `MeetingId`, `CommissionId`, `SystemEvent`, `AppDeps`). Shared types used by both daemon and Next.js live in `lib/types.ts` (including `ChatMessage` and `ToolUseEntry`). The daemon imports from `lib/` via `@/lib/` path alias; `lib/` never imports from `daemon/` or `web/`.
 

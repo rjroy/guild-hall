@@ -101,7 +101,7 @@ Omit any section that has no content. A batch where everything was consumed clea
 
 ### 6. Update Memory
 
-Use `write_memory` to persist durable context extracted from the batch. The retro is a point-in-time artifact; memory carries forward across sessions.
+Use `edit_memory` to persist durable context extracted from the batch. The retro is a point-in-time artifact; memory carries forward across sessions.
 
 What belongs in memory:
 
