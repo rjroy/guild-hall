@@ -406,7 +406,7 @@ describe("prepareSdkSession", () => {
   function makeDeps(overrides?: Partial<SessionPrepDeps>): SessionPrepDeps {
     return {
       resolveToolSet: async () => mockResolvedTools,
-      loadMemories: async () => ({ memoryBlock: "test memories", needsCompaction: false }),
+      loadMemories: async () => ({ memoryBlock: "test memories" }),
       activateWorker: async () => mockActivation,
       ...overrides,
     };
@@ -479,54 +479,6 @@ describe("prepareSdkSession", () => {
     if (result.ok) return;
     expect(result.error).toContain("Worker activation failed");
     expect(result.error).toContain("bad posture");
-  });
-
-  test("memory compaction triggered when needsCompaction=true and triggerCompaction exists", async () => {
-    let compactionWorker = "";
-    let compactionProject = "";
-
-    const result = await prepareSdkSession(
-      makeSpec(),
-      makeDeps({
-        loadMemories: async () => ({ memoryBlock: "memories", needsCompaction: true }),
-        triggerCompaction: (workerName, projectName) => {
-          compactionWorker = workerName;
-          compactionProject = projectName;
-        },
-      }),
-    );
-
-    expect(result.ok).toBe(true);
-    expect(compactionWorker).toBe("test-worker");
-    expect(compactionProject).toBe("test-project");
-  });
-
-  test("memory compaction NOT triggered when needsCompaction=false", async () => {
-    let compactionCalled = false;
-
-    const result = await prepareSdkSession(
-      makeSpec(),
-      makeDeps({
-        loadMemories: async () => ({ memoryBlock: "memories", needsCompaction: false }),
-        triggerCompaction: () => { compactionCalled = true; },
-      }),
-    );
-
-    expect(result.ok).toBe(true);
-    expect(compactionCalled).toBe(false);
-  });
-
-  test("memory compaction NOT triggered when triggerCompaction not provided", async () => {
-    // This should not throw even when needsCompaction is true but no triggerCompaction
-    const result = await prepareSdkSession(
-      makeSpec(),
-      makeDeps({
-        loadMemories: async () => ({ memoryBlock: "memories", needsCompaction: true }),
-        // no triggerCompaction
-      }),
-    );
-
-    expect(result.ok).toBe(true);
   });
 
   test("resource overrides take precedence over activation bounds", async () => {
@@ -1903,7 +1855,7 @@ describe("prepareSdkSession resolvedModel", () => {
   function makeDeps(overrides?: Partial<SessionPrepDeps>): SessionPrepDeps {
     return {
       resolveToolSet: async () => mockResolvedTools,
-      loadMemories: async () => ({ memoryBlock: "test memories", needsCompaction: false }),
+      loadMemories: async () => ({ memoryBlock: "test memories" }),
       activateWorker: async () => mockActivation,
       ...overrides,
     };

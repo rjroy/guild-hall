@@ -124,18 +124,12 @@ export type SessionPrepDeps = {
     workerName: string,
     projectName: string,
     deps: { guildHallHome: string; memoryLimit?: number },
-  ) => Promise<{ memoryBlock: string; needsCompaction: boolean }>;
+  ) => Promise<{ memoryBlock: string }>;
 
   activateWorker: (
     workerPkg: DiscoveredPackage,
     context: ActivationContext,
   ) => Promise<ActivationResult>;
-
-  triggerCompaction?: (
-    workerName: string,
-    projectName: string,
-    opts: { guildHallHome: string },
-  ) => void;
 
   checkReachability?: (url: string) => Promise<{ reachable: boolean; error?: string }>;
 
@@ -377,7 +371,7 @@ export async function prepareSdkSession(
     }
   }
 
-  // 3. Load memories and trigger compaction if needed
+  // 3. Load memories
   let injectedMemory = "";
   try {
     const memoryResult = await deps.loadMemories(
@@ -386,12 +380,6 @@ export async function prepareSdkSession(
       { guildHallHome: spec.guildHallHome, memoryLimit: deps.memoryLimit },
     );
     injectedMemory = memoryResult.memoryBlock;
-    if (memoryResult.needsCompaction && deps.triggerCompaction) {
-      log.info("memory exceeds limit, triggering compaction");
-      deps.triggerCompaction(workerMeta.identity.name, spec.projectName, {
-        guildHallHome: spec.guildHallHome,
-      });
-    }
   } catch (err: unknown) {
     return { ok: false, error: `Memory load failed: ${errorMessage(err)}` };
   }

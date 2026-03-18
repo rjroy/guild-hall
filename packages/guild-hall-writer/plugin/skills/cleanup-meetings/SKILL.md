@@ -107,7 +107,7 @@ Omit any section with no content. Most meeting batches will produce short retros
 
 ### 6. Update Memory
 
-Use `write_memory` to persist durable context from the batch.
+Use `edit_memory` to persist durable context from the batch.
 
 What belongs in memory:
 

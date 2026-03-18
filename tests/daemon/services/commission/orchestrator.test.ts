@@ -201,14 +201,12 @@ function createMockPrepDeps(overrides?: Partial<SessionPrepDeps>): SessionPrepDe
     })),
     loadMemories: overrides?.loadMemories ?? (async () => ({
       memoryBlock: "",
-      needsCompaction: false,
-    })),
+          })),
     activateWorker: overrides?.activateWorker ?? (async () => ({
       systemPrompt: "Test system prompt",
       tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
       resourceBounds: { maxTurns: 10 },
     })),
-    triggerCompaction: overrides?.triggerCompaction,
     memoryLimit: overrides?.memoryLimit,
   };
 }

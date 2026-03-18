@@ -180,8 +180,7 @@ function makeMockPrepDeps() {
     },
     loadMemories: async () => ({
       memoryBlock: "",
-      needsCompaction: false,
-    }),
+          }),
     activateWorker: async (_pkg, context: ActivationContext) => ({
       systemPrompt: `You are ${context.identity.name}`,
       tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
@@ -331,7 +330,7 @@ describe("createBriefingGenerator - full SDK path", () => {
       resolveToolSet: async () => {
         throw new Error("Resolution failed");
       },
-      loadMemories: async () => ({ memoryBlock: "", needsCompaction: false }),
+      loadMemories: async () => ({ memoryBlock: "" }),
       activateWorker: async () => {
         throw new Error("Should not reach activation");
       },

@@ -3,7 +3,7 @@ title: System model defaults
 date: 2026-03-10
 status: implemented
 tags: [configuration, model-selection, daemon, memory-compaction, meeting-notes, briefing-generator, guild-master]
-modules: [config, daemon, memory-compaction, notes-generator, briefing-generator]
+modules: [config, daemon, notes-generator, briefing-generator]
 req-prefix: SYS-MODEL
 related:
   - .lore/specs/infrastructure/model-selection.md
@@ -49,7 +49,7 @@ systemModels:
 
 ### Configurable Sites
 
-- REQ-SYS-MODEL-5: Memory compaction reads its model from `config.systemModels?.memoryCompaction`. When absent, falls back to `"sonnet"` (current behavior preserved). Source: `daemon/services/memory-compaction.ts:291`.
+- REQ-SYS-MODEL-5: ~~Memory compaction reads its model from `config.systemModels?.memoryCompaction`. When absent, falls back to `"sonnet"` (current behavior preserved). Source: `daemon/services/memory-compaction.ts:291`.~~ **Deprecated.** The `memoryCompaction` config field is unused after the memory single-file redesign (REQ-MEM-21). The field remains in the schema for backward compatibility but has no effect.
 
 - REQ-SYS-MODEL-6: Meeting notes generation reads its model from `config.systemModels?.meetingNotes`. When absent, falls back to `"sonnet"` (current behavior preserved). Source: `daemon/services/meeting/notes-generator.ts:163`.
 

@@ -14,7 +14,7 @@ import * as os from "node:os";
 import { scanCommissions } from "@/lib/commissions";
 import {
   makeReadMemoryHandler,
-  makeWriteMemoryHandler,
+  makeEditMemoryHandler,
 } from "@/daemon/services/base-toolbox";
 import {
   buildManagerContext,
@@ -210,71 +210,42 @@ describe("workspace scoping", () => {
     test("memory written to project A's scope is not visible when reading project B's scope", async () => {
       const guildHallHome = path.join(tmpDir, ".guild-hall");
 
-      // Both projects share the same worker name but have different project scopes
       const workerName = "test-worker";
       const projectAName = "project-a";
       const projectBName = "project-b";
 
-      // Create write/read handlers for project A
-      const writeA = makeWriteMemoryHandler(
-        guildHallHome,
-        workerName,
-        projectAName,
-      );
-      const readA = makeReadMemoryHandler(
-        guildHallHome,
-        workerName,
-        projectAName,
-      );
+      // Create read/edit handlers for project A
+      const readScopesA = new Set<string>();
+      const readA = makeReadMemoryHandler(guildHallHome, workerName, projectAName, readScopesA);
+      const editA = makeEditMemoryHandler(guildHallHome, workerName, projectAName, readScopesA);
 
-      // Create write/read handlers for project B
-      const readB = makeReadMemoryHandler(
-        guildHallHome,
-        workerName,
-        projectBName,
-      );
+      // Create read handler for project B
+      const readScopesB = new Set<string>();
+      const readB = makeReadMemoryHandler(guildHallHome, workerName, projectBName, readScopesB);
 
       // Write to project A's project scope
-      await writeA({
+      await readA({ scope: "project" });
+      await editA({
         scope: "project",
-        path: "context.md",
+        section: "Context",
+        operation: "upsert",
         content: "Project A secret data",
       });
 
-      // Read from project A: should find the file
-      const resultA = await readA({ scope: "project", path: "context.md" });
+      // Read from project A: should find the data
+      const resultA = await readA({ scope: "project" });
       expect(resultA.isError).toBeUndefined();
-      expect(resultA.content[0]).toEqual({
-        type: "text",
-        text: "Project A secret data",
-      });
+      expect(resultA.content[0].text).toContain("Project A secret data");
 
-      // Read from project B: should NOT find the file
-      const resultB = await readB({ scope: "project", path: "context.md" });
-      expect(resultB.isError).toBe(true);
-      expect(resultB.content[0]).toEqual(
-        expect.objectContaining({ type: "text" }),
-      );
+      // Read from project B: should NOT find project A's data
+      const resultB = await readB({ scope: "project" });
+      expect(resultB.content[0].text).toBe("No memories saved yet.");
 
       // Verify the actual filesystem paths are different
-      const projectAMemoryDir = path.join(
-        guildHallHome,
-        "memory",
-        "projects",
-        projectAName,
-      );
-      const projectBMemoryDir = path.join(
-        guildHallHome,
-        "memory",
-        "projects",
-        projectBName,
-      );
-      const aExists = await fs
-        .access(path.join(projectAMemoryDir, "context.md"))
-        .then(() => true, () => false);
-      const bExists = await fs
-        .access(path.join(projectBMemoryDir, "context.md"))
-        .then(() => true, () => false);
+      const projectAFile = path.join(guildHallHome, "memory", "projects", `${projectAName}.md`);
+      const projectBFile = path.join(guildHallHome, "memory", "projects", `${projectBName}.md`);
+      const aExists = await fs.access(projectAFile).then(() => true, () => false);
+      const bExists = await fs.access(projectBFile).then(() => true, () => false);
       expect(aExists).toBe(true);
       expect(bExists).toBe(false);
     });
@@ -282,46 +253,30 @@ describe("workspace scoping", () => {
     test("worker scope isolates by worker name, not project", async () => {
       const guildHallHome = path.join(tmpDir, ".guild-hall");
 
-      // Worker A and Worker B in the same project
-      const writeWorkerA = makeWriteMemoryHandler(
-        guildHallHome,
-        "worker-a",
-        "same-project",
-      );
-      const readWorkerA = makeReadMemoryHandler(
-        guildHallHome,
-        "worker-a",
-        "same-project",
-      );
-      const readWorkerB = makeReadMemoryHandler(
-        guildHallHome,
-        "worker-b",
-        "same-project",
-      );
+      // Worker A writes data
+      const readScopesA = new Set<string>();
+      const readWorkerA = makeReadMemoryHandler(guildHallHome, "worker-a", "same-project", readScopesA);
+      const editWorkerA = makeEditMemoryHandler(guildHallHome, "worker-a", "same-project", readScopesA);
 
-      await writeWorkerA({
+      const readScopesB = new Set<string>();
+      const readWorkerB = makeReadMemoryHandler(guildHallHome, "worker-b", "same-project", readScopesB);
+
+      await readWorkerA({ scope: "worker" });
+      await editWorkerA({
         scope: "worker",
-        path: "notes.txt",
+        section: "Notes",
+        operation: "upsert",
         content: "Worker A's private notes",
       });
 
       // Worker A can read its own notes
-      const resultA = await readWorkerA({
-        scope: "worker",
-        path: "notes.txt",
-      });
+      const resultA = await readWorkerA({ scope: "worker" });
       expect(resultA.isError).toBeUndefined();
-      expect(resultA.content[0]).toEqual({
-        type: "text",
-        text: "Worker A's private notes",
-      });
+      expect(resultA.content[0].text).toContain("Worker A's private notes");
 
       // Worker B cannot see Worker A's notes
-      const resultB = await readWorkerB({
-        scope: "worker",
-        path: "notes.txt",
-      });
-      expect(resultB.isError).toBe(true);
+      const resultB = await readWorkerB({ scope: "worker" });
+      expect(resultB.content[0].text).toBe("No memories saved yet.");
     });
   });
 
@@ -494,7 +449,7 @@ describe("workspace scoping", () => {
         /* eslint-disable @typescript-eslint/require-await */
         scanCommissionsFn: async () => projectACommissions,
         scanMeetingRequestsFn: async () => [],
-        loadMemoriesFn: async () => ({ memoryBlock: "", needsCompaction: false }),
+        loadMemoriesFn: async () => ({ memoryBlock: "" }),
         /* eslint-enable @typescript-eslint/require-await */
       };
       const contextA = await buildManagerContext(depsA);
@@ -508,7 +463,7 @@ describe("workspace scoping", () => {
         /* eslint-disable @typescript-eslint/require-await */
         scanCommissionsFn: async () => projectBCommissions,
         scanMeetingRequestsFn: async () => [],
-        loadMemoriesFn: async () => ({ memoryBlock: "", needsCompaction: false }),
+        loadMemoriesFn: async () => ({ memoryBlock: "" }),
         /* eslint-enable @typescript-eslint/require-await */
       };
       const contextB = await buildManagerContext(depsB);
@@ -553,7 +508,7 @@ describe("workspace scoping", () => {
         /* eslint-disable @typescript-eslint/require-await */
         scanCommissionsFn: async () => [],
         scanMeetingRequestsFn: async () => [],
-        loadMemoriesFn: async () => ({ memoryBlock: "", needsCompaction: false }),
+        loadMemoriesFn: async () => ({ memoryBlock: "" }),
         /* eslint-enable @typescript-eslint/require-await */
       });
 
