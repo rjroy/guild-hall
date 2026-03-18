@@ -1,7 +1,7 @@
 ---
 title: Background briefing refresh
 date: 2026-03-17
-status: draft
+status: executed
 tags: [briefing, scheduler, daemon, lifecycle, config]
 modules: [briefing-generator, briefing-refresh, daemon-app]
 related:
