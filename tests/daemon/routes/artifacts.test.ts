@@ -573,4 +573,165 @@ describe("response shape", () => {
     const res = await app.request("/workspace/artifact/document/list?projectName=test-project");
     expect(res.headers.get("content-type")).toContain("application/json");
   });
+
+  test("serializeArtifact includes artifactType for markdown", async () => {
+    await writeTestArtifact(
+      "specs/typed.md",
+      "---\ntitle: Typed\ndate: 2026-03-18\nstatus: draft\ntags: []\n---\nContent.",
+    );
+
+    const app = makeTestApp();
+    const res = await app.request(
+      "/workspace/artifact/document/read?projectName=test-project&path=specs/typed.md",
+    );
+    const body = await res.json();
+    expect(body.artifactType).toBe("document");
+  });
+
+  test("serializeArtifact includes artifactType for images in list", async () => {
+    // Write both a markdown and an image file
+    await writeTestArtifact(
+      "specs/doc.md",
+      "---\ntitle: Doc\ndate: 2026-03-18\nstatus: draft\ntags: []\n---\nContent.",
+    );
+    const imgPath = path.join(lorePath, "generated", "hero.png");
+    await fs.mkdir(path.dirname(imgPath), { recursive: true });
+    await fs.writeFile(imgPath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/document/list?projectName=test-project");
+    const body = await res.json();
+    expect(body.artifacts).toHaveLength(2);
+
+    const doc = body.artifacts.find((a: Record<string, unknown>) => a.artifactType === "document");
+    const img = body.artifacts.find((a: Record<string, unknown>) => a.artifactType === "image");
+    expect(doc).toBeDefined();
+    expect(img).toBeDefined();
+    expect(img.relativePath).toBe("generated/hero.png");
+    expect(img.content).toBe("");
+  });
+});
+
+// -- Tests: GET /workspace/artifact/image/read --
+
+async function writeTestImage(
+  relativePath: string,
+  content?: Buffer,
+): Promise<void> {
+  const fullPath = path.join(lorePath, relativePath);
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, content ?? Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+}
+
+describe("GET /workspace/artifact/image/read", () => {
+  test("returns 400 when projectName is missing", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?path=test.png");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("projectName");
+  });
+
+  test("returns 400 when path is missing", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=test-project");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("path");
+  });
+
+  test("returns 404 for unknown project", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=nonexistent&path=test.png");
+    expect(res.status).toBe(404);
+  });
+
+  test("returns 415 for unsupported extension", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=test-project&path=data.bmp");
+    expect(res.status).toBe(415);
+    const body = await res.json();
+    expect(body.error).toContain("Unsupported");
+  });
+
+  test("returns 404 for missing image file", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=test-project&path=nonexistent.png");
+    expect(res.status).toBe(404);
+  });
+
+  test("rejects path traversal attempts", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=test-project&path=../../etc/passwd.png");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Path traversal");
+  });
+
+  test("serves PNG with correct Content-Type", async () => {
+    const pngData = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+    await writeTestImage("generated/hero.png", pngData);
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=test-project&path=generated/hero.png");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(res.headers.get("cache-control")).toBe("max-age=300, stale-while-revalidate=60");
+    expect(res.headers.get("content-length")).toBe(String(pngData.length));
+
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(body).toEqual(pngData);
+  });
+
+  test("serves JPEG with correct Content-Type", async () => {
+    await writeTestImage("photo.jpg");
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=test-project&path=photo.jpg");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+  });
+
+  test("serves SVG with correct Content-Type", async () => {
+    const svgContent = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+    await writeTestImage("diagram.svg", svgContent);
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=test-project&path=diagram.svg");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/svg+xml");
+  });
+
+  test("serves WebP with correct Content-Type", async () => {
+    await writeTestImage("cover.webp");
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=test-project&path=cover.webp");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/webp");
+  });
+
+  test("serves GIF with correct Content-Type", async () => {
+    await writeTestImage("animation.gif");
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=test-project&path=animation.gif");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/gif");
+  });
+
+  test("binary response body matches file content exactly", async () => {
+    // Use recognizable binary data
+    const imageData = Buffer.from(Array.from({ length: 256 }, (_, i) => i));
+    await writeTestImage("generated/gradient.png", imageData);
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/image/read?projectName=test-project&path=generated/gradient.png");
+    expect(res.status).toBe(200);
+
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(body.length).toBe(256);
+    expect(body[0]).toBe(0);
+    expect(body[255]).toBe(255);
+  });
 });

@@ -8,6 +8,7 @@ import {
   getSocketPath,
   isDaemonError,
   daemonFetch,
+  daemonFetchBinary,
   daemonHealth,
   daemonStreamAsync,
   type DaemonError,
@@ -201,6 +202,56 @@ describe("daemonFetch", () => {
     expect(isDaemonError(result)).toBe(false);
 
     const res = result as Response;
+    expect(res.status).toBe(404);
+  });
+});
+
+// -- daemonFetchBinary --
+
+describe("daemonFetchBinary", () => {
+  test("returns raw Buffer body, not string", async () => {
+    const binaryData = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const app = new Hono();
+    app.get("/image", (c) => {
+      return c.body(binaryData, 200, {
+        "Content-Type": "image/png",
+        "Cache-Control": "max-age=300",
+      });
+    });
+
+    const { socketPath } = serveOnSocket(app);
+
+    const result = await daemonFetchBinary("/image", socketPath);
+    expect(isDaemonError(result)).toBe(false);
+
+    const res = result as { status: number; headers: Record<string, string>; body: Buffer };
+    expect(res.status).toBe(200);
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect(res.body.length).toBe(binaryData.length);
+    expect(res.body[0]).toBe(0x89);
+    expect(res.body[1]).toBe(0x50);
+    expect(res.headers["content-type"]).toContain("image/png");
+    expect(res.headers["cache-control"]).toContain("max-age=300");
+  });
+
+  test("returns DaemonError when socket does not exist", async () => {
+    const tmp = makeTmpDir();
+    const socketPath = path.join(tmp, "nonexistent.sock");
+
+    const result = await daemonFetchBinary("/image", socketPath);
+    expect(isDaemonError(result)).toBe(true);
+  });
+
+  test("preserves non-200 status codes", async () => {
+    const app = new Hono();
+    app.get("/image", (c) => c.json({ error: "Not found" }, 404));
+
+    const { socketPath } = serveOnSocket(app);
+
+    const result = await daemonFetchBinary("/image", socketPath);
+    expect(isDaemonError(result)).toBe(false);
+
+    const res = result as { status: number; headers: Record<string, string>; body: Buffer };
     expect(res.status).toBe(404);
   });
 });

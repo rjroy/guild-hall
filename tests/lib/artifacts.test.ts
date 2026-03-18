@@ -61,10 +61,12 @@ describe("scanArtifacts", () => {
     expect(paths).toEqual(["plans/deep/nested.md", "root.md", "specs/system.md"]);
   });
 
-  test("ignores non-.md files", async () => {
+  test("ignores unsupported file types", async () => {
     await writeTestArtifact("doc.md", "title: Doc", "Content");
     const txtPath = path.join(tmpDir, "notes.txt");
     await fs.writeFile(txtPath, "not markdown", "utf-8");
+    const jsonPath = path.join(tmpDir, "data.json");
+    await fs.writeFile(jsonPath, "{}", "utf-8");
 
     const artifacts = await scanArtifacts(tmpDir);
     expect(artifacts).toHaveLength(1);
@@ -594,5 +596,139 @@ describe("compareArtifactsByRecency", () => {
     const b = makeArtifact({ title: "B", lastModified: sameTime });
 
     expect(() => [a, b].sort(compareArtifactsByRecency)).not.toThrow();
+  });
+});
+
+// -- Image artifact tests --
+
+describe("scanArtifacts with images", () => {
+  async function writeImageFile(relativePath: string): Promise<void> {
+    const fullPath = path.join(tmpDir, relativePath);
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    // Write a small binary buffer (not a real image, but enough for scanner)
+    await fs.writeFile(fullPath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  }
+
+  test("discovers image files alongside markdown", async () => {
+    await writeTestArtifact("specs/design.md", "title: Design\nstatus: draft", "Content");
+    await writeImageFile("generated/hero.png");
+    await writeImageFile("specs/diagram.svg");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(3);
+
+    const paths = artifacts.map((a) => a.relativePath).sort();
+    expect(paths).toEqual(["generated/hero.png", "specs/design.md", "specs/diagram.svg"]);
+  });
+
+  test("sets artifactType to 'image' for image files", async () => {
+    await writeImageFile("photo.jpg");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0].artifactType).toBe("image");
+  });
+
+  test("sets artifactType to 'document' for markdown files", async () => {
+    await writeTestArtifact("doc.md", "title: Doc\nstatus: draft", "Content");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0].artifactType).toBe("document");
+  });
+
+  test("generates synthetic metadata for image artifacts", async () => {
+    await writeImageFile("generated/my-hero-image.png");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(1);
+
+    const img = artifacts[0];
+    expect(img.meta.title).toBe("My Hero Image");
+    expect(img.meta.status).toBe("complete");
+    expect(img.meta.tags).toEqual([]);
+    expect(img.meta.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(img.content).toBe("");
+    expect(img.rawContent).toBeUndefined();
+  });
+
+  test("skips unsupported extensions", async () => {
+    await writeImageFile("photo.png");
+    const bmpPath = path.join(tmpDir, "photo.bmp");
+    await fs.writeFile(bmpPath, Buffer.from([0x42, 0x4d]));
+    const tiffPath = path.join(tmpDir, "photo.tiff");
+    await fs.writeFile(tiffPath, Buffer.from([0x49, 0x49]));
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0].relativePath).toBe("photo.png");
+  });
+
+  test("discovers all six supported image extensions", async () => {
+    await writeImageFile("a.png");
+    await writeImageFile("b.jpg");
+    await writeImageFile("c.jpeg");
+    await writeImageFile("d.webp");
+    await writeImageFile("e.gif");
+    await writeImageFile("f.svg");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(6);
+    expect(artifacts.every((a) => a.artifactType === "image")).toBe(true);
+  });
+
+  test("discovers images in nested directories", async () => {
+    await writeImageFile("generated/covers/album.webp");
+    await writeImageFile("specs/ui/mockup.png");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(2);
+    const paths = artifacts.map((a) => a.relativePath).sort();
+    expect(paths).toEqual(["generated/covers/album.webp", "specs/ui/mockup.png"]);
+  });
+
+  test("image artifacts sort alongside markdown using status and title", async () => {
+    await writeTestArtifact("draft.md", "title: Draft Doc\nstatus: draft\ndate: 2026-01-01", "Body");
+    await writeImageFile("generated/complete-image.png");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(2);
+    // draft (group 0) sorts before complete (group 3)
+    expect(artifacts[0].meta.status).toBe("draft");
+    expect(artifacts[1].meta.status).toBe("complete");
+  });
+
+  test("handles empty directory (no images or markdown)", async () => {
+    const emptyDir = path.join(tmpDir, "empty");
+    await fs.mkdir(emptyDir);
+    const artifacts = await scanArtifacts(emptyDir);
+    expect(artifacts).toEqual([]);
+  });
+
+  test("title derivation replaces hyphens and underscores with spaces", async () => {
+    await writeImageFile("some_test-image.png");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts[0].meta.title).toBe("Some Test Image");
+  });
+});
+
+describe("IMAGE_MIME_TYPES", () => {
+  // Import is tested indirectly through the daemon route tests,
+  // but we verify the mapping is correct here for completeness.
+  test("maps all six supported extensions correctly", async () => {
+    const { IMAGE_MIME_TYPES } = await import("@/lib/artifacts");
+    expect(IMAGE_MIME_TYPES[".png"]).toBe("image/png");
+    expect(IMAGE_MIME_TYPES[".jpg"]).toBe("image/jpeg");
+    expect(IMAGE_MIME_TYPES[".jpeg"]).toBe("image/jpeg");
+    expect(IMAGE_MIME_TYPES[".webp"]).toBe("image/webp");
+    expect(IMAGE_MIME_TYPES[".gif"]).toBe("image/gif");
+    expect(IMAGE_MIME_TYPES[".svg"]).toBe("image/svg+xml");
+  });
+
+  test("returns undefined for unknown extensions", async () => {
+    const { IMAGE_MIME_TYPES } = await import("@/lib/artifacts");
+    expect(IMAGE_MIME_TYPES[".bmp"]).toBeUndefined();
+    expect(IMAGE_MIME_TYPES[".tiff"]).toBeUndefined();
   });
 });

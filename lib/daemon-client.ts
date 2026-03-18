@@ -114,6 +114,42 @@ export async function daemonFetch(
   });
 }
 
+/**
+ * Makes an HTTP GET request to the daemon and returns the raw binary response.
+ * Unlike daemonFetch, this does not convert the response body to a string.
+ * Used for proxying binary data (images) through Next.js API routes.
+ */
+export async function daemonFetchBinary(
+  requestPath: string,
+  socketPathOverride?: string,
+): Promise<
+  | { status: number; headers: Record<string, string>; body: Buffer }
+  | DaemonError
+> {
+  const socketPath = socketPathOverride ?? getSocketPath();
+
+  return new Promise((resolve) => {
+    const req = http.request(
+      { socketPath, path: requestPath, method: "GET" },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          const body = Buffer.concat(chunks);
+          const headers: Record<string, string> = {};
+          for (const [key, value] of Object.entries(res.headers)) {
+            if (typeof value === "string") headers[key] = value;
+          }
+          resolve({ status: res.statusCode ?? 500, headers, body });
+        });
+        res.on("error", (err) => resolve(classifyError(err)));
+      },
+    );
+    req.on("error", (err) => resolve(classifyError(err)));
+    req.end();
+  });
+}
+
 export interface DaemonHealthData {
   status: string;
   meetings: number;
