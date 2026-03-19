@@ -1,7 +1,7 @@
 ---
 title: Native Replicate toolbox tool surface area
 date: 2026-03-17
-status: active
+status: open
 tags: [replicate, domain-toolbox, image-generation, video-generation, packages]
 modules: [packages/guild-hall-replicate]
 related:

@@ -29,7 +29,7 @@ export function displayTitle(artifact: Artifact): string {
   }
   const segments = artifact.relativePath.split("/");
   const filename = segments[segments.length - 1];
-  return filename.replace(/\.md$/, "");
+  return filename.replace(/\.(md|png|jpe?g|webp|gif|svg)$/i, "");
 }
 
 export interface ArtifactGroup {

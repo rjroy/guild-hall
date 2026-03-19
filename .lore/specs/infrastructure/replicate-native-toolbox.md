@@ -1,7 +1,7 @@
 ---
 title: Replicate native domain toolbox
 date: 2026-03-17
-status: approved
+status: implemented
 tags: [replicate, domain-toolbox, image-generation, packages]
 modules: [packages/guild-hall-replicate]
 related:

@@ -5,7 +5,7 @@ status: implemented
 tags: [ux, ui, dashboard, project-selection, briefing, commission-filter]
 modules: [web/app/page, web/components/dashboard, web/components/commission, daemon/services/briefing-generator, daemon/routes/briefing, lib/config]
 related:
-  - .lore/brainstorm/ui/dashboard-selection-model.md
+  - .lore/brainstorm/dashboard-selection-model.md
   - .lore/specs/ui/guild-hall-views.md
   - .lore/specs/ui/commission-list-filtering.md
   - .lore/specs/ui/commission-graph-to-tree-list.md
@@ -21,7 +21,7 @@ The dashboard has two modes: "All Projects" (default) and single-project focus. 
 
 The brainstorm's decision summary recommended a static summary (Option C) first with LLM synthesis (Option B) as a follow-on. This spec implements Option B directly: the seeded-from-cached-briefings approach keeps cold-cache cost manageable, and there's no value in shipping a terse metrics panel that gets replaced immediately. Option C is skipped, not deferred.
 
-Source decisions: `.lore/brainstorm/ui/dashboard-selection-model.md` (status: resolved).
+Source decisions: `.lore/brainstorm/dashboard-selection-model.md` (status: resolved).
 
 ## Entry Points
 
@@ -145,7 +145,7 @@ Source decisions: `.lore/brainstorm/ui/dashboard-selection-model.md` (status: re
 
 ## Context
 
-- [Brainstorm: Dashboard Selection Model](./../brainstorm/ui/dashboard-selection-model.md): source of all design decisions. All questions resolved.
+- [Brainstorm: Dashboard Selection Model](./../brainstorm/dashboard-selection-model.md): source of all design decisions. All questions resolved.
 - [Spec: Guild Hall Views](guild-hall-views.md): REQ-VIEW-10 (aggregation), REQ-VIEW-12 (layout), REQ-VIEW-14 (dependency map). This spec refines VIEW-10 and supersedes VIEW-14's dashboard implementation.
 - [Spec: Commission List Filtering](commission-list-filtering.md): REQ-CFILTER-5 through REQ-CFILTER-9 define the filter panel layout that becomes the shared component.
 - [Spec: Commission Graph to Tree List](commission-graph-to-tree-list.md): REQ-CTREE-1 through REQ-CTREE-9 (dashboard tree list) are superseded. REQ-CTREE-10 through REQ-CTREE-14 (commission detail neighborhood) are unaffected.

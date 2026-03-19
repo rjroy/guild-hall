@@ -35,6 +35,7 @@ function TreeNodeRow({
 }: TreeNodeRowProps) {
   if (node.artifact) {
     const gemStatus = statusToGem(node.artifact.meta.status);
+    const isImage = node.artifact.artifactType === "image";
     return (
       <li
         className={styles.item}
@@ -44,14 +45,18 @@ function TreeNodeRow({
           href={`/projects/${encodedProjectName}/artifacts/${node.artifact.relativePath}`}
           className={styles.link}
         >
-          {/* Static decorative icon. next/image optimization not beneficial. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/images/ui/scroll-icon.webp"
-            alt=""
-            className={styles.scrollIcon}
-            aria-hidden="true"
-          />
+          {isImage ? (
+            <span className={styles.imageIcon} aria-hidden="true">{"\uD83D\uDDBC"}</span>
+          ) : (
+            /* Static decorative icon. next/image optimization not beneficial. */
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src="/images/ui/scroll-icon.webp"
+              alt=""
+              className={styles.scrollIcon}
+              aria-hidden="true"
+            />
+          )}
           <div className={styles.info}>
             <span className={styles.title}>{displayTitle(node.artifact)}</span>
             <div className={styles.meta}>

@@ -16,7 +16,7 @@ modules:
   ]
 related:
   - .lore/specs/ui/dashboard-selection-model.md
-  - .lore/brainstorm/ui/dashboard-selection-model.md
+  - .lore/brainstorm/dashboard-selection-model.md
   - .lore/plans/infrastructure/improve-briefing-full-sdk-pattern.md
   - .lore/specs/ui/commission-list-filtering.md
 ---
@@ -26,7 +26,7 @@ related:
 ## Spec Reference
 
 **Spec**: `.lore/specs/ui/dashboard-selection-model.md`
-**Brainstorm**: `.lore/brainstorm/ui/dashboard-selection-model.md` (status: resolved — all design decisions final)
+**Brainstorm**: `.lore/brainstorm/dashboard-selection-model.md` (status: resolved — all design decisions final)
 **Related executed plan**: `.lore/plans/infrastructure/improve-briefing-full-sdk-pattern.md` (briefing generator SDK pattern already in place)
 
 Requirements addressed:

@@ -2,7 +2,7 @@
 title: "Commission maxTurns recovery"
 date: 2026-03-16
 status: resolved
-tags: [commission, maxTurns, recovery, lifecycle, UX]
+tags: [commissions, max-turns, recovery, lifecycle, ux]
 modules: [commission-orchestrator, commission-lifecycle, sdk-runner]
 related:
   - .lore/issues/commission-maxturns-no-recovery.md

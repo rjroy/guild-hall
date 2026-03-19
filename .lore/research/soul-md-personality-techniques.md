@@ -1,7 +1,7 @@
 ---
 title: "SOUL.md Personality Techniques: What Makes AI Agents Feel Like Someone"
 date: 2026-03-06
-status: implemented
+status: archived
 tags: [personality, soul-md, openclaw, workers, posture, system-prompt]
 modules: [guild-hall-workers]
 related:

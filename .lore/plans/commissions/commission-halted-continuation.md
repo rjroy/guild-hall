@@ -2,7 +2,7 @@
 title: "Plan: Commission halted state and continuation"
 date: 2026-03-16
 status: executed
-tags: [commissions, lifecycle, halted, continuation, maxTurns, recovery]
+tags: [commissions, lifecycle, halted, continuation, max-turns, recovery]
 modules: [commission/lifecycle, commission/orchestrator, manager-toolbox, commission-routes, lib/commissions, daemon/types]
 related:
   - .lore/specs/commissions/commission-halted-continuation.md

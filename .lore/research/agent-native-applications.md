@@ -1,7 +1,7 @@
 ---
 title: Agent-Native Application Architecture
 date: 2026-02-11
-status: implemented
+status: archived
 tags: [agent-native, architecture, mcp, tools, ux, frontend, design-patterns]
 modules: [guild-hall]
 related: [.lore/research/claude-agent-sdk.md]

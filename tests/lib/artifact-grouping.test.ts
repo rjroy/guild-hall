@@ -95,6 +95,15 @@ describe("displayTitle", () => {
     const artifact = makeArtifact("specs/my-doc.md", "");
     expect(displayTitle(artifact)).toBe("my-doc");
   });
+
+  test("strips image extensions in fallback", () => {
+    expect(displayTitle(makeArtifact("hero.png"))).toBe("hero");
+    expect(displayTitle(makeArtifact("photo.jpg"))).toBe("photo");
+    expect(displayTitle(makeArtifact("photo.jpeg"))).toBe("photo");
+    expect(displayTitle(makeArtifact("cover.webp"))).toBe("cover");
+    expect(displayTitle(makeArtifact("anim.gif"))).toBe("anim");
+    expect(displayTitle(makeArtifact("diagram.svg"))).toBe("diagram");
+  });
 });
 
 describe("groupArtifacts", () => {

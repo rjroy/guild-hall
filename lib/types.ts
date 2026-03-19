@@ -61,6 +61,8 @@ export interface Artifact {
   content: string;
   rawContent?: string;
   lastModified: Date;
+  /** Distinguishes document artifacts (.md) from image artifacts. Defaults to "document" when absent. */
+  artifactType?: "document" | "image";
 }
 
 /** Artifact annotated with its source project name for cross-project views. */

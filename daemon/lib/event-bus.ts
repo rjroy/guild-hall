@@ -21,7 +21,8 @@ export type SystemEvent =
   | { type: "mail_reply_received"; contextId: string; commissionId: string; summary: string }
   | { type: "meeting_started"; meetingId: string; worker: string }
   | { type: "meeting_ended"; meetingId: string }
-  | { type: "schedule_spawned"; scheduleId: string; spawnedId: string; projectName: string; runNumber: number };
+  | { type: "schedule_spawned"; scheduleId: string; spawnedId: string; projectName: string; runNumber: number }
+  | { type: "toolbox_replicate"; action: string; tool: string; model: string; files: string[]; cost: string; projectName: string; contextId: string };
 
 export interface EventBus {
   emit(event: SystemEvent): void;

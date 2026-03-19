@@ -1,0 +1,58 @@
+.viewer {
+  background-color: rgba(26, 20, 18, 0.85);
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  padding: 8px;
+  position: relative;
+}
+
+.viewer::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: -3px;
+  border: 40px solid transparent;
+  border-image-source: url("/images/ui/border-ornate.webp");
+  border-image-slice: 120 120 120 120 fill;
+  border-image-width: 40px;
+}
+
+.imageContainer {
+  padding: var(--space-lg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+  min-height: 200px;
+}
+
+/* Parchment texture underlay */
+.imageContainer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/images/ui/paper-bg.webp");
+  background-size: cover;
+  opacity: 0.06;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.image {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  border-radius: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 480px) {
+  .viewer::before {
+    border-width: 24px;
+    border-image-width: 24px;
+  }
+}

@@ -5,13 +5,28 @@ import { isNodeError } from "@/lib/types";
 import type { Artifact, ArtifactMeta } from "@/lib/types";
 import { compareArtifactsByStatusAndTitle  } from "@/lib/types";
 
+// -- Image constants --
+
+/** File extensions recognized as image artifacts. */
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
+
+/** Maps file extensions to MIME types for image serving. */
+export const IMAGE_MIME_TYPES: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+};
+
 // -- Path validation --
 
 /**
  * Resolves a relative path within lorePath and verifies it stays inside.
  * Throws on path traversal attempts (e.g. ../../../etc/passwd).
  */
-function validatePath(lorePath: string, relativePath: string): string {
+export function validatePath(lorePath: string, relativePath: string): string {
   const resolvedBase = path.resolve(lorePath);
   const resolved = path.resolve(lorePath, relativePath);
   if (!resolved.startsWith(resolvedBase + path.sep) && resolved !== resolvedBase) {
@@ -92,7 +107,7 @@ export async function scanArtifacts(lorePath: string): Promise<Artifact[]> {
 
   let entries: string[];
   try {
-    entries = await collectMarkdownFiles(resolvedBase);
+    entries = await collectArtifactFiles(resolvedBase);
   } catch (err: unknown) {
     if (isNodeError(err) && err.code === "ENOENT") {
       return [];
@@ -104,30 +119,58 @@ export async function scanArtifacts(lorePath: string): Promise<Artifact[]> {
 
   for (const filePath of entries) {
     try {
-      const [raw, stat] = await Promise.all([
-        fs.readFile(filePath, "utf-8"),
-        fs.stat(filePath),
-      ]);
+      const ext = path.extname(filePath).toLowerCase();
 
-      let meta: ArtifactMeta;
-      let content: string;
-      try {
-        const parsed = matter(raw);
-        meta = parseMeta(parsed.data as Record<string, unknown>);
-        content = parsed.content;
-      } catch {
-        // Malformed frontmatter: include the file with empty meta and full content
-        meta = { ...EMPTY_META };
-        content = raw;
+      if (IMAGE_EXTENSIONS.has(ext)) {
+        // Synthetic metadata for image artifacts (REQ-IMG-4)
+        const stat = await fs.stat(filePath);
+        const relPath = path.relative(resolvedBase, filePath);
+        const filename = path.basename(filePath, ext);
+        const title = filename
+          .replace(/[-_]/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+
+        artifacts.push({
+          meta: {
+            title,
+            date: stat.mtime.toISOString().split("T")[0],
+            status: "complete",
+            tags: [],
+          },
+          filePath,
+          relativePath: relPath,
+          content: "",
+          lastModified: stat.mtime,
+          artifactType: "image",
+        });
+      } else {
+        // Markdown artifact: parse frontmatter
+        const [raw, stat] = await Promise.all([
+          fs.readFile(filePath, "utf-8"),
+          fs.stat(filePath),
+        ]);
+
+        let meta: ArtifactMeta;
+        let content: string;
+        try {
+          const parsed = matter(raw);
+          meta = parseMeta(parsed.data as Record<string, unknown>);
+          content = parsed.content;
+        } catch {
+          // Malformed frontmatter: include the file with empty meta and full content
+          meta = { ...EMPTY_META };
+          content = raw;
+        }
+
+        artifacts.push({
+          meta,
+          filePath,
+          relativePath: path.relative(resolvedBase, filePath),
+          content,
+          lastModified: stat.mtime,
+          artifactType: "document",
+        });
       }
-
-      artifacts.push({
-        meta,
-        filePath,
-        relativePath: path.relative(resolvedBase, filePath),
-        content,
-        lastModified: stat.mtime,
-      });
     } catch {
       // Skip files we can't read (permissions, etc.)
     }
@@ -256,19 +299,22 @@ export function spliceBody(raw: string, newBody: string): string {
 }
 
 /**
- * Recursively collects all .md file paths under a directory.
+ * Recursively collects all artifact file paths (.md and image files) under a directory.
  */
-async function collectMarkdownFiles(dir: string): Promise<string[]> {
+async function collectArtifactFiles(dir: string): Promise<string[]> {
   const results: string[] = [];
   const entries = await fs.readdir(dir, { withFileTypes: true });
 
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      const nested = await collectMarkdownFiles(fullPath);
+      const nested = await collectArtifactFiles(fullPath);
       results.push(...nested);
-    } else if (entry.isFile() && entry.name.endsWith(".md")) {
-      results.push(fullPath);
+    } else if (entry.isFile()) {
+      const ext = path.extname(entry.name).toLowerCase();
+      if (ext === ".md" || IMAGE_EXTENSIONS.has(ext)) {
+        results.push(fullPath);
+      }
     }
   }
 

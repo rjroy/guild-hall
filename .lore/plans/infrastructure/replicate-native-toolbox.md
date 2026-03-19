@@ -1,7 +1,7 @@
 ---
 title: Plan for Replicate native domain toolbox
 date: 2026-03-17
-status: approved
+status: executed
 tags: [replicate, domain-toolbox, image-generation, packages, integration-testing]
 modules: [packages/guild-hall-replicate, daemon/lib/event-bus.ts]
 related:
@@ -363,9 +363,12 @@ Consult `.lore/lore-agents.md` for available domain-specific agents.
 ## Open Questions
 
 **Which img2img model to default?** The brainstorm mentions several candidates but doesn't commit. The implementation agent should check current Replicate availability and pick a general-purpose img2img model that accepts `image` + `prompt` + `strength` inputs. SDXL img2img or a FLUX-based variant are likely candidates.
+- USER: `black-forest-labs/flux-2-pro`
 
 **Which background removal model to default?** `cjwbw/rembg` is the brainstorm's candidate. Verify it's still maintained and available on Replicate. `lucataco/remove-bg` is the fallback.
+- USER: use `lucataco/remove-bg` I cannot find the other. 
 
 **Which upscale model to default?** Real-ESRGAN variants are the brainstorm's candidate. Check current options on Replicate during implementation.
+- USER: `google/upscaler`
 
 These are implementation-time decisions, not spec gaps. The spec intentionally defers specific community model selection (REQ-RPL-24: "selected during implementation based on current availability and quality").
