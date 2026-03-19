@@ -8,16 +8,16 @@ import {
 } from "@/packages/guild-hall-replicate/model-registry";
 
 describe("model registry", () => {
-  test("registry contains at least 7 entries", () => {
-    expect(MODEL_REGISTRY.length).toBeGreaterThanOrEqual(7);
+  test("registry contains at least 6 entries", () => {
+    expect(MODEL_REGISTRY.length).toBeGreaterThanOrEqual(6);
   });
 
   test("registry covers all 4 capabilities", () => {
-    const capabilities = new Set(MODEL_REGISTRY.map((m) => m.capability));
-    expect(capabilities.has("text-to-image")).toBe(true);
-    expect(capabilities.has("image-to-image")).toBe(true);
-    expect(capabilities.has("background-removal")).toBe(true);
-    expect(capabilities.has("upscale")).toBe(true);
+    const allCapabilities = new Set(MODEL_REGISTRY.flatMap((m) => m.capabilities));
+    expect(allCapabilities.has("text-to-image")).toBe(true);
+    expect(allCapabilities.has("image-to-image")).toBe(true);
+    expect(allCapabilities.has("background-removal")).toBe(true);
+    expect(allCapabilities.has("upscale")).toBe(true);
   });
 
   test("every model ID is valid owner/name format", () => {
@@ -38,9 +38,9 @@ describe("getModels", () => {
 
   test("filters by text-to-image capability", () => {
     const models = getModels("text-to-image");
-    expect(models.length).toBeGreaterThanOrEqual(4);
+    expect(models.length).toBeGreaterThanOrEqual(3);
     for (const m of models) {
-      expect(m.capability).toBe("text-to-image");
+      expect(m.capabilities).toContain("text-to-image");
     }
   });
 

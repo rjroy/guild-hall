@@ -13,7 +13,7 @@ export interface ModelEntry {
   id: string;
   name: string;
   description: string;
-  capability: Capability;
+  capabilities: Capability[];
   cost: string;
   speed: string;
   notes?: string;
@@ -25,52 +25,44 @@ export const MODEL_REGISTRY: ModelEntry[] = [
     id: "black-forest-labs/flux-schnell",
     name: "FLUX Schnell",
     description: "Fast, high-quality text-to-image generation. Best balance of speed and quality.",
-    capability: "text-to-image",
+    capabilities: ["text-to-image"],
     cost: "$0.003/image",
     speed: "~2s",
     notes: "Default model. Best for rapid iteration.",
   },
   {
-    id: "black-forest-labs/flux-1.1-pro",
-    name: "FLUX 1.1 Pro",
-    description: "High-quality text-to-image with superior prompt adherence.",
-    capability: "text-to-image",
-    cost: "$0.04/image",
-    speed: "~10s",
-    notes: "Best for final production images.",
+    id: "black-forest-labs/flux-2-pro",
+    name: "FLUX 2 Pro",
+    description: "High-quality generation and image-to-image transformation using FLUX architecture.",
+    capabilities: ["text-to-image", "image-to-image"],
+    cost: "$0.05/image",
+    speed: "~15s",
+    notes: "Best for production images and image-to-image transformation.",
   },
   {
-    id: "black-forest-labs/flux-dev",
-    name: "FLUX Dev",
-    description: "Development-quality text-to-image. Good quality at moderate cost.",
-    capability: "text-to-image",
-    cost: "$0.025/image",
-    speed: "~8s",
+    id: "google/nano-banana-pro",
+    name: "Nano Banana Pro",
+    description: "Premium text-to-image optimized for infographics, UI mockups, and high-fidelity visual content.",
+    capabilities: ["text-to-image"],
+    cost: "$0.15/image",
+    speed: "~10s",
+    notes: "Best for infographics, UI mockups, and high-fidelity visual content. Most expensive option.",
   },
   {
     id: "ideogram-ai/ideogram-v3-turbo",
     name: "Ideogram V3 Turbo",
     description: "Fast text-to-image with strong text rendering in images.",
-    capability: "text-to-image",
+    capabilities: ["text-to-image"],
     cost: "$0.03/image",
     speed: "~5s",
     notes: "Best for text rendering in images.",
-  },
-  // -- Image-to-image --
-  {
-    id: "black-forest-labs/flux-2-pro",
-    name: "FLUX 2 Pro",
-    description: "Image-to-image transformation using FLUX architecture.",
-    capability: "image-to-image",
-    cost: "$0.05/image",
-    speed: "~15s",
   },
   // -- Background removal --
   {
     id: "lucataco/remove-bg",
     name: "Remove Background",
     description: "Fast background removal producing transparent PNGs.",
-    capability: "background-removal",
+    capabilities: ["background-removal"],
     cost: "$0.003/image",
     speed: "~3s",
   },
@@ -79,7 +71,7 @@ export const MODEL_REGISTRY: ModelEntry[] = [
     id: "google/upscaler",
     name: "Google Upscaler",
     description: "AI image upscaling for increasing resolution.",
-    capability: "upscale",
+    capabilities: ["upscale"],
     cost: "$0.01/image",
     speed: "~10s",
   },
@@ -94,7 +86,7 @@ const DEFAULT_MODELS: Record<string, string> = {
 
 export function getModels(capability?: string): ModelEntry[] {
   if (!capability) return [...MODEL_REGISTRY];
-  return MODEL_REGISTRY.filter((m) => m.capability === capability);
+  return MODEL_REGISTRY.filter((m) => m.capabilities.includes(capability as Capability));
 }
 
 export function findModel(id: string): ModelEntry | undefined {
