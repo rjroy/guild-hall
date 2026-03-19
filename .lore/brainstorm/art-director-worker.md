@@ -1,7 +1,7 @@
 ---
 title: "Art Director Worker: Visual Craft Specialist for Guild Hall"
 date: 2026-03-18
-status: open
+status: resolved
 author: Celeste
 tags: [brainstorm, workers, replicate, domain-toolbox, visual-media, growth-surface]
 related:
