@@ -30,7 +30,7 @@
         "reason": "Only file operations (mv, cp, rm, mkdir, ls) within .lore/ are permitted"
       }
     ],
-    "checkoutScope": "sparse",
+    "checkoutScope": "full",
     "resourceDefaults": {
       "maxTurns": 120
     }

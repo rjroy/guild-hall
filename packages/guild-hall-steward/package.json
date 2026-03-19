@@ -23,7 +23,7 @@
         "reason": "Only guild-hall CLI commands are permitted"
       }
     ],
-    "checkoutScope": "sparse",
+    "checkoutScope": "full",
     "resourceDefaults": {
       "maxTurns": 300
     }
