@@ -1,7 +1,7 @@
 ---
 title: Guild Hall Illuminator Worker
 date: 2026-03-18
-status: approved
+status: implemented
 tags: [workers, illuminator, visual-craft, replicate, domain-toolbox, image-generation]
 modules: [guild-hall-workers, packages]
 related:
