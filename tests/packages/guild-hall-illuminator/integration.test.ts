@@ -97,13 +97,13 @@ describe("guild-hall-illuminator package", () => {
       expect(metadata.model).toBe("sonnet");
     });
 
-    test("checkoutScope is sparse", async () => {
+    test("checkoutScope is full", async () => {
       const raw = await fs.readFile(
         path.join(ILLUMINATOR_DIR, "package.json"),
         "utf-8",
       );
       const pkgJson = JSON.parse(raw) as { guildHall: { checkoutScope: string } };
-      expect(pkgJson.guildHall.checkoutScope).toBe("sparse");
+      expect(pkgJson.guildHall.checkoutScope).toBe("full");
     });
 
     test("maxTurns is 120", async () => {

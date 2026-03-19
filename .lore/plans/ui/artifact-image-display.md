@@ -1,7 +1,7 @@
 ---
 title: "Image Display in Artifact Views"
 date: 2026-03-18
-status: draft
+status: executed
 tags: [ui, artifacts, images, daemon, api]
 modules: [lib/artifacts, lib/artifact-grouping, lib/types, lib/daemon-client, daemon/routes/artifacts, "web/app/projects/[name]/artifacts/[...path]/page", web/app/api/artifacts/image/route, web/components/artifact/ArtifactContent, web/components/artifact/ImageArtifactView, web/components/artifact/ImageMetadataSidebar, web/components/project/ArtifactList, web/components/dashboard/RecentArtifacts]
 related:

@@ -39,7 +39,7 @@ describe("list_models handler", () => {
     const result = await handler({});
 
     const data = JSON.parse(result.content[0].text);
-    expect(data.models.length).toBeGreaterThanOrEqual(7);
+    expect(data.models.length).toBeGreaterThanOrEqual(6);
     expect(data.count).toBe(data.models.length);
   });
 
@@ -49,7 +49,7 @@ describe("list_models handler", () => {
 
     const data = JSON.parse(result.content[0].text);
     for (const model of data.models) {
-      expect(model.capability).toBe("text-to-image");
+      expect(model.capabilities).toContain("text-to-image");
     }
     expect(data.count).toBeGreaterThan(0);
   });

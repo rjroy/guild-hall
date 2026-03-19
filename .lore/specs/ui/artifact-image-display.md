@@ -1,7 +1,7 @@
 ---
 title: Image display in artifact views
 date: 2026-03-18
-status: draft
+status: implemented
 tags: [ui, artifacts, images, generated-content]
 modules: [artifact-list, artifact-content, daemon-routes]
 related:
