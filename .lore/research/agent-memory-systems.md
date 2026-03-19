@@ -1,7 +1,7 @@
 ---
 title: Multi-Agent Memory Systems
 date: 2026-03-09
-status: implemented
+status: archived
 tags: [memory, multi-agent, research, architecture]
 ---
 

@@ -2,7 +2,7 @@
 title: Commission Halted State and Continuation
 date: 2026-03-16
 status: implemented
-tags: [commissions, lifecycle, halted, continuation, maxTurns, recovery]
+tags: [commissions, lifecycle, halted, continuation, max-turns, recovery]
 modules: [commission-orchestrator, commission-lifecycle, sdk-runner]
 related:
   - .lore/specs/commissions/guild-hall-commissions.md
