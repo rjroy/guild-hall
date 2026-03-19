@@ -53,7 +53,7 @@ const expectedRoleProfiles: Record<string, {
   "guild-hall-steward": {
     identityName: "Edmund",
     descriptionIntent: /inbox|correspondence|household/i,
-    checkoutScope: "sparse",
+    checkoutScope: "full",
     builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
   },
 };
