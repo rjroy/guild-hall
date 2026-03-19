@@ -608,8 +608,8 @@ describe("response shape", () => {
     const img = artifacts.find((a) => a.artifactType === "image");
     expect(doc).toBeDefined();
     expect(img).toBeDefined();
-    expect(img.relativePath).toBe("generated/hero.png");
-    expect(img.content).toBe("");
+    expect(img!.relativePath).toBe("generated/hero.png");
+    expect(img!.content).toBe("");
   });
 });
 
