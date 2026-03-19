@@ -1,7 +1,7 @@
 ---
 title: "Event Router: Where It Breaks and What It Becomes"
 date: 2026-03-18
-status: open
+status: approved
 tags: [brainstorm, event-router, notifications, channels, daemon-service]
 modules: [event-bus, packages, config]
 related:
