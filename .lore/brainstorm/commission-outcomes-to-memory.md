@@ -231,3 +231,9 @@ One interesting angle: the Guild Master coordinates across workers. If Octavia j
 This brainstorm is ready for the user to review. The five questions each have a leaning, but none are decided. The natural next step is a spec that codifies the decisions and defines success criteria, followed by a plan that maps to the orchestrator's completion path.
 
 If the user wants to start smaller, the minimum viable change is: write a file to project memory on successful completion (Question 4 happy path only), with mechanical extraction (Question 1 Option A), at project scope (Question 5). That's one file write added to `handleSuccessfulCompletion`, maybe 20 lines of code plus tests.
+
+---
+
+## USER NOTE
+
+Maybe this is all wrong. Maybe what happens is there is a LLM skill sent to haiku after each commission is completed to decide what to do with the memory. Same for meetings when they are closed.
