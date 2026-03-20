@@ -1,7 +1,7 @@
 ---
 title: "Plan: Event Router"
 date: 2026-03-19
-status: draft
+status: approved
 tags: [event-router, notifications, channels, daemon-service, config]
 modules: [event-bus, config, daemon]
 related:
@@ -291,11 +291,8 @@ Phase 1 (config schema) and Phase 2 (router service) can be done by the same age
 
 The `SYSTEM_EVENT_TYPES` array in Step 1 is the one piece that crosses the `lib/` to `daemon/` boundary. The type-level sync check (a mapped type assertion) prevents drift without runtime coupling.
 
-## Open Questions
+## Resolved Questions
 
-**Event type list sync**: Step 1 proposes a const array of valid event type strings in `lib/types.ts` with a type-level assertion against `SystemEvent["type"]`. This requires `SystemEvent` to be importable from `lib/types.ts`, but it currently lives in `daemon/lib/event-bus.ts`. Two options:
+**Event type list sync** (resolved 2026-03-19): Step 1 proposes a const array of valid event type strings in `lib/types.ts` with a type-level assertion against `SystemEvent["type"]`. This requires `SystemEvent` to be importable from `lib/types.ts`, but it currently lives in `daemon/lib/event-bus.ts`.
 
-1. Move the `SystemEvent` type (just the type, not the bus implementation) to `lib/types.ts`. This respects the existing boundary rule (`lib/` never imports from `daemon/`). The EventBus implementation in `daemon/` re-exports or imports from `lib/types.ts`.
-2. Define the event type strings as a standalone const array in `lib/types.ts` without a compile-time assertion, and add a test that imports both and verifies they match.
-
-Option 2 is simpler and avoids moving types across boundaries. The test catches drift at CI time, which is sufficient. Lean toward Option 2 unless the implementer finds a clean way to do Option 1.
+**Decision: Option 2.** Define the event type strings as a standalone const array in `lib/types.ts` without a compile-time assertion, and add a test that imports both and verifies they match. This avoids moving types across boundaries. The test catches drift at CI time, which is sufficient.
