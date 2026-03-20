@@ -2,8 +2,16 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-20
+
 ### Added
 
+- **Session specs, plans, and implementations:** Meeting layer separation completed in 3 phases with Orchestrator refactor, session loop extraction (1,552 → 800 lines), and interface re-organization. Meetings list preview showing agenda/notes excerpt. Event router spec and plan for daemon notification routing via EventBus. Context type registry spec for extensibility. Guild capabilities discovery plan ([#125](https://github.com/rjroy/guild-hall/pull/125))
+- **Replicate toolbox and Illuminator worker:** New integration toolbox for AI image generation via Replicate. Illuminator worker for image generation and analysis with full project checkout scope ([#121](https://github.com/rjroy/guild-hall/pull/121))
+- **Artifact image display and memory redesign:** Images in artifacts render inline with proper scaling and layout. Memory system redesigned to single-file structure with named sections for cleaner API ([#121](https://github.com/rjroy/guild-hall/pull/121), [#120](https://github.com/rjroy/guild-hall/pull/120))
+- **Email operation factory:** Structured factory pattern for mail operations with better error handling and testability ([#120](https://github.com/rjroy/guild-hall/pull/120))
+- **Worker personality enhancements:** All worker packages enhanced with orientation questions and satisfaction indicators for more authentic identity and self-assessment. Illuminator, Steward workers gain missing work philosophy and characteristic phrases ([#123](https://github.com/rjroy/guild-hall/pull/123))
+- **Model registry multi-capability support:** Models can declare multiple capabilities (e.g., FLUX 2 Pro for text-to-image and image-to-image). Registry consolidated duplicate entries. Introduced Nano Banana Pro model ([#122](https://github.com/rjroy/guild-hall/pull/122))
 - **Commission halted state and continuation:** Commissions that hit `maxTurns` without submitting a result enter a `halted` state with worktree and session preserved. New `continue` action resumes the exact session, `save` merges partial work. Manager tools `continue_commission` and `save_commission`, crash recovery, halt count tracking ([#117](https://github.com/rjroy/guild-hall/pull/117))
 - **Dashboard selection model:** Two-mode dashboard with "All Projects" default view and per-project selection. Filterable "In Flight" card, cross-project Recent Scrolls, all-projects briefing synthesis via LLM, configurable `briefingCacheTtlMinutes` ([#116](https://github.com/rjroy/guild-hall/pull/116))
 - **Commission tree list and status tool:** `check_commission_status` in the manager toolbox lets the Guild Master check a single commission's detail by ID or get a sorted summary list of all commissions with status counts. Replaced SVG commission graph with CSS tree list ([#115](https://github.com/rjroy/guild-hall/pull/115))
@@ -23,6 +31,8 @@
 
 ### Changed
 
+- **Upgraded Next.js to 16.2.0** ([#124](https://github.com/rjroy/guild-hall/pull/124))
+- **Background briefing refresh:** Improved background briefing quality and refresh cycle. Renamed skills-to-operations service for clarity ([#119](https://github.com/rjroy/guild-hall/pull/119))
 - **Daemon Application Boundary migration:** Reorganized daemon routes from flat CRUD to capability-oriented REST grammar, migrated web layer to daemon API calls via `fetchDaemon()`, refactored manager toolbox to invoke daemon routes, added skill registry and help endpoints ([#108](https://github.com/rjroy/guild-hall/pull/108))
 - **Worker canUseToolRules declarations:** Workers declare tool access rules, enforced during session preparation ([#106](https://github.com/rjroy/guild-hall/pull/106), [#97](https://github.com/rjroy/guild-hall/pull/97))
 - **Refactor artifact status handling:** Improved gem status mapping with correct CSS hue-rotate values and added `sleeping`/`abandoned` status support ([#103](https://github.com/rjroy/guild-hall/pull/103), [#94](https://github.com/rjroy/guild-hall/pull/94))
@@ -31,6 +41,7 @@
 
 ### Fixed
 
+- **Test isolation:** Prevent tests from modifying the actual repo. Git hook environment variables no longer override test directory discovery. Added `cleanGitEnv()` to all git command spawns in test files ([#126](https://github.com/rjroy/guild-hall/pull/126))
 - **Meeting status not visible after accept:** Integration worktree artifact now updates to `status: open` on accept, so the web UI no longer shows meetings stuck in "requested" ([#114](https://github.com/rjroy/guild-hall/pull/114))
 - **Commission filter and button readability:** Added backdrop blur and design system tokens to filter panel and action buttons ([#113](https://github.com/rjroy/guild-hall/pull/113))
 - **Tool use input display:** Streaming tool input (`input_json_delta`) now accumulated via stateful `createStreamTranslator()` instead of always showing `{}` ([#116](https://github.com/rjroy/guild-hall/pull/116))
@@ -96,4 +107,5 @@ _First release of Guild Hall, a multi-agent workspace for delegating work to AI 
 - Multiline tool results truncated on meeting reopen ([#46](https://github.com/rjroy/guild-hall/pull/46))
 - Sanitize worker name in commission ID to prevent git ref errors ([#51](https://github.com/rjroy/guild-hall/pull/51))
 
+[1.1.0]: https://github.com/rjroy/guild-hall/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/rjroy/guild-hall/releases/tag/1.0.0
