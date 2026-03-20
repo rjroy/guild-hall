@@ -1,7 +1,7 @@
 ---
 title: "Commission: Context Type Registry: Phase 4 Validation"
 date: 2026-03-20
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-20T16:33:54.873Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-20T17:02:52.333Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
