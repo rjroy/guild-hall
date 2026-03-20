@@ -1,7 +1,7 @@
 ---
 title: "Commission: Specify: Event Router"
 date: 2026-03-20
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -14,6 +14,11 @@ activity_timeline:
   - timestamp: 2026-03-20T03:42:20.976Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-20T03:42:41.303Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
