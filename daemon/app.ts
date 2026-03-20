@@ -555,6 +555,21 @@ export async function createProductionApp(options?: {
     log: createLog("event-router"),
   });
 
+  // Outcome Triage: after commission/meeting completion, a Haiku session
+  // evaluates the outcome and writes noteworthy findings to project memory.
+  const { createOutcomeTriage, createArtifactReader, createTriageSessionRunner } = await import(
+    "@/daemon/services/outcome-triage"
+  );
+  const unsubscribeTriage = createOutcomeTriage({
+    eventBus,
+    guildHallHome,
+    log: createLog("outcome-triage"),
+    readArtifact: createArtifactReader(config, guildHallHome),
+    runTriageSession: queryFn
+      ? createTriageSessionRunner(queryFn, createLog("outcome-triage"))
+      : async () => { createLog("outcome-triage").warn("SDK not available, triage skipped"); },
+  });
+
   const startTime = Date.now();
 
   const { app, registry } = createApp({
@@ -602,6 +617,7 @@ export async function createProductionApp(options?: {
       scheduler.stop();
       briefingRefresh.stop();
       unsubscribeRouter();
+      unsubscribeTriage();
     },
   };
 }
