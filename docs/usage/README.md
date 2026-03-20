@@ -6,9 +6,9 @@ Guild Hall is a workspace for coordinating AI specialists around a real project.
 2. Register a project that already has `.git/` and `.lore/`.
 3. Browse artifacts and project status from the dashboard.
 4. Hold live audiences with workers when you need an interactive conversation.
-5. Dispatch commissions when you want asynchronous work to continue in the background.
+5. Dispatch commissions when you want asynchronous work to run in the background.
 
-<img src="../screenshots/gh-home.webp" alt="Guild Hall dashboard showing the workspace sidebar, Guild Master briefing, dependency map, recent artifacts, and pending audiences." width="1200">
+<img src="../screenshots/gh-home.webp" alt="Guild Hall dashboard showing the workspace sidebar, Guild Master briefing, In Flight commissions, recent scrolls, and pending audiences." width="1200">
 
 ## Guide map
 

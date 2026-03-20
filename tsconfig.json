@@ -26,6 +26,7 @@
     "tests/**/*.tsx",
     "packages/**/*.ts",
     "packages/**/*.tsx",
+    "scripts/**/*.ts",
     "types/**/*.d.ts",
     "**/*.mts"
   ],

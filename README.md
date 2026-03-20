@@ -51,7 +51,10 @@ The repo is a monorepo with four top-level systems:
 - **`web/`** -- Next.js App Router UI (server components for reads, client components for interaction)
 - **`daemon/`** -- Hono server on a Unix socket (`~/.guild-hall/guild-hall.sock`), owns all write operations, meeting/commission sessions, and the EventBus
 - **`cli/`** -- Bun scripts for project registration, config validation, and git operations
-- **`packages/`** -- Worker and toolbox packages (developer, researcher, reviewer, test-engineer, writer, shared)
+- **`packages/`** -- Worker and toolbox packages (developer, email, illuminator, replicate, researcher, reviewer, steward, test-engineer, visionary, writer, shared)
+
+Supporting directories:
+
 - **`lib/`** -- Shared business logic (artifacts, config, paths, types)
 - **`tests/`** -- Mirrors source structure
 
@@ -66,6 +69,10 @@ Meetings and commissions run as Claude Agent SDK sessions inside the daemon. A t
 - **gray-matter** + **react-markdown** for artifact parsing and rendering
 - **Zod** for config and frontmatter validation
 - **Bun** for runtime, testing, and CLI scripts
+
+## Usage Guide
+
+See [`docs/usage/`](./docs/usage/) for walkthroughs covering the dashboard, project views, audiences, and commissions.
 
 ## Configuration
 
