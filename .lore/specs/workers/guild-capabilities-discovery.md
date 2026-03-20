@@ -1,7 +1,7 @@
 ---
 title: Guild Capabilities Discovery
 date: 2026-03-18
-status: approved
+status: implemented
 tags: [base-toolbox, worker-discovery, mail, collaboration]
 modules: [base-toolbox, toolbox-resolver]
 related:
