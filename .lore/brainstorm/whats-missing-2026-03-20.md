@@ -1,7 +1,7 @@
 ---
 title: "What's Missing: Guild Hall Capability Gaps (March 2026)"
 date: 2026-03-20
-status: open
+status: resolved
 author: Celeste
 tags: [brainstorm, roadmap, capabilities, infrastructure]
 ---
