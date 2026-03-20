@@ -1,7 +1,7 @@
 ---
 title: "Commission: Meeting Layer Separation: Phase 2 - Remove re-exports"
 date: 2026-03-20
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-20T04:31:51.879Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-20T04:37:33.832Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---
