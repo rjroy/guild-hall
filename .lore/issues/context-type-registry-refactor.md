@@ -1,11 +1,12 @@
 ---
 title: Context type registry refactor
 date: 2026-03-18
-status: open
+status: resolved
 tags: [refactor, toolbox-resolver, worker-activation, extensibility]
 modules: [toolbox-resolver, worker-activation, toolbox-types]
 related:
   - .lore/brainstorm/growth-surface-2026-03-17.md
+  - .lore/specs/infrastructure/context-type-registry.md
 ---
 
 # Context Type Registry Refactor
@@ -16,6 +17,6 @@ Extract into a registry pattern where each context type declares its name, optio
 
 This aligns with the vision's Growth Surface 1 (Domain Independence): new activity types shouldn't require modifying core daemon types.
 
-**Origin:** Proposal 3 in the [Growth Surface brainstorm](../brainstorm/growth-surface-2026-03-17.md). User endorsed the refactor as "closer to my original intent."
+**Origin:** Proposal 3 in a `Growth Surface brainstorm`. User endorsed the refactor as "closer to my original intent."
 
 **Note:** The `briefing` context type currently has no entry in `SYSTEM_TOOLBOX_REGISTRY` (noted in the growth-surface brainstorm's Filed Issues section). This refactor would formalize that gap rather than leaving it as an implicit special case.

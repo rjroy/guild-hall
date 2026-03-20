@@ -2,7 +2,26 @@ import { describe, test, expect } from "bun:test";
 import { statusToGem } from "@/lib/types";
 import {
   meetingHref,
+  previewText,
 } from "@/web/components/project/MeetingList";
+import type { Artifact } from "@/lib/types";
+
+function makeMeeting(overrides: Partial<Artifact> = {}): Artifact {
+  return {
+    meta: {
+      title: "Audience with Guild Master",
+      date: "2026-03-19",
+      status: "open",
+      tags: [],
+      extras: {},
+    },
+    filePath: "/tmp/meetings/test.md",
+    relativePath: "meetings/test.md",
+    content: "",
+    lastModified: new Date(),
+    ...overrides,
+  };
+}
 
 describe("statusToGem", () => {
   test("open maps to pending", () => {
@@ -123,5 +142,94 @@ describe("meetingHref", () => {
     expect(
       meetingHref("OPEN", "proj", "meetings/abc.md"),
     ).toBe("/projects/proj/meetings/abc");
+  });
+});
+
+describe("previewText", () => {
+  test("returns agenda when present", () => {
+    const meeting = makeMeeting({
+      meta: {
+        title: "Test",
+        date: "2026-03-19",
+        status: "open",
+        tags: [],
+        extras: { agenda: "Discuss project roadmap" },
+      },
+    });
+    expect(previewText(meeting)).toBe("Discuss project roadmap");
+  });
+
+  test("agenda takes priority over notes content", () => {
+    const meeting = makeMeeting({
+      meta: {
+        title: "Test",
+        date: "2026-03-19",
+        status: "closed",
+        tags: [],
+        extras: { agenda: "Original prompt" },
+      },
+      content: "# Meeting Notes\n\nWe discussed the roadmap.",
+    });
+    expect(previewText(meeting)).toBe("Original prompt");
+  });
+
+  test("falls back to notes excerpt when agenda is absent", () => {
+    const meeting = makeMeeting({
+      content: "# Meeting Notes\n\nWe discussed the roadmap.",
+    });
+    expect(previewText(meeting)).toBe("We discussed the roadmap.");
+  });
+
+  test("falls back to notes excerpt when agenda is empty string", () => {
+    const meeting = makeMeeting({
+      meta: {
+        title: "Test",
+        date: "2026-03-19",
+        status: "closed",
+        tags: [],
+        extras: { agenda: "   " },
+      },
+      content: "Some notes here.",
+    });
+    expect(previewText(meeting)).toBe("Some notes here.");
+  });
+
+  test("returns undefined when both agenda and content are absent", () => {
+    const meeting = makeMeeting();
+    expect(previewText(meeting)).toBeUndefined();
+  });
+
+  test("returns undefined when content has only headings and empty lines", () => {
+    const meeting = makeMeeting({
+      content: "# Meeting Notes\n## Summary\n\n",
+    });
+    expect(previewText(meeting)).toBeUndefined();
+  });
+
+  test("skips markdown heading lines in notes", () => {
+    const meeting = makeMeeting({
+      content: "# Meeting Notes\n## Summary\nActual content line.",
+    });
+    expect(previewText(meeting)).toBe("Actual content line.");
+  });
+
+  test("skips empty lines in notes", () => {
+    const meeting = makeMeeting({
+      content: "\n\n  \nFirst real line.",
+    });
+    expect(previewText(meeting)).toBe("First real line.");
+  });
+
+  test("returns undefined when extras is undefined", () => {
+    const meeting = makeMeeting({
+      meta: {
+        title: "Test",
+        date: "2026-03-19",
+        status: "open",
+        tags: [],
+      },
+      content: "",
+    });
+    expect(previewText(meeting)).toBeUndefined();
   });
 });

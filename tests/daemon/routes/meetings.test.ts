@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { createApp } from "@/daemon/app";
-import type { MeetingSessionForRoutes } from "@/daemon/routes/meetings";
+import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";
 import type { GuildHallEvent, MeetingId } from "@/daemon/types";
 
 // -- Mock meeting session --
@@ -52,6 +52,8 @@ function makeMockMeetingSession(
     },
     recoverMeetings: () => Promise.resolve(0),
     getActiveMeetings: () => 0,
+    createMeetingRequest: () => Promise.resolve(),
+    getOpenMeetingsForProject: () => [],
     ...overrides,
   };
 }

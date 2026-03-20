@@ -21,7 +21,6 @@ import * as path from "node:path";
 import * as crypto from "node:crypto";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { DiscoveredPackage, AppConfig } from "@/lib/types";
-import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
 import {
   buildManagerContext,
   type ManagerContextDeps,
@@ -39,13 +38,14 @@ import {
   prefixLocalModelError,
   type SessionPrepDeps,
   type SessionPrepSpec,
+  type SdkQueryOptions,
 } from "@/daemon/lib/agent-sdk/sdk-runner";
 
 // -- Types --
 
 export type BriefingQueryFn = (params: {
   prompt: string;
-  options: QueryOptions;
+  options: SdkQueryOptions;
 }) => AsyncGenerator<SDKMessage>;
 
 export interface BriefingGeneratorDeps {

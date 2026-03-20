@@ -8,9 +8,10 @@
  */
 
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import type { AppConfig } from "@/lib/types";
+import type { AppConfig, WorkerIdentity } from "@/lib/types";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import type { EventBus } from "@/daemon/lib/event-bus";
+import type { BriefingResult } from "./briefing-generator";
 
 export interface GuildHallToolboxDeps {
   guildHallHome: string;
@@ -24,6 +25,8 @@ export interface GuildHallToolboxDeps {
   knownWorkerNames?: string[];
   mailFilePath?: string;
   commissionId?: string;
+  getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
+  getWorkerIdentities?: () => WorkerIdentity[];
 }
 
 export interface ToolboxOutput {

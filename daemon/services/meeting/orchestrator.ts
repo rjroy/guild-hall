@@ -37,24 +37,18 @@ import {
 import { buildManagerContext } from "@/daemon/services/manager/context";
 import {
   prepareSdkSession,
-  runSdkSession,
-  isSessionExpiryError,
-  prefixLocalModelError,
   type SessionPrepSpec,
   type SessionPrepDeps,
   type SdkQueryOptions,
 } from "@/daemon/lib/agent-sdk/sdk-runner";
-import type { ResolvedModel } from "@/lib/types";
 import type { GuildHallEvent, MeetingId, MeetingStatus, SdkSessionId } from "@/daemon/types";
-import { asMeetingId, asSdkSessionId } from "@/daemon/types";
+import { asMeetingId } from "@/daemon/types";
 import {
   createTranscript,
   appendUserTurn,
   readTranscript,
   removeTranscript,
   truncateTranscript,
-  appendAssistantTurnSafe,
-  type ToolUseEntry,
 } from "@/daemon/services/meeting/transcript";
 import {
   getGuildHallHome,
@@ -84,19 +78,18 @@ import { MeetingRegistry, type ActiveMeetingEntry } from "@/daemon/services/meet
 import type { WorkspaceOps } from "@/daemon/services/workspace";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
 
+import {
+  iterateSession,
+  startSession,
+  type SessionLoopDeps,
+} from "@/daemon/services/meeting/session-loop";
+
+// Re-export for backward compatibility (tests import from orchestrator)
+export { MEETING_GREETING_PROMPT } from "@/daemon/services/meeting/session-loop";
+
 // -- Constants --
 
 const DEFAULT_MEETING_CAP = 5;
-export const MEETING_GREETING_PROMPT =
-  "Briefly introduce yourself and summarize your understanding of the meeting agenda, then ask how the user would like to proceed.";
-
-// -- Re-exports for backward compatibility --
-// QueryOptions re-exported so notes-generator and briefing-generator
-// can keep importing from the meeting orchestrator without reaching into
-// sdk-runner. Remove once those modules migrate (Task 008).
-
-export type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
-export type { SdkQueryOptions as QueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
 
 // -- Dependency types --
 
@@ -186,9 +179,44 @@ export type MeetingSessionDeps = {
   log?: Log;
 };
 
+// -- Public interface --
+
+export interface MeetingSessionForRoutes {
+  acceptMeetingRequest(
+    meetingId: MeetingId,
+    projectName: string,
+    message?: string,
+  ): AsyncGenerator<GuildHallEvent>;
+  createMeeting(
+    projectName: string,
+    workerName: string,
+    prompt: string,
+  ): AsyncGenerator<GuildHallEvent>;
+  createMeetingRequest(params: {
+    projectName: string;
+    workerName: string;
+    reason: string;
+  }): Promise<void>;
+  sendMessage(
+    meetingId: MeetingId,
+    message: string,
+  ): AsyncGenerator<GuildHallEvent>;
+  closeMeeting(meetingId: MeetingId): Promise<{ notes: string }>;
+  recoverMeetings(): Promise<number>;
+  declineMeeting(meetingId: MeetingId, projectName: string): Promise<void>;
+  deferMeeting(
+    meetingId: MeetingId,
+    projectName: string,
+    deferredUntil: string,
+  ): Promise<void>;
+  interruptTurn(meetingId: MeetingId): void;
+  getActiveMeetings(): number;
+  getOpenMeetingsForProject(projectName: string): ActiveMeetingEntry[];
+}
+
 // -- Factory --
 
-export function createMeetingSession(deps: MeetingSessionDeps) {
+export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionForRoutes {
   const log = deps.log ?? nullLog("meeting");
   const ghHome = deps.guildHallHome ?? getGuildHallHome();
   const git = deps.gitOps ?? createGitOps();
@@ -483,136 +511,14 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     return { ok: true, spec };
   }
 
-  // -- Session loop helper --
-  //
-  // Iterates runSdkSession, maps SdkRunnerEvent to GuildHallEvent, accumulates
-  // transcript data, and appends the assistant turn after the loop completes.
-  // suppressExpiryErrors: when true, session-expiry errors are tracked for
-  // post-loop detection but withheld from SSE (sendMessage path).
+  // -- Session loop deps --
 
-  async function* iterateSession(
-    meeting: ActiveMeetingEntry,
-    prompt: string,
-    options: SdkQueryOptions,
-    suppressExpiryErrors: boolean,
-    resolvedModel?: ResolvedModel,
-  ): AsyncGenerator<GuildHallEvent, { lastError: string | null; hasExpiryError: boolean }> {
-    if (!deps.queryFn) {
-      yield { type: "error", reason: "No queryFn provided" };
-      return { lastError: "No queryFn provided", hasExpiryError: false };
-    }
-
-    const textParts: string[] = [];
-    const toolUses: ToolUseEntry[] = [];
-    let pendingToolName: string | null = null;
-    let lastError: string | null = null;
-    let hasExpiryError = false;
-
-    for await (const event of runSdkSession(deps.queryFn, prompt, options, log)) {
-      // Capture session ID (guard against empty string from SDK init)
-      if (event.type === "session") {
-        if (event.sessionId) {
-          meeting.sdkSessionId = asSdkSessionId(event.sessionId);
-        } else {
-          log.warn(
-            `SDK init message for "${meeting.meetingId as string}" had no session_id`,
-          );
-        }
-      }
-
-      // Accumulate text from streaming deltas only (not complete messages)
-      // to avoid the double-data problem documented in event-translator.ts.
-      if (event.type === "text_delta") textParts.push(event.text);
-
-      // Track tool_use name for pairing with its result
-      if (event.type === "tool_use") pendingToolName = event.name;
-
-      // Pair tool_result with the most recent tool_use name
-      if (event.type === "tool_result") {
-        toolUses.push({
-          toolName: pendingToolName ?? event.name,
-          result: event.output,
-        });
-        pendingToolName = null;
-      }
-
-      // Map SdkRunnerEvent to GuildHallEvent and yield to SSE
-      if (event.type === "session") {
-        yield {
-          type: "session",
-          meetingId: meeting.meetingId as string,
-          sessionId: event.sessionId,
-          worker: meeting.workerName,
-        };
-      } else if (event.type === "aborted") {
-        yield { type: "error", reason: "Turn interrupted" };
-      } else if (event.type === "error") {
-        // Track for post-loop session expiry detection
-        const prefixed = prefixLocalModelError(event.reason, resolvedModel);
-        lastError = prefixed;
-        if (isSessionExpiryError(event.reason)) {
-          hasExpiryError = true;
-        }
-        if (!suppressExpiryErrors || !isSessionExpiryError(event.reason)) {
-          yield { type: "error", reason: prefixed };
-        }
-      } else {
-        // text_delta, tool_use, tool_input, tool_result, turn_end pass through
-        yield event;
-      }
-    }
-
-    // Append the assistant turn to the transcript (single post-loop call
-    // handles all cases including abort/error with partial content).
-    await appendAssistantTurnSafe(meeting.meetingId as string, textParts, toolUses, ghHome);
-
-    return { lastError, hasExpiryError };
-  }
-
-  // -- Session creation helper --
-  //
-  // Shared by createMeeting (first turn) and sendMessage renewal (expired
-  // session recovery). Resolves tools, activates the worker, calls queryFn,
-  // captures the new session_id, updates the state file, and yields events.
-
-  async function* startSession(
-    meeting: ActiveMeetingEntry,
-    prompt: string,
-    opts?: { isInitial?: boolean },
-  ): AsyncGenerator<GuildHallEvent> {
-    if (!deps.queryFn) {
-      log.error(`startSession failed for meeting ${meeting.meetingId as string}: No queryFn provided`);
-      yield { type: "error", reason: "No queryFn provided" };
-      return;
-    }
-
-    const prepSpecResult = await buildMeetingPrepSpec(meeting, prompt);
-    if (!prepSpecResult.ok) {
-      log.error(`startSession failed for meeting ${meeting.meetingId as string}: ${prepSpecResult.reason}`);
-      yield { type: "error", reason: prepSpecResult.reason };
-      return;
-    }
-
-    const prep = await prepareSdkSession(prepSpecResult.spec, prepDeps, log);
-    if (!prep.ok) {
-      log.error(`startSession failed for meeting ${meeting.meetingId as string}: ${prep.error}`);
-      yield { type: "error", reason: prep.error };
-      return;
-    }
-
-    const sdkPrompt = opts?.isInitial ? MEETING_GREETING_PROMPT : prompt;
-    yield* iterateSession(meeting, sdkPrompt, prep.result.options, false, prep.result.resolvedModel);
-
-    // Update state file with captured session ID
-    try {
-      await writeStateFile(meeting.meetingId, serializeMeetingState(meeting));
-    } catch (err: unknown) {
-      log.warn(
-        `Failed to update state file for "${meeting.meetingId as string}" after session start (non-fatal):`,
-        err instanceof Error ? err.message : String(err),
-      );
-    }
-  }
+  const sessionLoopDeps: SessionLoopDeps = {
+    queryFn: deps.queryFn,
+    guildHallHome: ghHome,
+    log,
+    prepDeps,
+  };
 
   // -- Public API --
 
@@ -795,7 +701,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     );
 
     // Start the SDK session (outside lock, streaming can take arbitrarily long)
-    yield* startSession(entry, prompt, { isInitial: true });
+    yield* startSession(sessionLoopDeps, entry, prompt, buildMeetingPrepSpec, writeStateFile, serializeMeetingState, { isInitial: true });
   }
 
   async function* createMeeting(
@@ -950,7 +856,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     );
 
     // Start the SDK session (outside lock, streaming can take arbitrarily long)
-    yield* startSession(entry, prompt, { isInitial: true });
+    yield* startSession(sessionLoopDeps, entry, prompt, buildMeetingPrepSpec, writeStateFile, serializeMeetingState, { isInitial: true });
   }
 
   async function* sendMessage(
@@ -996,7 +902,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
         ? `Previous conversation context:\n${truncatedTranscript}`
         : message;
 
-      yield* startSession(meeting, contextPrompt);
+      yield* startSession(sessionLoopDeps, meeting, contextPrompt, buildMeetingPrepSpec, writeStateFile, serializeMeetingState);
       return;
     }
 
@@ -1030,6 +936,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     }
 
     const { lastError, hasExpiryError } = yield* iterateSession(
+      sessionLoopDeps,
       meeting,
       message,
       resumePrep.result.options,
@@ -1080,7 +987,7 @@ export function createMeetingSession(deps: MeetingSessionDeps) {
     // Clear the old session ID so startSession captures the new one
     meeting.sdkSessionId = null;
 
-    yield* startSession(meeting, renewalPrompt);
+    yield* startSession(sessionLoopDeps, meeting, renewalPrompt, buildMeetingPrepSpec, writeStateFile, serializeMeetingState);
 
     // Record the renewal in the meeting log (artifact is in activity worktree)
     try {

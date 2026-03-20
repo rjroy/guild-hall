@@ -2,10 +2,8 @@ import * as fs from "node:fs/promises";
 import { Hono } from "hono";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { createHealthRoutes, type HealthDeps } from "./routes/health";
-import {
-  createMeetingRoutes,
-  type MeetingSessionForRoutes,
-} from "./routes/meetings";
+import { createMeetingRoutes } from "./routes/meetings";
+import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";
 import { createCommissionRoutes } from "./routes/commissions";
 import { createEventRoutes } from "./routes/events";
 import { createWorkerRoutes } from "./routes/workers";
@@ -324,8 +322,18 @@ export async function createProductionApp(options?: {
     "@/daemon/services/manager/worker"
   );
 
+  // Lazy ref: briefingGenerator is created after prepDeps but getCachedBriefing
+  // must flow through the toolbox resolver. The closure captures the ref.
+  const briefingGeneratorRef: { current?: ReturnType<typeof createBriefingGenerator> } = { current: undefined };
+
   const prepDeps: SessionPrepDeps = {
-    resolveToolSet,
+    resolveToolSet: (worker, packages, context) =>
+      resolveToolSet(worker, packages, {
+        ...context,
+        getCachedBriefing: briefingGeneratorRef.current
+          ? (pn) => briefingGeneratorRef.current!.getCachedBriefing(pn)
+          : undefined,
+      }),
     loadMemories,
     activateWorker: activateWorkerFn,
   };
@@ -430,6 +438,7 @@ export async function createProductionApp(options?: {
     guildHallHome,
     log: createLog("briefing"),
   });
+  briefingGeneratorRef.current = briefingGenerator;
 
   // Background briefing refresh: pre-warms the briefing cache so route
   // reads return instantly. Uses post-completion scheduling (setTimeout).

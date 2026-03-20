@@ -10,6 +10,7 @@ import type {
 import { z } from "zod/v4";
 import type { ToolResult } from "@/daemon/types";
 import { isNodeError } from "@/lib/types";
+import type { WorkerIdentity } from "@/lib/types";
 import { memoryScopeFile, memoryScopeDir, migrateIfNeeded } from "./memory-injector";
 import type { MemoryScope } from "./memory-injector";
 import {
@@ -18,6 +19,7 @@ import {
   withMemoryLock,
 } from "./memory-sections";
 import type { ToolboxFactory } from "./toolbox-types";
+import type { BriefingResult } from "./briefing-generator";
 
 // -- Constants --
 
@@ -31,6 +33,8 @@ interface BaseToolboxDeps {
   workerName: string;
   projectName: string;
   guildHallHome: string;
+  getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
+  getWorkerIdentities?: () => WorkerIdentity[];
 }
 
 // -- Helpers --
@@ -261,6 +265,63 @@ export function makeWriteMemoryHandler(
   };
 }
 
+export function makeProjectBriefingHandler(
+  getCachedBriefing: ((projectName: string) => Promise<BriefingResult | null>) | undefined,
+  projectName: string,
+) {
+  return async (): Promise<ToolResult> => {
+    if (!getCachedBriefing) {
+      return {
+        content: [{ type: "text", text: "Project briefing is not available in this context." }],
+      };
+    }
+
+    const result = await getCachedBriefing(projectName);
+    if (!result) {
+      return {
+        content: [{ type: "text", text: "No project briefing is currently cached. The background refresh may not have run yet." }],
+      };
+    }
+
+    return {
+      content: [{ type: "text", text: `${result.briefing}\n\n(Generated: ${result.generatedAt})` }],
+    };
+  };
+}
+
+export function makeListGuildCapabilitiesHandler(
+  getWorkerIdentities?: () => WorkerIdentity[],
+) {
+  // eslint-disable-next-line @typescript-eslint/require-await -- must return Promise<ToolResult> per MCP tool handler contract
+  return async (): Promise<ToolResult> => {
+    if (!getWorkerIdentities) {
+      return {
+        content: [{
+          type: "text",
+          text: "Guild capabilities discovery is not available in this context.",
+        }],
+      };
+    }
+
+    const workers = getWorkerIdentities();
+    if (workers.length === 0) {
+      return {
+        content: [{
+          type: "text",
+          text: "No guild workers discovered.",
+        }],
+      };
+    }
+
+    const lines = workers.map(
+      (w) => `${w.name} (${w.displayTitle}) - ${w.description}`,
+    );
+    const text = "Guild Workers:\n\n" + lines.join("\n");
+
+    return { content: [{ type: "text", text }] };
+  };
+}
+
 export function makeRecordDecisionHandler(
   guildHallHome: string,
   contextId: string,
@@ -316,6 +377,8 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
   const editMemory = makeEditMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
   const writeMemory = makeWriteMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
   const recordDecision = makeRecordDecisionHandler(deps.guildHallHome, deps.contextId, deps.contextType);
+  const projectBriefing = makeProjectBriefingHandler(deps.getCachedBriefing, deps.projectName);
+  const listGuildCapabilities = makeListGuildCapabilitiesHandler(deps.getWorkerIdentities);
 
   return createSdkMcpServer({
     name: "guild-hall-base",
@@ -360,6 +423,18 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
           reasoning: z.string(),
         },
         (args) => recordDecision(args),
+      ),
+      tool(
+        "project_briefing",
+        "Get the current project status briefing. Returns a summary of active commissions, meetings, and recent activity. Read-only, returns cached data.",
+        {},
+        () => projectBriefing(),
+      ),
+      tool(
+        "list_guild_capabilities",
+        "List all guild workers with their titles and capabilities. Use this to discover who you can contact via send_mail. Returns names (for the 'to' field), titles, and descriptions. Read-only.",
+        {},
+        () => listGuildCapabilities(),
       ),
     ],
   });

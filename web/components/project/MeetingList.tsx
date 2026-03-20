@@ -12,6 +12,27 @@ interface MeetingListProps {
 }
 
 /**
+ * Resolves a preview string from a meeting artifact.
+ * Priority: agenda > first non-empty, non-heading line of notes > undefined.
+ */
+export function previewText(meeting: Artifact): string | undefined {
+  const agenda = meeting.meta.extras?.agenda;
+  if (typeof agenda === "string" && agenda.trim()) return agenda;
+
+  const content = meeting.content;
+  if (typeof content === "string" && content.trim()) {
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (/^#+\s/.test(trimmed)) continue;
+      return trimmed;
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Extracts a display title from a meeting artifact. Falls back to
  * the filename stem if the frontmatter title is empty.
  */
@@ -83,6 +104,7 @@ export default function MeetingList({
           const title = meetingTitle(meeting);
           const rawWorker = meeting.meta.extras?.worker;
           const workerName = typeof rawWorker === "string" ? rawWorker : undefined;
+          const preview = previewText(meeting);
 
           // Open meetings link to the live meeting view
           if (status === "open") {
@@ -95,6 +117,9 @@ export default function MeetingList({
                   <StatusBadge gem={gem} label={status} size="sm" />
                   <div className={styles.info}>
                     <p className={styles.title}>{title}</p>
+                    {preview && (
+                      <p className={styles.preview}>{preview}</p>
+                    )}
                     <div className={styles.meta}>
                       {meeting.meta.date && (
                         <span className={styles.date}>{meeting.meta.date}</span>
@@ -119,6 +144,9 @@ export default function MeetingList({
                   <StatusBadge gem={gem} label={status} size="sm" />
                   <div className={styles.info}>
                     <p className={styles.title}>{title}</p>
+                    {preview && (
+                      <p className={styles.preview}>{preview}</p>
+                    )}
                     <div className={styles.meta}>
                       {meeting.meta.date && (
                         <span className={styles.date}>{meeting.meta.date}</span>
@@ -147,6 +175,9 @@ export default function MeetingList({
                   <StatusBadge gem={gem} label={status} size="sm" />
                   <div className={styles.info}>
                     <p className={styles.title}>{title}</p>
+                    {preview && (
+                      <p className={styles.preview}>{preview}</p>
+                    )}
                     <div className={styles.meta}>
                       {meeting.meta.date && (
                         <span className={styles.date}>{meeting.meta.date}</span>

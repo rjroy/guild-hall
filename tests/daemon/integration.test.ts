@@ -28,8 +28,8 @@ import {
   MEETING_GREETING_PROMPT,
   createMeetingSession,
   type MeetingSessionDeps,
-  type QueryOptions,
 } from "@/daemon/services/meeting/orchestrator";
+import type { SdkQueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
 import type { GuildHallEvent } from "@/daemon/types";
 import type { GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";
@@ -135,13 +135,13 @@ function makeMockQueryFn(
     makeResultSuccess(),
   ],
 ) {
-  const calls: Array<{ prompt: string; options: QueryOptions }> = [];
+  const calls: Array<{ prompt: string; options: SdkQueryOptions }> = [];
 
   // Mock generators yield synchronously; no await needed.
   // eslint-disable-next-line @typescript-eslint/require-await
   async function* mockQuery(params: {
     prompt: string;
-    options: QueryOptions;
+    options: SdkQueryOptions;
   }): AsyncGenerator<SDKMessage> {
     calls.push(params);
     for (const msg of messages) {
