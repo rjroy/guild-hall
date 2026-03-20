@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createApp } from "@/daemon/app";
 import type { GitLoreDeps } from "@/daemon/routes/git-lore";
-import type { GitOps } from "@/daemon/lib/git";
+import { cleanGitEnv, type GitOps } from "@/daemon/lib/git";
 import type { AppConfig } from "@/lib/types";
 
 const TEST_PROJECT = "test-project";
@@ -287,7 +287,7 @@ describe("createGitOps().commitLore staging boundary", () => {
     tmpDir = await fs.mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "git-lore-test-"));
     // Init a git repo
     const run = (args: string[]) =>
-      Bun.spawn(["git", ...args], { cwd: tmpDir, stdout: "pipe", stderr: "pipe" });
+      Bun.spawn(["git", ...args], { cwd: tmpDir, stdout: "pipe", stderr: "pipe", env: cleanGitEnv() });
     await run(["init"]).exited;
     await run(["config", "user.email", "test@test.com"]).exited;
     await run(["config", "user.name", "Test"]).exited;
@@ -316,7 +316,7 @@ describe("createGitOps().commitLore staging boundary", () => {
     // Check git log for committed files
     const proc = Bun.spawn(
       ["git", "log", "-1", "--name-only", "--format="],
-      { cwd: tmpDir, stdout: "pipe", stderr: "pipe" },
+      { cwd: tmpDir, stdout: "pipe", stderr: "pipe", env: cleanGitEnv() },
     );
     const stdout = await new Response(proc.stdout).text();
     await proc.exited;
@@ -328,7 +328,7 @@ describe("createGitOps().commitLore staging boundary", () => {
     // Verify outside.txt is still uncommitted
     const statusProc = Bun.spawn(
       ["git", "status", "--porcelain"],
-      { cwd: tmpDir, stdout: "pipe", stderr: "pipe" },
+      { cwd: tmpDir, stdout: "pipe", stderr: "pipe", env: cleanGitEnv() },
     );
     const statusOut = await new Response(statusProc.stdout).text();
     await statusProc.exited;
@@ -353,7 +353,7 @@ describe("createGitOps().lorePendingChanges", () => {
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "git-lore-status-"));
     const run = (args: string[]) =>
-      Bun.spawn(["git", ...args], { cwd: tmpDir, stdout: "pipe", stderr: "pipe" });
+      Bun.spawn(["git", ...args], { cwd: tmpDir, stdout: "pipe", stderr: "pipe", env: cleanGitEnv() });
     await run(["init"]).exited;
     await run(["config", "user.email", "test@test.com"]).exited;
     await run(["config", "user.name", "Test"]).exited;
@@ -383,7 +383,7 @@ describe("createGitOps().lorePendingChanges", () => {
     await fs.writeFile(path.join(tmpDir, ".lore", "specs", "a.md"), "a");
     await fs.writeFile(path.join(tmpDir, ".lore", "specs", "b.md"), "b");
     const run = (args: string[]) =>
-      Bun.spawn(["git", ...args], { cwd: tmpDir, stdout: "pipe", stderr: "pipe" });
+      Bun.spawn(["git", ...args], { cwd: tmpDir, stdout: "pipe", stderr: "pipe", env: cleanGitEnv() });
     await run(["add", "-A"]).exited;
     await run(["commit", "--no-verify", "-m", "add lore"]).exited;
 
