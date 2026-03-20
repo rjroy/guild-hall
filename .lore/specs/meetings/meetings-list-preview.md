@@ -1,7 +1,7 @@
 ---
 title: Meetings List Preview Text
 date: 2026-03-19
-status: approved
+status: implemented
 tags: [ui, meetings, ux]
 modules: [web/components/project]
 related:
