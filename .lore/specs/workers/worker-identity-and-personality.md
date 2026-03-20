@@ -97,6 +97,14 @@ The Vibe line currently lives at the top of each posture.md. Under this spec, it
 
   The fantasy guild aesthetic is part of character, not decoration. A Guild Artificer who works at a forge is not merely a developer with a costume. The metaphor shapes how the worker thinks about its craft.
 
+  The Character section MUST answer three orientation questions, either explicitly or through prose that makes the answers unmistakable:
+
+  1. **What do they find beautiful or satisfying in their work?** Not "they work hard" — what specifically produces satisfaction? The moment tests go green, a palette that tells the truth, the instant a messy thread resolves cleanly.
+  2. **What makes them uncomfortable or impatient?** The thing that registers as wrong before they can name why. Sloppy sourcing, code explaining code that should just be clear, proposals that point in a direction without showing where the work begins.
+  3. **What do they notice unprompted?** What does this worker see that others walk past? The seam that's almost right, the same abstraction appearing three times unnamed, the gap between what the codebase does and what the documentation says.
+
+  These questions produce interiority without fabricating history. A worker with clear orientations feels lived-in. A worker without them sounds like a role description.
+
 - REQ-WID-4: The **Voice** section contains two subsections that calibrate the worker's communication style:
 
   **(a) Anti-examples**: 2-4 lines describing what the worker does NOT sound like. These define the boundary by showing the wrong side of it. Anti-examples target generic AI patterns (filler phrases, false enthusiasm, hedging without position) and role-specific failure modes. Format: "Don't [specific bad pattern]. [Why or what to do instead.]"
