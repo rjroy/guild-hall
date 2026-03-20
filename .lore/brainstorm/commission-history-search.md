@@ -1,7 +1,7 @@
 ---
 title: "Commission History Search"
 date: 2026-03-20
-status: open
+status: wontfix
 author: Celeste
 tags: [brainstorm, commissions, search, daemon-api, ui]
 parent: whats-missing-2026-03-20.md
