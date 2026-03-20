@@ -1,7 +1,7 @@
 ---
 title: "Commission: Review: Commission and meeting outcomes to memory (Phase 4)"
 date: 2026-03-20
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-20T23:40:07.561Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-20T23:46:39.191Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---

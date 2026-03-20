@@ -1,8 +1,8 @@
 ---
 title: "Standing Delegation"
 date: 2026-03-20
-status: supersceded
-source: Celeste
+status: superseded
+author : Celeste
 tags: [brainstorm, commissions, automation, event-router, autonomy]
 parent: whats-missing-2026-03-20.md
 ---
