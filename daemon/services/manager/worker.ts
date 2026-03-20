@@ -65,7 +65,7 @@ const MANAGER_POSTURE_BASE = [
 
 /** Default guidance for built-in models. */
 const BUILTIN_MODEL_GUIDANCE: Record<string, string> = {
-  haiku: "The outcome is predictable, the task is bounded, and variance would be noise.",
+  haiku: "When fast, cheap, conservative, and unimaginative outcomes are needed.",
   sonnet: "Variance is acceptable or desirable. Creative work, drafting, exploration.",
   opus: "Uncertainty is high and consistency matters. Deep reasoning, ambiguous problems, high stakes.",
 };
