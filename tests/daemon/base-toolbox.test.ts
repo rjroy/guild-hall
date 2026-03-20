@@ -9,6 +9,7 @@ import {
   makeWriteMemoryHandler,
   makeRecordDecisionHandler,
   makeProjectBriefingHandler,
+  makeListGuildCapabilitiesHandler,
 } from "@/daemon/services/base-toolbox";
 
 let tmpDir: string;
@@ -647,5 +648,69 @@ describe("project_briefing", () => {
       (server.instance as Record<string, unknown>)._registeredTools as Record<string, unknown>,
     );
     expect(toolNames).toContain("project_briefing");
+  });
+});
+
+// -- list_guild_capabilities --
+
+describe("list_guild_capabilities", () => {
+  test("returns formatted roster when callback provides workers", async () => {
+    const handler = makeListGuildCapabilitiesHandler(() => [
+      { name: "Dalton", displayTitle: "Guild Artificer", description: "Builds what is commissioned." },
+      { name: "Thorne", displayTitle: "Guild Archivist", description: "Maintains project knowledge." },
+    ]);
+
+    const result = await handler();
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0].text;
+    expect(text).toContain("Guild Workers:");
+    expect(text).toContain("Dalton (Guild Artificer) - Builds what is commissioned.");
+    expect(text).toContain("Thorne (Guild Archivist) - Maintains project knowledge.");
+  });
+
+  test("returns informational message when callback is absent", async () => {
+    const handler = makeListGuildCapabilitiesHandler(undefined);
+
+    const result = await handler();
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe(
+      "Guild capabilities discovery is not available in this context.",
+    );
+  });
+
+  test("returns empty roster message when callback returns empty array", async () => {
+    const handler = makeListGuildCapabilitiesHandler(() => []);
+
+    const result = await handler();
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("No guild workers discovered.");
+  });
+
+  test("createBaseToolbox includes the tool", () => {
+    const server = createBaseToolbox({
+      contextId: "commission-001",
+      contextType: "commission",
+      workerName: "test-worker",
+      projectName: "test-project",
+      guildHallHome,
+    });
+
+    const toolNames = Object.keys(
+      (server.instance as Record<string, unknown>)._registeredTools as Record<string, unknown>,
+    );
+    expect(toolNames).toContain("list_guild_capabilities");
+  });
+
+  test("all discovered workers appear including caller", async () => {
+    const handler = makeListGuildCapabilitiesHandler(() => [
+      { name: "Dalton", displayTitle: "Guild Artificer", description: "Builds things." },
+      { name: "Voss", displayTitle: "Guild Master", description: "Coordinates the guild." },
+    ]);
+
+    const result = await handler();
+    const text = result.content[0].text;
+    // Caller (Dalton) is not filtered out
+    expect(text).toContain("Dalton (Guild Artificer)");
+    expect(text).toContain("Voss (Guild Master)");
   });
 });

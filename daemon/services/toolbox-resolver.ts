@@ -4,6 +4,7 @@ import type {
   AppConfig,
   DiscoveredPackage,
   ResolvedToolSet,
+  WorkerIdentity,
   WorkerMetadata,
 } from "@/lib/types";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
@@ -84,6 +85,11 @@ export async function resolveToolSet(
       .filter(isWorkerPackage)
       .map((p) => (p.metadata as WorkerMetadata).identity?.name)
       .filter((name): name is string => typeof name === "string"),
+    getWorkerIdentities: () =>
+      packages
+        .filter(isWorkerPackage)
+        .map((p) => (p.metadata as WorkerMetadata).identity)
+        .filter((id): id is WorkerIdentity => id != null),
     mailFilePath: context.mailFilePath,
     commissionId: context.commissionId,
     getCachedBriefing: context.getCachedBriefing,

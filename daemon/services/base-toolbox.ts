@@ -10,6 +10,7 @@ import type {
 import { z } from "zod/v4";
 import type { ToolResult } from "@/daemon/types";
 import { isNodeError } from "@/lib/types";
+import type { WorkerIdentity } from "@/lib/types";
 import { memoryScopeFile, memoryScopeDir, migrateIfNeeded } from "./memory-injector";
 import type { MemoryScope } from "./memory-injector";
 import {
@@ -33,6 +34,7 @@ interface BaseToolboxDeps {
   projectName: string;
   guildHallHome: string;
   getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
+  getWorkerIdentities?: () => WorkerIdentity[];
 }
 
 // -- Helpers --
@@ -287,6 +289,38 @@ export function makeProjectBriefingHandler(
   };
 }
 
+export function makeListGuildCapabilitiesHandler(
+  getWorkerIdentities?: () => WorkerIdentity[],
+) {
+  return async (): Promise<ToolResult> => {
+    if (!getWorkerIdentities) {
+      return {
+        content: [{
+          type: "text",
+          text: "Guild capabilities discovery is not available in this context.",
+        }],
+      };
+    }
+
+    const workers = getWorkerIdentities();
+    if (workers.length === 0) {
+      return {
+        content: [{
+          type: "text",
+          text: "No guild workers discovered.",
+        }],
+      };
+    }
+
+    const lines = workers.map(
+      (w) => `${w.name} (${w.displayTitle}) - ${w.description}`,
+    );
+    const text = "Guild Workers:\n\n" + lines.join("\n");
+
+    return { content: [{ type: "text", text }] };
+  };
+}
+
 export function makeRecordDecisionHandler(
   guildHallHome: string,
   contextId: string,
@@ -343,6 +377,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
   const writeMemory = makeWriteMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
   const recordDecision = makeRecordDecisionHandler(deps.guildHallHome, deps.contextId, deps.contextType);
   const projectBriefing = makeProjectBriefingHandler(deps.getCachedBriefing, deps.projectName);
+  const listGuildCapabilities = makeListGuildCapabilitiesHandler(deps.getWorkerIdentities);
 
   return createSdkMcpServer({
     name: "guild-hall-base",
@@ -393,6 +428,12 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
         "Get the current project status briefing. Returns a summary of active commissions, meetings, and recent activity. Read-only, returns cached data.",
         {},
         () => projectBriefing(),
+      ),
+      tool(
+        "list_guild_capabilities",
+        "List all guild workers with their titles and capabilities. Use this to discover who you can contact via send_mail. Returns names (for the 'to' field), titles, and descriptions. Read-only.",
+        {},
+        () => listGuildCapabilities(),
       ),
     ],
   });
