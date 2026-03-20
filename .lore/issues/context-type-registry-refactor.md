@@ -1,7 +1,7 @@
 ---
 title: Context type registry refactor
 date: 2026-03-18
-status: open
+status: resolved
 tags: [refactor, toolbox-resolver, worker-activation, extensibility]
 modules: [toolbox-resolver, worker-activation, toolbox-types]
 related:
