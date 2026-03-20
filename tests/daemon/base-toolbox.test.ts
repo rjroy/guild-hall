@@ -606,6 +606,7 @@ describe("record_decision", () => {
 describe("project_briefing", () => {
   test("returns briefing when cache has data", async () => {
     const handler = makeProjectBriefingHandler(
+      // eslint-disable-next-line @typescript-eslint/require-await
       async () => ({ briefing: "All quiet.", generatedAt: "2026-03-18T12:00:00Z", cached: true }),
       "test-project",
     );
@@ -618,6 +619,7 @@ describe("project_briefing", () => {
 
   test("returns message when cache is empty", async () => {
     const handler = makeProjectBriefingHandler(
+      // eslint-disable-next-line @typescript-eslint/require-await
       async () => null,
       "test-project",
     );

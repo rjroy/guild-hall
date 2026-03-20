@@ -7,8 +7,8 @@ import {
   createMeetingSession,
   MEETING_GREETING_PROMPT,
   type MeetingSessionDeps,
-  type QueryOptions,
 } from "@/daemon/services/meeting/orchestrator";
+import type { SdkQueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
 import type { GuildHallEvent, MeetingStatus } from "@/daemon/types";
 import { asMeetingId, asSdkSessionId } from "@/daemon/types";
 import { MeetingRegistry } from "@/daemon/services/meeting/registry";
@@ -143,11 +143,11 @@ function makeMockQueryFn(
     makeResultSuccess(),
   ],
 ) {
-  const calls: Array<{ prompt: string; options: QueryOptions }> = [];
+  const calls: Array<{ prompt: string; options: SdkQueryOptions }> = [];
 
   async function* mockQuery(params: {
     prompt: string;
-    options: QueryOptions;
+    options: SdkQueryOptions;
   }): AsyncGenerator<SDKMessage> {
     await Promise.resolve();
     calls.push(params);
@@ -950,7 +950,7 @@ describe("createMeetingSession", () => {
       // Use a slow queryFn that we can interrupt
       async function* slowQuery(params: {
         prompt: string;
-        options: QueryOptions;
+        options: SdkQueryOptions;
       }): AsyncGenerator<SDKMessage> {
         await Promise.resolve();
         yield makeInitMessage();
@@ -1987,12 +1987,12 @@ meeting_log:
      * call (when resume is set), then succeeds on the second call.
      */
     function makeExpiringQueryFn() {
-      const calls: Array<{ prompt: string; options: QueryOptions }> = [];
+      const calls: Array<{ prompt: string; options: SdkQueryOptions }> = [];
       let callCount = 0;
 
       async function* expiringQuery(params: {
         prompt: string;
-        options: QueryOptions;
+        options: SdkQueryOptions;
       }): AsyncGenerator<SDKMessage> {
         await Promise.resolve();
         calls.push(params);
@@ -2301,12 +2301,12 @@ meeting_log:
 
     test("handles thrown error for session expiry", async () => {
       // Test the catch path: queryFn throws instead of yielding an error event
-      const calls: Array<{ prompt: string; options: QueryOptions }> = [];
+      const calls: Array<{ prompt: string; options: SdkQueryOptions }> = [];
       let callCount = 0;
 
       async function* throwingExpiryQuery(params: {
         prompt: string;
-        options: QueryOptions;
+        options: SdkQueryOptions;
       }): AsyncGenerator<SDKMessage> {
         await Promise.resolve();
         calls.push(params);
@@ -2424,7 +2424,7 @@ meeting_log:
     test("non-expiry errors are not retried as renewal", async () => {
       async function* regularErrorQuery(params: {
         prompt: string;
-        options: QueryOptions;
+        options: SdkQueryOptions;
       }): AsyncGenerator<SDKMessage> {
         await Promise.resolve();
         if (params.options.resume) {
@@ -3283,7 +3283,7 @@ describe("createMeetingRequest", () => {
       let callCount = 0;
       async function* multiCallQuery(_params: {
         prompt: string;
-        options: QueryOptions;
+        options: SdkQueryOptions;
       }): AsyncGenerator<SDKMessage> {
         await Promise.resolve();
         callCount++;
@@ -3340,7 +3340,7 @@ describe("createMeetingRequest", () => {
       let callCount = 0;
       async function* multiErrorQuery(_params: {
         prompt: string;
-        options: QueryOptions;
+        options: SdkQueryOptions;
       }): AsyncGenerator<SDKMessage> {
         await Promise.resolve();
         callCount++;

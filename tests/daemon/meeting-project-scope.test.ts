@@ -14,8 +14,8 @@ import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   createMeetingSession,
   type MeetingSessionDeps,
-  type QueryOptions,
 } from "@/daemon/services/meeting/orchestrator";
+import type { SdkQueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
 import type { GuildHallEvent } from "@/daemon/types";
 import { asMeetingId } from "@/daemon/types";
 import { MeetingRegistry } from "@/daemon/services/meeting/registry";
@@ -172,11 +172,11 @@ function makeMockQueryFn(
     makeResultSuccess(),
   ],
 ) {
-  const calls: Array<{ prompt: string; options: QueryOptions }> = [];
+  const calls: Array<{ prompt: string; options: SdkQueryOptions }> = [];
 
   async function* mockQuery(params: {
     prompt: string;
-    options: QueryOptions;
+    options: SdkQueryOptions;
   }): AsyncGenerator<SDKMessage> {
     await Promise.resolve();
     calls.push(params);

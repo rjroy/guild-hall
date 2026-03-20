@@ -7,7 +7,7 @@ import {
   generateMeetingNotes,
   type NotesResult,
 } from "@/daemon/services/meeting/notes-generator";
-import type { QueryOptions } from "@/daemon/services/meeting/orchestrator";
+import type { SdkQueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
 import type { GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";
 
@@ -152,11 +152,11 @@ function makeResultSuccess(): SDKMessage {
 // -- Mock queryFn --
 
 function makeMockNotesQueryFn(notesText: string) {
-  const calls: Array<{ prompt: string; options: QueryOptions }> = [];
+  const calls: Array<{ prompt: string; options: SdkQueryOptions }> = [];
 
   async function* mockQuery(params: {
     prompt: string;
-    options: QueryOptions;
+    options: SdkQueryOptions;
   }): AsyncGenerator<SDKMessage> {
     await Promise.resolve();
     calls.push(params);

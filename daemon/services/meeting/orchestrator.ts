@@ -90,14 +90,6 @@ const DEFAULT_MEETING_CAP = 5;
 export const MEETING_GREETING_PROMPT =
   "Briefly introduce yourself and summarize your understanding of the meeting agenda, then ask how the user would like to proceed.";
 
-// -- Re-exports for backward compatibility --
-// QueryOptions re-exported so notes-generator and briefing-generator
-// can keep importing from the meeting orchestrator without reaching into
-// sdk-runner. Remove once those modules migrate (Task 008).
-
-export type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
-export type { SdkQueryOptions as QueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
-
 // -- Dependency types --
 
 export type MeetingSessionDeps = {

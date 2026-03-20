@@ -292,6 +292,7 @@ export function makeProjectBriefingHandler(
 export function makeListGuildCapabilitiesHandler(
   getWorkerIdentities?: () => WorkerIdentity[],
 ) {
+  // eslint-disable-next-line @typescript-eslint/require-await -- must return Promise<ToolResult> per MCP tool handler contract
   return async (): Promise<ToolResult> => {
     if (!getWorkerIdentities) {
       return {
