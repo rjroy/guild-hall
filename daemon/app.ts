@@ -542,6 +542,17 @@ export async function createProductionApp(options?: {
     packageOperationRouteModule = createPackageOperationRoutes(packageOperations, routeDeps);
   }
 
+  // Event Router: subscribe to EventBus and dispatch matching events to
+  // configured channels (shell commands, webhooks). Created before session
+  // recovery so it captures recovery events.
+  const { createEventRouter } = await import("@/daemon/services/event-router");
+  const unsubscribeRouter = createEventRouter({
+    eventBus,
+    channels: config.channels ?? {},
+    notifications: config.notifications ?? [],
+    log: createLog("event-router"),
+  });
+
   const startTime = Date.now();
 
   const { app, registry } = createApp({
@@ -588,6 +599,7 @@ export async function createProductionApp(options?: {
     shutdown: () => {
       scheduler.stop();
       briefingRefresh.stop();
+      unsubscribeRouter();
     },
   };
 }

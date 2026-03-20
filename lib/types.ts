@@ -41,6 +41,8 @@ export interface AppConfig {
   maxConcurrentMailReaders?: number;
   briefingCacheTtlMinutes?: number;
   briefingRefreshIntervalMinutes?: number;
+  channels?: Record<string, ChannelConfig>;
+  notifications?: NotificationRule[];
 }
 
 export interface ArtifactMeta {
@@ -343,6 +345,40 @@ export function formatStatus(status: string): string {
   return status
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// -- Event router types (REQ-EVRT) --
+
+/**
+ * Valid SystemEvent type strings for notification rule matching.
+ * Kept in lib/ so config validation doesn't import from daemon/.
+ * A test verifies this stays in sync with SystemEvent in daemon/lib/event-bus.ts.
+ */
+export const SYSTEM_EVENT_TYPES = [
+  "commission_status",
+  "commission_progress",
+  "commission_result",
+  "commission_artifact",
+  "commission_manager_note",
+  "commission_queued",
+  "commission_dequeued",
+  "commission_mail_sent",
+  "mail_reply_received",
+  "meeting_started",
+  "meeting_ended",
+  "schedule_spawned",
+  "toolbox_replicate",
+] as const;
+
+export type SystemEventType = (typeof SYSTEM_EVENT_TYPES)[number];
+
+export type ChannelConfig =
+  | { type: "shell"; command: string }
+  | { type: "webhook"; url: string };
+
+export interface NotificationRule {
+  match: { type: SystemEventType; projectName?: string };
+  channel: string;
 }
 
 // -- Error utilities --
