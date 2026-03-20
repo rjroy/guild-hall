@@ -1,7 +1,7 @@
 ---
 title: "Plan: Guild Capabilities Discovery"
 date: 2026-03-19
-status: draft
+status: approved
 tags: [base-toolbox, worker-discovery, mail, collaboration]
 modules: [base-toolbox, toolbox-resolver, toolbox-types]
 related:
