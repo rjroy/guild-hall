@@ -1,7 +1,7 @@
 ---
 title: "Cross-Commission Artifact Graph"
 date: 2026-03-20
-status: open
+status: wontfix
 author: Celeste
 tags: [brainstorm, artifacts, provenance, daemon-api, ui]
 parent: whats-missing-2026-03-20.md
