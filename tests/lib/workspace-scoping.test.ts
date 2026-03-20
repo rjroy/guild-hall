@@ -239,7 +239,7 @@ describe("workspace scoping", () => {
 
       // Read from project B: should NOT find project A's data
       const resultB = await readB({ scope: "project" });
-      expect(resultB.content[0].text).toBe("No memories saved yet.");
+      expect(resultB.content[0].text).toContain("No memories saved yet.");
 
       // Verify the actual filesystem paths are different
       const projectAFile = path.join(guildHallHome, "memory", "projects", `${projectAName}.md`);
@@ -276,7 +276,7 @@ describe("workspace scoping", () => {
 
       // Worker B cannot see Worker A's notes
       const resultB = await readWorkerB({ scope: "worker" });
-      expect(resultB.content[0].text).toBe("No memories saved yet.");
+      expect(resultB.content[0].text).toContain("No memories saved yet.");
     });
   });
 

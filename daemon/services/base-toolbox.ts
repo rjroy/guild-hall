@@ -102,14 +102,18 @@ export function makeReadMemoryHandler(
     // Track that this scope has been read (for edit_memory guard)
     readScopes.add(args.scope);
 
+    const charCount = content.length;
+    const remaining = Math.max(0, DEFAULT_MEMORY_LIMIT - charCount);
+    const budgetLine = `\n\n[Memory budget: ${charCount.toLocaleString()} / ${DEFAULT_MEMORY_LIMIT.toLocaleString()} characters used (${remaining.toLocaleString()} remaining)]`;
+
     if (content === "") {
       return {
-        content: [{ type: "text", text: "No memories saved yet." }],
+        content: [{ type: "text", text: `No memories saved yet.${budgetLine}` }],
       };
     }
 
     if (!args.section) {
-      return { content: [{ type: "text", text: content }] };
+      return { content: [{ type: "text", text: content + budgetLine }] };
     }
 
     // Section-specific read (case-insensitive)
@@ -123,7 +127,7 @@ export function makeReadMemoryHandler(
         isError: true,
       };
     }
-    return { content: [{ type: "text", text: match.content }] };
+    return { content: [{ type: "text", text: match.content + budgetLine }] };
   };
 }
 

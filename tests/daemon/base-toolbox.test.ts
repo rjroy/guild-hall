@@ -94,7 +94,46 @@ describe("read_memory", () => {
     const read = makeReadMemoryHandler(guildHallHome, workerName, projectName, readScopes);
 
     const result = await read({ scope: "worker" });
-    expect(result.content[0].text).toBe("No memories saved yet.");
+    expect(result.content[0].text).toContain("No memories saved yet.");
+  });
+
+  test("includes budget summary in full file read", async () => {
+    const readScopes = new Set<string>();
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName, readScopes);
+
+    const memContent = "## User\nSenior engineer\n";
+    const filePath = path.join(guildHallHome, "memory", "workers", `${workerName}.md`);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, memContent, "utf-8");
+
+    const result = await read({ scope: "worker" });
+    const text = result.content[0].text;
+    expect(text).toContain(`[Memory budget: ${memContent.length.toLocaleString()} / 16,000 characters used`);
+    expect(text).toContain(`(${(16000 - memContent.length).toLocaleString()} remaining)]`);
+  });
+
+  test("includes budget summary in section read", async () => {
+    const readScopes = new Set<string>();
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName, readScopes);
+
+    const memContent = "## User\nSenior engineer\n\n## Feedback\nBe concise\n";
+    const filePath = path.join(guildHallHome, "memory", "workers", `${workerName}.md`);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, memContent, "utf-8");
+
+    const result = await read({ scope: "worker", section: "feedback" });
+    const text = result.content[0].text;
+    // Budget reflects the full file size, not just the section
+    expect(text).toContain(`[Memory budget: ${memContent.length.toLocaleString()} / 16,000 characters used`);
+  });
+
+  test("includes budget summary for empty memory", async () => {
+    const readScopes = new Set<string>();
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName, readScopes);
+
+    const result = await read({ scope: "worker" });
+    const text = result.content[0].text;
+    expect(text).toContain("[Memory budget: 0 / 16,000 characters used (16,000 remaining)]");
   });
 
   test("tracks scope in readScopes set", async () => {

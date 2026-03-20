@@ -71,7 +71,7 @@ describe("worker scope isolation", () => {
     const result = await readA({ scope: "worker" });
 
     // Worker A's file doesn't exist, so "No memories saved yet."
-    expect(result.content[0].text).toBe("No memories saved yet.");
+    expect(result.content[0].text).toContain("No memories saved yet.");
   });
 
   test("two workers with different names have isolated worker scope", async () => {
