@@ -18,6 +18,7 @@ import {
   withMemoryLock,
 } from "./memory-sections";
 import type { ToolboxFactory } from "./toolbox-types";
+import type { BriefingResult } from "./briefing-generator";
 
 // -- Constants --
 
@@ -31,6 +32,7 @@ interface BaseToolboxDeps {
   workerName: string;
   projectName: string;
   guildHallHome: string;
+  getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
 }
 
 // -- Helpers --
@@ -261,6 +263,30 @@ export function makeWriteMemoryHandler(
   };
 }
 
+export function makeProjectBriefingHandler(
+  getCachedBriefing: ((projectName: string) => Promise<BriefingResult | null>) | undefined,
+  projectName: string,
+) {
+  return async (): Promise<ToolResult> => {
+    if (!getCachedBriefing) {
+      return {
+        content: [{ type: "text", text: "Project briefing is not available in this context." }],
+      };
+    }
+
+    const result = await getCachedBriefing(projectName);
+    if (!result) {
+      return {
+        content: [{ type: "text", text: "No project briefing is currently cached. The background refresh may not have run yet." }],
+      };
+    }
+
+    return {
+      content: [{ type: "text", text: `${result.briefing}\n\n(Generated: ${result.generatedAt})` }],
+    };
+  };
+}
+
 export function makeRecordDecisionHandler(
   guildHallHome: string,
   contextId: string,
@@ -316,6 +342,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
   const editMemory = makeEditMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
   const writeMemory = makeWriteMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
   const recordDecision = makeRecordDecisionHandler(deps.guildHallHome, deps.contextId, deps.contextType);
+  const projectBriefing = makeProjectBriefingHandler(deps.getCachedBriefing, deps.projectName);
 
   return createSdkMcpServer({
     name: "guild-hall-base",
@@ -360,6 +387,12 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
           reasoning: z.string(),
         },
         (args) => recordDecision(args),
+      ),
+      tool(
+        "project_briefing",
+        "Get the current project status briefing. Returns a summary of active commissions, meetings, and recent activity. Read-only, returns cached data.",
+        {},
+        () => projectBriefing(),
       ),
     ],
   });

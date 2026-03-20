@@ -8,6 +8,7 @@ import type {
 } from "@/lib/types";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import type { EventBus } from "@/daemon/lib/event-bus";
+import type { BriefingResult } from "./briefing-generator";
 import { baseToolboxFactory } from "./base-toolbox";
 import { meetingToolboxFactory } from "./meeting/toolbox";
 import { commissionToolboxFactory } from "./commission/toolbox";
@@ -44,6 +45,8 @@ export interface ToolboxResolverContext {
   mailFilePath?: string;
   /** Commission ID for the mail toolbox (mail context only). */
   commissionId?: string;
+  /** Cache-only briefing lookup. Optional; absent contexts degrade gracefully. */
+  getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
 }
 
 // -- Resolver --
@@ -83,6 +86,7 @@ export async function resolveToolSet(
       .filter((name): name is string => typeof name === "string"),
     mailFilePath: context.mailFilePath,
     commissionId: context.commissionId,
+    getCachedBriefing: context.getCachedBriefing,
   };
 
   // 1. Base toolbox (always present: memory + decision tools)

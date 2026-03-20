@@ -8,6 +8,7 @@ import {
   makeEditMemoryHandler,
   makeWriteMemoryHandler,
   makeRecordDecisionHandler,
+  makeProjectBriefingHandler,
 } from "@/daemon/services/base-toolbox";
 
 let tmpDir: string;
@@ -596,5 +597,55 @@ describe("record_decision", () => {
     const entry = JSON.parse(lines[0]);
     expect(entry.question).toBe("Which approach?");
     expect(entry.decision).toBe("Pattern A");
+  });
+});
+
+// -- project_briefing --
+
+describe("project_briefing", () => {
+  test("returns briefing when cache has data", async () => {
+    const handler = makeProjectBriefingHandler(
+      async () => ({ briefing: "All quiet.", generatedAt: "2026-03-18T12:00:00Z", cached: true }),
+      "test-project",
+    );
+
+    const result = await handler();
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("All quiet.");
+    expect(result.content[0].text).toContain("2026-03-18T12:00:00Z");
+  });
+
+  test("returns message when cache is empty", async () => {
+    const handler = makeProjectBriefingHandler(
+      async () => null,
+      "test-project",
+    );
+
+    const result = await handler();
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("No project briefing is currently cached");
+  });
+
+  test("returns message when callback is absent", async () => {
+    const handler = makeProjectBriefingHandler(undefined, "test-project");
+
+    const result = await handler();
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("not available in this context");
+  });
+
+  test("createBaseToolbox includes the tool", () => {
+    const server = createBaseToolbox({
+      contextId: "commission-001",
+      contextType: "commission",
+      workerName: "test-worker",
+      projectName: "test-project",
+      guildHallHome,
+    });
+
+    const toolNames = Object.keys(
+      (server.instance as Record<string, unknown>)._registeredTools as Record<string, unknown>,
+    );
+    expect(toolNames).toContain("project_briefing");
   });
 });

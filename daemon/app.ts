@@ -324,8 +324,18 @@ export async function createProductionApp(options?: {
     "@/daemon/services/manager/worker"
   );
 
+  // Lazy ref: briefingGenerator is created after prepDeps but getCachedBriefing
+  // must flow through the toolbox resolver. The closure captures the ref.
+  const briefingGeneratorRef: { current?: ReturnType<typeof createBriefingGenerator> } = { current: undefined };
+
   const prepDeps: SessionPrepDeps = {
-    resolveToolSet,
+    resolveToolSet: (worker, packages, context) =>
+      resolveToolSet(worker, packages, {
+        ...context,
+        getCachedBriefing: briefingGeneratorRef.current
+          ? (pn) => briefingGeneratorRef.current!.getCachedBriefing(pn)
+          : undefined,
+      }),
     loadMemories,
     activateWorker: activateWorkerFn,
   };
@@ -430,6 +440,7 @@ export async function createProductionApp(options?: {
     guildHallHome,
     log: createLog("briefing"),
   });
+  briefingGeneratorRef.current = briefingGenerator;
 
   // Background briefing refresh: pre-warms the briefing cache so route
   // reads return instantly. Uses post-completion scheduling (setTimeout).

@@ -11,6 +11,7 @@ import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-
 import type { AppConfig } from "@/lib/types";
 import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import type { EventBus } from "@/daemon/lib/event-bus";
+import type { BriefingResult } from "./briefing-generator";
 
 export interface GuildHallToolboxDeps {
   guildHallHome: string;
@@ -24,6 +25,7 @@ export interface GuildHallToolboxDeps {
   knownWorkerNames?: string[];
   mailFilePath?: string;
   commissionId?: string;
+  getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
 }
 
 export interface ToolboxOutput {
