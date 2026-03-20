@@ -7,6 +7,7 @@ import {
   packageMetadataSchema,
 } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
+import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
 import { createEventBus } from "@/daemon/lib/event-bus";
 import type {
   WorkerMetadata,
@@ -101,6 +102,7 @@ describe("guild-hall-steward package", () => {
         worker,
         [makeEmailPackage()],
         makeContext(),
+        createContextTypeRegistry(),
       );
 
       const serverNames = result.mcpServers.map((s) => s.name);
@@ -114,7 +116,7 @@ describe("guild-hall-steward package", () => {
       const worker = steward!.metadata as WorkerMetadata;
 
       expect(
-        resolveToolSet(worker, [], makeContext()),
+        resolveToolSet(worker, [], makeContext(), createContextTypeRegistry()),
       ).rejects.toThrow(/guild-hall-email/);
     });
 

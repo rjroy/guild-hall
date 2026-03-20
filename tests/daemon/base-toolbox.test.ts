@@ -527,7 +527,7 @@ describe("write_memory deprecation alias", () => {
 
 describe("record_decision", () => {
   test("creates meeting directory and appends JSONL entry", async () => {
-    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-001", "meeting");
+    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-001", "meeting", "meetings");
 
     await handler({
       question: "Which framework?",
@@ -551,7 +551,7 @@ describe("record_decision", () => {
   });
 
   test("appends multiple decisions", async () => {
-    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-002", "meeting");
+    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-002", "meeting", "meetings");
 
     await handler({
       question: "Q1",
@@ -579,7 +579,7 @@ describe("record_decision", () => {
   });
 
   test("commission context writes to commissions state directory", async () => {
-    const handler = makeRecordDecisionHandler(guildHallHome, "commission-001", "commission");
+    const handler = makeRecordDecisionHandler(guildHallHome, "commission-001", "commission", "commissions");
 
     await handler({
       question: "Which approach?",
@@ -598,6 +598,25 @@ describe("record_decision", () => {
     const entry = JSON.parse(lines[0]);
     expect(entry.question).toBe("Which approach?");
     expect(entry.decision).toBe("Pattern A");
+  });
+
+  test("stateSubdir overrides contextType-based routing", async () => {
+    const handler = makeRecordDecisionHandler(guildHallHome, "briefing-001", "briefing", "briefings");
+
+    await handler({
+      question: "Which briefing style?",
+      decision: "Concise",
+      reasoning: "Faster to read",
+    });
+
+    const logPath = path.join(
+      guildHallHome,
+      "state/briefings/briefing-001/decisions.jsonl",
+    );
+    const raw = await fs.readFile(logPath, "utf-8");
+    const lines = raw.trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]).decision).toBe("Concise");
   });
 });
 

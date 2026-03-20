@@ -10,7 +10,10 @@ import {
 import type { GuildHallToolboxDeps } from "@/daemon/services/toolbox-types";
 import { noopEventBus } from "@/daemon/lib/event-bus";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
+import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
 import type { WorkerMetadata } from "@/lib/types";
+
+const registry = createContextTypeRegistry();
 
 let tmpDir: string;
 let guildHallHome: string;
@@ -233,7 +236,7 @@ describe("toolbox resolver passes identity to base toolbox", () => {
       guildHallHome,
       eventBus: noopEventBus,
       config: { projects: [] },
-    });
+    }, registry);
 
     expect(result.mcpServers.length).toBeGreaterThanOrEqual(1);
     expect(result.mcpServers[0].name).toBe("guild-hall-base");
@@ -249,7 +252,7 @@ describe("toolbox resolver passes identity to base toolbox", () => {
       guildHallHome,
       eventBus: noopEventBus,
       config: { projects: [] },
-    });
+    }, registry);
 
     // Base + auto-added meeting context toolbox
     expect(result.mcpServers).toHaveLength(2);
@@ -268,7 +271,7 @@ describe("toolbox resolver passes identity to base toolbox", () => {
       guildHallHome,
       eventBus: noopEventBus,
       config: { projects: [] },
-    });
+    }, registry);
 
     expect(result.mcpServers.length).toBeGreaterThanOrEqual(1);
     expect(result.mcpServers[0].name).toBe("guild-hall-base");

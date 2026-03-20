@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { toolboxMetadataSchema } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
+import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
 import { createEventBus } from "@/daemon/lib/event-bus";
 import type {
   WorkerMetadata,
@@ -93,7 +94,7 @@ describe("toolbox resolver integration", () => {
     const worker = makeWorker({ domainToolboxes: ["guild-hall-email"] });
     const packages = [makeEmailPackage()];
 
-    const result = await resolveToolSet(worker, packages, makeContext());
+    const result = await resolveToolSet(worker, packages, makeContext(), createContextTypeRegistry());
 
     // base + commission (auto) + guild-hall-email (domain) = 3 servers
     expect(result.mcpServers).toHaveLength(3);
@@ -110,7 +111,7 @@ describe("toolbox resolver integration", () => {
     const worker = makeWorker({ domainToolboxes: [] });
     const packages = [makeEmailPackage()];
 
-    const result = await resolveToolSet(worker, packages, makeContext());
+    const result = await resolveToolSet(worker, packages, makeContext(), createContextTypeRegistry());
 
     // base + commission (auto) = 2 servers, no email
     expect(result.mcpServers).toHaveLength(2);

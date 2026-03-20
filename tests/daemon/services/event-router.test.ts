@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await -- test dispatch stubs return Promise<void> per interface contract */
 import { describe, test, expect } from "bun:test";
 import { createEventBus, type SystemEvent } from "@/daemon/lib/event-bus";
 import { collectingLog, nullLog } from "@/daemon/lib/log";

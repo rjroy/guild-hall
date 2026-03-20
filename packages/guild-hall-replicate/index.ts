@@ -112,7 +112,7 @@ function createUnconfiguredServer() {
   });
 }
 
-function createConfiguredServer(client: ReplicateClient, deps: { guildHallHome: string; projectName: string; contextId: string; contextType: "meeting" | "commission" | "mail" | "briefing"; eventBus: import("@/daemon/lib/event-bus").EventBus }) {
+function createConfiguredServer(client: ReplicateClient, deps: { guildHallHome: string; projectName: string; contextId: string; contextType: string; eventBus: import("@/daemon/lib/event-bus").EventBus }) {
   const toolDeps = {
     guildHallHome: deps.guildHallHome,
     projectName: deps.projectName,

@@ -14,7 +14,7 @@ export interface OutputDeps {
   guildHallHome: string;
   projectName: string;
   contextId: string;
-  contextType: "meeting" | "commission" | "mail" | "briefing";
+  contextType: string;
 }
 
 /**

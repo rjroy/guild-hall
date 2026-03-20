@@ -29,10 +29,11 @@ const DEFAULT_MEMORY_LIMIT = 16000;
 
 interface BaseToolboxDeps {
   contextId: string;
-  contextType: "meeting" | "commission" | "mail" | "briefing";
+  contextType: string;
   workerName: string;
   projectName: string;
   guildHallHome: string;
+  stateSubdir?: string;
   getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
   getWorkerIdentities?: () => WorkerIdentity[];
 }
@@ -325,9 +326,10 @@ export function makeListGuildCapabilitiesHandler(
 export function makeRecordDecisionHandler(
   guildHallHome: string,
   contextId: string,
-  contextType: "meeting" | "commission" | "mail" | "briefing",
+  contextType: string,
+  stateSubdir?: string,
 ) {
-  const stateSubdir = contextType === "meeting" ? "meetings" : contextType === "briefing" ? "briefings" : "commissions";
+  const resolvedSubdir = stateSubdir ?? "commissions";
   return async (args: {
     question: string;
     decision: string;
@@ -336,7 +338,7 @@ export function makeRecordDecisionHandler(
     const decisionsDir = path.join(
       guildHallHome,
       "state",
-      stateSubdir,
+      resolvedSubdir,
       contextId,
     );
     const decisionsPath = path.join(decisionsDir, "decisions.jsonl");
@@ -376,7 +378,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
   const readMemory = makeReadMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
   const editMemory = makeEditMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
   const writeMemory = makeWriteMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
-  const recordDecision = makeRecordDecisionHandler(deps.guildHallHome, deps.contextId, deps.contextType);
+  const recordDecision = makeRecordDecisionHandler(deps.guildHallHome, deps.contextId, deps.contextType, deps.stateSubdir);
   const projectBriefing = makeProjectBriefingHandler(deps.getCachedBriefing, deps.projectName);
   const listGuildCapabilities = makeListGuildCapabilitiesHandler(deps.getWorkerIdentities);
 

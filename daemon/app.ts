@@ -321,6 +321,8 @@ export async function createProductionApp(options?: {
   const { activateWorker: activateWorkerFn } = await import(
     "@/daemon/services/manager/worker"
   );
+  const { createContextTypeRegistry } = await import("@/daemon/services/context-type-registry");
+  const contextTypeRegistry = createContextTypeRegistry();
 
   // Lazy ref: briefingGenerator is created after prepDeps but getCachedBriefing
   // must flow through the toolbox resolver. The closure captures the ref.
@@ -333,7 +335,7 @@ export async function createProductionApp(options?: {
         getCachedBriefing: briefingGeneratorRef.current
           ? (pn) => briefingGeneratorRef.current!.getCachedBriefing(pn)
           : undefined,
-      }),
+      }, contextTypeRegistry),
     loadMemories,
     activateWorker: activateWorkerFn,
   };
