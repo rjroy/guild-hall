@@ -1,7 +1,7 @@
 ---
 title: Event Router
 date: 2026-03-19
-status: draft
+status: approved
 tags: [event-router, notifications, channels, daemon-service, config]
 modules: [event-bus, config, daemon]
 related:
