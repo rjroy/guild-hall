@@ -1,7 +1,7 @@
 ---
 title: "Meeting Layer Separation"
 date: 2026-03-19
-status: approved
+status: edecuted
 tags: [architecture, meetings, refactor, layer-separation, orchestrator]
 modules: [daemon/services/meeting/orchestrator, daemon/services/meeting/session-loop, daemon/routes/meetings, daemon/services/meeting/notes-generator, daemon/services/briefing-generator]
 related:
