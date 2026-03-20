@@ -2,7 +2,6 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import type { GuildHallEvent, MeetingId } from "@/daemon/types";
 import { asMeetingId } from "@/daemon/types";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
@@ -18,33 +17,7 @@ import {
   sortMeetingRequests,
   parseTranscriptToMessages,
 } from "@/lib/meetings";
-
-/**
- * The meeting session interface as seen by the routes layer.
- * Matches the public API returned by createMeetingSession().
- */
-export interface MeetingSessionForRoutes {
-  acceptMeetingRequest(
-    meetingId: MeetingId,
-    projectName: string,
-    message?: string,
-  ): AsyncGenerator<GuildHallEvent>;
-  createMeeting(
-    projectName: string,
-    workerName: string,
-    prompt: string,
-  ): AsyncGenerator<GuildHallEvent>;
-  sendMessage(
-    meetingId: MeetingId,
-    message: string,
-  ): AsyncGenerator<GuildHallEvent>;
-  closeMeeting(meetingId: MeetingId): Promise<{ notes: string }>;
-  recoverMeetings(): Promise<number>;
-  declineMeeting(meetingId: MeetingId, projectName: string): Promise<void>;
-  deferMeeting(meetingId: MeetingId, projectName: string, deferredUntil: string): Promise<void>;
-  interruptTurn(meetingId: MeetingId): void;
-  getActiveMeetings(): number;
-}
+import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";
 
 export interface MeetingRoutesDeps {
   meetingSession: MeetingSessionForRoutes;

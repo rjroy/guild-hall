@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { createApp } from "@/daemon/app";
 import type { AppConfig } from "@/lib/types";
-import type { MeetingSessionForRoutes } from "@/daemon/routes/meetings";
+import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";
 
 // -- Test fixtures --
 
@@ -41,6 +41,8 @@ function makeMockMeetingSession(): MeetingSessionForRoutes {
     deferMeeting: async () => {},
     interruptTurn: () => {},
     getActiveMeetings: () => 0,
+    createMeetingRequest: async () => {},
+    getOpenMeetingsForProject: () => [],
   };
 }
 

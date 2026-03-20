@@ -186,9 +186,44 @@ export type MeetingSessionDeps = {
   log?: Log;
 };
 
+// -- Public interface --
+
+export interface MeetingSessionForRoutes {
+  acceptMeetingRequest(
+    meetingId: MeetingId,
+    projectName: string,
+    message?: string,
+  ): AsyncGenerator<GuildHallEvent>;
+  createMeeting(
+    projectName: string,
+    workerName: string,
+    prompt: string,
+  ): AsyncGenerator<GuildHallEvent>;
+  createMeetingRequest(params: {
+    projectName: string;
+    workerName: string;
+    reason: string;
+  }): Promise<void>;
+  sendMessage(
+    meetingId: MeetingId,
+    message: string,
+  ): AsyncGenerator<GuildHallEvent>;
+  closeMeeting(meetingId: MeetingId): Promise<{ notes: string }>;
+  recoverMeetings(): Promise<number>;
+  declineMeeting(meetingId: MeetingId, projectName: string): Promise<void>;
+  deferMeeting(
+    meetingId: MeetingId,
+    projectName: string,
+    deferredUntil: string,
+  ): Promise<void>;
+  interruptTurn(meetingId: MeetingId): void;
+  getActiveMeetings(): number;
+  getOpenMeetingsForProject(projectName: string): ActiveMeetingEntry[];
+}
+
 // -- Factory --
 
-export function createMeetingSession(deps: MeetingSessionDeps) {
+export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionForRoutes {
   const log = deps.log ?? nullLog("meeting");
   const ghHome = deps.guildHallHome ?? getGuildHallHome();
   const git = deps.gitOps ?? createGitOps();

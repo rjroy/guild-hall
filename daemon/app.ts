@@ -2,10 +2,8 @@ import * as fs from "node:fs/promises";
 import { Hono } from "hono";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { createHealthRoutes, type HealthDeps } from "./routes/health";
-import {
-  createMeetingRoutes,
-  type MeetingSessionForRoutes,
-} from "./routes/meetings";
+import { createMeetingRoutes } from "./routes/meetings";
+import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";
 import { createCommissionRoutes } from "./routes/commissions";
 import { createEventRoutes } from "./routes/events";
 import { createWorkerRoutes } from "./routes/workers";
