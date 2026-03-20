@@ -6,6 +6,7 @@ tags: [refactor, toolbox-resolver, worker-activation, extensibility]
 modules: [toolbox-resolver, worker-activation, toolbox-types]
 related:
   - .lore/brainstorm/growth-surface-2026-03-17.md
+  - .lore/specs/infrastructure/context-type-registry.md
 ---
 
 # Context Type Registry Refactor
