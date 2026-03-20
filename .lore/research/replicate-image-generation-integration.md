@@ -1,7 +1,7 @@
 ---
 title: Replicate Image Generation Integration
 date: 2026-03-17
-status: active
+status: archived
 tags: [replicate, image-generation, domain-toolbox, mcp, packages]
 related:
   - .lore/specs/workers/worker-domain-plugins.md
