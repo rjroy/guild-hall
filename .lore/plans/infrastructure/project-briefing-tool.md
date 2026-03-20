@@ -1,7 +1,7 @@
 ---
 title: "Plan: project_briefing base toolbox tool"
 date: 2026-03-18
-status: approved
+status: executed
 tags: [base-toolbox, briefing, worker-awareness, tools]
 modules: [base-toolbox, briefing-generator, toolbox-resolver, sdk-runner]
 related:
