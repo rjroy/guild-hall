@@ -1,7 +1,7 @@
 ---
 title: "Plan: Context Type Registry"
 date: 2026-03-20
-status: draft
+status: approved
 tags: [refactor, toolbox-resolver, registry, extensibility, daemon-service]
 modules: [toolbox-resolver, toolbox-types, context-type-registry, base-toolbox, sdk-runner, daemon/app]
 related:
