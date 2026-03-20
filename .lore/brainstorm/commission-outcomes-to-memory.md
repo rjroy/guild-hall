@@ -2,7 +2,7 @@
 title: "Commission and Meeting Outcomes to Project Memory"
 date: 2026-03-17
 revised: 2026-03-20
-status: open
+status: resolved
 tags: [memory, commissions, meetings, automation, lifecycle, haiku]
 modules: [daemon/services/commission/orchestrator, daemon/services/meeting, daemon/services/memory-injector, daemon/lib/event-bus]
 related:
