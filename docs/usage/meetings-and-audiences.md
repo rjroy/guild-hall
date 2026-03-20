@@ -24,9 +24,9 @@ From the card, you can choose one of four actions:
 
 ## Meetings tab
 
-Inside a project, the `Meetings` tab shows the audience history for that project. This is the place to review earlier sessions or reopen context around a current one.
+Inside a project, the `Meetings` tab shows the audience history for that project. Each entry includes the meeting title, status gem, agenda or notes preview, date, and worker name. A **Request Meeting** button at the top lets you start a new audience directly from the project view.
 
-<img src="../screenshots/gh-meetings.webp" alt="Project meetings tab listing audiences for a project." width="1200">
+<img src="../screenshots/gh-meetings.webp" alt="Project meetings tab listing audiences with agenda previews and status indicators." width="1200">
 
 ## Live meeting view
 

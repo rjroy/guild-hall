@@ -41,9 +41,9 @@ Use `validate` to confirm the local configuration is healthy. Use `rebase` and `
 
 ## 5. What you should see first
 
-After registration, the dashboard becomes the main landing page. The selected project drives the Guild Master briefing, recent artifacts, and project-specific navigation.
+After registration, the dashboard becomes the main landing page. It defaults to an All Projects view. Selecting a project in the sidebar drives the Guild Master briefing, In Flight commissions, and project-specific navigation.
 
-<img src="../screenshots/gh-home.webp" alt="Guild Hall dashboard after startup with a selected workspace and several summary panels." width="1200">
+<img src="../screenshots/gh-home.webp" alt="Guild Hall dashboard after startup with the workspace sidebar, briefing, In Flight commissions, and recent scrolls." width="1200">
 
 From there, click a project in the workspace sidebar to open its project hub.
 

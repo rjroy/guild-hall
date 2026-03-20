@@ -4,9 +4,11 @@ Commissions are Guild Hall's asynchronous work unit. You create them when you wa
 
 ## Where commissions live
 
-Each project has a `Commissions` tab that combines creation, dependency visualization, and the current commission list.
+Each project has a `Commissions` tab that combines creation, status filtering, and the current commission list. Commissions are listed with their title, assigned worker, date, and a prompt preview.
 
-<img src="../screenshots/gh-commissions.webp" alt="Project commissions tab with a create commission action, graph view, and commission list." width="1200">
+<img src="../screenshots/gh-commissions.webp" alt="Project commissions tab with a create commission action, status filter panel, and commission list." width="1200">
+
+A multi-select status filter groups commissions by lifecycle stage (Idle, Active, Failed, Done), with gem-colored checkboxes and counts. The filter defaults to actionable statuses so completed and abandoned commissions stay out of the way unless you ask for them.
 
 ## Creating a commission
 
@@ -54,6 +56,15 @@ For scheduled commissions, the sidebar also shows schedule information such as t
 Active commissions subscribe to event updates so the page can reflect status changes, progress reports, results, and newly linked artifacts without a full manual refresh.
 
 This makes commission detail pages the best place to watch long-running work move from `queued` or `dispatched` into `in_progress` and finally into a terminal state.
+
+## Halted commissions
+
+Commissions that hit their `maxTurns` limit without submitting a result enter a `halted` state rather than failing outright. The worktree and session are preserved, so you have two options:
+
+- **Continue** resumes the exact session where it left off, giving the worker more turns to finish.
+- **Save** merges whatever partial work exists into the integration branch, even though the commission didn't complete normally.
+
+Halted commissions appear as a distinct status in the filter panel so they don't get lost among active work.
 
 ## When to use a commission instead of an audience
 
