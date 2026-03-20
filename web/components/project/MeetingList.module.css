@@ -74,6 +74,15 @@
   margin: 0;
 }
 
+.preview {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .meta {
   display: flex;
   align-items: center;
