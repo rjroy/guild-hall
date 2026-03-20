@@ -1,7 +1,7 @@
 ---
 title: Context Type Registry
 date: 2026-03-19
-status: approved
+status: implemented
 tags: [refactor, toolbox-resolver, worker-activation, extensibility, registry]
 modules: [toolbox-resolver, toolbox-types, worker-activation, base-toolbox, sdk-runner]
 related:
