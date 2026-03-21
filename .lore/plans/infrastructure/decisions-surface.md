@@ -1,7 +1,7 @@
 ---
 title: "Plan: Decisions Surface"
 date: 2026-03-20
-status: approved
+status: executed
 tags: [decisions, lifecycle, artifacts, memory, triage]
 modules: [commission/orchestrator, meeting/orchestrator, base-toolbox, outcome-triage]
 related:
