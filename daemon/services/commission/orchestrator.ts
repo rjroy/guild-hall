@@ -98,7 +98,15 @@ export interface CommissionSessionForRoutes {
     prompt: string,
     dependencies?: string[],
     resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
-    options?: { type?: CommissionType; sourceSchedule?: string },
+    options?: {
+      type?: CommissionType;
+      sourceSchedule?: string;
+      sourceTrigger?: {
+        triggerArtifact: string;
+        sourceId: string;
+        depth: number;
+      };
+    },
   ): Promise<{ commissionId: string }>;
   updateCommission(
     commissionId: CommissionId,
@@ -1272,7 +1280,15 @@ export function createCommissionOrchestrator(
     prompt: string,
     dependencies: string[] = [],
     resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
-    options?: { type?: CommissionType; sourceSchedule?: string },
+    options?: {
+      type?: CommissionType;
+      sourceSchedule?: string;
+      sourceTrigger?: {
+        triggerArtifact: string;
+        sourceId: string;
+        depth: number;
+      };
+    },
   ): Promise<{ commissionId: string }> {
     const project = findProject(projectName);
     if (!project) {
@@ -1332,11 +1348,19 @@ export function createCommissionOrchestrator(
       ? `\nsource_schedule: ${options.sourceSchedule}`
       : "";
 
+    const triggeredByBlock = options?.sourceTrigger
+      ? `\ntriggered_by:\n  source_id: ${options.sourceTrigger.sourceId}\n  trigger_artifact: ${options.sourceTrigger.triggerArtifact}\n  depth: ${options.sourceTrigger.depth}`
+      : "";
+
+    const timelineReason = options?.sourceTrigger
+      ? `Commission created by trigger: ${options.sourceTrigger.triggerArtifact} (source: ${options.sourceTrigger.sourceId}, depth: ${options.sourceTrigger.depth})`
+      : "Commission created";
+
     const content = `---
 title: "Commission: ${escapedTitle}"
 date: ${dateStr}
 status: pending
-type: ${commissionType}${sourceScheduleLine}
+type: ${commissionType}${sourceScheduleLine}${triggeredByBlock}
 tags: [commission]
 worker: ${workerMeta.identity.name}
 workerDisplayTitle: "${escapedDisplayTitle}"
@@ -1347,7 +1371,7 @@ ${resourceLines}
 activity_timeline:
   - timestamp: ${isoStr}
     event: created
-    reason: "Commission created"
+    reason: "${escapeYamlValue(timelineReason)}"
 current_progress: ""
 projectName: ${projectName}
 ---

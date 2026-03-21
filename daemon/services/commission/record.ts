@@ -13,10 +13,12 @@
  */
 
 import * as fs from "node:fs/promises";
+import matter from "gray-matter";
 import { replaceYamlField, appendLogEntry } from "@/daemon/lib/record-utils";
 import { escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 import { spliceBody } from "@/lib/artifacts";
 import { isNodeError } from "@/lib/types";
+import type { TriggerBlock, TriggeredBy } from "@/daemon/types";
 
 // -- Types --
 
@@ -68,6 +70,16 @@ export interface CommissionRecordOps {
       repeat: number | null;
     }>,
   ): Promise<void>;
+  readTriggerMetadata(artifactPath: string): Promise<TriggerBlock>;
+  writeTriggerFields(
+    artifactPath: string,
+    updates: Partial<{
+      runs_completed: number;
+      last_triggered: string | null;
+      last_spawned_id: string | null;
+    }>,
+  ): Promise<void>;
+  readTriggeredBy(artifactPath: string): Promise<TriggeredBy | null>;
 }
 
 // -- Internal helpers --
@@ -354,6 +366,98 @@ function createRecordOps(): CommissionRecordOps {
       }
 
       await fs.writeFile(artifactPath, raw, "utf-8");
+    },
+
+    async readTriggerMetadata(artifactPath: string): Promise<TriggerBlock> {
+      const raw = await readArtifact(artifactPath, "readTriggerMetadata");
+
+      if (!/^trigger:$/m.test(raw)) {
+        throw new Error(`readTriggerMetadata: no trigger block found in ${artifactPath}`);
+      }
+
+      // Parse using gray-matter for the match sub-block
+      const parsed = matter(raw);
+      const trigger = parsed.data.trigger as Record<string, unknown> | undefined;
+      if (!trigger) {
+        throw new Error(`readTriggerMetadata: no trigger block found in ${artifactPath}`);
+      }
+
+      const match = trigger.match as TriggerBlock["match"];
+      if (!match || !match.type) {
+        throw new Error(`readTriggerMetadata: no match rule in trigger block of ${artifactPath}`);
+      }
+
+      return {
+        match,
+        approval: trigger.approval as TriggerBlock["approval"],
+        maxDepth: trigger.maxDepth as number | undefined,
+        runs_completed: (trigger.runs_completed as number) ?? 0,
+        last_triggered: trigger.last_triggered === null || trigger.last_triggered === undefined
+          ? null : trigger.last_triggered instanceof Date
+            ? trigger.last_triggered.toISOString() : String(trigger.last_triggered),
+        last_spawned_id: trigger.last_spawned_id === null || trigger.last_spawned_id === undefined
+          ? null : String(trigger.last_spawned_id),
+      };
+    },
+
+    async writeTriggerFields(
+      artifactPath: string,
+      updates: Partial<{
+        runs_completed: number;
+        last_triggered: string | null;
+        last_spawned_id: string | null;
+      }>,
+    ): Promise<void> {
+      let raw = await readArtifact(artifactPath, "writeTriggerFields");
+
+      if (updates.runs_completed !== undefined) {
+        raw = raw.replace(
+          /^  runs_completed: .+$/m,
+          `  runs_completed: ${updates.runs_completed}`,
+        );
+      }
+
+      if (updates.last_triggered !== undefined) {
+        raw = raw.replace(
+          /^  last_triggered: .+$/m,
+          `  last_triggered: ${updates.last_triggered ?? "null"}`,
+        );
+      }
+
+      if (updates.last_spawned_id !== undefined) {
+        raw = raw.replace(
+          /^  last_spawned_id: .+$/m,
+          `  last_spawned_id: ${updates.last_spawned_id ?? "null"}`,
+        );
+      }
+
+      await fs.writeFile(artifactPath, raw, "utf-8");
+    },
+
+    async readTriggeredBy(artifactPath: string): Promise<TriggeredBy | null> {
+      try {
+        const raw = await fs.readFile(artifactPath, "utf-8");
+
+        if (!/^triggered_by:$/m.test(raw)) {
+          return null;
+        }
+
+        const parsed = matter(raw);
+        const triggeredBy = parsed.data.triggered_by as Record<string, unknown> | undefined;
+        if (!triggeredBy) return null;
+
+        const sourceId = triggeredBy.source_id;
+        const triggerArtifact = triggeredBy.trigger_artifact;
+        const depth = triggeredBy.depth;
+
+        if (typeof sourceId !== "string" || typeof triggerArtifact !== "string" || typeof depth !== "number") {
+          return null;
+        }
+
+        return { source_id: sourceId, trigger_artifact: triggerArtifact, depth };
+      } catch {
+        return null;
+      }
     },
   };
 }
