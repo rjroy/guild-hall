@@ -30,8 +30,8 @@ function makeCommission(status: string, id?: string): CommissionMeta {
 }
 
 describe("DEFAULT_STATUSES", () => {
-  test("contains exactly 9 members", () => {
-    expect(DEFAULT_STATUSES.size).toBe(9);
+  test("contains exactly 8 members", () => {
+    expect(DEFAULT_STATUSES.size).toBe(8);
   });
 
   test("contains all expected default-on statuses", () => {
@@ -40,7 +40,6 @@ describe("DEFAULT_STATUSES", () => {
       "blocked",
       "dispatched",
       "in_progress",
-      "sleeping",
       "halted",
       "active",
       "failed",
@@ -69,10 +68,10 @@ describe("FILTER_GROUPS", () => {
     ]);
   });
 
-  test("covers all 12 statuses exactly once", () => {
+  test("covers all 11 statuses exactly once", () => {
     const allStatuses = FILTER_GROUPS.flatMap((g) => g.statuses);
-    expect(allStatuses).toHaveLength(12);
-    expect(new Set(allStatuses).size).toBe(12);
+    expect(allStatuses).toHaveLength(11);
+    expect(new Set(allStatuses).size).toBe(11);
   });
 });
 

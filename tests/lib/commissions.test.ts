@@ -265,11 +265,11 @@ describe("sortCommissions", () => {
     };
   }
 
-  test("sleeping sorts before completed", () => {
-    const sleeping = makeCommission("sleeping", "2026-01-01");
+  test("in_progress sorts before completed", () => {
+    const inProgress = makeCommission("in_progress", "2026-01-01");
     const completed = makeCommission("completed", "2026-01-02");
-    const result = sortCommissions([completed, sleeping]);
-    expect(result[0].status).toBe("sleeping");
+    const result = sortCommissions([completed, inProgress]);
+    expect(result[0].status).toBe("in_progress");
     expect(result[1].status).toBe("completed");
   });
 
@@ -282,20 +282,20 @@ describe("sortCommissions", () => {
     expect(result[1].status).toBe("abandoned");
   });
 
-  test("full group order: pending, sleeping, failed, completed/abandoned", () => {
+  test("full group order: pending, in_progress, failed, completed/abandoned", () => {
     const pending = makeCommission("pending", "2026-01-03");
-    const sleeping = makeCommission("sleeping", "2026-01-02");
+    const inProgress = makeCommission("in_progress", "2026-01-02");
     const failed = makeCommission("failed", "2026-01-01");
     const completed = makeCommission("completed", "2026-01-04");
-    const result = sortCommissions([completed, failed, sleeping, pending]);
-    expect(result.map((c) => c.status)).toEqual(["pending", "sleeping", "failed", "completed"]);
+    const result = sortCommissions([completed, failed, inProgress, pending]);
+    expect(result.map((c) => c.status)).toEqual(["pending", "in_progress", "failed", "completed"]);
   });
 
-  test("sleeping sorts with active group (before failed)", () => {
-    const sleeping = makeCommission("sleeping", "2026-01-02");
+  test("halted sorts with active group (before failed)", () => {
+    const halted = makeCommission("halted", "2026-01-02");
     const failed = makeCommission("failed", "2026-01-01");
-    const result = sortCommissions([failed, sleeping]);
-    expect(result[0].status).toBe("sleeping");
+    const result = sortCommissions([failed, halted]);
+    expect(result[0].status).toBe("halted");
     expect(result[1].status).toBe("failed");
   });
 });

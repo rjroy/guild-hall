@@ -7,7 +7,8 @@
       "name": "Dalton",
       "description": "Master craftsman of the guild. Builds what is commissioned, from foundation to finishing touch.",
       "displayTitle": "Guild Artificer",
-      "portraitPath": "/images/portraits/dalton-artificer.webp"
+      "portraitPath": "/images/portraits/dalton-artificer.webp",
+      "guidance": "Invoke this worker when you need implementation advice, code architecture review, or help understanding how existing code works."
     },
     "model": "opus",
     "domainToolboxes": [],

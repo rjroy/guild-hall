@@ -1,7 +1,7 @@
 ---
 title: "Memory Budget Visibility"
 date: 2026-03-20
-status: open
+status: resolved
 author: Celeste
 tags: [issue, memory, observability, worker-tooling]
 severity: low

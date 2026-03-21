@@ -2994,12 +2994,12 @@ describe("manager worker integration", () => {
     );
     expect(workerNotFoundErrors).toHaveLength(0);
 
-    // The activateFn should have been called with the manager package
-    expect(activateCalls).toHaveLength(1);
-    expect(activateCalls[0].pkg.name).toBe(MANAGER_PACKAGE_NAME);
+    // The activateFn should have been called with the manager package (plus sub-agent activations)
+    const managerCall = activateCalls.find((c) => c.pkg.name === MANAGER_PACKAGE_NAME);
+    expect(managerCall).toBeDefined();
 
     // The resolved tools should include the manager toolbox MCP server
-    const mcpNames = activateCalls[0].context.resolvedTools.mcpServers.map(
+    const mcpNames = managerCall!.context.resolvedTools.mcpServers.map(
       (s) => s.name,
     );
     expect(mcpNames).toContain("guild-hall-manager");
@@ -3127,12 +3127,12 @@ describe("manager worker integration", () => {
       session.createMeeting("test-project", "test-assistant", "Regular meeting"),
     );
 
-    // The activateFn should have been called with the regular worker
-    expect(activateCalls).toHaveLength(1);
-    expect(activateCalls[0].pkg.name).toBe("test-assistant");
+    // The activateFn should have been called with the regular worker (plus sub-agent activations)
+    const regularCall = activateCalls.find((c) => c.pkg.name === "test-assistant");
+    expect(regularCall).toBeDefined();
 
     // The resolved tools should NOT include the manager toolbox
-    const mcpNames = activateCalls[0].context.resolvedTools.mcpServers.map(
+    const mcpNames = regularCall!.context.resolvedTools.mcpServers.map(
       (s) => s.name,
     );
     expect(mcpNames).not.toContain("guild-hall-manager");
@@ -3180,8 +3180,9 @@ describe("manager worker integration", () => {
 
     // Manager toolbox server should be present, confirming services (including
     // packages) were wired correctly into the SessionPrepSpec
-    expect(activateCalls).toHaveLength(1);
-    const mcpNames = activateCalls[0].context.resolvedTools.mcpServers.map(
+    const managerCall = activateCalls.find((c) => c.pkg.name === MANAGER_PACKAGE_NAME);
+    expect(managerCall).toBeDefined();
+    const mcpNames = managerCall!.context.resolvedTools.mcpServers.map(
       (s) => s.name,
     );
     expect(mcpNames).toContain("guild-hall-manager");

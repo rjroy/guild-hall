@@ -19,8 +19,6 @@ export type SystemEvent =
   | { type: "commission_manager_note"; commissionId: string; content: string }
   | { type: "commission_queued"; commissionId: string; reason: string }
   | { type: "commission_dequeued"; commissionId: string; reason: string }
-  | { type: "commission_mail_sent"; commissionId: string; targetWorker: string; mailSequence: number; mailPath: string }
-  | { type: "mail_reply_received"; contextId: string; commissionId: string; summary: string }
   | { type: "meeting_started"; meetingId: string; worker: string }
   | { type: "meeting_ended"; meetingId: string }
   | { type: "schedule_spawned"; scheduleId: string; spawnedId: string; projectName: string; runNumber: number }

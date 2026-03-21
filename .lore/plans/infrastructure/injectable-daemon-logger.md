@@ -28,7 +28,7 @@ Requirements addressed:
 
 ## Codebase Context
 
-239 raw `console.*` calls across 23 files in `daemon/`. The top 5 files account for 162 of them: commission/orchestrator (53), meeting/orchestrator (39), mail/orchestrator (30), manager/toolbox (26), git-admin (14).
+239 raw `console.*` calls across 23 files in `daemon/`. The top 5 files account for 132 of them: commission/orchestrator (53), meeting/orchestrator (39), manager/toolbox (26), git-admin (14).
 
 The daemon's DI pattern is well-established: `AppDeps` feeds `createApp()`, `createProductionApp()` wires real dependencies, and service-level deps interfaces (`CommissionOrchestratorDeps`, `SchedulerDeps`, `MeetingSessionDeps`, etc.) thread dependencies to each service. The logger slots into this existing pattern.
 
@@ -106,7 +106,6 @@ For each file: add `log: Log` to its deps interface (or function parameters), re
 **Phase 3c: Orchestrator and route layer** (high-level coordination)
 - `daemon/services/commission/orchestrator.ts` (53 calls) -- add `log` to `CommissionOrchestratorDeps`
 - `daemon/services/meeting/orchestrator.ts` (39 calls) -- add `log` to `MeetingSessionDeps`
-- `daemon/services/mail/orchestrator.ts` (30 calls) -- add `log` to `MailOrchestratorDeps`
 - `daemon/services/manager/toolbox.ts` (26 calls) -- add `log` to `ManagerToolboxDeps`
 
 **Phase 3d: Routes and app**

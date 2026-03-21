@@ -45,7 +45,7 @@ Source decisions: `.lore/brainstorm/dashboard-selection-model.md` (status: resol
 
 - REQ-DASH-5: The filter panel from `CommissionList.tsx` is extracted into a shared component. The extraction is at the filter-panel level (Level 1): the shared component renders the checkbox groups, count annotations, and reset button. List rendering stays specific to each consumer. The pure filter functions (`filterCommissions`, `countByStatus`, `isDefaultSelection`), constants (`FILTER_GROUPS`, `DEFAULT_STATUSES`), and their tests move to a shared location alongside the panel component.
 
-- REQ-DASH-6: The "In Flight" card uses the same default statuses as the project page filter: `pending`, `blocked`, `dispatched`, `in_progress`, `sleeping`, `active`, `failed`, `cancelled` on; `paused`, `abandoned`, `completed` off. The filter panel renders identically to the project page filter (four groups: Idle, Active, Failed, Done).
+- REQ-DASH-6: The "In Flight" card uses the same default statuses as the project page filter: `pending`, `blocked`, `dispatched`, `in_progress`, `active`, `failed`, `cancelled` on; `paused`, `abandoned`, `completed` off. The filter panel renders identically to the project page filter (four groups: Idle, Active, Failed, Done).
 
 - REQ-DASH-7: In "All Projects" mode, the card receives commissions from all projects. Each commission row includes a project label. In single-project mode, the card receives only the selected project's commissions. Project labels are omitted in single-project mode (redundant with the selection).
 

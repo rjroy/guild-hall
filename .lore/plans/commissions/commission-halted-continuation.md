@@ -36,19 +36,19 @@ Requirements addressed:
 - REQ-COM-47: Halted commissions don't count against cap → Phase 2
 - REQ-COM-48: `check_commission_status` updates → Phase 6
 - REQ-COM-49: Manager toolbox `continue_commission` and `save_commission` → Phase 6
-- REQ-COM-50: Divergence from sleeping (design guidance) → all phases
+- REQ-COM-50: Halted state design guidance → all phases
 
 ## Codebase Context
 
 ### State Machine (Layer 2)
 
-`daemon/services/commission/lifecycle.ts` owns the `TRANSITIONS` graph (line 48). Currently 9 states including `sleeping`. The `halted` state needs to be added here with edges matching REQ-COM-35. The lifecycle class uses a per-entry promise chain for concurrency control and defers event emission until after lock release.
+`daemon/services/commission/lifecycle.ts` owns the `TRANSITIONS` graph (line 48). The `halted` state needs to be added here with edges matching REQ-COM-35. The lifecycle class uses a per-entry promise chain for concurrency control and defers event emission until after lock release.
 
-New methods needed: `halt()` and an overload point for `continue` (careful: `continue` is a JS keyword; the mail system uses `wake()` for sleeping -> in_progress). The spec says `halted -> in_progress` via continue, which is the same target state as `wake()`. A new `continueHalted()` method with a distinct reason string avoids conflating the two flows.
+New methods needed: `halt()` and an overload point for `continue` (careful: `continue` is a JS keyword). The spec says `halted -> in_progress` via continue. A new `continueHalted()` method with a distinct reason string keeps the flow clear.
 
 ### Commission Status Type
 
-`daemon/types.ts:39` defines `CommissionStatus` as a union of 9 string literals. `"halted"` must be added. Every `switch` or conditional on `CommissionStatus` across the codebase needs to handle the new state. Key locations:
+`daemon/types.ts:39` defines `CommissionStatus` as a union of string literals. `"halted"` must be added. Every `switch` or conditional on `CommissionStatus` across the codebase needs to handle the new state. Key locations:
 - `lifecycle.ts` TRANSITIONS map
 - `orchestrator.ts` handleSessionCompletion, cancelCommission, recovery
 - `lib/commissions.ts` STATUS_GROUP for sorting
@@ -62,20 +62,11 @@ New methods needed: `halt()` and an overload point for `continue` (careful: `con
 
 2. **New `continueCommission()` and `saveCommission()` methods** on `CommissionSessionForRoutes` (line 94): Follow the pattern of `dispatchCommission()` and `cancelCommission()`. `continue` reads state file, validates worktree, transitions, launches session. `save` reads state file, validates worktree, runs squash-merge, transitions to completed.
 
-3. **Recovery** (line 1040 area): Currently only recovers `dispatched`, `in_progress`, and `sleeping`. Must add `halted` recovery: worktree exists -> register as halted (no action needed), worktree missing -> transition to failed.
-
-### Mail Orchestrator Precedent
-
-`daemon/services/mail/orchestrator.ts` provides the exact pattern for worktree preservation and session resume:
-- **Sleep entry** (line 212): commit pending changes, extract sessionId, transition state, write state file, append timeline
-- **Wake/resume** (line 501): read state file, transition sleeping -> in_progress, update state file, prepare SDK session with `resume: sessionId`
-- **resumeCommissionSession** (line 566): prepares `SessionPrepSpec` with `resume: sessionId`, subscribes to EventBus, drains session, handles completion
-
-The halted flow reuses this pattern but with different triggers and prompt content.
+3. **Recovery** (line 1040 area): Currently only recovers `dispatched` and `in_progress`. Must add `halted` recovery: worktree exists -> register as halted (no action needed), worktree missing -> transition to failed.
 
 ### Capacity
 
-`daemon/services/commission/capacity.ts` checks `executions` map size. Halted commissions won't be in `executions` (they're removed on halt, like sleeping commissions are removed on sleep at orchestrator.ts:1898). When a halted commission continues, it re-enters `executions` and the capacity check runs before launch.
+`daemon/services/commission/capacity.ts` checks `executions` map size. Halted commissions won't be in `executions` (they're removed on halt). When a halted commission continues, it re-enters `executions` and the capacity check runs before launch.
 
 ### Manager Toolbox
 
@@ -91,7 +82,7 @@ The halted flow reuses this pattern but with different triggers and prompt conte
 
 `lib/commissions.ts:248` STATUS_GROUP needs `halted: 1` (active group, per REQ-COM-48). The SUMMARY_GROUP in toolbox.ts:951 needs `halted: "active"`.
 
-`lib/types.ts` has `ARTIFACT_STATUS_GROUP` which controls `statusToGem()` across the entire UI. Without an entry for `halted`, it falls through to the default red gem (blocked/failed). `halted` should map to group 1 (same as `sleeping`, active/in-progress gem). This is a one-liner but missing it means every halted commission displays as failed in the UI.
+`lib/types.ts` has `ARTIFACT_STATUS_GROUP` which controls `statusToGem()` across the entire UI. Without an entry for `halted`, it falls through to the default red gem (blocked/failed). `halted` should map to group 1 (active/in-progress gem). This is a one-liner but missing it means every halted commission displays as failed in the UI.
 
 ## Implementation Steps
 
@@ -124,7 +115,7 @@ Add two new trigger methods:
 **Files**: `daemon/services/commission/lifecycle.ts`
 **Addresses**: REQ-COM-47
 
-The `activeCount` getter at line 302 counts `dispatched` and `in_progress`. `halted` must NOT be counted here (same as `sleeping`). No change needed to this getter since `halted` is neither `dispatched` nor `in_progress`, but verify the capacity logic in the orchestrator is consistent (it uses the `executions` map, not `activeCount`).
+The `activeCount` getter at line 302 counts `dispatched` and `in_progress`. `halted` must NOT be counted here. No change needed to this getter since `halted` is neither `dispatched` nor `in_progress`, but verify the capacity logic in the orchestrator is consistent (it uses the `executions` map, not `activeCount`).
 
 #### Step 1.4: Update sorting, display, and gem mappings
 
@@ -135,7 +126,7 @@ In `lib/commissions.ts` STATUS_GROUP (line 248): add `halted: 1` (active group).
 
 In `daemon/services/manager/toolbox.ts` SUMMARY_GROUP (line 951): add `halted: "active"`.
 
-In `lib/types.ts` ARTIFACT_STATUS_GROUP: add `halted` to group 1 (same as `sleeping`, `in_progress`). This controls `statusToGem()` which determines gem colors across the entire UI. Without this, halted commissions show a red gem (indistinguishable from failed).
+In `lib/types.ts` ARTIFACT_STATUS_GROUP: add `halted` to group 1 (same as `in_progress`). This controls `statusToGem()` which determines gem colors across the entire UI. Without this, halted commissions show a red gem (indistinguishable from failed).
 
 #### Step 1.5: Tests for Phase 1
 
@@ -144,7 +135,7 @@ In `lib/types.ts` ARTIFACT_STATUS_GROUP: add `halted` to group 1 (same as `sleep
 
 - Verify `halted` transitions: in_progress -> halted succeeds
 - Verify halted -> in_progress, halted -> completed, halted -> cancelled, halted -> abandoned, halted -> failed all succeed
-- Verify invalid transitions are rejected: halted -> pending, halted -> dispatched, halted -> blocked, halted -> sleeping
+- Verify invalid transitions are rejected: halted -> pending, halted -> dispatched, halted -> blocked
 - Verify `activeCount` does not include halted commissions
 
 ### Phase 2: Halt entry path
@@ -166,7 +157,7 @@ if (!resultSubmitted && outcome.reason === "maxTurns") {
 ```
 
 The new `handleHalt` function:
-1. Commits pending changes to the commission branch (like sleep entry at mail/orchestrator.ts:217)
+1. Commits pending changes to the commission branch
 2. Extracts `sessionId` from outcome. If null, fall through to `failAndCleanup` with reason "Halt failed: no session ID"
 3. Transitions via `lifecycle.halt()`
 4. Reads the latest `current_progress` from the artifact via `recordOps`
@@ -174,7 +165,7 @@ The new `handleHalt` function:
 6. Increments `halt_count` in the artifact frontmatter (REQ-COM-45)
 7. Appends `status_halted` timeline event with `turnsUsed` and `lastProgress` (REQ-COM-45a)
 8. Syncs status to integration worktree
-9. Removes from `executions` map (like sleeping at line 1898)
+9. Removes from `executions` map
 10. Does NOT call `lifecycle.forget()` (the commission stays tracked as `halted`)
 11. Calls `enqueueAutoDispatch()` (frees a capacity slot)
 
@@ -208,7 +199,7 @@ The state file for halted commissions uses the existing `writeStateFile` helper.
 }
 ```
 
-This follows the sleeping state file pattern from `daemon/services/mail/types.ts`. A new `HaltedCommissionState` type should be defined alongside `SleepingCommissionState`.
+A new `HaltedCommissionState` type should be defined in a commission-specific types file.
 
 #### Step 2.4: Tests for Phase 2
 
@@ -222,7 +213,7 @@ This follows the sleeping state file pattern from `daemon/services/mail/types.ts
 
 ### Phase 3: Continue action
 
-Resume a halted commission in the same worktree with a new SDK session. This is the heaviest phase: it mirrors the mail orchestrator's wake flow.
+Resume a halted commission in the same worktree with a new SDK session. This is the heaviest phase.
 
 #### Step 3.1: Add continueCommission to CommissionSessionForRoutes
 
@@ -239,7 +230,7 @@ continueCommission(commissionId: CommissionId): Promise<{ status: "accepted" | "
 **Files**: `daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-39, REQ-COM-40, REQ-COM-40a, REQ-COM-41, REQ-COM-47
 
-Implementation flow (mirroring `wakeCommission` at mail/orchestrator.ts:501):
+Implementation flow:
 
 1. Read halted state file to get `worktreeDir`, `branchName`, `sessionId`, `workerName`, `lastProgress`, `turnsUsed`.
 2. Verify worktree exists on disk. If missing: `lifecycle.executionFailed()`, sync status, update state file, `lifecycle.forget()`, return error.
@@ -249,7 +240,7 @@ Implementation flow (mirroring `wakeCommission` at mail/orchestrator.ts:501):
 6. Append timeline event: `status_in_progress` with reason "Continued from halted state".
 7. Build continuation prompt (REQ-COM-41).
 8. Create `ExecutionContext`, add to `executions` map.
-9. Build `SessionPrepSpec` with `resume: sessionId` (like mail/orchestrator.ts:617-637).
+9. Build `SessionPrepSpec` with `resume: sessionId`.
 10. Fire-and-forget: launch resumed session via a new `runContinuedCommissionSession` (or reuse `runCommissionSession` with the continuation prompt).
 
 The continuation prompt (REQ-COM-41):
@@ -265,7 +256,7 @@ Continue working on the commission from where you left off. Your worktree contai
 
 #### Step 3.3: Session completion after continue
 
-When a continued session completes, it flows through the same `handleSessionCompletion`. If it hits maxTurns again without result, `handleHalt` fires again: `halt_count` increments, same state file pattern. If result is submitted, normal completion. If mail is sent, sleep flow. All existing paths work because the continued session is a normal SDK session in the same `ExecutionContext` shape.
+When a continued session completes, it flows through the same `handleSessionCompletion`. If it hits maxTurns again without result, `handleHalt` fires again: `halt_count` increments, same state file pattern. If result is submitted, normal completion. All existing paths work because the continued session is a normal SDK session in the same `ExecutionContext` shape.
 
 The only subtlety: `handleHalt` must re-read and increment `halt_count` (not set to 1), which is handled by the increment logic in Step 2.2.
 
@@ -350,7 +341,7 @@ Handle halted commissions on daemon restart.
 **Files**: `daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-46
 
-In `recoverCommissions()`, after the sleeping commission recovery block (around line 970) and before the active commission recovery (line 1040), add a halted recovery block:
+In `recoverCommissions()`, before the active commission recovery (line 1040), add a halted recovery block:
 
 ```
 if (state.status === "halted") {
@@ -372,7 +363,7 @@ if (state.status === "halted") {
 }
 ```
 
-This mirrors the sleeping recovery pattern (line 973-1002) but simpler: no mail reader to re-activate, no mail status to check. A halted commission with an intact worktree just stays halted.
+A halted commission with an intact worktree just stays halted.
 
 #### Step 5.2: Tests for Phase 5
 
@@ -427,9 +418,7 @@ Register in `createManagerToolbox` alongside existing tools.
 **Files**: `daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-35 (halted -> cancelled)
 
-The existing `cancelCommission` (line 1924) handles active commissions (in `executions`), sleeping commissions, and pending/blocked commissions. Halted commissions need their own branch:
-
-After the sleeping commission check (line 1956):
+The existing `cancelCommission` (line 1924) handles active commissions (in `executions`) and pending/blocked commissions. Halted commissions need their own branch:
 ```
 if (status === "halted") {
   await cancelHaltedCommission(commissionId, reason);
@@ -445,16 +434,16 @@ if (status === "halted") {
 5. Update state file to cancelled
 6. `lifecycle.forget()`
 
-This follows the sleeping cancel pattern (`cancelSleepingCommission` at line 718) but is simpler: no mail reader to cancel (step 2 of the sleeping cancel calls `mailOrchestrator.cancelReaderForCommission`, which doesn't apply here). Halted commissions have no concurrent sessions.
+Halted commissions have no concurrent sessions, making this straightforward.
 
 #### Step 6.5: Update abandon for halted commissions
 
 **Files**: `daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-35 (halted -> abandoned)
 
-The existing `abandonCommission` (line 2008) has a different structure than `cancelCommission`. It checks `executions.has()` first (throws if active), then checks sleeping, then falls to tracked-in-lifecycle. A halted commission IS tracked in lifecycle but not in executions.
+The existing `abandonCommission` (line 2008) has a different structure than `cancelCommission`. It checks `executions.has()` first (throws if active), then falls to tracked-in-lifecycle. A halted commission IS tracked in lifecycle but not in executions.
 
-Add an explicit halted branch after the sleeping check, structured like `cancelHaltedCommission`:
+Add an explicit halted branch, structured like `cancelHaltedCommission`:
 1. Read state file to get worktreeDir, branchName
 2. Transition halted -> abandoned via `lifecycle.abandon()`
 3. Preserve and cleanup worktree (commit pending changes, remove worktree, keep branch)
@@ -462,7 +451,7 @@ Add an explicit halted branch after the sleeping check, structured like `cancelH
 5. Update state file to abandoned
 6. `lifecycle.forget()`
 
-Do NOT rely on the existing non-sleeping tracked path in `abandonCommission` because it does not perform worktree cleanup. Halted commissions have a live worktree that must be cleaned up on abandon, unlike the typical abandon flow which operates on already-terminated commissions with no worktree.
+Do NOT rely on the existing tracked path in `abandonCommission` because it does not perform worktree cleanup. Halted commissions have a live worktree that must be cleaned up on abandon, unlike the typical abandon flow which operates on already-terminated commissions with no worktree.
 
 #### Step 6.6: Tests for Phase 6
 
@@ -520,4 +509,4 @@ Launch a sub-agent that reads the spec at `.lore/specs/commissions/commission-ha
 
 2. **`resource_overrides` on continue (RESOLVED)**: REQ-COM-40a says "if the user wants to increase the budget for a continuation, they update `resource_overrides` on the commission artifact before continuing." The `updateCommission` method already supports modifying `resource_overrides` on pending commissions. Decision: add `halted` to the allowed statuses in `updateCommission`'s status check. This is a one-line change and should be done in Phase 3, Step 3.2, since continue is the primary consumer. Without this, the REQ-COM-40a workflow for adjusting turn budget before continuing is broken. Note: `resource_overrides` comes from the integration worktree artifact (not the state file), and `prepareSdkSession` reads it from the artifact during session prep.
 
-3. **HaltedCommissionState type location**: The sleeping state type lives in `daemon/services/mail/types.ts`. The halted state type could live in a new `daemon/services/commission/types.ts` or alongside the sleeping type. Recommendation: create `daemon/services/commission/halted-types.ts` to keep it close to where it's consumed. The mail types file is mail-specific; halted is commission-specific.
+3. **HaltedCommissionState type location**: Recommendation: create `daemon/services/commission/halted-types.ts` to keep it close to where it's consumed.

@@ -7,8 +7,8 @@ describe("createContextTypeRegistry", () => {
     expect(registry.size).toBe(4);
     expect(registry.has("meeting")).toBe(true);
     expect(registry.has("commission")).toBe(true);
-    expect(registry.has("mail")).toBe(true);
     expect(registry.has("briefing")).toBe(true);
+    expect(registry.has("subagent")).toBe(true);
   });
 
   test("meeting entry has toolboxFactory and stateSubdir 'meetings'", () => {
@@ -29,21 +29,20 @@ describe("createContextTypeRegistry", () => {
     expect(commission.stateSubdir).toBe("commissions");
   });
 
-  test("mail entry has toolboxFactory and stateSubdir 'commissions' (shared with commission)", () => {
-    const registry = createContextTypeRegistry();
-    const mail = registry.get("mail")!;
-    expect(mail.name).toBe("mail");
-    expect(mail.toolboxFactory).toBeDefined();
-    expect(typeof mail.toolboxFactory).toBe("function");
-    expect(mail.stateSubdir).toBe("commissions");
-  });
-
   test("briefing entry has no toolboxFactory and stateSubdir 'briefings'", () => {
     const registry = createContextTypeRegistry();
     const briefing = registry.get("briefing")!;
     expect(briefing.name).toBe("briefing");
     expect(briefing.toolboxFactory).toBeUndefined();
     expect(briefing.stateSubdir).toBe("briefings");
+  });
+
+  test("subagent entry has no toolboxFactory and stateSubdir 'subagents'", () => {
+    const registry = createContextTypeRegistry();
+    const subagent = registry.get("subagent")!;
+    expect(subagent.name).toBe("subagent");
+    expect(subagent.toolboxFactory).toBeUndefined();
+    expect(subagent.stateSubdir).toBe("subagents");
   });
 
   test("each call returns a fresh instance", () => {

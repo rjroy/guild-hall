@@ -438,7 +438,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
       ),
       tool(
         "list_guild_capabilities",
-        "List all guild workers with their titles and capabilities. Use this to discover who you can contact via send_mail. Returns names (for the 'to' field), titles, and descriptions. Read-only.",
+        "List all guild workers with their titles and capabilities. Use this to discover available workers. Returns names, titles, and descriptions. Read-only.",
         {},
         () => listGuildCapabilities(),
       ),

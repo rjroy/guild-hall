@@ -88,12 +88,12 @@ Package-type channels are explicitly out of scope for this spec. The architectur
 
 ### Event Provenance
 
-- REQ-EVRT-14: Of the 13 `SystemEvent` variants (as of this spec's writing), three carry `projectName`:
+- REQ-EVRT-14: Of the 11 `SystemEvent` variants (as of this spec's writing), three carry `projectName`:
   - `commission_status`: `projectName` is optional (may be undefined).
   - `schedule_spawned`: `projectName` is required.
   - `toolbox_replicate`: `projectName` is required.
 
-  The remaining 10 event types (`commission_progress`, `commission_result`, `commission_artifact`, `commission_manager_note`, `commission_queued`, `commission_dequeued`, `commission_mail_sent`, `mail_reply_received`, `meeting_started`, `meeting_ended`) do not carry `projectName`.
+  The remaining 8 event types (`commission_progress`, `commission_result`, `commission_artifact`, `commission_manager_note`, `commission_queued`, `commission_dequeued`, `meeting_started`, `meeting_ended`) do not carry `projectName`.
 
 - REQ-EVRT-15: The router does not resolve `projectName` from other identifiers. If a rule matches on `projectName` and the event doesn't carry it, the rule silently skips. No lookup against commission or meeting state. This keeps the router stateless and decoupled from activity services.
 

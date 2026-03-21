@@ -36,7 +36,7 @@ One surface: the Commissions tab on the project page (`/projects/[name]`), rende
 
 - REQ-CFILTER-2: Filter state is a `Set<string>` of selected statuses, managed with `useState`. The initial value is the default-on set defined in REQ-CFILTER-3.
 
-- REQ-CFILTER-3: The default-on statuses are: `pending`, `blocked`, `dispatched`, `in_progress`, `sleeping`, `active`, `failed`, `cancelled`. The default-off statuses are: `paused`, `abandoned`, `completed`.
+- REQ-CFILTER-3: The default-on statuses are: `pending`, `blocked`, `dispatched`, `in_progress`, `active`, `failed`, `cancelled`. The default-off statuses are: `paused`, `abandoned`, `completed`.
 
   **Default-on rationale:** Any status where the user might need to act — dispatch it, watch it, retry it, or investigate it — is on by default. `blocked` is on because PR #103 reclassified it as "needs attention" (same artifact sort group as `failed` and `cancelled`). `paused` is off (deliberately parked). `abandoned` and `completed` are off (terminal; historical record, not action items).
 
@@ -52,7 +52,7 @@ One surface: the Commissions tab on the project page (`/projects/[name]`), rende
 
   ```
   Idle:    [x] Pending   [x] Blocked   [ ] Paused
-  Active:  [x] Dispatched  [x] In Progress  [x] Sleeping  [x] Active
+  Active:  [x] Dispatched  [x] In Progress  [x] Active
   Failed:  [x] Failed   [x] Cancelled
   Done:    [ ] Abandoned  [ ] Completed
                                               [Reset]
@@ -80,7 +80,7 @@ One surface: the Commissions tab on the project page (`/projects/[name]`), rende
 
 ### Status vocabulary
 
-- REQ-CFILTER-13: The filter renders checkboxes for all 11 statuses defined in `STATUS_GROUP` (`lib/commissions.ts:248-260`): `pending`, `blocked`, `paused` (Idle); `dispatched`, `in_progress`, `sleeping`, `active` (Active); `failed`, `cancelled` (Failed); `abandoned`, `completed` (Done). No other statuses are represented in the filter panel.
+- REQ-CFILTER-13: The filter renders checkboxes for all 10 statuses defined in `STATUS_GROUP` (`lib/commissions.ts:248-260`): `pending`, `blocked`, `paused` (Idle); `dispatched`, `in_progress`, `active` (Active); `failed`, `cancelled` (Failed); `abandoned`, `completed` (Done). No other statuses are represented in the filter panel.
 
   **Rationale:** The filter covers the defined commission status vocabulary. Commissions with an unrecognized status (malformed frontmatter) would not appear under any checkbox; they are excluded from the filtered list when any filter is active. This is acceptable because unrecognized statuses are not a normal condition.
 
@@ -93,7 +93,6 @@ One surface: the Commissions tab on the project page (`/projects/[name]`), rende
   | `paused` | Paused |
   | `dispatched` | Dispatched |
   | `in_progress` | In Progress |
-  | `sleeping` | Sleeping |
   | `active` | Active |
   | `failed` | Failed |
   | `cancelled` | Cancelled |
@@ -111,7 +110,7 @@ One surface: the Commissions tab on the project page (`/projects/[name]`), rende
 - [ ] Filter panel renders above the commission list when commissions exist
 - [ ] Checkboxes are grouped into four labeled rows (Idle / Active / Failed / Done)
 - [ ] Each checkbox shows a gem consistent with `statusToGem()` for that status
-- [ ] Default selection has 8 statuses on (`pending`, `blocked`, `dispatched`, `in_progress`, `sleeping`, `active`, `failed`, `cancelled`) and 3 off (`paused`, `abandoned`, `completed`)
+- [ ] Default selection has 7 statuses on (`pending`, `blocked`, `dispatched`, `in_progress`, `active`, `failed`, `cancelled`) and 3 off (`paused`, `abandoned`, `completed`)
 - [ ] Count annotations appear next to status labels only when count > 0
 - [ ] Toggling a checkbox immediately shows/hides matching commissions
 - [ ] Selecting all of a group (e.g., all "Done" statuses) shows historical commissions in the list

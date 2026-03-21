@@ -18,6 +18,7 @@ import type {
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
+import { buildSubAgentDescription } from "@/packages/shared/sub-agent-description";
 import type { ContextTypeName } from "@/daemon/services/context-type-registry";
 import type { Log } from "@/daemon/lib/log";
 import { nullLog } from "@/daemon/lib/log";
@@ -53,6 +54,12 @@ export type SdkQueryOptions = {
   model?: string;
   resume?: string;
   env?: Record<string, string | undefined>;
+  agents?: Record<string, {
+    description: string;
+    tools?: string[];
+    prompt: string;
+    model?: string;
+  }>;
   sandbox?: {
     enabled?: boolean;
     autoAllowBashIfSandboxed?: boolean;
@@ -97,10 +104,6 @@ export type SessionPrepSpec = {
   abortController: AbortController;
   resume?: string;
   resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
-  /** Path to the mail file (mail context only). */
-  mailFilePath?: string;
-  /** Commission ID for the mail toolbox (mail context only). */
-  commissionId?: string;
 };
 
 export type SessionPrepDeps = {
@@ -116,8 +119,6 @@ export type SessionPrepDeps = {
       eventBus: EventBus;
       config: AppConfig;
       services?: GuildHallToolServices;
-      mailFilePath?: string;
-      commissionId?: string;
     },
   ) => Promise<ResolvedToolSet>;
 
@@ -344,8 +345,6 @@ export async function prepareSdkSession(
       eventBus: spec.eventBus,
       config: spec.config,
       services: spec.services,
-      mailFilePath: spec.mailFilePath,
-      commissionId: spec.commissionId,
     });
   } catch (err: unknown) {
     return { ok: false, error: `Tool resolution failed: ${errorMessage(err)}` };
@@ -409,6 +408,75 @@ export async function prepareSdkSession(
   } catch (err: unknown) {
     return { ok: false, error: `Worker activation failed: ${errorMessage(err)}` };
   }
+
+  // 4b. Build sub-agent map
+  const otherWorkerPackages = spec.packages.filter((p): p is DiscoveredPackage & { metadata: WorkerMetadata } => {
+    if (!("identity" in p.metadata)) return false;
+    return p.metadata.identity.name !== spec.workerName;
+  });
+  log.info(`Building sub-agent map: ${otherWorkerPackages.length} workers available`);
+
+  const agents: Record<string, { description: string; prompt: string; model: string }> = {};
+
+  if (otherWorkerPackages.length > 0) {
+    // Load memories concurrently (REQ-SUBAG-9)
+    const memoryResults = await Promise.allSettled(
+      otherWorkerPackages.map((pkg) => {
+        return deps.loadMemories(pkg.metadata.identity.name, spec.projectName, {
+          guildHallHome: spec.guildHallHome,
+          memoryLimit: deps.memoryLimit,
+        });
+      }),
+    );
+
+    for (let i = 0; i < otherWorkerPackages.length; i++) {
+      const subPkg = otherWorkerPackages[i];
+      const subMeta = subPkg.metadata;
+      const memoryResult = memoryResults[i];
+
+      try {
+        // If memory load failed, log and skip (REQ-SUBAG-8)
+        if (memoryResult.status === "rejected") {
+          throw memoryResult.reason;
+        }
+
+        const subMemory = memoryResult.value.memoryBlock;
+
+        // Construct ActivationContext without activity context (REQ-SUBAG-15, REQ-SUBAG-16)
+        const subActivationContext: ActivationContext = {
+          identity: subMeta.identity,
+          posture: subMeta.posture,
+          soul: subMeta.soul,
+          injectedMemory: subMemory,
+          model: subMeta.model,
+          resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+          resourceDefaults: {},
+          localModelDefinitions: spec.config.models,
+          projectPath: spec.projectPath,
+          workingDirectory: spec.workspaceDir,
+        };
+
+        const subActivation = await deps.activateWorker(subPkg, subActivationContext);
+        const description = buildSubAgentDescription(subMeta.identity);
+
+        // Resolve model: "inherit" when absent or "inherit", otherwise use directly (REQ-SUBAG-10, REQ-SUBAG-11)
+        const resolvedSubAgentModel = (!subMeta.subAgentModel || subMeta.subAgentModel === "inherit")
+          ? "inherit"
+          : subMeta.subAgentModel;
+
+        // No tools field (REQ-SUBAG-12)
+        agents[subMeta.identity.name] = {
+          description,
+          prompt: subActivation.systemPrompt,
+          model: resolvedSubAgentModel,
+        };
+      } catch (err: unknown) {
+        log.warn(`Failed to build sub-agent for worker '${subMeta.identity.name}': ${errorMessage(err)}`);
+      }
+    }
+  }
+
+  log.info(`Sub-agent map built: ${Object.keys(agents).length} agents included`);
 
   // 5. Build SDK query options
   const maxTurns = spec.resourceOverrides?.maxTurns ?? activation.resourceBounds.maxTurns;
@@ -487,6 +555,7 @@ export async function prepareSdkSession(
     ...(localEnv ? { env: localEnv } : {}),
     ...(sandboxSettings ? { sandbox: sandboxSettings } : {}),
     ...(canUseToolCallback ? { canUseTool: canUseToolCallback } : {}),
+    ...(Object.keys(agents).length > 0 ? { agents } : {}),
     ...(maxTurns ? { maxTurns } : {}),
     ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
     permissionMode: "dontAsk",

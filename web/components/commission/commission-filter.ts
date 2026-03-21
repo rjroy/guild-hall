@@ -6,7 +6,6 @@ export const DEFAULT_STATUSES = new Set([
   "blocked",
   "dispatched",
   "in_progress",
-  "sleeping",
   "halted",
   "active",
   "failed",
@@ -16,7 +15,7 @@ export const DEFAULT_STATUSES = new Set([
 /** Filter panel groups, mirroring STATUS_GROUP order from lib/commissions.ts. */
 export const FILTER_GROUPS: { label: string; statuses: string[] }[] = [
   { label: "Idle", statuses: ["pending", "blocked", "paused"] },
-  { label: "Active", statuses: ["dispatched", "in_progress", "sleeping", "halted", "active"] },
+  { label: "Active", statuses: ["dispatched", "in_progress", "halted", "active"] },
   { label: "Failed", statuses: ["failed", "cancelled"] },
   { label: "Done", statuses: ["abandoned", "completed"] },
 ];

@@ -7,7 +7,8 @@
       "name": "Thorne",
       "description": "Oversees all work with a critical eye. Inspects everything, alters nothing.",
       "displayTitle": "Guild Warden",
-      "portraitPath": "/images/portraits/thorne-warden.webp"
+      "portraitPath": "/images/portraits/thorne-warden.webp",
+      "guidance": "Invoke this worker when you need a critical review that checks for correctness, security, and adherence to project conventions. This worker reads and evaluates but does not modify code."
     },
     "model": "opus",
     "domainToolboxes": [],

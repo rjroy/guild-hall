@@ -103,10 +103,9 @@ Agent capabilities are implemented as MCP server tool functions inside the daemo
 | Toolbox | Context | Tools | How It Interacts with State |
 |---------|---------|-------|----------------------------|
 | `base` | All | `read_memory`, `write_memory`, `record_decision` | Direct filesystem ops on `~/.guild-hall/memory/` and `~/.guild-hall/state/` |
-| `commission` | Commission sessions | `report_progress`, `submit_result`, `send_mail` | Direct artifact writes + EventBus callbacks |
+| `commission` | Commission sessions | `report_progress`, `submit_result` | Direct artifact writes + EventBus callbacks |
 | `meeting` | Meeting sessions | `link_artifact`, `propose_followup`, `summarize_progress` | Direct artifact writes on meeting worktree |
 | `manager` | Guild Master only | 10 tools (create/dispatch/cancel/abandon commission, create PR, initiate meeting, add note, sync project, scheduled commission CRUD) | Calls `CommissionSessionForRoutes` service methods + direct git ops |
-| `mail` | Mail reader sessions | Reply tools | Direct filesystem writes |
 | Domain toolboxes | Per-worker config | Package-exported `toolboxFactory` | Varies by package |
 
 The manager toolbox is the most complex. Its tools call into daemon services (`commissionSession.createCommission()`, `commissionSession.dispatchCommission()`, `gitOps.push()`, etc.) which is closer to the target architecture, but the invocation still happens through an internal callback path, not through a public skill contract.
@@ -443,7 +442,7 @@ This is the phase where REQ-DAB-7 (agents interact through daemon-governed skill
 Don't try to make all internal tools call the public API. Instead:
 
 - **Manager toolbox tools** that map to existing routes (create commission, dispatch, cancel, abandon) should call the daemon routes. These are public application capabilities that already have API endpoints. The manager toolbox becomes a thin projection of the skill contract into the agent session.
-- **Session-scoped tools** (report_progress, submit_result, send_mail) remain internal. These are session lifecycle management, not application capabilities. They operate on the active session's state, which is inherently daemon-internal. REQ-DAB-11 explicitly allows internal tools as long as they don't replace the public boundary.
+- **Session-scoped tools** (report_progress, submit_result) remain internal. These are session lifecycle management, not application capabilities. They operate on the active session's state, which is inherently daemon-internal. REQ-DAB-11 explicitly allows internal tools as long as they don't replace the public boundary.
 - **Base toolbox tools** (read_memory, write_memory, record_decision) remain internal. Memory access is a daemon-internal concern, and these tools already operate within the daemon's authority.
 - **Meeting toolbox tools** (link_artifact, propose_followup, summarize_progress) remain internal for the same reason.
 - **CLI skill invocation for non-manager workers.** Workers without application-level toolbox tools (Thorne, Verity, Edmund, and to some extent Octavia) interact with Guild Hall capabilities through `guild-hall` CLI commands via Bash. This requires adding Bash with `canUseToolRules` restricting them to allowed `guild-hall` subcommands. See [Cross-Cutting Concern: CLI Skill Access for Agents](#cross-cutting-concern-cli-skill-access-for-agents) for the per-worker provisioning plan.
@@ -604,7 +603,7 @@ Recommendation: Defer this to after Phase 7. Domain plugins are the newest and l
 |----------|-----------|
 | Phase read API before write migration | Web reads are the largest violation count. Building read endpoints first gives the most migration surface. |
 | Separate web migration into server components (Phase 2) and API routes (Phase 3) | Different risk profiles. Server components are read-only and safe to migrate. API route violations involve writes and need more careful sequencing. |
-| Leave session-scoped tools internal (Phase 7) | REQ-DAB-11 explicitly allows internal tools. Session lifecycle (progress, result, mail) is inherently daemon-internal. Forcing these through a public API adds complexity without architectural benefit. |
+| Leave session-scoped tools internal (Phase 7) | REQ-DAB-11 explicitly allows internal tools. Session lifecycle (progress, result) is inherently daemon-internal. Forcing these through a public API adds complexity without architectural benefit. |
 | Defer domain plugin skill projection | Domain plugins are new and unstable. Let the skill contract pattern stabilize on core routes first. |
 | Return JSON from daemon read endpoints (Q1) | The daemon should own the parsing contract. Returning raw markdown shifts parsing to every client. |
 | CLI migration after web migration | The CLI has fewer boundary violations and lower user impact. Web migration is higher priority. |

@@ -103,7 +103,7 @@ Depends on: [Spec: Guild Hall Commissions](guild-hall-commissions.md) for the on
 
 - REQ-SCOM-8: A spawned commission is a normal one-shot commission (REQ-COM-1 through REQ-COM-32 apply in full) with one additional field: `source_schedule`. This field contains the commission ID of the parent scheduled commission. It is set at creation and is immutable.
 
-- REQ-SCOM-9: Spawned commissions follow the full one-shot lifecycle as defined in REQ-COM-5 (pending, blocked, dispatched, in_progress, sleeping, completed, failed, cancelled, abandoned). They merge back to `claude` on completion, respect concurrent limits, and support redispatch. The schedule system has no special authority over a spawned commission after creation.
+- REQ-SCOM-9: Spawned commissions follow the full one-shot lifecycle as defined in REQ-COM-5 (pending, blocked, dispatched, in_progress, completed, failed, cancelled, abandoned). They merge back to `claude` on completion, respect concurrent limits, and support redispatch. The schedule system has no special authority over a spawned commission after creation.
 
 - REQ-SCOM-10: Spawned commission naming follows the existing convention (REQ-COM-1) with no special prefix. The commission ID is derived from the worker name and timestamp, the same as any manually created commission. The `source_schedule` field is the only link back to the parent.
 
@@ -114,7 +114,7 @@ Depends on: [Spec: Guild Hall Commissions](guild-hall-commissions.md) for the on
 - REQ-SCOM-12: The daemon gains a scheduler service that runs on a 60-second timer. On each tick, it:
   1. Scans `.lore/commissions/` across all registered projects for artifacts with `type: scheduled` and `status: active`.
   2. For each active schedule, evaluates the cron expression against `last_run` to determine if a new run is due.
-  3. Checks whether `last_spawned_id` references a commission that is still active (dispatched, in_progress, or sleeping). If yes, skips this schedule for this tick (no overlapping runs).
+  3. Checks whether `last_spawned_id` references a commission that is still active (dispatched or in_progress). If yes, skips this schedule for this tick (no overlapping runs).
   4. Creates a one-shot commission artifact from the schedule template.
   5. Dispatches the spawned commission through the existing dispatch path (REQ-COM-9).
   6. Updates the schedule artifact: increments `runs_completed`, sets `last_run` to now, sets `last_spawned_id` to the new commission's ID.
@@ -163,7 +163,7 @@ Depends on: [Spec: Guild Hall Commissions](guild-hall-commissions.md) for the on
 
 ### Stuck Run Escalation
 
-- REQ-SCOM-17: If the previous spawned commission has been in an active state (dispatched, in_progress, or sleeping per [Spec: Worker-to-Worker Communication](worker-communication.md)) for longer than twice the interval between `last_run` and the next expected cron occurrence, and a new run is due, the scheduler escalates to the Guild Master. Escalation creates a meeting request (using the same mechanism as the manager toolbox's `initiate_meeting` tool) describing the stuck commission: which schedule, which spawned commission, how long it has been running (measured from the spawned commission's dispatch timestamp), and what the expected cadence is.
+- REQ-SCOM-17: If the previous spawned commission has been in an active state (dispatched or in_progress) for longer than twice the interval between `last_run` and the next expected cron occurrence, and a new run is due, the scheduler escalates to the Guild Master. Escalation creates a meeting request (using the same mechanism as the manager toolbox's `initiate_meeting` tool) describing the stuck commission: which schedule, which spawned commission, how long it has been running (measured from the spawned commission's dispatch timestamp), and what the expected cadence is.
 
 - REQ-SCOM-18: Escalation happens at most once per stuck spawned commission. The scheduler tracks whether it has escalated for the current `last_spawned_id` to avoid repeated meeting requests. This tracking is in-memory (reset on daemon restart, which is acceptable because restart also fails all active commissions per REQ-COM-27).
 

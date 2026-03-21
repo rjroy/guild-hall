@@ -81,8 +81,6 @@ import type { ResolvedModel } from "@/lib/types";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { isAtCapacity } from "@/daemon/services/commission/capacity";
 import { escalateMergeConflict } from "@/daemon/lib/escalation";
-import { createMailOrchestrator, type MailOrchestrator } from "@/daemon/services/mail/orchestrator";
-import type { SleepingCommissionState } from "@/daemon/services/mail/types";
 import type { HaltedCommissionState } from "@/daemon/services/commission/halted-types";
 
 // -- CommissionSessionForRoutes interface --
@@ -186,8 +184,6 @@ export interface CommissionOrchestratorDeps {
   }) => Promise<void>;
   /** Manager worker package name for escalation references. */
   managerPackageName?: string;
-  /** Optional pre-built mail orchestrator (DI seam for testing). */
-  mailOrchestrator?: MailOrchestrator;
   /** Injectable logger. Defaults to nullLog("commission"). */
   log?: Log;
   /**
@@ -235,10 +231,6 @@ export function createCommissionOrchestrator(
 
   /** Serialization lock for auto-dispatch. */
   let autoDispatchChain: Promise<void> = Promise.resolve();
-
-  // Mail orchestrator is instantiated after helper functions are defined.
-  // Declared here (assigned below) so runCommissionSession can reference it.
-  let mailOrchestrator: MailOrchestrator;
 
   // -- Helpers --
 
@@ -358,60 +350,6 @@ export function createCommissionOrchestrator(
       );
     });
   }
-
-  // -- Mail orchestrator initialization --
-
-  // eslint-disable-next-line prefer-const -- forward-declared at line 207 for function ordering
-  mailOrchestrator = deps.mailOrchestrator ?? createMailOrchestrator(
-    {
-      lifecycle,
-      recordOps,
-      prepDeps,
-      queryFn,
-      eventBus,
-      config,
-      packages,
-      guildHallHome,
-      gitOps,
-      log,
-    },
-    {
-      writeStateFile,
-      commissionStatePath,
-      enqueueAutoDispatch,
-      async onResumeCompleted(commissionId, projectName, workerName, worktreeDir, branchName, outcome, resultSubmitted) {
-        // Reconstruct a temporary ExecutionContext for the finalize flow
-        const ctx: ExecutionContext = {
-          commissionId,
-          projectName,
-          workerName,
-          worktreeDir,
-          branchName,
-          abortController: new AbortController(),
-          attempt: 0,
-          checkoutScope: "full",
-        };
-        executions.set(commissionId, ctx);
-        await handleSessionCompletion(ctx, outcome, resultSubmitted);
-      },
-      registerExecution(commissionId, projectName, workerName, worktreeDir, branchName, abortController) {
-        const ctx: ExecutionContext = {
-          commissionId,
-          projectName,
-          workerName,
-          worktreeDir,
-          branchName,
-          abortController,
-          attempt: 0,
-          checkoutScope: "full",
-        };
-        executions.set(commissionId, ctx);
-      },
-      unregisterExecution(commissionId) {
-        executions.delete(commissionId);
-      },
-    },
-  );
 
   /**
    * Scans pending commissions across all projects and returns them sorted
@@ -854,92 +792,6 @@ export function createCommissionOrchestrator(
     }
   }
 
-  // -- Sleeping commission cancel/abandon --
-
-  /**
-   * Cancel or abandon a sleeping commission with mail-aware cleanup.
-   * Reads the state file to find the worktree and mail info, cancels/dequeues
-   * the mail reader if needed, then transitions and cleans up.
-   */
-  async function cancelSleepingCommission(
-    commissionId: CommissionId,
-    reason: string,
-    targetState: "cancelled" | "abandoned",
-  ): Promise<void> {
-    const projectName = lifecycle.getProjectName(commissionId);
-
-    // 1. Transition the lifecycle first so wake attempts are rejected
-    if (targetState === "cancelled") {
-      try {
-        await lifecycle.cancel(commissionId, reason);
-      } catch (err: unknown) {
-        log.warn(`lifecycle.cancel failed for sleeping "${commissionId as string}":`, errorMessage(err));
-      }
-    } else {
-      try {
-        await lifecycle.abandon(commissionId, reason);
-      } catch (err: unknown) {
-        log.warn(`lifecycle.abandon failed for sleeping "${commissionId as string}":`, errorMessage(err));
-      }
-    }
-
-    // 2. Cancel/abort the mail reader if queued or active
-    await mailOrchestrator.cancelReaderForCommission(commissionId);
-
-    // 3. Read state file for worktree info
-    const statePath = commissionStatePath(commissionId);
-    let stateData: { worktreeDir?: string; branchName?: string; workerName?: string; projectName?: string } = {};
-    try {
-      const raw = await fs.readFile(statePath, "utf-8");
-      stateData = JSON.parse(raw) as typeof stateData;
-    } catch {
-      // State file missing or corrupt; best-effort cleanup
-    }
-
-    const workerName = stateData.workerName ?? "";
-    const worktreeDir = stateData.worktreeDir;
-    const branchName = stateData.branchName ?? "";
-    const resolvedProjectName = projectName ?? stateData.projectName ?? "";
-
-    // 4. Preserve branch and clean up worktree
-    if (worktreeDir) {
-      const exists = await fileExists(worktreeDir);
-      if (exists) {
-        const project = findProject(resolvedProjectName);
-        try {
-          await workspace.preserveAndCleanup({
-            worktreeDir,
-            branchName,
-            commitMessage: `Partial work preserved (${targetState}): ${commissionId as string}`,
-            projectPath: project?.path,
-          });
-        } catch (err: unknown) {
-          log.warn(`preserveAndCleanup failed for sleeping "${commissionId as string}":`, errorMessage(err));
-        }
-      }
-    }
-
-    // 5. Sync status to integration and write state file
-    if (resolvedProjectName) {
-      await syncStatusToIntegration(commissionId, resolvedProjectName, targetState, reason);
-    }
-    await writeStateFile(commissionId, {
-      commissionId: commissionId as string,
-      projectName: resolvedProjectName,
-      workerName,
-      status: targetState,
-    });
-
-    lifecycle.forget(commissionId);
-
-    // Unblock dependents when abandoning a sleeping commission
-    if (targetState === "abandoned" && resolvedProjectName) {
-      await checkDependencyTransitions(resolvedProjectName);
-    }
-
-    enqueueAutoDispatch();
-  }
-
   // -- Halted commission cancel/abandon --
 
   /**
@@ -1184,84 +1036,19 @@ export function createCommissionOrchestrator(
 
       stateFileCommissionIds.add(state.commissionId);
 
-      // Recover sleeping commissions via mail orchestrator
+      // Orphaned sleeping state files: mail system removed, transition to failed
       if (state.status === "sleeping") {
-        const sleepingState = state as unknown as SleepingCommissionState;
         const cId = asCommissionId(state.commissionId);
-
-        if (lifecycle.isTracked(cId)) continue;
-
-        const project = config.projects.find((p) => p.name === state.projectName);
-        if (!project) {
-          log.warn(
-            `Sleeping commission "${state.commissionId}" references unknown project "${state.projectName}", skipping.`,
-          );
-          continue;
-        }
-
-        // Check if worktree still exists
-        const worktreeDir = sleepingState.worktreeDir;
-        const worktreeExists = worktreeDir ? await fileExists(worktreeDir) : false;
-
-        if (!worktreeExists) {
-          // Worktree lost: transition to failed, preserve branch
-          log.info(
-            `Sleeping commission "${state.commissionId}" has no worktree, transitioning to failed.`,
-          );
-          const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
-          const artifactPath = commissionArtifactPath(iPath, cId);
-          lifecycle.register(cId, state.projectName, "sleeping", artifactPath);
-          try {
-            await lifecycle.executionFailed(cId, "Worktree lost during sleep.");
-          } catch (err: unknown) {
-            log.error(
-              `Failed to transition sleeping "${state.commissionId}" to failed:`,
-              errorMessage(err),
-            );
-          }
-          await syncStatusToIntegration(cId, state.projectName, "failed", "Worktree lost during sleep.");
-          await writeStateFile(cId, {
-            commissionId: state.commissionId,
-            projectName: state.projectName,
-            workerName: state.workerName,
-            status: "failed",
-          });
-          lifecycle.forget(cId);
-          recovered++;
-          continue;
-        }
-
-        // Worktree exists: register lifecycle and delegate to mail orchestrator
-        const iPath = integrationWorktreePathFn(guildHallHome, state.projectName);
-        const artifactPath = commissionArtifactPath(iPath, cId);
-        lifecycle.register(cId, state.projectName, "sleeping", artifactPath);
-
         log.info(
-          `Recovering sleeping commission "${state.commissionId}".`,
+          `Sleeping commission "${state.commissionId}" found during recovery. Mail system removed, transitioning to failed.`,
         );
-
-        try {
-          await mailOrchestrator.recoverSleepingCommission(sleepingState);
-        } catch (err: unknown) {
-          log.error(
-            `Failed to recover sleeping "${state.commissionId}":`,
-            errorMessage(err),
-          );
-          try {
-            await lifecycle.executionFailed(cId, `Recovery failed: ${errorMessage(err)}`);
-          } catch {
-            // Already logged
-          }
-          await syncStatusToIntegration(cId, state.projectName, "failed", `Recovery failed: ${errorMessage(err)}`);
-          await writeStateFile(cId, {
-            commissionId: state.commissionId,
-            projectName: state.projectName,
-            workerName: state.workerName,
-            status: "failed",
-          });
-          lifecycle.forget(cId);
-        }
-
+        await syncStatusToIntegration(cId, state.projectName, "failed", "Mail system removed. Commission was sleeping and cannot resume.");
+        await writeStateFile(cId, {
+          commissionId: state.commissionId,
+          projectName: state.projectName,
+          workerName: state.workerName,
+          status: "failed",
+        });
         recovered++;
         continue;
       }
@@ -2100,11 +1887,6 @@ projectName: ${projectName}
    * Runs a commission session: prepare, subscribe to EventBus, drain the
    * SDK generator, unsubscribe, and handle completion. Fire-and-forget
    * from the dispatch flow.
-   *
-   * When send_mail is detected via commission_mail_sent, the session is
-   * aborted and routed to the mail orchestrator's sleep path instead of
-   * handleSessionCompletion. Sleeping commissions are removed from
-   * executions so they don't count against the commission cap.
    */
   async function runCommissionSession(
     ctx: ExecutionContext,
@@ -2112,8 +1894,6 @@ projectName: ${projectName}
     prompt: string,
   ): Promise<void> {
     let resultSubmitted = false;
-    let mailSent = false;
-    let mailSentData: { targetWorker: string; mailSequence: number; mailPath: string } | null = null;
 
     // Subscribe to EventBus for tool events matching this commission
     const unsubscribe = eventBus.subscribe((event) => {
@@ -2130,12 +1910,6 @@ projectName: ${projectName}
         lifecycle.progressReported(ctx.commissionId, e.summary).catch((err: unknown) => {
           log.warn(`progressReported failed for "${ctx.commissionId as string}":`, errorMessage(err));
         });
-      } else if (event.type === "commission_mail_sent") {
-        mailSent = true;
-        const e = event as typeof event & { targetWorker: string; mailSequence: number; mailPath: string };
-        mailSentData = { targetWorker: e.targetWorker, mailSequence: e.mailSequence, mailPath: e.mailPath };
-        // Abort the session so it drains and we can enter the sleep path
-        ctx.abortController.abort();
       }
     });
 
@@ -2158,36 +1932,7 @@ projectName: ${projectName}
         { maxTurns: options.maxTurns },
       );
 
-      // 3. Check mailSent BEFORE handleSessionCompletion.
-      // If mail was sent, route to the sleep path. The abort guard in
-      // handleSessionCompletion would silently discard the commission.
-      if (mailSent && mailSentData) {
-        const { targetWorker, mailSequence, mailPath } = mailSentData;
-        const sleepSuccess = await mailOrchestrator.handleSleep({
-          commissionId: ctx.commissionId,
-          projectName: ctx.projectName,
-          workerName: ctx.workerName,
-          worktreeDir: ctx.worktreeDir,
-          branchName: ctx.branchName,
-          targetWorker,
-          mailSequence,
-          mailPath,
-          outcome,
-        });
-
-        // Remove from executions: sleeping commissions don't count
-        // against the commission cap (REQ-MAIL-20).
-        executions.delete(ctx.commissionId);
-
-        if (!sleepSuccess) {
-          lifecycle.forget(ctx.commissionId);
-        }
-
-        enqueueAutoDispatch();
-        return;
-      }
-
-      // 4. Normal completion path
+      // 3. Normal completion path
       await handleSessionCompletion(ctx, outcome, resultSubmitted, resolvedModel);
     } catch (err: unknown) {
       try {
@@ -2619,14 +2364,8 @@ projectName: ${projectName}
       return;
     }
 
-    // Sleeping commission: cancel with mail-aware cleanup
-    const status = lifecycle.getStatus(commissionId);
-    if (status === "sleeping") {
-      await cancelSleepingCommission(commissionId, reason, "cancelled");
-      return;
-    }
-
     // Halted commission: cancel with worktree cleanup (REQ-COM-35)
+    const status = lifecycle.getStatus(commissionId);
     if (status === "halted") {
       await cancelHaltedCommission(commissionId, reason, "cancelled");
       return;
@@ -2689,14 +2428,8 @@ projectName: ${projectName}
       );
     }
 
-    // Sleeping commission: abandon with mail-aware cleanup
-    const status = lifecycle.getStatus(commissionId);
-    if (status === "sleeping") {
-      await cancelSleepingCommission(commissionId, reason, "abandoned");
-      return;
-    }
-
     // Halted commission: abandon with worktree cleanup (REQ-COM-35)
+    const status = lifecycle.getStatus(commissionId);
     if (status === "halted") {
       await cancelHaltedCommission(commissionId, reason, "abandoned");
       return;
@@ -2845,7 +2578,6 @@ projectName: ${projectName}
     for (const [, ctx] of executions) {
       ctx.abortController.abort();
     }
-    mailOrchestrator.shutdownReaders();
   }
 
   // Self-reference for passing as services to the toolbox resolver.

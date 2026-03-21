@@ -138,7 +138,6 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 | Commission toolbox and execution | Need to define commission-specific tools and process lifecycle | [Spec: guild-hall-commissions](guild-hall-commissions.md) |
 | Meeting toolbox and lifecycle | Need to define meeting-specific tools and conversation management | [Spec: guild-hall-meetings](guild-hall-meetings.md) |
 | Worker UI presentation | Need to present worker identity, status, and capabilities | [Spec: guild-hall-views](guild-hall-views.md) |
-| Worker-to-worker communication | Workers need to coordinate without going through the manager | [STUB: worker-communication] |
 
 ## Success Criteria
 

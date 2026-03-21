@@ -7,7 +7,8 @@
       "name": "Octavia",
       "description": "Keeper of the guild's living record. Documents what exists, prescribes how new lore should be shaped, and is arguably the most vital voice in the hall.",
       "displayTitle": "Guild Chronicler",
-      "portraitPath": "/images/portraits/octavia-chronicler.webp"
+      "portraitPath": "/images/portraits/octavia-chronicler.webp",
+      "guidance": "Invoke this worker when you need a spec reviewed for clarity, completeness, or consistency with the codebase. Strong on documentation structure and precision."
     },
     "model": "opus",
     "domainPlugins": ["guild-hall-writer"],

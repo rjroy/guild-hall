@@ -1,7 +1,7 @@
 ---
 title: Halted commission UI
 date: 2026-03-20
-status: open
+status: resolved
 tags: [commissions, halted-state, ui, ux, triage, automation]
 modules: [commission-actions, commission-orchestrator, manager-toolbox]
 related:

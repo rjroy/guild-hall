@@ -36,7 +36,7 @@ A read tool in the manager toolbox that lets the Guild Master check commission s
 - REQ-CST-4: The tool returns a JSON object with these fields:
   - `commissionId`: the commission identifier
   - `title`: commission title
-  - `status`: current state (pending, blocked, dispatched, in_progress, completed, failed, cancelled, abandoned, sleeping)
+  - `status`: current state (pending, blocked, dispatched, in_progress, completed, failed, cancelled, abandoned)
   - `worker`: assigned worker name
   - `type`: "one-shot" or "scheduled"
   - `date`: creation date
@@ -69,7 +69,7 @@ A read tool in the manager toolbox that lets the Guild Master check commission s
 
 - REQ-CST-8: List mode includes a `summary` object at the top level with counts by status group: `{ pending: N, active: N, failed: N, completed: N, total: N }`. Status-to-group mapping:
   - **pending**: pending, blocked
-  - **active**: dispatched, in_progress, sleeping
+  - **active**: dispatched, in_progress
   - **failed**: failed, cancelled
   - **completed**: completed, abandoned
 

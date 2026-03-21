@@ -23,8 +23,6 @@ export interface GuildHallToolboxDeps {
   config: AppConfig;
   services?: GuildHallToolServices;
   knownWorkerNames?: string[];
-  mailFilePath?: string;
-  commissionId?: string;
   getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
   getWorkerIdentities?: () => WorkerIdentity[];
   stateSubdir?: string;

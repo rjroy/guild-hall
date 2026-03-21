@@ -198,7 +198,6 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 | Exit | Triggers When | Target |
 |------|---------------|--------|
 | Commission UI | Need to present commissions in the frontend | [Spec: guild-hall-views](guild-hall-views.md) |
-| Sleeping commissions / Mail | Commission sends mail, sleeps, wakes on reply; `sleeping` and `abandoned` states extend this lifecycle | [Spec: Worker-to-Worker Communication](worker-communication.md) |
 
 ## Success Criteria
 
@@ -238,10 +237,10 @@ Depends on: [Spec: Guild Hall System](guild-hall-system.md) for primitives, stor
 ## Constraints
 
 - No database. All commission state is files.
-- One worktree per commission, one branch per commission. One session at a time per commission (the mail reader in [Spec: Worker-to-Worker Communication](worker-communication.md) runs a separate session in the same worktree while the commission sleeps, but the two sessions never overlap).
+- One worktree per commission, one branch per commission. One session at a time per commission.
 - Workers don't manage their own lifecycle (REQ-SYS-9). The commission system manages everything outside the SDK session boundary.
 - Agent SDK session details (model, tool configuration, streaming) belong to the Worker spec. This spec covers the session boundary.
-- No direct worker-to-worker communication within a commission session. Commissions coordinate through artifact dependencies. (The mail system in [Spec: Worker-to-Worker Communication](worker-communication.md) extends this: a commission worker can send mail to another worker, but the interaction happens across sleep/wake cycles, not within a single session.)
+- No direct worker-to-worker communication within a commission session. Commissions coordinate through artifact dependencies.
 - Resource budget defaults need real-workload validation (lesson: 30 turns failed every real task, increased to 150).
 
 ## Context

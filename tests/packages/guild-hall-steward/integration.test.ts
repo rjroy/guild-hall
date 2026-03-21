@@ -213,7 +213,7 @@ describe("guild-hall-steward package", () => {
     });
 
     test("describes Guild Master escalation criteria", () => {
-      expect(posture).toContain("send_mail");
+      expect(posture).toContain("commission result");
       expect(posture).toContain("Guild Master");
 
       // At least two of the three escalation signals

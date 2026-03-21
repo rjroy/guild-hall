@@ -499,7 +499,7 @@ export class SchedulerService {
 
   /**
    * Checks whether a spawned commission is still actively running.
-   * "Still active" means dispatched, in_progress, or sleeping.
+   * "Still active" means dispatched, in_progress, or halted.
    */
   private async isSpawnedCommissionActive(
     spawnedId: string,
@@ -516,7 +516,7 @@ export class SchedulerService {
 
     try {
       const status = await recordOps.readStatus(artifactPath);
-      return status === "dispatched" || status === "in_progress" || status === "sleeping" || status === "halted";
+      return status === "dispatched" || status === "in_progress" || status === "halted";
     } catch {
       // Artifact not found or unreadable: treat as not active
       return false;

@@ -2,6 +2,7 @@
 import { describe, test, expect } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
+  ActivationContext,
   ActivationResult,
   AppConfig,
   CanUseToolRule,
@@ -218,6 +219,32 @@ describe("runSdkSession", () => {
     const events = await collectEvents(runSdkSession(queryFn, "test", {}));
 
     expect(events).toEqual([{ type: "error", reason: "Something went wrong" }]);
+  });
+
+  test("agents in options passes through to queryFn", async () => {
+    const agents = {
+      Thorne: {
+        description: "Guild Warden. Reviews code.",
+        prompt: "You are Thorne, the Guild Warden.",
+        model: "sonnet",
+      },
+      Octavia: {
+        description: "Guild Chronicler. Reviews specs.",
+        prompt: "You are Octavia, the Guild Chronicler.",
+        model: "inherit",
+      },
+    };
+
+    let capturedOptions: SdkQueryOptions | undefined;
+    const queryFn = (params: { prompt: string; options: SdkQueryOptions }) => {
+      capturedOptions = params.options;
+      return sdkMessages([initMessage]);
+    };
+
+    await collectEvents(runSdkSession(queryFn, "test", { agents }));
+
+    expect(capturedOptions).toBeDefined();
+    expect(capturedOptions!.agents).toEqual(agents);
   });
 });
 
@@ -565,28 +592,6 @@ describe("prepareSdkSession", () => {
     const servers = result.result.options.mcpServers as Record<string, unknown>;
     expect("server-a" in servers).toBe(true);
     expect("server-b" in servers).toBe(true);
-  });
-
-  test("mailFilePath and commissionId passed through to resolveToolSet context", async () => {
-    let capturedContext: Record<string, unknown> = {};
-
-    const result = await prepareSdkSession(
-      makeSpec({
-        contextType: "mail",
-        mailFilePath: "/tmp/mail/test-mail.md",
-        commissionId: "commission-test-abc",
-      }),
-      makeDeps({
-        resolveToolSet: async (_worker, _packages, context) => {
-          capturedContext = context as unknown as Record<string, unknown>;
-          return mockResolvedTools;
-        },
-      }),
-    );
-
-    expect(result.ok).toBe(true);
-    expect(capturedContext.mailFilePath).toBe("/tmp/mail/test-mail.md");
-    expect(capturedContext.commissionId).toBe("commission-test-abc");
   });
 
   test("worker with domainPlugins where package has pluginPath produces options.plugins", async () => {
@@ -1601,6 +1606,286 @@ describe("prepareSdkSession", () => {
         );
         expect(decision.behavior).toBe("deny");
       });
+    });
+  });
+
+  // -- Sub-agent map construction tests (Phase 4) --
+
+  describe("sub-agent map construction", () => {
+    const mockOtherWorkerMeta: WorkerMetadata = {
+      type: "worker",
+      identity: { name: "other-worker", description: "Other worker", displayTitle: "Other Worker" },
+      posture: "diligent reviewer",
+      domainToolboxes: [],
+      builtInTools: [],
+      checkoutScope: "sparse",
+      resourceDefaults: {},
+    };
+
+    const mockOtherWorkerPkg: DiscoveredPackage = {
+      name: "@guild-hall/other-worker",
+      path: "/tmp/packages/other-worker",
+      metadata: mockOtherWorkerMeta,
+    };
+
+    const mockOtherWorkerWithModel: WorkerMetadata = {
+      ...mockOtherWorkerMeta,
+      subAgentModel: "sonnet",
+    };
+
+    const mockOtherWorkerWithSoul: WorkerMetadata = {
+      ...mockOtherWorkerMeta,
+      soul: "A thoughtful soul",
+    };
+
+    test("calling worker excluded from agent map", async () => {
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps(),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const agentMap = result.result.options.agents;
+      expect(agentMap).toBeDefined();
+      expect("other-worker" in agentMap!).toBe(true);
+      expect("test-worker" in agentMap!).toBe(false);
+    });
+
+    test("agent has prompt with identity and posture, no commission/meeting context", async () => {
+      let capturedContext: ActivationContext | undefined;
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps({
+          activateWorker: async (_pkg, ctx) => {
+            if (ctx.identity.name === "other-worker") {
+              capturedContext = ctx;
+            }
+            return mockActivation;
+          },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(capturedContext).toBeDefined();
+      expect(capturedContext!.identity.name).toBe("other-worker");
+      expect(capturedContext!.posture).toBe("diligent reviewer");
+      expect(capturedContext!.meetingContext).toBeUndefined();
+      expect(capturedContext!.commissionContext).toBeUndefined();
+      expect(capturedContext!.managerContext).toBeUndefined();
+    });
+
+    test("agent with subAgentModel: 'sonnet' has model: 'sonnet'", async () => {
+      const pkgWithModel: DiscoveredPackage = {
+        ...mockOtherWorkerPkg,
+        metadata: mockOtherWorkerWithModel,
+      };
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, pkgWithModel, mockToolboxPkg] }),
+        makeDeps(),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.agents!["other-worker"].model).toBe("sonnet");
+    });
+
+    test("agent with no subAgentModel has model: 'inherit'", async () => {
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps(),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.agents!["other-worker"].model).toBe("inherit");
+    });
+
+    test("agent has description containing display title", async () => {
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps(),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.result.options.agents!["other-worker"].description).toContain("Other Worker");
+    });
+
+    test("agent with guidance uses guidance in description", async () => {
+      const guidedWorkerMeta: WorkerMetadata = {
+        ...mockOtherWorkerMeta,
+        identity: {
+          ...mockOtherWorkerMeta.identity,
+          guidance: "Invoke this worker when you need diligent code review.",
+        },
+      };
+      const guidedWorkerPkg: DiscoveredPackage = {
+        ...mockOtherWorkerPkg,
+        metadata: guidedWorkerMeta,
+      };
+
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, guidedWorkerPkg, mockToolboxPkg] }),
+        makeDeps(),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const desc = result.result.options.agents!["other-worker"].description;
+      expect(desc).toContain("Invoke this worker when you need diligent code review.");
+      expect(desc).not.toContain("Invoke this worker when:");
+    });
+
+    test("no tools field on agent entry", async () => {
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps(),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const agent = result.result.options.agents!["other-worker"];
+      expect("tools" in agent).toBe(false);
+    });
+
+    test("failing sub-agent is excluded, session succeeds", async () => {
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps({
+          loadMemories: async (name) => {
+            if (name === "other-worker") throw new Error("memory load failed");
+            return { memoryBlock: "test memories" };
+          },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // Agent map should be empty or not contain the failing worker
+      const agentMap = result.result.options.agents;
+      if (agentMap) {
+        expect("other-worker" in agentMap).toBe(false);
+      }
+    });
+
+    test("agent with soul content has prompt containing soul", async () => {
+      const pkgWithSoul: DiscoveredPackage = {
+        ...mockOtherWorkerPkg,
+        metadata: mockOtherWorkerWithSoul,
+      };
+
+      let capturedContext: ActivationContext | undefined;
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, pkgWithSoul, mockToolboxPkg] }),
+        makeDeps({
+          activateWorker: async (_pkg, ctx) => {
+            if (ctx.identity.name === "other-worker") {
+              capturedContext = ctx;
+            }
+            return mockActivation;
+          },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(capturedContext).toBeDefined();
+      expect(capturedContext!.soul).toBe("A thoughtful soul");
+    });
+
+    test("agent with memory content has prompt containing memory", async () => {
+      let capturedContext: ActivationContext | undefined;
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps({
+          loadMemories: async (name) => {
+            if (name === "other-worker") return { memoryBlock: "sub-agent memory content" };
+            return { memoryBlock: "test memories" };
+          },
+          activateWorker: async (_pkg, ctx) => {
+            if (ctx.identity.name === "other-worker") {
+              capturedContext = ctx;
+            }
+            return mockActivation;
+          },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(capturedContext).toBeDefined();
+      expect(capturedContext!.injectedMemory).toBe("sub-agent memory content");
+    });
+
+    test("toolbox packages excluded from agent map", async () => {
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockToolboxPkg] }),
+        makeDeps(),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // Only toolbox-only package besides caller; no agents
+      const agentMap = result.result.options.agents;
+      expect(agentMap).toBeUndefined();
+    });
+
+    test("multiple workers: caller excluded, others included", async () => {
+      const thirdWorkerMeta: WorkerMetadata = {
+        ...mockOtherWorkerMeta,
+        identity: { name: "third-worker", description: "Third", displayTitle: "Third Worker" },
+      };
+      const thirdWorkerPkg: DiscoveredPackage = {
+        name: "@guild-hall/third-worker",
+        path: "/tmp/packages/third-worker",
+        metadata: thirdWorkerMeta,
+      };
+
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, thirdWorkerPkg, mockToolboxPkg] }),
+        makeDeps(),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const agentMap = result.result.options.agents!;
+      expect(Object.keys(agentMap)).toHaveLength(2);
+      expect("other-worker" in agentMap).toBe(true);
+      expect("third-worker" in agentMap).toBe(true);
+      expect("test-worker" in agentMap).toBe(false);
+    });
+
+    test("all sub-agents fail gracefully: session succeeds with no agents", async () => {
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps({
+          loadMemories: async (name) => {
+            if (name === "other-worker") throw new Error("all fail");
+            return { memoryBlock: "test memories" };
+          },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // No agents or empty agents
+      const agentMap = result.result.options.agents;
+      if (agentMap) {
+        expect(Object.keys(agentMap)).toHaveLength(0);
+      }
+    });
+
+    test("model field always present on agent entry even when subAgentModel omitted", async () => {
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps(),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const agent = result.result.options.agents!["other-worker"];
+      expect(agent.model).toBe("inherit");
+      expect(agent.model).toBeDefined();
     });
   });
 

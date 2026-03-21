@@ -9,7 +9,6 @@ related:
   - .lore/specs/workers/guild-hall-workers.md
   - .lore/specs/workers/guild-hall-worker-roster.md
   - .lore/specs/workers/worker-identity-and-personality.md
-  - .lore/specs/workers/guild-hall-mail-reader-toolbox.md
   - .lore/specs/workers/worker-communication.md
 ---
 
@@ -38,7 +37,7 @@ Requirements addressed:
 - REQ-STW-15: `preferences.md` memory convention → Step 3
 - REQ-STW-16: `active-threads.md` memory convention → Step 3
 - REQ-STW-17: Memory update timing → Step 3
-- REQ-STW-18: Guild Master escalation via `send_mail` → Step 3
+- REQ-STW-18: Guild Master escalation → Step 3
 - REQ-STW-19: Conservative escalation criteria → Step 3
 - REQ-STW-20: Guild Master is the only escalation target → Step 3
 - Portrait asset → Step 4
@@ -54,8 +53,6 @@ Everything this plan requires is already built. No infrastructure changes, no ne
 **`packages/shared/worker-activation.ts`**: The `activateWorkerWithSharedPattern()` function all workers call. The Steward's `index.ts` is one line. System prompt assembly order is already soul → identity → posture → memory → commission context.
 
 **`lib/packages.ts`**: Discovery loads `soul.md` and `posture.md` from the package directory. A missing `soul.md` warns but doesn't skip the worker. A missing `posture.md` skips the worker. Both files are loaded for the Steward.
-
-**`send_mail` tool**: Available in commission toolboxes since the worker-communication implementation. The Steward can call it to escalate to the Guild Master. Validation against discovered worker names happens in the toolbox; the Steward needs no special wiring.
 
 **Worker memory**: Workers receive their accumulated memory injected at session start via `context.injectedMemory`. The Steward reads this at commission start. Memory writes happen via the `Write` tool (included in `builtInTools`). Memory file paths follow worker-scoped conventions; the posture must tell the Steward where to write them.
 
@@ -199,7 +196,7 @@ The workflow must encode the commission execution sequence from REQ-STW-8 in fiv
    - Commission blocker: email affects active Guild Hall work
    - Explicit urgency from a known contact flagged as high-priority in `preferences.md`
 
-   If any criterion is met, send mail to the Guild Master via `send_mail` with the specific finding and why it qualifies. Wait for reply and incorporate the Guild Master's assessment into the commission result. If no criterion is met, do not send mail (REQ-STW-20).
+   If any criterion is met, escalate to the Guild Master with the specific finding and why it qualifies. If no criterion is met, do not escalate (REQ-STW-20).
 
 4. **Update memory** (REQ-STW-14 through REQ-STW-17): After email work is complete, update all three files:
    - Add new significant contacts to `contacts.md` (appear in multiple threads or flagged as relevant). Never delete entries; update `Last Seen` and Notes when new context is available.
@@ -379,7 +376,7 @@ describe("guild-hall-steward package", () => {
     // Verifies memory files are identified explicitly in the posture
 
     test("posture describes Guild Master escalation criteria");
-    // Checks for: "send_mail", "Guild Master", and at least two escalation signals
+    // Checks for: "Guild Master", and at least two escalation signals
     // (deadline, commission blocker, or known contact urgency)
 
     test("posture prohibits web tools");

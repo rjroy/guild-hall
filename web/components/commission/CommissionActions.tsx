@@ -18,6 +18,7 @@ interface CommissionActionsProps {
  * - dispatched / in_progress: Cancel (with confirmation)
  * - blocked: Abandon
  * - failed / cancelled: Re-dispatch, Abandon (with reason textarea)
+ * - halted: Continue, Save (with reason textarea), Abandon (with reason textarea)
  *
  * All buttons are disabled when the daemon is offline.
  */
@@ -30,9 +31,10 @@ export default function CommissionActions({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [confirming, setConfirming] = useState<
-    "cancel" | "redispatch" | "abandon" | null
+    "cancel" | "redispatch" | "abandon" | "continue" | "save" | null
   >(null);
   const [abandonReason, setAbandonReason] = useState("");
+  const [saveReason, setSaveReason] = useState("");
 
   const encodedId = encodeURIComponent(commissionId);
 
@@ -124,9 +126,60 @@ export default function CommissionActions({
     }
   }, [encodedId, onStatusChange, abandonReason]);
 
+  const handleContinue = useCallback(async () => {
+    setLoading(true);
+    setError(undefined);
+    setConfirming(null);
+    try {
+      const res = await fetch(`/api/commissions/${encodedId}/continue`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        onStatusChange?.("in_progress");
+      } else {
+        const data = (await res.json()) as { error?: string };
+        setError(data.error || "Continue failed");
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }, [encodedId, onStatusChange]);
+
+  const handleSave = useCallback(async () => {
+    setLoading(true);
+    setError(undefined);
+    setConfirming(null);
+    try {
+      const body: Record<string, string> = {};
+      if (saveReason.trim()) {
+        body.reason = saveReason;
+      }
+      const res = await fetch(`/api/commissions/${encodedId}/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        onStatusChange?.("completed");
+        setSaveReason("");
+      } else {
+        const data = (await res.json()) as { error?: string };
+        setError(data.error || "Save failed");
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }, [encodedId, onStatusChange, saveReason]);
+
   const showDispatch = status === "pending";
   const showQueued = status === "queued";
-  const showCancel = status === "dispatched" || status === "in_progress" || status === "queued" || status === "halted";
+  const showContinue = status === "halted";
+  const showSave = status === "halted";
+  const showCancel = status === "dispatched" || status === "in_progress" || status === "queued";
   const showRedispatch = status === "failed" || status === "cancelled";
   const showAbandon =
     status === "pending" ||
@@ -155,6 +208,96 @@ export default function CommissionActions({
           <span className={styles.queuedLabel}>Queued</span>
           <span className={styles.queuedText}>Waiting for capacity</span>
         </div>
+      )}
+
+      {showContinue && (
+        <>
+          {confirming === "continue" ? (
+            <div className={styles.confirmRow}>
+              <span className={styles.confirmText}>
+                Resume this commission with a fresh turn budget?
+              </span>
+              <button
+                className={styles.confirmYes}
+                onClick={() => void handleContinue()}
+                disabled={loading || !isOnline}
+                title={offlineTitle}
+                type="button"
+              >
+                {loading ? "Continuing..." : "Yes, Continue"}
+              </button>
+              <button
+                className={styles.confirmNo}
+                onClick={() => setConfirming(null)}
+                disabled={loading}
+                type="button"
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              className={styles.continueButton}
+              onClick={() => setConfirming("continue")}
+              disabled={loading || !isOnline}
+              title={offlineTitle}
+              type="button"
+            >
+              Continue Commission
+            </button>
+          )}
+        </>
+      )}
+
+      {showSave && (
+        <>
+          {confirming === "save" ? (
+            <div className={styles.confirmRow}>
+              <span className={styles.confirmText}>
+                Merge partial work from this commission?
+              </span>
+              <textarea
+                className={styles.actionReason}
+                placeholder="Why is this partial work worth keeping? (optional)"
+                value={saveReason}
+                onChange={(e) => setSaveReason(e.target.value)}
+                rows={2}
+              />
+              <div className={styles.confirmButtons}>
+                <button
+                  className={styles.confirmYes}
+                  onClick={() => void handleSave()}
+                  disabled={loading || !isOnline}
+                  title={offlineTitle}
+                  type="button"
+                >
+                  {loading ? "Saving..." : "Yes, Save"}
+                </button>
+                <button
+                  className={styles.confirmNo}
+                  onClick={() => {
+                    setConfirming(null);
+                    setSaveReason("");
+                  }}
+                  disabled={loading}
+                  type="button"
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className={styles.saveButton}
+              onClick={() => setConfirming("save")}
+              disabled={loading || !isOnline}
+              title={offlineTitle}
+              type="button"
+            >
+              Save Partial Work
+            </button>
+          )}
+        </>
       )}
 
       {showCancel && (
@@ -237,7 +380,7 @@ export default function CommissionActions({
             <div className={styles.confirmRow}>
               <span className={styles.confirmText}>Abandon this commission?</span>
               <textarea
-                className={styles.abandonReason}
+                className={styles.actionReason}
                 placeholder="Why is this being abandoned?"
                 value={abandonReason}
                 onChange={(e) => setAbandonReason(e.target.value)}
