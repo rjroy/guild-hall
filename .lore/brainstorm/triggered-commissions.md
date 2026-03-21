@@ -1,7 +1,7 @@
 ---
 title: "Triggered Commissions"
 date: 2026-03-20
-status: open
+status: resolved
 author: Octavia
 tags: [brainstorm, commissions, event-router, automation, dependencies]
 parent: standing-delegation.md
