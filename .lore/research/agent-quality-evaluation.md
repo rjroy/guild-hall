@@ -1,7 +1,7 @@
 ---
 title: Agent Quality Evaluation
 date: 2026-03-20
-status: current
+status: active
 tags: [research, evaluation, quality, multi-agent, feedback-loop]
 ---
 
