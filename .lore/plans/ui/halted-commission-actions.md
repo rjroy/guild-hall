@@ -1,7 +1,7 @@
 ---
 title: Halted commission action buttons
 date: 2026-03-20
-status: draft
+status: approved
 tags: [ui, commissions, halted-state, client-component, plan]
 modules: [commission-actions, api-proxy]
 related:
