@@ -69,7 +69,7 @@ This spec makes every discovered worker available as a sub-agent to every other 
   1. Loading the worker's memory via the `loadMemories` dependency (same call used for step 3 of the main pipeline, but with the sub-agent worker's name).
   2. Constructing an `ActivationContext` for the sub-agent (see REQ-SUBAG-15) and calling `activateWorker` to get an `ActivationResult`.
   3. Extracting the `systemPrompt` from the `ActivationResult` to use as the `AgentDefinition.prompt`.
-  4. Computing the `description` from the worker's identity and posture (see REQ-SUBAG-17 through REQ-SUBAG-19).
+  4. Computing the `description` from the worker's identity (see REQ-SUBAG-17 through REQ-SUBAG-20).
   5. Resolving the `model` from the worker's `subAgentModel` property (see REQ-SUBAG-10).
 
 - REQ-SUBAG-8: Agent map construction failures for individual workers do not fail the session. If a worker's memory load or activation throws, that worker is excluded from the agent map and a warning is logged. The calling worker's session proceeds with a partial agent map. This is a degraded-but-functional path: the caller loses access to one sub-agent, not all of them.
@@ -126,34 +126,54 @@ This spec makes every discovered worker available as a sub-agent to every other 
 
 - REQ-SUBAG-16: The `buildSystemPrompt` function in `packages/shared/worker-activation.ts` already handles the case where no activity-specific context is provided: it assembles soul, identity, posture, and memory sections. No new branch is needed for the `"subagent"` case. The absence of `meetingContext` and `commissionContext` in the `ActivationContext` is the mechanism. The sub-agent gets a prompt that says who it is and what it knows, without any instructions about what task it's performing. The calling agent provides task context when it invokes the sub-agent via the Task tool.
 
+### Invocation Guidance Property
+
+- REQ-SUBAG-32: `WorkerIdentity` in `lib/types.ts` gains a new optional property `guidance` of type `string`. This property describes WHEN to invoke the worker as a sub-agent. Each worker declares this about itself in its `package.json` under `guildHall.identity.guidance`. Example:
+
+  ```json
+  {
+    "guildHall": {
+      "identity": {
+        "name": "Thorne",
+        "displayTitle": "Guild Warden",
+        "description": "Oversees all work with a critical eye. Inspects everything, alters nothing.",
+        "guidance": "Invoke this worker when you need a critical review that checks for correctness, security, and adherence to project conventions. This worker reads and evaluates but does not modify code."
+      }
+    }
+  }
+  ```
+
+  The guidance string is optional. Workers that omit it fall back to `identity.description` at description-build time (REQ-SUBAG-20). New workers should add a guidance string once their invocation patterns are clear.
+
+- REQ-SUBAG-33: The `workerIdentitySchema` in `lib/packages.ts` adds `guidance` as an optional string field. No minimum length constraint; presence is enough. Validation runs during package discovery alongside existing identity validation.
+
 ### Description Generation
 
 - REQ-SUBAG-17: The `description` field on the generated `AgentDefinition` describes WHEN to invoke the worker, not just what the worker does. The SDK surfaces this description to the calling agent so it can decide whether to invoke the sub-agent. A description that says "Reviews code" is less useful than "Use when you want a critical code review that checks for correctness, security, and adherence to project conventions."
 
 - REQ-SUBAG-18: The description is assembled from two sources:
   1. The worker's `identity.description` (from `WorkerMetadata`), which states what the worker does.
-  2. The worker's `posture` (from `WorkerMetadata`), which states how the worker approaches its work.
+  2. The worker's `identity.guidance` (from `WorkerMetadata`), which states when to invoke this worker as a sub-agent.
 
   The description format:
 
   ```
   {identity.displayTitle} ({identity.name}). {identity.description}
 
-  Invoke this worker when: {derived invocation guidance from posture}.
+  {identity.guidance}
   ```
 
-  The "Invoke this worker when" line is derived from the posture by extracting the worker's stated principles or workflow focus. This is a string-processing step, not an LLM call.
+  When `identity.guidance` is present, it is used directly. When absent, the fallback format is:
 
-- REQ-SUBAG-19: A `buildSubAgentDescription` function is introduced in `packages/shared/sub-agent-description.ts`. It takes `WorkerIdentity` and `posture: string` as inputs and returns the description string. This function is pure (no I/O, no side effects) and testable in isolation.
+  ```
+  {identity.displayTitle} ({identity.name}). {identity.description}
 
-- REQ-SUBAG-20: The description function uses a lookup table keyed by worker name. The set of workers is small and stable; a mechanical posture-parsing heuristic would be fragile and hard to validate. Each table entry provides an invocation-guidance sentence tailored to the worker's strengths. If the table has no entry for a worker (e.g., a newly added package), the function falls back to the format in REQ-SUBAG-18 with `identity.description` as the invocation guidance.
+  Invoke this worker when: {identity.description}
+  ```
 
-  Example table entries:
-  - **Thorne**: "Invoke this worker when you need a critical review that checks for correctness, security, and adherence to project conventions. This worker reads and evaluates but does not modify code."
-  - **Octavia**: "Invoke this worker when you need a spec reviewed for clarity, completeness, or consistency with the codebase. Strong on documentation structure and precision."
-  - **Dalton**: "Invoke this worker when you need implementation advice, code architecture review, or help understanding how existing code works."
+- REQ-SUBAG-19: A `buildSubAgentDescription` function is introduced in `packages/shared/sub-agent-description.ts`. It takes `WorkerIdentity` as input and returns the description string. The `posture` parameter is no longer needed because invocation guidance now comes from the identity. This function is pure (no I/O, no side effects) and testable in isolation.
 
-  The table is a starting point. Entries should be revised based on observed invocation quality. When a new worker is added and its invocation patterns become clear, an entry should be added to the table.
+- REQ-SUBAG-20: The description function reads `identity.guidance` for the invocation-guidance text. When `guidance` is present, it is used as-is. When absent, the function falls back to `Invoke this worker when: {identity.description}`. There is no hardcoded lookup table. Each worker owns its own guidance as part of its identity declaration, the same way it owns its name and description.
 
 ### SdkQueryOptions Extension
 
@@ -234,7 +254,7 @@ This spec makes every discovered worker available as a sub-agent to every other 
 | Sub-agent-specific tools | A sub-agent needs capabilities the parent doesn't have | SDK support for per-agent MCP servers, or a tool passthrough mechanism |
 | Local model sub-agents | The SDK adds per-agent model endpoint configuration | Revise REQ-SUBAG-2 to allow local model names |
 | Per-worker opt-out | A worker's posture is counterproductive when invoked as a sub-agent | Add `excludeFromSubAgents?: boolean` to `WorkerMetadata` |
-| Description from LLM | Mechanical description extraction produces poor invocation guidance | Replace `buildSubAgentDescription` with an LLM-generated description cached at package discovery time |
+| Description from LLM | Human-written guidance strings produce poor invocation quality | Replace `buildSubAgentDescription` with an LLM-generated description cached at package discovery time |
 | Sub-agent caching | Agent map construction adds measurable latency to session startup | Cache compiled `AgentDefinition` objects per worker, invalidate on package change |
 
 ## Success Criteria
@@ -248,7 +268,8 @@ This spec makes every discovered worker available as a sub-agent to every other 
 - [ ] Sub-agent construction failure for one worker does not prevent the session from starting
 - [ ] Sub-agents inherit all of the parent's tools (no `tools` filter on `AgentDefinition`)
 - [ ] The `"subagent"` context type is registered with no toolbox factory
-- [ ] Agent descriptions guide the caller toward appropriate invocation, not just capability listing
+- [ ] All eight current workers declare invocation guidance in `identity.guidance`
+- [ ] Agent descriptions use `identity.guidance` when present, fall back to `identity.description` when absent
 - [ ] All daemon tests pass, including new tests for agent map construction and description generation
 
 ## AI Validation
@@ -262,9 +283,11 @@ This spec makes every discovered worker available as a sub-agent to every other 
 - Confirm `subAgentModel` is added to `WorkerMetadata` in `lib/types.ts`.
 - Confirm `agents` is added to `SdkQueryOptions` in `sdk-runner.ts`.
 - Confirm `"subagent"` is registered in `createContextTypeRegistry()`.
-- Confirm `buildSubAgentDescription` is a pure function with no I/O.
+- Confirm `buildSubAgentDescription` is a pure function with no I/O that takes `WorkerIdentity` (not posture).
 - Confirm agent map construction in `prepareSdkSession` runs between step 4 and step 5.
 - Confirm `runSdkSession` passes `agents` through to the SDK.
+- Confirm `guidance` is an optional string on `WorkerIdentity` in `lib/types.ts`.
+- Confirm `guidance` is in the `workerIdentitySchema` in `lib/packages.ts`.
 
 **Behavioral checks:**
 - Test that `prepareSdkSession` produces an `agents` map excluding the calling worker.
@@ -273,7 +296,8 @@ This spec makes every discovered worker available as a sub-agent to every other 
 - Test that a worker with no `subAgentModel` produces an `AgentDefinition` with `model: "inherit"`.
 - Test that package validation rejects `subAgentModel: "invalid-model"`.
 - Test that a failing sub-agent activation logs a warning and excludes that agent from the map.
-- Test that `buildSubAgentDescription` falls back to `identity.description` alone when the worker has no lookup table entry.
+- Test that `buildSubAgentDescription` uses `identity.guidance` when present.
+- Test that `buildSubAgentDescription` falls back to `identity.description` when `guidance` is absent.
 - Test that a worker with soul content produces a prompt containing the soul section, and a worker without soul still activates successfully.
 - Test that a worker with memory content produces a prompt containing the memory section.
 
@@ -281,10 +305,11 @@ This spec makes every discovered worker available as a sub-agent to every other 
 
 - The `AgentDefinition` type is sourced from SDK documentation, not from a TypeScript import. If the SDK changes the type shape, the inline type in `SdkQueryOptions` must be updated manually. A sync test (importing the SDK type and comparing fields) could catch drift, but is not required by this spec.
 - Sub-agent prompt quality depends on the existing activation pipeline producing good system prompts from identity + posture + memory alone (no activity context). This is the same pipeline used for commissions and meetings, just with fewer inputs. If the prompts are too generic, the solution is richer worker identity and posture content, not changes to the activation pipeline.
-- The description generation (REQ-SUBAG-18 through REQ-SUBAG-20) is deliberately mechanical. LLM-generated descriptions would be higher quality but would add an LLM call per worker per session startup. The mechanical approach is fast and deterministic. If description quality becomes a bottleneck for sub-agent invocation accuracy, an LLM-generated description cached at package discovery time is the escape hatch (see Exit Points).
+- Description generation (REQ-SUBAG-18 through REQ-SUBAG-20) reads from the worker's identity metadata. The quality of invocation guidance depends on each worker's `guidance` string being well-written. If a worker's guidance is vague, the fix is updating the worker's `package.json`, not changing the description function. LLM-generated descriptions cached at package discovery time remain an escape hatch if human-written guidance proves insufficient (see Exit Points).
 
 ## Context
 
 - The brainstorm (`.lore/brainstorm/worker-sub-agents-and-mail-removal.md`, Proposal 2) established the core concept and rationale. This spec fills in the requirements the brainstorm left open: property schema, validation, activation path, description generation, and tool inheritance semantics.
+- REQ-SUBAG-32, REQ-SUBAG-33 (added 2026-03-21) replace the hardcoded lookup table approach from the original REQ-SUBAG-18/20 with a `guidance` property on `WorkerIdentity`. The lookup table was a workaround for invocation guidance not being in the package metadata. With `guidance` in the identity block, each worker declares its own invocation guidance and `buildSubAgentDescription` becomes a simple read instead of a table lookup.
 - The context type registry spec (`.lore/specs/infrastructure/context-type-registry.md`) defines the pattern for adding new context types. The `"subagent"` type follows the same pattern as `"briefing"`: registered in the map, no toolbox factory, uses a state subdirectory.
 - The SDK reference (`.lore/research/claude-agent-sdk-ref-typescript.md`) documents the `AgentDefinition` type and the `agents` field on `Options`. The spec's type definitions are derived from this reference.
