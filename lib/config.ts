@@ -91,6 +91,7 @@ export const notificationRuleSchema = z.object({
   match: z.object({
     type: z.enum(SYSTEM_EVENT_TYPES),
     projectName: z.string().optional(),
+    fields: z.record(z.string(), z.string()).optional(),
   }),
   channel: z.string(),
 });

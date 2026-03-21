@@ -8,6 +8,7 @@
  * REQ-EVRT-1 through REQ-EVRT-9, REQ-EVRT-27, REQ-EVRT-29
  */
 
+import micromatch from "micromatch";
 import type { EventBus, SystemEvent } from "@/daemon/lib/event-bus";
 import type { Log } from "@/daemon/lib/log";
 import type { SystemEventType } from "@/lib/types";
@@ -15,6 +16,7 @@ import type { SystemEventType } from "@/lib/types";
 export interface EventMatchRule {
   type: SystemEventType;
   projectName?: string;
+  fields?: Record<string, string>;
 }
 
 export interface EventRouter {
@@ -38,7 +40,7 @@ export function createEventRouter(deps: { eventBus: EventBus; log: Log }): { rou
 
   const unsubscribeBus = eventBus.subscribe((event: SystemEvent) => {
     for (const sub of subscriptions) {
-      if (!matches(sub.rule, event)) continue;
+      if (!matches(sub.rule, event, log)) continue;
 
       log.info(`matched ${event.type} for subscription rule {type: "${sub.rule.type}"${sub.rule.projectName ? `, projectName: "${sub.rule.projectName}"` : ""}}`);
 
@@ -77,12 +79,28 @@ export function createEventRouter(deps: { eventBus: EventBus; log: Log }): { rou
 }
 
 /** Evaluates whether a match rule matches an event. */
-function matches(rule: EventMatchRule, event: SystemEvent): boolean {
+function matches(rule: EventMatchRule, event: SystemEvent, log: Log): boolean {
   if (rule.type !== event.type) return false;
 
   if (rule.projectName !== undefined) {
     if (!("projectName" in event) || (event as Record<string, unknown>).projectName !== rule.projectName) {
       return false;
+    }
+  }
+
+  if (rule.fields) {
+    const eventRecord = event as Record<string, unknown>;
+    for (const [key, pattern] of Object.entries(rule.fields)) {
+      if (!(key in eventRecord)) return false;
+      try {
+        if (!micromatch.isMatch(String(eventRecord[key]), pattern)) return false;
+      } catch (err) {
+        log.warn(
+          `invalid glob pattern for field "${key}": ${pattern} -`,
+          err instanceof Error ? err.message : String(err),
+        );
+        return false;
+      }
     }
   }
 
