@@ -1,0 +1,25 @@
+---
+title: "Commission: Event Router Revision: Phase 3 — Production wiring + full validation"
+date: 2026-03-21
+status: blocked
+type: one-shot
+tags: [commission]
+worker: Dalton
+workerDisplayTitle: "Guild Artificer"
+prompt: "Implement Phase 3 and Phase 4 of the Event Router revision plan at `.lore/plans/infrastructure/event-router-revision.md`.\n\n**Scope:** Steps 5-7 (rewire `daemon/app.ts`, run full test suite, fresh-context review).\n\n**Read first:**\n- The plan: `.lore/plans/infrastructure/event-router-revision.md` (Phases 3 and 4)\n- The revised spec: `.lore/specs/infrastructure/event-router.md`\n- `daemon/app.ts` (current wiring, lines ~548-554)\n- `daemon/services/event-router.ts` (Phase 1 output)\n- `daemon/services/notification-service.ts` (Phase 2 output)\n\n**What to do:**\n\n1. **Rewire `daemon/app.ts`:** Replace the current event router creation (which will have broken imports from Phase 1) with:\n   - Create the generic router first: `createEventRouter({ eventBus, log })`\n   - Create the notification service second: `createNotificationService({ router, channels, notifications, log })`\n   - Update the `shutdown` function to call both cleanup functions (notifications first, then router)\n   - Router must be created before the notification service\n\n2. **Run `bun test`** — all tests must pass, including the new router and notification service tests.\n\n3. **Fresh-context review (sub-agent):** Launch a sub-agent to verify against the spec. Check every item listed in Step 7 of the plan:\n   - `createEventRouter` returns `{ router, cleanup }` with `subscribe` method\n   - `createNotificationService` is a separate factory consuming the router\n   - Config schemas unchanged\n   - Both wired in `createProductionApp`, router first\n   - Correct log tags\n   - Handler/channel failures isolated\n   - Empty config produces inert notification service\n   - Shutdown calls both cleanups\n   - Every REQ has at least one test\n\nFix any findings from the review. Run `bun test` again after fixes."
+dependencies:
+  - commission-Dalton-20260321-090743
+linked_artifacts: []
+
+activity_timeline:
+  - timestamp: 2026-03-21T16:07:56.315Z
+    event: created
+    reason: "Commission created"
+  - timestamp: 2026-03-21T16:07:56.316Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
+current_progress: ""
+projectName: guild-hall
+---
