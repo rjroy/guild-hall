@@ -178,6 +178,7 @@ export interface WorkerIdentity {
   description: string;
   displayTitle: string;
   portraitPath?: string;
+  guidance?: string;
 }
 
 /**

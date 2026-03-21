@@ -457,7 +457,7 @@ export async function prepareSdkSession(
         };
 
         const subActivation = await deps.activateWorker(subPkg, subActivationContext);
-        const description = buildSubAgentDescription(subMeta.identity, subMeta.posture);
+        const description = buildSubAgentDescription(subMeta.identity);
 
         // Resolve model: "inherit" when absent or "inherit", otherwise use directly (REQ-SUBAG-10, REQ-SUBAG-11)
         const resolvedSubAgentModel = (!subMeta.subAgentModel || subMeta.subAgentModel === "inherit")

@@ -12,28 +12,30 @@ function makeIdentity(overrides: Partial<WorkerIdentity> = {}): WorkerIdentity {
 }
 
 describe("buildSubAgentDescription", () => {
-  test("known worker uses lookup table entry", () => {
+  test("worker with guidance uses guidance string", () => {
     const identity = makeIdentity({
       name: "Thorne",
       displayTitle: "Guild Warden",
       description: "Reviews code for correctness and convention adherence.",
+      guidance:
+        "Invoke this worker when you need a critical review that checks for correctness, security, and adherence to project conventions. This worker reads and evaluates but does not modify code.",
     });
 
-    const result = buildSubAgentDescription(identity, "Some posture text");
+    const result = buildSubAgentDescription(identity);
 
     expect(result).toContain("critical review");
     expect(result).toContain("reads and evaluates but does not modify code");
     expect(result).not.toContain("Invoke this worker when:");
   });
 
-  test("unknown worker falls back to identity.description", () => {
+  test("worker without guidance falls back to identity.description", () => {
     const identity = makeIdentity({
       name: "NewWorker",
       displayTitle: "Guild Newcomer",
       description: "Does something novel.",
     });
 
-    const result = buildSubAgentDescription(identity, "Some posture text");
+    const result = buildSubAgentDescription(identity);
 
     expect(result).toContain("Invoke this worker when: Does something novel.");
   });
@@ -45,7 +47,7 @@ describe("buildSubAgentDescription", () => {
       description: "Builds what is commissioned.",
     });
 
-    const result = buildSubAgentDescription(identity, "Some posture text");
+    const result = buildSubAgentDescription(identity);
 
     expect(result).toStartWith("Guild Artificer (Dalton).");
   });
@@ -57,7 +59,7 @@ describe("buildSubAgentDescription", () => {
       description: "Documents specifications and maintains clarity.",
     });
 
-    const result = buildSubAgentDescription(identity, "Some posture text");
+    const result = buildSubAgentDescription(identity);
 
     expect(result).toContain(
       "Documents specifications and maintains clarity.",
@@ -66,31 +68,24 @@ describe("buildSubAgentDescription", () => {
 
   test("function is pure - same inputs produce same output", () => {
     const identity = makeIdentity({ name: "Sable" });
-    const posture = "Breaks things to find what's fragile.";
 
-    const result1 = buildSubAgentDescription(identity, posture);
-    const result2 = buildSubAgentDescription(identity, posture);
+    const result1 = buildSubAgentDescription(identity);
+    const result2 = buildSubAgentDescription(identity);
 
     expect(result1).toBe(result2);
   });
 
-  test("all current workers have lookup table entries", () => {
-    const workerNames = [
-      "Thorne",
-      "Octavia",
-      "Dalton",
-      "Celeste",
-      "Edmund",
-      "Verity",
-      "Sable",
-      "Sienna",
-    ];
+  test("worker with guidance includes both header and guidance", () => {
+    const identity = makeIdentity({
+      name: "Verity",
+      displayTitle: "Guild Pathfinder",
+      description: "Ventures beyond the guild walls.",
+      guidance: "Invoke this worker when you need external research.",
+    });
 
-    for (const name of workerNames) {
-      const identity = makeIdentity({ name });
-      const result = buildSubAgentDescription(identity, "posture");
-      // Known workers should NOT have the fallback prefix
-      expect(result).not.toContain("Invoke this worker when:");
-    }
+    const result = buildSubAgentDescription(identity);
+
+    expect(result).toContain("Guild Pathfinder (Verity). Ventures beyond the guild walls.");
+    expect(result).toContain("Invoke this worker when you need external research.");
   });
 });

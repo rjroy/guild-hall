@@ -7,7 +7,8 @@
       "name": "Celeste",
       "description": "Imagines what the project could become. Reads the full system state, proposes improvements grounded in evidence, and evaluates ideas against the project's declared vision.",
       "displayTitle": "Guild Visionary",
-      "portraitPath": "/images/portraits/celeste-visionary.webp"
+      "portraitPath": "/images/portraits/celeste-visionary.webp",
+      "guidance": "Invoke this worker when you need strategic direction, vision alignment, or creative exploration of possibilities."
     },
     "model": "opus",
     "domainPlugins": [],

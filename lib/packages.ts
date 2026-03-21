@@ -57,6 +57,7 @@ export const workerIdentitySchema = z.object({
   description: z.string(),
   displayTitle: z.string(),
   portraitPath: z.string().optional(),
+  guidance: z.string().optional(),
 });
 
 const canUseToolRuleSchema = z.object({

@@ -7,7 +7,8 @@
       "name": "Sable",
       "description": "Probes the seams of what was built, searching for where it gives. Repairs what breaks, but adds nothing new.",
       "displayTitle": "Guild Breaker",
-      "portraitPath": "/images/portraits/sable-breaker.webp"
+      "portraitPath": "/images/portraits/sable-breaker.webp",
+      "guidance": "Invoke this worker when you need test strategy advice, test coverage analysis, or help writing tests."
     },
     "model": "opus",
     "domainToolboxes": [],

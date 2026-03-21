@@ -1713,6 +1713,31 @@ describe("prepareSdkSession", () => {
       expect(result.result.options.agents!["other-worker"].description).toContain("Other Worker");
     });
 
+    test("agent with guidance uses guidance in description", async () => {
+      const guidedWorkerMeta: WorkerMetadata = {
+        ...mockOtherWorkerMeta,
+        identity: {
+          ...mockOtherWorkerMeta.identity,
+          guidance: "Invoke this worker when you need diligent code review.",
+        },
+      };
+      const guidedWorkerPkg: DiscoveredPackage = {
+        ...mockOtherWorkerPkg,
+        metadata: guidedWorkerMeta,
+      };
+
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, guidedWorkerPkg, mockToolboxPkg] }),
+        makeDeps(),
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const desc = result.result.options.agents!["other-worker"].description;
+      expect(desc).toContain("Invoke this worker when you need diligent code review.");
+      expect(desc).not.toContain("Invoke this worker when:");
+    });
+
     test("no tools field on agent entry", async () => {
       const result = await prepareSdkSession(
         makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
