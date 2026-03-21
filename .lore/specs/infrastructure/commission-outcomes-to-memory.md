@@ -1,7 +1,7 @@
 ---
 title: Commission and Meeting Outcomes to Project Memory
 date: 2026-03-20
-status: approved
+status: implemented
 tags: [memory, commissions, meetings, automation, lifecycle, haiku, triage]
 modules: [daemon/services/commission/orchestrator, daemon/services/meeting/orchestrator, daemon/services/base-toolbox, daemon/services/memory-sections, daemon/lib/event-bus]
 related:
