@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
 import styles from "./MeetingHeader.module.css";
@@ -19,22 +22,24 @@ export default function MeetingHeader({
   agenda,
   model,
 }: MeetingHeaderProps) {
+  const [condensed, setCondensed] = useState(false);
   const encodedName = encodeURIComponent(projectName);
 
+  const headerClassName = `${styles.header} ${condensed ? styles.headerCondensed : ""}`;
+
   return (
-    <div className={styles.header}>
-      <div className={styles.headerContent}>
+    <div className={headerClassName}>
+      <div className={condensed ? styles.headerContentCondensed : styles.headerContent}>
         <div className={styles.workerInfo}>
           <WorkerPortrait
             name={workerName}
-            title={workerDisplayTitle}
+            title={condensed ? undefined : workerDisplayTitle}
             portraitUrl={workerPortraitUrl}
-            size="lg"
+            size={condensed ? "xs" : "lg"}
           />
         </div>
 
-        <div className={styles.agendaSection}>
-
+        <div className={condensed ? styles.agendaSectionCondensed : styles.agendaSection}>
           <nav className={styles.breadcrumb} aria-label="Breadcrumb">
             <Link href="/" className={styles.breadcrumbLink}>
               Guild Hall
@@ -54,11 +59,25 @@ export default function MeetingHeader({
             <span className={styles.breadcrumbCurrent}>Audience</span>
           </nav>
 
-          <h3 className={styles.agendaTitle}>Agenda</h3>
-          <p className={styles.agendaText}>{agenda}</p>
-          {model && (
-            <span className={styles.modelLabel}>Model: {model}</span>
-          )}
+          <h3 className={`${styles.agendaTitle} ${condensed ? styles.agendaTitleCondensed : ""}`}>Agenda</h3>
+          <p className={condensed ? styles.agendaTextCondensed : styles.agendaText}>
+            {agenda}
+          </p>
+
+          <div className={styles.agendaTrailing}>
+            {model && (
+              <span className={styles.modelLabel}>Model: {model}</span>
+            )}
+            <button
+              type="button"
+              className={styles.toggleButton}
+              onClick={() => setCondensed((prev) => !prev)}
+              aria-label={condensed ? "Expand header" : "Collapse header"}
+              aria-expanded={!condensed}
+            >
+              {condensed ? "\u25BC" : "\u25B2"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
