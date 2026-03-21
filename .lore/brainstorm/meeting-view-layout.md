@@ -221,8 +221,10 @@ This is mostly CSS, touches no component logic, and solves navigation friction i
 
 After phase 1 locks the header in place, it becomes clear how much space it consumes. Add a condensed state:
 - **Expanded** (default on page load, on desktop): full portrait, breadcrumb, agenda, model label.
-- **Condensed** (after first scroll or explicit toggle, default on mobile): breadcrumb only, small avatar inline, agenda hidden. ~40-48px tall.
+- **Condensed** (after first scroll or explicit toggle, default on mobile): breadcrumb, small avatar inline, agenda truncated to first line with expand affordance. ~48-56px tall.
 - Toggle: clicking the condensed header expands it; scrolling in chat or clicking a "minimize" affordance condenses it.
+
+All information present in the expanded state must remain reachable in the condensed state. The condensed layout changes presentation (truncates, collapses), not availability.
 
 This requires:
 - State in `MeetingHeader` (or lifted to `page.tsx`)
@@ -232,9 +234,9 @@ This requires:
 ### Phase 3: Mobile Refinements (Patterns 5 + 8, selectively)
 
 On screens below 768px:
-- Start header condensed by default
-- Move artifacts and close button into a slide-up sheet anchored to the input bar, or a collapsible section directly above the input bar (simpler than a full bottom sheet)
-- The sidebar column disappears entirely; its content relocates
+- Start header condensed by default (agenda truncated to first line, not removed; expand on tap restores full header)
+- Relocate sidebar content (artifacts panel, close button) into a collapsible section above the input bar, or a slide-up sheet anchored to the input bar (simpler option preferred)
+- The sidebar column is replaced by these relocated controls; no information is removed, only re-presented
 
 This is the biggest lift and may not be needed if tablet/phone use is occasional.
 
@@ -244,10 +246,10 @@ This is the biggest lift and may not be needed if tablet/phone use is occasional
 
 | Breakpoint | Layout | Header | Sidebar |
 |-----------|--------|--------|---------|
-| >960px (desktop) | Chat + 260px sidebar, side by side. 960px max-width centered. | Full expanded, condensable. | Visible, fixed width. |
-| 768-960px (tablet) | Same layout, narrower. Chat area shrinks. | Start condensed, expandable. | Visible but could collapse. |
-| 480-768px (phone landscape / small tablet) | Single column. No sidebar. | Condensed only. Expand on tap. | Artifacts move to collapsible section above input bar. |
-| <480px (phone) | Single column. Minimal padding. | Condensed only. Breadcrumb + mini avatar. | Artifacts as inline collapsible. Close button moves to header or overflow menu. |
+| >960px (desktop) | Chat + 260px sidebar, side by side. 960px max-width centered. | Full expanded, condensable via toggle. | Visible, fixed width. |
+| 768-960px (tablet) | Same layout, narrower. Chat area shrinks. | Start condensed (agenda truncated, avatar small). Expand on tap to reveal full header. | Visible, collapsible. |
+| 480-768px (phone landscape / small tablet) | Single column. Sidebar content relocates to collapsible section above input bar. | Condensed (breadcrumb, small avatar, truncated agenda). Expand on tap to reveal full portrait and agenda. | Collapsible section above input bar. |
+| <480px (phone) | Single column. Minimal padding. Sidebar content relocates to collapsible section above input bar. | Condensed (breadcrumb, small avatar, truncated agenda). Expand on tap for full details. | Inline collapsible above input bar. Close button moves to condensed header bar. |
 
 The existing 768px breakpoint (sidebar stacks below chat) would change: instead of stacking, the sidebar content relocates into the chat column, either as a collapsible panel above the input or as a "drawer" that slides up.
 
@@ -282,6 +284,6 @@ Note: `MeetingHeader` is currently a server component (no "use client" directive
 ## Open Questions
 
 1. **How often are meetings accessed on mobile?** If rarely, Phase 3 can wait indefinitely. If often, it should move up.
-2. **Should the condensed header show the agenda at all?** The agenda is context for the conversation. Hiding it means the user might forget what they're talking about. A middle ground: show the first line of the agenda, truncated, with an expand affordance.
+2. **~~Should the condensed header show the agenda at all?~~** Resolved: yes. All data present on desktop must be reachable on mobile. The condensed header truncates the agenda to first line with an expand affordance. Hiding information from mobile users is not an acceptable responsive strategy.
 3. **Is the 960px max-width sacred?** Wider screens could benefit from a split pane, but widening changes the reading line length for message bubbles. The constraint may be deliberate for readability.
 4. **Where does "Close Audience" live in a condensed layout?** Currently it's in the sidebar. If the sidebar goes away on mobile, the close button needs a new home. Header overflow menu? Inline above the input? Floating?
