@@ -1,7 +1,7 @@
 ---
 title: "Commission: Review: Sub-agent description fix"
 date: 2026-03-21
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -20,6 +20,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-21T09:11:57.642Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-21T09:11:57.646Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
