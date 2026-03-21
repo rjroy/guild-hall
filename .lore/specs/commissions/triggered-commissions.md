@@ -361,11 +361,85 @@ This means you cannot write a trigger rule that says "when a Dalton commission c
 - Depth computation requires one filesystem read per trigger firing (source commission artifact). This is acceptable given trigger firings are infrequent relative to event volume.
 - The `dispatchTrigger` callback must not block the event router's subscriber. All trigger work (artifact reads, commission creation, dispatch) happens in a fire-and-forget async wrapper.
 
+## Review Notes (2026-03-21)
+
+**Blocking concern: this spec needs significant revision before approval.**
+
+The following decisions were made in a review meeting. The spec as written does not reflect them yet. The event router architecture question (below) must be resolved before this spec can be finalized.
+
+### Decision: Triggers are commission artifacts, not config rules
+
+REQ-TRIG-1 places triggers in `config.yaml` alongside `channels` and `notifications`. This is wrong. Triggered commissions should follow the same pattern as scheduled commissions:
+
+- Live in `.lore/commissions/` as commission artifacts with `type: triggered`
+- Daemon scans commission directories at startup, registers triggers (same as scheduled commissions)
+- When an event matches, spawn a one-shot commission from the template
+- Guild Master can create them; users see them in the commissions list
+
+The rationale: anything that spawns commissions should live in commission artifacts. Scheduled and triggered commissions do the same thing (spawn one-shot commissions from a template), differing only in activation mechanism (cron tick vs event match). Splitting them across config.yaml and artifacts splits a single concept across two homes.
+
+### Decision: Triggers are stateful, not stateless
+
+The brainstorm argued triggers are "stateless rules" and therefore belong in config. This was rejected. Triggers should track state like scheduled commissions do: how many times they've fired, when they last fired, what they last spawned. They should also be project-scoped (config.yaml is global, not tied to any project).
+
+Expected frontmatter shape:
+
+```yaml
+---
+type: triggered
+status: active
+worker: guild-hall-reviewer
+prompt: "Review the work from commission {{commissionId}}."
+title: "Review: {{commissionId}}"
+triggers:
+  match:
+    type: commission_status
+    fields:
+      status: completed
+  approval: auto
+  maxDepth: 3
+  runs_completed: 0
+  last_triggered: null
+  last_spawned_id: null
+---
+```
+
+### Decision: No `repeat` field
+
+Unlike scheduled commissions, triggered commissions do not support a `repeat` (max firings) field. They are standing reactions until paused or completed manually.
+
+### Unresolved: Event router architecture
+
+The event router's `channels` and `notifications` live in the global `config.yaml`, not scoped to any project. This is inconsistent with the rest of Guild Hall, where everything is project-centric. The triggered commissions spec assumed it would extend the event router, but if the event router's architecture changes (e.g., notification rules become project-scoped artifacts), the trigger evaluator's design changes with it.
+
+This must be resolved before finalizing the triggered commissions spec. Specifically:
+
+- Should a new trigger evaluator service subscribe to the EventBus independently (like the scheduler), rather than extending the event router?
+- Does the event router itself need to move to a project-scoped model?
+
+### Requirements affected
+
+If the commission-artifact model is adopted, the following requirements need rewriting or removal:
+
+- **REQ-TRIG-1** (config.yaml location): Replace entirely. Triggers live in commission artifacts.
+- **REQ-TRIG-2, 3** (trigger rule shape, name validation): Rewrite to describe frontmatter fields instead of config array entries.
+- **REQ-TRIG-25, 26, 27** (event router extension, EventRouterDeps): Likely replaced by a trigger evaluator service that subscribes to EventBus directly.
+- **REQ-TRIG-29** (dispatchTrigger callback): May change depending on trigger evaluator architecture.
+- **REQ-TRIG-30, 31** (Zod config validation): Replace with commission artifact schema validation.
+- **REQ-TRIG-32, 33** (types in lib/types.ts, AppConfig): `AppConfig.triggers` field is no longer needed. Types move to commission schema.
+
+Requirements likely preserved with minor adjustments:
+- **REQ-TRIG-4 through 7** (match object): Core matching logic is sound regardless of where triggers live.
+- **REQ-TRIG-8 through 13** (commission template, variable expansion): Template fields move to frontmatter but the mechanics are the same.
+- **REQ-TRIG-14 through 17** (approval model): Unchanged.
+- **REQ-TRIG-18 through 24** (provenance, loop prevention): Unchanged.
+- **REQ-TRIG-35 through 37** (commission creation API): Unchanged.
+
 ## Context
 
-- Brainstorm: `.lore/brainstorm/triggered-commissions.md` (resolved all major design questions)
-- Event router spec: `.lore/specs/infrastructure/event-router.md` (the system being extended)
+- Brainstorm: `.lore/brainstorm/triggered-commissions.md` (resolved design questions, but its recommendation to use config.yaml was rejected)
+- Event router spec: `.lore/specs/infrastructure/event-router.md` (architecture under review)
 - Event router implementation: `daemon/services/event-router.ts`
 - EventBus types: `daemon/lib/event-bus.ts`
-- Config schema: `lib/config.ts`
+- Scheduled commissions spec: `.lore/specs/commissions/guild-hall-scheduled-commissions.md` (the pattern triggers should follow)
 - Commission orchestrator: `daemon/services/commission/orchestrator.ts` (createCommission API)
