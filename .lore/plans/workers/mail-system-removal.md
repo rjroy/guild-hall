@@ -1,7 +1,7 @@
 ---
 title: "Plan: Mail System Removal"
 date: 2026-03-20
-status: approved
+status: executed
 tags: [mail, removal, cleanup, architecture]
 modules: [mail, commission-orchestrator, toolbox-resolver, context-type-registry, lifecycle, capacity, event-bus, config]
 related:
