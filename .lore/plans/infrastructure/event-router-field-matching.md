@@ -1,7 +1,7 @@
 ---
 title: "Plan: Event Router Field Matching"
 date: 2026-03-21
-status: approved
+status: executed
 tags: [event-router, matching, micromatch, glob, notifications, config, infrastructure]
 modules: [event-router, config, types]
 related:
