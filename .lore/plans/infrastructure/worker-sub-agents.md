@@ -1,7 +1,7 @@
 ---
 title: "Plan: Worker Sub-Agents"
 date: 2026-03-20
-status: draft
+status: approved
 tags: [workers, sub-agents, sdk, activation, agent-sdk]
 modules: [daemon/lib/agent-sdk/sdk-runner, lib/types, daemon/services/context-type-registry, packages/shared/worker-activation, lib/packages]
 related:
