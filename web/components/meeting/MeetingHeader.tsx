@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
 import styles from "./MeetingHeader.module.css";
@@ -12,6 +12,12 @@ interface MeetingHeaderProps {
   workerPortraitUrl?: string;
   agenda: string;
   model?: string;
+  /** Close callback for phone-viewport close button (REQ-MTG-LAYOUT-22) */
+  onClose?: () => void;
+  /** Whether a close operation is in progress */
+  closing?: boolean;
+  /** Whether the daemon is online */
+  isOnline?: boolean;
 }
 
 export default function MeetingHeader({
@@ -21,8 +27,23 @@ export default function MeetingHeader({
   workerPortraitUrl,
   agenda,
   model,
+  onClose,
+  closing,
+  isOnline = true,
 }: MeetingHeaderProps) {
-  const [condensed, setCondensed] = useState(false);
+  // REQ-MTG-LAYOUT-17/18: Default to condensed on tablet (<=960px) at mount time.
+  // Not reactive to resize; toggle overrides in either direction.
+  const [condensed, setCondensed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 960px)").matches;
+  });
+
+  // SSR safety: re-check on mount since SSR always returns false
+  useEffect(() => {
+    const matches = window.matchMedia("(max-width: 960px)").matches;
+    if (matches) setCondensed(true);
+  }, []);
+
   const encodedName = encodeURIComponent(projectName);
 
   const headerClassName = `${styles.header} ${condensed ? styles.headerCondensed : ""}`;
@@ -77,6 +98,20 @@ export default function MeetingHeader({
             >
               {condensed ? "\u25BC" : "\u25B2"}
             </button>
+            {/* REQ-MTG-LAYOUT-22: Phone close button in condensed header bar.
+                Rendered when condensed + onClose provided. Hidden above 480px via CSS. */}
+            {condensed && onClose && (
+              <button
+                type="button"
+                className={styles.headerCloseButton}
+                onClick={onClose}
+                disabled={closing || !isOnline}
+                title={!isOnline ? "Daemon offline" : "Close Audience"}
+                aria-label="Close Audience"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
       </div>

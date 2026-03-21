@@ -171,6 +171,32 @@
   border-color: var(--color-amber);
 }
 
+/* --- Phone close button (REQ-MTG-LAYOUT-22) --- */
+
+.headerCloseButton {
+  display: none;
+  background: rgba(180, 60, 60, 0.15);
+  border: 1px solid rgba(180, 60, 60, 0.3);
+  border-radius: 4px;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 4px 8px;
+  flex-shrink: 0;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.headerCloseButton:hover:not(:disabled) {
+  background-color: rgba(180, 60, 60, 0.25);
+  border-color: rgba(180, 60, 60, 0.5);
+}
+
+.headerCloseButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* --- Responsive --- */
 
 @media (max-width: 600px) {
@@ -189,5 +215,10 @@
   .header {
     border-image-width: 16px;
     border-radius: 16px;
+  }
+
+  /* REQ-MTG-LAYOUT-22: Show close button in condensed header on phone */
+  .headerCloseButton {
+    display: inline-flex;
   }
 }

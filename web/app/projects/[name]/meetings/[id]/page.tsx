@@ -119,14 +119,6 @@ export default async function MeetingPage({
 
   return (
     <div className={styles.meetingView}>
-      <MeetingHeader
-        projectName={projectName}
-        workerName={workerName}
-        workerDisplayTitle={workerDisplayTitle}
-        workerPortraitUrl={workerPortraitUrl}
-        agenda={agenda}
-        model={workerModel}
-      />
       <MeetingView
         meetingId={id}
         projectName={projectName}
@@ -135,6 +127,8 @@ export default async function MeetingPage({
         workerPortraitUrl={workerPortraitUrl}
         initialArtifacts={initialArtifacts}
         initialMessages={parsedMessages}
+        agenda={agenda}
+        model={workerModel}
       />
     </div>
   );
