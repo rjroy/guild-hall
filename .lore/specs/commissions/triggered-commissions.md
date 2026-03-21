@@ -175,9 +175,37 @@ Event matching is delegated entirely to the Event Router (`daemon/services/event
 
 - REQ-TRIG-24: Source exclusion requires the same artifact read as depth computation (REQ-TRIG-19). Both checks happen in one read. If the artifact is unreadable, source exclusion is skipped (fail-open; the depth limit is still the primary safety mechanism). Source exclusion only applies to commission-sourced events. Non-commission sources cannot be self-loops by definition.
 
-### Trigger Creation
+### Trigger Creation and Management Tools
 
-- REQ-TRIG-25a: In v1, trigger artifacts are created by writing YAML directly to `.lore/commissions/`. The daemon discovers them on startup. There are no Guild Master toolbox tools or UI forms for trigger creation in this version. Guild Master tools for programmatic trigger management are an exit point.
+- REQ-TRIG-25a: A `create_triggered_commission` tool is added to the manager toolbox (`daemon/services/manager/toolbox.ts`). It writes the trigger artifact to `.lore/commissions/` and registers the subscription on the Event Router. Parameters mirror the trigger artifact structure:
+
+  | Parameter | Required | Type | Purpose |
+  |-----------|----------|------|---------|
+  | `title` | Yes | string | Short title for the trigger |
+  | `workerName` | Yes | string | Worker package name for spawned commissions |
+  | `prompt` | Yes | string | Commission prompt (supports `{{fieldName}}` template variables) |
+  | `match` | Yes | `EventMatchRule` shape (`type` required, `projectName` and `fields` optional) | Event matching criteria passed to `router.subscribe()` |
+  | `approval` | No | `"auto"` or `"confirm"` | Dispatch behavior. Defaults to `"confirm"`. |
+  | `maxDepth` | No | positive integer | Maximum trigger chain depth. Defaults to 3. |
+  | `dependencies` | No | string[] | Commission dependency IDs (each supports template variables) |
+
+  The tool validates `match.type` against `SYSTEM_EVENT_TYPES` and validates `workerName` against discovered packages. On success, it returns the trigger artifact ID and `status: "active"`. On failure, it returns an error with `isError: true`.
+
+- REQ-TRIG-25b: An `update_trigger` tool is added to the manager toolbox. It modifies an existing trigger artifact. Accepts the trigger's commission ID plus optional fields to update:
+
+  | Parameter | Required | Type | Purpose |
+  |-----------|----------|------|---------|
+  | `commissionId` | Yes | string | The trigger commission ID to update |
+  | `status` | No | string | New status: `"active"`, `"paused"`, or `"completed"` |
+  | `match` | No | `EventMatchRule` shape | New event matching criteria |
+  | `approval` | No | `"auto"` or `"confirm"` | New approval mode |
+  | `prompt` | No | string | New commission prompt |
+
+  Status transitions follow the same state machine as REQ-TRIG-4/5: `active` to `paused`, `paused` to `active`, either to `completed`. Invalid transitions return an error. When status changes to `paused`, the router subscription is removed. When status changes to `active`, the subscription is re-registered. Field updates (match, approval, prompt) on an active trigger remove the old subscription and register a new one with the updated rule. The tool validates the commission is `type: triggered` before applying changes.
+
+- REQ-TRIG-25c: Both tools follow the same DI patterns as `create_scheduled_commission` and `update_schedule`. They are `make*Handler(deps: ManagerToolboxDeps)` functions that receive `callRoute`, `log`, `guildHallHome`, `projectName`, and other deps. `create_triggered_commission` delegates to the daemon route for commission creation (same as `create_scheduled_commission`). `update_trigger` operates directly on the artifact and trigger evaluator service (same pattern as `update_schedule`).
+
+- REQ-TRIG-25d: `create_triggered_commission` calls the daemon route to write the artifact, then notifies the trigger evaluator to register a subscription for the new trigger. `update_trigger` writes artifact changes, then notifies the trigger evaluator to update or remove the subscription. The trigger evaluator exposes methods for this: `registerTrigger(artifactPath)` and `unregisterTrigger(commissionId)`. This avoids requiring a daemon restart when triggers are created or modified through tools.
 
 ### Trigger State Updates
 
@@ -253,6 +281,37 @@ Event matching is delegated entirely to the Event Router (`daemon/services/event
   ```
 
   `EventMatchRule` is imported from `daemon/services/event-router.ts`. The trigger evaluator reads this from the artifact frontmatter and passes `match` directly to `router.subscribe()`.
+
+### Web UI
+
+- REQ-TRIG-38: Triggered commissions appear in the commission list alongside scheduled commissions. The list view shows:
+  - Status gem indicator (matching the existing color scheme for `active`, `paused`, `completed`, `failed`)
+  - A "Trigger" label appended to the title (same pattern as the "Recurring" label for scheduled commissions)
+  - Worker name and creation timestamp
+  - Prompt preview
+
+- REQ-TRIG-39: The commission detail view for triggered commissions (`type: triggered`) shows trigger-specific panels in the sidebar, following the same conditional rendering pattern as scheduled commissions in `CommissionView.tsx`:
+
+  1. **TriggerInfo panel** (parallel to `CommissionScheduleInfo`): Displays the trigger's configuration and runtime state:
+     - Match rule summary: event type, projectName (if set), field patterns
+     - Approval mode (`auto` or `confirm`)
+     - Max depth
+     - Runs completed count
+     - Last triggered timestamp (formatted to local date/time)
+     - Last spawned commission ID (clickable link to that commission's detail page)
+     - Recent spawns section: list of recently spawned commissions (up to 10) with status and timestamp, same pattern as the scheduled commission's "recent runs" list
+
+  2. **TriggerActions panel** (parallel to `CommissionScheduleActions`): Action buttons following the same confirmation pattern as halted commission action buttons:
+     - **Pause/Resume** toggle: shows "Pause Trigger" when active, "Resume Trigger" when paused
+     - **Complete Trigger** button: marks the trigger as completed (terminal)
+     - Buttons are disabled when the daemon is offline
+     - Each action calls a Next.js API route that proxies to the daemon
+
+- REQ-TRIG-40: The Next.js API route for trigger status updates follows the existing proxy pattern. A `POST /api/commissions/[commissionId]/trigger-status` route proxies to the daemon, which delegates to the trigger evaluator's lifecycle methods (same path as `/api/commissions/[commissionId]/schedule-status` for scheduled commissions).
+
+- REQ-TRIG-41: Triggered commissions use the existing commission filter groups. `active` triggers appear in the "Active" filter group; `paused` triggers appear in the "Idle" group; `completed` triggers appear in the "Done" group.
+
+- REQ-TRIG-42: Spawned one-shot commissions created by a trigger show a "from: [trigger-id]" reference in the commission list, linking back to the parent trigger artifact. This follows the same pattern as scheduled commission spawns showing "from: [schedule-id]".
 
 ## Match Examples
 
@@ -347,17 +406,16 @@ This means you cannot write a trigger match that says "when a Dalton commission 
 - **Dry-run validation.** No way to test a trigger rule without emitting a real event.
 - **Overlap prevention.** If an event matches three triggers, three commissions are created. Triggers are reactions to specific events, not recurring cadence. Each firing is independent.
 - **Repeat/auto-completion.** Unlike scheduled commissions, triggers have no `repeat` field. They fire indefinitely until paused or completed manually.
-- **Hot-reload.** Triggers are scanned at daemon startup. Changes require a daemon restart (same limitation as scheduled commissions and notification rules).
+- **Hot-reload from filesystem.** Triggers created or modified through the manager toolbox tools are registered immediately (REQ-TRIG-25d). Triggers added by hand-editing YAML are discovered on daemon startup only. No filesystem watch for external changes.
 
 ## Exit Points
 
 | Exit | Triggers When | Target |
 |------|---------------|--------|
 | Event enrichment | Triggers fire too broadly without worker filtering | New spec: add `workerName` to commission events |
-| Hot-reload | Users need triggers to activate without daemon restart | Extend artifact scanning to watch for changes |
+| Filesystem hot-reload | Users hand-editing trigger YAML want changes picked up without restart | Filesystem watch on `.lore/commissions/` for trigger artifacts |
 | Trust escalation | Users want `confirm` triggers to auto-promote after N successful firings | New spec: firing history and promotion logic |
 | Dry-run validation | Users can't test trigger rules without real events | New spec: `POST /triggers/test` endpoint |
-| Guild Master tools | Guild Master needs to create/modify triggers programmatically | New manager toolbox tools: `create_triggered_commission`, `update_trigger` |
 
 ## Success Criteria
 
@@ -377,7 +435,14 @@ This means you cannot write a trigger match that says "when a Dalton commission 
 - [ ] Trigger artifact state is updated after each firing (runs_completed, last_triggered, last_spawned_id)
 - [ ] Trigger dispatch failures are logged at `warn` and don't affect other dispatches
 - [ ] `CommissionType` in `daemon/types.ts` includes `"triggered"`
-- [ ] Trigger artifacts can be created by writing YAML to `.lore/commissions/`; the daemon discovers them on restart
+- [ ] `create_triggered_commission` tool in the manager toolbox creates trigger artifacts and registers subscriptions without daemon restart
+- [ ] `update_trigger` tool modifies trigger configuration and manages subscriptions (pause removes, resume re-registers)
+- [ ] Both tools validate inputs (event type against `SYSTEM_EVENT_TYPES`, worker against discovered packages, status transitions)
+- [ ] Trigger list view shows active/paused/completed triggers with "Trigger" label, status gem, and runtime state
+- [ ] Trigger detail view shows TriggerInfo panel (match rule, approval, depth, runs, last triggered, recent spawns)
+- [ ] Trigger detail view shows TriggerActions panel (Pause/Resume toggle, Complete button) with confirmation pattern
+- [ ] Spawned commissions show "from: [trigger-id]" in the commission list, linking to the parent trigger
+- [ ] Next.js API route proxies trigger status updates to daemon
 - [ ] No active triggers means no subscriptions (inert)
 - [ ] All existing event router tests continue to pass
 - [ ] New tests cover: trigger scanning, subscription registration, variable expansion, provenance, depth limiting, source exclusion, state updates, approval modes
@@ -397,6 +462,12 @@ This means you cannot write a trigger match that says "when a Dalton commission 
 - Confirm the trigger evaluator is wired in `createProductionApp()` (`daemon/app.ts`), created after the Event Router.
 - Confirm the trigger evaluator uses `Log` from `daemon/lib/log.ts`, not direct `console` calls.
 - Confirm no matching logic exists in the trigger evaluator. All matching is in the Event Router.
+- Confirm `makeCreateTriggeredCommissionHandler` and `makeUpdateTriggerHandler` exist in `daemon/services/manager/toolbox.ts` following the `make*Handler(deps: ManagerToolboxDeps)` pattern.
+- Confirm both tools are registered in the manager MCP server's tool list with Zod schemas for parameter validation.
+- Confirm the trigger evaluator exposes `registerTrigger(artifactPath)` and `unregisterTrigger(commissionId)` methods for dynamic subscription management.
+- Confirm `TriggerInfo` and `TriggerActions` components exist in `web/components/commission/`.
+- Confirm `CommissionView.tsx` conditionally renders trigger panels when `commissionType === "triggered"`.
+- Confirm a `POST /api/commissions/[commissionId]/trigger-status` Next.js API route exists and proxies to the daemon.
 
 **Behavioral checks:**
 - Test that active triggers register subscriptions and receive matching events.
@@ -417,10 +488,21 @@ This means you cannot write a trigger match that says "when a Dalton commission 
 - Test that trigger dispatch failures don't propagate.
 - Test that no active triggers produces inert behavior.
 - Test that existing notification routing is unaffected.
+- Test that `create_triggered_commission` writes a valid trigger artifact and registers a subscription.
+- Test that `create_triggered_commission` validates `match.type` against known event types and rejects invalid ones.
+- Test that `create_triggered_commission` validates `workerName` against discovered packages and rejects unknown workers.
+- Test that `update_trigger` transitions status correctly (active to paused, paused to active, either to completed).
+- Test that `update_trigger` rejects invalid status transitions (e.g., completed to active).
+- Test that `update_trigger` rejects updates to non-triggered commissions.
+- Test that pausing a trigger via `update_trigger` removes the router subscription.
+- Test that resuming a trigger via `update_trigger` re-registers the router subscription.
+- Test that updating match/approval/prompt on an active trigger replaces the old subscription with a new one.
+- Test that the trigger detail page renders TriggerInfo with match rule, approval, depth, runs_completed, and recent spawns.
+- Test that TriggerActions buttons call the correct API endpoints and update trigger status.
 
 ## Constraints
 
-- Triggers are scanned at daemon startup. Changes require a daemon restart.
+- Triggers created through manager toolbox tools are registered immediately. Triggers added by hand-editing YAML are discovered on daemon startup only.
 - Template expansion is simple string substitution only. No conditionals, loops, or nested access.
 - Depth computation requires one filesystem read per trigger firing (source commission artifact). Acceptable given trigger firings are infrequent relative to event volume.
 - Trigger state updates require one filesystem write per firing (trigger artifact). Same frequency concern; acceptable.
