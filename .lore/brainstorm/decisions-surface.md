@@ -2,7 +2,7 @@
 title: "Decisions Surface"
 date: 2026-03-20
 revised: 2026-03-20
-status: open
+status: resolved
 author: Celeste
 contributors: [Octavia]
 tags: [brainstorm, observability, decisions, ui, daemon-api, memory, events]
