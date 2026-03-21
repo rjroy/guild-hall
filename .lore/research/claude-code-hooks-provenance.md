@@ -1,7 +1,7 @@
 ---
 title: Claude Code Hooks for Artifact Provenance Tracking
 date: 2026-03-17
-status: active
+status: abandoned
 tags: [hooks, provenance, artifacts, agent-sdk, claude-code]
 related: [.lore/research/claude-agent-sdk-ref-typescript.md, .lore/brainstorm/whats-next-2026-03-17.md]
 modules: [guild-hall]

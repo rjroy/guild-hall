@@ -17,7 +17,7 @@ export interface GuildHallToolboxDeps {
   guildHallHome: string;
   projectName: string;
   contextId: string;
-  contextType: "meeting" | "commission" | "mail" | "briefing";
+  contextType: string;
   workerName: string;
   eventBus: EventBus;
   config: AppConfig;
@@ -27,6 +27,7 @@ export interface GuildHallToolboxDeps {
   commissionId?: string;
   getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
   getWorkerIdentities?: () => WorkerIdentity[];
+  stateSubdir?: string;
 }
 
 export interface ToolboxOutput {
@@ -34,3 +35,11 @@ export interface ToolboxOutput {
 }
 
 export type ToolboxFactory = (deps: GuildHallToolboxDeps) => ToolboxOutput;
+
+export interface ContextTypeRegistration {
+  name: string;
+  toolboxFactory?: ToolboxFactory;
+  stateSubdir: string;
+}
+
+export type ContextTypeRegistry = Map<string, ContextTypeRegistration>;

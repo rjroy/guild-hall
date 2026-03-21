@@ -321,6 +321,8 @@ export async function createProductionApp(options?: {
   const { activateWorker: activateWorkerFn } = await import(
     "@/daemon/services/manager/worker"
   );
+  const { createContextTypeRegistry } = await import("@/daemon/services/context-type-registry");
+  const contextTypeRegistry = createContextTypeRegistry();
 
   // Lazy ref: briefingGenerator is created after prepDeps but getCachedBriefing
   // must flow through the toolbox resolver. The closure captures the ref.
@@ -333,7 +335,7 @@ export async function createProductionApp(options?: {
         getCachedBriefing: briefingGeneratorRef.current
           ? (pn) => briefingGeneratorRef.current!.getCachedBriefing(pn)
           : undefined,
-      }),
+      }, contextTypeRegistry),
     loadMemories,
     activateWorker: activateWorkerFn,
   };
@@ -542,6 +544,32 @@ export async function createProductionApp(options?: {
     packageOperationRouteModule = createPackageOperationRoutes(packageOperations, routeDeps);
   }
 
+  // Event Router: subscribe to EventBus and dispatch matching events to
+  // configured channels (shell commands, webhooks). Created before session
+  // recovery so it captures recovery events.
+  const { createEventRouter } = await import("@/daemon/services/event-router");
+  const unsubscribeRouter = createEventRouter({
+    eventBus,
+    channels: config.channels ?? {},
+    notifications: config.notifications ?? [],
+    log: createLog("event-router"),
+  });
+
+  // Outcome Triage: after commission/meeting completion, a Haiku session
+  // evaluates the outcome and writes noteworthy findings to project memory.
+  const { createOutcomeTriage, createArtifactReader, createTriageSessionRunner } = await import(
+    "@/daemon/services/outcome-triage"
+  );
+  const unsubscribeTriage = createOutcomeTriage({
+    eventBus,
+    guildHallHome,
+    log: createLog("outcome-triage"),
+    readArtifact: createArtifactReader(config, guildHallHome),
+    runTriageSession: queryFn
+      ? createTriageSessionRunner(queryFn, createLog("outcome-triage"))
+      : () => { createLog("outcome-triage").warn("SDK not available, triage skipped"); return Promise.resolve(); },
+  });
+
   const startTime = Date.now();
 
   const { app, registry } = createApp({
@@ -588,6 +616,8 @@ export async function createProductionApp(options?: {
     shutdown: () => {
       scheduler.stop();
       briefingRefresh.stop();
+      unsubscribeRouter();
+      unsubscribeTriage();
     },
   };
 }

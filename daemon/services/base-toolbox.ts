@@ -29,10 +29,11 @@ const DEFAULT_MEMORY_LIMIT = 16000;
 
 interface BaseToolboxDeps {
   contextId: string;
-  contextType: "meeting" | "commission" | "mail" | "briefing";
+  contextType: string;
   workerName: string;
   projectName: string;
   guildHallHome: string;
+  stateSubdir?: string;
   getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
   getWorkerIdentities?: () => WorkerIdentity[];
 }
@@ -101,14 +102,18 @@ export function makeReadMemoryHandler(
     // Track that this scope has been read (for edit_memory guard)
     readScopes.add(args.scope);
 
+    const charCount = content.length;
+    const remaining = Math.max(0, DEFAULT_MEMORY_LIMIT - charCount);
+    const budgetLine = `\n\n[Memory budget: ${charCount.toLocaleString()} / ${DEFAULT_MEMORY_LIMIT.toLocaleString()} characters used (${remaining.toLocaleString()} remaining)]`;
+
     if (content === "") {
       return {
-        content: [{ type: "text", text: "No memories saved yet." }],
+        content: [{ type: "text", text: `No memories saved yet.${budgetLine}` }],
       };
     }
 
     if (!args.section) {
-      return { content: [{ type: "text", text: content }] };
+      return { content: [{ type: "text", text: content + budgetLine }] };
     }
 
     // Section-specific read (case-insensitive)
@@ -122,7 +127,7 @@ export function makeReadMemoryHandler(
         isError: true,
       };
     }
-    return { content: [{ type: "text", text: match.content }] };
+    return { content: [{ type: "text", text: match.content + budgetLine }] };
   };
 }
 
@@ -325,9 +330,10 @@ export function makeListGuildCapabilitiesHandler(
 export function makeRecordDecisionHandler(
   guildHallHome: string,
   contextId: string,
-  contextType: "meeting" | "commission" | "mail" | "briefing",
+  contextType: string,
+  stateSubdir?: string,
 ) {
-  const stateSubdir = contextType === "meeting" ? "meetings" : contextType === "briefing" ? "briefings" : "commissions";
+  const resolvedSubdir = stateSubdir ?? "commissions";
   return async (args: {
     question: string;
     decision: string;
@@ -336,7 +342,7 @@ export function makeRecordDecisionHandler(
     const decisionsDir = path.join(
       guildHallHome,
       "state",
-      stateSubdir,
+      resolvedSubdir,
       contextId,
     );
     const decisionsPath = path.join(decisionsDir, "decisions.jsonl");
@@ -376,7 +382,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
   const readMemory = makeReadMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
   const editMemory = makeEditMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
   const writeMemory = makeWriteMemoryHandler(deps.guildHallHome, deps.workerName, deps.projectName, readScopes);
-  const recordDecision = makeRecordDecisionHandler(deps.guildHallHome, deps.contextId, deps.contextType);
+  const recordDecision = makeRecordDecisionHandler(deps.guildHallHome, deps.contextId, deps.contextType, deps.stateSubdir);
   const projectBriefing = makeProjectBriefingHandler(deps.getCachedBriefing, deps.projectName);
   const listGuildCapabilities = makeListGuildCapabilitiesHandler(deps.getWorkerIdentities);
 
@@ -416,7 +422,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
       ),
       tool(
         "record_decision",
-        "Record a decision made during this session. Appends to the session's decision log.",
+        "Record a decision made during this session. Use this when you make a choice that isn't obvious from the code alone: scope decisions (what to include or defer), interpretation choices (how you read an ambiguous requirement), approach selections (why A over B), and constraint discoveries (something you learned that shaped the work). The decision log is persisted to the activity artifact for future reference.",
         {
           question: z.string(),
           decision: z.string(),

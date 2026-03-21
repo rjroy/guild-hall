@@ -26,6 +26,7 @@ import type {
 } from "@/lib/types";
 import { getWorkerByName } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
+import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import { noopEventBus, type EventBus } from "@/daemon/lib/event-bus";
 import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
@@ -426,8 +427,11 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
   // Constructs SessionPrepDeps from the meeting orchestrator's existing imports,
   // keeping the external DI surface (MeetingSessionDeps) unchanged.
 
+  const meetingRegistry = createContextTypeRegistry();
+
   const prepDeps: SessionPrepDeps = {
-    resolveToolSet,
+    resolveToolSet: (worker, packages, context) =>
+      resolveToolSet(worker, packages, context, meetingRegistry),
     loadMemories: async (workerName, projectName, memDeps) => {
       // Meeting orchestrator treats memory load failure as non-fatal (warn and
       // continue with empty memory). Wrap to preserve that behavior since
@@ -1056,6 +1060,25 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
       } catch (err: unknown) {
         log.error(
           `Failed to update artifact for "${meetingId as string}":`,
+          errorMessage(err),
+        );
+      }
+
+      // 4. Persist decisions to artifact (REQ-DSRF-4)
+      try {
+        const { readDecisions, formatDecisionsSection, appendDecisionsToArtifact } =
+          await import("@/daemon/services/decisions-persistence");
+        const decisions = await readDecisions(ghHome, meetingId as string, "meetings");
+        const section = formatDecisionsSection(decisions);
+        if (section) {
+          await appendDecisionsToArtifact(
+            meetingArtifactPath(meeting.worktreeDir, meetingId),
+            section,
+          );
+        }
+      } catch (err: unknown) {
+        log.warn(
+          `Decision persistence failed for "${meetingId as string}":`,
           errorMessage(err),
         );
       }

@@ -94,7 +94,46 @@ describe("read_memory", () => {
     const read = makeReadMemoryHandler(guildHallHome, workerName, projectName, readScopes);
 
     const result = await read({ scope: "worker" });
-    expect(result.content[0].text).toBe("No memories saved yet.");
+    expect(result.content[0].text).toContain("No memories saved yet.");
+  });
+
+  test("includes budget summary in full file read", async () => {
+    const readScopes = new Set<string>();
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName, readScopes);
+
+    const memContent = "## User\nSenior engineer\n";
+    const filePath = path.join(guildHallHome, "memory", "workers", `${workerName}.md`);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, memContent, "utf-8");
+
+    const result = await read({ scope: "worker" });
+    const text = result.content[0].text;
+    expect(text).toContain(`[Memory budget: ${memContent.length.toLocaleString()} / 16,000 characters used`);
+    expect(text).toContain(`(${(16000 - memContent.length).toLocaleString()} remaining)]`);
+  });
+
+  test("includes budget summary in section read", async () => {
+    const readScopes = new Set<string>();
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName, readScopes);
+
+    const memContent = "## User\nSenior engineer\n\n## Feedback\nBe concise\n";
+    const filePath = path.join(guildHallHome, "memory", "workers", `${workerName}.md`);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, memContent, "utf-8");
+
+    const result = await read({ scope: "worker", section: "feedback" });
+    const text = result.content[0].text;
+    // Budget reflects the full file size, not just the section
+    expect(text).toContain(`[Memory budget: ${memContent.length.toLocaleString()} / 16,000 characters used`);
+  });
+
+  test("includes budget summary for empty memory", async () => {
+    const readScopes = new Set<string>();
+    const read = makeReadMemoryHandler(guildHallHome, workerName, projectName, readScopes);
+
+    const result = await read({ scope: "worker" });
+    const text = result.content[0].text;
+    expect(text).toContain("[Memory budget: 0 / 16,000 characters used (16,000 remaining)]");
   });
 
   test("tracks scope in readScopes set", async () => {
@@ -527,7 +566,7 @@ describe("write_memory deprecation alias", () => {
 
 describe("record_decision", () => {
   test("creates meeting directory and appends JSONL entry", async () => {
-    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-001", "meeting");
+    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-001", "meeting", "meetings");
 
     await handler({
       question: "Which framework?",
@@ -551,7 +590,7 @@ describe("record_decision", () => {
   });
 
   test("appends multiple decisions", async () => {
-    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-002", "meeting");
+    const handler = makeRecordDecisionHandler(guildHallHome, "meeting-002", "meeting", "meetings");
 
     await handler({
       question: "Q1",
@@ -579,7 +618,7 @@ describe("record_decision", () => {
   });
 
   test("commission context writes to commissions state directory", async () => {
-    const handler = makeRecordDecisionHandler(guildHallHome, "commission-001", "commission");
+    const handler = makeRecordDecisionHandler(guildHallHome, "commission-001", "commission", "commissions");
 
     await handler({
       question: "Which approach?",
@@ -598,6 +637,25 @@ describe("record_decision", () => {
     const entry = JSON.parse(lines[0]);
     expect(entry.question).toBe("Which approach?");
     expect(entry.decision).toBe("Pattern A");
+  });
+
+  test("stateSubdir overrides contextType-based routing", async () => {
+    const handler = makeRecordDecisionHandler(guildHallHome, "briefing-001", "briefing", "briefings");
+
+    await handler({
+      question: "Which briefing style?",
+      decision: "Concise",
+      reasoning: "Faster to read",
+    });
+
+    const logPath = path.join(
+      guildHallHome,
+      "state/briefings/briefing-001/decisions.jsonl",
+    );
+    const raw = await fs.readFile(logPath, "utf-8");
+    const lines = raw.trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]).decision).toBe("Concise");
   });
 });
 

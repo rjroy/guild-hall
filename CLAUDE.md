@@ -118,6 +118,8 @@ The Guild Master (`daemon/services/manager/`) is not a package. It is a built-in
 
 ## Key Patterns
 
+**LLM interaction boundary.** All LLM calls go through the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`). No direct Anthropic API calls (`client.messages.create`, raw HTTP, etc.). The SDK provides the tool-use loop, error handling, and session management that raw API calls would need to reimplement. When a new feature needs LLM interaction, even lightweight single-purpose calls like triage or classification, it uses the SDK. If the full `runSdkSession` pipeline is too heavy, build a lighter SDK session. Do not drop to the raw API.
+
 **Daemon process model.** Entry point `daemon/index.ts` parses args, cleans stale sockets, starts `Bun.serve({ unix, fetch })`, writes PID file. Routes use DI factory pattern: `createHealthRoutes(deps)`. Production wiring lives in `daemon/app.ts` via `createProductionApp()`.
 
 **SDK runner.** `daemon/lib/agent-sdk/sdk-runner.ts` is the unified session runner for both commissions and meetings. It handles `prepareSdkSession` (toolbox resolution, memory injection, model selection) and `runSdkSession` (SDK stream iteration). Orchestrators map `SdkRunnerEvent` to their domain event types. The runner is context-free (no activity IDs).

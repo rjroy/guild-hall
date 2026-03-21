@@ -18,6 +18,7 @@ import type {
   ResolvedToolSet,
   WorkerMetadata,
 } from "@/lib/types";
+import type { ContextTypeName } from "@/daemon/services/context-type-registry";
 import type { Log } from "@/daemon/lib/log";
 import { nullLog } from "@/daemon/lib/log";
 import { resolveModel } from "@/lib/types";
@@ -89,7 +90,7 @@ export type SessionPrepSpec = {
   projectPath: string;
   workspaceDir: string;
   contextId: string;
-  contextType: "commission" | "meeting" | "mail" | "briefing";
+  contextType: ContextTypeName;
   eventBus: EventBus;
   services?: GuildHallToolServices;
   activationExtras?: Partial<ActivationContext>;
@@ -110,7 +111,7 @@ export type SessionPrepDeps = {
       projectName: string;
       guildHallHome: string;
       contextId: string;
-      contextType: "meeting" | "commission" | "mail" | "briefing";
+      contextType: string;
       workerName: string;
       eventBus: EventBus;
       config: AppConfig;

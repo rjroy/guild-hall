@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/require-await */
 
+import * as os from "node:os";
+
 /**
  * Tests for the mail orchestrator (sleep flow, reader activation, wake flow).
  *
@@ -411,7 +413,7 @@ async function setupLifecycleState(
 // -- Setup / Teardown --
 
 beforeEach(async () => {
-  tmpDir = await fs.mkdtemp(path.join("/tmp", "mail-orch-test-"));
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "mail-orch-test-"));
   ghHome = path.join(tmpDir, ".guild-hall");
   projectPath = path.join(tmpDir, "project");
   integrationPath = path.join(ghHome, "projects", TEST_PROJECT);

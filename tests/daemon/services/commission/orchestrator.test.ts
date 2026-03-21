@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/require-await */
 
+import * as os from "node:os";
+
 /**
  * Tests for the commission orchestrator (Layer 5).
  *
@@ -462,7 +464,7 @@ function buildDeps(overrides?: Partial<{
 // -- Setup / Teardown --
 
 beforeEach(async () => {
-  tmpDir = await fs.mkdtemp(path.join("/tmp", "orch-test-"));
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "orch-test-"));
   ghHome = path.join(tmpDir, ".guild-hall");
   projectPath = path.join(tmpDir, "project");
   integrationPath = path.join(ghHome, "projects", TEST_PROJECT);

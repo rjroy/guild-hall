@@ -689,6 +689,23 @@ export function createCommissionOrchestrator(
       return;
     }
 
+    // Persist decisions to artifact (REQ-DSRF-3)
+    try {
+      const { readDecisions, formatDecisionsSection, appendDecisionsToArtifact } =
+        await import("@/daemon/services/decisions-persistence");
+      const decisions = await readDecisions(guildHallHome, ctx.commissionId as string, "commissions");
+      const section = formatDecisionsSection(decisions);
+      if (section) {
+        const artifactPath = commissionArtifactPath(ctx.worktreeDir, ctx.commissionId);
+        await appendDecisionsToArtifact(artifactPath, section);
+      }
+    } catch (err: unknown) {
+      log.warn(
+        `Decision persistence failed for "${ctx.commissionId as string}":`,
+        errorMessage(err),
+      );
+    }
+
     // Squash-merge via workspace.finalize
     const project = findProject(ctx.projectName);
     if (!project) {

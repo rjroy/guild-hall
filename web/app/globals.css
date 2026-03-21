@@ -109,13 +109,23 @@ body {
   font-family: var(--font-body);
   color: var(--color-text);
   background-color: var(--color-dark-bg);
-  background-image: url("/images/background.webp");
-  background-attachment: fixed;
-  background-size: cover;
-  background-position: center;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fixed background image using a pseudo-element instead of background-attachment: fixed.
+   background-attachment: fixed is broken on mobile browsers (iOS Safari, Chrome Android)
+   where it either falls back to scroll or causes the background to resize as browser
+   chrome shows/hides. A fixed-position pseudo-element avoids both issues. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: url("/images/background.webp");
+  background-size: cover;
+  background-position: center;
 }
 
 a {

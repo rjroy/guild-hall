@@ -7,6 +7,7 @@ import {
   packageMetadataSchema,
 } from "@/lib/packages";
 import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
+import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
 import { createEventBus } from "@/daemon/lib/event-bus";
 import type {
   WorkerMetadata,
@@ -126,6 +127,7 @@ describe("guild-hall-illuminator package", () => {
         worker,
         [makeReplicatePackage()],
         makeContext(),
+        createContextTypeRegistry(),
       );
 
       const serverNames = result.mcpServers.map((s) => s.name);
@@ -139,7 +141,7 @@ describe("guild-hall-illuminator package", () => {
       const worker = illuminator!.metadata as WorkerMetadata;
 
       expect(
-        resolveToolSet(worker, [], makeContext()),
+        resolveToolSet(worker, [], makeContext(), createContextTypeRegistry()),
       ).rejects.toThrow(/guild-hall-replicate/);
     });
   });

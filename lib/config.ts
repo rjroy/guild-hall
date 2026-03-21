@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { z } from "zod";
 import * as yaml from "yaml";
 import { getConfigPath } from "@/lib/paths";
-import { isNodeError, VALID_MODELS } from "@/lib/types";
+import { isNodeError, VALID_MODELS, SYSTEM_EVENT_TYPES } from "@/lib/types";
 import type { AppConfig, ProjectConfig } from "@/lib/types";
 
 // -- Zod schemas (exported so the CLI can reuse them) --
@@ -55,6 +55,46 @@ const systemModelsSchema = z.object({
   guildMaster: z.string().min(1).optional(),
 }).optional();
 
+// -- Channel and notification schemas (REQ-EVRT) --
+
+const channelNameSchema = z.string().regex(
+  /^[a-zA-Z0-9_-]+$/,
+  "Channel name must contain only alphanumeric characters, hyphens, and underscores",
+);
+
+const shellChannelSchema = z.object({
+  type: z.literal("shell"),
+  command: z.string().min(1, "Shell channel requires a non-empty command"),
+});
+
+const webhookChannelSchema = z.object({
+  type: z.literal("webhook"),
+  url: z.string().refine(
+    (url) => {
+      try {
+        const parsed = new URL(url);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "Webhook URL must be a valid HTTP or HTTPS URL" },
+  ),
+});
+
+export const channelSchema = z.discriminatedUnion("type", [
+  shellChannelSchema,
+  webhookChannelSchema,
+]);
+
+export const notificationRuleSchema = z.object({
+  match: z.object({
+    type: z.enum(SYSTEM_EVENT_TYPES),
+    projectName: z.string().optional(),
+  }),
+  channel: z.string(),
+});
+
 export const appConfigSchema = z.object({
   projects: z.array(projectConfigSchema),
   systemModels: systemModelsSchema,
@@ -89,6 +129,21 @@ export const appConfigSchema = z.object({
   maxConcurrentMailReaders: z.number().optional(),
   briefingCacheTtlMinutes: z.number().int().positive().optional(),
   briefingRefreshIntervalMinutes: z.number().int().positive().optional(),
+  channels: z.record(channelNameSchema, channelSchema).optional(),
+  notifications: z.array(notificationRuleSchema).optional(),
+}).superRefine((config, ctx) => {
+  // REQ-EVRT-7: Validate that notification rules reference defined channels
+  if (!config.notifications) return;
+  for (let i = 0; i < config.notifications.length; i++) {
+    const rule = config.notifications[i];
+    if (!config.channels || !(rule.channel in config.channels)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Notification rule references undefined channel "${rule.channel}"`,
+        path: ["notifications", i, "channel"],
+      });
+    }
+  }
 });
 
 // -- Functions --

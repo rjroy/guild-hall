@@ -1,6 +1,7 @@
 import { describe, test, expect, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as os from "node:os";
 import {
   getGuildHallHome,
   getConfigPath,
@@ -128,7 +129,7 @@ describe("resolveCommissionBasePath", () => {
   });
 
   test("returns worktree dir when commission is dispatched", async () => {
-    const ghHome = await fs.mkdtemp(path.join("/tmp", "gh-paths-"));
+    const ghHome = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-"));
     tmpDirs.push(ghHome);
     const stateDir = path.join(ghHome, "state", "commissions");
     await fs.mkdir(stateDir, { recursive: true });
@@ -141,7 +142,7 @@ describe("resolveCommissionBasePath", () => {
   });
 
   test("returns worktree dir when commission is in_progress", async () => {
-    const ghHome = await fs.mkdtemp(path.join("/tmp", "gh-paths-"));
+    const ghHome = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-"));
     tmpDirs.push(ghHome);
     const stateDir = path.join(ghHome, "state", "commissions");
     await fs.mkdir(stateDir, { recursive: true });
@@ -154,7 +155,7 @@ describe("resolveCommissionBasePath", () => {
   });
 
   test("returns integration path when commission is completed", async () => {
-    const ghHome = await fs.mkdtemp(path.join("/tmp", "gh-paths-"));
+    const ghHome = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-"));
     tmpDirs.push(ghHome);
     const stateDir = path.join(ghHome, "state", "commissions");
     await fs.mkdir(stateDir, { recursive: true });
@@ -167,7 +168,7 @@ describe("resolveCommissionBasePath", () => {
   });
 
   test("returns integration path when no state file exists", async () => {
-    const ghHome = await fs.mkdtemp(path.join("/tmp", "gh-paths-"));
+    const ghHome = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-"));
     tmpDirs.push(ghHome);
     const result = await resolveCommissionBasePath(ghHome, "proj", "commission-Missing");
     expect(result).toBe(path.join(ghHome, "projects", "proj"));
@@ -185,7 +186,7 @@ describe("resolveMeetingBasePath", () => {
   });
 
   test("returns worktree dir when meeting is open", async () => {
-    const ghHome = await fs.mkdtemp(path.join("/tmp", "gh-paths-"));
+    const ghHome = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-"));
     tmpDirs.push(ghHome);
     const stateDir = path.join(ghHome, "state", "meetings");
     await fs.mkdir(stateDir, { recursive: true });
@@ -198,7 +199,7 @@ describe("resolveMeetingBasePath", () => {
   });
 
   test("returns integration path when meeting is closed", async () => {
-    const ghHome = await fs.mkdtemp(path.join("/tmp", "gh-paths-"));
+    const ghHome = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-"));
     tmpDirs.push(ghHome);
     const stateDir = path.join(ghHome, "state", "meetings");
     await fs.mkdir(stateDir, { recursive: true });
@@ -211,14 +212,14 @@ describe("resolveMeetingBasePath", () => {
   });
 
   test("returns integration path when no state file exists", async () => {
-    const ghHome = await fs.mkdtemp(path.join("/tmp", "gh-paths-"));
+    const ghHome = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-"));
     tmpDirs.push(ghHome);
     const result = await resolveMeetingBasePath(ghHome, "proj", "meeting-missing");
     expect(result).toBe(path.join(ghHome, "projects", "proj"));
   });
 
   test("returns integration path when state file has no worktreeDir", async () => {
-    const ghHome = await fs.mkdtemp(path.join("/tmp", "gh-paths-"));
+    const ghHome = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-"));
     tmpDirs.push(ghHome);
     const stateDir = path.join(ghHome, "state", "meetings");
     await fs.mkdir(stateDir, { recursive: true });

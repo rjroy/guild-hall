@@ -143,6 +143,7 @@ describe("createProductionApp worktree verification", () => {
       error() {},
       warn(...args: unknown[]) { warnings.push(args.map(String).join(" ")); },
       info() {},
+      debug() {},
     });
 
     // Should not throw, daemon stays up

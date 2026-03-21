@@ -4,6 +4,8 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { readConfig, writeConfig, getProject } from "@/lib/config";
 import { appConfigSchema, projectConfigSchema, modelDefinitionSchema } from "@/lib/config";
+import { SYSTEM_EVENT_TYPES } from "@/lib/types";
+import type { SystemEvent } from "@/daemon/lib/event-bus";
 
 let tmpDir: string;
 
@@ -613,5 +615,226 @@ briefingCacheTtlMinutes: 30
     await fs.writeFile(configPath(), yamlContent, "utf-8");
     const config = await readConfig(configPath());
     expect(config.briefingCacheTtlMinutes).toBe(30);
+  });
+});
+
+describe("channels and notifications", () => {
+  const baseConfig = { projects: [{ name: "p", path: "/p" }] };
+
+  test("parses valid channels and notifications", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      channels: {
+        desktop: { type: "shell", command: "notify-send 'test'" },
+        "ops-webhook": { type: "webhook", url: "https://hooks.example.com/guild" },
+      },
+      notifications: [
+        { match: { type: "commission_result" }, channel: "desktop" },
+        { match: { type: "commission_status", projectName: "guild-hall" }, channel: "ops-webhook" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("parses config with neither channels nor notifications (inert case)", () => {
+    const result = appConfigSchema.safeParse(baseConfig);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.channels).toBeUndefined();
+      expect(result.data.notifications).toBeUndefined();
+    }
+  });
+
+  test("rejects unknown channel type", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      channels: {
+        bad: { type: "email", address: "foo@bar.com" },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects shell channel with empty command", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      channels: {
+        desktop: { type: "shell", command: "" },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects webhook channel with invalid URL", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      channels: {
+        hook: { type: "webhook", url: "ftp://not-http.com/path" },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects webhook channel with empty URL", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      channels: {
+        hook: { type: "webhook", url: "" },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects channel name with invalid characters", () => {
+    for (const name of ["has space", "special!char", "dot.name", "slash/name"]) {
+      const result = appConfigSchema.safeParse({
+        ...baseConfig,
+        channels: {
+          [name]: { type: "shell", command: "echo hi" },
+        },
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  test("rejects notification rule with invalid event type", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      channels: {
+        desktop: { type: "shell", command: "echo hi" },
+      },
+      notifications: [
+        { match: { type: "nonexistent_event" }, channel: "desktop" },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects notification rule referencing undefined channel", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      channels: {
+        desktop: { type: "shell", command: "echo hi" },
+      },
+      notifications: [
+        { match: { type: "commission_result" }, channel: "missing-channel" },
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("undefined channel"))).toBe(true);
+    }
+  });
+
+  test("rejects notifications referencing channels when channels is absent", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      notifications: [
+        { match: { type: "commission_result" }, channel: "desktop" },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("accepts notification rule with projectName in match", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      channels: {
+        hook: { type: "webhook", url: "https://example.com/hook" },
+      },
+      notifications: [
+        { match: { type: "schedule_spawned", projectName: "guild-hall" }, channel: "hook" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("accepts notification rule without projectName in match", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      channels: {
+        desktop: { type: "shell", command: "echo done" },
+      },
+      notifications: [
+        { match: { type: "commission_result" }, channel: "desktop" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("parses channels and notifications from YAML via readConfig", async () => {
+    const yamlContent = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+channels:
+  desktop:
+    type: shell
+    command: "notify-send 'Guild Hall' test"
+  ops-webhook:
+    type: webhook
+    url: "https://hooks.example.com/guild-hall"
+notifications:
+  - match:
+      type: commission_result
+    channel: desktop
+  - match:
+      type: schedule_spawned
+      projectName: guild-hall
+    channel: ops-webhook
+`;
+    await fs.writeFile(configPath(), yamlContent, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.channels).toBeDefined();
+    expect(config.channels!.desktop).toEqual({ type: "shell", command: "notify-send 'Guild Hall' test" });
+    expect(config.channels!["ops-webhook"]).toEqual({ type: "webhook", url: "https://hooks.example.com/guild-hall" });
+    expect(config.notifications).toHaveLength(2);
+    expect(config.notifications![0].match.type).toBe("commission_result");
+    expect(config.notifications![1].match.projectName).toBe("guild-hall");
+  });
+
+  test("accepts channel names with hyphens and underscores", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      channels: {
+        "my-channel": { type: "shell", command: "echo hi" },
+        "my_channel_2": { type: "shell", command: "echo hi" },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("SYSTEM_EVENT_TYPES sync", () => {
+  test("SYSTEM_EVENT_TYPES matches SystemEvent discriminant values", () => {
+    // This test ensures the const array in lib/types.ts stays in sync
+    // with the SystemEvent union in daemon/lib/event-bus.ts.
+    // A type-level assertion can't cross the lib/daemon boundary,
+    // so we verify at test time instead.
+    const eventTypesFromLib = new Set<string>(SYSTEM_EVENT_TYPES);
+
+    // Extract event types from the SystemEvent union by constructing
+    // minimal valid events for each known type
+    const knownEventTypes: SystemEvent["type"][] = [
+      "commission_status",
+      "commission_progress",
+      "commission_result",
+      "commission_artifact",
+      "commission_manager_note",
+      "commission_queued",
+      "commission_dequeued",
+      "commission_mail_sent",
+      "mail_reply_received",
+      "meeting_started",
+      "meeting_ended",
+      "schedule_spawned",
+      "toolbox_replicate",
+    ];
+
+    const eventTypesFromDaemon = new Set<string>(knownEventTypes);
+
+    expect(eventTypesFromLib).toEqual(eventTypesFromDaemon);
+    expect(SYSTEM_EVENT_TYPES.length as number).toBe(knownEventTypes.length);
   });
 });

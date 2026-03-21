@@ -260,6 +260,7 @@ describe("createProductionApp startup sync", () => {
       error() {},
       warn(...args: unknown[]) { warnings.push(args.map(String).join(" ")); },
       info() {},
+      debug() {},
     });
 
     const result = await createProductionApp({ packagesDir, gitOps: mockGit, createLog });

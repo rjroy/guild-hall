@@ -11,23 +11,18 @@ import type { GuildHallToolServices } from "@/daemon/lib/toolbox-utils";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { BriefingResult } from "./briefing-generator";
 import { baseToolboxFactory } from "./base-toolbox";
-import { meetingToolboxFactory } from "./meeting/toolbox";
-import { commissionToolboxFactory } from "./commission/toolbox";
 import { managerToolboxFactory } from "./manager/toolbox";
-import { mailToolboxFactory } from "./mail/toolbox";
 import type {
+  ContextTypeRegistry,
   GuildHallToolboxDeps,
   ToolboxFactory,
   ToolboxOutput,
 } from "./toolbox-types";
 
-// -- System toolbox registry --
+// -- System toolbox registry (non-context-type system toolboxes only) --
 
 const SYSTEM_TOOLBOX_REGISTRY: Record<string, ToolboxFactory> = {
-  meeting: meetingToolboxFactory,
-  commission: commissionToolboxFactory,
   manager: managerToolboxFactory,
-  mail: mailToolboxFactory,
 };
 
 // -- Types --
@@ -36,7 +31,7 @@ export interface ToolboxResolverContext {
   projectName: string;
   guildHallHome: string;
   contextId: string;
-  contextType: "meeting" | "commission" | "mail" | "briefing";
+  contextType: string;
   workerName: string;
   eventBus: EventBus;
   config: AppConfig;
@@ -68,7 +63,17 @@ export async function resolveToolSet(
   worker: WorkerMetadata,
   packages: DiscoveredPackage[],
   context: ToolboxResolverContext,
+  contextTypeRegistry: ContextTypeRegistry,
 ): Promise<ResolvedToolSet> {
+  // Runtime validation: reject unknown context types (REQ-CXTR-6)
+  if (!contextTypeRegistry.has(context.contextType)) {
+    const valid = [...contextTypeRegistry.keys()].join(", ");
+    throw new Error(
+      `Unknown context type "${context.contextType}". Valid types: ${valid}`,
+    );
+  }
+
+  const registration = contextTypeRegistry.get(context.contextType);
   const mcpServers: McpSdkServerConfigWithInstance[] = [];
 
   // Build shared deps from context fields
@@ -93,16 +98,16 @@ export async function resolveToolSet(
     mailFilePath: context.mailFilePath,
     commissionId: context.commissionId,
     getCachedBriefing: context.getCachedBriefing,
+    stateSubdir: registration?.stateSubdir,
   };
 
   // 1. Base toolbox (always present: memory + decision tools)
   const baseOutput = baseToolboxFactory(deps);
   mcpServers.push(baseOutput.server);
 
-  // 2. Context toolbox (auto-added based on context type, if one exists)
-  const contextFactory = SYSTEM_TOOLBOX_REGISTRY[context.contextType];
-  if (contextFactory) {
-    mcpServers.push(contextFactory(deps).server);
+  // 2. Context toolbox (auto-added from registry based on contextType)
+  if (registration?.toolboxFactory) {
+    mcpServers.push(registration.toolboxFactory(deps).server);
   }
 
   // 3. Worker's system toolboxes (e.g. manager)

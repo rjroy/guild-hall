@@ -1,0 +1,54 @@
+import { describe, test, expect } from "bun:test";
+import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
+
+describe("createContextTypeRegistry", () => {
+  test("returns a Map with 4 entries", () => {
+    const registry = createContextTypeRegistry();
+    expect(registry.size).toBe(4);
+    expect(registry.has("meeting")).toBe(true);
+    expect(registry.has("commission")).toBe(true);
+    expect(registry.has("mail")).toBe(true);
+    expect(registry.has("briefing")).toBe(true);
+  });
+
+  test("meeting entry has toolboxFactory and stateSubdir 'meetings'", () => {
+    const registry = createContextTypeRegistry();
+    const meeting = registry.get("meeting")!;
+    expect(meeting.name).toBe("meeting");
+    expect(meeting.toolboxFactory).toBeDefined();
+    expect(typeof meeting.toolboxFactory).toBe("function");
+    expect(meeting.stateSubdir).toBe("meetings");
+  });
+
+  test("commission entry has toolboxFactory and stateSubdir 'commissions'", () => {
+    const registry = createContextTypeRegistry();
+    const commission = registry.get("commission")!;
+    expect(commission.name).toBe("commission");
+    expect(commission.toolboxFactory).toBeDefined();
+    expect(typeof commission.toolboxFactory).toBe("function");
+    expect(commission.stateSubdir).toBe("commissions");
+  });
+
+  test("mail entry has toolboxFactory and stateSubdir 'commissions' (shared with commission)", () => {
+    const registry = createContextTypeRegistry();
+    const mail = registry.get("mail")!;
+    expect(mail.name).toBe("mail");
+    expect(mail.toolboxFactory).toBeDefined();
+    expect(typeof mail.toolboxFactory).toBe("function");
+    expect(mail.stateSubdir).toBe("commissions");
+  });
+
+  test("briefing entry has no toolboxFactory and stateSubdir 'briefings'", () => {
+    const registry = createContextTypeRegistry();
+    const briefing = registry.get("briefing")!;
+    expect(briefing.name).toBe("briefing");
+    expect(briefing.toolboxFactory).toBeUndefined();
+    expect(briefing.stateSubdir).toBe("briefings");
+  });
+
+  test("each call returns a fresh instance", () => {
+    const a = createContextTypeRegistry();
+    const b = createContextTypeRegistry();
+    expect(a).not.toBe(b);
+  });
+});
