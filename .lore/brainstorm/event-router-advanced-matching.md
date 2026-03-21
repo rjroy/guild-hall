@@ -1,7 +1,7 @@
 ---
 title: "Event Router: Advanced Matching"
 date: 2026-03-21
-status: open
+status: resolved
 author: Octavia
 tags: [brainstorm, event-router, matching, notifications, triggers, config]
 related:
