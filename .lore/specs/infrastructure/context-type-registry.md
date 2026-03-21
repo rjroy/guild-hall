@@ -6,7 +6,6 @@ tags: [refactor, toolbox-resolver, worker-activation, extensibility, registry]
 modules: [toolbox-resolver, toolbox-types, worker-activation, base-toolbox, sdk-runner]
 related:
   - .lore/issues/context-type-registry-refactor.md
-  - .lore/specs/infrastructure/event-router.md
   - .lore/specs/infrastructure/daemon-application-boundary.md
 req-prefix: CXTR
 ---
@@ -35,7 +34,7 @@ This spec extracts a registry where each context type declares its capabilities.
 
 - Issue: `.lore/issues/context-type-registry-refactor.md`
 - Growth Surface brainstorm Proposal 3 (`.lore/brainstorm/growth-surface-2026-03-17.md`): user endorsed this refactor as "closer to my original intent."
-- The event router spec (`.lore/specs/infrastructure/event-router.md`) established the DI factory pattern for daemon services. This spec follows the same pattern: factory function, injected dependencies, config-driven behavior.
+- The DI factory pattern (factory function, injected dependencies, cleanup callback) is standard across daemon services. This spec follows that pattern.
 
 ## Requirements
 
@@ -68,7 +67,7 @@ This spec extracts a registry where each context type declares its capabilities.
 
   The factory imports the two toolbox factories directly. This is the only file that imports all context-type toolbox factories.
 
-- REQ-CXTR-4: The factory function takes no parameters. It returns a fresh registry instance each time (no shared mutable state). This follows the same pattern as `createEventRouter` in the event router spec: pure factory, no global singletons.
+- REQ-CXTR-4: The factory function takes no parameters. It returns a fresh registry instance each time (no shared mutable state). Pure factory, no global singletons.
 
 ### Toolbox Resolver Changes
 
