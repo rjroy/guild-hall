@@ -1,7 +1,7 @@
 ---
 title: "Commission: Spec update: Triggered commissions (align with Event Router revision)"
 date: 2026-03-21
-status: dispatched
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -19,6 +19,14 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-21T17:08:19.752Z
+    event: status_cancelled
+    reason: "Commission cancelled by user"
+  - timestamp: 2026-03-21T17:09:42.422Z
+    event: status_abandoned
+    reason: "Decided there is change in sequence we need to handle firrst."
+    from: "cancelled"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---
