@@ -1,7 +1,7 @@
 ---
 title: "Plan: Commission and Meeting Outcomes to Project Memory"
 date: 2026-03-20
-status: approved
+status: executed
 tags: [memory, commissions, meetings, automation, lifecycle, haiku, triage, event-bus]
 modules: [outcome-triage, base-toolbox, event-bus, daemon-app]
 related:
