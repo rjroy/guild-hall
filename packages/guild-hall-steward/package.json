@@ -10,6 +10,7 @@
       "portraitPath": "/images/portraits/edmund-steward.webp",
       "guidance": "Invoke this worker when you need project maintenance, cleanup, or organizational tasks."
     },
+    "model": "sonnet",
     "domainToolboxes": ["guild-hall-email"],
     "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
     "canUseToolRules": [
