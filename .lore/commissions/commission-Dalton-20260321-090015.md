@@ -1,7 +1,7 @@
 ---
 title: "Commission: Fix: Persist meeting input draft in localStorage"
 date: 2026-03-21
-status: dispatched
+status: completed
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -9,8 +9,11 @@ workerDisplayTitle: "Guild Artificer"
 prompt: "Persist the meeting chat input text in localStorage so it survives tab switches.\n\n**File:** `web/components/meeting/MessageInput.tsx` and its parent `web/components/meeting/ChatInterface.tsx` (wherever the `value`/`onChange` state is managed).\n\n**What to change:**\n\nThe meeting input's `value` state needs to be backed by localStorage, keyed to the specific meeting. When the user navigates away and comes back, their draft text should still be there.\n\n1. **Key format:** Use something like `guild-hall:meeting-draft:<meetingId>` as the localStorage key. The meeting ID should be available from the page context or passed as a prop.\n\n2. **Initialize from localStorage:** When the component mounts, read the stored draft (if any) and use it as the initial value.\n\n3. **Persist on change:** When the user types, write the current value to localStorage. Debouncing is fine but not required given the small data size.\n\n4. **Clear on send:** When a message is sent (the `onSend` callback fires), clear the localStorage entry. The input already gets cleared on send; just make sure the storage is also cleared.\n\n5. **Don't persist empty strings:** If the value is empty or whitespace-only, remove the key rather than storing blank entries.\n\nRead the ChatInterface component to understand how `value` and `onChange` are wired before making changes. The state might live in ChatInterface with MessageInput as a controlled component.\n\n**Test:** Write or update tests verifying:\n- Draft is saved to localStorage on input change\n- Draft is restored from localStorage on mount\n- Draft is cleared from localStorage on send\n- Empty/whitespace drafts are not persisted\n- Different meetings use different storage keys\n\nRun `bun test` to confirm all tests pass."
 dependencies:
   - commission-Dalton-20260321-085821
-linked_artifacts: []
+linked_artifacts:
+  - web/components/meeting/ChatInterface.tsx
 
+  - tests/web/components/meeting/ChatDraft.test.ts
+  - tests/web/components/meeting/ChatDraft.test.ts
 activity_timeline:
   - timestamp: 2026-03-21T16:00:15.470Z
     event: created
@@ -30,6 +33,29 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
-current_progress: ""
+  - timestamp: 2026-03-21T16:00:38.944Z
+    event: status_in_progress
+    reason: "Execution started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-03-21T16:00:56.246Z
+    event: progress_report
+    reason: "Reading source files. State lives in ChatInterface (inputValue/setInputValue on line 96), passed to MessageInput as controlled props. Will add localStorage backing in ChatInterface."
+  - timestamp: 2026-03-21T16:02:49.711Z
+    event: result_submitted
+    reason: "Added localStorage-backed draft persistence for meeting chat input.\n\n**Changes:**\n- `web/components/meeting/ChatInterface.tsx`: Added four exported helpers (`draftStorageKey`, `readDraft`, `writeDraft`, `clearDraft`) and wired them into the component. `inputValue` initializes from localStorage on mount. The `setInputValue` wrapper calls `writeDraft` on every change, which persists non-empty text and removes the key for empty/whitespace values. Key format: `guild-hall:meeting-draft:<meetingId>`.\n- `tests/web/components/meeting/ChatDraft.test.ts`: 10 tests covering key format, save/restore, empty/whitespace removal, cross-meeting isolation, clear behavior, and full lifecycle simulation.\n\nAll 3229 tests pass, typecheck clean."
+  - timestamp: 2026-03-21T16:02:58.137Z
+    event: status_completed
+    reason: "Execution completed"
+    from: "in_progress"
+    to: "completed"
+current_progress: "Reading source files. State lives in ChatInterface (inputValue/setInputValue on line 96), passed to MessageInput as controlled props. Will add localStorage backing in ChatInterface."
 projectName: guild-hall
 ---
+Added localStorage-backed draft persistence for meeting chat input.
+
+**Changes:**
+- `web/components/meeting/ChatInterface.tsx`: Added four exported helpers (`draftStorageKey`, `readDraft`, `writeDraft`, `clearDraft`) and wired them into the component. `inputValue` initializes from localStorage on mount. The `setInputValue` wrapper calls `writeDraft` on every change, which persists non-empty text and removes the key for empty/whitespace values. Key format: `guild-hall:meeting-draft:<meetingId>`.
+- `tests/web/components/meeting/ChatDraft.test.ts`: 10 tests covering key format, save/restore, empty/whitespace removal, cross-meeting isolation, clear behavior, and full lifecycle simulation.
+
+All 3229 tests pass, typecheck clean.
