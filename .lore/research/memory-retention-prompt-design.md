@@ -1,7 +1,7 @@
 ---
 title: Memory Retention Prompt Design
 date: 2026-03-20
-status: current
+status: archived
 tags: [memory, prompt-design, triage, haiku, commissions, meetings, research]
 related:
   - .lore/brainstorm/commission-outcomes-to-memory.md
