@@ -1,7 +1,7 @@
 ---
 title: Halted commission action buttons
 date: 2026-03-20
-status: approved
+status: implemented
 tags: [ui, commissions, halted-state, client-component]
 modules: [web/components/commission/CommissionActions, web/app/api/commissions]
 related:
