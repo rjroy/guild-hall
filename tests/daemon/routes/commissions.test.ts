@@ -97,6 +97,10 @@ function makeMockCommissionSession(
       calls.push({ method: "updateScheduleStatus", args: [commissionId, targetStatus] });
       return Promise.resolve({ outcome: "executed", status: targetStatus });
     },
+    updateTriggerStatus(commissionId: CommissionId, targetStatus: string, projectName: string) {
+      calls.push({ method: "updateTriggerStatus", args: [commissionId, targetStatus, projectName] });
+      return Promise.resolve({ commissionId: commissionId as string, status: targetStatus });
+    },
     continueCommission(commissionId: CommissionId) {
       calls.push({ method: "continueCommission", args: [commissionId] });
       return Promise.resolve({ status: "accepted" as const });
@@ -989,5 +993,91 @@ describe("POST /commission/request/commission/create (triggered)", () => {
     // approval and maxDepth are undefined (the orchestrator applies defaults)
     expect(params.approval).toBeUndefined();
     expect(params.maxDepth).toBeUndefined();
+  });
+});
+
+// -- POST /commission/trigger/commission/update --
+
+describe("POST /commission/trigger/commission/update", () => {
+  test("returns 400 when commissionId is missing", async () => {
+    const { app } = makeTestApp();
+    const res = await app.request("/commission/trigger/commission/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "paused" }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("commissionId");
+  });
+
+  test("returns 400 when status is missing", async () => {
+    const { app } = makeTestApp();
+    const res = await app.request("/commission/trigger/commission/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "test-id" }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("status");
+  });
+
+  test("calls updateTriggerStatus and returns result", async () => {
+    const { app, calls } = makeTestApp();
+    const res = await app.request("/commission/trigger/commission/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commissionId: "commission-trigger-20260321-120000",
+        status: "paused",
+        projectName: "test-project",
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.commissionId).toBe("commission-trigger-20260321-120000");
+    expect(body.status).toBe("paused");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("updateTriggerStatus");
+  });
+
+  test("returns 409 for invalid transitions", async () => {
+    const { app } = makeTestApp({
+      updateTriggerStatus() {
+        throw new Error('Cannot transition trigger from "completed" to "active"');
+      },
+    });
+    const res = await app.request("/commission/trigger/commission/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commissionId: "test-id",
+        status: "active",
+      }),
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toContain("Cannot transition");
+  });
+
+  test("returns 409 for non-triggered commission", async () => {
+    const { app } = makeTestApp({
+      updateTriggerStatus() {
+        throw new Error('Commission "test-id" is not a triggered commission');
+      },
+    });
+    const res = await app.request("/commission/trigger/commission/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commissionId: "test-id",
+        status: "paused",
+      }),
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toContain("not a triggered");
   });
 });

@@ -9,6 +9,9 @@ import CommissionLinkedArtifacts from "./CommissionLinkedArtifacts";
 import CommissionNotes from "./CommissionNotes";
 import CommissionScheduleInfo from "./CommissionScheduleInfo";
 import CommissionScheduleActions from "./CommissionScheduleActions";
+import TriggerInfo from "./TriggerInfo";
+import TriggerActions from "./TriggerActions";
+import type { TriggerInfoData } from "./TriggerInfo";
 import Panel from "@/web/components/ui/Panel";
 import type { TimelineEntry } from "@/lib/commissions";
 import type { CommissionArtifact } from "./CommissionLinkedArtifacts";
@@ -45,6 +48,7 @@ interface CommissionViewProps {
   initialArtifacts: CommissionArtifact[];
   commissionType?: string;
   scheduleInfo?: ScheduleInfo;
+  triggerInfo?: TriggerInfoData;
 }
 
 /**
@@ -64,6 +68,7 @@ export default function CommissionView({
   initialArtifacts,
   commissionType,
   scheduleInfo,
+  triggerInfo,
 }: CommissionViewProps) {
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
@@ -267,7 +272,20 @@ export default function CommissionView({
       </div>
 
       <div className={styles.sidebar}>
-        {commissionType === "scheduled" && scheduleInfo ? (
+        {commissionType === "triggered" && triggerInfo ? (
+          <>
+            <Panel size="sm">
+              <TriggerInfo trigger={triggerInfo} projectName={projectName} />
+            </Panel>
+            <Panel size="sm">
+              <TriggerActions
+                status={status}
+                commissionId={commissionId}
+                onStatusChange={handleStatusChange}
+              />
+            </Panel>
+          </>
+        ) : commissionType === "scheduled" && scheduleInfo ? (
           <>
             <Panel size="sm">
               <CommissionScheduleInfo schedule={scheduleInfo} projectName={projectName} />

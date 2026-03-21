@@ -59,6 +59,7 @@ import {
 } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import { isValidCron } from "@/daemon/services/scheduler/cron";
+import { TRIGGER_STATUS_TRANSITIONS } from "@/daemon/services/manager/toolbox";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
 import { replaceYamlField } from "@/daemon/lib/record-utils";
@@ -150,6 +151,11 @@ export interface CommissionSessionForRoutes {
     commissionId: CommissionId,
     targetStatus: string,
   ): Promise<{ outcome: string; status?: string; reason?: string }>;
+  updateTriggerStatus(
+    commissionId: CommissionId,
+    targetStatus: string,
+    projectName: string,
+  ): Promise<{ commissionId: string; status: string }>;
   continueCommission(commissionId: CommissionId): Promise<{ status: "accepted" | "capacity_error" }>;
   saveCommission(commissionId: CommissionId, reason?: string): Promise<void>;
   checkDependencyTransitions(projectName: string): Promise<void>;
@@ -1680,6 +1686,60 @@ projectName: ${projectName}
     return { outcome: "skipped", reason: result.reason };
   }
 
+  /**
+   * Transition a triggered commission's status (pause, resume, complete).
+   * Manages trigger evaluator subscriptions alongside status writes.
+   */
+  async function updateTriggerStatus(
+    commissionId: CommissionId,
+    targetStatus: string,
+    projectName: string,
+  ): Promise<{ commissionId: string; status: string }> {
+    const triggerEvaluator = deps.triggerEvaluatorRef?.current;
+    if (!triggerEvaluator) {
+      throw new Error("Trigger evaluator not available");
+    }
+
+    const found = await findProjectForCommission(commissionId);
+    if (!found) {
+      throw new Error(`Commission "${commissionId as string}" not found in any project`);
+    }
+
+    const iPath = integrationWorktreePathFn(guildHallHome, found.projectName);
+    const artifactPath = commissionArtifactPath(iPath, commissionId);
+    const currentStatus = await recordOps.readStatus(artifactPath);
+    const commissionType = await recordOps.readType(artifactPath);
+
+    if (commissionType !== "triggered") {
+      throw new Error(`Commission "${commissionId as string}" is not a triggered commission`);
+    }
+
+    const validTargets = TRIGGER_STATUS_TRANSITIONS[currentStatus];
+    if (!validTargets || !validTargets.includes(targetStatus)) {
+      throw new Error(`Cannot transition trigger from "${currentStatus}" to "${targetStatus}"`);
+    }
+
+    // Execute the transition
+    if (targetStatus === "paused") {
+      triggerEvaluator.unregisterTrigger(commissionId as string);
+    } else if (targetStatus === "active") {
+      await triggerEvaluator.registerTrigger(artifactPath, projectName || found.projectName);
+    } else if (targetStatus === "completed") {
+      triggerEvaluator.unregisterTrigger(commissionId as string);
+    }
+
+    await recordOps.writeStatusAndTimeline(
+      artifactPath,
+      targetStatus,
+      `trigger_${targetStatus}`,
+      `Trigger ${targetStatus} via API`,
+    );
+
+    log.info(`trigger status updated: ${commissionId as string} -> ${targetStatus}`);
+
+    return { commissionId: commissionId as string, status: targetStatus };
+  }
+
   async function updateCommission(
     commissionId: CommissionId,
     updates: {
@@ -2736,6 +2796,7 @@ projectName: ${projectName}
     createScheduledCommission,
     createTriggeredCommission,
     updateScheduleStatus,
+    updateTriggerStatus,
     updateCommission,
     dispatchCommission,
     continueCommission,

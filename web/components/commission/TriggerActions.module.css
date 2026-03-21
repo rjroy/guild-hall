@@ -1,0 +1,76 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-brass);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.buttonGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* Shared base for trigger action buttons */
+.pauseButton,
+.resumeButton,
+.completeButton {
+  padding: var(--space-xs) var(--space-md);
+  border-radius: 4px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.pauseButton:disabled,
+.resumeButton:disabled,
+.completeButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.pauseButton {
+  background-color: rgba(184, 134, 11, 0.12);
+  border: 1px solid rgba(184, 134, 11, 0.35);
+  color: var(--color-brass);
+}
+
+.pauseButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.25);
+}
+
+.resumeButton {
+  background-color: rgba(184, 134, 11, 0.2);
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+}
+
+.resumeButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.35);
+}
+
+.completeButton {
+  background-color: rgba(107, 142, 35, 0.12);
+  border: 1px solid rgba(107, 142, 35, 0.35);
+  color: var(--color-text);
+}
+
+.completeButton:hover:not(:disabled) {
+  background-color: rgba(107, 142, 35, 0.25);
+}
+
+.error {
+  font-size: 0.75rem;
+  color: var(--color-error, #c44);
+  margin: 0;
+}

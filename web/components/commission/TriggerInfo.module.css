@@ -1,0 +1,172 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-brass);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.fields {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.field {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+
+.fieldLabel {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.fieldValue {
+  font-size: 0.85rem;
+  color: var(--color-text);
+  margin: 0;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  word-break: break-all;
+}
+
+.eventType {
+  font-family: var(--font-code);
+  font-size: 0.8rem;
+  color: var(--color-brass);
+  background-color: rgba(184, 134, 11, 0.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.matchField {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.matchField code {
+  font-family: var(--font-code);
+  font-size: 0.75rem;
+  color: var(--color-brass);
+}
+
+.approvalAuto {
+  color: var(--color-brass);
+  font-weight: 600;
+}
+
+.spawnLink {
+  font-family: var(--font-code);
+  font-size: 0.75rem;
+  color: var(--color-brass);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.spawnLink:hover {
+  text-decoration: underline;
+}
+
+/* Recent Spawns section */
+.recentSpawns {
+  margin-top: var(--space-sm);
+  border-top: 1px solid rgba(184, 134, 11, 0.15);
+  padding-top: var(--space-sm);
+}
+
+.recentSpawnsLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brass);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.spawnList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spawnItem {
+  margin: 0;
+}
+
+.spawnItemLink {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  text-decoration: none;
+  color: var(--color-text);
+  transition: background-color 0.15s;
+}
+
+.spawnItemLink:hover {
+  background-color: rgba(184, 134, 11, 0.08);
+}
+
+.spawnId {
+  font-family: var(--font-code);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spawnMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.spawnStatus {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status_completed {
+  color: var(--color-success, #6b8e23);
+}
+
+.status_failed {
+  color: var(--color-error, #c44);
+}
+
+.status_in_progress {
+  color: var(--color-brass);
+}
+
+.status_dispatched {
+  color: var(--color-brass);
+}
+
+.spawnDate {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}

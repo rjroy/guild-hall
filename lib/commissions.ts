@@ -24,6 +24,8 @@ export interface CommissionMeta {
   type: string;
   /** For spawned commissions, the ID of the parent schedule. */
   sourceSchedule: string;
+  /** For spawned commissions created by a trigger, the trigger artifact ID. */
+  sourceTrigger: string;
   worker: string;
   workerDisplayTitle: string;
   prompt: string;
@@ -84,6 +86,7 @@ function parseCommissionData(
     status,
     type: typeof data.type === "string" ? data.type : "one-shot",
     sourceSchedule: typeof data.source_schedule === "string" ? data.source_schedule : "",
+    sourceTrigger: extractSourceTrigger(data),
     worker: typeof data.worker === "string" ? data.worker : "",
     workerDisplayTitle: typeof data.workerDisplayTitle === "string"
       ? data.workerDisplayTitle
@@ -116,6 +119,20 @@ function parseCommissionData(
     date,
     relevantDate: extractRelevantDate(status, date, timeline),
   };
+}
+
+/**
+ * Extracts the trigger artifact ID from the `triggered_by` frontmatter block.
+ */
+function extractSourceTrigger(data: Record<string, unknown>): string {
+  const triggeredBy = data.triggered_by;
+  if (typeof triggeredBy === "object" && triggeredBy !== null) {
+    const tb = triggeredBy as Record<string, unknown>;
+    if (typeof tb.trigger_artifact === "string") {
+      return tb.trigger_artifact;
+    }
+  }
+  return "";
 }
 
 // -- Public API --
@@ -151,6 +168,7 @@ export async function readCommissionMeta(
       status: "",
       type: "one-shot",
       sourceSchedule: "",
+      sourceTrigger: "",
       worker: "",
       workerDisplayTitle: "",
       prompt: "",
