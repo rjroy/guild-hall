@@ -4,6 +4,32 @@ import { useRef, useCallback, useEffect } from "react";
 import { useDaemonStatus } from "@/web/components/ui/DaemonContext";
 import styles from "./MessageInput.module.css";
 
+/**
+ * Returns true when an Enter keypress should send the message
+ * (preventDefault + onSend), false when it should fall through
+ * to the browser default (insert newline).
+ */
+export function shouldSendOnEnter(state: {
+  value: string;
+  isStreaming: boolean;
+  isOnline: boolean;
+  shiftKey: boolean;
+  isTouchDevice: boolean;
+}): boolean {
+  if (state.shiftKey || state.isTouchDevice) return false;
+  return !!(state.value.trim() && !state.isStreaming && state.isOnline);
+}
+
+/**
+ * The textarea is disabled only when the daemon is offline.
+ * Streaming does not disable typing.
+ */
+export function isTextareaDisabled(state: {
+  isOnline: boolean;
+}): boolean {
+  return !state.isOnline;
+}
+
 interface MessageInputProps {
   onSend: (message: string) => void;
   onStop: () => void;
@@ -50,13 +76,18 @@ export default function MessageInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // On mobile/touch devices, enter inserts a newline (no shift+enter available).
-    // On desktop, enter sends and shift+enter inserts a newline.
-    if (e.key === "Enter" && !e.shiftKey && !isTouchDevice.current) {
+    if (
+      e.key === "Enter" &&
+      shouldSendOnEnter({
+        value,
+        isStreaming,
+        isOnline,
+        shiftKey: e.shiftKey,
+        isTouchDevice: isTouchDevice.current ?? false,
+      })
+    ) {
       e.preventDefault();
-      if (value.trim() && !isStreaming && isOnline) {
-        onSend(value.trim());
-      }
+      onSend(value.trim());
     }
   };
 
@@ -77,7 +108,7 @@ export default function MessageInput({
         onChange={handleInput}
         onKeyDown={handleKeyDown}
         placeholder={isOnline ? "Speak to the guild worker..." : "Daemon offline"}
-        disabled={isStreaming || !isOnline}
+        disabled={isTextareaDisabled({ isOnline })}
         rows={1}
       />
       {isStreaming ? (
