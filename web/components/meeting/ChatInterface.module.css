@@ -7,7 +7,7 @@
   border-radius: 8px;
   /* Fill available vertical space in the meeting view */
   flex: 1;
-  min-height: 400px;
+  min-height: 200px;
 
   /* vendor prefix must precede standard property in Next.js */
   -webkit-backdrop-filter: blur(12px);
