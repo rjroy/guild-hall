@@ -1,7 +1,7 @@
 ---
 title: "Halted Commission UI Gap"
 date: 2026-03-20
-status: open
+status: resolved
 author: Celeste
 tags: [issue, ui, commissions, halted-state]
 severity: moderate
