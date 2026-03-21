@@ -1,7 +1,7 @@
 ---
 title: Music Generation Toolbox
 date: 2026-03-20
-status: present
+status: active
 tags: [music-generation, domain-toolbox, api-research, mureka, suno, packages]
 related:
   - .lore/research/replicate-image-generation-integration.md
