@@ -1,7 +1,7 @@
 ---
 title: Decisions Surface
 date: 2026-03-20
-status: approved
+status: implemented
 tags: [decisions, lifecycle, artifacts, memory, triage]
 modules: [daemon/services/commission/orchestrator, daemon/services/meeting/orchestrator, daemon/services/base-toolbox]
 related:
