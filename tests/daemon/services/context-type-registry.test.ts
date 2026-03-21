@@ -2,12 +2,11 @@ import { describe, test, expect } from "bun:test";
 import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
 
 describe("createContextTypeRegistry", () => {
-  test("returns a Map with 4 entries", () => {
+  test("returns a Map with 3 entries", () => {
     const registry = createContextTypeRegistry();
-    expect(registry.size).toBe(4);
+    expect(registry.size).toBe(3);
     expect(registry.has("meeting")).toBe(true);
     expect(registry.has("commission")).toBe(true);
-    expect(registry.has("mail")).toBe(true);
     expect(registry.has("briefing")).toBe(true);
   });
 
@@ -27,15 +26,6 @@ describe("createContextTypeRegistry", () => {
     expect(commission.toolboxFactory).toBeDefined();
     expect(typeof commission.toolboxFactory).toBe("function");
     expect(commission.stateSubdir).toBe("commissions");
-  });
-
-  test("mail entry has toolboxFactory and stateSubdir 'commissions' (shared with commission)", () => {
-    const registry = createContextTypeRegistry();
-    const mail = registry.get("mail")!;
-    expect(mail.name).toBe("mail");
-    expect(mail.toolboxFactory).toBeDefined();
-    expect(typeof mail.toolboxFactory).toBe("function");
-    expect(mail.stateSubdir).toBe("commissions");
   });
 
   test("briefing entry has no toolboxFactory and stateSubdir 'briefings'", () => {

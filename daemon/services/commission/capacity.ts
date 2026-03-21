@@ -55,15 +55,3 @@ export function isAtCapacity(
 
   return { atLimit: false, reason: "" };
 }
-
-// -- Mail reader capacity --
-
-export const DEFAULT_MAIL_READER_CAP = 5;
-
-export function isMailReaderAtCapacity(
-  activeReaderCount: number,
-  config: AppConfig,
-): boolean {
-  const cap = config.maxConcurrentMailReaders ?? DEFAULT_MAIL_READER_CAP;
-  return activeReaderCount >= cap;
-}

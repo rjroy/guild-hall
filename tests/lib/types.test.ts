@@ -28,7 +28,6 @@ describe("statusToGem", () => {
     // Commission-specific statuses
     ["dispatched", "active"],
     ["in_progress", "active"],
-    ["sleeping", "active"],
 
     // Info (blue) - terminal states (no action needed)
     ["complete", "info"],

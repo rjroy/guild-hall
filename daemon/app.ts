@@ -472,8 +472,6 @@ export async function createProductionApp(options?: {
         redispatch: () => lifecycle.redispatch(id),
         block: () => lifecycle.block(id),
         unblock: () => lifecycle.unblock(id),
-        sleep: () => lifecycle.sleep(id, (payload?.reason as string) ?? "Sleep via operation"),
-        wake: () => lifecycle.wake(id, (payload?.reason as string) ?? "Wake via operation"),
         complete: () => lifecycle.executionCompleted(id),
         fail: () => lifecycle.executionFailed(id, (payload?.reason as string) ?? "Failed via operation"),
       };

@@ -14,8 +14,7 @@
  *   pending     -> dispatched, blocked, cancelled, abandoned
  *   blocked     -> pending, cancelled, abandoned
  *   dispatched  -> in_progress, failed, cancelled
- *   in_progress -> completed, failed, cancelled, sleeping, halted
- *   sleeping    -> in_progress, cancelled, abandoned, failed
+ *   in_progress -> completed, failed, cancelled, halted
  *   halted      -> in_progress, completed, cancelled, abandoned, failed
  *   completed   -> failed
  *   failed      -> pending, abandoned
@@ -50,8 +49,7 @@ const TRANSITIONS: Record<CommissionStatus, CommissionStatus[]> = {
   pending: ["dispatched", "blocked", "cancelled", "abandoned"],
   blocked: ["pending", "cancelled", "abandoned"],
   dispatched: ["in_progress", "failed", "cancelled"],
-  in_progress: ["completed", "failed", "cancelled", "sleeping", "halted"],
-  sleeping: ["in_progress", "cancelled", "abandoned", "failed"],
+  in_progress: ["completed", "failed", "cancelled", "halted"],
   halted: ["in_progress", "completed", "cancelled", "abandoned", "failed"],
   completed: ["failed"],
   failed: ["pending", "abandoned"],
@@ -166,13 +164,6 @@ export class CommissionLifecycle {
     return this.transition(id, "pending", "Dependencies satisfied");
   }
 
-  async sleep(id: CommissionId, reason: string): Promise<TransitionResult> {
-    return this.transition(id, "sleeping", reason);
-  }
-
-  async wake(id: CommissionId, reason: string): Promise<TransitionResult> {
-    return this.transition(id, "in_progress", reason);
-  }
 
   async halt(id: CommissionId, reason: string): Promise<TransitionResult> {
     return this.transition(id, "halted", reason);

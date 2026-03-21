@@ -567,28 +567,6 @@ describe("prepareSdkSession", () => {
     expect("server-b" in servers).toBe(true);
   });
 
-  test("mailFilePath and commissionId passed through to resolveToolSet context", async () => {
-    let capturedContext: Record<string, unknown> = {};
-
-    const result = await prepareSdkSession(
-      makeSpec({
-        contextType: "mail",
-        mailFilePath: "/tmp/mail/test-mail.md",
-        commissionId: "commission-test-abc",
-      }),
-      makeDeps({
-        resolveToolSet: async (_worker, _packages, context) => {
-          capturedContext = context as unknown as Record<string, unknown>;
-          return mockResolvedTools;
-        },
-      }),
-    );
-
-    expect(result.ok).toBe(true);
-    expect(capturedContext.mailFilePath).toBe("/tmp/mail/test-mail.md");
-    expect(capturedContext.commissionId).toBe("commission-test-abc");
-  });
-
   test("worker with domainPlugins where package has pluginPath produces options.plugins", async () => {
     const pluginWorkerMeta: WorkerMetadata = {
       ...mockWorkerMeta,

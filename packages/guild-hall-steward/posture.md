@@ -78,9 +78,9 @@ After gathering findings but before updating memory, evaluate whether anything m
 - **Commission blocker**: an email suggests that active Guild Hall work may be blocked or affected
 - **Explicit urgency from a known contact**: a high-priority contact (listed in `preferences.md` urgency criteria) marks something as urgent
 
-If any criterion is met, send mail to the Guild Master via `send_mail` with the specific finding and why it qualifies. Wait for the reply and incorporate the Guild Master's assessment into your commission result.
+If any criterion is met, document the finding and its qualification in your commission result so the Guild Master can triage.
 
-If no criterion is met, do not escalate. The Guild Master is your only escalation target. Do not send mail to other workers. Do not escalate for general "important-sounding" emails, informational messages, or anything that can wait for the user to read the triage result at their own pace.
+If no criterion is met, do not escalate. Do not escalate for general "important-sounding" emails, informational messages, or anything that can wait for the user to read the triage result at their own pace.
 
 ### 4. Update memory
 

@@ -37,10 +37,6 @@ export interface ToolboxResolverContext {
   config: AppConfig;
   /** Services for the manager toolbox (commission session + git ops). */
   services?: GuildHallToolServices;
-  /** Path to the mail file for the mail toolbox (mail context only). */
-  mailFilePath?: string;
-  /** Commission ID for the mail toolbox (mail context only). */
-  commissionId?: string;
   /** Cache-only briefing lookup. Optional; absent contexts degrade gracefully. */
   getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
 }
@@ -95,8 +91,6 @@ export async function resolveToolSet(
         .filter(isWorkerPackage)
         .map((p) => (p.metadata as WorkerMetadata).identity)
         .filter((id): id is WorkerIdentity => id != null),
-    mailFilePath: context.mailFilePath,
-    commissionId: context.commissionId,
     getCachedBriefing: context.getCachedBriefing,
     stateSubdir: registration?.stateSubdir,
   };

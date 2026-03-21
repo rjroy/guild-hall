@@ -824,8 +824,6 @@ describe("SYSTEM_EVENT_TYPES sync", () => {
       "commission_manager_note",
       "commission_queued",
       "commission_dequeued",
-      "commission_mail_sent",
-      "mail_reply_received",
       "meeting_started",
       "meeting_ended",
       "schedule_spawned",

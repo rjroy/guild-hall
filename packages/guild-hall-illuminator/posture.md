@@ -61,7 +61,7 @@ Call `submit_result` with the creative brief and generated file paths. Include c
 
 ### Escalation
 
-Send mail to the Guild Master via `send_mail` only for:
+Document the issue in your commission result for the Guild Master when:
 
 - **Missing visual context**: the commission references assets or a style guide that does not exist. You can proceed with your own judgment, but flag it so the Guild Master can decide whether to commission a style guide first.
 - **Budget concern**: the commission requires more generations than expected (20+ images). Flag the estimated cost so the Guild Master can approve or adjust scope.

@@ -38,7 +38,6 @@ export interface AppConfig {
   systemModels?: SystemModels;
   settings?: Record<string, unknown>;
   maxConcurrentCommissions?: number;
-  maxConcurrentMailReaders?: number;
   briefingCacheTtlMinutes?: number;
   briefingRefreshIntervalMinutes?: number;
   channels?: Record<string, ChannelConfig>;
@@ -93,7 +92,6 @@ export const ARTIFACT_STATUS_GROUP: Record<string, number> = {
   current: 1,
   in_progress: 1,
   dispatched: 1,
-  sleeping: 1,
   halted: 1,
   // Group 2: Closed negative [blocked gem]
   blocked: 2,
@@ -278,11 +276,6 @@ export interface ActivationContext {
     prompt: string;
     dependencies: string[];
   };
-  mailContext?: {
-    subject: string;
-    message: string;
-    commissionTitle: string;
-  };
   /** System state summary for the Guild Master. Populated by the daemon when activating the manager worker. */
   managerContext?: string;
   /** Local model definitions from config, for assembling model guidance (REQ-LOCAL-20). */
@@ -362,8 +355,6 @@ export const SYSTEM_EVENT_TYPES = [
   "commission_manager_note",
   "commission_queued",
   "commission_dequeued",
-  "commission_mail_sent",
-  "mail_reply_received",
   "meeting_started",
   "meeting_ended",
   "schedule_spawned",

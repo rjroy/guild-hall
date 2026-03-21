@@ -253,7 +253,6 @@ const STATUS_GROUP: Record<string, number> = {
   paused: 0,
   dispatched: 1,
   in_progress: 1,
-  sleeping: 1,
   halted: 1,
   active: 1,
   failed: 2,
@@ -301,7 +300,6 @@ function extractRelevantDate(
     cancelled: "status_cancelled",
     dispatched: "status_dispatched",
     in_progress: "status_in_progress",
-    sleeping: "status_sleeping",
     halted: "status_halted",
   };
 

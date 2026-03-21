@@ -97,10 +97,6 @@ export type SessionPrepSpec = {
   abortController: AbortController;
   resume?: string;
   resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
-  /** Path to the mail file (mail context only). */
-  mailFilePath?: string;
-  /** Commission ID for the mail toolbox (mail context only). */
-  commissionId?: string;
 };
 
 export type SessionPrepDeps = {
@@ -116,8 +112,6 @@ export type SessionPrepDeps = {
       eventBus: EventBus;
       config: AppConfig;
       services?: GuildHallToolServices;
-      mailFilePath?: string;
-      commissionId?: string;
     },
   ) => Promise<ResolvedToolSet>;
 
@@ -344,8 +338,6 @@ export async function prepareSdkSession(
       eventBus: spec.eventBus,
       config: spec.config,
       services: spec.services,
-      mailFilePath: spec.mailFilePath,
-      commissionId: spec.commissionId,
     });
   } catch (err: unknown) {
     return { ok: false, error: `Tool resolution failed: ${errorMessage(err)}` };
