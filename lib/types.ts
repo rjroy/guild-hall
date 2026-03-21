@@ -190,6 +190,7 @@ export interface WorkerMetadata {
   posture: string;
   soul?: string;
   model?: string;
+  subAgentModel?: string;
   systemToolboxes?: string[];
   domainToolboxes: string[];
   domainPlugins?: string[];

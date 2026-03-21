@@ -73,6 +73,7 @@ export const workerMetadataSchema = z.object({
   posture: z.string().optional(),
   soul: z.string().optional(),
   model: z.string().min(1).optional(),
+  subAgentModel: z.string().min(1).optional(),
   systemToolboxes: z.array(z.string()).default([]),
   domainToolboxes: z.array(z.string()),
   domainPlugins: z.array(z.string()).optional(),
@@ -262,15 +263,28 @@ export function validatePackageModels(
   return packages.filter((pkg) => {
     if (!("identity" in pkg.metadata)) return true;
     const worker = pkg.metadata;
-    if (!worker.model) return true;
-    if (isValidModel(worker.model, config)) return true;
-    console.warn(
-      `[packages] Worker "${worker.identity.name}" references model "${worker.model}" ` +
-        `which is not a built-in model and not defined in config.yaml. ` +
-        `Add a model definition to config.yaml or use a built-in model (${VALID_MODELS.join(", ")}). ` +
-        `Package skipped.`,
-    );
-    return false;
+    if (worker.model) {
+      if (!isValidModel(worker.model, config)) {
+        console.warn(
+          `[packages] Worker "${worker.identity.name}" references model "${worker.model}" ` +
+            `which is not a built-in model and not defined in config.yaml. ` +
+            `Add a model definition to config.yaml or use a built-in model (${VALID_MODELS.join(", ")}). ` +
+            `Package skipped.`,
+        );
+        return false;
+      }
+    }
+    if (worker.subAgentModel) {
+      if (worker.subAgentModel !== "inherit" && !(VALID_MODELS as readonly string[]).includes(worker.subAgentModel)) {
+        console.warn(
+          `[packages] Worker "${worker.identity.name}" references subAgentModel "${worker.subAgentModel}" ` +
+            `which is not valid. Valid values: "inherit", ${VALID_MODELS.join(", ")}. ` +
+            `Local models are not supported for sub-agents. Package skipped.`,
+        );
+        return false;
+      }
+    }
+    return true;
   });
 }
 

@@ -1217,4 +1217,78 @@ describe("validatePackageModels", () => {
       console.warn = originalWarn;
     }
   });
+
+  // -- subAgentModel validation --
+
+  function makeWorkerPkgWithSubAgentModel(name: string, subAgentModel?: string, model?: string): DiscoveredPackage {
+    return {
+      name,
+      path: `/packages/${name}`,
+      metadata: {
+        ...validWorkerGuildHall(),
+        identity: { name, description: "Test", displayTitle: "Test" },
+        ...(model !== undefined ? { model } : {}),
+        ...(subAgentModel !== undefined ? { subAgentModel } : {}),
+      } as WorkerMetadata,
+    };
+  }
+
+  test("worker with subAgentModel 'sonnet' passes validation", () => {
+    const pkgs = [makeWorkerPkgWithSubAgentModel("w1", "sonnet")];
+    const result = validatePackageModels(pkgs, baseConfig);
+    expect(result).toHaveLength(1);
+  });
+
+  test("worker with subAgentModel 'inherit' passes validation", () => {
+    const pkgs = [makeWorkerPkgWithSubAgentModel("w1", "inherit")];
+    const result = validatePackageModels(pkgs, baseConfig);
+    expect(result).toHaveLength(1);
+  });
+
+  test("worker with no subAgentModel passes validation", () => {
+    const pkgs = [makeWorkerPkgWithSubAgentModel("w1")];
+    const result = validatePackageModels(pkgs, baseConfig);
+    expect(result).toHaveLength(1);
+  });
+
+  test("worker with invalid subAgentModel is rejected with descriptive warning", () => {
+    const warnMessages: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnMessages.push(args.map(String).join(" "));
+    };
+
+    try {
+      const pkgs = [makeWorkerPkgWithSubAgentModel("w1", "invalid-model")];
+      const result = validatePackageModels(pkgs, baseConfig);
+      expect(result).toHaveLength(0);
+      expect(warnMessages.some((m) =>
+        m.includes('subAgentModel "invalid-model"') &&
+        m.includes("not valid") &&
+        m.includes("Package skipped"),
+      )).toBe(true);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  test("worker with local model name as subAgentModel is rejected", () => {
+    const warnMessages: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnMessages.push(args.map(String).join(" "));
+    };
+
+    try {
+      const pkgs = [makeWorkerPkgWithSubAgentModel("w1", "llama3")];
+      const result = validatePackageModels(pkgs, configWithLlama3);
+      expect(result).toHaveLength(0);
+      expect(warnMessages.some((m) =>
+        m.includes('subAgentModel "llama3"') &&
+        m.includes("Local models are not supported"),
+      )).toBe(true);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
 });
