@@ -1,7 +1,7 @@
 ---
 title: "Sub-agent description fix: guidance property replaces lookup table"
 date: 2026-03-21
-status: draft
+status: approved
 tags: [workers, sub-agents, fix, identity, packages]
 modules: [lib/types, lib/packages, packages/shared/sub-agent-description, daemon/lib/agent-sdk/sdk-runner]
 related:
