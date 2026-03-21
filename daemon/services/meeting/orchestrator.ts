@@ -172,6 +172,11 @@ export type MeetingSessionDeps = {
    */
   scheduleLifecycleRef?: { current: ScheduleLifecycle | undefined };
   /**
+   * Lazy ref for the trigger evaluator. Same late-binding pattern as
+   * scheduleLifecycleRef. Needed by the manager toolbox's trigger tools.
+   */
+  triggerEvaluatorRef?: { current: import("@/daemon/services/trigger-evaluator").TriggerEvaluator | undefined };
+  /**
    * Commission record operations. Needed by the manager toolbox's
    * update_schedule tool to read commission artifact types.
    */
@@ -504,6 +509,7 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
             config: deps.config,
             packages: deps.packages,
             scheduleLifecycle: deps.scheduleLifecycleRef?.current,
+            triggerEvaluator: deps.triggerEvaluatorRef?.current,
             recordOps: deps.recordOps,
           }
         : undefined,

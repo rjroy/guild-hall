@@ -135,6 +135,17 @@ export interface CommissionSessionForRoutes {
     dependencies?: string[];
     resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
   }): Promise<{ commissionId: string }>;
+  createTriggeredCommission(params: {
+    projectName: string;
+    title: string;
+    workerName: string;
+    prompt: string;
+    match: { type: string; projectName?: string; fields?: Record<string, string> };
+    approval?: "auto" | "confirm";
+    maxDepth?: number;
+    dependencies?: string[];
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+  }): Promise<{ commissionId: string }>;
   updateScheduleStatus(
     commissionId: CommissionId,
     targetStatus: string,
@@ -200,6 +211,11 @@ export interface CommissionOrchestratorDeps {
    * breaking the circular ordering between orchestrator and scheduler.
    */
   scheduleLifecycleRef?: { current: import("@/daemon/services/scheduler/schedule-lifecycle").ScheduleLifecycle | undefined };
+  /**
+   * Lazy ref for the trigger evaluator, set after the trigger evaluator is
+   * constructed. Same late-binding pattern as scheduleLifecycleRef.
+   */
+  triggerEvaluatorRef?: { current: import("@/daemon/services/trigger-evaluator").TriggerEvaluator | undefined };
 }
 
 // -- Factory --
@@ -1488,6 +1504,109 @@ projectName: ${projectName}
     return { commissionId: commissionId as string };
   }
 
+  async function createTriggeredCommission(params: {
+    projectName: string;
+    title: string;
+    workerName: string;
+    prompt: string;
+    match: { type: string; projectName?: string; fields?: Record<string, string> };
+    approval?: "auto" | "confirm";
+    maxDepth?: number;
+    dependencies?: string[];
+    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+  }): Promise<{ commissionId: string }> {
+    const { projectName, title, workerName, prompt, match, dependencies = [] } = params;
+    const approval = params.approval ?? "confirm";
+    const maxDepth = params.maxDepth ?? 3;
+
+    const project = findProject(projectName);
+    if (!project) {
+      throw new Error(`Project "${projectName}" not found`);
+    }
+
+    const workerPkg = getWorkerByName(packages, workerName);
+    if (!workerPkg) {
+      throw new Error(`Worker "${workerName}" not found in discovered packages`);
+    }
+    const workerMeta = workerPkg.metadata as WorkerMetadata;
+
+    const commissionId = formatCommissionId(workerMeta.identity.name, new Date());
+    const iPath = integrationWorktreePathFn(guildHallHome, projectName);
+    const commissionsDir = path.join(iPath, ".lore", "commissions");
+    await fs.mkdir(commissionsDir, { recursive: true });
+
+    const now = new Date();
+    const dateStr = now.toISOString().split("T")[0];
+    const isoStr = now.toISOString();
+
+    const escapedTitle = escapeYamlValue(title);
+    const escapedPrompt = escapeYamlValue(prompt);
+    const escapedDisplayTitle = escapeYamlValue(workerMeta.identity.displayTitle);
+
+    const depsYaml = dependencies.length > 0
+      ? "\n" + dependencies.map((d) => `  - ${d}`).join("\n")
+      : " []";
+
+    const ro = params.resourceOverrides;
+    const resourceLines = ro && (ro.maxTurns !== undefined || ro.maxBudgetUsd !== undefined || ro.model !== undefined)
+      ? `resource_overrides:\n${ro.maxTurns !== undefined ? `  maxTurns: ${ro.maxTurns}\n` : ""}${ro.maxBudgetUsd !== undefined ? `  maxBudgetUsd: ${ro.maxBudgetUsd}\n` : ""}${ro.model !== undefined ? `  model: ${ro.model}\n` : ""}`
+      : "";
+
+    // Build the trigger match YAML block
+    const matchLines = [`    type: ${match.type}`];
+    if (match.projectName) {
+      matchLines.push(`    projectName: ${match.projectName}`);
+    }
+    if (match.fields && Object.keys(match.fields).length > 0) {
+      matchLines.push("    fields:");
+      for (const [key, value] of Object.entries(match.fields)) {
+        matchLines.push(`      ${key}: ${value}`);
+      }
+    }
+
+    const content = `---
+title: "Commission: ${escapedTitle}"
+date: ${dateStr}
+status: active
+type: triggered
+tags: [commission, triggered]
+worker: ${workerMeta.identity.name}
+workerDisplayTitle: "${escapedDisplayTitle}"
+prompt: "${escapedPrompt}"
+dependencies:${depsYaml}
+linked_artifacts: []
+trigger:
+  match:
+${matchLines.join("\n")}
+  approval: ${approval}
+  maxDepth: ${maxDepth}
+  runs_completed: 0
+  last_triggered: null
+  last_spawned_id: null
+${resourceLines}activity_timeline:
+  - timestamp: ${isoStr}
+    event: created
+    reason: "Triggered commission created"
+current_progress: ""
+projectName: ${projectName}
+---
+`;
+
+    const artifactPath = commissionArtifactPath(iPath, commissionId);
+    await fs.writeFile(artifactPath, content, "utf-8");
+
+    // Commit to claude branch under project lock
+    await withProjectLock(projectName, async () => {
+      await gitOps.commitAll(iPath, `Add commission: ${commissionId as string}`);
+    });
+
+    log.info(
+      `created triggered commission "${commissionId as string}" for project "${projectName}" (worker: ${workerName})`,
+    );
+
+    return { commissionId: commissionId as string };
+  }
+
   /**
    * Transition a scheduled commission's status (pause, resume, complete).
    * Finds the schedule artifact, validates the transition, delegates
@@ -1874,6 +1993,7 @@ projectName: ${projectName}
           gitOps: gitOps,
           config,
           scheduleLifecycle: deps.scheduleLifecycleRef?.current,
+          triggerEvaluator: deps.triggerEvaluatorRef?.current,
           recordOps,
           packages,
         }
@@ -2135,6 +2255,7 @@ projectName: ${projectName}
           gitOps: gitOps,
           config,
           scheduleLifecycle: deps.scheduleLifecycleRef?.current,
+          triggerEvaluator: deps.triggerEvaluatorRef?.current,
           recordOps,
           packages,
         }
@@ -2613,6 +2734,7 @@ projectName: ${projectName}
   const result: CommissionSessionForRoutes = {
     createCommission,
     createScheduledCommission,
+    createTriggeredCommission,
     updateScheduleStatus,
     updateCommission,
     dispatchCommission,

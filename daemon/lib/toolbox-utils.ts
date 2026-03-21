@@ -10,6 +10,7 @@ import * as path from "node:path";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
+import type { TriggerEvaluator } from "@/daemon/services/trigger-evaluator";
 import type { GitOps } from "@/daemon/lib/git";
 import type { AppConfig, DiscoveredPackage } from "@/lib/types";
 import {
@@ -30,6 +31,7 @@ export interface GuildHallToolServices {
   gitOps: GitOps;
   config: AppConfig;
   scheduleLifecycle?: ScheduleLifecycle;
+  triggerEvaluator?: TriggerEvaluator;
   recordOps?: CommissionRecordOps;
   packages?: DiscoveredPackage[];
 }

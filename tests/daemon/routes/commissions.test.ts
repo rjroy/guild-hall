@@ -89,6 +89,10 @@ function makeMockCommissionSession(
       calls.push({ method: "createScheduledCommission", args: [params] });
       return Promise.resolve({ commissionId: "schedule-test-worker-20260221-120000" });
     },
+    createTriggeredCommission(params: { projectName: string; title: string; workerName: string; prompt: string; match: unknown }) {
+      calls.push({ method: "createTriggeredCommission", args: [params] });
+      return Promise.resolve({ commissionId: "trigger-test-worker-20260221-120000" });
+    },
     updateScheduleStatus(commissionId: CommissionId, targetStatus: string) {
       calls.push({ method: "updateScheduleStatus", args: [commissionId, targetStatus] });
       return Promise.resolve({ outcome: "executed", status: targetStatus });
@@ -911,5 +915,79 @@ describe("POST /commission/run/save", () => {
     });
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /commission/request/commission/create (triggered)", () => {
+  test("passes type triggered with match fields", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commission/request/commission/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "On completion",
+        workerName: "writer",
+        prompt: "Process results",
+        type: "triggered",
+        match: { type: "commission_status", fields: { status: "completed" } },
+        approval: "auto",
+        maxDepth: 5,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("createTriggeredCommission");
+    const params = calls[0].args[0] as Record<string, unknown>;
+    expect(params.projectName).toBe("test-project");
+    expect(params.title).toBe("On completion");
+    expect(params.match).toEqual({ type: "commission_status", fields: { status: "completed" } });
+    expect(params.approval).toBe("auto");
+    expect(params.maxDepth).toBe(5);
+  });
+
+  test("returns 400 when type is triggered but match is missing", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commission/request/commission/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Missing match",
+        workerName: "writer",
+        prompt: "Test",
+        type: "triggered",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain("match");
+  });
+
+  test("triggered with defaults for approval and maxDepth", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commission/request/commission/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Defaults",
+        workerName: "writer",
+        prompt: "Test",
+        type: "triggered",
+        match: { type: "meeting_ended" },
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const params = calls[0].args[0] as Record<string, unknown>;
+    // approval and maxDepth are undefined (the orchestrator applies defaults)
+    expect(params.approval).toBeUndefined();
+    expect(params.maxDepth).toBeUndefined();
   });
 });

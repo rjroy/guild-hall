@@ -56,6 +56,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       type?: string;
       cron?: string;
       repeat?: number;
+      match?: { type: string; projectName?: string; fields?: Record<string, string> };
+      approval?: "auto" | "confirm";
+      maxDepth?: number;
     };
     try {
       body = await c.req.json();
@@ -94,6 +97,21 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
           prompt,
           cron: body.cron!,
           repeat: body.repeat,
+          dependencies: body.dependencies,
+          resourceOverrides: body.resourceOverrides,
+        });
+      } else if (body.type === "triggered") {
+        if (!body.match) {
+          return c.json({ error: "Missing required field for triggered commission: match" }, 400);
+        }
+        result = await deps.commissionSession.createTriggeredCommission({
+          projectName,
+          title,
+          workerName,
+          prompt,
+          match: body.match,
+          approval: body.approval,
+          maxDepth: body.maxDepth,
           dependencies: body.dependencies,
           resourceOverrides: body.resourceOverrides,
         });

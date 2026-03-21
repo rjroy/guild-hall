@@ -5,9 +5,13 @@ import * as os from "node:os";
 import {
   makeCreateScheduledCommissionHandler,
   makeUpdateScheduleHandler,
+  makeCreateTriggeredCommissionHandler,
+  makeUpdateTriggerHandler,
   makeContinueCommissionHandler,
   makeSaveCommissionHandler,
   makeCheckCommissionStatusHandler,
+  serializeTriggerMatchBlock,
+  TRIGGER_STATUS_TRANSITIONS,
 } from "@/daemon/services/manager/toolbox";
 import type { ManagerToolboxDeps } from "@/daemon/services/manager/toolbox";
 import type { CommissionRecordOps, ScheduleMetadata } from "@/daemon/services/commission/record";
@@ -146,6 +150,28 @@ function createMockRecordOps(overrides?: {
     incrementHaltCount(_artifactPath: string): Promise<number> {
       calls.push({ method: "incrementHaltCount", args: [_artifactPath] });
       return Promise.resolve(1);
+    },
+    readTriggerMetadata(_artifactPath: string) {
+      calls.push({ method: "readTriggerMetadata", args: [_artifactPath] });
+      return Promise.resolve({
+        match: { type: "commission_status" },
+        approval: "confirm" as const,
+        maxDepth: 3,
+        runs_completed: 0,
+        last_triggered: null,
+        last_spawned_id: null,
+      });
+    },
+    writeTriggerFields(
+      artifactPath: string,
+      updates: Partial<{ runs_completed: number; last_triggered: string | null; last_spawned_id: string | null }>,
+    ): Promise<void> {
+      calls.push({ method: "writeTriggerFields", args: [artifactPath, updates] });
+      return Promise.resolve();
+    },
+    readTriggeredBy(_artifactPath: string) {
+      calls.push({ method: "readTriggeredBy", args: [_artifactPath] });
+      return Promise.resolve(null);
     },
   };
 }
@@ -1010,5 +1036,516 @@ projectName: test-project
     );
     expect(commission).toBeDefined();
     expect(commission!.status).toBe("halted");
+  });
+});
+
+// -- Triggered commission tests --
+
+function createMockTriggerEvaluator() {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+  return {
+    calls,
+    async initialize() { calls.push({ method: "initialize", args: [] }); },
+    async registerTrigger(artifactPath: string, projectName: string) {
+      calls.push({ method: "registerTrigger", args: [artifactPath, projectName] });
+    },
+    unregisterTrigger(commissionId: string) {
+      calls.push({ method: "unregisterTrigger", args: [commissionId] });
+    },
+    shutdown() { calls.push({ method: "shutdown", args: [] }); },
+  };
+}
+
+describe("TRIGGER_STATUS_TRANSITIONS", () => {
+  test("active can transition to paused or completed", () => {
+    expect(TRIGGER_STATUS_TRANSITIONS.active).toEqual(["paused", "completed"]);
+  });
+
+  test("paused can transition to active or completed", () => {
+    expect(TRIGGER_STATUS_TRANSITIONS.paused).toEqual(["active", "completed"]);
+  });
+
+  test("completed has no outgoing transitions", () => {
+    expect(TRIGGER_STATUS_TRANSITIONS.completed).toBeUndefined();
+  });
+
+  test("failed has no outgoing transitions", () => {
+    expect(TRIGGER_STATUS_TRANSITIONS.failed).toBeUndefined();
+  });
+});
+
+describe("serializeTriggerMatchBlock", () => {
+  test("serializes match with type only", () => {
+    const result = serializeTriggerMatchBlock({ type: "commission_status" });
+    expect(result).toBe("  match:\n    type: commission_status\n");
+  });
+
+  test("serializes match with projectName", () => {
+    const result = serializeTriggerMatchBlock({
+      type: "commission_result",
+      projectName: "my-project",
+    });
+    expect(result).toContain("    projectName: my-project\n");
+  });
+
+  test("serializes match with fields", () => {
+    const result = serializeTriggerMatchBlock({
+      type: "commission_status",
+      fields: { status: "completed", commissionId: "commission-*" },
+    });
+    expect(result).toContain("    fields:\n");
+    expect(result).toContain("      status: completed\n");
+    expect(result).toContain("      commissionId: commission-*\n");
+  });
+});
+
+describe("makeCreateTriggeredCommissionHandler", () => {
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-mgr-test-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  test("calls the route with type triggered and returns commissionId", async () => {
+    const mockRoute = createMockRouteCaller();
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ callRoute: mockRoute });
+    deps.triggerEvaluator = mockTrigger;
+    const handler = makeCreateTriggeredCommissionHandler(deps);
+
+    const result = await handler({
+      title: "On completion",
+      workerName: "Scribe",
+      prompt: "Process {{commissionId}}",
+      match: { type: "commission_status", fields: { status: "completed" } },
+    });
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.created).toBe(true);
+    expect(parsed.status).toBe("active");
+
+    const body = mockRoute.calls[0].body as Record<string, unknown>;
+    expect(body.type).toBe("triggered");
+    expect(body.match).toEqual({ type: "commission_status", fields: { status: "completed" } });
+  });
+
+  test("calls registerTrigger after successful creation", async () => {
+    const mockRoute = createMockRouteCaller();
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ callRoute: mockRoute });
+    deps.triggerEvaluator = mockTrigger;
+    const handler = makeCreateTriggeredCommissionHandler(deps);
+
+    await handler({
+      title: "Test",
+      workerName: "Scribe",
+      prompt: "Do work",
+      match: { type: "commission_status" },
+    });
+
+    expect(mockTrigger.calls.some((c) => c.method === "registerTrigger")).toBe(true);
+    const registerCall = mockTrigger.calls.find((c) => c.method === "registerTrigger");
+    expect((registerCall!.args[0] as string)).toContain("commission-Scribe-20260309-090000.md");
+    expect(registerCall!.args[1]).toBe("test-project");
+  });
+
+  test("rejects invalid match.type with descriptive error", async () => {
+    const deps = await createBaseDeps();
+    const handler = makeCreateTriggeredCommissionHandler(deps);
+
+    const result = await handler({
+      title: "Bad type",
+      workerName: "Scribe",
+      prompt: "Test",
+      match: { type: "nonexistent_event" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Invalid match type");
+    expect(result.content[0].text).toContain("nonexistent_event");
+  });
+
+  test("rejects unknown worker with available worker list", async () => {
+    const deps = await createBaseDeps();
+    const handler = makeCreateTriggeredCommissionHandler(deps);
+
+    const result = await handler({
+      title: "Bad worker",
+      workerName: "NonExistent",
+      prompt: "Test",
+      match: { type: "commission_status" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("NonExistent");
+    expect(result.content[0].text).toContain("Available workers");
+  });
+
+  test("route failure returns error without calling registerTrigger", async () => {
+    const mockRoute = createMockRouteCaller({
+      "/commission/request/commission/create": {
+        ok: false,
+        error: "Worker not found",
+      },
+    });
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ callRoute: mockRoute });
+    deps.triggerEvaluator = mockTrigger;
+    const handler = makeCreateTriggeredCommissionHandler(deps);
+
+    const result = await handler({
+      title: "Will fail",
+      workerName: "Scribe",
+      prompt: "Test",
+      match: { type: "commission_status" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockTrigger.calls.some((c) => c.method === "registerTrigger")).toBe(false);
+  });
+
+  test("registerTrigger failure still returns success", async () => {
+    const mockRoute = createMockRouteCaller();
+    const mockTrigger = createMockTriggerEvaluator();
+    mockTrigger.registerTrigger = async () => { throw new Error("Registration failed"); };
+    const deps = await createBaseDeps({ callRoute: mockRoute });
+    deps.triggerEvaluator = mockTrigger;
+    const handler = makeCreateTriggeredCommissionHandler(deps);
+
+    const result = await handler({
+      title: "Test",
+      workerName: "Scribe",
+      prompt: "Do work",
+      match: { type: "commission_status" },
+    });
+
+    // Still succeeds because the artifact was created
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.created).toBe(true);
+  });
+
+  test("passes approval, maxDepth, and dependencies to route", async () => {
+    const mockRoute = createMockRouteCaller();
+    const deps = await createBaseDeps({ callRoute: mockRoute });
+    const handler = makeCreateTriggeredCommissionHandler(deps);
+
+    await handler({
+      title: "Full options",
+      workerName: "Scribe",
+      prompt: "Work",
+      match: { type: "commission_result", projectName: "my-proj" },
+      approval: "auto",
+      maxDepth: 5,
+      dependencies: ["dep-1"],
+    });
+
+    const body = mockRoute.calls[0].body as Record<string, unknown>;
+    expect(body.approval).toBe("auto");
+    expect(body.maxDepth).toBe(5);
+    expect(body.dependencies).toEqual(["dep-1"]);
+  });
+});
+
+describe("makeUpdateTriggerHandler", () => {
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-mgr-test-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  test("rejects non-triggered commissions", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "one-shot" });
+    const deps = await createBaseDeps({ recordOps });
+    const handler = makeUpdateTriggerHandler(deps);
+
+    const result = await handler({ commissionId: "test-commission" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not \"triggered\"");
+  });
+
+  test("active to paused calls unregisterTrigger", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "active" });
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ recordOps });
+    deps.triggerEvaluator = mockTrigger;
+    const handler = makeUpdateTriggerHandler(deps);
+
+    const result = await handler({ commissionId: "test-trigger", status: "paused" });
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.status).toBe("paused");
+    expect(mockTrigger.calls.some((c) => c.method === "unregisterTrigger")).toBe(true);
+
+    const statusWrite = recordOps.calls.find(
+      (c) => c.method === "writeStatusAndTimeline" && c.args[1] === "paused",
+    );
+    expect(statusWrite).toBeDefined();
+  });
+
+  test("paused to active calls registerTrigger", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "paused" });
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ recordOps });
+    deps.triggerEvaluator = mockTrigger;
+    const handler = makeUpdateTriggerHandler(deps);
+
+    const result = await handler({ commissionId: "test-trigger", status: "active" });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockTrigger.calls.some((c) => c.method === "registerTrigger")).toBe(true);
+  });
+
+  test("active to completed calls unregisterTrigger", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "active" });
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ recordOps });
+    deps.triggerEvaluator = mockTrigger;
+    const handler = makeUpdateTriggerHandler(deps);
+
+    const result = await handler({ commissionId: "test-trigger", status: "completed" });
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.status).toBe("completed");
+    expect(mockTrigger.calls.some((c) => c.method === "unregisterTrigger")).toBe(true);
+  });
+
+  test("paused to completed does not call unregisterTrigger", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "paused" });
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ recordOps });
+    deps.triggerEvaluator = mockTrigger;
+    const handler = makeUpdateTriggerHandler(deps);
+
+    const result = await handler({ commissionId: "test-trigger", status: "completed" });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockTrigger.calls.some((c) => c.method === "unregisterTrigger")).toBe(false);
+  });
+
+  test("completed to active returns error (terminal state)", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "completed" });
+    const deps = await createBaseDeps({ recordOps });
+    const handler = makeUpdateTriggerHandler(deps);
+
+    const result = await handler({ commissionId: "test-trigger", status: "active" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not a valid trigger status transition");
+  });
+
+  test("failed to active returns error (terminal state)", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "failed" });
+    const deps = await createBaseDeps({ recordOps });
+    const handler = makeUpdateTriggerHandler(deps);
+
+    const result = await handler({ commissionId: "test-trigger", status: "active" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not a valid trigger status transition");
+  });
+
+  test("updates match field and replaces subscription on active trigger", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "active" });
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ recordOps });
+    deps.triggerEvaluator = mockTrigger;
+
+    // Write a trigger artifact to the filesystem for the field update to read
+    const intPath = path.join(tmpDir, "projects", "test-project");
+    const artifactPath = path.join(intPath, ".lore", "commissions", "test-trigger.md");
+    await fs.writeFile(artifactPath, `---
+title: "Commission: Test trigger"
+status: active
+type: triggered
+worker: Scribe
+prompt: "Do work"
+trigger:
+  match:
+    type: commission_status
+    fields:
+      status: completed
+  approval: confirm
+  maxDepth: 3
+  runs_completed: 0
+  last_triggered: null
+  last_spawned_id: null
+activity_timeline: []
+---
+`, "utf-8");
+
+    const handler = makeUpdateTriggerHandler(deps);
+    const result = await handler({
+      commissionId: "test-trigger",
+      match: { type: "commission_result" },
+    });
+
+    expect(result.isError).toBeUndefined();
+
+    // Verify subscription replacement: unregister then register
+    const unregIdx = mockTrigger.calls.findIndex((c) => c.method === "unregisterTrigger");
+    const regIdx = mockTrigger.calls.findIndex((c) => c.method === "registerTrigger");
+    expect(unregIdx).toBeGreaterThanOrEqual(0);
+    expect(regIdx).toBeGreaterThan(unregIdx);
+
+    // Verify the file was updated
+    const updatedRaw = await fs.readFile(artifactPath, "utf-8");
+    expect(updatedRaw).toContain("type: commission_result");
+    expect(updatedRaw).not.toContain("type: commission_status");
+  });
+
+  test("updates approval on active trigger replaces subscription", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "active" });
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ recordOps });
+    deps.triggerEvaluator = mockTrigger;
+
+    const intPath = path.join(tmpDir, "projects", "test-project");
+    const artifactPath = path.join(intPath, ".lore", "commissions", "test-trigger.md");
+    await fs.writeFile(artifactPath, `---
+title: "Commission: Test"
+status: active
+type: triggered
+worker: Scribe
+prompt: "Do work"
+trigger:
+  match:
+    type: commission_status
+  approval: confirm
+  maxDepth: 3
+  runs_completed: 0
+  last_triggered: null
+  last_spawned_id: null
+activity_timeline: []
+---
+`, "utf-8");
+
+    const handler = makeUpdateTriggerHandler(deps);
+    await handler({
+      commissionId: "test-trigger",
+      approval: "auto",
+    });
+
+    const updatedRaw = await fs.readFile(artifactPath, "utf-8");
+    expect(updatedRaw).toContain("approval: auto");
+
+    // Subscription replaced
+    expect(mockTrigger.calls.some((c) => c.method === "unregisterTrigger")).toBe(true);
+    expect(mockTrigger.calls.some((c) => c.method === "registerTrigger")).toBe(true);
+  });
+
+  test("updates fields on paused trigger without subscription management", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "paused" });
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ recordOps });
+    deps.triggerEvaluator = mockTrigger;
+
+    const intPath = path.join(tmpDir, "projects", "test-project");
+    const artifactPath = path.join(intPath, ".lore", "commissions", "test-trigger.md");
+    await fs.writeFile(artifactPath, `---
+title: "Commission: Test"
+status: paused
+type: triggered
+worker: Scribe
+prompt: "Old prompt"
+trigger:
+  match:
+    type: commission_status
+  approval: confirm
+  maxDepth: 3
+  runs_completed: 0
+  last_triggered: null
+  last_spawned_id: null
+activity_timeline: []
+---
+`, "utf-8");
+
+    const handler = makeUpdateTriggerHandler(deps);
+    await handler({
+      commissionId: "test-trigger",
+      prompt: "New prompt",
+    });
+
+    const updatedRaw = await fs.readFile(artifactPath, "utf-8");
+    expect(updatedRaw).toContain('prompt: "New prompt"');
+
+    // No subscription management on paused trigger
+    expect(mockTrigger.calls).toHaveLength(0);
+  });
+
+  test("rejects invalid match.type without modifying artifact", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "active" });
+    const deps = await createBaseDeps({ recordOps });
+    const handler = makeUpdateTriggerHandler(deps);
+
+    const result = await handler({
+      commissionId: "test-trigger",
+      match: { type: "bogus_event" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Invalid match type");
+  });
+
+  test("combined status active + match update produces single subscription", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "paused" });
+    const mockTrigger = createMockTriggerEvaluator();
+    const deps = await createBaseDeps({ recordOps });
+    deps.triggerEvaluator = mockTrigger;
+
+    const intPath = path.join(tmpDir, "projects", "test-project");
+    const artifactPath = path.join(intPath, ".lore", "commissions", "test-trigger.md");
+    await fs.writeFile(artifactPath, `---
+title: "Commission: Test"
+status: paused
+type: triggered
+worker: Scribe
+prompt: "Work"
+trigger:
+  match:
+    type: commission_status
+  approval: confirm
+  maxDepth: 3
+  runs_completed: 0
+  last_triggered: null
+  last_spawned_id: null
+activity_timeline: []
+---
+`, "utf-8");
+
+    const handler = makeUpdateTriggerHandler(deps);
+    await handler({
+      commissionId: "test-trigger",
+      status: "active",
+      match: { type: "commission_result" },
+    });
+
+    // The status transition to active skips registration (field updates will do it)
+    // Field updates do unregister + register
+    // Net result: one register call (from the field update path)
+    const registerCalls = mockTrigger.calls.filter((c) => c.method === "registerTrigger");
+    expect(registerCalls).toHaveLength(1);
+  });
+
+  test("returns updated state on success", async () => {
+    const recordOps = createMockRecordOps({ readTypeReturn: "triggered", readStatusReturn: "active" });
+    const deps = await createBaseDeps({ recordOps });
+    const handler = makeUpdateTriggerHandler(deps);
+
+    const result = await handler({ commissionId: "test-trigger", status: "paused" });
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.commissionId).toBe("test-trigger");
+    expect(parsed.updated).toBe(true);
+    expect(parsed.status).toBe("paused");
   });
 });

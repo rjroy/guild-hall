@@ -344,6 +344,10 @@ export async function createProductionApp(options?: {
   // The orchestrator's services bag captures this ref at dispatch time.
   const scheduleLifecycleRef: { current: undefined | Awaited<ReturnType<typeof import("@/daemon/services/scheduler/schedule-lifecycle").createScheduleLifecycle>> } = { current: undefined };
 
+  // Lazy ref for trigger evaluator: set after the trigger evaluator is constructed.
+  // Same late-binding pattern as scheduleLifecycleRef.
+  const triggerEvaluatorRef: { current: undefined | import("@/daemon/services/trigger-evaluator").TriggerEvaluator } = { current: undefined };
+
   // Layer 5: Orchestrator (coordinates all layers, implements CommissionSessionForRoutes)
   const commissionSession = createCommissionOrchestrator({
     lifecycle,
@@ -358,6 +362,7 @@ export async function createProductionApp(options?: {
     gitOps: git,
     createMeetingRequestFn,
     scheduleLifecycleRef,
+    triggerEvaluatorRef,
     log: createLog("commission"),
   });
 
@@ -377,6 +382,7 @@ export async function createProductionApp(options?: {
     workspace: workspaceOps,
     registry: meetingRegistry,
     scheduleLifecycleRef,
+    triggerEvaluatorRef,
     recordOps,
     log: createLog("meeting"),
   });
@@ -571,6 +577,7 @@ export async function createProductionApp(options?: {
     guildHallHome,
     log: createLog("trigger-evaluator"),
   });
+  triggerEvaluatorRef.current = triggerEvaluator;
   await triggerEvaluator.initialize();
 
   // Outcome Triage: after commission/meeting completion, a Haiku session
