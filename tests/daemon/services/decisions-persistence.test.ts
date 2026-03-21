@@ -30,7 +30,7 @@ afterEach(async () => {
 describe("readDecisions", () => {
   test("returns empty array when file does not exist (REQ-DSRF-1)", async () => {
     const tmpDir = await makeTmpDir();
-    const result = await readDecisions(tmpDir, "commissions", "nonexistent-id", "commissions");
+    const result = await readDecisions(tmpDir, "nonexistent-id", "commissions");
     expect(result).toEqual([]);
   });
 
@@ -40,7 +40,7 @@ describe("readDecisions", () => {
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, "decisions.jsonl"), "", "utf-8");
 
-    const result = await readDecisions(tmpDir, "commissions", "c-empty", "commissions");
+    const result = await readDecisions(tmpDir, "c-empty", "commissions");
     expect(result).toEqual([]);
   });
 
@@ -56,7 +56,7 @@ describe("readDecisions", () => {
     const jsonl = entries.map((e) => JSON.stringify(e)).join("\n") + "\n";
     await fs.writeFile(path.join(dir, "decisions.jsonl"), jsonl, "utf-8");
 
-    const result = await readDecisions(tmpDir, "commissions", "c-valid", "commissions");
+    const result = await readDecisions(tmpDir, "c-valid", "commissions");
     expect(result).toHaveLength(2);
     expect(result[0].question).toBe("Q1");
     expect(result[1].question).toBe("Q2");
@@ -71,7 +71,7 @@ describe("readDecisions", () => {
     const lines = [JSON.stringify(valid), "not valid json", "", JSON.stringify({ ...valid, question: "Q2" })];
     await fs.writeFile(path.join(dir, "decisions.jsonl"), lines.join("\n") + "\n", "utf-8");
 
-    const result = await readDecisions(tmpDir, "commissions", "c-mixed", "commissions");
+    const result = await readDecisions(tmpDir, "c-mixed", "commissions");
     expect(result).toHaveLength(2);
     expect(result[0].question).toBe("Q1");
     expect(result[1].question).toBe("Q2");
@@ -80,15 +80,14 @@ describe("readDecisions", () => {
   test("path resolution matches makeRecordDecisionHandler (REQ-DSRF-7)", async () => {
     const tmpDir = await makeTmpDir();
     const contextId = "c-roundtrip";
-    const contextType = "commissions";
     const stateSubdir = "commissions";
 
     // Write via the handler
-    const handler = makeRecordDecisionHandler(tmpDir, contextId, contextType, stateSubdir);
+    const handler = makeRecordDecisionHandler(tmpDir, contextId, "commissions", stateSubdir);
     await handler({ question: "Should we use X?", decision: "Yes", reasoning: "Because Y" });
 
     // Read via readDecisions with the same parameters
-    const result = await readDecisions(tmpDir, contextType, contextId, stateSubdir);
+    const result = await readDecisions(tmpDir, contextId, stateSubdir);
     expect(result).toHaveLength(1);
     expect(result[0].question).toBe("Should we use X?");
     expect(result[0].decision).toBe("Yes");
@@ -103,7 +102,7 @@ describe("readDecisions", () => {
     const handler = makeRecordDecisionHandler(tmpDir, contextId, "meetings", stateSubdir);
     await handler({ question: "Meeting Q", decision: "Meeting D", reasoning: "Meeting R" });
 
-    const result = await readDecisions(tmpDir, "meetings", contextId, stateSubdir);
+    const result = await readDecisions(tmpDir, contextId, stateSubdir);
     expect(result).toHaveLength(1);
     expect(result[0].question).toBe("Meeting Q");
   });
@@ -213,7 +212,7 @@ describe("commission hook integration", () => {
     await fs.writeFile(artifactPath, frontmatter + body, "utf-8");
 
     // Run the hook logic
-    const decisions = await readDecisions(tmpDir, "commissions", commissionId, "commissions");
+    const decisions = await readDecisions(tmpDir, commissionId, "commissions");
     const section = formatDecisionsSection(decisions);
     expect(section).not.toBe("");
     await appendDecisionsToArtifact(artifactPath, section);
@@ -240,7 +239,7 @@ describe("commission hook integration", () => {
     await fs.writeFile(artifactPath, original, "utf-8");
 
     // Run the hook logic
-    const decisions = await readDecisions(tmpDir, "commissions", commissionId, "commissions");
+    const decisions = await readDecisions(tmpDir, commissionId, "commissions");
     const section = formatDecisionsSection(decisions);
     expect(section).toBe("");
 
@@ -264,7 +263,7 @@ describe("commission hook integration", () => {
     const body = "\nBody content.\n";
     await fs.writeFile(artifactPath, frontmatter + body, "utf-8");
 
-    const decisions = await readDecisions(tmpDir, "commissions", commissionId, "commissions");
+    const decisions = await readDecisions(tmpDir, commissionId, "commissions");
     const section = formatDecisionsSection(decisions);
     await appendDecisionsToArtifact(artifactPath, section);
 
@@ -298,7 +297,7 @@ describe("meeting hook integration", () => {
     await fs.writeFile(artifactPath, frontmatter + notes, "utf-8");
 
     // Run hook logic
-    const decisions = await readDecisions(tmpDir, "meetings", meetingId, "meetings");
+    const decisions = await readDecisions(tmpDir, meetingId, "meetings");
     const section = formatDecisionsSection(decisions);
     expect(section).not.toBe("");
     await appendDecisionsToArtifact(artifactPath, section);
@@ -320,10 +319,96 @@ describe("meeting hook integration", () => {
     const original = '---\nworker: "Guild Master"\nstatus: closed\n---\n\n## Meeting Notes\n\nSome notes.\n';
     await fs.writeFile(artifactPath, original, "utf-8");
 
-    const decisions = await readDecisions(tmpDir, "meetings", meetingId, "meetings");
+    const decisions = await readDecisions(tmpDir, meetingId, "meetings");
     const section = formatDecisionsSection(decisions);
     expect(section).toBe("");
 
+    const result = await fs.readFile(artifactPath, "utf-8");
+    expect(result).toBe(original);
+  });
+});
+
+// -- Phase 2/3: Failure-propagation tests (2.2.3 and 3.2.3) --
+
+describe("orchestrator hook failure propagation", () => {
+  test("commission hook: readDecisions failure is caught and logged at warn, completion proceeds", async () => {
+    const tmpDir = await makeTmpDir();
+    const commissionId = "commission-Test-20260320-150000";
+
+    // Create a state path where decisions.jsonl is a directory (causes EISDIR on read)
+    const decisionsDir = path.join(tmpDir, "state", "commissions", commissionId);
+    await fs.mkdir(path.join(decisionsDir, "decisions.jsonl"), { recursive: true });
+
+    // Create artifact
+    const artifactDir = path.join(tmpDir, "worktree", ".lore", "commissions");
+    await fs.mkdir(artifactDir, { recursive: true });
+    const artifactPath = path.join(artifactDir, `${commissionId}.md`);
+    const original = "---\nworker: Dalton\nstatus: completed\n---\n\n## Result\n\nDone.\n";
+    await fs.writeFile(artifactPath, original, "utf-8");
+
+    // Simulate the commission orchestrator's hook pattern (lines 693-707)
+    let warned = false;
+    const log = {
+      warn: (..._args: unknown[]) => { warned = true; },
+    };
+
+    try {
+      const decisions = await readDecisions(tmpDir, commissionId, "commissions");
+      const section = formatDecisionsSection(decisions);
+      if (section) {
+        await appendDecisionsToArtifact(artifactPath, section);
+      }
+    } catch (err: unknown) {
+      log.warn(
+        `Decision persistence failed for "${commissionId}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    // The error was caught and logged, not thrown
+    expect(warned).toBe(true);
+    // Artifact is unchanged
+    const result = await fs.readFile(artifactPath, "utf-8");
+    expect(result).toBe(original);
+  });
+
+  test("meeting hook: readDecisions failure is caught and logged at warn, completion proceeds", async () => {
+    const tmpDir = await makeTmpDir();
+    const meetingId = "meeting-20260320-150000";
+
+    // Create a state path where decisions.jsonl is a directory (causes EISDIR on read)
+    const decisionsDir = path.join(tmpDir, "state", "meetings", meetingId);
+    await fs.mkdir(path.join(decisionsDir, "decisions.jsonl"), { recursive: true });
+
+    // Create artifact
+    const artifactDir = path.join(tmpDir, "worktree", ".lore", "meetings");
+    await fs.mkdir(artifactDir, { recursive: true });
+    const artifactPath = path.join(artifactDir, `${meetingId}.md`);
+    const original = '---\nworker: "Guild Master"\nstatus: closed\n---\n\n## Meeting Notes\n\nNotes.\n';
+    await fs.writeFile(artifactPath, original, "utf-8");
+
+    // Simulate the meeting orchestrator's hook pattern (lines 1068-1084)
+    let warned = false;
+    const log = {
+      warn: (..._args: unknown[]) => { warned = true; },
+    };
+
+    try {
+      const decisions = await readDecisions(tmpDir, meetingId, "meetings");
+      const section = formatDecisionsSection(decisions);
+      if (section) {
+        await appendDecisionsToArtifact(artifactPath, section);
+      }
+    } catch (err: unknown) {
+      log.warn(
+        `Decision persistence failed for "${meetingId}":`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    // The error was caught and logged, not thrown
+    expect(warned).toBe(true);
+    // Artifact is unchanged
     const result = await fs.readFile(artifactPath, "utf-8");
     expect(result).toBe(original);
   });

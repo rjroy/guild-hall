@@ -449,7 +449,7 @@ describe("createOutcomeTriage factory", () => {
 
   test("commission input uses summary/artifacts from event, worker/task from artifact (REQ-OTMEM-5)", async () => {
     const eventBus = createEventBus(nullLog("test-bus"));
-    let capturedUserMessage = "";
+    let capturedSystemPrompt = "";
 
     const mockArtifact: ArtifactReadResult = {
       projectName: "test-project",
@@ -464,8 +464,8 @@ describe("createOutcomeTriage factory", () => {
       guildHallHome: "/tmp/fake",
       log: nullLog("test"),
       readArtifact: async () => mockArtifact,
-      runTriageSession: async (_system, user) => {
-        capturedUserMessage = user;
+      runTriageSession: async (system) => {
+        capturedSystemPrompt = system;
       },
     });
 
@@ -477,16 +477,16 @@ describe("createOutcomeTriage factory", () => {
     });
     await tick();
 
-    expect(capturedUserMessage).toContain("Worker: Dalton");
-    expect(capturedUserMessage).toContain("Task: Build the widget");
-    expect(capturedUserMessage).toContain("Widget built successfully.");
-    expect(capturedUserMessage).toContain("output/widget.ts");
+    expect(capturedSystemPrompt).toContain("Worker: Dalton");
+    expect(capturedSystemPrompt).toContain("Task: Build the widget");
+    expect(capturedSystemPrompt).toContain("Widget built successfully.");
+    expect(capturedSystemPrompt).toContain("output/widget.ts");
     cleanup();
   });
 
   test("commission without event artifacts falls back to artifact linked_artifacts (REQ-OTMEM-5)", async () => {
     const eventBus = createEventBus(nullLog("test-bus"));
-    let capturedUserMessage = "";
+    let capturedSystemPrompt = "";
 
     const mockArtifact: ArtifactReadResult = {
       projectName: "test-project",
@@ -501,8 +501,8 @@ describe("createOutcomeTriage factory", () => {
       guildHallHome: "/tmp/fake",
       log: nullLog("test"),
       readArtifact: async () => mockArtifact,
-      runTriageSession: async (_system, user) => {
-        capturedUserMessage = user;
+      runTriageSession: async (system) => {
+        capturedSystemPrompt = system;
       },
     });
 
@@ -514,13 +514,13 @@ describe("createOutcomeTriage factory", () => {
     });
     await tick();
 
-    expect(capturedUserMessage).toContain("specs/widget.md, plans/widget.md");
+    expect(capturedSystemPrompt).toContain("specs/widget.md, plans/widget.md");
     cleanup();
   });
 
   test("meeting input uses notesText as resultText, agenda as taskDescription (REQ-OTMEM-6)", async () => {
     const eventBus = createEventBus(nullLog("test-bus"));
-    let capturedUserMessage = "";
+    let capturedSystemPrompt = "";
 
     const mockArtifact: ArtifactReadResult = {
       projectName: "test-project",
@@ -536,16 +536,16 @@ describe("createOutcomeTriage factory", () => {
       guildHallHome: "/tmp/fake",
       log: nullLog("test"),
       readArtifact: async () => mockArtifact,
-      runTriageSession: async (_system, user) => {
-        capturedUserMessage = user;
+      runTriageSession: async (system) => {
+        capturedSystemPrompt = system;
       },
     });
 
     eventBus.emit({ type: "meeting_ended", meetingId: "m-test-1" });
     await tick();
 
-    expect(capturedUserMessage).toContain("Task: Discuss architecture");
-    expect(capturedUserMessage).toContain("Decided on event-driven approach.");
+    expect(capturedSystemPrompt).toContain("Task: Discuss architecture");
+    expect(capturedSystemPrompt).toContain("Decided on event-driven approach.");
     cleanup();
   });
 
@@ -576,7 +576,7 @@ describe("createOutcomeTriage factory", () => {
     await tick();
 
     expect(sessionCalled).toBe(false);
-    expect(logCtx.messages.info.some((m) => m.includes("non-closed meeting"))).toBe(true);
+    expect(logCtx.messages.debug.some((m) => m.includes("non-closed meeting"))).toBe(true);
     cleanup();
   });
 
@@ -693,7 +693,7 @@ describe("createOutcomeTriage factory", () => {
   test("commission triage includes decisions from state in resultText (REQ-DSRF-12)", async () => {
     const tmpDir = await makeTmpDir();
     const eventBus = createEventBus(nullLog("test-bus"));
-    let capturedUserMessage = "";
+    let capturedSystemPrompt = "";
 
     const commissionId = "c-with-decisions";
 
@@ -715,8 +715,8 @@ describe("createOutcomeTriage factory", () => {
       guildHallHome: tmpDir,
       log: nullLog("test"),
       readArtifact: async () => mockArtifact,
-      runTriageSession: async (_system, user) => {
-        capturedUserMessage = user;
+      runTriageSession: async (system) => {
+        capturedSystemPrompt = system;
       },
     });
 
@@ -727,17 +727,17 @@ describe("createOutcomeTriage factory", () => {
     });
     await tick();
 
-    expect(capturedUserMessage).toContain("Feature built.");
-    expect(capturedUserMessage).toContain("## Decisions");
-    expect(capturedUserMessage).toContain("**Use SDK?**");
-    expect(capturedUserMessage).toContain("*Reasoning: Architectural boundary*");
+    expect(capturedSystemPrompt).toContain("Feature built.");
+    expect(capturedSystemPrompt).toContain("## Decisions");
+    expect(capturedSystemPrompt).toContain("**Use SDK?**");
+    expect(capturedSystemPrompt).toContain("*Reasoning: Architectural boundary*");
     cleanup();
   });
 
   test("commission triage without decisions has summary-only resultText", async () => {
     const tmpDir = await makeTmpDir();
     const eventBus = createEventBus(nullLog("test-bus"));
-    let capturedUserMessage = "";
+    let capturedSystemPrompt = "";
 
     const mockArtifact: ArtifactReadResult = {
       projectName: "test-project",
@@ -752,8 +752,8 @@ describe("createOutcomeTriage factory", () => {
       guildHallHome: tmpDir,
       log: nullLog("test"),
       readArtifact: async () => mockArtifact,
-      runTriageSession: async (_system, user) => {
-        capturedUserMessage = user;
+      runTriageSession: async (system) => {
+        capturedSystemPrompt = system;
       },
     });
 
@@ -764,8 +764,68 @@ describe("createOutcomeTriage factory", () => {
     });
     await tick();
 
-    expect(capturedUserMessage).toContain("Feature built cleanly.");
-    expect(capturedUserMessage).not.toContain("## Decisions");
+    expect(capturedSystemPrompt).toContain("Feature built cleanly.");
+    expect(capturedSystemPrompt).not.toContain("## Decisions");
+    cleanup();
+  });
+
+  test("meeting triage includes decisions section from artifact body (4.2.3)", async () => {
+    const tmpDir = await makeTmpDir();
+    const eventBus = createEventBus(nullLog("test-bus"));
+    const projectName = "test-project";
+    const meetingId = "meeting-20260320-150000";
+    let capturedSystemPrompt = "";
+
+    // Create meeting artifact with notes AND decisions section in the body
+    const iPath = path.join(tmpDir, "projects", projectName);
+    const artifactDir = path.join(iPath, ".lore", "meetings");
+    await fs.mkdir(artifactDir, { recursive: true });
+
+    const artifactContent = [
+      "---",
+      "worker: Guild Master",
+      'agenda: "Discuss event router design"',
+      "status: closed",
+      "linked_artifacts: []",
+      "---",
+      "",
+      "## Meeting Notes",
+      "",
+      "Discussed event router architecture and naming conventions.",
+      "",
+      "## Decisions",
+      "",
+      "**Should we use a centralized event bus?**",
+      "Yes, single EventBus instance.",
+      "*Reasoning: Simpler than distributed pub/sub for our scale.*",
+      "",
+    ].join("\n");
+    await fs.writeFile(path.join(artifactDir, `${meetingId}.md`), artifactContent);
+
+    const config: AppConfig = {
+      projects: [{ name: projectName, path: "/fake/path" }],
+    };
+
+    const reader = createArtifactReader(config, tmpDir);
+
+    const cleanup = createOutcomeTriage({
+      eventBus,
+      guildHallHome: tmpDir,
+      log: nullLog("test"),
+      readArtifact: reader,
+      runTriageSession: async (system) => {
+        capturedSystemPrompt = system;
+      },
+    });
+
+    eventBus.emit({ type: "meeting_ended", meetingId });
+    await tick();
+
+    // The resultText in the system prompt should contain the full body including decisions
+    expect(capturedSystemPrompt).toContain("## Meeting Notes");
+    expect(capturedSystemPrompt).toContain("## Decisions");
+    expect(capturedSystemPrompt).toContain("Should we use a centralized event bus?");
+    expect(capturedSystemPrompt).toContain("Simpler than distributed pub/sub");
     cleanup();
   });
 });

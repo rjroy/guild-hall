@@ -1068,7 +1068,7 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
       try {
         const { readDecisions, formatDecisionsSection, appendDecisionsToArtifact } =
           await import("@/daemon/services/decisions-persistence");
-        const decisions = await readDecisions(ghHome, "meetings", meetingId as string, "meetings");
+        const decisions = await readDecisions(ghHome, meetingId as string, "meetings");
         const section = formatDecisionsSection(decisions);
         if (section) {
           await appendDecisionsToArtifact(

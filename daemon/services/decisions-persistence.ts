@@ -24,7 +24,6 @@ export interface DecisionEntry {
  */
 export async function readDecisions(
   guildHallHome: string,
-  _contextType: string,
   contextId: string,
   stateSubdir?: string,
 ): Promise<DecisionEntry[]> {

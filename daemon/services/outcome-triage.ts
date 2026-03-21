@@ -341,7 +341,7 @@ export function createOutcomeTriage(deps: OutcomeTriageDeps): () => void {
           try {
             const { readDecisions, formatDecisionsSection } =
               await import("@/daemon/services/decisions-persistence");
-            const decisions = await readDecisions(guildHallHome, "commissions", commissionId, "commissions");
+            const decisions = await readDecisions(guildHallHome, commissionId, "commissions");
             const decisionsText = formatDecisionsSection(decisions);
             if (decisionsText) {
               resultText = `${summary}\n\n${decisionsText}`;
@@ -361,7 +361,7 @@ export function createOutcomeTriage(deps: OutcomeTriageDeps): () => void {
 
           const systemPrompt = assemblePrompt(input);
           const memoryTools = buildMemoryTools(guildHallHome, artifact.projectName);
-          await runTriageSession(systemPrompt, formatUserMessage(input), {
+          await runTriageSession(systemPrompt, formatUserMessage(), {
             "outcome-triage-memory": memoryTools,
           });
 
@@ -389,7 +389,7 @@ export function createOutcomeTriage(deps: OutcomeTriageDeps): () => void {
 
           // Skip non-closed meetings (declined, stale cleanup, etc.)
           if (artifact.status !== "closed") {
-            log.info(`triage skipped for non-closed meeting ${meetingId}, status: ${artifact.status}`);
+            log.debug(`triage skipped for non-closed meeting ${meetingId}, status: ${artifact.status}`);
             return;
           }
 
@@ -404,7 +404,7 @@ export function createOutcomeTriage(deps: OutcomeTriageDeps): () => void {
 
           const systemPrompt = assemblePrompt(input);
           const memoryTools = buildMemoryTools(guildHallHome, artifact.projectName);
-          await runTriageSession(systemPrompt, formatUserMessage(input), {
+          await runTriageSession(systemPrompt, formatUserMessage(), {
             "outcome-triage-memory": memoryTools,
           });
 
@@ -422,17 +422,6 @@ export function createOutcomeTriage(deps: OutcomeTriageDeps): () => void {
   return unsubscribe;
 }
 
-function formatUserMessage(input: TriageInput): string {
-  return [
-    `Activity type: ${input.inputType}`,
-    `Worker: ${input.workerName}`,
-    `Task: ${input.taskDescription}`,
-    `Status: ${input.outcomeStatus}`,
-    "",
-    "Result:",
-    input.resultText,
-    "",
-    "Artifacts:",
-    input.artifactList,
-  ].join("\n");
+function formatUserMessage(): string {
+  return "Triage the outcome described in your instructions. Read project memory first, then write entries if anything is worth remembering.";
 }

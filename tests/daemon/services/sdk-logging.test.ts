@@ -9,6 +9,7 @@ function collectingLogForSdk(): { log: Log; logs: string[] } {
     error(...args: unknown[]) { logs.push(args.join(" ")); },
     warn(...args: unknown[]) { logs.push(args.join(" ")); },
     info(...args: unknown[]) { logs.push(args.join(" ")); },
+    debug(...args: unknown[]) { logs.push(args.join(" ")); },
   };
   return { log, logs };
 }

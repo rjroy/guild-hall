@@ -693,7 +693,7 @@ export function createCommissionOrchestrator(
     try {
       const { readDecisions, formatDecisionsSection, appendDecisionsToArtifact } =
         await import("@/daemon/services/decisions-persistence");
-      const decisions = await readDecisions(guildHallHome, "commissions", ctx.commissionId as string, "commissions");
+      const decisions = await readDecisions(guildHallHome, ctx.commissionId as string, "commissions");
       const section = formatDecisionsSection(decisions);
       if (section) {
         const artifactPath = commissionArtifactPath(ctx.worktreeDir, ctx.commissionId);
