@@ -7,6 +7,8 @@
 /* --- Shared button base --- */
 
 .dispatchButton,
+.continueButton,
+.saveButton,
 .cancelButton,
 .redispatchButton,
 .abandonButton,
@@ -22,6 +24,8 @@
 }
 
 .dispatchButton:disabled,
+.continueButton:disabled,
+.saveButton:disabled,
 .cancelButton:disabled,
 .redispatchButton:disabled,
 .abandonButton:disabled,
@@ -41,6 +45,30 @@
 
 .dispatchButton:hover:not(:disabled) {
   background-color: rgba(184, 134, 11, 0.35);
+}
+
+/* --- Continue (primary recovery, brass like dispatch) --- */
+
+.continueButton {
+  background-color: rgba(184, 134, 11, 0.2);
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+}
+
+.continueButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.35);
+}
+
+/* --- Save (secondary recovery, lower opacity brass) --- */
+
+.saveButton {
+  background-color: rgba(184, 134, 11, 0.15);
+  border: 1px solid rgba(184, 134, 11, 0.4);
+  color: var(--color-brass);
+}
+
+.saveButton:hover:not(:disabled) {
+  background-color: rgba(184, 134, 11, 0.25);
 }
 
 /* --- Cancel (danger action, red) --- */
@@ -151,9 +179,9 @@
   color: var(--color-text);
 }
 
-/* --- Abandon reason textarea --- */
+/* --- Action reason textarea (shared by Save and Abandon) --- */
 
-.abandonReason {
+.actionReason {
   width: 100%;
   min-height: 3rem;
   padding: var(--space-xs);
@@ -166,7 +194,7 @@
   resize: vertical;
 }
 
-.abandonReason::placeholder {
+.actionReason::placeholder {
   color: var(--color-text-muted);
 }
 
