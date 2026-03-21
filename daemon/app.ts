@@ -559,6 +559,20 @@ export async function createProductionApp(options?: {
     log: createLog("notification-service"),
   });
 
+  // Trigger Evaluator: event-driven commission creation (REQ-TRIG-27).
+  // Positioned after Event Router and commission orchestrator since it
+  // needs both. Uses the same router subscription pattern as notifications.
+  const { createTriggerEvaluator } = await import("@/daemon/services/trigger-evaluator");
+  const triggerEvaluator = createTriggerEvaluator({
+    router: eventRouter,
+    recordOps,
+    commissionSession,
+    config,
+    guildHallHome,
+    log: createLog("trigger-evaluator"),
+  });
+  await triggerEvaluator.initialize();
+
   // Outcome Triage: after commission/meeting completion, a Haiku session
   // evaluates the outcome and writes noteworthy findings to project memory.
   const { createOutcomeTriage, createArtifactReader, createTriageSessionRunner } = await import(
@@ -618,6 +632,7 @@ export async function createProductionApp(options?: {
     app,
     registry,
     shutdown: () => {
+      triggerEvaluator.shutdown();
       scheduler.stop();
       briefingRefresh.stop();
       cleanupNotifications();
