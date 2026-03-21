@@ -219,6 +219,32 @@ describe("runSdkSession", () => {
 
     expect(events).toEqual([{ type: "error", reason: "Something went wrong" }]);
   });
+
+  test("agents in options passes through to queryFn", async () => {
+    const agents = {
+      Thorne: {
+        description: "Guild Warden. Reviews code.",
+        prompt: "You are Thorne, the Guild Warden.",
+        model: "sonnet",
+      },
+      Octavia: {
+        description: "Guild Chronicler. Reviews specs.",
+        prompt: "You are Octavia, the Guild Chronicler.",
+        model: "inherit",
+      },
+    };
+
+    let capturedOptions: SdkQueryOptions | undefined;
+    const queryFn = (params: { prompt: string; options: SdkQueryOptions }) => {
+      capturedOptions = params.options;
+      return sdkMessages([initMessage]);
+    };
+
+    await collectEvents(runSdkSession(queryFn, "test", { agents }));
+
+    expect(capturedOptions).toBeDefined();
+    expect(capturedOptions!.agents).toEqual(agents);
+  });
 });
 
 // -- drainSdkSession tests --

@@ -53,6 +53,12 @@ export type SdkQueryOptions = {
   model?: string;
   resume?: string;
   env?: Record<string, string | undefined>;
+  agents?: Record<string, {
+    description: string;
+    tools?: string[];
+    prompt: string;
+    model?: string;
+  }>;
   sandbox?: {
     enabled?: boolean;
     autoAllowBashIfSandboxed?: boolean;
