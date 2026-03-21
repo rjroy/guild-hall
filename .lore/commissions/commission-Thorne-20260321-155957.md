@@ -1,7 +1,7 @@
 ---
 title: "Commission: Triggered commissions Phase 2: Review (toolbox tools)"
 date: 2026-03-21
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -20,6 +20,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-21T23:28:56.388Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-21T23:28:56.390Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
