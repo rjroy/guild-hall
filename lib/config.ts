@@ -131,7 +131,7 @@ export const appConfigSchema = z.object({
   channels: z.record(channelNameSchema, channelSchema).optional(),
   notifications: z.array(notificationRuleSchema).optional(),
 }).superRefine((config, ctx) => {
-  // REQ-EVRT-7: Validate that notification rules reference defined channels
+  // REQ-EVRT-16: Validate that notification rules reference defined channels
   if (!config.notifications) return;
   for (let i = 0; i < config.notifications.length; i++) {
     const rule = config.notifications[i];

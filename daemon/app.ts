@@ -542,15 +542,21 @@ export async function createProductionApp(options?: {
     packageOperationRouteModule = createPackageOperationRoutes(packageOperations, routeDeps);
   }
 
-  // Event Router: subscribe to EventBus and dispatch matching events to
-  // configured channels (shell commands, webhooks). Created before session
-  // recovery so it captures recovery events.
+  // Event Router: generic filtered subscription layer over the EventBus.
+  // Created before session recovery so it captures recovery events.
   const { createEventRouter } = await import("@/daemon/services/event-router");
-  const unsubscribeRouter = createEventRouter({
+  const { router: eventRouter, cleanup: cleanupRouter } = createEventRouter({
     eventBus,
+    log: createLog("event-router"),
+  });
+
+  // Notification Service: dispatches matched events to external channels.
+  const { createNotificationService } = await import("@/daemon/services/notification-service");
+  const cleanupNotifications = createNotificationService({
+    router: eventRouter,
     channels: config.channels ?? {},
     notifications: config.notifications ?? [],
-    log: createLog("event-router"),
+    log: createLog("notification-service"),
   });
 
   // Outcome Triage: after commission/meeting completion, a Haiku session
@@ -614,7 +620,8 @@ export async function createProductionApp(options?: {
     shutdown: () => {
       scheduler.stop();
       briefingRefresh.stop();
-      unsubscribeRouter();
+      cleanupNotifications();
+      cleanupRouter();
       unsubscribeTriage();
     },
   };

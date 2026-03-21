@@ -279,6 +279,24 @@ describe("camelToScreamingSnake", () => {
   });
 });
 
+describe("NotificationService logging", () => {
+  test("info log emitted when dispatch begins", async () => {
+    const { eventBus, cleanupNotif, cleanupRouter, notifLog } = makeTestHarness({
+      channels: { desktop: { type: "shell", command: "notify-send test" } },
+      notifications: [{ match: { type: "commission_result" }, channel: "desktop" }],
+    });
+
+    eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
+    await tick();
+
+    expect(notifLog.messages.info.length).toBeGreaterThanOrEqual(1);
+    expect(notifLog.messages.info.some((m) => m.includes("dispatching"))).toBe(true);
+
+    cleanupNotif();
+    cleanupRouter();
+  });
+});
+
 describe("NotificationService integration (end-to-end through router)", () => {
   test("event emitted on EventBus flows through router matching to notification dispatch", async () => {
     const { eventBus, cleanupNotif, cleanupRouter, shellCalls, webhookCalls } = makeTestHarness({
