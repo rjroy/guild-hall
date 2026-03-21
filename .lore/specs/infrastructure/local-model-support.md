@@ -17,7 +17,7 @@ related:
 
 ## Overview
 
-Guild Hall currently assumes all SDK sessions target the Anthropic API. This spec extends the model selection system (`.lore/specs/infrastructure/model-selection.md`) to support local model servers like Ollama. A user defines named model entries in `config.yaml`, each with a model identifier, base URL, and optional auth override. The daemon reads these definitions and injects the corresponding environment variables (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`) when spawning SDK sessions. No new code path, no provider abstraction. The SDK runner (`daemon/lib/agent-sdk/sdk-runner.ts`) is the shared session preparation infrastructure used by commissions, meetings, mail, and briefings. The Claude Agent SDK already accepts an `env` parameter on its `Options` type; local model support configures that parameter.
+Guild Hall currently assumes all SDK sessions target the Anthropic API. This spec extends the model selection system (`.lore/specs/infrastructure/model-selection.md`) to support local model servers like Ollama. A user defines named model entries in `config.yaml`, each with a model identifier, base URL, and optional auth override. The daemon reads these definitions and injects the corresponding environment variables (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`) when spawning SDK sessions. No new code path, no provider abstraction. The SDK runner (`daemon/lib/agent-sdk/sdk-runner.ts`) is the shared session preparation infrastructure used by commissions, meetings, and briefings. The Claude Agent SDK already accepts an `env` parameter on its `Options` type; local model support configures that parameter.
 
 Three use cases drive this: cost-free routine maintenance (housekeeping on a local model instead of paying for API calls), offline operation (air-gapped or unreliable connectivity), and experimentation with open-weight models (swapping models per worker without changing the runner).
 
@@ -126,7 +126,6 @@ Three use cases drive this: cost-free routine maintenance (housekeeping on a loc
 - REQ-LOCAL-14: If the reachability check fails, `prepareSdkSession` returns `{ ok: false, error: "..." }` with a message that names the model, the URL, and the failure reason: `Local model "llama3" at http://localhost:11434 is not reachable: connection refused`. No silent fallback to the Anthropic API. How this error propagates depends on the session type:
   - **Commission**: transitions to `failed` through the normal error path (REQ-COM-14).
   - **Meeting**: the meeting start is rejected and the error is surfaced to the user in the UI as a meeting start failure. The meeting does not enter `in_progress`.
-  - **Mail reader**: the mail reader activation is rejected. The sending commission remains in `sleeping` state. The failure is recorded in the commission's activity timeline so the user can see why the mail was not delivered.
   - **Briefing**: falls back to the template briefing (existing fallback behavior in the briefing generator).
 
 - REQ-LOCAL-15: The reachability check is skipped for built-in models. The Anthropic API's availability is handled by the SDK's own error reporting.
@@ -137,7 +136,7 @@ Three use cases drive this: cost-free routine maintenance (housekeeping on a loc
 
 - REQ-LOCAL-17: No automatic retry or reconnection. The commission preserves partial results per REQ-COM-14a and can be redispatched (REQ-COM-30) once the local server is back up. Automatic retry would mask infrastructure problems and complicate the state machine.
 
-- REQ-LOCAL-18: Mid-session errors from local model servers must be distinguishable from Anthropic API errors. To achieve this without duplicating resolution logic across orchestrators, `prepareSdkSession` returns the resolved model context (model name, URL, local-vs-builtin) alongside the session options. Each orchestrator (commission, meeting, mail, briefing) uses this context to prefix error messages for local model sessions: `Local model "llama3" (http://localhost:11434) error: <SDK error>`. Including the URL helps the user diagnose which server to check. The resolution happens once in `prepareSdkSession`; orchestrators only format, they don't re-resolve.
+- REQ-LOCAL-18: Mid-session errors from local model servers must be distinguishable from Anthropic API errors. To achieve this without duplicating resolution logic across orchestrators, `prepareSdkSession` returns the resolved model context (model name, URL, local-vs-builtin) alongside the session options. Each orchestrator (commission, meeting, briefing) uses this context to prefix error messages for local model sessions: `Local model "llama3" (http://localhost:11434) error: <SDK error>`. Including the URL helps the user diagnose which server to check. The resolution happens once in `prepareSdkSession`; orchestrators only format, they don't re-resolve.
 
 ### Interaction with Existing Model Selection
 
@@ -147,7 +146,7 @@ Three use cases drive this: cost-free routine maintenance (housekeeping on a loc
 
 - REQ-LOCAL-21: Scheduled commission templates can specify local model names in `resource_overrides.model`. Spawned commissions inherit the local model through the existing resource override flow.
 
-- REQ-LOCAL-22: Meetings and mail sessions follow the worker's default model (REQ-MODEL-11, REQ-MODEL-12). If a worker's default model is local, meetings with that worker use the local model. This is consistent: the worker's model is the worker's model regardless of session type.
+- REQ-LOCAL-22: Meetings follow the worker's default model (REQ-MODEL-11). If a worker's default model is local, meetings with that worker use the local model. This is consistent: the worker's model is the worker's model regardless of session type.
 
 ### Package Validation
 

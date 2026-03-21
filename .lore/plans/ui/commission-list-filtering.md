@@ -52,14 +52,14 @@ Write the filter logic as pure, exported-for-testing functions before converting
 
 Four functions are needed:
 
-**`DEFAULT_STATUSES`** — a `Set<string>` constant with the 8 default-on statuses: `pending`, `blocked`, `dispatched`, `in_progress`, `sleeping`, `active`, `failed`, `cancelled`.
+**`DEFAULT_STATUSES`** — a `Set<string>` constant with the 7 default-on statuses: `pending`, `blocked`, `dispatched`, `in_progress`, `active`, `failed`, `cancelled`.
 
 **`FILTER_GROUPS`** — a constant that encodes the filter panel structure: an ordered array of `{ label: string, statuses: string[] }` objects, mirroring the four commission sort groups in `STATUS_GROUP`:
 
 ```
 [
   { label: "Idle",   statuses: ["pending", "blocked", "paused"] },
-  { label: "Active", statuses: ["dispatched", "in_progress", "sleeping", "active"] },
+  { label: "Active", statuses: ["dispatched", "in_progress", "active"] },
   { label: "Failed", statuses: ["failed", "cancelled"] },
   { label: "Done",   statuses: ["abandoned", "completed"] },
 ]
@@ -177,9 +177,9 @@ Add `.filterPanel`, `.filterRow`, `.filterGroupLabel`, `.filterCheckboxes`, `.fi
 Tests cover the pure logic functions extracted in Step 1. No component rendering is required; import the functions directly.
 
 **`DEFAULT_STATUSES` tests:**
-- Default set contains exactly 8 members.
-- All 8 expected statuses (`pending`, `blocked`, `dispatched`, `in_progress`, `sleeping`, `active`, `failed`, `cancelled`) are present.
-- None of the 3 default-off statuses (`paused`, `abandoned`, `completed`) appears in the set.
+- Default set contains exactly 7 members.
+- All 7 expected statuses (`pending`, `blocked`, `dispatched`, `in_progress`, `active`, `failed`, `cancelled`) are present.
+- None of the 4 default-off statuses (`paused`, `abandoned`, `completed`, `halted`) appears in the set.
 
 **`filterCommissions` tests:**
 - Returns only commissions whose `status` is in the selected set.

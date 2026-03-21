@@ -35,7 +35,7 @@ From brainstorm Section 4 (risk assessment):
 - CON-MTGL-3: The orchestrator uses a factory closure pattern that captures `deps`, `ghHome`, `git`, `eventBus`, `registry`, `log`. Extracting functions means converting closure-captured variables to explicit parameters.
 - CON-MTGL-4: Test files construct `MeetingSessionDeps` mock objects. Changes to dependency flow require updating test setup.
 - CON-MTGL-5: Do not extract a `MeetingLifecycle` class. The meeting state machine has 3 transitions guarded by simple status checks. A lifecycle class would add ceremony without benefit (brainstorm Section 2).
-- CON-MTGL-6: Do not mirror the commission's five-layer decomposition. Meetings lack the dispatch queue, dependency tracking, sleeping/halted states, and mail system that justified five layers for commissions.
+- CON-MTGL-6: Do not mirror the commission's five-layer decomposition. Meetings lack the dispatch queue, dependency tracking, and halted states that justified five layers for commissions.
 
 ## Requirements
 

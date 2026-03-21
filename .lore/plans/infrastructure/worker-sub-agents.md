@@ -25,9 +25,9 @@ This plan implements the full spec at `.lore/specs/infrastructure/worker-sub-age
 
 **prepareSdkSession** (`daemon/lib/agent-sdk/sdk-runner.ts:318-500`): Five-step pipeline (find worker, resolve tools, load memories, activate, build options). The new agent map construction inserts between step 4 (activate) and step 5 (build options). The existing `SessionPrepDeps` already has `loadMemories` and `activateWorker`, both reusable for sub-agent preparation.
 
-**activateWorkerWithSharedPattern** (`packages/shared/worker-activation.ts:88-99`): Takes an `ActivationContext`, calls `buildSystemPrompt()`, returns `ActivationResult`. When no `meetingContext`, `commissionContext`, or `mailContext` is provided, the prompt contains only soul, identity, posture, and memory sections. This is exactly what sub-agents need (REQ-SUBAG-16).
+**activateWorkerWithSharedPattern** (`packages/shared/worker-activation.ts:88-99`): Takes an `ActivationContext`, calls `buildSystemPrompt()`, returns `ActivationResult`. When no `meetingContext` or `commissionContext` is provided, the prompt contains only soul, identity, posture, and memory sections. This is exactly what sub-agents need (REQ-SUBAG-16).
 
-**ContextTypeName** (`daemon/services/context-type-registry.ts:6`): Union type `"meeting" | "commission" | "mail" | "briefing"`. Needs `"subagent"` added. The registry function at line 8-30 adds entries; `"subagent"` follows the `"briefing"` pattern (no toolbox factory).
+**ContextTypeName** (`daemon/services/context-type-registry.ts:6`): Union type `"meeting" | "commission" | "briefing"`. Needs `"subagent"` added. The registry function at line 8-30 adds entries; `"subagent"` follows the `"briefing"` pattern (no toolbox factory).
 
 **SdkQueryOptions** (`daemon/lib/agent-sdk/sdk-runner.ts:41-82`): Options passed to the SDK. Needs an `agents` field. `runSdkSession` (line 163-207) spreads options into `resolvedOptions`; the `agents` field passes through without transformation.
 
@@ -83,7 +83,7 @@ Local model names are explicitly rejected because the SDK's `AgentDefinition.mod
 **Files**: `daemon/services/context-type-registry.ts`
 **Addresses**: REQ-SUBAG-13, REQ-SUBAG-14
 
-1. Extend `ContextTypeName` to `"meeting" | "commission" | "mail" | "briefing" | "subagent"`.
+1. Extend `ContextTypeName` to `"meeting" | "commission" | "briefing" | "subagent"`.
 2. Add a registry entry after the `"briefing"` entry:
    ```typescript
    registry.set("subagent", {
@@ -264,7 +264,7 @@ log.info(`Building sub-agent map: ${otherWorkerPackages.length} workers availabl
    - `localModelDefinitions`: From `spec.config.models`.
    - `projectPath`: From `spec.projectPath`.
    - `workingDirectory`: From `spec.workspaceDir`.
-   - No `meetingContext`, `commissionContext`, `mailContext`, or `managerContext`.
+   - No `meetingContext`, `commissionContext`, or `managerContext`.
 
 2. Call `deps.activateWorker(workerPkg, activationContext)` to get an `ActivationResult` with a system prompt.
 
@@ -336,7 +336,7 @@ Run `bun test tests/daemon/services/sdk-runner.test.ts` to confirm.
 **Review checkpoint**: Thorne reviews Phase 4. This is the critical review. Verify:
 - Agent map construction happens between step 4 and step 5.
 - The calling worker is excluded.
-- Sub-agent ActivationContext has no activity context (no meetingContext, commissionContext, mailContext).
+- Sub-agent ActivationContext has no activity context (no meetingContext, commissionContext).
 - Error handling is per-worker, not session-fatal.
 - `agents` passes through to the SDK via `runSdkSession`.
 - All 31 REQs are addressed across the four phases.

@@ -14,7 +14,7 @@ related:
 ## Problem
 
 The commission tab shows a red gem for every commission, regardless of actual status.
-Sorting is also wrong: sleeping commissions (waiting for mail reply) sort to the very end
+Sorting is also wrong: some commission statuses sort to the very end
 of the list, after completed commissions.
 
 Both issues were introduced or made visible when scheduled commissions were added.
@@ -67,21 +67,10 @@ The implementer must visually verify the output after applying these values — 
 hue of the gem image determines whether these calculations hold. If the gem image is not
 pure blue, adjust accordingly.
 
-### Why `sleeping` commissions sort wrong
+### Why `abandoned` commissions sort wrong
 
-The `"sleeping"` status (commission paused waiting for a mail reply) is absent from
-`STATUS_GROUP` in `lib/commissions.ts`. It falls through to the default of `9`, sorting
-after completed commissions. Sleeping is an active state and should sit in group 1
-alongside `dispatched` and `in_progress`.
-
-`STATUS_GROUP` also omits `"abandoned"`. It falls through to group 9, but should be in
+`STATUS_GROUP` omits `"abandoned"`. It falls through to group 9, but should be in
 group 2 alongside `failed` and `cancelled`.
-
-### Why `sleeping` gems are wrong
-
-`statusToGem()` in `lib/types.ts` does not include `"sleeping"` in any of its three
-status sets. It falls through to `"info"` (no filter = base gem color). Sleeping is an
-active waiting state; it should show the active gem (green), not a neutral one.
 
 ### What wasn't broken by scheduled commissions
 
@@ -117,22 +106,7 @@ Replace the three incorrect filter values:
 If the image is not blue but amber or another hue, the rotation values above will be
 wrong. In that case, dial them empirically to reach the intended colors.
 
-### Fix 2: Add `sleeping` to `statusToGem` — `lib/types.ts`
-
-Add `"sleeping"` to `ACTIVE_STATUSES`:
-
-```typescript
-const ACTIVE_STATUSES = new Set([
-  "approved", "active", "current", "complete", "completed",
-  "resolved", "in_progress", "dispatched",
-  "sleeping",   // <-- add this
-]);
-```
-
-Sleeping is an active state (the commission is still running, just waiting for a mail
-reply). It should display the same green gem as `in_progress`.
-
-### Fix 3: Add `sleeping` and `abandoned` to `STATUS_GROUP` — `lib/commissions.ts`
+### Fix 2: Add `abandoned` to `STATUS_GROUP` — `lib/commissions.ts`
 
 ```typescript
 const STATUS_GROUP: Record<string, number> = {
@@ -141,7 +115,6 @@ const STATUS_GROUP: Record<string, number> = {
   paused: 0,
   dispatched: 1,
   in_progress: 1,
-  sleeping: 1,    // <-- add: active waiting state
   active: 1,
   failed: 2,
   cancelled: 2,
@@ -150,31 +123,10 @@ const STATUS_GROUP: Record<string, number> = {
 };
 ```
 
-`sleeping` belongs in group 1: it's running and should float to the top of the list
-alongside other active commissions. `abandoned` belongs in group 2: it's a terminal
+`abandoned` belongs in group 2: it's a terminal
 negative outcome, same character as `failed` and `cancelled`.
 
-### Fix 4: Add `sleeping` to `extractRelevantDate` — `lib/commissions.ts`
-
-The `extractRelevantDate` function maps commission statuses to their corresponding
-timeline events. `sleeping` is currently absent, so it falls back to the `created`
-timestamp. Add it:
-
-```typescript
-const targetEvent: Record<string, string> = {
-  completed:  "status_completed",
-  failed:     "status_failed",
-  cancelled:  "status_cancelled",
-  dispatched: "status_dispatched",
-  in_progress:"status_in_progress",
-  sleeping:   "status_sleeping",   // <-- add this
-};
-```
-
-This ensures the timestamp shown for a sleeping commission reflects when it entered
-the sleeping state, not when it was created.
-
-### Fix 5: Add test coverage — `tests/lib/types.test.ts` and `tests/lib/commissions.test.ts`
+### Fix 3: Add test coverage — `tests/lib/types.test.ts` and `tests/lib/commissions.test.ts`
 
 **In `tests/lib/types.test.ts`**, add to the `statusToGem` test cases:
 
@@ -182,7 +134,6 @@ the sleeping state, not when it was created.
 // Commission-specific statuses
 ["dispatched", "active"],
 ["in_progress", "active"],
-["sleeping", "active"],     // active waiting state
 ["completed", "active"],
 ["failed", "blocked"],
 ["cancelled", "blocked"],
@@ -196,12 +147,11 @@ in `ACTIVE_STATUSES` / `BLOCKED_STATUSES` but had no test coverage. Add them all
 **In `tests/lib/commissions.test.ts`**, add to the `sortCommissions` tests:
 
 ```typescript
-// sleeping sorts before completed
 // abandoned sorts before completed (same group as failed/cancelled)
 ```
 
-Verify that a sleeping commission appears above a completed commission in the sorted
-output. Verify that an abandoned commission appears above a completed commission.
+Verify that an abandoned commission appears above a completed commission in the sorted
+output.
 
 ## Sort Order Intent (all statuses, with groups)
 
@@ -214,7 +164,6 @@ For reference, the complete intended group assignment across both commission typ
 | paused       | scheduled             | 0     | schedule paused by user          |
 | dispatched   | one-shot              | 1     | running                          |
 | in_progress  | one-shot              | 1     | running                          |
-| sleeping     | one-shot (mail)       | 1     | running, waiting for reply       |
 | active       | scheduled             | 1     | schedule is live                 |
 | failed       | both                  | 2     | terminal negative                |
 | cancelled    | one-shot              | 2     | terminal negative                |
@@ -231,7 +180,6 @@ section).
 |-------------------|-----------------|------------------------|---------------|
 | dispatched        | active          | .active                | green         |
 | in_progress       | active          | .active                | green         |
-| sleeping          | active          | .active                | green         |
 | completed         | active          | .active                | green         |
 | active (scheduled)| active          | .active                | green         |
 | approved          | active          | .active                | green         |
@@ -241,20 +189,15 @@ section).
 | failed            | blocked         | .blocked               | red           |
 | cancelled         | blocked         | .blocked               | red           |
 | abandoned         | blocked         | .blocked               | red           |
-| sleeping (missing)| info (fallback) | .info                  | base color    |
-
-The last row shows the current bug: sleeping falls through to "info" because it's absent
-from all three status sets. Fix 2 moves it to the active/green column.
 
 ## Files Changed
 
 | File                          | Change                                      |
 |-------------------------------|---------------------------------------------|
 | `web/app/globals.css`         | Fix CSS filter values for gem status colors |
-| `lib/types.ts`                | Add `sleeping` to ACTIVE_STATUSES           |
-| `lib/commissions.ts`          | Add `sleeping`/`abandoned` to STATUS_GROUP; add `sleeping` to extractRelevantDate |
+| `lib/commissions.ts`          | Add `abandoned` to STATUS_GROUP              |
 | `tests/lib/types.test.ts`     | Add commission-specific statusToGem cases   |
-| `tests/lib/commissions.test.ts`| Add sleeping/abandoned sort cases          |
+| `tests/lib/commissions.test.ts`| Add abandoned sort cases                   |
 
 No component changes are needed. The data flows through `statusToGem()` and
 `sortCommissions()` — fixing those two functions and the CSS variables is sufficient.
@@ -265,7 +208,5 @@ No component changes are needed. The data flows through `statusToGem()` and
 - Fix the CSS values first and verify visually before touching the TypeScript. If the
   gem turns out to be amber or another base color, the rotation calculations above will
   need to be adjusted. Don't guess — open the UI and confirm.
-- The `"sleeping"` test coverage gap applies to both `statusToGem` and `sortCommissions`.
-  Add both before declaring the fix complete.
 - Run `bun test` after each fix. The test suite will catch any regressions in the sort
   logic immediately. CSS changes need visual confirmation.

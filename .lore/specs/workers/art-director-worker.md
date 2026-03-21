@@ -376,20 +376,13 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
 
   When the Illuminator receives a commission that references another worker's output (e.g., "illustrate Octavia's blog post at `.lore/specs/...`"), she reads that artifact for context. When her commission result would be useful to another worker's ongoing work, she notes this in the result summary. The Guild Master decides whether to route it.
 
-- REQ-ILL-23: The Illuminator MAY send mail to the Guild Master during a commission using `send_mail` (REQ-MAIL-13) if she encounters a condition that warrants coordination:
-
-  - **Missing visual context**: The commission references assets or a style guide that does not exist. The Illuminator can proceed with her own judgment but flags this so the Guild Master can decide whether to commission a style guide first.
-  - **Budget concern**: The commission requires more generations than expected (e.g., a batch production commission with 20+ images). The Illuminator flags the estimated cost so the Guild Master can approve or adjust scope.
-
-  Conservative criteria apply (same principle as REQ-STW-19). Most commissions should complete without escalation.
-
-- REQ-ILL-24: Natural collaboration seams with other workers (encoded in posture, not code):
+- REQ-ILL-23: Natural collaboration seams with other workers (encoded in posture, not code):
 
   - **Octavia writes copy; Sienna illustrates.** A commissioned document may need a header image. A brainstorm may benefit from a concept sketch. When another worker's output mentions a visual need, the user or Guild Master can commission Sienna as a follow-up.
   - **Dalton builds UI; Sienna provides assets.** Generated images (hero images, backgrounds, textures) can be used in web pages or interfaces that Dalton builds.
   - **Celeste envisions; Sienna visualizes.** Brainstorm proposals about visual identity or UI concepts could be made tangible through Sienna's image generation.
 
-  These relationships are routing patterns, not bidirectional communication. The Illuminator does not mail Dalton or Octavia. Work flows through commission assignment.
+  These relationships are routing patterns, not bidirectional communication. Work flows through commission assignment.
 
 ### Package Structure Details
 
@@ -452,7 +445,6 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
 - [ ] Memory updates use `edit_memory` with `operation: "upsert"` for section updates
 - [ ] Cost estimates from Replicate tool responses appear in the commission result summary
 - [ ] The Illuminator does not write source code, modify tests, or access files outside `.lore/`
-- [ ] `send_mail` to Guild Master is used only for missing visual context or budget concerns, not routine findings
 - [ ] Illuminator activation succeeds with `guild-hall-replicate` declared; activation fails cleanly if the toolbox is missing (REQ-WKR-13)
 
 ## AI Validation
@@ -498,6 +490,6 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
 - [Spec: Guild Hall Worker Roster](guild-hall-worker-roster.md): Roster conventions (REQ-WRS-1 through REQ-WRS-4), shared activation pattern (REQ-WRS-3), description for manager routing (REQ-WRS-10).
 - [Spec: Worker Identity and Personality](worker-identity-and-personality.md): Soul file requirements (REQ-WID-1 through REQ-WID-9), soul vs. posture boundary, assembly order (REQ-WID-13).
 - [Spec: Worker can-use-toolRules Declarations](worker-tool-rules.md): Decision framework for canUseToolRules. The Illuminator follows the allowlist-then-deny pattern established by Octavia (REQ-WTR-4 through REQ-WTR-7), scoped to file operations within `.lore/`.
-- [Spec: Guild Hall Steward Worker](guild-hall-steward-worker.md): Closest structural precedent. Same pattern: specialist worker + domain toolbox, sparse checkout, structured memory, advisory boundary with Guild Master via `send_mail`.
+- [Spec: Guild Hall Steward Worker](guild-hall-steward-worker.md): Closest structural precedent. Same pattern: specialist worker + domain toolbox, sparse checkout, structured memory, advisory boundary.
 - [Spec: Guild Hall Visionary Worker](guild-hall-visionary-worker.md): Soul and posture content examples. canUseToolRules pattern for Bash restrictions (not applicable to the Illuminator, but the spec structure is referenced).
 - `packages/guild-hall-email/package.json`: Domain toolbox package precedent. `guild-hall-replicate` follows the same `guildHall.type: "toolbox"` pattern.

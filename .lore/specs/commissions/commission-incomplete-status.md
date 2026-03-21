@@ -39,7 +39,7 @@ The distinction from `halted` matters: `halted` means "ran out of turns" (system
 
 - REQ-CINC-2: Add transition `in_progress -> incomplete` to the lifecycle state machine in `daemon/services/commission/lifecycle.ts`. No other state transitions to `incomplete`. Unlike `halted`, there is no recovery path: `incomplete` is terminal and cannot transition to any other state.
 
-- REQ-CINC-3: The commission has eleven states after this change (amends REQ-COM-34): `pending`, `blocked`, `dispatched`, `in_progress`, `sleeping`, `halted`, `incomplete`, `completed`, `failed`, `cancelled`, `abandoned`.
+- REQ-CINC-3: The commission has ten states after this change (amends REQ-COM-34): `pending`, `blocked`, `dispatched`, `in_progress`, `halted`, `incomplete`, `completed`, `failed`, `cancelled`, `abandoned`.
 
 - REQ-CINC-4: `incomplete` does NOT satisfy dependency checks. In `checkDependencyTransitions`, a dependency commission with status `incomplete` is not counted as satisfied. The existing logic checks for `completed` or `abandoned` (orchestrator.ts:1089-1091). `incomplete` is deliberately excluded so the dependency chain breaks, surfacing the gap to the manager rather than silently proceeding.
 
@@ -52,7 +52,7 @@ The distinction from `halted` matters: `halted` means "ran out of turns" (system
   - `reason` (string, required): Why the worker cannot finish. Should name the specific boundary (wrong specialization, missing context, blocked by external dependency, etc.).
   - `annotation` (string, required): What should happen next. Directed at the Guild Master for triage ("this needs a developer, not a writer", "blocked on X being resolved first", "the spec is ambiguous about Y").
 
-- REQ-CINC-7: `submit_incomplete` is mutually exclusive with `submit_result` and `send_mail`. If the worker has already called `submit_result` or `send_mail`, `submit_incomplete` returns an error. If the worker has called `submit_incomplete`, subsequent calls to `submit_result`, `send_mail`, or `submit_incomplete` return errors. `report_progress` remains callable after `submit_incomplete` (the worker may log cleanup activity).
+- REQ-CINC-7: `submit_incomplete` is mutually exclusive with `submit_result`. If the worker has already called `submit_result`, `submit_incomplete` returns an error. If the worker has called `submit_incomplete`, subsequent calls to `submit_result` or `submit_incomplete` return errors. `report_progress` remains callable after `submit_incomplete` (the worker may log cleanup activity).
 
 - REQ-CINC-8: `submit_incomplete` writes to the commission artifact before signaling. Three writes:
   1. Update `result_summary` with the summary (same field as `submit_result`, so the artifact viewer shows what was accomplished).
@@ -136,7 +136,7 @@ The distinction from `halted` matters: `halted` means "ran out of turns" (system
 
 - [ ] `CommissionStatus` includes `"incomplete"` and lifecycle allows `in_progress -> incomplete`
 - [ ] `submit_incomplete` tool exists in commission toolbox with summary, reason, and annotation parameters
-- [ ] `submit_incomplete` is mutually exclusive with `submit_result` and `send_mail`
+- [ ] `submit_incomplete` is mutually exclusive with `submit_result`
 - [ ] Calling `submit_incomplete` writes the summary, reason, and annotation to the commission artifact
 - [ ] Partial work is squash-merged to `claude` on incomplete (same as save on halted)
 - [ ] Dependencies of the incomplete commission do NOT fire
@@ -156,7 +156,7 @@ The distinction from `halted` matters: `halted` means "ran out of turns" (system
 
 **Custom:**
 - State machine test: `in_progress -> incomplete` succeeds; no other state transitions to `incomplete`; `incomplete` has no outgoing transitions
-- Toolbox mutual exclusion test: `submit_incomplete` after `submit_result` returns error; `submit_result` after `submit_incomplete` returns error; `submit_incomplete` after `send_mail` returns error; double `submit_incomplete` returns error
+- Toolbox mutual exclusion test: `submit_incomplete` after `submit_result` returns error; `submit_result` after `submit_incomplete` returns error; double `submit_incomplete` returns error
 - Artifact write test: after `submit_incomplete`, artifact contains updated `result_summary`, `result_incomplete` timeline event, and `## Incomplete` section with reason and annotation
 - Dependency test: commission B depends on commission A; A completes as `incomplete`; B remains `blocked` (does not transition to `pending`)
 - Merge test: incomplete commission's partial work is squash-merged to `claude`; worktree is cleaned up; state file is deleted
@@ -170,7 +170,7 @@ The distinction from `halted` matters: `halted` means "ran out of turns" (system
 ## Constraints
 
 - `incomplete` is terminal. There is no continue, save, or redispatch path. If the work needs to be retried, the manager creates a new commission. This is intentional: the worker's annotation explains what needs to change, and a retry with the same inputs would hit the same boundary.
-- A commission that returns to `in_progress` from `sleeping` (after a mail reply wakes it) can call `submit_incomplete`. The only prerequisite is `in_progress` status, regardless of how the commission reached that state.
+- The only prerequisite for `submit_incomplete` is `in_progress` status, regardless of how the commission reached that state.
 - The `## Incomplete` section in the artifact body is append-only. If a commission somehow reaches `submit_incomplete` twice (guarded by REQ-CINC-7, but defense in depth), the section is not duplicated.
 - No new state file type for incomplete commissions. Unlike `halted` (which preserves the worktree for continuation), incomplete commissions finalize immediately. The state file is deleted after merge.
 

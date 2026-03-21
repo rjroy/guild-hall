@@ -2,7 +2,7 @@
 title: "Plan: Guild Capabilities Discovery"
 date: 2026-03-19
 status: executed
-tags: [base-toolbox, worker-discovery, mail, collaboration]
+tags: [base-toolbox, worker-discovery, collaboration]
 modules: [base-toolbox, toolbox-resolver, toolbox-types]
 related:
   - .lore/specs/workers/guild-capabilities-discovery.md
@@ -14,9 +14,9 @@ related:
 
 ## Goal
 
-Add a read-only `list_guild_capabilities` tool to the base toolbox so every worker can discover who else is in the guild, what they do, and whether they're worth mailing. The tool returns a formatted roster from worker package discovery data, injected via DI callback. No filesystem access from the base toolbox.
+Add a read-only `list_guild_capabilities` tool to the base toolbox so every worker can discover who else is in the guild and what they do. The tool returns a formatted roster from worker package discovery data, injected via DI callback. No filesystem access from the base toolbox.
 
-This closes the discovery gap that makes the mail system dependent on user prompting. Workers currently can't know who to mail without being told. The briefing tool (when implemented) tells workers what's happening; this tool tells them who can help.
+The briefing tool (when implemented) tells workers what's happening; this tool tells them who can help.
 
 ## Codebase Context
 
@@ -137,7 +137,7 @@ const listGuildCapabilities = makeListGuildCapabilitiesHandler(deps.getWorkerIde
 // In the tools array:
 tool(
   "list_guild_capabilities",
-  "List all guild workers with their titles and capabilities. Use this to discover who you can contact via send_mail. Returns names (for the 'to' field), titles, and descriptions. Read-only.",
+  "List all guild workers with their titles and capabilities. Returns names, titles, and descriptions. Read-only.",
   {},
   () => listGuildCapabilities(),
 ),
@@ -190,7 +190,7 @@ Launch a fresh-context sub-agent to verify:
 - The handler factory is exported and directly testable
 - No state changes occur when the tool is called
 - No filesystem access from the base toolbox
-- The tool works across all session types (meeting, commission, mail). This is structurally guaranteed because the base toolbox is always present regardless of context type, but confirm no context-type gating was accidentally introduced.
+- The tool works across all session types (meeting, commission). This is structurally guaranteed because the base toolbox is always present regardless of context type, but confirm no context-type gating was accidentally introduced.
 - All seven REQs from the spec are covered
 
 ## Delegation Guide

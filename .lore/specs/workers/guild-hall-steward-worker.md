@@ -7,8 +7,6 @@ modules: [guild-hall-workers, packages]
 related:
   - .lore/specs/workers/guild-hall-workers.md
   - .lore/specs/workers/guild-hall-worker-roster.md
-  - .lore/specs/workers/worker-communication.md
-  - .lore/specs/workers/guild-hall-mail-reader-toolbox.md
   - .lore/specs/workers/worker-identity-and-personality.md
   - .lore/brainstorm/personal-assistant-worker.md
 req-prefix: STW
@@ -20,11 +18,11 @@ req-prefix: STW
 
 The Steward is Guild Hall's household manager: a worker who handles correspondence, prepares context, and keeps the guild informed about what matters in the user's inbox. Where the Researcher ventures outward to find information, the Steward manages the flow of information that arrives on its own.
 
-This is an MVP spec. It defines what can be built today using existing infrastructure: the `guild-hall-email` domain toolbox (already implemented), worker-to-worker mail via `send_mail` (already implemented), and the standard worker package structure. The Steward runs as manually-commissioned work. Proactive behavior, calendar integration, and email write access are explicitly deferred.
+This is an MVP spec. It defines what can be built today using existing infrastructure: the `guild-hall-email` domain toolbox (already implemented) and the standard worker package structure. The Steward runs as manually-commissioned work. Proactive behavior, calendar integration, and email write access are explicitly deferred.
 
 The Steward is read-only and advisory. It observes, categorizes, and surfaces. It does not act on the user's behalf.
 
-Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker package API and activation contract. [Spec: Guild Hall Worker Roster](guild-hall-worker-roster.md) for roster conventions. [Spec: Worker Identity and Personality](worker-identity-and-personality.md) for soul.md requirements. [Spec: Guild Hall Mail Reader Toolbox](guild-hall-mail-reader-toolbox.md) for email tool capabilities. [Spec: Worker-to-Worker Communication](worker-communication.md) for the `send_mail` escalation mechanism.
+Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker package API and activation contract. [Spec: Guild Hall Worker Roster](guild-hall-worker-roster.md) for roster conventions. [Spec: Worker Identity and Personality](worker-identity-and-personality.md) for soul.md requirements. [Spec: Guild Hall Mail Reader Toolbox](guild-hall-mail-reader-toolbox.md) for email tool capabilities.
 
 ## Entry Points
 
@@ -77,7 +75,7 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
 
   > **Rationale for no web tools:** The MVP scope is email-focused. Adding web research capability would create a worker that competes with the Researcher's role. The Steward's value is knowing the inbox; depth on any topic beyond what's in email belongs to a commissioned Researcher.
 
-- REQ-STW-6: Resource defaults of `maxTurns: 80` reflect the Steward's typical workload: read memory, search emails (multiple tool calls), read threads, compose a structured result, update memory. Inbox triage at a reasonable depth (7 days, focused scan) should complete in 40-60 turns. The default provides headroom for commission-specified depth or a `send_mail` escalation, which adds its own overhead to the session count.
+- REQ-STW-6: Resource defaults of `maxTurns: 80` reflect the Steward's typical workload: read memory, search emails (multiple tool calls), read threads, compose a structured result, update memory. Inbox triage at a reasonable depth (7 days, focused scan) should complete in 40-60 turns. The default provides headroom for commission-specified depth.
 
 ### Worker Identity
 
@@ -155,9 +153,8 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
   **Workflow section** MUST describe the commission execution sequence:
   1. Read memory files (`contacts.md`, `preferences.md`, `active-threads.md`) to load accumulated context before making any email tool calls.
   2. Execute the commissioned task using email tools (inbox triage, meeting prep, or email research per REQ-STW-9 through REQ-STW-11).
-  3. Identify items meeting escalation criteria (REQ-STW-18). If any exist, send mail to the Guild Master via `send_mail` and wait for reply.
-  4. Update memory files: add new contacts to `contacts.md`, record any preference signals from the commission prompt, update `active-threads.md` for threads worth watching.
-  5. Submit result via `submit_result` with structured findings in the format appropriate to the task.
+  3. Update memory files: add new contacts to `contacts.md`, record any preference signals from the commission prompt, update `active-threads.md` for threads worth watching.
+  4. Submit result via `submit_result` with structured findings in the format appropriate to the task.
 
   **Quality Standards section** MUST include:
   - Every email reference includes sender name, date received, and subject. No "someone sent an email saying..."
@@ -263,24 +260,6 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
 
   The Steward MUST NOT accumulate memory indefinitely without judgment. When a file exceeds roughly 50 rows or 500 lines, the Steward notes this in the commission result and suggests the user commission a memory cleanup.
 
-### Guild Master Relationship
-
-- REQ-STW-18: The Steward can send mail to the Guild Master during a commission using the `send_mail` tool (REQ-MAIL-13). This is an escalation mechanism, not a reporting channel. The Steward does not send mail to the Guild Master to report routine triage findings; the commission result handles that. Mail to the Guild Master signals that something was found that warrants coordinated action, not just user awareness.
-
-  The Guild Master receives this as a mail reader session (REQ-MAIL-7): fresh context, the Steward's message, and the reader's own posture and tools. The Guild Master replies with its assessment of what to do. The Steward wakes, incorporates the reply, and factors it into the commission result.
-
-- REQ-STW-19: The Steward MUST apply conservative criteria for Guild Master escalation. The goal is to surface things that are genuinely time-sensitive or that require immediate coordinated action within Guild Hall. Escalation criteria:
-
-  - **Deadline pressure**: an email requests a response or decision within the next 24-48 hours
-  - **Commission blocker**: an email suggests that active Guild Hall work may be blocked or affected (e.g., an API change affecting a project in commission)
-  - **Explicit urgency from a known contact**: a high-priority contact (from `preferences.md`) marks something as urgent
-
-  The Steward MUST NOT escalate: general "important-sounding" emails, informational messages, or anything that can wait for the user to read the triage result at their own pace.
-
-  > **Rationale:** The `send_mail` mechanism adds turns and latency to a commission. Overuse makes the Steward a bottleneck and trains the Guild Master to ignore its signals. Selectivity is what makes escalation meaningful.
-
-- REQ-STW-20: The Guild Master is the Steward's only escalation target. The Steward does not send mail to other workers during triage, meeting prep, or email research commissions. The Guild Master owns coordination; if the Guild Master wants to involve another worker (e.g., dispatching the Developer because an email reveals a production bug), that is the Guild Master's decision.
-
 ## Deferred Scope
 
 The following capabilities are explicitly out of scope for this spec. They are recorded here to prevent scope creep and to preserve the decisions for future specs.
@@ -319,7 +298,6 @@ The following capabilities are explicitly out of scope for this spec. They are r
 - [ ] A commissioned email research returns summary, timeline, participants, status, and open questions
 - [ ] Memory files (`contacts.md`, `preferences.md`, `active-threads.md`) are read at commission start and updated at commission end
 - [ ] `preferences.md` is created on first commission if absent; updates are additive, not overwriting
-- [ ] `send_mail` to Guild Master is used only when escalation criteria (REQ-STW-19) are met, not for routine findings
 - [ ] The Steward never calls any email write operation (none exist in the toolbox per REQ-EMT-6, but the posture reinforces the boundary)
 - [ ] Steward activation succeeds with `guild-hall-email` declared; activation fails cleanly if the toolbox is missing per REQ-WKR-13
 
@@ -337,8 +315,6 @@ The following capabilities are explicitly out of scope for this spec. They are r
 - Email research output test: mock a thread with 5 messages; verify synthesis includes summary, timeline, and open questions
 - Memory read test: Steward commission reads all three memory files at start; findings from commission appear in memory at close
 - Memory additive test: running two triage commissions in sequence; verify contacts.md accumulates new entries without losing prior ones; verify preferences.md is not overwritten
-- Escalation criteria test: commission where one email meets deadline criteria; verify `send_mail` is called to Guild Master; verify non-urgent items do not trigger escalation
-- No escalation test: commission with all FYI-level emails; verify `send_mail` is NOT called
 - Advisory boundary test: the Steward's tool set contains no write operations on email (search, read, list, thread only); verify via toolbox introspection
 
 ## Constraints
@@ -357,5 +333,4 @@ The following capabilities are explicitly out of scope for this spec. They are r
 - [Spec: Guild Hall Workers](guild-hall-workers.md): Worker package API (REQ-WKR-2), toolbox resolution (REQ-WKR-12), memory injection (REQ-WKR-22), Agent SDK integration (REQ-WKR-14 through REQ-WKR-16).
 - [Spec: Guild Hall Worker Roster](guild-hall-worker-roster.md): Roster conventions (REQ-WRS-1, REQ-WRS-2, REQ-WRS-4), shared activation pattern (REQ-WRS-3), description for manager routing (REQ-WRS-10).
 - [Spec: Worker Identity and Personality](worker-identity-and-personality.md): Soul file requirements (REQ-WID-1 through REQ-WID-9), soul vs. posture boundary (the test: "if the worker changed specializations, would this content still apply?"), assembly order (REQ-WID-13).
-- [Spec: Worker-to-Worker Communication](worker-communication.md): `send_mail` tool (REQ-MAIL-13), mail reader activation (REQ-MAIL-7), escalation flow (REQ-MAIL-14).
 - [Spec: Guild Hall Scheduled Commissions](guild-hall-scheduled-commissions.md): The prerequisite for proactive Steward behavior. Deferred in this spec.

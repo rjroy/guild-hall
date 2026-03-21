@@ -67,7 +67,7 @@ This spec defines what the CLI commission experience should be: which operations
 
 - REQ-CLI-COM-3: The commission list operation accepts optional `status` and `worker` query parameters for filtering. The route handler reads these as `c.req.query("status")` and `c.req.query("worker")`. When `status` is provided, only commissions matching that status are returned. When `worker` is provided, only commissions assigned to that worker are returned. Both filters can be combined. Empty string values are treated as absent (no filter applied).
 
-  Valid status values match the commission lifecycle states: `pending`, `blocked`, `dispatched`, `in_progress`, `completed`, `failed`, `cancelled`, `abandoned`, `sleeping`, `halted`.
+  Valid status values match the commission lifecycle states: `pending`, `blocked`, `dispatched`, `in_progress`, `completed`, `failed`, `cancelled`, `abandoned`, `halted`.
 
   Worker filtering matches against the `worker` field in `CommissionMeta` (the worker package name, e.g., `guild-hall-developer`).
 

@@ -122,10 +122,9 @@ This spec makes every discovered worker available as a sub-agent to every other 
   The following fields are explicitly NOT set:
   - `meetingContext`: Not set. The sub-agent is a consultant, not a meeting participant.
   - `commissionContext`: Not set. The sub-agent is not executing the commission.
-  - `mailContext`: Not set.
   - `managerContext`: Not set.
 
-- REQ-SUBAG-16: The `buildSystemPrompt` function in `packages/shared/worker-activation.ts` already handles the case where no activity-specific context is provided: it assembles soul, identity, posture, and memory sections. No new branch is needed for the `"subagent"` case. The absence of `meetingContext`, `commissionContext`, and `mailContext` in the `ActivationContext` is the mechanism. The sub-agent gets a prompt that says who it is and what it knows, without any instructions about what task it's performing. The calling agent provides task context when it invokes the sub-agent via the Task tool.
+- REQ-SUBAG-16: The `buildSystemPrompt` function in `packages/shared/worker-activation.ts` already handles the case where no activity-specific context is provided: it assembles soul, identity, posture, and memory sections. No new branch is needed for the `"subagent"` case. The absence of `meetingContext` and `commissionContext` in the `ActivationContext` is the mechanism. The sub-agent gets a prompt that says who it is and what it knows, without any instructions about what task it's performing. The calling agent provides task context when it invokes the sub-agent via the Task tool.
 
 ### Description Generation
 

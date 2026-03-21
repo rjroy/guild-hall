@@ -47,7 +47,7 @@ The `guild-hall-email` package at `packages/guild-hall-email/` is the direct pre
 
 The `ToolboxFactory` signature at `daemon/services/toolbox-types.ts:33` is `(deps: GuildHallToolboxDeps) => ToolboxOutput`. The deps object provides `guildHallHome`, `projectName`, `contextId`, `contextType`, `eventBus`, and other fields. The toolbox resolver at `daemon/services/toolbox-resolver.ts:148` loads domain toolboxes by dynamic import of `index.ts` and calls `toolboxFactory(deps)`.
 
-The `SystemEvent` union at `daemon/lib/event-bus.ts:12-24` currently has 12 event types covering commissions, meetings, mail, and schedules. Adding a `toolbox_replicate` variant follows the same discriminated union pattern.
+The `SystemEvent` union at `daemon/lib/event-bus.ts:12-24` currently has event types covering commissions, meetings, and schedules. Adding a `toolbox_replicate` variant follows the same discriminated union pattern.
 
 Output path construction needs `resolveWritePath()` from `daemon/lib/toolbox-utils.ts:171-187`, which resolves to the activity worktree for active commissions/meetings, falling back to the integration worktree. The `.lore/generated/` directory goes under that resolved base path.
 

@@ -18,7 +18,7 @@ related:
 
 ## Overview
 
-Workers declare a default model in their package metadata. Commissions can override that default through `resource_overrides`. Meetings and mail use the worker's default. The briefing generator continues to use Sonnet, but through the same override mechanism as commissions rather than a one-off spread. The system validates model names against a central list and displays the active model in the UI.
+Workers declare a default model in their package metadata. Commissions can override that default through `resource_overrides`. Meetings use the worker's default. The briefing generator continues to use Sonnet, but through the same override mechanism as commissions rather than a one-off spread. The system validates model names against a central list and displays the active model in the UI.
 
 This replaces the current hardcoded `"opus"` in worker activation, making model a first-class configuration point for workers and a tunable parameter for commissions.
 
@@ -53,10 +53,9 @@ This replaces the current hardcoded `"opus"` in worker activation, making model 
 - REQ-MODEL-9: The resolution order is: commission `resource_overrides.model` > worker package `model` > fallback `opus`. Local model names are valid at every level of this chain (REQ-LOCAL-19).
 - REQ-MODEL-10: Scheduled commission templates include `model` in their `resource_overrides`. Spawned commissions inherit it through the existing resource override flow. This requires amending REQ-SCOM-11 and REQ-SCOM-19 in [Spec: Scheduled Commissions](../specs/guild-hall-scheduled-commissions.md) to explicitly include `model` in `resource_overrides` (they currently only list `maxTurns` and `maxBudgetUsd`).
 
-### Meetings and Mail
+### Meetings
 
 - REQ-MODEL-11: Meetings always use the worker's default model. No meeting-level model override exists. If the worker's default is a local model, the meeting uses that local model (REQ-LOCAL-22).
-- REQ-MODEL-12: Mail reader sessions always use the worker's default model. No mail-level model override exists. If the worker's default is a local model, the mail reader uses that local model (REQ-LOCAL-22).
 
 ### Briefing Generator
 

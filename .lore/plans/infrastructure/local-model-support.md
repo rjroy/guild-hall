@@ -43,7 +43,7 @@ Requirements addressed:
 - REQ-LOCAL-19: Local names valid at all levels of the resolution chain → Steps 2, 5
 - REQ-LOCAL-20: Manager `create_commission` accepts local model names → Step 6
 - REQ-LOCAL-21: Scheduled commission templates accept local model names → Step 5
-- REQ-LOCAL-22: Meetings and mail use worker's default model if local → Step 3 (automatic via env injection)
+- REQ-LOCAL-22: Meetings use worker's default model if local → Step 3 (automatic via env injection)
 - REQ-LOCAL-23: Package validation accepts configured local names → Step 4
 - REQ-LOCAL-24: Validation error for unconfigured model includes hint → Step 4
 - REQ-LOCAL-25: Commission view shows "(local)" suffix → Step 7
@@ -100,7 +100,6 @@ export interface AppConfig {
   models?: ModelDefinition[];
   settings?: Record<string, unknown>;
   maxConcurrentCommissions?: number;
-  maxConcurrentMailReaders?: number;
 }
 ```
 
@@ -554,8 +553,8 @@ Launch a sub-agent with fresh context. It reads:
 
 Check every REQ-LOCAL requirement for coverage. Pay particular attention to:
 - REQ-LOCAL-9: `isValidModel` backwards compatibility when config is omitted
-- REQ-LOCAL-14: All four session type failure paths (commission, meeting, mail, briefing)
-- REQ-LOCAL-22: Meetings and mail using local model workers — does env injection happen automatically?
+- REQ-LOCAL-14: Session type failure paths (commission, meeting, briefing)
+- REQ-LOCAL-22: Meetings using local model workers — does env injection happen automatically?
 - REQ-LOCAL-23/24: Package validation error messages match spec wording
 
 If any requirements are unmet, categorize:
@@ -594,8 +593,6 @@ Commission A must complete before B, C. Commission B and C can start in parallel
 Questions from the draft plan, verified against the codebase during the meeting on 2026-03-09.
 
 **Meeting orchestrator (REQ-LOCAL-14).** Verified. Checks `{ ok: false }` at `meeting/orchestrator.ts:595-600` and yields an SSE error event. The meeting enters "open" status before `prepareSdkSession` runs, so on failure the meeting stays "open" with no active session. This is acceptable: the user can retry via `sendMessage`, and the error is surfaced immediately via the SSE stream. No code change needed.
-
-**Mail reader (REQ-LOCAL-14).** Verified with a gap. Checks `{ ok: false }` at `mail/orchestrator.ts:377-380` and throws, caught at line 397. The sender is woken with an error prompt. **Gap**: no timeline event is recorded in the commission artifact when the reader's `prepareSdkSession` fails. The failure is console-logged but not observable in the artifact. **Action**: Step 3 or Step 8 should add a timeline append (e.g., `mail_reader_failed`) in the catch block at `mail/orchestrator.ts:397-400` before calling `wakeCommission`. This is a small change (one `appendTimeline` call) and should be included in the commission that handles Step 3.
 
 **Briefing generator (REQ-LOCAL-14).** Verified. Correctly handles `{ ok: false }` at `briefing-generator.ts:395-397` and falls back to `generateTemplateBriefing()`. Tested at lines 326-376. No action needed.
 

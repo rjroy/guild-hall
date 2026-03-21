@@ -1,7 +1,8 @@
 ---
 title: Worker-to-Worker Communication
 date: 2026-03-06
-status: implemented
+status: removed
+removal_note: "Mail system removed. See .lore/brainstorm/worker-sub-agents-and-mail-removal.md, Proposal 1."
 tags: [architecture, workers, communication, mail, sleep, async]
 modules: [commission-orchestrator, sdk-runner, workspace, daemon, toolbox-resolver, lifecycle]
 related:

@@ -10,7 +10,7 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 Core systems are built and stable. 3145 tests pass across 137 files. Active development is issue-driven.
 
-**What exists:** Web UI (dashboard, project views, artifact browser, meeting/commission viewers), daemon (REST API over Unix socket), CLI (project management, content migration), 10 worker packages (developer, email, illuminator, replicate, researcher, reviewer, steward, test-engineer, visionary, writer), Guild Master coordination, worker-to-worker mail, project briefings, scheduled commissions, model selection (cloud and local), memory system, domain plugins, injectable logging, and package skill handlers.
+**What exists:** Web UI (dashboard, project views, artifact browser, meeting/commission viewers), daemon (REST API over Unix socket), CLI (project management, content migration), 10 worker packages (developer, email, illuminator, replicate, researcher, reviewer, steward, test-engineer, visionary, writer), Guild Master coordination, project briefings, scheduled commissions, model selection (cloud and local), memory system, domain plugins, injectable logging, and package skill handlers.
 
 ## Architecture
 
@@ -25,7 +25,7 @@ Monorepo with four top-level systems:
 
 Shared code lives in `lib/`, tests in `tests/`.
 
-The daemon (`~/.guild-hall/guild-hall.sock`) is the application boundary. It owns all write operations, meeting/commission sessions, mail delivery, scheduled commissions, briefing generation, and the EventBus. The web layer and CLI are UX clients over the daemon's REST API. Workers interact with the application through MCP tools provided by the toolbox system. Humans interact through CLI commands and the web UI, which discover daemon operations via the OperationsRegistry.
+The daemon (`~/.guild-hall/guild-hall.sock`) is the application boundary. It owns all write operations, meeting/commission sessions, scheduled commissions, briefing generation, and the EventBus. The web layer and CLI are UX clients over the daemon's REST API. Workers interact with the application through MCP tools provided by the toolbox system. Humans interact through CLI commands and the web UI, which discover daemon operations via the OperationsRegistry.
 
 **Git isolation.** A three-tier git branch strategy (`master` / `claude` / activity branches) isolates AI work. Next.js reads from integration worktrees on `claude`. Active sessions get their own activity worktrees with sparse checkout. `daemon/lib/git.ts` owns all git operations; `daemon/services/git-admin.ts` handles rebase/sync.
 
@@ -61,10 +61,9 @@ Routes define the REST API surface. Services implement business logic. Each rout
 |----------------|----------------|
 | `commission/` | Commission orchestrator (dispatch, lifecycle, halted state, capacity) |
 | `meeting/` | Meeting orchestrator (session loop, notes, transcript, registry) |
-| `mail/` | Worker-to-worker mail (delivery, sleep/wake, queue) |
 | `manager/` | Guild Master (worker, context, exclusive toolbox) |
 | `scheduler/` | Cron-based scheduled commissions |
-| `base-toolbox.ts` | Shared tools available to all workers (memory, artifacts, mail) |
+| `base-toolbox.ts` | Shared tools available to all workers (memory, artifacts) |
 | `toolbox-resolver.ts` | Composes toolboxes for a session from worker config |
 | `briefing-generator.ts` | LLM briefing with cache and fallback chain |
 | `memory-injector.ts` | Loads memory files for session context injection |
@@ -126,11 +125,9 @@ The Guild Master (`daemon/services/manager/`) is not a package. It is a built-in
 
 **Toolbox resolver.** `daemon/services/toolbox-resolver.ts` uses a name-based `SYSTEM_TOOLBOX_REGISTRY` mapping names to `ToolboxFactory` functions. All factories receive `GuildHallToolboxDeps` (includes eventBus). The resolver runs: (1) `baseToolboxFactory`, (2) context toolbox auto-added by `contextType` from the registry, (3) system toolboxes from `worker.systemToolboxes` (e.g. `["manager"]`), (4) domain toolboxes from packages. Manager toolbox requires `services` in deps.
 
-**Worker mail.** Workers communicate via `send_mail` tool, which triggers recipient activation as a mail reader session. Concurrency is capped by `maxConcurrentMailReaders` in config. The mail system handles sleep/wake transitions, reply tracking via EventBus, queue management at capacity, and recovery on daemon restart. Implementation: `daemon/services/mail/`.
-
 **Briefing generator.** Project status briefings run through the full SDK session pipeline with Guild Master identity and read-only tools. Cached by integration worktree HEAD commit with configurable TTL (`briefingCacheTtlMinutes`). Falls back to single-turn query, then static template. Route: `GET /briefing/:projectName`.
 
-**Commission lifecycle.** Commissions flow through: `pending` → `dispatched` → `in_progress` → `completed`/`failed`/`halted`. Commissions that hit `maxTurns` without a result enter `halted` state with worktree and session preserved. `continue` resumes the session; `save` merges partial work. Scheduled commissions use `daemon/services/scheduler/` with croner.
+**Commission lifecycle.** Commissions flow through: `pending` → `dispatched` → `in_progress` → `completed`/`failed`/`halted`. Commissions that hit `maxTurns` without submitting a result enter `halted` state with worktree and session preserved. `continue` resumes the session; `save` merges partial work. Scheduled commissions use `daemon/services/scheduler/` with croner.
 
 **Memory system.** Each scope (global, project, worker) stores memory in a single file with named `## sections`. Workers read via `read_memory` and edit via `edit_memory` (upsert, append, or delete sections). `write_memory` exists as a deprecated alias. Implementation: `daemon/services/memory-injector.ts` (loading), `daemon/services/base-toolbox.ts` (tools).
 

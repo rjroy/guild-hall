@@ -34,7 +34,7 @@ Requirements addressed:
 
 This plan builds on two already-implemented foundations: the model-selection plan (`.lore/plans/infrastructure/model-selection.md`) and the local-model-support plan (`.lore/plans/infrastructure/local-model-support.md`). Both are fully implemented.
 
-**What exists.** `AppConfig` in `lib/types.ts:25-31` has `projects`, `models?`, `settings?`, `maxConcurrentCommissions?`, and `maxConcurrentMailReaders?` — no `systemModels` field yet. The `appConfigSchema` in `lib/config.ts:50-81` validates the same shape. The `models` array and `modelDefinitionSchema` are present from local-model-support. `resolveModel(name, config?)` lives in `lib/types.ts:76` and handles both built-in and local model names. `QueryOptions` is a re-export of `SdkQueryOptions` from `sdk-runner.ts` and already carries `env?: Record<string, string | undefined>` (from local-model-support Step 3 at `sdk-runner.ts:48`).
+**What exists.** `AppConfig` in `lib/types.ts:25-31` has `projects`, `models?`, `settings?`, and `maxConcurrentCommissions?` — no `systemModels` field yet. The `appConfigSchema` in `lib/config.ts:50-81` validates the same shape. The `models` array and `modelDefinitionSchema` are present from local-model-support. `resolveModel(name, config?)` lives in `lib/types.ts:76` and handles both built-in and local model names. `QueryOptions` is a re-export of `SdkQueryOptions` from `sdk-runner.ts` and already carries `env?: Record<string, string | undefined>` (from local-model-support Step 3 at `sdk-runner.ts:48`).
 
 **The four hardcoded model strings.** Each is a small, isolated change:
 
@@ -78,7 +78,6 @@ export interface AppConfig {
   systemModels?: SystemModels;
   settings?: Record<string, unknown>;
   maxConcurrentCommissions?: number;
-  maxConcurrentMailReaders?: number;
 }
 ```
 

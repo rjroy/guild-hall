@@ -1,7 +1,8 @@
 ---
 title: Guild Hall Mail Reader Toolbox
 date: 2026-03-08
-status: implemented
+status: removed
+removal_note: "Mail system removed. See .lore/brainstorm/worker-sub-agents-and-mail-removal.md, Proposal 1."
 tags: [architecture, toolbox, email, fastmail, jmap, packages]
 modules: [packages, toolbox-resolver]
 related:

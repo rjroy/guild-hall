@@ -1,7 +1,7 @@
 ---
 status: current
 custom_directories:
-  commissions: [pending, blocked, dispatched, in_progress, sleeping, completed, failed, cancelled, abandoned]
+  commissions: [pending, blocked, dispatched, in_progress, halted, completed, failed, cancelled, abandoned]
   meetings: [requested, open, closed, declined]
   excavations: [current, outdated]
   prototypes: []
@@ -24,7 +24,7 @@ This file tells `/tend` what's intentional about this project's `.lore/` structu
 
 Commissions and meetings are machine-generated artifacts from Guild Hall's daemon. Their filenames follow a `<type>-<Worker>-<YYYYMMDD>-<HHMMSS>` pattern and include domain-specific frontmatter fields for worker identity, session state, and artifact linking.
 
-Commission statuses follow a state machine: pending/blocked (idle), dispatched/in_progress/sleeping (active), completed (done), failed/cancelled (retriable), abandoned (terminal). The `activity_timeline` tracks all state transitions with timestamps. The `result_summary` is stored in the markdown body, not frontmatter.
+Commission statuses follow a state machine: pending/blocked (idle), dispatched/in_progress (active), halted (paused at turn limit), completed (done), failed/cancelled (retriable), abandoned (terminal). The `activity_timeline` tracks all state transitions with timestamps. The `result_summary` is stored in the markdown body, not frontmatter.
 
 Meeting statuses: requested (pending approval), open (active session), closed (completed), declined (rejected). The `meeting_log` tracks session events. Meeting notes are stored in the markdown body.
 
