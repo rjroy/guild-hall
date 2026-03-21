@@ -2,7 +2,7 @@
 title: "Worker Sub-Agents and Mail System Removal"
 date: 2026-03-20
 author: Celeste
-status: draft
+status: resolved
 tags: [brainstorm, architecture, workers, sub-agents, mail]
 vision_status: approved (v2, 2026-03-17)
 context_scanned: [vision.md, sdk-runner.ts, commission toolbox, mail system (full surface), AgentDefinition SDK type, worker packages, existing brainstorms]
