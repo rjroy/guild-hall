@@ -2,7 +2,7 @@
 title: Meeting view layout - viewport-locked container and condensing header
 date: 2026-03-21
 status: implemented
-tags: [ui, meeting, layout, responsive, css]
+tags: [ui, meetings, layout, responsive, css]
 modules: [meeting-view, meeting-header, chat-interface]
 related:
   - .lore/brainstorm/meeting-view-layout.md

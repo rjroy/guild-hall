@@ -1,7 +1,7 @@
 ---
 title: "UX Patterns for Browsing Mid-Size Document Collections"
 date: 2026-03-21
-status: current
+status: active
 tags: [research, ux, navigation, artifacts, ui]
 ---
 

@@ -2,7 +2,7 @@
 title: Daemon Application Boundary Migration
 date: 2026-03-13
 status: executed
-tags: [architecture, daemon, rest-api, cli, web, skills, migration]
+tags: [architecture, daemon, rest-api, cli, web, operations, migration]
 modules: [daemon, web, cli, lib]
 related:
   - .lore/specs/infrastructure/daemon-application-boundary.md

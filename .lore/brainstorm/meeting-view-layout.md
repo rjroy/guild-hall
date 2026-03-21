@@ -1,8 +1,9 @@
 ---
 title: Meeting View Layout
 type: brainstorm
+date: 2026-03-21
 status: resolved
-tags: [ui, meeting, responsive, navigation]
+tags: [ui, meetings, responsive, navigation]
 created: 2026-03-21
 ---
 

@@ -2,7 +2,7 @@
 title: Vision Document
 date: 2026-03-16
 status: implemented
-tags: [vision, self-evolution, brainstorming, artifacts, lifecycle]
+tags: [vision, self-evolution, brainstorm, artifacts, lifecycle]
 modules: [guild-hall-core]
 related:
   - .lore/research/vision-statements-as-ai-decision-filters.md

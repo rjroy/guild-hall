@@ -2,7 +2,7 @@
 title: "Plan: Mail System Removal"
 date: 2026-03-20
 status: executed
-tags: [mail, removal, cleanup, architecture]
+tags: [email, removal, cleanup, architecture]
 modules: [mail, commission-orchestrator, toolbox-resolver, context-type-registry, lifecycle, capacity, event-bus, config]
 related:
   - .lore/brainstorm/worker-sub-agents-and-mail-removal.md

@@ -2,7 +2,7 @@
 title: Daemon REST API
 date: 2026-03-13
 status: implemented
-tags: [architecture, daemon, rest-api, cli, discovery, skills]
+tags: [architecture, daemon, rest-api, cli, discovery, operations]
 modules: [daemon, cli, web]
 related:
   - .lore/specs/infrastructure/daemon-application-boundary.md

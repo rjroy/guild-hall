@@ -2,7 +2,7 @@
 title: Guild Hall Visionary Worker
 date: 2026-03-16
 status: implemented
-tags: [workers, visionary, brainstorming, vision, self-evolution, scheduled]
+tags: [workers, visionary, brainstorm, vision, self-evolution, scheduling]
 modules: [guild-hall-workers, packages]
 related:
   - .lore/specs/infrastructure/vision-document.md

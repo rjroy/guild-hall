@@ -2,7 +2,7 @@
 title: Local model support
 date: 2026-03-09
 status: implemented
-tags: [local-models, ollama, model-selection, daemon, configuration]
+tags: [local-models, ollama, model-selection, daemon, config]
 modules: [daemon, sdk-runner, config, worker-activation]
 req-prefix: LOCAL
 related:

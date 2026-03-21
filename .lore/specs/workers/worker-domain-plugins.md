@@ -2,7 +2,7 @@
 title: Worker domain plugins
 date: 2026-03-07
 status: implemented
-tags: [architecture, workers, plugins, skills, agent-sdk, packages]
+tags: [architecture, workers, plugins, operations, agent-sdk, packages]
 modules: [sdk-runner, packages, toolbox-resolver]
 related:
   - .lore/specs/workers/guild-hall-workers.md

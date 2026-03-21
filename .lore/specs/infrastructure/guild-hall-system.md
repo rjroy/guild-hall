@@ -2,7 +2,7 @@
 title: Guild Hall System
 date: 2026-02-20
 status: implemented
-tags: [architecture, primitives, memory, git, storage, plugins, configuration]
+tags: [architecture, primitives, memory, git, storage, plugins, config]
 modules: [guild-hall-core]
 related:
   - .lore/brainstorm/agentic-work-ux.md

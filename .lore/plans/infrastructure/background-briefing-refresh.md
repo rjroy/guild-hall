@@ -2,7 +2,7 @@
 title: Background briefing refresh
 date: 2026-03-17
 status: executed
-tags: [briefing, scheduler, daemon, lifecycle, config]
+tags: [briefing, scheduling, daemon, lifecycle, config]
 modules: [briefing-generator, briefing-refresh, daemon-app]
 related:
   - .lore/specs/infrastructure/background-briefing-refresh.md
