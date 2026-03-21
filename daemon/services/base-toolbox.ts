@@ -422,7 +422,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
       ),
       tool(
         "record_decision",
-        "Record a decision made during this session. Appends to the session's decision log.",
+        "Record a decision made during this session. Use this when you make a choice that isn't obvious from the code alone: scope decisions (what to include or defer), interpretation choices (how you read an ambiguous requirement), approach selections (why A over B), and constraint discoveries (something you learned that shaped the work). The decision log is persisted to the activity artifact for future reference.",
         {
           question: z.string(),
           decision: z.string(),

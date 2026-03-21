@@ -288,22 +288,25 @@ function parseArtifact(
 
 // -- Triage session runner (REQ-OTMEM-14, REQ-OTMEM-15) --
 
-type QueryFn = (
-  prompt: string,
-  options?: Record<string, unknown>,
-) => AsyncGenerator<unknown>;
+type QueryFn = (params: {
+  prompt: string;
+  options: Record<string, unknown>;
+}) => AsyncGenerator<unknown>;
 
 export function createTriageSessionRunner(
   queryFn: QueryFn,
   log: Log,
 ): OutcomeTriageDeps["runTriageSession"] {
   return async (systemPrompt, userMessage, tools) => {
-    const generator = queryFn(userMessage, {
-      systemPrompt,
-      mcpServers: tools,
-      model: TRIAGE_MODEL,
-      maxTurns: TRIAGE_MAX_TURNS,
-      permissionMode: "dontAsk",
+    const generator = queryFn({
+      prompt: userMessage,
+      options: {
+        systemPrompt,
+        mcpServers: tools,
+        model: TRIAGE_MODEL,
+        maxTurns: TRIAGE_MAX_TURNS,
+        permissionMode: "dontAsk",
+      },
     });
 
     let turns = 0;
@@ -333,12 +336,26 @@ export function createOutcomeTriage(deps: OutcomeTriageDeps): () => void {
             return;
           }
 
+          // Read decisions from state directory (still exists at this point)
+          let resultText = summary;
+          try {
+            const { readDecisions, formatDecisionsSection } =
+              await import("@/daemon/services/decisions-persistence");
+            const decisions = await readDecisions(guildHallHome, "commissions", commissionId, "commissions");
+            const decisionsText = formatDecisionsSection(decisions);
+            if (decisionsText) {
+              resultText = `${summary}\n\n${decisionsText}`;
+            }
+          } catch {
+            // Best-effort: proceed without decisions
+          }
+
           const input: TriageInput = {
             inputType: "commission",
             workerName: artifact.workerName,
             taskDescription: artifact.taskDescription,
             outcomeStatus: "completed",
-            resultText: summary,
+            resultText,
             artifactList: artifacts ? artifacts.join(", ") : artifact.artifactList,
           };
 

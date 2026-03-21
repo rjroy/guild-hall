@@ -1064,6 +1064,25 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
         );
       }
 
+      // 4. Persist decisions to artifact (REQ-DSRF-4)
+      try {
+        const { readDecisions, formatDecisionsSection, appendDecisionsToArtifact } =
+          await import("@/daemon/services/decisions-persistence");
+        const decisions = await readDecisions(ghHome, "meetings", meetingId as string, "meetings");
+        const section = formatDecisionsSection(decisions);
+        if (section) {
+          await appendDecisionsToArtifact(
+            meetingArtifactPath(meeting.worktreeDir, meetingId),
+            section,
+          );
+        }
+      } catch (err: unknown) {
+        log.warn(
+          `Decision persistence failed for "${meetingId as string}":`,
+          errorMessage(err),
+        );
+      }
+
       // 5. Scope-aware finalization
       if (meeting.scope === "project") {
         // Project scope: commit artifact changes directly to integration worktree

@@ -304,9 +304,9 @@ describe("createTriageSessionRunner", () => {
     let capturedOptions: Record<string, unknown> | undefined;
 
     // Mock queryFn that yields one message then returns
-    async function* mockQueryFn(prompt: string, options?: Record<string, unknown>) {
-      capturedPrompt = prompt;
-      capturedOptions = options;
+    async function* mockQueryFn(params: { prompt: string; options: Record<string, unknown> }) {
+      capturedPrompt = params.prompt;
+      capturedOptions = params.options;
       yield { type: "text", content: "Nothing worth remembering." };
     }
 
@@ -687,6 +687,85 @@ describe("createOutcomeTriage factory", () => {
 
     expect(logCtx.messages.info.some((m) => m.includes("triage initiated for commission c-log-test"))).toBe(true);
     expect(logCtx.messages.info.some((m) => m.includes("triage completed for commission c-log-test"))).toBe(true);
+    cleanup();
+  });
+
+  test("commission triage includes decisions from state in resultText (REQ-DSRF-12)", async () => {
+    const tmpDir = await makeTmpDir();
+    const eventBus = createEventBus(nullLog("test-bus"));
+    let capturedUserMessage = "";
+
+    const commissionId = "c-with-decisions";
+
+    // Write decisions to state directory
+    const { makeRecordDecisionHandler } = await import("@/daemon/services/base-toolbox");
+    const handler = makeRecordDecisionHandler(tmpDir, commissionId, "commissions", "commissions");
+    await handler({ question: "Use SDK?", decision: "Yes", reasoning: "Architectural boundary" });
+
+    const mockArtifact: ArtifactReadResult = {
+      projectName: "test-project",
+      workerName: "Dalton",
+      taskDescription: "Build feature",
+      artifactList: "None",
+      status: "completed",
+    };
+
+    const cleanup = createOutcomeTriage({
+      eventBus,
+      guildHallHome: tmpDir,
+      log: nullLog("test"),
+      readArtifact: async () => mockArtifact,
+      runTriageSession: async (_system, user) => {
+        capturedUserMessage = user;
+      },
+    });
+
+    eventBus.emit({
+      type: "commission_result",
+      commissionId,
+      summary: "Feature built.",
+    });
+    await tick();
+
+    expect(capturedUserMessage).toContain("Feature built.");
+    expect(capturedUserMessage).toContain("## Decisions");
+    expect(capturedUserMessage).toContain("**Use SDK?**");
+    expect(capturedUserMessage).toContain("*Reasoning: Architectural boundary*");
+    cleanup();
+  });
+
+  test("commission triage without decisions has summary-only resultText", async () => {
+    const tmpDir = await makeTmpDir();
+    const eventBus = createEventBus(nullLog("test-bus"));
+    let capturedUserMessage = "";
+
+    const mockArtifact: ArtifactReadResult = {
+      projectName: "test-project",
+      workerName: "Dalton",
+      taskDescription: "Build feature",
+      artifactList: "None",
+      status: "completed",
+    };
+
+    const cleanup = createOutcomeTriage({
+      eventBus,
+      guildHallHome: tmpDir,
+      log: nullLog("test"),
+      readArtifact: async () => mockArtifact,
+      runTriageSession: async (_system, user) => {
+        capturedUserMessage = user;
+      },
+    });
+
+    eventBus.emit({
+      type: "commission_result",
+      commissionId: "c-no-decisions",
+      summary: "Feature built cleanly.",
+    });
+    await tick();
+
+    expect(capturedUserMessage).toContain("Feature built cleanly.");
+    expect(capturedUserMessage).not.toContain("## Decisions");
     cleanup();
   });
 });

@@ -567,7 +567,7 @@ export async function createProductionApp(options?: {
     readArtifact: createArtifactReader(config, guildHallHome),
     runTriageSession: queryFn
       ? createTriageSessionRunner(queryFn, createLog("outcome-triage"))
-      : async () => { createLog("outcome-triage").warn("SDK not available, triage skipped"); },
+      : () => { createLog("outcome-triage").warn("SDK not available, triage skipped"); return Promise.resolve(); },
   });
 
   const startTime = Date.now();
