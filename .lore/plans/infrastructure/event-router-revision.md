@@ -1,7 +1,7 @@
 ---
 title: "Plan: Event Router Revision"
 date: 2026-03-21
-status: draft
+status: approved
 tags: [event-router, notifications, channels, daemon-service, refactor]
 modules: [event-bus, config, daemon]
 related:
