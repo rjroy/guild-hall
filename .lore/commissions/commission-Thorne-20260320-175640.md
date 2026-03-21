@@ -1,7 +1,7 @@
 ---
 title: "Commission: Review: Decisions surface (Phase 6)"
 date: 2026-03-21
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-21T00:56:40.834Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-21T01:21:10.191Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
