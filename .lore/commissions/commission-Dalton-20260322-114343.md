@@ -1,7 +1,7 @@
 ---
 title: "Commission: Implement worker tool boundaries: Phases 1-4"
 date: 2026-03-22
-status: failed
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -25,6 +25,11 @@ activity_timeline:
   - timestamp: 2026-03-22T18:50:54.057Z
     event: status_failed
     reason: "Session error: error_max_turns"
+  - timestamp: 2026-03-22T19:04:04.080Z
+    event: status_abandoned
+    reason: "failure due to setting max turns."
+    from: "failed"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---

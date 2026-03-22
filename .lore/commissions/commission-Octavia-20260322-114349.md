@@ -1,7 +1,7 @@
 ---
 title: "Commission: Spec hygiene: Mark superseded specs for worker tool boundaries"
 date: 2026-03-22
-status: cancelled
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -25,6 +25,11 @@ activity_timeline:
     reason: "Commission cancelled by user"
     from: "blocked"
     to: "cancelled"
+  - timestamp: 2026-03-22T19:04:19.114Z
+    event: status_abandoned
+    reason: "failure due to setting max turns on dependent commission."
+    from: "cancelled"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---

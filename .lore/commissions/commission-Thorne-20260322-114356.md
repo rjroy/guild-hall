@@ -1,7 +1,7 @@
 ---
 title: "Commission: Review: Worker tool boundaries implementation against spec"
 date: 2026-03-22
-status: cancelled
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -25,6 +25,11 @@ activity_timeline:
     reason: "Commission cancelled by user"
     from: "blocked"
     to: "cancelled"
+  - timestamp: 2026-03-22T19:04:25.673Z
+    event: status_abandoned
+    reason: "failure due to setting max turns on dependent commission."
+    from: "cancelled"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---
