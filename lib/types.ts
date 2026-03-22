@@ -113,6 +113,7 @@ export const ARTIFACT_STATUS_GROUP: Record<string, number> = {
   duplicate: 4,
   invalid: 4,
   archived: 4,
+  parked: 4,
 };
 export const UNKNOWN_STATUS_PRIORITY = 2;
 

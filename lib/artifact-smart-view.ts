@@ -1,8 +1,7 @@
 import type { Artifact } from "@/lib/types";
 import {
-  ARTIFACT_STATUS_GROUP,
-  UNKNOWN_STATUS_PRIORITY,
   compareArtifactsByStatusAndTitle,
+  statusToPriority,
 } from "@/lib/types";
 import { capitalize } from "@/lib/artifact-grouping";
 
@@ -32,10 +31,28 @@ const TYPE_LABELS: Record<string, string> = {
   diagrams: "Diagram",
 };
 
+/** Set of types which are generative investigation artifacts. */
+const GENERATIVE_INVESTIGATION_SEGMENTS = new Set(["brainstorm", "research", "issues"]);
+
+/** Set of types which are work items. */
+const WORK_ITEM_SEGMENTS = new Set(["specs", "plans", "design"]);
+
 /** Returns the first path segment, or null for root-level files. */
 export function artifactTypeSegment(relativePath: string): string | null {
   const slash = relativePath.indexOf("/");
   return slash === -1 ? null : relativePath.slice(0, slash);
+}
+
+/** Returns true if the artifact is a generative investigation artifact. REQ-SMARTVIEW-14. */
+export function isGenerativeInvestigation(artifact: Artifact): boolean {
+  const segment = artifactTypeSegment(artifact.relativePath);
+  return segment !== null && GENERATIVE_INVESTIGATION_SEGMENTS.has(segment);
+}
+
+/** Returns true if the artifact is a work item. REQ-SMARTVIEW-15. */
+export function isWorkItem(artifact: Artifact): boolean {
+  const segment = artifactTypeSegment(artifact.relativePath);
+  return segment !== null && WORK_ITEM_SEGMENTS.has(segment);
 }
 
 /** Human-readable type label from the first path segment. REQ-SMARTVIEW-12. */
@@ -64,9 +81,7 @@ function isSmartViewCandidate(artifact: Artifact): boolean {
  * REQ-SMARTVIEW-6.
  */
 function isWhatsNext(artifact: Artifact): boolean {
-  const group =
-    ARTIFACT_STATUS_GROUP[artifact.meta.status.toLowerCase().trim()] ??
-    UNKNOWN_STATUS_PRIORITY;
+  const group = statusToPriority(artifact.meta.status);
   return group === 0 || group === 2;
 }
 
@@ -77,12 +92,9 @@ function isWhatsNext(artifact: Artifact): boolean {
  * REQ-SMARTVIEW-7.
  */
 function isNeedsDiscussion(artifact: Artifact): boolean {
-  const segment = artifactTypeSegment(artifact.relativePath);
-  const status = artifact.meta.status.toLowerCase().trim();
-  if (segment === "brainstorm" && status === "open") return true;
-  if (segment === "issues" && status === "open") return true;
-  if (segment === "research" && status === "active") return true;
-  return false;
+  const group = statusToPriority(artifact.meta.status);
+  if (group >= 3) return false;
+  return isGenerativeInvestigation(artifact);
 }
 
 /**
@@ -91,10 +103,9 @@ function isNeedsDiscussion(artifact: Artifact): boolean {
  * REQ-SMARTVIEW-8.
  */
 function isReadyToAdvance(artifact: Artifact): boolean {
-  const segment = artifactTypeSegment(artifact.relativePath);
   const status = artifact.meta.status.toLowerCase().trim();
   if (status !== "approved") return false;
-  return segment === "specs" || segment === "plans" || segment === "design";
+  return isWorkItem(artifact);
 }
 
 /**
