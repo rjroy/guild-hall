@@ -1,7 +1,7 @@
 ---
 title: Worker Tool Boundaries
 date: 2026-03-22
-status: draft
+status: approved
 tags: [workers, toolbox, security, permissions, bash, posture, git-readonly]
 modules: [daemon-services, toolbox-resolver, sdk-runner, worker-packages]
 related:
