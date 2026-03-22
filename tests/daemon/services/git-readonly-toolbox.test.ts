@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await -- mock GitRunners are async to match the type but don't need await */
 import { describe, test, expect } from "bun:test";
 import {
   createGitReadonlyTools,

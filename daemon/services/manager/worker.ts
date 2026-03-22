@@ -207,7 +207,44 @@ export function activateManager(context: ActivationContext): ActivationResult {
     parts.push(`# Injected Memory\n\n${context.injectedMemory}`);
   }
 
-  // 5. Manager context
+  // 5. Meeting context
+  if (context.meetingContext) {
+    parts.push(`# Meeting Context\n\nAgenda: ${context.meetingContext.agenda}`);
+  }
+
+  // 6. Commission context
+  if (context.commissionContext) {
+    parts.push(
+      '# Commission Context',
+      '',
+      'You are executing a commission (an async work item).',
+      '',
+      '## Task',
+      '',
+      context.commissionContext.prompt,
+      '',
+    );
+
+    if (context.commissionContext.dependencies.length > 0) {
+      parts.push(
+        '## Dependencies (artifacts to reference):',
+        context.commissionContext.dependencies.map((dependency) => `- ${dependency}`).join("\n"),
+      );
+    }
+
+    parts.push(
+      [
+        "## Commission protocol",
+        "",
+        "- Use report_progress to log what you're doing as you work. This keeps the user informed.",
+        "- When finished, you MUST call submit_result with a summary of what you accomplished and any artifact paths you created or modified.",
+        "- If you encounter gaps in the requirements, state your interpretation and proceed. You are expected to be self-sufficient.",
+        "- The commission is not considered complete unless you call submit_result. Just responding with text is not enough.",
+      ].join("\n"),
+    );
+  }
+
+  // 7. Manager context
   if (context.managerContext) {
     parts.push(`# Manager Context\n\n${context.managerContext}`);
   }
