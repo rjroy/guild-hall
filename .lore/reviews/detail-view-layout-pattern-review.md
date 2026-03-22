@@ -1,7 +1,7 @@
 ---
 title: "Review: Detail View Layout Pattern Implementation"
 date: 2026-03-22
-type: review
+type: resolved
 tags: [review, ui, layout, css, commissions, artifacts, responsive, condensing-headers]
 spec: .lore/specs/ui/detail-view-layout-pattern.md
 plan: .lore/plans/ui/detail-view-layout-pattern.md
