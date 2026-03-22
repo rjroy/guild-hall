@@ -1,7 +1,7 @@
 ---
 title: Worker can-use-toolRules Declarations
 date: 2026-03-12
-status: implemented
+status: superseded
 tags: [workers, security, sandbox, can-use-tool, permissions, packages]
 modules: [guild-hall-workers, daemon-services]
 related:
@@ -13,6 +13,8 @@ req-prefix: WTR
 ---
 
 # Spec: Worker can-use-toolRules Declarations
+
+> **Superseded by Worker Tool Boundaries spec.** The canUseToolRules mechanism has been removed.
 
 ## Overview
 
