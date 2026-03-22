@@ -1,7 +1,7 @@
 ---
 title: "Plan: Triggered Commissions Toolbox Tools"
 date: 2026-03-21
-status: draft
+status: executed
 tags: [commissions, triggers, manager-toolbox, daemon]
 modules: [manager-toolbox, trigger-evaluator]
 related:
