@@ -13,6 +13,8 @@ related:
 req-prefix: COM
 ---
 
+> **Superseded** by `.lore/specs/commissions/remove-budget-controls.md` (Phase 2). The halted state was removed entirely after the maxTurns trigger was removed in Phase 1.
+
 # Spec: Commission Halted State and Continuation
 
 ## Overview

@@ -988,59 +988,6 @@ describe("readProgress", () => {
   });
 });
 
-// -- incrementHaltCount --
-
-describe("incrementHaltCount", () => {
-  test("initializes halt_count to 1 when field does not exist", async () => {
-    await writeArtifact();
-    const count = await ops.incrementHaltCount(artifactPath);
-    expect(count).toBe(1);
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("halt_count: 1");
-  });
-
-  test("increments existing halt_count", async () => {
-    await writeArtifact();
-    await ops.incrementHaltCount(artifactPath);
-    const count = await ops.incrementHaltCount(artifactPath);
-    expect(count).toBe(2);
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("halt_count: 2");
-  });
-
-  test("inserts halt_count even when current_progress is missing", async () => {
-    // Write a minimal artifact without current_progress field
-    const minimal = `---
-title: "Commission: Minimal"
-date: 2026-02-21
-status: pending
-tags: [commission]
-worker: researcher
----
-
-Task body here.
-`;
-    await fs.writeFile(artifactPath, minimal, "utf-8");
-    const count = await ops.incrementHaltCount(artifactPath);
-    expect(count).toBe(1);
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("halt_count: 1");
-  });
-
-  test("preserves other fields when inserting halt_count", async () => {
-    await writeArtifact();
-    await ops.incrementHaltCount(artifactPath);
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("current_progress:");
-    expect(raw).toContain("activity_timeline:");
-    expect(raw).toContain("status: pending");
-  });
-});
-
 // -- readTriggerMetadata --
 
 /**
@@ -1322,7 +1269,6 @@ describe("createCommissionRecordOps", () => {
     expect(typeof recordOps.updateProgress).toBe("function");
     expect(typeof recordOps.updateResult).toBe("function");
     expect(typeof recordOps.readProgress).toBe("function");
-    expect(typeof recordOps.incrementHaltCount).toBe("function");
     expect(typeof recordOps.readScheduleMetadata).toBe("function");
     expect(typeof recordOps.writeScheduleFields).toBe("function");
     expect(typeof recordOps.readTriggerMetadata).toBe("function");

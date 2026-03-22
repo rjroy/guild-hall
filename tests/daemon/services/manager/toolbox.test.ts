@@ -144,10 +144,6 @@ function createMockRecordOps(overrides?: {
       calls.push({ method: "readProgress", args: [_artifactPath] });
       return Promise.resolve("");
     },
-    incrementHaltCount(_artifactPath: string): Promise<number> {
-      calls.push({ method: "incrementHaltCount", args: [_artifactPath] });
-      return Promise.resolve(1);
-    },
     readTriggerMetadata(_artifactPath: string) {
       calls.push({ method: "readTriggerMetadata", args: [_artifactPath] });
       return Promise.resolve({

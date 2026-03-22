@@ -92,7 +92,6 @@ export const ARTIFACT_STATUS_GROUP: Record<string, number> = {
   current: 1,
   in_progress: 1,
   dispatched: 1,
-  halted: 1,
   // Group 2: Closed negative [blocked gem]
   blocked: 2,
   failed: 2,

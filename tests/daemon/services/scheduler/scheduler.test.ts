@@ -227,10 +227,6 @@ function createMockRecordOps(): MockRecordOps {
       calls.push({ method: "readProgress", args: [artifactPath] });
       return Promise.resolve("");
     },
-    incrementHaltCount(artifactPath: string): Promise<number> {
-      calls.push({ method: "incrementHaltCount", args: [artifactPath] });
-      return Promise.resolve(1);
-    },
     writeScheduleFields(
       artifactPath: string,
       updates: Partial<{ runsCompleted: number; lastRun: string; lastSpawnedId: string; cron: string; repeat: number | null }>,

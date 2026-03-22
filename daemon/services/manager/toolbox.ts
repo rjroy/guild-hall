@@ -1207,7 +1207,6 @@ const SUMMARY_GROUP: Record<string, "pending" | "active" | "failed" | "completed
   blocked: "pending",
   dispatched: "active",
   in_progress: "active",
-  halted: "active",
   failed: "failed",
   cancelled: "failed",
   completed: "completed",
@@ -1274,28 +1273,6 @@ export function makeCheckCommissionStatusHandler(
           result_summary: meta.result_summary,
           linked_artifacts: meta.linked_artifacts,
         };
-
-        // REQ-COM-48: halted commission diagnostic fields
-        if (meta.status === "halted") {
-          const stateFilePath = path.join(
-            deps.guildHallHome, "state", "commissions", `${args.commissionId}.json`,
-          );
-          try {
-            const stateRaw = await fs.readFile(stateFilePath, "utf-8");
-            const stateData = JSON.parse(stateRaw) as {
-              turnsUsed?: number;
-              lastProgress?: string;
-            };
-            if (stateData.turnsUsed !== undefined) {
-              result.turnsUsed = stateData.turnsUsed;
-            }
-            if (stateData.lastProgress !== undefined) {
-              result.lastProgress = stateData.lastProgress;
-            }
-          } catch {
-            // State file missing or corrupt; omit halted diagnostic fields
-          }
-        }
 
         // REQ-CST-5: schedule metadata for scheduled commissions
         if (meta.type === "scheduled") {
