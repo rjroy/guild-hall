@@ -1,7 +1,7 @@
 ---
 title: Artifact Smart Views
 date: 2026-03-21
-status: draft
+status: approved
 tags: [ui, artifacts, navigation, filtering, smart-views, gem-mapping]
 modules: [artifact-browser, artifact-list, artifact-grouping]
 related:
