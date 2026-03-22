@@ -7,12 +7,10 @@
  */
 
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import micromatch from "micromatch";
 import type {
   ActivationContext,
   ActivationResult,
   AppConfig,
-  CanUseToolRule,
   DiscoveredPackage,
   ResolvedModel,
   ResolvedToolSet,
@@ -103,7 +101,7 @@ export type SessionPrepSpec = {
   activationExtras?: Partial<ActivationContext>;
   abortController: AbortController;
   resume?: string;
-  resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+  resourceOverrides?: { model?: string };
 };
 
 export type SessionPrepDeps = {
@@ -119,6 +117,7 @@ export type SessionPrepDeps = {
       eventBus: EventBus;
       config: AppConfig;
       services?: GuildHallToolServices;
+      workingDirectory?: string;
     },
   ) => Promise<ResolvedToolSet>;
 
@@ -144,8 +143,8 @@ export type SdkRunnerOutcome = {
   sessionId: string | null;
   aborted: boolean;
   error?: string;
-  /** How the session ended. Populated by drainSdkSession when maxTurns is provided. */
-  reason?: "completed" | "maxTurns" | "maxBudget";
+  /** How the session ended. */
+  reason?: "completed";
   /** Number of turns consumed by the session. */
   turnsUsed: number;
 };
@@ -210,7 +209,6 @@ export async function* runSdkSession(
 /** Exhausts a generator fully, returns summary outcome. */
 export async function drainSdkSession(
   generator: AsyncGenerator<SdkRunnerEvent>,
-  opts?: { maxTurns?: number },
 ): Promise<SdkRunnerOutcome> {
   let sessionId: string | null = null;
   let aborted = false;
@@ -234,8 +232,6 @@ export async function drainSdkSession(
     // Aborted sessions don't get a reason
   } else if (firstError) {
     // Error sessions don't get a reason
-  } else if (opts?.maxTurns && turnCount >= opts.maxTurns) {
-    reason = "maxTurns";
   } else {
     reason = "completed";
   }
@@ -261,58 +257,6 @@ export function prefixLocalModelError(error: string, resolvedModel?: ResolvedMod
     return `Local model "${name}" (${baseUrl}) error: ${error}`;
   }
   return error;
-}
-
-/** Path argument field by tool name (REQ-SBX-12). */
-const TOOL_PATH_FIELD: Record<string, string> = {
-  Edit: "file_path",
-  Read: "file_path",
-  Write: "file_path",
-  Grep: "path",
-  Glob: "path",
-};
-
-/**
- * Builds a canUseTool callback from worker-declared rules.
- * Rules are evaluated in declaration order; first match wins.
- * No match = allow (REQ-SBX-14).
- */
-function buildCanUseTool(
-  rules: CanUseToolRule[],
-): NonNullable<SdkQueryOptions["canUseTool"]> {
-  return (toolName, input, _options) => {
-    const toolInput = input as Record<string, unknown>;
-
-    for (const rule of rules) {
-      if (rule.tool !== toolName) continue;
-
-      // Check command condition (Bash only)
-      if (rule.commands !== undefined) {
-        if (toolName !== "Bash" || typeof toolInput.command !== "string") continue;
-        if (!micromatch.isMatch(toolInput.command, rule.commands, { dot: true })) continue;
-      }
-
-      // Check path condition
-      if (rule.paths !== undefined) {
-        const pathField = TOOL_PATH_FIELD[toolName];
-        if (!pathField || typeof toolInput[pathField] !== "string") continue;
-        if (!micromatch.isMatch(toolInput[pathField], rule.paths, { dot: true })) continue;
-      }
-
-      // Rule matches
-      if (rule.allow) {
-        return Promise.resolve({ behavior: "allow" as const, updatedInput: input });
-      }
-      return Promise.resolve({
-        behavior: "deny" as const,
-        message: rule.reason ?? "Tool call denied by worker policy",
-        interrupt: false,
-      });
-    }
-
-    // No rule matched: allow (REQ-SBX-14)
-    return Promise.resolve({ behavior: "allow" as const, updatedInput: input });
-  };
 }
 
 /** 5-step setup: find worker, resolve tools, load memories, activate, build options. */
@@ -345,6 +289,7 @@ export async function prepareSdkSession(
       eventBus: spec.eventBus,
       config: spec.config,
       services: spec.services,
+      workingDirectory: spec.workspaceDir,
     });
   } catch (err: unknown) {
     return { ok: false, error: `Tool resolution failed: ${errorMessage(err)}` };
@@ -395,10 +340,6 @@ export async function prepareSdkSession(
       injectedMemory,
       model: workerMeta.model,
       resolvedTools,
-      resourceDefaults: {
-        maxTurns: workerMeta.resourceDefaults?.maxTurns,
-        maxBudgetUsd: workerMeta.resourceDefaults?.maxBudgetUsd,
-      },
       localModelDefinitions: spec.config.models,
       projectPath: spec.projectPath,
       workingDirectory: spec.workspaceDir,
@@ -449,8 +390,7 @@ export async function prepareSdkSession(
           soul: subMeta.soul,
           injectedMemory: subMemory,
           model: subMeta.model,
-          resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
-          resourceDefaults: {},
+          resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
           localModelDefinitions: spec.config.models,
           projectPath: spec.projectPath,
           workingDirectory: spec.workspaceDir,
@@ -479,8 +419,6 @@ export async function prepareSdkSession(
   log.info(`Sub-agent map built: ${Object.keys(agents).length} agents included`);
 
   // 5. Build SDK query options
-  const maxTurns = spec.resourceOverrides?.maxTurns ?? activation.resourceBounds.maxTurns;
-  const maxBudgetUsd = spec.resourceOverrides?.maxBudgetUsd ?? activation.resourceBounds.maxBudgetUsd;
   const resolvedModelName = spec.resourceOverrides?.model ?? activation.model;
 
   // 5a. Resolve model to built-in or local definition (REQ-LOCAL-8)
@@ -525,7 +463,7 @@ export async function prepareSdkSession(
   const sandboxSettings = hasBash
     ? {
         enabled: true,
-        autoAllowBashIfSandboxed: true,
+        autoAllowBashIfSandboxed: false,
         allowUnsandboxedCommands: false,
         network: {
           allowLocalBinding: false,
@@ -533,16 +471,14 @@ export async function prepareSdkSession(
       }
     : undefined;
 
-  // 5e. Build canUseTool callback from worker rules (REQ-SBX-20, REQ-SBX-21)
-  const canUseToolRules = activation.tools.canUseToolRules;
-  const canUseToolCallback = canUseToolRules.length > 0
-    ? buildCanUseTool(canUseToolRules)
-    : undefined;
-
   const mcpServers: Record<string, unknown> = {};
   for (const server of activation.tools.mcpServers) {
     mcpServers[server.name] = server;
   }
+  
+  log.info(`allowedTools: ${activation.tools.allowedTools.join(", ")}`);
+  log.info(`builtInTools: ${activation.tools.builtInTools.join(", ")}`);
+  log.info(`CWD: ${spec.workspaceDir}`);
 
   const options: SdkQueryOptions = {
     systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
@@ -554,10 +490,7 @@ export async function prepareSdkSession(
     ...(finalModelId ? { model: finalModelId } : {}),
     ...(localEnv ? { env: localEnv } : {}),
     ...(sandboxSettings ? { sandbox: sandboxSettings } : {}),
-    ...(canUseToolCallback ? { canUseTool: canUseToolCallback } : {}),
     ...(Object.keys(agents).length > 0 ? { agents } : {}),
-    ...(maxTurns ? { maxTurns } : {}),
-    ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
     permissionMode: "dontAsk",
     settingSources: ["local", "project", "user"],
     abortController: spec.abortController,

@@ -1,14 +1,17 @@
 ---
 title: Guild Hall Vision
-date: 2026-03-17
-version: 2
+date: 2026-03-22
+version: 3
 status: approved
-last_reviewed: 2026-03-17
+last_reviewed: 2026-03-22
 approved_by: Ronald Roy
-approved_date: 2026-03-17
+approved_date: 2026-03-22
 review_trigger: "after major architectural changes or quarterly"
 tags: [vision]
 changelog:
+  - version: 3
+    date: 2026-03-22
+    summary: "Added Principle 7: Ride the Wave, Don't Build Breakwaters"
   - version: 2
     date: 2026-03-17
     summary: "Added Growth Surface section"
@@ -64,6 +67,13 @@ Tools do mechanics. Agents make decisions. A tool reads a file, writes a file, r
 
 **Looks like:** The base toolbox provides memory read/write, artifact read/write, and decision recording. The worker decides what to remember, what to write, and when a decision merits recording.
 **Doesn't look like:** A "research_and_summarize" tool that bundles search, evaluation, and synthesis into a single call. Or a "smart commit" tool that decides what to include in a commit message.
+
+## 7. Ride the Wave, Don't Build Breakwaters
+
+The LLM environment is evolving rapidly. Guild Hall must provide functionality without impeding or constraining that evolution. Changes to the base agent architecture should be additive, not workarounds for limitations in the current SDK. When the SDK gains a capability, the system should adopt it. When the SDK lacks a capability, the system should add what's missing alongside it, not build an alternative that competes with where the SDK is heading.
+
+**Looks like:** The SDK sandbox restricts filesystem and network access for Bash. Guild Hall uses that. A new toolbox adds structured git data for workers that don't need Bash. Both extend what exists.
+**Doesn't look like:** Building a command-filtering callback to restrict what Bash can do, then maintaining glob patterns for every worker when the SDK already provides a sandbox. Or reimplementing `rm`, `mkdir`, and `mv` as narrow MCP tools because workers shouldn't have Bash, when the real answer is posture and sandbox.
 
 # Anti-Goals
 

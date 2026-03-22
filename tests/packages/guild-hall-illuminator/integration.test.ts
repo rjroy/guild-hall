@@ -107,14 +107,6 @@ describe("guild-hall-illuminator package", () => {
       expect(pkgJson.guildHall.checkoutScope).toBe("full");
     });
 
-    test("maxTurns is 120", async () => {
-      const raw = await fs.readFile(
-        path.join(ILLUMINATOR_DIR, "package.json"),
-        "utf-8",
-      );
-      const pkgJson = JSON.parse(raw) as { guildHall: { resourceDefaults: { maxTurns: number } } };
-      expect(pkgJson.guildHall.resourceDefaults.maxTurns).toBe(120);
-    });
   });
 
   describe("toolbox resolution", () => {
@@ -146,7 +138,7 @@ describe("guild-hall-illuminator package", () => {
     });
   });
 
-  describe("built-in tools and canUseToolRules", () => {
+  describe("built-in tools", () => {
     test("builtInTools includes Bash", async () => {
       const raw = await fs.readFile(
         path.join(ILLUMINATOR_DIR, "package.json"),
@@ -174,66 +166,6 @@ describe("guild-hall-illuminator package", () => {
       expect(tools).not.toContain("WebFetch");
       expect(tools).not.toContain("Skill");
       expect(tools).not.toContain("Task");
-    });
-
-    test("canUseToolRules has allowlist-then-deny pattern for Bash", async () => {
-      const raw = await fs.readFile(
-        path.join(ILLUMINATOR_DIR, "package.json"),
-        "utf-8",
-      );
-      const pkgJson = JSON.parse(raw) as {
-        guildHall: {
-          canUseToolRules: Array<{
-            tool: string;
-            commands?: string[];
-            allow: boolean;
-            reason?: string;
-          }>;
-        };
-      };
-      const rules = pkgJson.guildHall.canUseToolRules;
-
-      expect(rules).toHaveLength(2);
-
-      // First rule: allowlist for file operations within .lore/
-      const allowRule = rules[0];
-      expect(allowRule.tool).toBe("Bash");
-      expect(allowRule.allow).toBe(true);
-      expect(allowRule.commands).toBeDefined();
-      expect(allowRule.commands).toContain("mv .lore/**");
-      expect(allowRule.commands).toContain("cp .lore/**");
-      expect(allowRule.commands).toContain("rm .lore/**");
-      expect(allowRule.commands).toContain("rm -f .lore/**");
-      expect(allowRule.commands).toContain("mkdir .lore/**");
-      expect(allowRule.commands).toContain("mkdir -p .lore/**");
-      expect(allowRule.commands).toContain("ls .lore/**");
-
-      // Second rule: catch-all deny
-      const denyRule = rules[1];
-      expect(denyRule.tool).toBe("Bash");
-      expect(denyRule.allow).toBe(false);
-      expect(denyRule.reason).toBeDefined();
-      expect(denyRule.reason).toMatch(/\.lore/);
-    });
-
-    test("canUseToolRules does not allow recursive deletion", async () => {
-      const raw = await fs.readFile(
-        path.join(ILLUMINATOR_DIR, "package.json"),
-        "utf-8",
-      );
-      const pkgJson = JSON.parse(raw) as {
-        guildHall: {
-          canUseToolRules: Array<{
-            commands?: string[];
-          }>;
-        };
-      };
-      const allowedCommands = pkgJson.guildHall.canUseToolRules[0].commands!;
-
-      // No -r, -rf, or -ri flags
-      for (const cmd of allowedCommands) {
-        expect(cmd).not.toMatch(/rm\s+-r/);
-      }
     });
   });
 
@@ -295,8 +227,8 @@ describe("guild-hall-illuminator package", () => {
       expect(posture).toMatch(/read before generating/i);
     });
 
-    test("principles cover never modify source code", () => {
-      expect(posture).toMatch(/never modify source code/i);
+    test("principles cover must not modify source code", () => {
+      expect(posture).toMatch(/must not modify source code/i);
     });
 
     test("principles cover articulating creative decisions", () => {

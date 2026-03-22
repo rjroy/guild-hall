@@ -1,7 +1,7 @@
 ---
 title: Notification and Communication Channels
 date: 2026-03-06
-status: active
+status: resolved
 tags: [notifications, communication, telegram, discord, matrix, ntfy, desktop, integration]
 related: [.lore/reference/infrastructure.md]
 modules: [daemon]

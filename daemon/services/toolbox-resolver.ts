@@ -12,6 +12,7 @@ import type { EventBus } from "@/daemon/lib/event-bus";
 import type { BriefingResult } from "./briefing-generator";
 import { baseToolboxFactory } from "./base-toolbox";
 import { managerToolboxFactory } from "./manager/toolbox";
+import { gitReadonlyToolboxFactory } from "./git-readonly-toolbox";
 import type {
   ContextTypeRegistry,
   GuildHallToolboxDeps,
@@ -23,6 +24,7 @@ import type {
 
 const SYSTEM_TOOLBOX_REGISTRY: Record<string, ToolboxFactory> = {
   manager: managerToolboxFactory,
+  "git-readonly": gitReadonlyToolboxFactory,
 };
 
 // -- Types --
@@ -39,6 +41,8 @@ export interface ToolboxResolverContext {
   services?: GuildHallToolServices;
   /** Cache-only briefing lookup. Optional; absent contexts degrade gracefully. */
   getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
+  /** Working directory for git-readonly toolbox. Typically the session's workspace dir. */
+  workingDirectory?: string;
 }
 
 // -- Resolver --
@@ -93,6 +97,7 @@ export async function resolveToolSet(
         .filter((id): id is WorkerIdentity => id != null),
     getCachedBriefing: context.getCachedBriefing,
     stateSubdir: registration?.stateSubdir,
+    workingDirectory: context.workingDirectory,
   };
 
   // 1. Base toolbox (always present: memory + decision tools)
@@ -149,7 +154,7 @@ export async function resolveToolSet(
     ...mcpServers.map((s) => `mcp__${s.name}__*`),
   ];
 
-  return { mcpServers, allowedTools, builtInTools: worker.builtInTools, canUseToolRules: worker.canUseToolRules ?? [] };
+  return { mcpServers, allowedTools, builtInTools: worker.builtInTools };
 }
 
 // -- Helpers --

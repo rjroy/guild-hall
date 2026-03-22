@@ -67,7 +67,6 @@ function makeManagerPackage(): DiscoveredPackage {
     domainToolboxes: [],
     builtInTools: ["Read", "Glob", "Grep"],
     checkoutScope: "sparse",
-    resourceDefaults: { maxTurns: 200 },
   };
   return { name: MANAGER_PACKAGE_NAME, path: "", metadata };
 }
@@ -546,8 +545,7 @@ describe("buildManagerContext - meeting session integration", () => {
       identity: { name: "Guild Master", description: "Test manager", displayTitle: "Guild Master" },
       posture: "Test posture.",
       injectedMemory: "",
-      resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
-      resourceDefaults: { maxTurns: 200 },
+      resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
       projectPath: "/tmp/test",
       workingDirectory: "/tmp/test",
       managerContext: context,

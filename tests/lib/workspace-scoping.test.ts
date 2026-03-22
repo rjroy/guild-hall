@@ -64,9 +64,7 @@ workerDisplayTitle: "Test Worker"
 prompt: "Do the thing"
 dependencies:${depsYaml}
 linked_artifacts: []
-resource_overrides:
-  maxTurns: 150
-  maxBudgetUsd: 1.00
+resource_overrides: {}
 activity_timeline:
   - timestamp: 2026-02-23T12:00:00.000Z
     event: created
@@ -111,7 +109,6 @@ function makeManagerPackage(): DiscoveredPackage {
     domainToolboxes: [],
     builtInTools: ["Read", "Glob", "Grep"],
     checkoutScope: "sparse",
-    resourceDefaults: { maxTurns: 200 },
   };
   return { name: MANAGER_PACKAGE_NAME, path: "", metadata };
 }

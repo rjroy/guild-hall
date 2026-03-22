@@ -140,11 +140,22 @@
   margin-bottom: 0;
 }
 
+/* View controls wrapper */
+.viewControls {
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-panel-bg);
+  border-radius: 6px;
+  border-bottom: 1px solid var(--color-bronze);
+  /* -webkit- prefix must come before standard property (Next.js compilation quirk) */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
 /* Sub-tabs */
 .subTabs {
   display: flex;
   gap: var(--space-sm);
-  margin-bottom: var(--space-md);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -169,7 +180,7 @@
 .filterBar {
   display: flex;
   gap: var(--space-sm);
-  margin-bottom: var(--space-md);
+  padding-top: var(--space-sm);
   flex-wrap: wrap;
 }
 

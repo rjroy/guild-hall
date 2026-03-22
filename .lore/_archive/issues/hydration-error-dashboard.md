@@ -1,7 +1,7 @@
 ---
 title: Hydration mismatch error on every dashboard load
 date: 2026-03-10
-status: mitigated
+status: wontfix
 tags: [bug, ui, next-js]
 modules: [web/app/page]
 ---

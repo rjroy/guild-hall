@@ -44,15 +44,17 @@
 
 :root {
   /* Palette */
-  --color-brass: #b8860b;
-  --color-bronze: #8b6914;
-  --color-amber: #ffb000;
-  --color-parchment: #f4e4c1;
-  --color-dark-bg: #1a1412;
-  --color-panel-bg: #1a1412bf;
-  --color-text: #e8dcc8;
-  --color-text-muted: #a89878;
-  --color-text-heading: #d4b366;
+  --color-brass: hsl(43, 89%, 38%);
+  --color-bronze: hsl(43, 75%, 31%);
+  --color-amber: hsl(41, 100%, 50%);
+  --color-parchment: hsl(41, 70%, 86%);
+  --color-dark-bg: hsl(15, 18%, 9%);
+  --color-panel-bg: hsla(15, 18%, 9%, 0.74);
+  --color-button-bg: hsla(43, 60%, 10%, 0.75);
+  --color-button-bg-hover: hsl(43, 60%, 10%);
+  --color-text: hsl(38, 41%, 85%);
+  --color-text-muted: hsl(40, 22%, 56%);
+  --color-text-heading: hsl(42, 56%, 62%);
 
   /* Spacing */
   --space-xs: 4px;

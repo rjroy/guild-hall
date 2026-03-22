@@ -55,7 +55,6 @@ const WORKER_META: WorkerMetadata = {
   domainToolboxes: [],
   builtInTools: ["Read", "Glob", "Grep"],
   checkoutScope: "sparse",
-  resourceDefaults: { maxTurns: 30 },
 };
 
 const WORKER_PKG: DiscoveredPackage = {
@@ -173,9 +172,7 @@ function makeMockActivateFn() {
         mcpServers: [],
         allowedTools: ["Read", "Glob", "Grep"],
         builtInTools: [],
-        canUseToolRules: [],
       },
-      resourceBounds: { maxTurns: context.resourceDefaults.maxTurns },
     };
   }
 
@@ -494,7 +491,6 @@ describe("integration: POST /meeting/request/meeting/create creates meeting and 
     expect(call.context.posture).toBe(WORKER_META.posture);
     expect(call.context.meetingContext?.agenda).toBe("Review the architecture");
     expect(call.context.projectPath).toBe(projectDir);
-    expect(call.context.resourceDefaults.maxTurns).toBe(30);
   });
 
   test("passes correct query options to the SDK mock", async () => {
@@ -516,7 +512,6 @@ describe("integration: POST /meeting/request/meeting/create creates meeting and 
       append: WORKER_META.posture,
     });
     expect(call.options.permissionMode).toBe("dontAsk");
-    expect(call.options.maxTurns).toBe(30);
   });
 });
 

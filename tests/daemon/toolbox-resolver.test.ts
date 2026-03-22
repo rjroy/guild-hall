@@ -272,8 +272,6 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     async abandonCommission() {},
     async redispatchCommission() { return { status: "accepted" as const }; },
     async addUserNote() {},
-    async continueCommission() { return { status: "accepted" as const }; },
-    async saveCommission() {},
     async checkDependencyTransitions() {},
     async createScheduledCommission() { return { commissionId: "schedule-001" }; },
     async updateScheduleStatus() { return { outcome: "executed", status: "paused" }; },
@@ -422,29 +420,6 @@ describe("resolveToolSet with manager toolbox", () => {
     await expect(
       resolveToolSet(worker, [], testContext(), registry),
     ).rejects.toThrow(/wannabe-manager.*manager.*services are not available/);
-  });
-});
-
-// -- canUseToolRules passthrough (REQ-SBX-19, REQ-SBX-24) --
-
-describe("canUseToolRules passthrough", () => {
-  test("resolveToolSet returns canUseToolRules: [] when worker has no rules", async () => {
-    const worker = makeWorker({ builtInTools: ["Read", "Glob"] });
-    const result = await resolveToolSet(worker, [], testContext(), registry);
-    expect(result.canUseToolRules).toEqual([]);
-  });
-
-  test("resolveToolSet returns canUseToolRules matching worker declaration", async () => {
-    const rules = [
-      { tool: "Bash", commands: ["git status"], allow: true },
-      { tool: "Bash", allow: false, reason: "Only git status" },
-    ];
-    const worker = makeWorker({
-      builtInTools: ["Read", "Bash"],
-      canUseToolRules: rules,
-    });
-    const result = await resolveToolSet(worker, [], testContext(), registry);
-    expect(result.canUseToolRules).toEqual(rules);
   });
 });
 
@@ -604,7 +579,7 @@ export function toolboxFactory(deps) {
   };
 }
 export function activate(ctx) {
-  return { systemPrompt: "test", tools: { mcpServers: [], allowedTools: [] }, resourceBounds: {} };
+  return { systemPrompt: "test", tools: { mcpServers: [], allowedTools: [] } };
 }
 `,
     );
@@ -672,5 +647,66 @@ describe("context type registry integration", () => {
     const briefingContext = { ...testContext(), contextType: "briefing" };
     const briefingResult = await resolveToolSet(worker, [], briefingContext, registry);
     expect(briefingResult.mcpServers.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// -- git-readonly system toolbox integration (REQ-WTB-1, REQ-WTB-2) --
+
+describe("resolveToolSet with git-readonly toolbox", () => {
+  test("worker with git-readonly systemToolbox gets git-readonly MCP server", async () => {
+    const worker = makeWorker({ systemToolboxes: ["git-readonly"] });
+    const context = {
+      ...testContext(),
+      workingDirectory: tmpDir,
+    };
+    const result = await resolveToolSet(worker, [], context, registry);
+
+    // base + meeting (auto) + git-readonly (system) = 3 servers
+    expect(result.mcpServers).toHaveLength(3);
+    expect(result.mcpServers[0].name).toBe("guild-hall-base");
+    expect(result.mcpServers[1].name).toBe("guild-hall-meeting");
+    expect(result.mcpServers[2].name).toBe("guild-hall-git-readonly");
+  });
+
+  test("git-readonly MCP wildcard appears in allowedTools", async () => {
+    const worker = makeWorker({ systemToolboxes: ["git-readonly"] });
+    const context = {
+      ...testContext(),
+      workingDirectory: tmpDir,
+    };
+    const result = await resolveToolSet(worker, [], context, registry);
+
+    expect(result.allowedTools).toContain("mcp__guild-hall-git-readonly__*");
+  });
+
+  test("git-readonly coexists with manager system toolbox", async () => {
+    const worker = makeWorker({ systemToolboxes: ["manager", "git-readonly"] });
+    const services: GuildHallToolServices = {
+      commissionSession: makeMockCommissionSession(),
+      gitOps: makeMockGitOps(),
+      config: { projects: [] },
+    };
+    const context = {
+      ...testContext(),
+      workerName: "Guild Master",
+      workingDirectory: tmpDir,
+      services,
+    };
+    const result = await resolveToolSet(worker, [], context, registry);
+
+    // base + meeting (auto) + manager + git-readonly = 4 servers
+    expect(result.mcpServers).toHaveLength(4);
+    const names = result.mcpServers.map((s) => s.name);
+    expect(names).toContain("guild-hall-manager");
+    expect(names).toContain("guild-hall-git-readonly");
+  });
+
+  test("worker without git-readonly does not get git tools", async () => {
+    const worker = makeWorker();
+    const result = await resolveToolSet(worker, [], testContext(), registry);
+
+    const names = result.mcpServers.map((s) => s.name);
+    expect(names).not.toContain("guild-hall-git-readonly");
+    expect(result.allowedTools).not.toContain("mcp__guild-hall-git-readonly__*");
   });
 });

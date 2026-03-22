@@ -1,7 +1,7 @@
 ---
 title: Commission Halted State and Continuation
 date: 2026-03-16
-status: implemented
+status: superseded
 tags: [commissions, lifecycle, halted, continuation, max-turns, recovery]
 modules: [commission-orchestrator, commission-lifecycle, sdk-runner]
 related:
@@ -12,6 +12,8 @@ related:
   - .lore/brainstorm/commission-maxturns-recovery.md
 req-prefix: COM
 ---
+
+> **Superseded** by `.lore/specs/commissions/remove-budget-controls.md` (Phase 2). The halted state was removed entirely after the maxTurns trigger was removed in Phase 1.
 
 # Spec: Commission Halted State and Continuation
 

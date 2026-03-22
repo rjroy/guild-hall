@@ -227,10 +227,6 @@ function createMockRecordOps(): MockRecordOps {
       calls.push({ method: "readProgress", args: [artifactPath] });
       return Promise.resolve("");
     },
-    incrementHaltCount(artifactPath: string): Promise<number> {
-      calls.push({ method: "incrementHaltCount", args: [artifactPath] });
-      return Promise.resolve(1);
-    },
     writeScheduleFields(
       artifactPath: string,
       updates: Partial<{ runsCompleted: number; lastRun: string; lastSpawnedId: string; cron: string; repeat: number | null }>,
@@ -280,7 +276,7 @@ function createMockCommissionSession(): MockCommissionSession {
       workerName: string,
       prompt: string,
       dependencies?: string[],
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
+      resourceOverrides?: { model?: string },
       options?: { type?: string; sourceSchedule?: string },
     ): Promise<{ commissionId: string }> {
       calls.push({
@@ -306,10 +302,6 @@ function createMockCommissionSession(): MockCommissionSession {
     updateScheduleStatus(): Promise<{ outcome: string; status?: string }> {
       return Promise.resolve({ outcome: "executed", status: "paused" });
     },
-    continueCommission(): Promise<{ status: "accepted" | "capacity_error" }> {
-      return Promise.resolve({ status: "accepted" });
-    },
-    saveCommission(): Promise<void> { return Promise.resolve(); },
     checkDependencyTransitions(): Promise<void> { return Promise.resolve(); },
     createTriggeredCommission(): Promise<{ commissionId: string }> {
       return Promise.resolve({ commissionId: "trigger-001" });

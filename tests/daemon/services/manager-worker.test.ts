@@ -24,7 +24,6 @@ function makeContext(
     mcpServers: [],
     allowedTools: ["Read", "Glob", "Grep"],
     builtInTools: [],
-    canUseToolRules: [],
   };
 
   return {
@@ -32,7 +31,6 @@ function makeContext(
     posture: "Test posture text.",
     injectedMemory: "",
     resolvedTools: defaultTools,
-    resourceDefaults: { maxTurns: 200 },
     projectPath: "/tmp/test-project",
     workingDirectory: "/tmp/test-project",
     ...overrides,
@@ -76,44 +74,16 @@ describe("createManagerPackage", () => {
     expect(meta.checkoutScope).toBe("full");
   });
 
-  test("resourceDefaults has maxTurns 200", () => {
+  test("builtInTools includes read-only tools without Bash", () => {
     const pkg = createManagerPackage();
     const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.resourceDefaults?.maxTurns).toBe(200);
+    expect(meta.builtInTools).toEqual(["Read", "Glob", "Grep"]);
   });
 
-  test("builtInTools includes read-only tools and Bash", () => {
+  test("builtInTools does not contain Bash (REQ-WTB-4)", () => {
     const pkg = createManagerPackage();
     const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.builtInTools).toEqual(["Read", "Glob", "Grep", "Bash"]);
-  });
-
-  test("builtInTools contains Bash (REQ-WTR-17 case 16)", () => {
-    const pkg = createManagerPackage();
-    const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.builtInTools).toContain("Bash");
-  });
-
-  test("canUseToolRules contains allowlist and catch-all deny (REQ-WTR-17 case 17)", () => {
-    const pkg = createManagerPackage();
-    const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.canUseToolRules).toBeDefined();
-    const rules = meta.canUseToolRules!;
-
-    // First rule: allow specific git commands
-    expect(rules[0].tool).toBe("Bash");
-    expect(rules[0].allow).toBe(true);
-    expect(rules[0].commands).toContain("git status");
-    expect(rules[0].commands).toContain("git status *");
-    expect(rules[0].commands).toContain("git log *");
-    expect(rules[0].commands).toContain("git diff *");
-    expect(rules[0].commands).toContain("git show *");
-
-    // Last rule: catch-all deny
-    const lastRule = rules[rules.length - 1];
-    expect(lastRule.tool).toBe("Bash");
-    expect(lastRule.allow).toBe(false);
-    expect(lastRule.reason).toBeDefined();
+    expect(meta.builtInTools).not.toContain("Bash");
   });
 
   test("domainToolboxes is empty", () => {
@@ -242,29 +212,10 @@ describe("activateManager", () => {
       mcpServers: [],
       allowedTools: ["Read", "Glob", "Grep", "CustomTool"],
       builtInTools: [],
-      canUseToolRules: [],
     };
     const context = makeContext({ resolvedTools: tools });
     const result = activateManager(context);
     expect(result.tools).toBe(tools);
-  });
-
-  test("passes through resourceBounds from context", () => {
-    const context = makeContext({
-      resourceDefaults: { maxTurns: 150, maxBudgetUsd: 5.0 },
-    });
-    const result = activateManager(context);
-    expect(result.resourceBounds.maxTurns).toBe(150);
-    expect(result.resourceBounds.maxBudgetUsd).toBe(5.0);
-  });
-
-  test("resourceBounds handles undefined maxBudgetUsd", () => {
-    const context = makeContext({
-      resourceDefaults: { maxTurns: 200 },
-    });
-    const result = activateManager(context);
-    expect(result.resourceBounds.maxTurns).toBe(200);
-    expect(result.resourceBounds.maxBudgetUsd).toBeUndefined();
   });
 
   test("system prompt sections are separated by double newlines", () => {
@@ -300,12 +251,14 @@ describe("activateManager", () => {
     expect(result.systemPrompt).toContain("You are described as: Runs the hall.");
   });
 
-  test("activateManager assembly order: soul, identity, posture, memory, context", () => {
+  test("activateManager assembly order: soul, identity, posture, memory, meeting, commission, manager context", () => {
     const context = makeContext({
       soul: "SOUL",
       posture: "POSTURE",
       injectedMemory: "MEMORY",
-      managerContext: "CONTEXT",
+      meetingContext: { meetingId: "m1", agenda: "MEETING_AGENDA", referencedArtifacts: [] },
+      commissionContext: { commissionId: "c1", prompt: "COMMISSION_PROMPT", dependencies: [] },
+      managerContext: "MANAGER_CONTEXT",
     });
     const result = activateManager(context);
 
@@ -313,13 +266,67 @@ describe("activateManager", () => {
     const identityIdx = result.systemPrompt.indexOf("Your name is:");
     const postureIdx = result.systemPrompt.indexOf("POSTURE");
     const memoryIdx = result.systemPrompt.indexOf("MEMORY");
-    const contextIdx = result.systemPrompt.indexOf("CONTEXT");
+    const meetingIdx = result.systemPrompt.indexOf("MEETING_AGENDA");
+    const commissionIdx = result.systemPrompt.indexOf("COMMISSION_PROMPT");
+    const managerIdx = result.systemPrompt.indexOf("MANAGER_CONTEXT");
 
     expect(soulIdx).toBeGreaterThanOrEqual(0);
     expect(identityIdx).toBeGreaterThan(soulIdx);
     expect(postureIdx).toBeGreaterThan(identityIdx);
     expect(memoryIdx).toBeGreaterThan(postureIdx);
-    expect(contextIdx).toBeGreaterThan(memoryIdx);
+    expect(meetingIdx).toBeGreaterThan(memoryIdx);
+    expect(commissionIdx).toBeGreaterThan(meetingIdx);
+    expect(managerIdx).toBeGreaterThan(commissionIdx);
+  });
+
+  test("includes meeting agenda in system prompt when meetingContext is provided", () => {
+    const context = makeContext({
+      meetingContext: { meetingId: "mtg-1", agenda: "Discuss Q2 roadmap priorities", referencedArtifacts: [] },
+    });
+    const result = activateManager(context);
+    expect(result.systemPrompt).toContain("# Meeting Context");
+    expect(result.systemPrompt).toContain("Agenda: Discuss Q2 roadmap priorities");
+  });
+
+  test("excludes meeting context section when meetingContext is not provided", () => {
+    const context = makeContext();
+    const result = activateManager(context);
+    expect(result.systemPrompt).not.toContain("# Meeting Context");
+  });
+
+  test("includes commission context in system prompt when commissionContext is provided", () => {
+    const context = makeContext({
+      commissionContext: {
+        commissionId: "comm-1",
+        prompt: "Fix the login bug in auth.ts",
+        dependencies: [],
+      },
+    });
+    const result = activateManager(context);
+    expect(result.systemPrompt).toContain("# Commission Context");
+    expect(result.systemPrompt).toContain("You are executing a commission (an async work item).");
+    expect(result.systemPrompt).toContain("Fix the login bug in auth.ts");
+    expect(result.systemPrompt).toContain("## Commission protocol");
+  });
+
+  test("includes commission dependencies when provided", () => {
+    const context = makeContext({
+      commissionContext: {
+        commissionId: "comm-2",
+        prompt: "Implement feature X",
+        dependencies: [".lore/specs/feature-x.md", ".lore/design/feature-x.md"],
+      },
+    });
+    const result = activateManager(context);
+    expect(result.systemPrompt).toContain("## Dependencies (artifacts to reference):");
+    expect(result.systemPrompt).toContain("- .lore/specs/feature-x.md");
+    expect(result.systemPrompt).toContain("- .lore/design/feature-x.md");
+  });
+
+  test("excludes commission context section when commissionContext is not provided", () => {
+    const context = makeContext();
+    const result = activateManager(context);
+    expect(result.systemPrompt).not.toContain("# Commission Context");
   });
 
   test("uses context.model when provided", () => {

@@ -1,7 +1,7 @@
 ---
 title: CLI Commission Commands
 date: 2026-03-20
-status: draft
+status: approved
 tags: [cli, commissions, lifecycle, daemon-client, operations]
 modules: [cli, daemon/routes/commissions]
 related:
@@ -9,6 +9,7 @@ related:
   - .lore/specs/infrastructure/daemon-application-boundary.md
   - .lore/specs/commissions/guild-hall-commissions.md
   - .lore/specs/commissions/commission-halted-continuation.md
+  - .lore/specs/commissions/triggered-commissions.md
 req-prefix: CLI-COM
 ---
 
@@ -52,8 +53,9 @@ This spec defines what the CLI commission experience should be: which operations
   | `commission.request.commission.note` | `commissionId` | `content` |
   | `commission.run.abandon` | `commissionId` | `reason` |
   | `commission.schedule.commission.update` | `commissionId` | `status` |
+  | `commission.trigger.commission.update` | `commissionId` | `status`, `projectName` |
 
-  Parameters like `dependencies`, `resourceOverrides`, `type`, `cron`, and `repeat` on `create` are optional and don't need CLI parameter declarations for the minimum viable experience. Users who need those can use `--json` input or the web UI.
+  Parameters like `dependencies`, `resourceOverrides`, `type`, `cron`, `repeat`, `match`, `approval`, and `maxDepth` on `create` are optional and don't need CLI parameter declarations for the minimum viable experience. Users who need those can use `--json` input or the web UI.
 
 - REQ-CLI-COM-2: Parameter order in the operation definition determines positional argument mapping. The order should follow natural command phrasing. For `create`: `projectName`, `workerName`, `title`, `prompt`. This produces: `guild-hall commission request commission create <project> <worker> <title> <prompt>`.
 
@@ -62,6 +64,8 @@ This spec defines what the CLI commission experience should be: which operations
   For `note`: `commissionId`, `content`. This produces: `guild-hall commission request commission note <commissionId> <content>`.
 
   For `schedule update`: `commissionId`, `status`. This produces: `guild-hall commission schedule commission update <commissionId> <status>`.
+
+  For `trigger update`: `commissionId`, `status`. This produces: `guild-hall commission trigger commission update <commissionId> <status>`. The `projectName` parameter is optional and only needed when re-registering an active trigger's event subscription.
 
 ### Commission List Filtering
 
@@ -103,6 +107,8 @@ This spec defines what the CLI commission experience should be: which operations
   Sections with no content (no progress, no result) are omitted from the output rather than shown empty. The header and timeline are always present.
 
   Scheduled commission detail additionally shows schedule info (cron description, runs completed, next run) between the header and progress sections.
+
+  Triggered commission detail additionally shows trigger info (match pattern, approval mode, runs completed, last triggered) between the header and progress sections.
 
   Example:
   ```
@@ -172,6 +178,7 @@ This spec defines what the CLI commission experience should be: which operations
   | `update` | `commission request commission update <id>` | Update pending commission |
   | `note` | `commission request commission note <id> <content>` | Add user note |
   | `schedule update` | `commission schedule commission update <id> <status>` | Pause/resume schedule |
+  | `trigger update` | `commission trigger commission update <id> <status>` | Pause/resume/complete trigger |
   | `dependency check` | `commission dependency project check <project>` | Trigger dependency transitions |
 
   `create` is secondary because creating commissions from the CLI requires many optional parameters (dependencies, resource overrides, scheduling) that don't map well to positional arguments. The web UI and meetings with the Guild Master handle the full creation workflow better. The CLI `create` covers the simple case: one-shot commission with required fields only.
@@ -226,7 +233,7 @@ This spec defines what the CLI commission experience should be: which operations
 
 - This spec does not add new daemon route handlers. Filtering (REQ-CLI-COM-3 through REQ-CLI-COM-5) requires the list route handler to accept and apply `status` and `worker` query parameters. This is a small enhancement to the existing handler, not a new endpoint. The route handler change is a prerequisite for this spec's filtering requirements.
 - This spec does not change the capability-oriented path grammar. The verbose command paths (`commission request commission list`) are a consequence of the hierarchy design (REQ-DAB-5). If shorter aliases are desired (e.g., `commission list` as shorthand for `commission request commission list`), that's a separate feature requiring CLI-level alias support.
-- The `create` command handles only simple one-shot commissions with required fields. Creating scheduled commissions, specifying dependencies, or setting resource overrides requires the web UI, a meeting with the Guild Master, or a raw `curl` call. Expanding CLI `create` to support the full creation surface is future work.
+- The `create` command handles only simple one-shot commissions with required fields. Creating scheduled commissions, triggered commissions, specifying dependencies, or setting resource overrides requires the web UI, a meeting with the Guild Master, or a raw `curl` call. Expanding CLI `create` to support the full creation surface is future work.
 - Custom formatters live in the CLI, not the daemon. The daemon returns the same JSON regardless of the client. The CLI is responsible for human-readable presentation.
 
 ## Context
@@ -235,4 +242,4 @@ The CLI already works as a thin daemon client (`.lore/specs/infrastructure/cli-p
 
 The gap this spec addresses is not "commission commands don't exist" but "commission commands don't work well enough for terminal use." The operations are discoverable and theoretically invocable, but incomplete parameter declarations prevent the CLI from constructing valid requests, and the generic formatter doesn't produce useful output for commission data.
 
-Commission lifecycle states and transitions are defined in the main commissions spec (`guild-hall-commissions.md`, REQ-COM-5, REQ-COM-6) and the halted continuation spec (`commission-halted-continuation.md`, REQ-COM-33 through REQ-COM-50). This spec takes the lifecycle as given and focuses on exposing it through the CLI.
+Commission lifecycle states and transitions are defined in the main commissions spec (`guild-hall-commissions.md`, REQ-COM-5, REQ-COM-6), the halted continuation spec (`commission-halted-continuation.md`, REQ-COM-33 through REQ-COM-50), and the triggered commissions spec (`triggered-commissions.md`). Triggered commissions add a `trigger` hierarchy (`commission.trigger.commission.update`) for managing trigger status alongside the existing `schedule` hierarchy. This spec takes the lifecycle as given and focuses on exposing it through the CLI.

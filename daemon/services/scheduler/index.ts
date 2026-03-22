@@ -480,16 +480,10 @@ export class SchedulerService {
    * Reads the resource_overrides block from a schedule artifact.
    * Fields are 2-space indented under "resource_overrides:".
    */
-  private readResourceOverrides(raw: string): { maxTurns?: number; maxBudgetUsd?: number; model?: string } {
-    const result: { maxTurns?: number; maxBudgetUsd?: number; model?: string } = {};
+  private readResourceOverrides(raw: string): { model?: string } {
+    const result: { model?: string } = {};
 
     if (!/^resource_overrides:$/m.test(raw)) return result;
-
-    const maxTurnsMatch = raw.match(/^ {2}maxTurns: (.+)$/m);
-    if (maxTurnsMatch) result.maxTurns = Number(maxTurnsMatch[1].trim());
-
-    const maxBudgetMatch = raw.match(/^ {2}maxBudgetUsd: (.+)$/m);
-    if (maxBudgetMatch) result.maxBudgetUsd = Number(maxBudgetMatch[1].trim());
 
     const modelMatch = raw.match(/^ {2}model: (.+)$/m);
     if (modelMatch) result.model = modelMatch[1].trim();
@@ -499,7 +493,7 @@ export class SchedulerService {
 
   /**
    * Checks whether a spawned commission is still actively running.
-   * "Still active" means dispatched, in_progress, or halted.
+   * "Still active" means dispatched or in_progress.
    */
   private async isSpawnedCommissionActive(
     spawnedId: string,
@@ -516,7 +510,7 @@ export class SchedulerService {
 
     try {
       const status = await recordOps.readStatus(artifactPath);
-      return status === "dispatched" || status === "in_progress" || status === "halted";
+      return status === "dispatched" || status === "in_progress";
     } catch {
       // Artifact not found or unreadable: treat as not active
       return false;

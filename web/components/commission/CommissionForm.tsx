@@ -50,8 +50,6 @@ export default function CommissionForm({
   const [workerName, setWorkerName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [dependencies, setDependencies] = useState(initialDependencies);
-  const [maxTurns, setMaxTurns] = useState("");
-  const [maxBudgetUsd, setMaxBudgetUsd] = useState("");
   const [modelOverride, setModelOverride] = useState("");
   const [overridesOpen, setOverridesOpen] = useState(false);
   const [models, setModels] = useState<ModelsResponse | null>(null);
@@ -129,19 +127,7 @@ export default function CommissionForm({
       .map((d) => d.trim())
       .filter(Boolean);
 
-    const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string } = {};
-    if (maxTurns.trim()) {
-      const parsed = parseInt(maxTurns, 10);
-      if (!isNaN(parsed) && parsed > 0) {
-        resourceOverrides.maxTurns = parsed;
-      }
-    }
-    if (maxBudgetUsd.trim()) {
-      const parsed = parseFloat(maxBudgetUsd);
-      if (!isNaN(parsed) && parsed > 0) {
-        resourceOverrides.maxBudgetUsd = parsed;
-      }
-    }
+    const resourceOverrides: { model?: string } = {};
     if (modelOverride) {
       resourceOverrides.model = modelOverride;
     }
@@ -198,7 +184,7 @@ export default function CommissionForm({
       setError(message);
       setSubmitting(false);
     }
-  }, [title, workerName, prompt, dependencies, maxTurns, maxBudgetUsd, modelOverride, commissionType, cron, repeat, projectName, onCreated]);
+  }, [title, workerName, prompt, dependencies, modelOverride, commissionType, cron, repeat, projectName, onCreated]);
 
   const canSubmit =
     title.trim().length > 0 &&
@@ -362,45 +348,6 @@ export default function CommissionForm({
         </button>
         {overridesOpen && (
           <div className={styles.overridesSection}>
-            <div className={styles.overridesFields}>
-              <div className={styles.overridesField}>
-                <label
-                  className={styles.overridesLabel}
-                  htmlFor="commission-max-turns"
-                >
-                  Max Turns
-                </label>
-                <input
-                  id="commission-max-turns"
-                  className={styles.numberInput}
-                  type="number"
-                  min="1"
-                  value={maxTurns}
-                  onChange={(e) => setMaxTurns(e.target.value)}
-                  placeholder="10"
-                  disabled={submitting}
-                />
-              </div>
-              <div className={styles.overridesField}>
-                <label
-                  className={styles.overridesLabel}
-                  htmlFor="commission-max-budget"
-                >
-                  Max Budget (USD)
-                </label>
-                <input
-                  id="commission-max-budget"
-                  className={styles.numberInput}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={maxBudgetUsd}
-                  onChange={(e) => setMaxBudgetUsd(e.target.value)}
-                  placeholder="5.00"
-                  disabled={submitting}
-                />
-              </div>
-            </div>
             <div className={styles.overridesField}>
               <label
                 className={styles.overridesLabel}

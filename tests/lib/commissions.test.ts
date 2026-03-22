@@ -49,9 +49,7 @@ dependencies:
   - specs/auth-requirements.md
 linked_artifacts:
   - notes/oauth-notes.md
-resource_overrides:
-  maxTurns: 150
-  maxBudgetUsd: 1.00
+resource_overrides: {}
 activity_timeline:
   - timestamp: 2026-02-21T14:30:00.000Z
     event: created
@@ -78,7 +76,7 @@ describe("readCommissionMeta", () => {
     expect(meta.prompt).toBe("Research OAuth 2.0 patterns for CLI tools");
     expect(meta.dependencies).toEqual(["specs/auth-requirements.md"]);
     expect(meta.linked_artifacts).toEqual(["notes/oauth-notes.md"]);
-    expect(meta.resource_overrides).toEqual({ maxTurns: 150, maxBudgetUsd: 1.00 });
+    expect(meta.resource_overrides).toEqual({});
     expect(meta.current_progress).toBe("Analyzing patterns");
     expect(meta.result_summary).toBe("");
     expect(meta.projectName).toBe("guild-hall");
@@ -127,10 +125,7 @@ describe("readCommissionMeta", () => {
     expect(meta.prompt).toBe("");
     expect(meta.dependencies).toEqual([]);
     expect(meta.linked_artifacts).toEqual([]);
-    expect(meta.resource_overrides).toEqual({
-      maxTurns: undefined,
-      maxBudgetUsd: undefined,
-    });
+    expect(meta.resource_overrides).toEqual({});
     expect(meta.current_progress).toBe("");
     expect(meta.result_summary).toBe("");
   });
@@ -167,25 +162,6 @@ describe("readCommissionMeta", () => {
     expect(meta.result_summary).toBe("New body value.");
   });
 
-  test("parses halt_count when present", async () => {
-    const filePath = await writeCommission(
-      "commission-halted.md",
-      `title: Halted Commission\nstatus: halted\nworker: researcher\nhalt_count: 2`,
-    );
-
-    const meta = await readCommissionMeta(filePath, "test-project");
-    expect(meta.halt_count).toBe(2);
-  });
-
-  test("halt_count is undefined when absent", async () => {
-    const filePath = await writeCommission(
-      "commission-no-halt.md",
-      `title: Normal Commission\nstatus: pending\nworker: researcher`,
-    );
-
-    const meta = await readCommissionMeta(filePath, "test-project");
-    expect(meta.halt_count).toBeUndefined();
-  });
 });
 
 // -- scanCommissions --
@@ -292,13 +268,6 @@ describe("sortCommissions", () => {
     expect(result.map((c) => c.status)).toEqual(["pending", "in_progress", "failed", "completed"]);
   });
 
-  test("halted sorts with active group (before failed)", () => {
-    const halted = makeCommission("halted", "2026-01-02");
-    const failed = makeCommission("failed", "2026-01-01");
-    const result = sortCommissions([failed, halted]);
-    expect(result[0].status).toBe("halted");
-    expect(result[1].status).toBe("failed");
-  });
 });
 
 // -- parseActivityTimeline --

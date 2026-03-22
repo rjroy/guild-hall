@@ -92,7 +92,6 @@ export const ARTIFACT_STATUS_GROUP: Record<string, number> = {
   current: 1,
   in_progress: 1,
   dispatched: 1,
-  halted: 1,
   // Group 2: Closed negative [blocked gem]
   blocked: 2,
   failed: 2,
@@ -113,6 +112,7 @@ export const ARTIFACT_STATUS_GROUP: Record<string, number> = {
   duplicate: 4,
   invalid: 4,
   archived: 4,
+  parked: 4,
 };
 export const UNKNOWN_STATUS_PRIORITY = 2;
 
@@ -168,11 +168,6 @@ export function isValidModel(value: string, config?: AppConfig): boolean {
   }
 }
 
-export interface ResourceDefaults {
-  maxTurns?: number;
-  maxBudgetUsd?: number;
-}
-
 export interface WorkerIdentity {
   name: string;
   description: string;
@@ -196,9 +191,7 @@ export interface WorkerMetadata {
   domainToolboxes: string[];
   domainPlugins?: string[];
   builtInTools: string[];
-  canUseToolRules?: CanUseToolRule[];
   checkoutScope: CheckoutScope;
-  resourceDefaults?: ResourceDefaults;
   /** Determines git isolation for meetings. "project" runs in the integration worktree; "activity" (default) gets its own branch/worktree. */
   meetingScope?: "project" | "activity";
 }
@@ -233,24 +226,10 @@ export interface DiscoveredPackage {
  * mcpServers contains SDK MCP server instances created via createSdkMcpServer().
  * allowedTools lists the Claude Code built-in tool names the worker may use.
  */
-export interface CanUseToolRule {
-  /** The built-in tool this rule applies to. Must be in builtInTools. */
-  tool: string;
-  /** Command patterns to match (Bash tool only). Glob patterns supported. */
-  commands?: string[];
-  /** File path patterns to match (Read, Write, Edit, Glob, Grep). Glob patterns supported. */
-  paths?: string[];
-  /** Whether to allow or deny the call when this rule matches. */
-  allow: boolean;
-  /** Denial message shown in the session when allow is false. */
-  reason?: string;
-}
-
 export interface ResolvedToolSet {
   mcpServers: McpSdkServerConfigWithInstance[];
   allowedTools: string[];
   builtInTools: string[];
-  canUseToolRules: CanUseToolRule[];
 }
 
 /**
@@ -264,10 +243,6 @@ export interface ActivationContext {
   injectedMemory: string;
   model?: string;
   resolvedTools: ResolvedToolSet;
-  resourceDefaults: {
-    maxTurns?: number;
-    maxBudgetUsd?: number;
-  };
   meetingContext?: {
     meetingId: string;
     agenda: string;
@@ -294,10 +269,6 @@ export interface ActivationResult {
   systemPrompt: string;
   model?: string;
   tools: ResolvedToolSet;
-  resourceBounds: {
-    maxTurns?: number;
-    maxBudgetUsd?: number;
-  };
 }
 
 /**

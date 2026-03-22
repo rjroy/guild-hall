@@ -44,7 +44,6 @@ const WORKER_META: WorkerMetadata = {
   domainToolboxes: [],
   builtInTools: ["Read", "Glob"],
   checkoutScope: "sparse",
-  resourceDefaults: { maxTurns: 30 },
 };
 
 const WORKER_PKG: DiscoveredPackage = {
@@ -67,7 +66,6 @@ const MANAGER_META: WorkerMetadata = {
   builtInTools: ["Read", "Glob", "Grep"],
   checkoutScope: "full",
   meetingScope: "project",
-  resourceDefaults: { maxTurns: 200 },
 };
 
 const MANAGER_PKG: DiscoveredPackage = {
@@ -96,9 +94,7 @@ function makeActivationResult(): ActivationResult {
       mcpServers: [],
       allowedTools: ["Read", "Glob"],
       builtInTools: [],
-      canUseToolRules: [],
     },
-    resourceBounds: { maxTurns: 30 },
   };
 }
 

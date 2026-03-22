@@ -47,25 +47,12 @@ const workerToolboxTuple = z.tuple([
   z.literal("toolbox"),
 ]);
 
-export const resourceDefaultsSchema = z.object({
-  maxTurns: z.number().optional(),
-  maxBudgetUsd: z.number().optional(),
-});
-
 export const workerIdentitySchema = z.object({
   name: z.string(),
   description: z.string(),
   displayTitle: z.string(),
   portraitPath: z.string().optional(),
   guidance: z.string().optional(),
-});
-
-const canUseToolRuleSchema = z.object({
-  tool: z.string(),
-  commands: z.array(z.string()).optional(),
-  paths: z.array(z.string()).optional(),
-  allow: z.boolean(),
-  reason: z.string().optional(),
 });
 
 export const workerMetadataSchema = z.object({
@@ -79,24 +66,7 @@ export const workerMetadataSchema = z.object({
   domainToolboxes: z.array(z.string()),
   domainPlugins: z.array(z.string()).optional(),
   builtInTools: z.array(z.string()),
-  canUseToolRules: z.array(canUseToolRuleSchema).optional(),
   checkoutScope: z.union([z.literal("sparse"), z.literal("full")]),
-  resourceDefaults: resourceDefaultsSchema.optional(),
-}).superRefine((data, ctx) => {
-  // REQ-SBX-15: canUseToolRules must reference only tools in builtInTools
-  if (data.canUseToolRules) {
-    for (const rule of data.canUseToolRules) {
-      if (!data.builtInTools.includes(rule.tool)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            `canUseToolRules references tool "${rule.tool}" which is not in builtInTools. ` +
-            `Declared builtInTools: ${data.builtInTools.join(", ") || "(none)"}`,
-          path: ["canUseToolRules"],
-        });
-      }
-    }
-  }
 });
 
 export const toolboxMetadataSchema = z.object({

@@ -14,7 +14,6 @@ import {
   workerMetadataSchema,
   toolboxMetadataSchema,
   workerIdentitySchema,
-  resourceDefaultsSchema,
   MANAGER_WORKER_NAME,
   MANAGER_PORTRAIT_PATH,
 } from "@/lib/packages";
@@ -50,10 +49,6 @@ function validWorkerGuildHall(): object {
     domainToolboxes: ["web-search"],
     builtInTools: ["Read", "Grep"],
     checkoutScope: "sparse",
-    resourceDefaults: {
-      maxTurns: 50,
-      maxBudgetUsd: 1.5,
-    },
   };
 }
 
@@ -188,19 +183,6 @@ describe("Zod schemas", () => {
     expect(result.success).toBe(false);
   });
 
-  test("resourceDefaultsSchema accepts all optional", () => {
-    const result = resourceDefaultsSchema.safeParse({});
-    expect(result.success).toBe(true);
-  });
-
-  test("resourceDefaultsSchema accepts both fields", () => {
-    const result = resourceDefaultsSchema.safeParse({
-      maxTurns: 50,
-      maxBudgetUsd: 1.5,
-    });
-    expect(result.success).toBe(true);
-  });
-
   test("workerMetadataSchema accepts valid worker", () => {
     const result = workerMetadataSchema.safeParse(validWorkerGuildHall());
     expect(result.success).toBe(true);
@@ -324,49 +306,6 @@ describe("Zod schemas", () => {
     expect(result.success).toBe(false);
   });
 
-  test("workerMetadataSchema accepts canUseToolRules referencing tools in builtInTools", () => {
-    const data = {
-      ...validWorkerGuildHall(),
-      builtInTools: ["Read", "Glob", "Bash"],
-      canUseToolRules: [
-        { tool: "Bash", commands: ["git status"], allow: true },
-        { tool: "Bash", allow: false, reason: "Only git status" },
-      ],
-    };
-    const result = workerMetadataSchema.safeParse(data);
-    expect(result.success).toBe(true);
-  });
-
-  test("workerMetadataSchema rejects canUseToolRules referencing tool not in builtInTools (REQ-SBX-15)", () => {
-    const data = {
-      ...validWorkerGuildHall(),
-      builtInTools: ["Read", "Glob"],
-      canUseToolRules: [
-        { tool: "Bash", allow: false, reason: "No Bash" },
-      ],
-    };
-    const result = workerMetadataSchema.safeParse(data);
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const messages = result.error.issues.map((i) => i.message);
-      expect(messages.some((m) => m.includes("Bash") && m.includes("not in builtInTools"))).toBe(true);
-    }
-  });
-
-  test("workerMetadataSchema accepts missing canUseToolRules (optional)", () => {
-    const result = workerMetadataSchema.safeParse(validWorkerGuildHall());
-    expect(result.success).toBe(true);
-  });
-
-  test("workerMetadataSchema accepts empty canUseToolRules array", () => {
-    const data = {
-      ...validWorkerGuildHall(),
-      canUseToolRules: [],
-    };
-    const result = workerMetadataSchema.safeParse(data);
-    expect(result.success).toBe(true);
-  });
-
   test("guild-hall-writer package.json passes workerMetadataSchema validation (REQ-WTR-17 case 18)", async () => {
     const pkgJson = JSON.parse(
       await fs.readFile(
@@ -405,10 +344,6 @@ describe("discoverPackages", () => {
     expect(meta.domainToolboxes).toEqual(["web-search"]);
     expect(meta.builtInTools).toEqual(["Read", "Grep"]);
     expect(meta.checkoutScope).toBe("sparse");
-    expect(meta.resourceDefaults).toEqual({
-      maxTurns: 50,
-      maxBudgetUsd: 1.5,
-    });
   });
 
   test("discovers valid toolbox package", async () => {

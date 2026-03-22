@@ -6,7 +6,7 @@ import {
   MANAGER_PACKAGE_NAME,
 } from "@/daemon/services/manager/worker";
 import { MANAGER_WORKER_NAME } from "@/lib/packages";
-import type { AppConfig, ActivationContext, CanUseToolRule, WorkerMetadata } from "@/lib/types";
+import type { AppConfig, ActivationContext, WorkerMetadata } from "@/lib/types";
 
 describe("createManagerPackage", () => {
   test("returns opus as default model when called with no arguments", () => {
@@ -75,10 +75,10 @@ describe("createManagerPackage", () => {
     expect(metadata.identity.displayTitle).toBe(MANAGER_WORKER_NAME);
   });
 
-  test("includes manager in systemToolboxes", () => {
+  test("includes manager and git-readonly in systemToolboxes", () => {
     const pkg = createManagerPackage();
     const metadata = pkg.metadata as WorkerMetadata;
-    expect(metadata.systemToolboxes).toEqual(["manager"]);
+    expect(metadata.systemToolboxes).toEqual(["manager", "git-readonly"]);
   });
 });
 
@@ -133,8 +133,7 @@ describe("activateManager", () => {
       },
       posture: "Manager posture text",
       injectedMemory: "",
-      resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
-      resourceDefaults: { maxTurns: 200 },
+      resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
       projectPath: "/tmp/project",
       workingDirectory: "/tmp/work",
       ...overrides,
@@ -182,14 +181,8 @@ describe("activateManager", () => {
     expect(result.model).toBe("sonnet");
   });
 
-  test("returns resourceBounds from context", () => {
-    const result = activateManager(makeContext({ resourceDefaults: { maxTurns: 50, maxBudgetUsd: 1.0 } }));
-    expect(result.resourceBounds.maxTurns).toBe(50);
-    expect(result.resourceBounds.maxBudgetUsd).toBe(1.0);
-  });
-
   test("returns resolved tools from context", () => {
-    const tools = { mcpServers: [], allowedTools: ["Read", "Glob"], builtInTools: [] as string[], canUseToolRules: [] as CanUseToolRule[] };
+    const tools = { mcpServers: [], allowedTools: ["Read", "Glob"], builtInTools: [] as string[] };
     const result = activateManager(makeContext({ resolvedTools: tools }));
     expect(result.tools.allowedTools).toEqual(["Read", "Glob"]);
   });

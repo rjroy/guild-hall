@@ -64,25 +64,27 @@ export default async function ArtifactPage({
 
     return (
       <div className={styles.artifactView}>
-        <div className={styles.main}>
-          <ArtifactProvenance
-            projectName={projectName}
-            artifactTitle={imageTitle}
-            artifactPath={relativePath}
-          />
-          <ImageArtifactView
-            projectName={projectName}
-            artifactPath={relativePath}
-          />
-        </div>
-        <div className={styles.sidebar}>
-          <ImageMetadataSidebar
-            filename={filename}
-            mimeType={mimeType}
-            fileSize={fileSize}
-            lastModified={lastModified}
-            projectName={projectName}
-          />
+        <ArtifactProvenance
+          projectName={projectName}
+          artifactTitle={imageTitle}
+          artifactPath={relativePath}
+        />
+        <div className={styles.artifactBody}>
+          <div className={styles.main}>
+            <ImageArtifactView
+              projectName={projectName}
+              artifactPath={relativePath}
+            />
+          </div>
+          <div className={styles.sidebar}>
+            <ImageMetadataSidebar
+              filename={filename}
+              mimeType={mimeType}
+              fileSize={fileSize}
+              lastModified={lastModified}
+              projectName={projectName}
+            />
+          </div>
         </div>
       </div>
     );
@@ -123,33 +125,35 @@ export default async function ArtifactPage({
 
   return (
     <div className={styles.artifactView}>
-      <div className={styles.main}>
-        <ArtifactProvenance
-          projectName={projectName}
-          artifactTitle={displayTitle}
-          artifactPath={relativePath}
-        />
-        {meetingLink && (
-          <div className={styles.meetingBanner}>
-            <Link href={meetingLink} className={styles.meetingBannerLink}>
-              View Meeting
-            </Link>
-          </div>
-        )}
-        <ArtifactContent
-          body={artifact.content}
-          rawContent={artifact.rawContent ?? ""}
-          projectName={projectName}
-          artifactPath={artifact.relativePath}
-        />
-      </div>
-      <div className={styles.sidebar}>
-        <MetadataSidebar
-          meta={artifact.meta}
-          projectName={projectName}
-          artifactPath={relativePath}
-          associatedCommissions={associatedCommissions}
-        />
+      <ArtifactProvenance
+        projectName={projectName}
+        artifactTitle={displayTitle}
+        artifactPath={relativePath}
+      />
+      {meetingLink && (
+        <div className={styles.meetingBanner}>
+          <Link href={meetingLink} className={styles.meetingBannerLink}>
+            View Meeting
+          </Link>
+        </div>
+      )}
+      <div className={styles.artifactBody}>
+        <div className={styles.main}>
+          <ArtifactContent
+            body={artifact.content}
+            rawContent={artifact.rawContent ?? ""}
+            projectName={projectName}
+            artifactPath={artifact.relativePath}
+          />
+        </div>
+        <div className={styles.sidebar}>
+          <MetadataSidebar
+            meta={artifact.meta}
+            projectName={projectName}
+            artifactPath={relativePath}
+            associatedCommissions={associatedCommissions}
+          />
+        </div>
       </div>
     </div>
   );

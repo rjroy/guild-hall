@@ -132,6 +132,8 @@ A tool must pass all three gates to execute.
 
 ## Phase 2: Worker-Defined `canUseTool` Rules
 
+> **Note:** Phase 2 (the `canUseTool` callback and `canUseToolRules` mechanism) has been superseded by the Worker Tool Boundaries spec (`.lore/specs/workers/worker-tool-boundaries.md`). The `canUseToolRules` infrastructure described below has been removed. Phase 1 (SDK sandbox for Bash-capable workers) remains in effect.
+
 ### Background: the `canUseTool` callback
 
 The SDK's `Options` type has a `canUseTool` callback:

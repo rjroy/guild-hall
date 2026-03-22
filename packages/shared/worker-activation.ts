@@ -74,9 +74,5 @@ export function activateWorkerWithSharedPattern(
     systemPrompt: buildSystemPrompt(context),
     model: context.model ?? "opus",
     tools: context.resolvedTools,
-    resourceBounds: {
-      maxTurns: context.resourceDefaults.maxTurns,
-      maxBudgetUsd: context.resourceDefaults.maxBudgetUsd,
-    },
   };
 }

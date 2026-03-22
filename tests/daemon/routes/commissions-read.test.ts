@@ -46,8 +46,6 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     getActiveCommissions: () => 0,
     recoverCommissions: () => Promise.resolve(0),
     updateScheduleStatus: () => Promise.resolve({ outcome: "ok" as const, status: "active" }),
-    continueCommission: () => Promise.resolve({ status: "accepted" as const }),
-    saveCommission: () => Promise.resolve(),
     shutdown: () => {},
   } as CommissionSessionForRoutes;
 }
@@ -229,7 +227,6 @@ dependencies:
 linked_artifacts:
   - specs/test-spec.md
 resource_overrides:
-  maxTurns: 50
   model: sonnet
 current_progress: Working on it
 activity_timeline:
@@ -262,7 +259,6 @@ Result summary here.
       "commissions/commission-other-20260313-000000.md",
     ]);
     expect(body.commission.linked_artifacts).toEqual(["specs/test-spec.md"]);
-    expect(body.commission.resource_overrides.maxTurns).toBe(50);
     expect(body.commission.resource_overrides.model).toBe("sonnet");
     expect(body.commission.current_progress).toBe("Working on it");
     expect(body.commission.result_summary).toBe("Result summary here.");

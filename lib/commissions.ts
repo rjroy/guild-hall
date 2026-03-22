@@ -31,10 +31,9 @@ export interface CommissionMeta {
   prompt: string;
   dependencies: string[];
   linked_artifacts: string[];
-  resource_overrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+  resource_overrides: { model?: string };
   current_progress: string;
   result_summary: string;
-  halt_count?: number;
   projectName: string;
   date: string;
   /** ISO timestamp most relevant for the commission's current status. */
@@ -99,12 +98,6 @@ function parseCommissionData(
       ? data.linked_artifacts.filter((a): a is string => typeof a === "string")
       : [],
     resource_overrides: {
-      maxTurns: typeof resourceOverrides.maxTurns === "number"
-        ? resourceOverrides.maxTurns
-        : undefined,
-      maxBudgetUsd: typeof resourceOverrides.maxBudgetUsd === "number"
-        ? resourceOverrides.maxBudgetUsd
-        : undefined,
       model: typeof resourceOverrides.model === "string"
         ? resourceOverrides.model
         : undefined,
@@ -114,7 +107,6 @@ function parseCommissionData(
       : "",
     result_summary: body.trim()
       || (typeof data.result_summary === "string" ? data.result_summary : ""),
-    halt_count: typeof data.halt_count === "number" ? data.halt_count : undefined,
     projectName,
     date,
     relevantDate: extractRelevantDate(status, date, timeline),
@@ -271,7 +263,6 @@ const STATUS_GROUP: Record<string, number> = {
   paused: 0,
   dispatched: 1,
   in_progress: 1,
-  halted: 1,
   active: 1,
   failed: 2,
   cancelled: 2,
@@ -318,7 +309,6 @@ function extractRelevantDate(
     cancelled: "status_cancelled",
     dispatched: "status_dispatched",
     in_progress: "status_in_progress",
-    halted: "status_halted",
   };
 
   const eventName = targetEvent[status];

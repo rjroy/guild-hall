@@ -30,13 +30,13 @@ const expectedRoleProfiles: Record<string, {
     identityName: "Thorne",
     descriptionIntent: /critical eye|inspects|alters nothing/i,
     checkoutScope: "full",
-    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "Bash"],
+    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep"],
   },
   "guild-hall-researcher": {
     identityName: "Verity",
     descriptionIntent: /beyond the guild walls|intelligence|never touches the forge/i,
     checkoutScope: "sparse",
-    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit", "Bash"],
+    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
   },
   "guild-hall-writer": {
     identityName: "Octavia",
@@ -54,7 +54,7 @@ const expectedRoleProfiles: Record<string, {
     identityName: "Edmund",
     descriptionIntent: /inbox|correspondence|household/i,
     checkoutScope: "full",
-    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+    builtInTools: ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"],
   },
 };
 
@@ -72,7 +72,7 @@ const expectedPostureGuardrails: Record<string, RegExp[]> = {
     /check.*\.lore\/research/i,
   ],
   "guild-hall-writer": [
-    /never modify source code/i,
+    /must not modify source code/i,
     /must be verified against repository sources/i,
     /stay in the current phase/i,
   ],

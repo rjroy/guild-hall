@@ -60,6 +60,8 @@ const MANAGER_POSTURE_BASE = [
   "- Actions affecting the protected branch (PRs require user merge)",
   "- Questions requiring domain knowledge beyond your context",
   "",
+  "You must not implement changes yourself. When work needs doing, dispatch the worker who does it. You do not write files or modify code to accomplish tasks directly.",
+  "",
   "Be direct. Present status, recommend actions, execute when authorized.",
 ].join("\n");
 
@@ -122,32 +124,11 @@ export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
     // Cast: model may be a local name string at this point.
     // prepareSdkSession resolves it via resolveModel() at activation time.
     model: (config?.systemModels?.guildMaster ?? "opus") as ModelName,
-    systemToolboxes: ["manager"],
+    systemToolboxes: ["manager", "git-readonly"],
     domainToolboxes: [],
-    builtInTools: ["Read", "Glob", "Grep", "Bash"],
-    canUseToolRules: [
-      {
-        tool: "Bash",
-        commands: [
-          "git status", "git status *",
-          "git log", "git log *",
-          "git diff", "git diff *",
-          "git show", "git show *",
-          "guild-hall **",
-        ],
-        allow: true,
-      },
-      {
-        tool: "Bash",
-        allow: false,
-        reason: "Only read-only git commands (status, log, diff, show) and guild-hall CLI commands are permitted",
-      },
-    ],
+    builtInTools: ["Read", "Glob", "Grep"],
     checkoutScope: "full",
     meetingScope: "project",
-    resourceDefaults: {
-      maxTurns: 200,
-    },
   };
 
   return {
@@ -223,7 +204,44 @@ export function activateManager(context: ActivationContext): ActivationResult {
     parts.push(`# Injected Memory\n\n${context.injectedMemory}`);
   }
 
-  // 5. Manager context
+  // 5. Meeting context
+  if (context.meetingContext) {
+    parts.push(`# Meeting Context\n\nAgenda: ${context.meetingContext.agenda}`);
+  }
+
+  // 6. Commission context
+  if (context.commissionContext) {
+    parts.push(
+      '# Commission Context',
+      '',
+      'You are executing a commission (an async work item).',
+      '',
+      '## Task',
+      '',
+      context.commissionContext.prompt,
+      '',
+    );
+
+    if (context.commissionContext.dependencies.length > 0) {
+      parts.push(
+        '## Dependencies (artifacts to reference):',
+        context.commissionContext.dependencies.map((dependency) => `- ${dependency}`).join("\n"),
+      );
+    }
+
+    parts.push(
+      [
+        "## Commission protocol",
+        "",
+        "- Use report_progress to log what you're doing as you work. This keeps the user informed.",
+        "- When finished, you MUST call submit_result with a summary of what you accomplished and any artifact paths you created or modified.",
+        "- If you encounter gaps in the requirements, state your interpretation and proceed. You are expected to be self-sufficient.",
+        "- The commission is not considered complete unless you call submit_result. Just responding with text is not enough.",
+      ].join("\n"),
+    );
+  }
+
+  // 7. Manager context
   if (context.managerContext) {
     parts.push(`# Manager Context\n\n${context.managerContext}`);
   }
@@ -232,9 +250,5 @@ export function activateManager(context: ActivationContext): ActivationResult {
     systemPrompt: parts.join("\n\n"),
     model: context.model ?? "opus",
     tools: context.resolvedTools,
-    resourceBounds: {
-      maxTurns: context.resourceDefaults.maxTurns,
-      maxBudgetUsd: context.resourceDefaults.maxBudgetUsd,
-    },
   };
 }

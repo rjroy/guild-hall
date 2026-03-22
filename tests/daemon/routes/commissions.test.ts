@@ -22,7 +22,7 @@ function makeMockCommissionSession(
       workerName: string,
       prompt: string,
       dependencies?: string[],
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+      resourceOverrides?: { model?: string },
       options?: { type?: "one-shot" | "scheduled"; sourceSchedule?: string },
     ) {
       calls.push({
@@ -46,7 +46,7 @@ function makeMockCommissionSession(
       updates: {
         prompt?: string;
         dependencies?: string[];
-        resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+        resourceOverrides?: { model?: string };
       },
     ) {
       calls.push({
@@ -100,14 +100,6 @@ function makeMockCommissionSession(
     updateTriggerStatus(commissionId: CommissionId, targetStatus: string, projectName: string) {
       calls.push({ method: "updateTriggerStatus", args: [commissionId, targetStatus, projectName] });
       return Promise.resolve({ commissionId: commissionId as string, status: targetStatus });
-    },
-    continueCommission(commissionId: CommissionId) {
-      calls.push({ method: "continueCommission", args: [commissionId] });
-      return Promise.resolve({ status: "accepted" as const });
-    },
-    saveCommission(commissionId: CommissionId, reason?: string) {
-      calls.push({ method: "saveCommission", args: [commissionId, reason] });
-      return Promise.resolve();
     },
     shutdown() {
       // no-op
@@ -202,7 +194,7 @@ describe("POST /commission/request/commission/create", () => {
         workerName: "builder",
         prompt: "Build the thing",
         dependencies: ["dep-1", "dep-2"],
-        resourceOverrides: { maxTurns: 50, maxBudgetUsd: 2.5 },
+        resourceOverrides: { model: "sonnet" },
       }),
     });
 
@@ -213,7 +205,7 @@ describe("POST /commission/request/commission/create", () => {
     expect(calls[0].args[2]).toBe("builder");
     expect(calls[0].args[3]).toBe("Build the thing");
     expect(calls[0].args[4]).toEqual(["dep-1", "dep-2"]);
-    expect(calls[0].args[5]).toEqual({ maxTurns: 50, maxBudgetUsd: 2.5 });
+    expect(calls[0].args[5]).toEqual({ model: "sonnet" });
   });
 
   test("returns 500 for internal errors", async () => {
@@ -838,87 +830,6 @@ describe("POST /commission/schedule/commission/update", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toContain("Invalid JSON");
-  });
-});
-
-describe("POST /commission/run/save", () => {
-  test("calls saveCommission with commissionId and optional reason", async () => {
-    const { app, calls } = makeTestApp();
-    const res = await app.request("/commission/run/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        commissionId: "commission-test-save-route-001",
-        reason: "Good partial work",
-      }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { status: string };
-    expect(body.status).toBe("ok");
-
-    const saveCall = calls.find((c) => c.method === "saveCommission");
-    expect(saveCall).toBeDefined();
-    expect(saveCall!.args[1]).toBe("Good partial work");
-  });
-
-  test("calls saveCommission without reason", async () => {
-    const { app, calls } = makeTestApp();
-    const res = await app.request("/commission/run/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        commissionId: "commission-test-save-route-002",
-      }),
-    });
-
-    expect(res.status).toBe(200);
-    const saveCall = calls.find((c) => c.method === "saveCommission");
-    expect(saveCall).toBeDefined();
-    expect(saveCall!.args[1]).toBeUndefined();
-  });
-
-  test("returns 400 when commissionId is missing", async () => {
-    const { app } = makeTestApp();
-    const res = await app.request("/commission/run/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toContain("commissionId");
-  });
-
-  test("returns 409 when commission cannot be saved", async () => {
-    const { app } = makeTestApp({
-      saveCommission: () => {
-        throw new Error('Cannot save commission: state is "in_progress"');
-      },
-    });
-    const res = await app.request("/commission/run/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ commissionId: "commission-test-save-409" }),
-    });
-
-    expect(res.status).toBe(409);
-  });
-
-  test("returns 404 when state file not found", async () => {
-    const { app } = makeTestApp({
-      saveCommission: () => {
-        throw new Error("Cannot save commission: state file not found or corrupt");
-      },
-    });
-    const res = await app.request("/commission/run/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ commissionId: "commission-test-save-404" }),
-    });
-
-    expect(res.status).toBe(404);
   });
 });
 

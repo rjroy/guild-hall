@@ -5,7 +5,6 @@ import type {
   ActivationContext,
   ActivationResult,
   AppConfig,
-  CanUseToolRule,
   DiscoveredPackage,
   ModelDefinition,
   ResolvedModel,
@@ -314,37 +313,13 @@ describe("drainSdkSession", () => {
     expect(outcome.aborted).toBe(false);
   });
 
-  test("reason is 'maxTurns' when turn count reaches maxTurns", async () => {
-    async function* maxTurnsGen(): AsyncGenerator<SdkRunnerEvent> {
-      yield { type: "session", sessionId: "s-max" };
-      yield { type: "turn_end", cost: 0.01 };
-      yield { type: "turn_end", cost: 0.01 };
-      yield { type: "turn_end", cost: 0.01 };
-    }
-    const outcome = await drainSdkSession(maxTurnsGen(), { maxTurns: 3 });
-
-    expect(outcome.reason).toBe("maxTurns");
-    expect(outcome.sessionId).toBe("s-max");
-  });
-
-  test("reason is 'completed' when turn count is below maxTurns", async () => {
-    async function* belowMaxGen(): AsyncGenerator<SdkRunnerEvent> {
-      yield { type: "session", sessionId: "s-below" };
-      yield { type: "turn_end", cost: 0.01 };
-      yield { type: "turn_end", cost: 0.01 };
-    }
-    const outcome = await drainSdkSession(belowMaxGen(), { maxTurns: 5 });
-
-    expect(outcome.reason).toBe("completed");
-  });
-
   test("reason is undefined when aborted", async () => {
     async function* abortedGen(): AsyncGenerator<SdkRunnerEvent> {
       yield { type: "session", sessionId: "s-abort" };
       yield { type: "turn_end", cost: 0.01 };
       yield { type: "aborted" };
     }
-    const outcome = await drainSdkSession(abortedGen(), { maxTurns: 1 });
+    const outcome = await drainSdkSession(abortedGen());
 
     expect(outcome.aborted).toBe(true);
     expect(outcome.reason).toBeUndefined();
@@ -361,7 +336,7 @@ describe("drainSdkSession", () => {
     expect(outcome.reason).toBeUndefined();
   });
 
-  test("reason works without maxTurns opt (always completed on success)", async () => {
+  test("reason is 'completed' on normal success", async () => {
     async function* normalGen(): AsyncGenerator<SdkRunnerEvent> {
       yield { type: "session", sessionId: "s-no-opt" };
       yield { type: "turn_end", cost: 0.01 };
@@ -384,7 +359,6 @@ describe("prepareSdkSession", () => {
     domainToolboxes: [],
     builtInTools: [],
     checkoutScope: "sparse",
-    resourceDefaults: { maxTurns: 10, maxBudgetUsd: 1.0 },
   };
 
   const mockWorkerPkg: DiscoveredPackage = {
@@ -403,14 +377,12 @@ describe("prepareSdkSession", () => {
     mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
     allowedTools: ["read_file", "write_file"],
     builtInTools: ["Read", "Write"],
-    canUseToolRules: [],
   };
 
   const mockActivation: ActivationResult = {
     systemPrompt: "You are a test worker",
     model: "sonnet",
     tools: mockResolvedTools,
-    resourceBounds: { maxTurns: 10, maxBudgetUsd: 1.0 },
   };
 
   function makeSpec(overrides?: Partial<SessionPrepSpec>): SessionPrepSpec {
@@ -454,8 +426,6 @@ describe("prepareSdkSession", () => {
     expect(opts.cwd).toBe("/tmp/workspace");
     expect(opts.allowedTools).toEqual(["read_file", "write_file"]);
     expect(opts.model).toBe("sonnet");
-    expect(opts.maxTurns).toBe(10);
-    expect(opts.maxBudgetUsd).toBe(1.0);
     expect(opts.permissionMode).toBe("dontAsk");
     expect(opts.settingSources).toEqual(["local", "project", "user"]);
   });
@@ -506,18 +476,6 @@ describe("prepareSdkSession", () => {
     if (result.ok) return;
     expect(result.error).toContain("Worker activation failed");
     expect(result.error).toContain("bad posture");
-  });
-
-  test("resource overrides take precedence over activation bounds", async () => {
-    const result = await prepareSdkSession(
-      makeSpec({ resourceOverrides: { maxTurns: 50, maxBudgetUsd: 5.0 } }),
-      makeDeps(),
-    );
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.result.options.maxTurns).toBe(50);
-    expect(result.result.options.maxBudgetUsd).toBe(5.0);
   });
 
   test("resume passed through to options", async () => {
@@ -578,7 +536,6 @@ describe("prepareSdkSession", () => {
         ],
         allowedTools: [],
         builtInTools: [],
-        canUseToolRules: [],
       },
     };
 
@@ -796,7 +753,7 @@ describe("prepareSdkSession", () => {
     };
 
     const result = await prepareSdkSession(
-      makeSpec({ resourceOverrides: { maxTurns: 5 } }),
+      makeSpec(),
       makeDeps({ activateWorker: async () => noModelActivation }),
     );
 
@@ -1024,12 +981,10 @@ describe("prepareSdkSession", () => {
           mcpServers: [],
           allowedTools: ["Read", "Bash"],
           builtInTools: ["Read", "Bash"],
-          canUseToolRules: [],
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
           tools: context.resolvedTools,
-          resourceBounds: {},
         }),
       });
 
@@ -1038,7 +993,7 @@ describe("prepareSdkSession", () => {
       if (!result.ok) return;
       expect(result.result.options.sandbox).toBeDefined();
       expect(result.result.options.sandbox?.enabled).toBe(true);
-      expect(result.result.options.sandbox?.autoAllowBashIfSandboxed).toBe(true);
+      expect(result.result.options.sandbox?.autoAllowBashIfSandboxed).toBe(false);
       expect(result.result.options.sandbox?.allowUnsandboxedCommands).toBe(false);
     });
 
@@ -1048,12 +1003,10 @@ describe("prepareSdkSession", () => {
           mcpServers: [],
           allowedTools: ["Bash"],
           builtInTools: ["Bash"],
-          canUseToolRules: [],
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
           tools: context.resolvedTools,
-          resourceBounds: {},
         }),
       });
 
@@ -1069,12 +1022,10 @@ describe("prepareSdkSession", () => {
           mcpServers: [],
           allowedTools: ["Read", "Glob", "Grep"],
           builtInTools: ["Read", "Glob", "Grep"],
-          canUseToolRules: [],
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
           tools: context.resolvedTools,
-          resourceBounds: {},
         }),
       });
 
@@ -1091,12 +1042,10 @@ describe("prepareSdkSession", () => {
           mcpServers: [],
           allowedTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "Skill", "Task"],
           builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "Skill", "Task"],
-          canUseToolRules: [],
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
           tools: context.resolvedTools,
-          resourceBounds: {},
         }),
       });
 
@@ -1111,12 +1060,10 @@ describe("prepareSdkSession", () => {
           mcpServers: [],
           allowedTools: ["Read", "Glob", "Grep"],
           builtInTools: ["Read", "Glob", "Grep"],
-          canUseToolRules: [],
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
           tools: context.resolvedTools,
-          resourceBounds: {},
         }),
       });
 
@@ -1124,488 +1071,6 @@ describe("prepareSdkSession", () => {
       expect(thorneResult.ok).toBe(true);
       if (!thorneResult.ok) return;
       expect(thorneResult.result.options.sandbox).toBeUndefined();
-    });
-  });
-
-  // -- canUseTool callback tests (REQ-SBX-24) --
-
-  describe("canUseTool callback", () => {
-    test("prepareSdkSession does NOT include canUseTool when rules are empty", async () => {
-      const deps = makeDeps({
-        resolveToolSet: async () => ({
-          mcpServers: [],
-          allowedTools: ["Read"],
-          builtInTools: ["Read"],
-          canUseToolRules: [],
-        }),
-        activateWorker: async (_pkg, context) => ({
-          systemPrompt: "test",
-          tools: context.resolvedTools,
-          resourceBounds: {},
-        }),
-      });
-
-      const result = await prepareSdkSession(makeSpec(), deps);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.result.options.canUseTool).toBeUndefined();
-    });
-
-    test("prepareSdkSession includes canUseTool when rules are non-empty", async () => {
-      const deps = makeDeps({
-        resolveToolSet: async () => ({
-          mcpServers: [],
-          allowedTools: ["Read", "Bash"],
-          builtInTools: ["Read", "Bash"],
-          canUseToolRules: [{ tool: "Bash", allow: false, reason: "No Bash" }],
-        }),
-        activateWorker: async (_pkg, context) => ({
-          systemPrompt: "test",
-          tools: context.resolvedTools,
-          resourceBounds: {},
-        }),
-      });
-
-      const result = await prepareSdkSession(makeSpec(), deps);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.result.options.canUseTool).toBeDefined();
-      expect(typeof result.result.options.canUseTool).toBe("function");
-    });
-
-    test("allows call when no rule matches (different tool than rules target)", async () => {
-      const deps = makeDeps({
-        resolveToolSet: async () => ({
-          mcpServers: [],
-          allowedTools: ["Read", "Edit", "Bash"],
-          builtInTools: ["Read", "Edit", "Bash"],
-          canUseToolRules: [
-            { tool: "Bash", allow: false, reason: "No Bash" },
-          ],
-        }),
-        activateWorker: async (_pkg, context) => ({
-          systemPrompt: "test",
-          tools: context.resolvedTools,
-          resourceBounds: {},
-        }),
-      });
-
-      const result = await prepareSdkSession(makeSpec(), deps);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-
-      const decision = await result.result.options.canUseTool!(
-        "Edit",
-        { file_path: "/some/file.ts" },
-        { signal: new AbortController().signal },
-      );
-      expect(decision.behavior).toBe("allow");
-    });
-
-    test("denies Bash call matching a catch-all deny rule", async () => {
-      const deps = makeDeps({
-        resolveToolSet: async () => ({
-          mcpServers: [],
-          allowedTools: ["Bash"],
-          builtInTools: ["Bash"],
-          canUseToolRules: [
-            { tool: "Bash", allow: false, reason: "All Bash denied" },
-          ],
-        }),
-        activateWorker: async (_pkg, context) => ({
-          systemPrompt: "test",
-          tools: context.resolvedTools,
-          resourceBounds: {},
-        }),
-      });
-
-      const result = await prepareSdkSession(makeSpec(), deps);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-
-      const decision = await result.result.options.canUseTool!(
-        "Bash",
-        { command: "rm -rf /" },
-        { signal: new AbortController().signal },
-      );
-      expect(decision.behavior).toBe("deny");
-      if (decision.behavior === "deny") {
-        expect(decision.message).toBe("All Bash denied");
-      }
-    });
-
-    test("allowlist pattern: allows git status, denies rm -rf", async () => {
-      const deps = makeDeps({
-        resolveToolSet: async () => ({
-          mcpServers: [],
-          allowedTools: ["Bash"],
-          builtInTools: ["Bash"],
-          canUseToolRules: [
-            { tool: "Bash", commands: ["git status", "git log"], allow: true },
-            { tool: "Bash", allow: false, reason: "Only git status and git log" },
-          ],
-        }),
-        activateWorker: async (_pkg, context) => ({
-          systemPrompt: "test",
-          tools: context.resolvedTools,
-          resourceBounds: {},
-        }),
-      });
-
-      const result = await prepareSdkSession(makeSpec(), deps);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-
-      const allowDecision = await result.result.options.canUseTool!(
-        "Bash",
-        { command: "git status" },
-        { signal: new AbortController().signal },
-      );
-      expect(allowDecision.behavior).toBe("allow");
-
-      const denyDecision = await result.result.options.canUseTool!(
-        "Bash",
-        { command: "rm -rf /" },
-        { signal: new AbortController().signal },
-      );
-      expect(denyDecision.behavior).toBe("deny");
-      if (denyDecision.behavior === "deny") {
-        expect(denyDecision.message).toBe("Only git status and git log");
-      }
-    });
-
-    test("path-based deny: blocks Edit to **/.ssh/**, allows .lore/ paths", async () => {
-      const deps = makeDeps({
-        resolveToolSet: async () => ({
-          mcpServers: [],
-          allowedTools: ["Edit"],
-          builtInTools: ["Edit"],
-          canUseToolRules: [
-            { tool: "Edit", paths: ["**/.ssh/**"], allow: false, reason: "Cannot edit credentials" },
-          ],
-        }),
-        activateWorker: async (_pkg, context) => ({
-          systemPrompt: "test",
-          tools: context.resolvedTools,
-          resourceBounds: {},
-        }),
-      });
-
-      const result = await prepareSdkSession(makeSpec(), deps);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-
-      // SDK delivers absolute paths
-      const denyDecision = await result.result.options.canUseTool!(
-        "Edit",
-        { file_path: "/home/user/.ssh/id_rsa" },
-        { signal: new AbortController().signal },
-      );
-      expect(denyDecision.behavior).toBe("deny");
-      if (denyDecision.behavior === "deny") {
-        expect(denyDecision.message).toBe("Cannot edit credentials");
-      }
-
-      const allowDecision = await result.result.options.canUseTool!(
-        "Edit",
-        { file_path: "/home/user/project/.lore/specs/example.md" },
-        { signal: new AbortController().signal },
-      );
-      expect(allowDecision.behavior).toBe("allow");
-    });
-
-    test("path patterns match dotfile directories", async () => {
-      // micromatch requires { dot: true } to match leading dots
-      const deps = makeDeps({
-        resolveToolSet: async () => ({
-          mcpServers: [],
-          allowedTools: ["Edit"],
-          builtInTools: ["Edit"],
-          canUseToolRules: [
-            { tool: "Edit", paths: ["**/.lore/**"], allow: false, reason: "Cannot edit lore" },
-          ],
-        }),
-        activateWorker: async (_pkg, context) => ({
-          systemPrompt: "test",
-          tools: context.resolvedTools,
-          resourceBounds: {},
-        }),
-      });
-
-      const result = await prepareSdkSession(makeSpec(), deps);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-
-      const decision = await result.result.options.canUseTool!(
-        "Edit",
-        { file_path: "/home/user/project/.lore/specs/example.md" },
-        { signal: new AbortController().signal },
-      );
-      expect(decision.behavior).toBe("deny");
-    });
-
-    test("denial sets interrupt: false", async () => {
-      const deps = makeDeps({
-        resolveToolSet: async () => ({
-          mcpServers: [],
-          allowedTools: ["Bash"],
-          builtInTools: ["Bash"],
-          canUseToolRules: [
-            { tool: "Bash", allow: false, reason: "Denied" },
-          ],
-        }),
-        activateWorker: async (_pkg, context) => ({
-          systemPrompt: "test",
-          tools: context.resolvedTools,
-          resourceBounds: {},
-        }),
-      });
-
-      const result = await prepareSdkSession(makeSpec(), deps);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-
-      const decision = await result.result.options.canUseTool!(
-        "Bash",
-        { command: "anything" },
-        { signal: new AbortController().signal },
-      );
-      expect(decision.behavior).toBe("deny");
-      if (decision.behavior === "deny") {
-        expect(decision.interrupt).toBe(false);
-      }
-    });
-
-    // -- Octavia rules (REQ-WTR-17 cases 1-7) --
-
-    describe("Octavia rules (REQ-WTR-17)", () => {
-      const octaviaRules: CanUseToolRule[] = [
-        { tool: "Bash", commands: ["rm .lore/**", "rm -f .lore/**"], allow: true },
-        { tool: "Bash", allow: false, reason: "Only file deletion within .lore/ is permitted" },
-      ];
-
-      function octaviaDeps() {
-        return makeDeps({
-          resolveToolSet: async () => ({
-            mcpServers: [],
-            allowedTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
-            builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
-            canUseToolRules: octaviaRules,
-          }),
-          activateWorker: async (_pkg, context) => ({
-            systemPrompt: "test",
-            tools: context.resolvedTools,
-            resourceBounds: {},
-          }),
-        });
-      }
-
-      async function getCanUseTool() {
-        const result = await prepareSdkSession(makeSpec(), octaviaDeps());
-        expect(result.ok).toBe(true);
-        if (!result.ok) throw new Error("prep failed");
-        expect(result.result.options.canUseTool).toBeDefined();
-        return result.result.options.canUseTool!;
-      }
-
-      test("case 1: rm .lore/commissions/commission-Octavia-20260312.md is allowed", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "rm .lore/commissions/commission-Octavia-20260312.md" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("allow");
-      });
-
-      test("case 2: rm -f .lore/meetings/audience-Guild-Master-20260311.md is allowed", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "rm -f .lore/meetings/audience-Guild-Master-20260311.md" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("allow");
-      });
-
-      test("case 3: rm .lore/specs/some-spec.md is allowed", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "rm .lore/specs/some-spec.md" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("allow");
-      });
-
-      test("case 4: rm -rf / is denied", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "rm -rf /" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("deny");
-        if (decision.behavior === "deny") {
-          expect(decision.message).toBe("Only file deletion within .lore/ is permitted");
-        }
-      });
-
-      test("case 5: ls .lore/ is denied", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "ls .lore/" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("deny");
-      });
-
-      test("case 6: cat .lore/specs/some-spec.md is denied", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "cat .lore/specs/some-spec.md" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("deny");
-      });
-
-      test("case 7: rm -rf .lore/commissions/ is denied", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "rm -rf .lore/commissions/" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("deny");
-      });
-    });
-
-    // -- Guild Master rules (REQ-WTR-17 cases 8-15) --
-
-    describe("Guild Master rules (REQ-WTR-17)", () => {
-      const guildMasterRules: CanUseToolRule[] = [
-        {
-          tool: "Bash",
-          commands: [
-            "git status", "git status *",
-            "git log", "git log *",
-            "git diff", "git diff *",
-            "git show", "git show *",
-          ],
-          allow: true,
-        },
-        {
-          tool: "Bash",
-          allow: false,
-          reason: "Only read-only git commands (status, log, diff, show) are permitted",
-        },
-      ];
-
-      function guildMasterDeps() {
-        return makeDeps({
-          resolveToolSet: async () => ({
-            mcpServers: [],
-            allowedTools: ["Read", "Glob", "Grep", "Bash"],
-            builtInTools: ["Read", "Glob", "Grep", "Bash"],
-            canUseToolRules: guildMasterRules,
-          }),
-          activateWorker: async (_pkg, context) => ({
-            systemPrompt: "test",
-            tools: context.resolvedTools,
-            resourceBounds: {},
-          }),
-        });
-      }
-
-      async function getCanUseTool() {
-        const result = await prepareSdkSession(makeSpec(), guildMasterDeps());
-        expect(result.ok).toBe(true);
-        if (!result.ok) throw new Error("prep failed");
-        expect(result.result.options.canUseTool).toBeDefined();
-        return result.result.options.canUseTool!;
-      }
-
-      test("case 8: git status is allowed", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "git status" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("allow");
-      });
-
-      test("case 9: git log --oneline -10 is allowed", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "git log --oneline -10" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("allow");
-      });
-
-      test("case 10: git diff HEAD~3..HEAD is allowed", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "git diff HEAD~3..HEAD" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("allow");
-      });
-
-      test("case 11: git show abc123 is allowed", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "git show abc123" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("allow");
-      });
-
-      test("case 12: git diff -- src/lib/foo.ts is denied (path with /)", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "git diff -- src/lib/foo.ts" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("deny");
-      });
-
-      test("case 13: git push origin master is denied", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "git push origin master" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("deny");
-      });
-
-      test("case 14: git checkout -b new-branch is denied", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "git checkout -b new-branch" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("deny");
-      });
-
-      test("case 15: curl http://example.com is denied", async () => {
-        const canUseTool = await getCanUseTool();
-        const decision = await canUseTool(
-          "Bash",
-          { command: "curl http://example.com" },
-          { signal: new AbortController().signal },
-        );
-        expect(decision.behavior).toBe("deny");
-      });
     });
   });
 
@@ -1619,7 +1084,6 @@ describe("prepareSdkSession", () => {
       domainToolboxes: [],
       builtInTools: [],
       checkoutScope: "sparse",
-      resourceDefaults: {},
     };
 
     const mockOtherWorkerPkg: DiscoveredPackage = {
@@ -1897,12 +1361,10 @@ describe("prepareSdkSession", () => {
         mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
         allowedTools: ["Read", "Glob", "Grep", "mcp__test-server__*"],
         builtInTools: ["Read", "Glob", "Grep"],
-        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
         tools: context.resolvedTools,
-        resourceBounds: {},
       }),
     });
 
@@ -1918,12 +1380,10 @@ describe("prepareSdkSession", () => {
         mcpServers: [],
         allowedTools: ["Read", "Glob", "Grep"],
         builtInTools: ["Read", "Glob", "Grep"],
-        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
         tools: context.resolvedTools,
-        resourceBounds: {},
       }),
     });
 
@@ -1941,12 +1401,10 @@ describe("prepareSdkSession", () => {
         mcpServers: [{ name: "my-mcp" } as ResolvedToolSet["mcpServers"][number]],
         allowedTools: ["Read", "Glob", "mcp__my-mcp__*"],
         builtInTools: ["Read", "Glob"],
-        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
         tools: context.resolvedTools,
-        resourceBounds: {},
       }),
     });
 
@@ -1965,12 +1423,10 @@ describe("prepareSdkSession", () => {
         mcpServers: [],
         allowedTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
         builtInTools: ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
-        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
         tools: context.resolvedTools,
-        resourceBounds: {},
       }),
     });
 
@@ -1988,12 +1444,10 @@ describe("prepareSdkSession", () => {
         mcpServers: [{ name: "srv" } as ResolvedToolSet["mcpServers"][number]],
         allowedTools: ["Read", "mcp__srv__*"],
         builtInTools: ["Read"],
-        canUseToolRules: [],
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
         tools: context.resolvedTools,
-        resourceBounds: {},
       }),
     });
 
@@ -2080,7 +1534,6 @@ describe("prepareSdkSession resolvedModel", () => {
     domainToolboxes: [],
     builtInTools: [],
     checkoutScope: "sparse",
-    resourceDefaults: { maxTurns: 10, maxBudgetUsd: 1.0 },
   };
 
   const mockWorkerPkg: DiscoveredPackage = {
@@ -2099,14 +1552,12 @@ describe("prepareSdkSession resolvedModel", () => {
     mcpServers: [{ name: "test-server" } as ResolvedToolSet["mcpServers"][number]],
     allowedTools: ["read_file", "write_file"],
     builtInTools: ["Read", "Write"],
-    canUseToolRules: [],
   };
 
   const mockActivation: ActivationResult = {
     systemPrompt: "You are a test worker",
     model: "sonnet",
     tools: mockResolvedTools,
-    resourceBounds: { maxTurns: 10, maxBudgetUsd: 1.0 },
   };
 
   const localModelDef: ModelDefinition = {
