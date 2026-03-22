@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research: Claude Agent SDK context compaction visibility"
 date: 2026-03-22
-status: failed
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Verity
@@ -27,6 +27,16 @@ activity_timeline:
   - timestamp: 2026-03-22T16:44:10.738Z
     event: status_failed
     reason: "Recovery: process lost on restart"
+  - timestamp: 2026-03-22T17:33:47.360Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "failed"
+    to: "pending"
+  - timestamp: 2026-03-22T17:33:47.361Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---

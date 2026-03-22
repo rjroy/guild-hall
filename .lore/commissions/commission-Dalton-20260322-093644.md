@@ -1,7 +1,7 @@
 ---
 title: "Commission: Fix toolbox-resolver: exclude canUseToolRules-guarded tools from allowedTools"
 date: 2026-03-22
-status: failed
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -46,6 +46,11 @@ activity_timeline:
   - timestamp: 2026-03-22T16:38:35.968Z
     event: status_failed
     reason: "Recovery: process lost on restart"
+  - timestamp: 2026-03-22T17:33:28.500Z
+    event: status_abandoned
+    reason: "actually succeeded something just went wrong during the final save."
+    from: "failed"
+    to: "abandoned"
 current_progress: "Reading toolbox-resolver.ts and related types to understand the current code."
 projectName: guild-hall
 ---
