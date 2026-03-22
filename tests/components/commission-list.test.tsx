@@ -15,6 +15,7 @@ function makeCommission(status: string, id?: string): CommissionMeta {
     status,
     type: "one-shot",
     sourceSchedule: "",
+    sourceTrigger: "",
     worker: "",
     workerDisplayTitle: "",
     prompt: "",

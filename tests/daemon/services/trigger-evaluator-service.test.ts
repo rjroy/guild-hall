@@ -2,7 +2,7 @@ import { describe, test, expect, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { createEventBus, type SystemEvent } from "@/daemon/lib/event-bus";
+import { createEventBus } from "@/daemon/lib/event-bus";
 import { collectingLog, nullLog } from "@/daemon/lib/log";
 import { createEventRouter } from "@/daemon/services/event-router";
 import { createTriggerEvaluator, readTriggerArtifact } from "@/daemon/services/trigger-evaluator";
@@ -193,9 +193,9 @@ projectName: ${pn}
       await fs.writeFile(spawnedPath, content, "utf-8");
       return result;
     },
-    dispatchCommission: async (id: CommissionId) => {
+    dispatchCommission: (id: CommissionId) => {
       dispatchCalls.push(id as string);
-      return { status: "accepted" as const };
+      return Promise.resolve({ status: "accepted" as const });
     },
   } as unknown as CommissionSessionForRoutes;
 
@@ -715,10 +715,10 @@ describe("TriggerEvaluator handler: error handling", () => {
 
     // Override createCommission to throw
     const session = {
-      createCommission: async () => {
-        throw new Error("Unknown worker: nonexistent-worker");
+      createCommission: () => {
+        return Promise.reject(new Error("Unknown worker: nonexistent-worker"));
       },
-      dispatchCommission: async () => ({ status: "accepted" as const }),
+      dispatchCommission: () => Promise.resolve({ status: "accepted" as const }),
     } as unknown as CommissionSessionForRoutes;
 
     const evalLog = collectingLog("trigger-evaluator-err");
@@ -768,7 +768,7 @@ describe("TriggerEvaluator dynamic registration", () => {
 
   test("unregisterTrigger removes a subscription dynamically", async () => {
     const h = tracked(await makeHarness());
-    const triggerPath = await h.writeTrigger("trigger-removable.md", makeTriggerArtifact({
+    const _triggerPath = await h.writeTrigger("trigger-removable.md", makeTriggerArtifact({
       matchType: "commission_status",
       matchFields: { status: "completed" },
     }));

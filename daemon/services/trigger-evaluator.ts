@@ -39,8 +39,8 @@ export function expandTemplate(template: string, event: SystemEvent): string {
     const value = record[fieldName];
 
     if (value === undefined || value === null) return "";
-    if (Array.isArray(value)) return value.join(",");
-    return String(value);
+    if (Array.isArray(value)) return (value as string[]).join(",");
+    return String(value as string | number | boolean);
   });
 }
 
@@ -73,10 +73,10 @@ export async function readTriggerArtifact(artifactPath: string): Promise<Trigger
   // Coerce fields values back to strings so micromatch receives valid input.
   const rawMatch = trigger.match as Record<string, unknown>;
   const match: TriggerBlock["match"] = {
-    type: String(rawMatch.type) as TriggerBlock["match"]["type"],
-    projectName: rawMatch.projectName ? String(rawMatch.projectName) : undefined,
+    type: String(rawMatch.type as string) as TriggerBlock["match"]["type"],
+    projectName: rawMatch.projectName ? String(rawMatch.projectName as string) : undefined,
     fields: rawMatch.fields && typeof rawMatch.fields === "object"
-      ? Object.fromEntries(Object.entries(rawMatch.fields as Record<string, unknown>).map(([k, v]) => [k, String(v)]))
+      ? Object.fromEntries(Object.entries(rawMatch.fields as Record<string, unknown>).map(([k, v]) => [k, String(v as string)]))
       : undefined,
   };
   const triggerBlock: TriggerBlock = {
@@ -86,9 +86,9 @@ export async function readTriggerArtifact(artifactPath: string): Promise<Trigger
     runs_completed: (trigger.runs_completed as number) ?? 0,
     last_triggered: trigger.last_triggered === null || trigger.last_triggered === undefined
       ? null : trigger.last_triggered instanceof Date
-        ? trigger.last_triggered.toISOString() : String(trigger.last_triggered),
+        ? trigger.last_triggered.toISOString() : String(trigger.last_triggered as string),
     last_spawned_id: trigger.last_spawned_id === null || trigger.last_spawned_id === undefined
-      ? null : String(trigger.last_spawned_id),
+      ? null : String(trigger.last_spawned_id as string),
   };
 
   // Parse dependencies: can be [] or a list of strings
@@ -98,9 +98,9 @@ export async function readTriggerArtifact(artifactPath: string): Promise<Trigger
   }
 
   return {
-    title: String(data.title ?? ""),
-    worker: String(data.worker ?? ""),
-    prompt: String(data.prompt ?? ""),
+    title: String((data.title as string) ?? ""),
+    worker: String((data.worker as string) ?? ""),
+    prompt: String((data.prompt as string) ?? ""),
     dependencies,
     trigger: triggerBlock,
   };
@@ -116,13 +116,13 @@ function extractSourceInfo(event: SystemEvent, log: Log): { sourceId: string; is
   const record = event as Record<string, unknown>;
 
   if (event.type === "commission_status" || event.type === "commission_result") {
-    return { sourceId: String(record.commissionId ?? ""), isCommissionSource: true };
+    return { sourceId: String((record.commissionId as string) ?? ""), isCommissionSource: true };
   }
   if (event.type === "schedule_spawned") {
-    return { sourceId: String(record.scheduleId ?? ""), isCommissionSource: false };
+    return { sourceId: String((record.scheduleId as string) ?? ""), isCommissionSource: false };
   }
   if (event.type === "meeting_ended") {
-    return { sourceId: String(record.meetingId ?? ""), isCommissionSource: false };
+    return { sourceId: String((record.meetingId as string) ?? ""), isCommissionSource: false };
   }
 
   log.warn(`unknown event type for source ID extraction: ${event.type}`);

@@ -28,8 +28,8 @@ function makeTestHarness(opts?: {
     channels: opts?.channels ?? {},
     notifications: opts?.notifications ?? [],
     log: notifLog.log,
-    dispatchShell: async (command, env) => { shellCalls.push({ command, env }); },
-    dispatchWebhook: async (url, body) => { webhookCalls.push({ url, body }); },
+    dispatchShell: (command, env) => { shellCalls.push({ command, env }); return Promise.resolve(); },
+    dispatchWebhook: (url, body) => { webhookCalls.push({ url, body }); return Promise.resolve(); },
   });
 
   return { eventBus, router, cleanupRouter, cleanupNotif, notifLog, routerLog, shellCalls, webhookCalls };
@@ -119,8 +119,8 @@ describe("NotificationService failure handling", () => {
       channels: { desk: { type: "shell", command: "fail-cmd" } },
       notifications: [{ match: { type: "commission_result" }, channel: "desk" }],
       log: notifLog.log,
-      dispatchShell: async () => { throw new Error("shell exploded"); },
-      dispatchWebhook: async () => {},
+      dispatchShell: () => { return Promise.reject(new Error("shell exploded")); },
+      dispatchWebhook: () => { return Promise.resolve(); },
     });
 
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "ok" });
@@ -144,8 +144,8 @@ describe("NotificationService failure handling", () => {
       channels: { hook: { type: "webhook", url: "https://example.com/hook" } },
       notifications: [{ match: { type: "commission_result" }, channel: "hook" }],
       log: notifLog.log,
-      dispatchShell: async () => {},
-      dispatchWebhook: async () => { throw new Error("webhook down"); },
+      dispatchShell: () => { return Promise.resolve(); },
+      dispatchWebhook: () => { return Promise.reject(new Error("webhook down")); },
     });
 
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "ok" });
@@ -176,8 +176,8 @@ describe("NotificationService failure handling", () => {
         { match: { type: "commission_result" }, channel: "working" },
       ],
       log: notifLog.log,
-      dispatchShell: async () => { throw new Error("broken"); },
-      dispatchWebhook: async (url, body) => { webhookCalls.push({ url, body }); },
+      dispatchShell: () => { return Promise.reject(new Error("broken")); },
+      dispatchWebhook: (url, body) => { webhookCalls.push({ url, body }); return Promise.resolve(); },
     });
 
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "ok" });

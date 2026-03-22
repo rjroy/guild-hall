@@ -251,6 +251,7 @@ describe("sortCommissions", () => {
       status,
       type: "one-shot",
       sourceSchedule: "",
+      sourceTrigger: "",
       worker: "test",
       workerDisplayTitle: "Test",
       prompt: "",

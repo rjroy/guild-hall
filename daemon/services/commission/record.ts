@@ -390,10 +390,10 @@ function createRecordOps(): CommissionRecordOps {
       // gray-matter coerces YAML values (e.g. "true" -> boolean, "123" -> number).
       // Coerce fields values back to strings so micromatch receives valid input.
       const match: TriggerBlock["match"] = {
-        type: String(rawMatch.type) as TriggerBlock["match"]["type"],
-        projectName: rawMatch.projectName ? String(rawMatch.projectName) : undefined,
+        type: String(rawMatch.type as string) as TriggerBlock["match"]["type"],
+        projectName: rawMatch.projectName ? String(rawMatch.projectName as string) : undefined,
         fields: rawMatch.fields && typeof rawMatch.fields === "object"
-          ? Object.fromEntries(Object.entries(rawMatch.fields as Record<string, unknown>).map(([k, v]) => [k, String(v)]))
+          ? Object.fromEntries(Object.entries(rawMatch.fields as Record<string, unknown>).map(([k, v]) => [k, String(v as string)]))
           : undefined,
       };
 
@@ -404,9 +404,9 @@ function createRecordOps(): CommissionRecordOps {
         runs_completed: (trigger.runs_completed as number) ?? 0,
         last_triggered: trigger.last_triggered === null || trigger.last_triggered === undefined
           ? null : trigger.last_triggered instanceof Date
-            ? trigger.last_triggered.toISOString() : String(trigger.last_triggered),
+            ? trigger.last_triggered.toISOString() : String(trigger.last_triggered as string),
         last_spawned_id: trigger.last_spawned_id === null || trigger.last_spawned_id === undefined
-          ? null : String(trigger.last_spawned_id),
+          ? null : String(trigger.last_spawned_id as string),
       };
     },
 

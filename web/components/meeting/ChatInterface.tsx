@@ -340,7 +340,7 @@ export default function ChatInterface({
         abortRef.current = null;
       }
     },
-    [meetingId, onArtifactLinked]
+    [meetingId, onArtifactLinked, setInputValue]
   );
 
   const handleStop = useCallback(() => {

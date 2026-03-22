@@ -1660,7 +1660,7 @@ export function createManagerToolbox(
           match: z.object({
             type: z.string().describe("Event type to match (e.g. 'commission_status', 'commission_result', 'meeting_ended')"),
             projectName: z.string().optional().describe("Exact project name to match (omit for all projects)"),
-            fields: z.record(z.string()).optional().describe("Field patterns to match via glob (e.g. { status: 'completed', commissionId: 'commission-Dalton-*' })"),
+            fields: z.record(z.string(), z.string()).optional().describe("Field patterns to match via glob (e.g. { status: 'completed', commissionId: 'commission-Dalton-*' })"),
           }).describe("Event matching criteria"),
           approval: z.enum(["auto", "confirm"]).optional().describe("Dispatch behavior for spawned commissions. 'auto' dispatches immediately, 'confirm' creates in pending for review. Defaults to 'confirm'."),
           maxDepth: z.number().optional().describe("Maximum trigger chain depth before downgrading to confirm. Defaults to 3."),
@@ -1677,7 +1677,7 @@ export function createManagerToolbox(
           match: z.object({
             type: z.string().describe("Event type to match"),
             projectName: z.string().optional().describe("Exact project name to match"),
-            fields: z.record(z.string()).optional().describe("Field patterns to match via glob"),
+            fields: z.record(z.string(), z.string()).optional().describe("Field patterns to match via glob"),
           }).optional().describe("New event matching criteria"),
           approval: z.enum(["auto", "confirm"]).optional().describe("New approval mode"),
           prompt: z.string().optional().describe("New commission prompt"),

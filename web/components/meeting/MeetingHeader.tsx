@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, startTransition } from "react";
 import Link from "next/link";
 import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
 import styles from "./MeetingHeader.module.css";
@@ -38,10 +38,13 @@ export default function MeetingHeader({
     return window.matchMedia("(max-width: 960px)").matches;
   });
 
-  // SSR safety: re-check on mount since SSR always returns false
+  // SSR safety: re-check on mount since SSR always returns false.
+  // Uses startTransition to avoid synchronous setState inside an effect.
   useEffect(() => {
     const matches = window.matchMedia("(max-width: 960px)").matches;
-    if (matches) setCondensed(true);
+    if (matches) {
+      startTransition(() => setCondensed(true));
+    }
   }, []);
 
   const encodedName = encodeURIComponent(projectName);

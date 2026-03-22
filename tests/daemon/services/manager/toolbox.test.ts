@@ -1045,9 +1045,10 @@ function createMockTriggerEvaluator() {
   const calls: Array<{ method: string; args: unknown[] }> = [];
   return {
     calls,
-    async initialize() { calls.push({ method: "initialize", args: [] }); },
-    async registerTrigger(artifactPath: string, projectName: string) {
+    initialize() { calls.push({ method: "initialize", args: [] }); return Promise.resolve(); },
+    registerTrigger(artifactPath: string, projectName: string) {
       calls.push({ method: "registerTrigger", args: [artifactPath, projectName] });
+      return Promise.resolve();
     },
     unregisterTrigger(commissionId: string) {
       calls.push({ method: "unregisterTrigger", args: [commissionId] });
@@ -1210,7 +1211,7 @@ describe("makeCreateTriggeredCommissionHandler", () => {
   test("registerTrigger failure still returns success", async () => {
     const mockRoute = createMockRouteCaller();
     const mockTrigger = createMockTriggerEvaluator();
-    mockTrigger.registerTrigger = async () => { throw new Error("Registration failed"); };
+    mockTrigger.registerTrigger = () => { return Promise.reject(new Error("Registration failed")); };
     const deps = await createBaseDeps({ callRoute: mockRoute });
     deps.triggerEvaluator = mockTrigger;
     const handler = makeCreateTriggeredCommissionHandler(deps);

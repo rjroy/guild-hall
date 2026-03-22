@@ -94,6 +94,23 @@ function createMockRecordOps(): CommissionRecordOps & {
       calls.push({ method: "incrementHaltCount", args: [_artifactPath] });
       return Promise.resolve(1);
     },
+    readTriggerMetadata(_artifactPath: string) {
+      calls.push({ method: "readTriggerMetadata", args: [_artifactPath] });
+      return Promise.resolve({
+        match: { type: "commission_status" as const },
+        runs_completed: 0,
+        last_triggered: null,
+        last_spawned_id: null,
+      });
+    },
+    writeTriggerFields(artifactPath: string, updates: Partial<{ runs_completed: number; last_triggered: string | null; last_spawned_id: string | null }>) {
+      calls.push({ method: "writeTriggerFields", args: [artifactPath, updates] });
+      return Promise.resolve();
+    },
+    readTriggeredBy(_artifactPath: string) {
+      calls.push({ method: "readTriggeredBy", args: [_artifactPath] });
+      return Promise.resolve(null);
+    },
   };
 }
 
