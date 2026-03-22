@@ -1,7 +1,7 @@
 ---
 title: "Commission: Detail view layout Phase 2: Commission condensing header"
 date: 2026-03-22
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-22T20:53:58.271Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-22T20:54:53.127Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
