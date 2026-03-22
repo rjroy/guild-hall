@@ -1,6 +1,6 @@
 ---
 title: "SDK Context Compaction: Detection and Surfacing"
-status: complete
+status: active
 created: 2026-03-22
 tags: [agent-sdk, context-compaction, meetings, ux]
 ---
