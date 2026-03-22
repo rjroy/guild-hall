@@ -6,6 +6,7 @@ import type { CommissionSessionForRoutes } from "../services/commission/orchestr
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
+import { SYSTEM_EVENT_TYPES } from "@/lib/types";
 import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveCommissionBasePath } from "@/lib/paths";
 import { scanCommissions, readCommissionMeta, parseActivityTimeline } from "@/lib/commissions";
@@ -56,6 +57,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       type?: string;
       cron?: string;
       repeat?: number;
+      match?: { type: string; projectName?: string; fields?: Record<string, string> };
+      approval?: "auto" | "confirm";
+      maxDepth?: number;
     };
     try {
       body = await c.req.json();
@@ -94,6 +98,24 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
           prompt,
           cron: body.cron!,
           repeat: body.repeat,
+          dependencies: body.dependencies,
+          resourceOverrides: body.resourceOverrides,
+        });
+      } else if (body.type === "triggered") {
+        if (!body.match) {
+          return c.json({ error: "Missing required field for triggered commission: match" }, 400);
+        }
+        if (!body.match.type || !SYSTEM_EVENT_TYPES.includes(body.match.type as never)) {
+          return c.json({ error: `Invalid match.type: "${body.match.type}". Valid types: ${SYSTEM_EVENT_TYPES.join(", ")}` }, 400);
+        }
+        result = await deps.commissionSession.createTriggeredCommission({
+          projectName,
+          title,
+          workerName,
+          prompt,
+          match: body.match,
+          approval: body.approval,
+          maxDepth: body.maxDepth,
           dependencies: body.dependencies,
           resourceOverrides: body.resourceOverrides,
         });
@@ -406,6 +428,41 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     }
   });
 
+  // POST /commission/trigger/commission/update - Update trigger status (pause/resume/complete)
+  routes.post("/commission/trigger/commission/update", async (c) => {
+    let body: { commissionId?: string; status?: string; projectName?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.commissionId) {
+      return c.json({ error: "Missing required field: commissionId" }, 400);
+    }
+    const commissionId = asCommissionId(body.commissionId);
+
+    const { status, projectName } = body;
+    if (!status) {
+      return c.json({ error: "Missing required field: status" }, 400);
+    }
+
+    try {
+      log.info(`POST /commission/trigger/commission/update commissionId="${commissionId as string}" target="${status}"`);
+      const result = await deps.commissionSession.updateTriggerStatus(commissionId, status, projectName ?? "");
+      return c.json(result);
+    } catch (err: unknown) {
+      const message = errorMessage(err);
+      if (message.includes("Cannot transition") || message.includes("not a triggered")) {
+        return c.json({ error: message }, 409);
+      }
+      if (message.includes("not found")) {
+        return c.json({ error: message }, 404);
+      }
+      return c.json({ error: message }, 500);
+    }
+  });
+
   // POST /commission/request/commission/note - User adds note
   routes.post("/commission/request/commission/note", async (c) => {
     let body: { commissionId?: string; content?: string };
@@ -529,7 +586,33 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
         }
       }
 
-      return c.json({ commission: meta, timeline, rawContent, scheduleInfo });
+      // Parse trigger info for triggered commissions
+      let triggerInfo: Record<string, unknown> | undefined;
+      if (meta.type === "triggered") {
+        const parsed = matter(rawContent);
+        const trigger = parsed.data.trigger as Record<string, unknown> | undefined;
+        if (trigger && typeof trigger === "object") {
+          const match = trigger.match as Record<string, unknown> | undefined;
+          const lastTriggered = trigger.last_triggered;
+          let lastTriggeredStr: string | null = null;
+          if (lastTriggered instanceof Date) {
+            lastTriggeredStr = lastTriggered.toISOString();
+          } else if (typeof lastTriggered === "string" && lastTriggered) {
+            lastTriggeredStr = lastTriggered;
+          }
+
+          triggerInfo = {
+            match: match ?? { type: "" },
+            approval: typeof trigger.approval === "string" ? trigger.approval : "confirm",
+            maxDepth: typeof trigger.maxDepth === "number" ? trigger.maxDepth : 3,
+            runsCompleted: typeof trigger.runs_completed === "number" ? trigger.runs_completed : 0,
+            lastTriggered: lastTriggeredStr,
+            lastSpawnedId: typeof trigger.last_spawned_id === "string" ? trigger.last_spawned_id : null,
+          };
+        }
+      }
+
+      return c.json({ commission: meta, timeline, rawContent, scheduleInfo, triggerInfo });
     } catch (err: unknown) {
       if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
         return c.json({ error: `Commission not found: ${commissionId}` }, 404);
@@ -696,6 +779,19 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       parameters: [{ name: "commissionId", required: true, in: "body" as const }],
     },
     {
+      operationId: "commission.trigger.commission.update",
+      version: "1",
+      name: "update",
+      description: "Update trigger status (pause/resume/complete)",
+      invocation: { method: "POST", path: "/commission/trigger/commission/update" },
+      sideEffects: "Transitions trigger status, manages event subscriptions",
+      context: { commissionId: true },
+
+      idempotent: true,
+      hierarchy: { root: "commission", feature: "trigger", object: "commission" },
+      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+    },
+    {
       operationId: "commission.dependency.project.check",
       version: "1",
       name: "check",
@@ -717,6 +813,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     "commission.run": "Commission execution control",
     "commission.schedule": "Scheduled commission management",
     "commission.schedule.commission": "Scheduled commission lifecycle",
+    "commission.trigger": "Triggered commission management",
+    "commission.trigger.commission": "Triggered commission lifecycle",
   };
 
   return { routes, operations, descriptions };

@@ -238,6 +238,23 @@ function createMockRecordOps(): MockRecordOps {
       calls.push({ method: "writeScheduleFields", args: [artifactPath, updates] });
       return Promise.resolve();
     },
+    readTriggerMetadata(artifactPath: string) {
+      calls.push({ method: "readTriggerMetadata", args: [artifactPath] });
+      return Promise.resolve({
+        match: { type: "commission_status" as const },
+        runs_completed: 0,
+        last_triggered: null,
+        last_spawned_id: null,
+      });
+    },
+    writeTriggerFields(artifactPath: string, updates: Partial<{ runs_completed: number; last_triggered: string | null; last_spawned_id: string | null }>) {
+      calls.push({ method: "writeTriggerFields", args: [artifactPath, updates] });
+      return Promise.resolve();
+    },
+    readTriggeredBy(artifactPath: string) {
+      calls.push({ method: "readTriggeredBy", args: [artifactPath] });
+      return Promise.resolve(null);
+    },
   };
 
   return ops;
@@ -294,6 +311,12 @@ function createMockCommissionSession(): MockCommissionSession {
     },
     saveCommission(): Promise<void> { return Promise.resolve(); },
     checkDependencyTransitions(): Promise<void> { return Promise.resolve(); },
+    createTriggeredCommission(): Promise<{ commissionId: string }> {
+      return Promise.resolve({ commissionId: "trigger-001" });
+    },
+    updateTriggerStatus(): Promise<{ commissionId: string; status: string }> {
+      return Promise.resolve({ commissionId: "trigger-001", status: "active" });
+    },
     recoverCommissions(): Promise<number> { return Promise.resolve(0); },
     getActiveCommissions(): number { return 0; },
     shutdown(): void {},

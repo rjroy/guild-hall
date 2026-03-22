@@ -106,6 +106,7 @@ function makeCommission(
     status: "pending",
     type: "one-shot",
     sourceSchedule: "",
+    sourceTrigger: "",
     worker: "researcher",
     workerDisplayTitle: "Lead Researcher",
     prompt: "Investigate the best API patterns.",

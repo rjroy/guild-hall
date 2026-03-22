@@ -6,6 +6,8 @@
  * converts SDK messages into these types.
  */
 
+import type { EventMatchRule } from "@/daemon/services/event-router";
+
 // -- Branded ID types --
 // Prevents accidental mixing of meeting IDs and SDK session IDs at compile time.
 // See .lore/retros/ SSE streaming retro for the motivation.
@@ -32,7 +34,24 @@ export type MeetingStatus = "requested" | "open" | "closed" | "declined";
 
 // -- Commission types --
 
-export type CommissionType = "one-shot" | "scheduled";
+export type CommissionType = "one-shot" | "scheduled" | "triggered";
+
+// -- Triggered commission types --
+
+export interface TriggeredBy {
+  source_id: string;
+  trigger_artifact: string;
+  depth: number;
+}
+
+export interface TriggerBlock {
+  match: EventMatchRule;
+  approval?: "auto" | "confirm";
+  maxDepth?: number;
+  runs_completed: number;
+  last_triggered: string | null;
+  last_spawned_id: string | null;
+}
 
 // -- Commission status --
 

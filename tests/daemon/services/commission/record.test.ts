@@ -1043,10 +1043,278 @@ Task body here.
   });
 });
 
+// -- readTriggerMetadata --
+
+/**
+ * Writes a triggered commission artifact for trigger-related tests.
+ */
+async function writeTriggerArtifact(
+  overrides?: Partial<{
+    status: string;
+    includeTriggerBlock: boolean;
+    approval: string;
+    maxDepth: number;
+    runs_completed: number;
+    last_triggered: string;
+    last_spawned_id: string;
+    matchType: string;
+    fields: string;
+  }>,
+): Promise<string> {
+  const status = overrides?.status ?? "active";
+  const matchType = overrides?.matchType ?? "commission_result";
+  const approval = overrides?.approval ?? "auto";
+  const maxDepth = overrides?.maxDepth ?? 3;
+  const runsCompleted = overrides?.runs_completed ?? 2;
+  const lastTriggered = overrides?.last_triggered ?? "2026-03-20T12:00:00.000Z";
+  const lastSpawnedId = overrides?.last_spawned_id ?? "commission-Thorne-20260320-120000";
+  const includeTrigger = overrides?.includeTriggerBlock ?? true;
+  const fieldsLine = overrides?.fields ?? `      status: completed`;
+
+  const triggerBlock = includeTrigger
+    ? `trigger:
+  match:
+    type: ${matchType}
+${fieldsLine ? `    fields:\n${fieldsLine}\n` : ""}  approval: ${approval}
+  maxDepth: ${maxDepth}
+  runs_completed: ${runsCompleted}
+  last_triggered: ${lastTriggered}
+  last_spawned_id: ${lastSpawnedId}
+`
+    : "";
+
+  const content = `---
+title: "Commission: Auto-review trigger"
+date: 2026-03-20
+status: ${status}
+type: triggered
+tags: [commission, triggered]
+worker: guild-hall-reviewer
+prompt: "Review the completed commission"
+dependencies: []
+${triggerBlock}activity_timeline:
+  - timestamp: 2026-03-20T10:00:00.000Z
+    event: created
+    reason: "Trigger created"
+current_progress: ""
+projectName: test-project
+---
+`;
+
+  await fs.writeFile(artifactPath, content, "utf-8");
+  return content;
+}
+
+describe("readTriggerMetadata", () => {
+  test("correctly parses all trigger block fields including match with fields", async () => {
+    await writeTriggerArtifact();
+
+    const meta = await ops.readTriggerMetadata(artifactPath);
+    expect(meta.match.type).toBe("commission_result");
+    expect(meta.match.fields).toEqual({ status: "completed" });
+    expect(meta.approval).toBe("auto");
+    expect(meta.maxDepth).toBe(3);
+    expect(meta.runs_completed).toBe(2);
+    expect(meta.last_triggered).toBe("2026-03-20T12:00:00.000Z");
+    expect(meta.last_spawned_id).toBe("commission-Thorne-20260320-120000");
+  });
+
+  test("handles null last_triggered and last_spawned_id", async () => {
+    await writeTriggerArtifact({
+      last_triggered: "null",
+      last_spawned_id: "null",
+    });
+
+    const meta = await ops.readTriggerMetadata(artifactPath);
+    expect(meta.last_triggered).toBeNull();
+    expect(meta.last_spawned_id).toBeNull();
+  });
+
+  test("throws when no trigger block present", async () => {
+    await writeTriggerArtifact({ includeTriggerBlock: false });
+
+    await expect(ops.readTriggerMetadata(artifactPath)).rejects.toThrow(
+      /no trigger block found/,
+    );
+  });
+
+  test("throws on nonexistent file", async () => {
+    const missing = path.join(tmpDir, "does-not-exist.md");
+    await expect(ops.readTriggerMetadata(missing)).rejects.toThrow(/artifact not found/);
+  });
+
+  test("coerces gray-matter-parsed field values to strings", async () => {
+    // gray-matter coerces "true" to boolean and "123" to number in YAML.
+    // The fields Record<string, string> contract must survive this.
+    await writeTriggerArtifact({
+      fields: "      enabled: true\n      count: 123",
+    });
+
+    const meta = await ops.readTriggerMetadata(artifactPath);
+    expect(meta.match.fields).toEqual({ enabled: "true", count: "123" });
+    // Verify values are strings, not their coerced types
+    expect(typeof meta.match.fields!.enabled).toBe("string");
+    expect(typeof meta.match.fields!.count).toBe("string");
+  });
+});
+
+// -- writeTriggerFields --
+
+describe("writeTriggerFields", () => {
+  test("updates only runs_completed, leaves other fields intact", async () => {
+    await writeTriggerArtifact();
+    await ops.writeTriggerFields(artifactPath, { runs_completed: 5 });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("  runs_completed: 5");
+    expect(raw).toContain("  last_triggered: 2026-03-20T12:00:00.000Z");
+    expect(raw).toContain("  last_spawned_id: commission-Thorne-20260320-120000");
+  });
+
+  test("updates last_triggered", async () => {
+    await writeTriggerArtifact();
+    await ops.writeTriggerFields(artifactPath, { last_triggered: "2026-03-21T09:00:00.000Z" });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("  last_triggered: 2026-03-21T09:00:00.000Z");
+  });
+
+  test("updates last_spawned_id", async () => {
+    await writeTriggerArtifact();
+    await ops.writeTriggerFields(artifactPath, {
+      last_spawned_id: "commission-Dalton-20260321-150000",
+    });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("  last_spawned_id: commission-Dalton-20260321-150000");
+  });
+
+  test("sets last_triggered to null", async () => {
+    await writeTriggerArtifact();
+    await ops.writeTriggerFields(artifactPath, { last_triggered: null });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("  last_triggered: null");
+  });
+
+  test("updates multiple fields at once", async () => {
+    await writeTriggerArtifact();
+    await ops.writeTriggerFields(artifactPath, {
+      runs_completed: 10,
+      last_triggered: "2026-03-21T15:00:00.000Z",
+      last_spawned_id: "commission-Dalton-20260321-150000",
+    });
+
+    const meta = await ops.readTriggerMetadata(artifactPath);
+    expect(meta.runs_completed).toBe(10);
+    expect(meta.last_triggered).toBe("2026-03-21T15:00:00.000Z");
+    expect(meta.last_spawned_id).toBe("commission-Dalton-20260321-150000");
+  });
+
+  test("preserves non-trigger frontmatter and body", async () => {
+    await writeTriggerArtifact();
+    await ops.writeTriggerFields(artifactPath, { runs_completed: 99 });
+
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("type: triggered");
+    expect(raw).toContain("worker: guild-hall-reviewer");
+    expect(raw).toContain("activity_timeline:");
+  });
+
+  test("throws on nonexistent file", async () => {
+    const missing = path.join(tmpDir, "does-not-exist.md");
+    await expect(
+      ops.writeTriggerFields(missing, { runs_completed: 1 }),
+    ).rejects.toThrow(/artifact not found/);
+  });
+});
+
+// -- readTriggeredBy --
+
+/**
+ * Writes a commission artifact with a triggered_by block.
+ */
+async function writeTriggeredByArtifact(
+  overrides?: Partial<{
+    includeTriggeredBy: boolean;
+    source_id: string;
+    trigger_artifact: string;
+    depth: number;
+  }>,
+): Promise<string> {
+  const includeBlock = overrides?.includeTriggeredBy ?? true;
+  const sourceId = overrides?.source_id ?? "commission-Dalton-20260320-100000";
+  const triggerArtifact = overrides?.trigger_artifact ?? "commission-auto-review-trigger-20260301-000000";
+  const depth = overrides?.depth ?? 1;
+
+  const triggeredByBlock = includeBlock
+    ? `triggered_by:
+  source_id: ${sourceId}
+  trigger_artifact: ${triggerArtifact}
+  depth: ${depth}
+`
+    : "";
+
+  const content = `---
+title: "Commission: Auto review"
+date: 2026-03-20
+status: pending
+type: one-shot
+${triggeredByBlock}tags: [commission]
+worker: guild-hall-reviewer
+prompt: "Review the thing"
+dependencies: []
+linked_artifacts: []
+activity_timeline:
+  - timestamp: 2026-03-20T12:00:00.000Z
+    event: created
+    reason: "Commission created by trigger"
+current_progress: ""
+projectName: test-project
+---
+`;
+
+  await fs.writeFile(artifactPath, content, "utf-8");
+  return content;
+}
+
+describe("readTriggeredBy", () => {
+  test("returns the block when present", async () => {
+    await writeTriggeredByArtifact();
+
+    const result = await ops.readTriggeredBy(artifactPath);
+    expect(result).not.toBeNull();
+    expect(result!.source_id).toBe("commission-Dalton-20260320-100000");
+    expect(result!.trigger_artifact).toBe("commission-auto-review-trigger-20260301-000000");
+    expect(result!.depth).toBe(1);
+  });
+
+  test("returns null when absent", async () => {
+    await writeTriggeredByArtifact({ includeTriggeredBy: false });
+
+    const result = await ops.readTriggeredBy(artifactPath);
+    expect(result).toBeNull();
+  });
+
+  test("returns null gracefully on nonexistent file", async () => {
+    const missing = path.join(tmpDir, "does-not-exist.md");
+    const result = await ops.readTriggeredBy(missing);
+    expect(result).toBeNull();
+  });
+
+  test("returns correct depth value", async () => {
+    await writeTriggeredByArtifact({ depth: 3 });
+
+    const result = await ops.readTriggeredBy(artifactPath);
+    expect(result).not.toBeNull();
+    expect(result!.depth).toBe(3);
+  });
+});
+
 // -- Factory --
 
 describe("createCommissionRecordOps", () => {
-  test("returns an object implementing all eleven methods", () => {
+  test("returns an object implementing all fourteen methods", () => {
     const recordOps = createCommissionRecordOps();
     expect(typeof recordOps.readStatus).toBe("function");
     expect(typeof recordOps.readType).toBe("function");
@@ -1059,5 +1327,8 @@ describe("createCommissionRecordOps", () => {
     expect(typeof recordOps.incrementHaltCount).toBe("function");
     expect(typeof recordOps.readScheduleMetadata).toBe("function");
     expect(typeof recordOps.writeScheduleFields).toBe("function");
+    expect(typeof recordOps.readTriggerMetadata).toBe("function");
+    expect(typeof recordOps.writeTriggerFields).toBe("function");
+    expect(typeof recordOps.readTriggeredBy).toBe("function");
   });
 });

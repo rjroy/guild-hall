@@ -89,9 +89,17 @@ function makeMockCommissionSession(
       calls.push({ method: "createScheduledCommission", args: [params] });
       return Promise.resolve({ commissionId: "schedule-test-worker-20260221-120000" });
     },
+    createTriggeredCommission(params: { projectName: string; title: string; workerName: string; prompt: string; match: unknown }) {
+      calls.push({ method: "createTriggeredCommission", args: [params] });
+      return Promise.resolve({ commissionId: "trigger-test-worker-20260221-120000" });
+    },
     updateScheduleStatus(commissionId: CommissionId, targetStatus: string) {
       calls.push({ method: "updateScheduleStatus", args: [commissionId, targetStatus] });
       return Promise.resolve({ outcome: "executed", status: targetStatus });
+    },
+    updateTriggerStatus(commissionId: CommissionId, targetStatus: string, projectName: string) {
+      calls.push({ method: "updateTriggerStatus", args: [commissionId, targetStatus, projectName] });
+      return Promise.resolve({ commissionId: commissionId as string, status: targetStatus });
     },
     continueCommission(commissionId: CommissionId) {
       calls.push({ method: "continueCommission", args: [commissionId] });
@@ -911,5 +919,208 @@ describe("POST /commission/run/save", () => {
     });
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /commission/request/commission/create (triggered)", () => {
+  test("passes type triggered with match fields", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commission/request/commission/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "On completion",
+        workerName: "writer",
+        prompt: "Process results",
+        type: "triggered",
+        match: { type: "commission_status", fields: { status: "completed" } },
+        approval: "auto",
+        maxDepth: 5,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("createTriggeredCommission");
+    const params = calls[0].args[0] as Record<string, unknown>;
+    expect(params.projectName).toBe("test-project");
+    expect(params.title).toBe("On completion");
+    expect(params.match).toEqual({ type: "commission_status", fields: { status: "completed" } });
+    expect(params.approval).toBe("auto");
+    expect(params.maxDepth).toBe(5);
+  });
+
+  test("returns 400 when type is triggered but match is missing", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commission/request/commission/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Missing match",
+        workerName: "writer",
+        prompt: "Test",
+        type: "triggered",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain("match");
+  });
+
+  test("returns 400 when match.type is not a valid system event type", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commission/request/commission/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Bad type",
+        workerName: "writer",
+        prompt: "Test",
+        type: "triggered",
+        match: { type: "not_a_real_event" },
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain("Invalid match.type");
+    expect(body.error).toContain("not_a_real_event");
+  });
+
+  test("returns 400 when match.type is missing", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commission/request/commission/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "No type",
+        workerName: "writer",
+        prompt: "Test",
+        type: "triggered",
+        match: { fields: { status: "completed" } },
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain("Invalid match.type");
+  });
+
+  test("triggered with defaults for approval and maxDepth", async () => {
+    const { app, calls } = makeTestApp();
+
+    const res = await app.request("/commission/request/commission/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Defaults",
+        workerName: "writer",
+        prompt: "Test",
+        type: "triggered",
+        match: { type: "meeting_ended" },
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const params = calls[0].args[0] as Record<string, unknown>;
+    // approval and maxDepth are undefined (the orchestrator applies defaults)
+    expect(params.approval).toBeUndefined();
+    expect(params.maxDepth).toBeUndefined();
+  });
+});
+
+// -- POST /commission/trigger/commission/update --
+
+describe("POST /commission/trigger/commission/update", () => {
+  test("returns 400 when commissionId is missing", async () => {
+    const { app } = makeTestApp();
+    const res = await app.request("/commission/trigger/commission/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "paused" }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("commissionId");
+  });
+
+  test("returns 400 when status is missing", async () => {
+    const { app } = makeTestApp();
+    const res = await app.request("/commission/trigger/commission/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commissionId: "test-id" }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("status");
+  });
+
+  test("calls updateTriggerStatus and returns result", async () => {
+    const { app, calls } = makeTestApp();
+    const res = await app.request("/commission/trigger/commission/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commissionId: "commission-trigger-20260321-120000",
+        status: "paused",
+        projectName: "test-project",
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.commissionId).toBe("commission-trigger-20260321-120000");
+    expect(body.status).toBe("paused");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("updateTriggerStatus");
+  });
+
+  test("returns 409 for invalid transitions", async () => {
+    const { app } = makeTestApp({
+      updateTriggerStatus() {
+        throw new Error('Cannot transition trigger from "completed" to "active"');
+      },
+    });
+    const res = await app.request("/commission/trigger/commission/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commissionId: "test-id",
+        status: "active",
+      }),
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toContain("Cannot transition");
+  });
+
+  test("returns 409 for non-triggered commission", async () => {
+    const { app } = makeTestApp({
+      updateTriggerStatus() {
+        throw new Error('Commission "test-id" is not a triggered commission');
+      },
+    });
+    const res = await app.request("/commission/trigger/commission/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commissionId: "test-id",
+        status: "paused",
+      }),
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toContain("not a triggered");
   });
 });

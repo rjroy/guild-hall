@@ -344,6 +344,10 @@ export async function createProductionApp(options?: {
   // The orchestrator's services bag captures this ref at dispatch time.
   const scheduleLifecycleRef: { current: undefined | Awaited<ReturnType<typeof import("@/daemon/services/scheduler/schedule-lifecycle").createScheduleLifecycle>> } = { current: undefined };
 
+  // Lazy ref for trigger evaluator: set after the trigger evaluator is constructed.
+  // Same late-binding pattern as scheduleLifecycleRef.
+  const triggerEvaluatorRef: { current: undefined | import("@/daemon/services/trigger-evaluator").TriggerEvaluator } = { current: undefined };
+
   // Layer 5: Orchestrator (coordinates all layers, implements CommissionSessionForRoutes)
   const commissionSession = createCommissionOrchestrator({
     lifecycle,
@@ -358,6 +362,7 @@ export async function createProductionApp(options?: {
     gitOps: git,
     createMeetingRequestFn,
     scheduleLifecycleRef,
+    triggerEvaluatorRef,
     log: createLog("commission"),
   });
 
@@ -377,6 +382,7 @@ export async function createProductionApp(options?: {
     workspace: workspaceOps,
     registry: meetingRegistry,
     scheduleLifecycleRef,
+    triggerEvaluatorRef,
     recordOps,
     log: createLog("meeting"),
   });
@@ -542,16 +548,37 @@ export async function createProductionApp(options?: {
     packageOperationRouteModule = createPackageOperationRoutes(packageOperations, routeDeps);
   }
 
-  // Event Router: subscribe to EventBus and dispatch matching events to
-  // configured channels (shell commands, webhooks). Created before session
-  // recovery so it captures recovery events.
+  // Event Router: generic filtered subscription layer over the EventBus.
+  // Created before session recovery so it captures recovery events.
   const { createEventRouter } = await import("@/daemon/services/event-router");
-  const unsubscribeRouter = createEventRouter({
+  const { router: eventRouter, cleanup: cleanupRouter } = createEventRouter({
     eventBus,
-    channels: config.channels ?? {},
-    notifications: config.notifications ?? [],
     log: createLog("event-router"),
   });
+
+  // Notification Service: dispatches matched events to external channels.
+  const { createNotificationService } = await import("@/daemon/services/notification-service");
+  const cleanupNotifications = createNotificationService({
+    router: eventRouter,
+    channels: config.channels ?? {},
+    notifications: config.notifications ?? [],
+    log: createLog("notification-service"),
+  });
+
+  // Trigger Evaluator: event-driven commission creation (REQ-TRIG-27).
+  // Positioned after Event Router and commission orchestrator since it
+  // needs both. Uses the same router subscription pattern as notifications.
+  const { createTriggerEvaluator } = await import("@/daemon/services/trigger-evaluator");
+  const triggerEvaluator = createTriggerEvaluator({
+    router: eventRouter,
+    recordOps,
+    commissionSession,
+    config,
+    guildHallHome,
+    log: createLog("trigger-evaluator"),
+  });
+  triggerEvaluatorRef.current = triggerEvaluator;
+  await triggerEvaluator.initialize();
 
   // Outcome Triage: after commission/meeting completion, a Haiku session
   // evaluates the outcome and writes noteworthy findings to project memory.
@@ -612,9 +639,11 @@ export async function createProductionApp(options?: {
     app,
     registry,
     shutdown: () => {
+      triggerEvaluator.shutdown();
       scheduler.stop();
       briefingRefresh.stop();
-      unsubscribeRouter();
+      cleanupNotifications();
+      cleanupRouter();
       unsubscribeTriage();
     },
   };

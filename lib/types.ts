@@ -370,7 +370,7 @@ export type ChannelConfig =
   | { type: "webhook"; url: string };
 
 export interface NotificationRule {
-  match: { type: SystemEventType; projectName?: string };
+  match: { type: SystemEventType; projectName?: string; fields?: Record<string, string> };
   channel: string;
 }
 

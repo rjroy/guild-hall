@@ -45,6 +45,17 @@
 
 /* --- Sizes --- */
 
+.xs .frame {
+  width: 28px;
+  height: 28px;
+}
+.xs .inner,
+.xs .placeholder {
+  width: 20px;
+  height: 20px;
+  font-size: 0.55rem;
+}
+
 .sm .frame {
   width: 48px;
   height: 48px;

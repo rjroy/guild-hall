@@ -7,7 +7,7 @@ modules: [web/components/dashboard/DependencyMap, web/components/commission/Neig
 related:
   - .lore/specs/ui/commission-graph-to-tree-list.md
   - .lore/brainstorm/commission-graph-to-tree-list.md
-  - .lore/specs/ui/graph-scrollable-container.md
+  - .lore/_abandoned/specs/graph-scrollable-container.md
 ---
 
 # Plan: Commission Graph to Tree List

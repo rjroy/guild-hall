@@ -2,7 +2,7 @@
 title: Local model support implementation
 date: 2026-03-09
 status: executed
-tags: [local-models, ollama, model-selection, daemon, configuration]
+tags: [local-models, ollama, model-selection, daemon, config]
 modules: [daemon, sdk-runner, config, worker-activation, web-ui]
 related:
   - .lore/specs/infrastructure/local-model-support.md

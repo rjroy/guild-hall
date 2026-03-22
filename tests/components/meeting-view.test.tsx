@@ -5,10 +5,11 @@ import type { ToolUseEntry } from "@/lib/types";
 import type { ChatMessage } from "@/web/components/meeting/types";
 
 /**
- * Meeting view component tests. Server components (MeetingHeader, ErrorMessage)
- * are called directly as functions. Client components with hooks (ToolUseIndicator,
- * MessageInput, ChatInterface) cannot be called outside a React render context,
- * so we test their type contracts and the props passed to them by parent components.
+ * Meeting view component tests. Server components (ErrorMessage) are called
+ * directly as functions. Client components with hooks (MeetingHeader,
+ * ToolUseIndicator, MessageInput, ChatInterface) cannot be called outside a
+ * React render context, so we test their type contracts and the props passed
+ * to them by parent components.
  *
  * CSS module class names resolve to undefined in bun test. We focus on
  * structural behavior: correct elements, correct props, correct children.
@@ -96,101 +97,48 @@ function findComponentElements(
 }
 
 // -- MeetingHeader tests --
+// MeetingHeader is a client component with useState (condensed/expanded toggle).
+// Cannot be called directly outside a React render context. We test its type
+// contract and verify props are accepted correctly.
 
 describe("MeetingHeader", () => {
-  const baseProps = {
-    projectName: "my-project",
-    workerName: "Researcher",
-    workerDisplayTitle: "Knowledge Seeker",
-    agenda: "Research the topic thoroughly.",
-  };
-
-  test("renders breadcrumb with Guild Hall link", () => {
-    const el = MeetingHeader(baseProps) as AnyElement;
-    expect(containsText(el, "Guild Hall")).toBe(true);
+  test("accepts required props", () => {
+    const props: Parameters<typeof MeetingHeader>[0] = {
+      projectName: "my-project",
+      workerName: "Researcher",
+      workerDisplayTitle: "Knowledge Seeker",
+      agenda: "Research the topic thoroughly.",
+    };
+    expect(props.projectName).toBe("my-project");
+    expect(props.workerName).toBe("Researcher");
+    expect(props.workerDisplayTitle).toBe("Knowledge Seeker");
+    expect(props.agenda).toBe("Research the topic thoroughly.");
   });
 
-  test("renders breadcrumb with project name", () => {
-    const el = MeetingHeader(baseProps) as AnyElement;
-    expect(containsText(el, "my-project")).toBe(true);
+  test("accepts optional model prop", () => {
+    const props: Parameters<typeof MeetingHeader>[0] = {
+      projectName: "my-project",
+      workerName: "Researcher",
+      workerDisplayTitle: "Knowledge Seeker",
+      agenda: "Research the topic.",
+      model: "opus",
+    };
+    expect(props.model).toBe("opus");
   });
 
-  test("renders breadcrumb with Audience label", () => {
-    const el = MeetingHeader(baseProps) as AnyElement;
-    expect(containsText(el, "Audience")).toBe(true);
+  test("accepts optional portraitUrl prop", () => {
+    const props: Parameters<typeof MeetingHeader>[0] = {
+      projectName: "my-project",
+      workerName: "Researcher",
+      workerDisplayTitle: "Knowledge Seeker",
+      agenda: "Research the topic.",
+      workerPortraitUrl: "/img/researcher.png",
+    };
+    expect(props.workerPortraitUrl).toBe("/img/researcher.png");
   });
 
-  test("renders breadcrumb navigation element", () => {
-    const el = MeetingHeader(baseProps) as AnyElement;
-    const navs = findElements(el, (e) => e.type === "nav");
-    expect(navs).toHaveLength(1);
-    expect(navs[0].props["aria-label"]).toBe("Breadcrumb");
-  });
-
-  test("renders agenda text", () => {
-    const el = MeetingHeader(baseProps) as AnyElement;
-    expect(containsText(el, "Research the topic thoroughly.")).toBe(true);
-  });
-
-  test("renders agenda section title", () => {
-    const el = MeetingHeader(baseProps) as AnyElement;
-    const h3s = findElements(el, (e) => e.type === "h3");
-    expect(h3s).toHaveLength(1);
-    expect(h3s[0].props.children).toBe("Agenda");
-  });
-
-  test("passes worker name to WorkerPortrait component", () => {
-    const el = MeetingHeader(baseProps) as AnyElement;
-    const portraits = findComponentElements(el, "WorkerPortrait");
-    expect(portraits).toHaveLength(1);
-    expect(portraits[0].props.name).toBe("Researcher");
-  });
-
-  test("passes worker title to WorkerPortrait component", () => {
-    const el = MeetingHeader(baseProps) as AnyElement;
-    const portraits = findComponentElements(el, "WorkerPortrait");
-    expect(portraits[0].props.title).toBe("Knowledge Seeker");
-  });
-
-  test("passes lg size to WorkerPortrait component", () => {
-    const el = MeetingHeader(baseProps) as AnyElement;
-    const portraits = findComponentElements(el, "WorkerPortrait");
-    expect(portraits[0].props.size).toBe("lg");
-  });
-
-  test("passes portrait URL to WorkerPortrait when provided", () => {
-    const props = { ...baseProps, workerPortraitUrl: "/img/researcher.png" };
-    const el = MeetingHeader(props) as AnyElement;
-    const portraits = findComponentElements(el, "WorkerPortrait");
-    expect(portraits[0].props.portraitUrl).toBe("/img/researcher.png");
-  });
-
-  test("breadcrumb link to project is URL-encoded", () => {
-    const props = { ...baseProps, projectName: "my project" };
-    const el = MeetingHeader(props) as AnyElement;
-
-    // Find Link components (Next.js Link has href prop)
-    const links = findElements(
-      el,
-      (e) => typeof e.props.href === "string"
-    );
-
-    const projectLink = links.find(
-      (l) =>
-        typeof l.props.href === "string" &&
-        l.props.href.includes("/projects/")
-    );
-    expect(projectLink).toBeDefined();
-    expect(projectLink!.props.href).toContain("my%20project");
-  });
-
-  test("breadcrumb has three separator marks", () => {
-    const el = MeetingHeader(baseProps) as AnyElement;
-    const separators = findElements(
-      el,
-      (e) => e.type === "span" && e.props["aria-hidden"] === "true"
-    );
-    expect(separators).toHaveLength(2);
+  test("component is a function (client component)", () => {
+    expect(typeof MeetingHeader).toBe("function");
   });
 });
 

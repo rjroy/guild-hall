@@ -16,6 +16,25 @@
   border-image-width: 50px;
   border-image-repeat: stretch;
 
+  /* Transition for condensing animation (REQ-MTG-LAYOUT-15) */
+  max-height: 300px;
+  transition: max-height 250ms ease, padding 250ms ease;
+  overflow: hidden;
+}
+
+/* Condensed state: simple border, compact height */
+.headerCondensed {
+  max-height: 56px;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: 8px;
+  margin-bottom: var(--space-sm);
+
+  /* Replace ornate border-image with simple border */
+  border-image-source: none;
+  border-image-slice: unset;
+  border-image-width: unset;
+  border-image-repeat: unset;
+  border: 1px solid var(--color-brass);
 }
 
 /* --- Breadcrumb --- */
@@ -46,7 +65,7 @@
   font-weight: 500;
 }
 
-/* --- Worker + Agenda row --- */
+/* --- Worker + Agenda row (expanded) --- */
 
 .headerContent {
   display: flex;
@@ -54,11 +73,19 @@
   align-items: flex-start;
 }
 
+/* --- Worker + Agenda row (condensed) --- */
+
+.headerContentCondensed {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
 .workerInfo {
   flex-shrink: 0;
 }
 
-/* --- Agenda --- */
+/* --- Agenda (expanded) --- */
 
 .agendaSection {
   flex: 1;
@@ -66,6 +93,16 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+}
+
+/* --- Agenda (condensed) --- */
+
+.agendaSectionCondensed {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .agendaTitle {
@@ -77,6 +114,11 @@
   letter-spacing: 0.05em;
 }
 
+/* Collapsed in condensed state: hidden but not removed from DOM (REQ-MTG-LAYOUT-13) */
+.agendaTitleCondensed {
+  display: none;
+}
+
 .agendaText {
   font-size: 0.9rem;
   color: var(--color-text);
@@ -85,9 +127,74 @@
   white-space: pre-wrap;
 }
 
+/* Condensed agenda: single line with ellipsis */
+.agendaTextCondensed {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  margin: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Trailing row: model label + toggle chevron */
+.agendaTrailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .modelLabel {
   font-size: 0.8rem;
   color: var(--color-text-muted);
+}
+
+/* --- Toggle button --- */
+
+.toggleButton {
+  background: none;
+  border: 1px solid var(--color-brass);
+  border-radius: 4px;
+  color: var(--color-brass);
+  cursor: pointer;
+  font-size: 0.65rem;
+  line-height: 1;
+  padding: 2px 6px;
+  transition: color 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.toggleButton:hover {
+  color: var(--color-amber);
+  border-color: var(--color-amber);
+}
+
+/* --- Phone close button (REQ-MTG-LAYOUT-22) --- */
+
+.headerCloseButton {
+  display: none;
+  background: rgba(180, 60, 60, 0.15);
+  border: 1px solid rgba(180, 60, 60, 0.3);
+  border-radius: 4px;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 4px 8px;
+  flex-shrink: 0;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.headerCloseButton:hover:not(:disabled) {
+  background-color: rgba(180, 60, 60, 0.25);
+  border-color: rgba(180, 60, 60, 0.5);
+}
+
+.headerCloseButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* --- Responsive --- */
@@ -108,5 +215,10 @@
   .header {
     border-image-width: 16px;
     border-radius: 16px;
+  }
+
+  /* REQ-MTG-LAYOUT-22: Show close button in condensed header on phone */
+  .headerCloseButton {
+    display: inline-flex;
   }
 }

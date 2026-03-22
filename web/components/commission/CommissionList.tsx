@@ -122,6 +122,9 @@ export default function CommissionList({
                         {commission.type === "scheduled" && (
                           <span className={styles.recurringLabel}>Recurring</span>
                         )}
+                        {commission.type === "triggered" && (
+                          <span className={styles.triggerLabel}>Trigger</span>
+                        )}
                       </p>
                       <div className={styles.meta}>
                         {commission.worker && (
@@ -148,6 +151,17 @@ export default function CommissionList({
                         className={styles.sourceScheduleLink}
                       >
                         {commission.sourceSchedule}
+                      </Link>
+                    </span>
+                  )}
+                  {commission.sourceTrigger && (
+                    <span className={styles.sourceTrigger}>
+                      from:{" "}
+                      <Link
+                        href={`/projects/${encodedName}/commissions/${encodeURIComponent(commission.sourceTrigger)}`}
+                        className={styles.sourceTriggerLink}
+                      >
+                        {commission.sourceTrigger}
                       </Link>
                     </span>
                   )}

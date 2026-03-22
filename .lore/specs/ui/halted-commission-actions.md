@@ -1,8 +1,8 @@
 ---
 title: Halted commission action buttons
 date: 2026-03-20
-status: approved
-tags: [ui, commissions, halted-state, client-component]
+status: implemented
+tags: [ui, commissions, halted, client-component]
 modules: [web/components/commission/CommissionActions, web/app/api/commissions]
 related:
   - .lore/specs/commissions/commission-halted-continuation.md

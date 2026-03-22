@@ -7,7 +7,7 @@ modules: [web/components/dashboard/DependencyMap, web/components/commission/Neig
 related:
   - .lore/brainstorm/commission-graph-to-tree-list.md
   - .lore/specs/ui/guild-hall-views.md
-  - .lore/specs/ui/graph-scrollable-container.md
+  - .lore/_abandoned/specs/graph-scrollable-container.md
   - .lore/specs/ui/commission-list-filtering.md
   - .lore/specs/ui/artifact-sorting.md
   - .lore/research/wide-dag-visualization-patterns.md

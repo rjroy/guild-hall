@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ScheduleInfo } from "./CommissionView";
+import { formatTimestamp } from "./format-timestamp";
 import styles from "./CommissionScheduleInfo.module.css";
 
 interface CommissionScheduleInfoProps {
@@ -89,20 +90,4 @@ export default function CommissionScheduleInfo({
       )}
     </div>
   );
-}
-
-/** Formats an ISO timestamp to a readable local date/time string. */
-function formatTimestamp(iso: string): string {
-  try {
-    const date = new Date(iso);
-    return date.toLocaleString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
 }

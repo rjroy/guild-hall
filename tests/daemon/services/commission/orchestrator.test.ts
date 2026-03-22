@@ -522,6 +522,91 @@ describe("createCommission", () => {
       orchestrator.createCommission(TEST_PROJECT, "Test", "nonexistent-worker", "prompt"),
     ).rejects.toThrow(/not found/);
   });
+
+  test("creates artifact with triggered_by block when sourceTrigger provided", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Review results",
+      "test-worker",
+      "Review the commission",
+      [],
+      undefined,
+      {
+        type: "one-shot",
+        sourceTrigger: {
+          triggerArtifact: "commission-auto-review-20260301-000000",
+          sourceId: "commission-Dalton-20260321-120000",
+          depth: 2,
+        },
+      },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("triggered_by:");
+    expect(raw).toContain("  source_id: commission-Dalton-20260321-120000");
+    expect(raw).toContain("  trigger_artifact: commission-auto-review-20260301-000000");
+    expect(raw).toContain("  depth: 2");
+  });
+
+  test("activity timeline mentions trigger when sourceTrigger provided", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Review results",
+      "test-worker",
+      "Review it",
+      [],
+      undefined,
+      {
+        sourceTrigger: {
+          triggerArtifact: "my-trigger",
+          sourceId: "source-commission",
+          depth: 1,
+        },
+      },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("Commission created by trigger: my-trigger");
+    expect(raw).toContain("source: source-commission");
+    expect(raw).toContain("depth: 1");
+  });
+
+  test("createCommission without sourceTrigger has no triggered_by block", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Regular commission",
+      "test-worker",
+      "Do work",
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).not.toContain("triggered_by:");
+    expect(raw).toContain('reason: "Commission created"');
+  });
 });
 
 describe("dispatch flow", () => {

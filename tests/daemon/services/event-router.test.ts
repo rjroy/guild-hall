@@ -1,57 +1,36 @@
-/* eslint-disable @typescript-eslint/require-await -- test dispatch stubs return Promise<void> per interface contract */
 import { describe, test, expect } from "bun:test";
 import { createEventBus, type SystemEvent } from "@/daemon/lib/event-bus";
 import { collectingLog, nullLog } from "@/daemon/lib/log";
-import { createEventRouter, camelToScreamingSnake } from "@/daemon/services/event-router";
-import type { ChannelConfig, NotificationRule } from "@/lib/types";
+import { createEventRouter } from "@/daemon/services/event-router";
 
-function makeRouter(opts: {
-  channels: Record<string, ChannelConfig>;
-  notifications: NotificationRule[];
-  dispatchShell?: (command: string, env: Record<string, string>) => Promise<void>;
-  dispatchWebhook?: (url: string, body: unknown) => Promise<void>;
-  log?: ReturnType<typeof collectingLog>;
-}) {
+function makeRouter(logCtx?: ReturnType<typeof collectingLog>) {
   const eventBus = createEventBus(nullLog("test-bus"));
-  const logCtx = opts.log ?? collectingLog("event-router");
-  const cleanup = createEventRouter({
-    eventBus,
-    channels: opts.channels,
-    notifications: opts.notifications,
-    log: logCtx.log,
-    dispatchShell: opts.dispatchShell,
-    dispatchWebhook: opts.dispatchWebhook,
-  });
-  return { eventBus, cleanup, logCtx };
+  const ctx = logCtx ?? collectingLog("event-router");
+  const { router, cleanup } = createEventRouter({ eventBus, log: ctx.log });
+  return { eventBus, router, cleanup, logCtx: ctx };
 }
 
-// Helper to wait for async fire-and-forget dispatches to complete
 function tick() {
   return new Promise((resolve) => setTimeout(resolve, 10));
 }
 
-describe("EventRouter matching logic", () => {
-  test("rule matches event with same type", async () => {
-    const calls: unknown[] = [];
-    const { eventBus, cleanup } = makeRouter({
-      channels: { desktop: { type: "shell", command: "echo hi" } },
-      notifications: [{ match: { type: "commission_result" }, channel: "desktop" }],
-      dispatchShell: async (_cmd, env) => { calls.push(env); },
-    });
+describe("EventRouter subscription and matching", () => {
+  test("handler fires when event type matches the rule", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: SystemEvent[] = [];
+    router.subscribe({ type: "commission_result" }, (e) => { calls.push(e); });
 
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
     await tick();
     expect(calls).toHaveLength(1);
+    expect(calls[0].type).toBe("commission_result");
     cleanup();
   });
 
-  test("rule does not match event with different type", async () => {
+  test("handler does not fire for a non-matching event type", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
     const calls: unknown[] = [];
-    const { eventBus, cleanup } = makeRouter({
-      channels: { desktop: { type: "shell", command: "echo hi" } },
-      notifications: [{ match: { type: "commission_result" }, channel: "desktop" }],
-      dispatchShell: async () => { calls.push(1); },
-    });
+    router.subscribe({ type: "commission_result" }, () => { calls.push(1); });
 
     eventBus.emit({ type: "meeting_ended", meetingId: "m1" });
     await tick();
@@ -59,13 +38,10 @@ describe("EventRouter matching logic", () => {
     cleanup();
   });
 
-  test("rule with projectName matches when event carries matching projectName", async () => {
+  test("rule with projectName matches when event carries the same projectName", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
     const calls: unknown[] = [];
-    const { eventBus, cleanup } = makeRouter({
-      channels: { hook: { type: "webhook", url: "https://example.com" } },
-      notifications: [{ match: { type: "schedule_spawned", projectName: "guild-hall" }, channel: "hook" }],
-      dispatchWebhook: async (_url, body) => { calls.push(body); },
-    });
+    router.subscribe({ type: "schedule_spawned", projectName: "guild-hall" }, () => { calls.push(1); });
 
     eventBus.emit({ type: "schedule_spawned", scheduleId: "s1", spawnedId: "c1", projectName: "guild-hall", runNumber: 1 });
     await tick();
@@ -73,28 +49,21 @@ describe("EventRouter matching logic", () => {
     cleanup();
   });
 
-  test("rule with projectName skips event that does not carry projectName", async () => {
+  test("rule with projectName skips when event does not carry projectName", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
     const calls: unknown[] = [];
-    const { eventBus, cleanup } = makeRouter({
-      channels: { desktop: { type: "shell", command: "echo hi" } },
-      notifications: [{ match: { type: "commission_result", projectName: "guild-hall" }, channel: "desktop" }],
-      dispatchShell: async () => { calls.push(1); },
-    });
+    router.subscribe({ type: "commission_result", projectName: "guild-hall" }, () => { calls.push(1); });
 
-    // commission_result has no projectName field
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
     await tick();
     expect(calls).toHaveLength(0);
     cleanup();
   });
 
-  test("rule with projectName skips event with non-matching projectName", async () => {
+  test("rule with projectName skips when event carries a different projectName", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
     const calls: unknown[] = [];
-    const { eventBus, cleanup } = makeRouter({
-      channels: { hook: { type: "webhook", url: "https://example.com" } },
-      notifications: [{ match: { type: "commission_status", projectName: "guild-hall" }, channel: "hook" }],
-      dispatchWebhook: async () => { calls.push(1); },
-    });
+    router.subscribe({ type: "commission_status", projectName: "guild-hall" }, () => { calls.push(1); });
 
     eventBus.emit({ type: "commission_status", commissionId: "c1", status: "active", projectName: "other-project" });
     await tick();
@@ -103,52 +72,38 @@ describe("EventRouter matching logic", () => {
   });
 
   test("rule without projectName matches regardless of event projectName", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
     const calls: unknown[] = [];
-    const { eventBus, cleanup } = makeRouter({
-      channels: { hook: { type: "webhook", url: "https://example.com" } },
-      notifications: [{ match: { type: "schedule_spawned" }, channel: "hook" }],
-      dispatchWebhook: async () => { calls.push(1); },
-    });
+    router.subscribe({ type: "schedule_spawned" }, () => { calls.push(1); });
 
     eventBus.emit({ type: "schedule_spawned", scheduleId: "s1", spawnedId: "c1", projectName: "guild-hall", runNumber: 1 });
     await tick();
     expect(calls).toHaveLength(1);
     cleanup();
   });
+});
 
-  test("multiple rules matching same event dispatch independently", async () => {
-    const shellCalls: unknown[] = [];
-    const webhookCalls: unknown[] = [];
-    const { eventBus, cleanup } = makeRouter({
-      channels: {
-        desktop: { type: "shell", command: "echo hi" },
-        hook: { type: "webhook", url: "https://example.com" },
-      },
-      notifications: [
-        { match: { type: "commission_result" }, channel: "desktop" },
-        { match: { type: "commission_result" }, channel: "hook" },
-      ],
-      dispatchShell: async () => { shellCalls.push(1); },
-      dispatchWebhook: async () => { webhookCalls.push(1); },
-    });
+describe("EventRouter multiple subscriptions", () => {
+  test("multiple subscriptions matching the same event fire independently", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const callsA: unknown[] = [];
+    const callsB: unknown[] = [];
+    router.subscribe({ type: "commission_result" }, () => { callsA.push(1); });
+    router.subscribe({ type: "commission_result" }, () => { callsB.push(1); });
 
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
     await tick();
-    expect(shellCalls).toHaveLength(1);
-    expect(webhookCalls).toHaveLength(1);
+    expect(callsA).toHaveLength(1);
+    expect(callsB).toHaveLength(1);
     cleanup();
   });
 
-  test("two rules routing to same channel fire the channel twice (no dedup)", async () => {
+  test("same handler registered twice fires twice (no dedup)", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
     const calls: unknown[] = [];
-    const { eventBus, cleanup } = makeRouter({
-      channels: { desktop: { type: "shell", command: "echo hi" } },
-      notifications: [
-        { match: { type: "commission_result" }, channel: "desktop" },
-        { match: { type: "commission_result" }, channel: "desktop" },
-      ],
-      dispatchShell: async () => { calls.push(1); },
-    });
+    const handler = () => { calls.push(1); };
+    router.subscribe({ type: "commission_result" }, handler);
+    router.subscribe({ type: "commission_result" }, handler);
 
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
     await tick();
@@ -157,259 +112,288 @@ describe("EventRouter matching logic", () => {
   });
 });
 
-describe("EventRouter channel dispatch", () => {
-  test("shell dispatch receives correct env vars", async () => {
-    let capturedEnv: Record<string, string> = {};
-    const { eventBus, cleanup } = makeRouter({
-      channels: { desktop: { type: "shell", command: "echo hi" } },
-      notifications: [{ match: { type: "commission_result" }, channel: "desktop" }],
-      dispatchShell: async (_cmd, env) => { capturedEnv = env; },
-    });
+describe("EventRouter handler failure isolation", () => {
+  test("a handler that throws does not prevent other handlers from firing", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_result" }, () => { throw new Error("boom"); });
+    router.subscribe({ type: "commission_result" }, () => { calls.push(1); });
 
-    const event: SystemEvent = { type: "commission_result", commissionId: "c-123", summary: "Build complete" };
-    eventBus.emit(event);
+    eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
     await tick();
-
-    expect(capturedEnv.EVENT_TYPE).toBe("commission_result");
-    expect(capturedEnv.EVENT_JSON).toBe(JSON.stringify(event));
-    expect(capturedEnv.EVENT_COMMISSION_ID).toBe("c-123");
-    expect(capturedEnv.EVENT_SUMMARY).toBe("Build complete");
+    expect(calls).toHaveLength(1);
     cleanup();
   });
 
-  test("webhook dispatch receives the full event object", async () => {
-    let capturedBody: unknown;
-    const { eventBus, cleanup } = makeRouter({
-      channels: { hook: { type: "webhook", url: "https://example.com/hook" } },
-      notifications: [{ match: { type: "meeting_ended" }, channel: "hook" }],
-      dispatchWebhook: async (_url, body) => { capturedBody = body; },
-    });
+  test("a handler that throws is logged at warn level", async () => {
+    const logCtx = collectingLog("event-router");
+    const { eventBus, router, cleanup } = makeRouter(logCtx);
+    router.subscribe({ type: "commission_result" }, () => { throw new Error("handler broke"); });
 
-    const event: SystemEvent = { type: "meeting_ended", meetingId: "m-42" };
-    eventBus.emit(event);
+    eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
     await tick();
-
-    expect(capturedBody).toEqual(event);
-    cleanup();
-  });
-
-  test("webhook dispatch is called with the correct URL", async () => {
-    let capturedUrl = "";
-    const { eventBus, cleanup } = makeRouter({
-      channels: { hook: { type: "webhook", url: "https://hooks.example.com/guild" } },
-      notifications: [{ match: { type: "meeting_ended" }, channel: "hook" }],
-      dispatchWebhook: async (url) => { capturedUrl = url; },
-    });
-
-    eventBus.emit({ type: "meeting_ended", meetingId: "m-1" });
-    await tick();
-
-    expect(capturedUrl).toBe("https://hooks.example.com/guild");
+    expect(logCtx.messages.warn.length).toBeGreaterThan(0);
+    expect(logCtx.messages.warn[0]).toContain("handler broke");
     cleanup();
   });
 });
 
-describe("EventRouter failure handling", () => {
-  test("shell dispatch failure logs at warn level", async () => {
-    const logCtx = collectingLog("event-router");
-    const { eventBus, cleanup } = makeRouter({
-      channels: { desktop: { type: "shell", command: "echo hi" } },
-      notifications: [{ match: { type: "commission_result" }, channel: "desktop" }],
-      dispatchShell: async () => { throw new Error("spawn failed"); },
-      log: logCtx,
-    });
+describe("EventRouter unsubscribe", () => {
+  test("unsubscribe callback removes that subscription", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    const unsub = router.subscribe({ type: "commission_result" }, () => { calls.push(1); });
 
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
     await tick();
+    expect(calls).toHaveLength(1);
 
-    expect(logCtx.messages.warn.length).toBeGreaterThan(0);
-    expect(logCtx.messages.warn[0]).toContain("spawn failed");
-    expect(logCtx.messages.warn[0]).toContain("desktop");
-    cleanup();
-  });
+    unsub();
 
-  test("webhook dispatch failure logs at warn level", async () => {
-    const logCtx = collectingLog("event-router");
-    const { eventBus, cleanup } = makeRouter({
-      channels: { hook: { type: "webhook", url: "https://example.com" } },
-      notifications: [{ match: { type: "meeting_ended" }, channel: "hook" }],
-      dispatchWebhook: async () => { throw new Error("network error"); },
-      log: logCtx,
-    });
-
-    eventBus.emit({ type: "meeting_ended", meetingId: "m1" });
+    eventBus.emit({ type: "commission_result", commissionId: "c2", summary: "done again" });
     await tick();
-
-    expect(logCtx.messages.warn.length).toBeGreaterThan(0);
-    expect(logCtx.messages.warn[0]).toContain("network error");
+    expect(calls).toHaveLength(1);
     cleanup();
   });
 
-  test("one channel failure does not prevent another channel from firing", async () => {
-    const webhookCalls: unknown[] = [];
-    const logCtx = collectingLog("event-router");
-    const { eventBus, cleanup } = makeRouter({
-      channels: {
-        failing: { type: "shell", command: "fail" },
-        working: { type: "webhook", url: "https://example.com" },
-      },
-      notifications: [
-        { match: { type: "commission_result" }, channel: "failing" },
-        { match: { type: "commission_result" }, channel: "working" },
-      ],
-      dispatchShell: async () => { throw new Error("shell broke"); },
-      dispatchWebhook: async () => { webhookCalls.push(1); },
-      log: logCtx,
-    });
+  test("unsubscribing one subscription does not affect others", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const callsA: unknown[] = [];
+    const callsB: unknown[] = [];
+    const unsubA = router.subscribe({ type: "commission_result" }, () => { callsA.push(1); });
+    router.subscribe({ type: "commission_result" }, () => { callsB.push(1); });
+
+    unsubA();
 
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
     await tick();
-
-    expect(webhookCalls).toHaveLength(1);
-    expect(logCtx.messages.warn.length).toBeGreaterThan(0);
-    cleanup();
-  });
-});
-
-describe("EventRouter inert behavior", () => {
-  test("empty channels map: no subscription, returns cleanup function", () => {
-    const eventBus = createEventBus(nullLog("test-bus"));
-    const logCtx = collectingLog("event-router");
-    const cleanup = createEventRouter({
-      eventBus,
-      channels: {},
-      notifications: [{ match: { type: "commission_result" }, channel: "desktop" }],
-      log: logCtx.log,
-    });
-    expect(typeof cleanup).toBe("function");
-    // Emit and verify nothing happens (no subscription, no crash)
-    eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
-    expect(logCtx.messages.info).toHaveLength(0);
-    cleanup();
-  });
-
-  test("empty notifications array: no subscription, returns cleanup function", () => {
-    const eventBus = createEventBus(nullLog("test-bus"));
-    const logCtx = collectingLog("event-router");
-    const cleanup = createEventRouter({
-      eventBus,
-      channels: { desktop: { type: "shell", command: "echo hi" } },
-      notifications: [],
-      log: logCtx.log,
-    });
-    expect(typeof cleanup).toBe("function");
-    eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
-    expect(logCtx.messages.info).toHaveLength(0);
+    expect(callsA).toHaveLength(0);
+    expect(callsB).toHaveLength(1);
     cleanup();
   });
 });
 
 describe("EventRouter cleanup", () => {
-  test("returned cleanup function unsubscribes from EventBus", async () => {
+  test("cleanup unsubscribes from EventBus, no handlers fire after", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
     const calls: unknown[] = [];
-    const { eventBus, cleanup } = makeRouter({
-      channels: { desktop: { type: "shell", command: "echo hi" } },
-      notifications: [{ match: { type: "commission_result" }, channel: "desktop" }],
-      dispatchShell: async () => { calls.push(1); },
-    });
+    router.subscribe({ type: "commission_result" }, () => { calls.push(1); });
 
-    // First emit should dispatch
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
     await tick();
     expect(calls).toHaveLength(1);
 
-    // Unsubscribe
     cleanup();
 
-    // Second emit should not dispatch
     eventBus.emit({ type: "commission_result", commissionId: "c2", summary: "done again" });
     await tick();
     expect(calls).toHaveLength(1);
   });
 });
 
-describe("camelToScreamingSnake", () => {
-  test("commissionId -> COMMISSION_ID", () => {
-    expect(camelToScreamingSnake("commissionId")).toBe("COMMISSION_ID");
+describe("EventRouter field matching", () => {
+  test("exact field match", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { status: "completed" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "completed" });
+    await tick();
+    expect(calls).toHaveLength(1);
+    cleanup();
   });
 
-  test("projectName -> PROJECT_NAME", () => {
-    expect(camelToScreamingSnake("projectName")).toBe("PROJECT_NAME");
+  test("exact field mismatch", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { status: "completed" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "failed" });
+    await tick();
+    expect(calls).toHaveLength(0);
+    cleanup();
   });
 
-  test("type -> TYPE", () => {
-    expect(camelToScreamingSnake("type")).toBe("TYPE");
+  test("missing field causes skip, not error", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { workerName: "Dalton" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "completed" });
+    await tick();
+    expect(calls).toHaveLength(0);
+    cleanup();
   });
 
-  test("summary -> SUMMARY", () => {
-    expect(camelToScreamingSnake("summary")).toBe("SUMMARY");
+  test("multiple fields AND - all match", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { status: "completed", commissionId: "c1" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "completed" });
+    await tick();
+    expect(calls).toHaveLength(1);
+    cleanup();
   });
 
-  test("targetWorker -> TARGET_WORKER", () => {
-    expect(camelToScreamingSnake("targetWorker")).toBe("TARGET_WORKER");
+  test("multiple fields AND - partial match", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { status: "completed", commissionId: "c1" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c2", status: "completed" });
+    await tick();
+    expect(calls).toHaveLength(0);
+    cleanup();
+  });
+
+  test("string coercion for number field", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "schedule_spawned", fields: { runNumber: "1" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "schedule_spawned", scheduleId: "s1", spawnedId: "c1", projectName: "guild-hall", runNumber: 1 });
+    await tick();
+    expect(calls).toHaveLength(1);
+    cleanup();
+  });
+
+  test("empty fields object imposes no constraints", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: {} }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "completed" });
+    await tick();
+    expect(calls).toHaveLength(1);
+    cleanup();
+  });
+
+  test("combined with projectName requires both conditions", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", projectName: "guild-hall", fields: { status: "completed" } }, () => { calls.push(1); });
+
+    // Both match
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "completed", projectName: "guild-hall" });
+    await tick();
+    expect(calls).toHaveLength(1);
+
+    // projectName mismatch
+    eventBus.emit({ type: "commission_status", commissionId: "c2", status: "completed", projectName: "other" });
+    await tick();
+    expect(calls).toHaveLength(1);
+
+    // field mismatch
+    eventBus.emit({ type: "commission_status", commissionId: "c3", status: "failed", projectName: "guild-hall" });
+    await tick();
+    expect(calls).toHaveLength(1);
+    cleanup();
+  });
+
+  test("wildcard match", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { commissionId: "commission-Dalton-*" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "commission-Dalton-20260321-143000", status: "completed" });
+    await tick();
+    expect(calls).toHaveLength(1);
+    cleanup();
+  });
+
+  test("wildcard non-match", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { commissionId: "commission-Dalton-*" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "commission-Sable-20260321-143000", status: "completed" });
+    await tick();
+    expect(calls).toHaveLength(0);
+    cleanup();
+  });
+
+  test("brace expansion match - first alternative", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { status: "{completed,failed}" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "completed" });
+    await tick();
+    expect(calls).toHaveLength(1);
+    cleanup();
+  });
+
+  test("brace expansion match - second alternative", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { status: "{completed,failed}" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "failed" });
+    await tick();
+    expect(calls).toHaveLength(1);
+    cleanup();
+  });
+
+  test("brace expansion non-match", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { status: "{completed,failed}" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "pending" });
+    await tick();
+    expect(calls).toHaveLength(0);
+    cleanup();
+  });
+
+  test("negation match", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { status: "!pending" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "completed" });
+    await tick();
+    expect(calls).toHaveLength(1);
+    cleanup();
+  });
+
+  test("negation non-match", async () => {
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { status: "!pending" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "pending" });
+    await tick();
+    expect(calls).toHaveLength(0);
+    cleanup();
+  });
+
+  test("malformed pattern does not crash and does not match", async () => {
+    // micromatch is tolerant and doesn't throw for most malformed patterns,
+    // but the try/catch safety net exists for any edge case that does.
+    // This test verifies the no-crash/no-match guarantee regardless.
+    const { eventBus, router, cleanup } = makeRouter();
+    const calls: unknown[] = [];
+    router.subscribe({ type: "commission_status", fields: { status: "[unclosed" } }, () => { calls.push(1); });
+
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "completed" });
+    await tick();
+    expect(calls).toHaveLength(0);
+    cleanup();
   });
 });
 
-describe("EventRouter info logging", () => {
-  test("logs at info level when dispatching", async () => {
+describe("EventRouter logging", () => {
+  test("info log emitted when a subscription matches", async () => {
     const logCtx = collectingLog("event-router");
-    const { eventBus, cleanup } = makeRouter({
-      channels: { desktop: { type: "shell", command: "echo hi" } },
-      notifications: [{ match: { type: "commission_result" }, channel: "desktop" }],
-      dispatchShell: async () => {},
-      log: logCtx,
-    });
+    const { eventBus, router, cleanup } = makeRouter(logCtx);
+    router.subscribe({ type: "commission_result" }, () => {});
 
     eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
     await tick();
 
     expect(logCtx.messages.info.length).toBeGreaterThan(0);
     expect(logCtx.messages.info[0]).toContain("commission_result");
-    expect(logCtx.messages.info[0]).toContain("desktop");
-    cleanup();
-  });
-});
-
-describe("EventRouter integration", () => {
-  test("end-to-end: emit -> match -> dispatch with real EventBus", async () => {
-    const dispatched: Array<{ channel: string; event: SystemEvent }> = [];
-    const eventBus = createEventBus(nullLog("test-bus"));
-    const logCtx = collectingLog("event-router");
-
-    const cleanup = createEventRouter({
-      eventBus,
-      channels: {
-        desktop: { type: "shell", command: "notify-send test" },
-        ops: { type: "webhook", url: "https://hooks.example.com/guild" },
-      },
-      notifications: [
-        { match: { type: "commission_result" }, channel: "desktop" },
-        { match: { type: "schedule_spawned", projectName: "guild-hall" }, channel: "ops" },
-      ],
-      log: logCtx.log,
-      dispatchShell: async (_cmd, env) => {
-        dispatched.push({ channel: "desktop", event: JSON.parse(env.EVENT_JSON) });
-      },
-      dispatchWebhook: async (_url, body) => {
-        dispatched.push({ channel: "ops", event: body as SystemEvent });
-      },
-    });
-
-    // Should match desktop rule
-    eventBus.emit({ type: "commission_result", commissionId: "c1", summary: "done" });
-    // Should match ops rule
-    eventBus.emit({ type: "schedule_spawned", scheduleId: "s1", spawnedId: "c2", projectName: "guild-hall", runNumber: 1 });
-    // Should not match anything (wrong project)
-    eventBus.emit({ type: "schedule_spawned", scheduleId: "s2", spawnedId: "c3", projectName: "other", runNumber: 2 });
-
-    await tick();
-
-    expect(dispatched).toHaveLength(2);
-    expect(dispatched[0].channel).toBe("desktop");
-    expect(dispatched[0].event.type).toBe("commission_result");
-    expect(dispatched[1].channel).toBe("ops");
-    expect(dispatched[1].event.type).toBe("schedule_spawned");
-
     cleanup();
   });
 });

@@ -10,6 +10,7 @@ import {
 import CommissionHeader from "@/web/components/commission/CommissionHeader";
 import CommissionView from "@/web/components/commission/CommissionView";
 import type { ScheduleInfo } from "@/web/components/commission/CommissionView";
+import type { TriggerInfoData } from "@/web/components/commission/TriggerInfo";
 import NeighborhoodGraph from "@/web/components/commission/NeighborhoodGraph";
 import type { CommissionArtifact } from "@/web/components/commission/CommissionLinkedArtifacts";
 import DaemonError from "@/web/components/ui/DaemonError";
@@ -37,6 +38,14 @@ interface CommissionDetail {
     lastRun: string | null;
     lastSpawnedId: string | null;
     nextRun: string | null;
+  };
+  triggerInfo?: {
+    match: { type: string; projectName?: string; fields?: Record<string, string> };
+    approval: string;
+    maxDepth: number;
+    runsCompleted: number;
+    lastTriggered: string | null;
+    lastSpawnedId: string | null;
   };
 }
 
@@ -86,15 +95,15 @@ export default async function CommissionPage({
     return <DaemonError message={detailResult.error} />;
   }
 
-  const { commission, timeline, scheduleInfo: rawScheduleInfo } = detailResult.data;
+  const { commission, timeline, scheduleInfo: rawScheduleInfo, triggerInfo: rawTriggerInfo } = detailResult.data;
   const linkedArtifacts = buildLinkedArtifacts(commission.linked_artifacts, projectName);
+  const allCommissions = allCommissionsResult.ok
+    ? allCommissionsResult.data.commissions
+    : [];
 
   // Build schedule info with recent runs from all commissions
   let scheduleInfo: ScheduleInfo | undefined;
   if (rawScheduleInfo) {
-    const allCommissions = allCommissionsResult.ok
-      ? allCommissionsResult.data.commissions
-      : [];
     const spawned = allCommissions
       .filter((c) => c.sourceSchedule === id)
       .sort((a, b) => b.date.localeCompare(a.date))
@@ -103,6 +112,24 @@ export default async function CommissionPage({
     scheduleInfo = {
       ...rawScheduleInfo,
       recentRuns: spawned.map((c) => ({
+        commissionId: c.commissionId,
+        status: c.status,
+        date: c.date,
+      })),
+    };
+  }
+
+  // Build trigger info with recent spawns from all commissions
+  let triggerInfo: TriggerInfoData | undefined;
+  if (rawTriggerInfo) {
+    const spawned = allCommissions
+      .filter((c) => c.sourceTrigger === id)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 10);
+
+    triggerInfo = {
+      ...rawTriggerInfo,
+      recentSpawns: spawned.map((c) => ({
         commissionId: c.commissionId,
         status: c.status,
         date: c.date,
@@ -163,6 +190,7 @@ export default async function CommissionPage({
         initialArtifacts={linkedArtifacts}
         commissionType={commission.type}
         scheduleInfo={scheduleInfo}
+        triggerInfo={triggerInfo}
       />
     </div>
   );

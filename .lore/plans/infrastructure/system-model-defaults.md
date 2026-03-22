@@ -2,7 +2,7 @@
 title: System model defaults implementation
 date: 2026-03-10
 status: executed
-tags: [configuration, model-selection, daemon, memory-compaction, meeting-notes, briefing-generator, guild-master]
+tags: [config, model-selection, daemon, memory-compaction, meeting-notes, briefing-generator, guild-master]
 modules: [config, daemon, memory-compaction, notes-generator, briefing-generator, manager]
 related:
   - .lore/specs/infrastructure/system-model-defaults.md

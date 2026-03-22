@@ -2,7 +2,7 @@
 title: System model defaults
 date: 2026-03-10
 status: implemented
-tags: [configuration, model-selection, daemon, memory-compaction, meeting-notes, briefing-generator, guild-master]
+tags: [config, model-selection, daemon, memory-compaction, meeting-notes, briefing-generator, guild-master]
 modules: [config, daemon, notes-generator, briefing-generator]
 req-prefix: SYS-MODEL
 related:

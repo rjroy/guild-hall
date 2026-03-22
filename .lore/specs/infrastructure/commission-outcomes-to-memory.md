@@ -26,13 +26,13 @@ This spec defines an automatic triage step: after an activity finishes, a Haiku 
 - Brainstorm `.lore/brainstorm/commission-outcomes-to-memory.md` defines the triage approach, hook points, and input shape.
 - Research `.lore/research/memory-retention-prompt-design.md` surveys how production memory systems decide what to remember.
 - Memory system redesign (`.lore/specs/infrastructure/memory-single-file-redesign.md`) provides the storage target.
-- Event router (`.lore/specs/infrastructure/event-router.md`) provides the subscription mechanism.
+- Event router (`.lore/specs/infrastructure/event-router.md`) establishes the DI factory pattern for EventBus consumers.
 
 ## Requirements
 
 ### Event Subscription
 
-- REQ-OTMEM-1: The triage service subscribes to the EventBus via `eventBus.subscribe()`, matching the pattern established by the Event Router (REQ-EVRT-10). It is created during `createProductionApp` and holds the subscription for the daemon's lifetime.
+- REQ-OTMEM-1: The triage service subscribes directly to the EventBus via `eventBus.subscribe()`. It is created during `createProductionApp` and holds the subscription for the daemon's lifetime. The triage service does not use the Event Router because its rules are hardcoded internal behavior, not user-configurable match rules.
 
 - REQ-OTMEM-2: The triage service listens for two event types:
   - `commission_result`: Fires when a commission calls `submit_result`. The event carries `commissionId`, `summary`, and optionally `artifacts`.
@@ -183,7 +183,7 @@ This spec defines an automatic triage step: after an activity finishes, a Haiku 
 
 ### Dependency Injection
 
-- REQ-OTMEM-20: The triage service is created by a factory function (`createOutcomeTriage`) that accepts: `EventBus`, `guildHallHome` (for memory file paths and tool construction), `Log`, and an SDK session runner (or factory) for the Haiku call. The factory returns a cleanup function (the EventBus unsubscribe callback), following the Event Router pattern (REQ-EVRT-24).
+- REQ-OTMEM-20: The triage service is created by a factory function (`createOutcomeTriage`) that accepts: `EventBus`, `guildHallHome` (for memory file paths and tool construction), `Log`, and an SDK session runner (or factory) for the Haiku call. The factory returns a cleanup function (the EventBus unsubscribe callback), following the DI factory pattern used by other daemon services.
 
 - REQ-OTMEM-21: The triage service needs to read commission and meeting artifacts to assemble input. It receives a `readArtifact` callback (or equivalent) rather than importing filesystem operations directly. This keeps the service testable with in-memory fixtures.
 
@@ -248,5 +248,5 @@ This spec defines an automatic triage step: after an activity finishes, a Haiku 
 
 - The brainstorm (`.lore/brainstorm/commission-outcomes-to-memory.md`) resolved the core design: LLM triage over mechanical extraction. This spec codifies that decision and fills in the details the brainstorm left open (prompt template, tool usage, failure handling).
 - The research (`.lore/research/memory-retention-prompt-design.md`) surveyed six production memory systems. Three patterns recur: explicit skip criteria, concrete examples, and conservative bias. The triage prompt incorporates all three.
-- The event router spec (`.lore/specs/infrastructure/event-router.md`) establishes the EventBus subscription pattern. The triage service follows the same DI and lifecycle model.
+- The event router spec (`.lore/specs/infrastructure/event-router.md`) establishes the DI factory pattern for daemon services that consume the EventBus. The triage service follows the same lifecycle model (factory at startup, unsubscribe on cleanup) but subscribes directly to the EventBus rather than through the router.
 - The memory redesign spec (`.lore/specs/infrastructure/memory-single-file-redesign.md`) defines the storage target. The triage service writes to the same file format using the same section parser.

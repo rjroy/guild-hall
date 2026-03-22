@@ -8,6 +8,7 @@
 .chatArea {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -18,6 +19,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+  overflow-y: auto;
 }
 
 .closeButton {
@@ -47,15 +49,49 @@
   cursor: not-allowed;
 }
 
-/* On narrow screens, stack sidebar below chat */
-@media (max-width: 768px) {
-  .meetingContent {
-    flex-direction: column;
-  }
+/* --- Inline panel for relocated sidebar content (REQ-MTG-LAYOUT-19/20) --- */
 
-  .sidebar {
-    width: 100%;
-  }
+.inlinePanel {
+  border-top: 1px solid var(--color-brass);
+  padding-top: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.inlinePanelHandle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  background: rgba(var(--color-brass-rgb, 184, 156, 96), 0.08);
+  border: 1px solid var(--color-brass);
+  border-radius: 6px;
+  color: var(--color-brass);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.inlinePanelHandle:hover {
+  background: rgba(var(--color-brass-rgb, 184, 156, 96), 0.15);
+}
+
+.inlinePanelChevron {
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+
+.inlinePanelChevronOpen {
+  transform: rotate(90deg);
+}
+
+.inlinePanelContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
 }
 
 @media (max-width: 480px) {

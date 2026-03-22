@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDaemonStatus } from "@/web/components/ui/DaemonContext";
 import ChatInterface from "./ChatInterface";
 import ArtifactsPanel from "./ArtifactsPanel";
+import MeetingHeader from "./MeetingHeader";
 import NotesDisplay from "./NotesDisplay";
 import type { LinkedArtifact } from "./ArtifactsPanel";
 import type { ChatMessage } from "./types";
@@ -17,15 +18,18 @@ interface MeetingViewProps {
   workerPortraitUrl?: string;
   initialArtifacts: LinkedArtifact[];
   initialMessages?: ChatMessage[];
+  agenda: string;
+  model?: string;
 }
 
 /**
- * Client-side wrapper that composes the chat interface, artifacts panel,
+ * Client-side wrapper that composes the header, chat interface, artifacts panel,
  * and close-meeting flow into a single meeting view.
  *
  * Manages:
  * - Linked artifacts list (updated via onArtifactLinked callback from ChatInterface)
  * - Close meeting flow (calls DELETE, shows NotesDisplay modal)
+ * - Responsive sidebar relocation below 768px (REQ-MTG-LAYOUT-19-23)
  */
 export default function MeetingView({
   meetingId,
@@ -35,6 +39,8 @@ export default function MeetingView({
   workerPortraitUrl,
   initialArtifacts,
   initialMessages,
+  agenda,
+  model,
 }: MeetingViewProps) {
   const { isOnline } = useDaemonStatus();
   const [artifacts, setArtifacts] = useState<LinkedArtifact[]>(initialArtifacts);
@@ -43,12 +49,28 @@ export default function MeetingView({
   const [closed, setClosed] = useState(false);
   const [notes, setNotes] = useState<string | undefined>(undefined);
 
+  // REQ-MTG-LAYOUT-19: Reactive sidebar relocation below 768px
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 768px)").matches;
+  });
+
+  // REQ-MTG-LAYOUT-20: Inline panel collapsed by default
+  const [inlinePanelExpanded, setInlinePanelExpanded] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 768px)");
+    setIsMobile(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
   const projectHref = `/projects/${encodeURIComponent(projectName)}`;
 
   const handleArtifactLinked = useCallback(
     (artifactPath: string) => {
       setArtifacts((prev) => {
-        // Avoid duplicates
         if (prev.some((a) => a.path === artifactPath)) return prev;
 
         const title = artifactPath.split("/").pop()?.replace(/\.md$/, "") || artifactPath;
@@ -57,7 +79,6 @@ export default function MeetingView({
           {
             path: artifactPath,
             title,
-            // We can't verify existence client-side, assume true for live-linked artifacts
             exists: true,
             href: `/projects/${encodeURIComponent(projectName)}/artifacts/${artifactPath}`,
           },
@@ -81,10 +102,8 @@ export default function MeetingView({
         const data = (await response.json()) as { status: string; notes?: string };
         setNotes(data.notes);
       }
-      // Show the notes/ended display regardless of response status
       setClosed(true);
     } catch {
-      // Network error, still show ended state
       setClosed(true);
     } finally {
       setClosing(false);
@@ -93,43 +112,108 @@ export default function MeetingView({
 
   if (closed) {
     return (
-      <NotesDisplay
-        notes={notes}
-        projectHref={projectHref}
-        projectName={projectName}
-      />
-    );
-  }
-
-  return (
-    <div className={styles.meetingContent}>
-      <div className={styles.chatArea}>
-        <ChatInterface
-          meetingId={meetingId}
+      <>
+        <MeetingHeader
           projectName={projectName}
           workerName={workerName}
           workerDisplayTitle={workerDisplayTitle}
           workerPortraitUrl={workerPortraitUrl}
-          initialMessages={initialMessages}
-          onArtifactLinked={handleArtifactLinked}
+          agenda={agenda}
+          model={model}
         />
-      </div>
-      <div className={styles.sidebar}>
-        <ArtifactsPanel
-          artifacts={artifacts}
-          expanded={artifactsPanelExpanded}
-          onToggle={() => setArtifactsPanelExpanded((prev) => !prev)}
+        <NotesDisplay
+          notes={notes}
+          projectHref={projectHref}
+          projectName={projectName}
         />
-        <button
-          className={styles.closeButton}
-          onClick={() => void handleClose()}
-          disabled={closing || !isOnline}
-          title={!isOnline ? "Daemon offline" : undefined}
-          type="button"
-        >
-          {closing ? "Closing..." : "Close Audience"}
-        </button>
+      </>
+    );
+  }
+
+  // Sidebar content rendered in two locations depending on viewport
+  const sidebarContent = (
+    <>
+      <ArtifactsPanel
+        artifacts={artifacts}
+        expanded={isMobile ? inlinePanelExpanded : artifactsPanelExpanded}
+        onToggle={() => {
+          if (isMobile) {
+            setInlinePanelExpanded((prev) => !prev);
+          } else {
+            setArtifactsPanelExpanded((prev) => !prev);
+          }
+        }}
+      />
+      <button
+        className={styles.closeButton}
+        onClick={() => void handleClose()}
+        disabled={closing || !isOnline}
+        title={!isOnline ? "Daemon offline" : undefined}
+        type="button"
+      >
+        {closing ? "Closing..." : "Close Audience"}
+      </button>
+    </>
+  );
+
+  return (
+    <>
+      <MeetingHeader
+        projectName={projectName}
+        workerName={workerName}
+        workerDisplayTitle={workerDisplayTitle}
+        workerPortraitUrl={workerPortraitUrl}
+        agenda={agenda}
+        model={model}
+        onClose={() => void handleClose()}
+        closing={closing}
+        isOnline={isOnline}
+      />
+      <div className={styles.meetingContent}>
+        <div className={styles.chatArea}>
+          <ChatInterface
+            meetingId={meetingId}
+            projectName={projectName}
+            workerName={workerName}
+            workerDisplayTitle={workerDisplayTitle}
+            workerPortraitUrl={workerPortraitUrl}
+            initialMessages={initialMessages}
+            onArtifactLinked={handleArtifactLinked}
+          />
+
+          {/* REQ-MTG-LAYOUT-19/20: Relocated sidebar content as collapsible panel */}
+          {isMobile && (
+            <div className={styles.inlinePanel}>
+              <button
+                type="button"
+                className={styles.inlinePanelHandle}
+                onClick={() => setInlinePanelExpanded((prev) => !prev)}
+                aria-expanded={inlinePanelExpanded}
+              >
+                <span>Artifacts ({artifacts.length})</span>
+                <span
+                  className={`${styles.inlinePanelChevron} ${inlinePanelExpanded ? styles.inlinePanelChevronOpen : ""}`}
+                  aria-hidden="true"
+                >
+                  &#x25B6;
+                </span>
+              </button>
+              {inlinePanelExpanded && (
+                <div className={styles.inlinePanelContent}>
+                  {sidebarContent}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* REQ-MTG-LAYOUT-23: Sidebar hidden below 768px (content relocated above) */}
+        {!isMobile && (
+          <div className={styles.sidebar}>
+            {sidebarContent}
+          </div>
+        )}
       </div>
-    </div>
+    </>
   );
 }

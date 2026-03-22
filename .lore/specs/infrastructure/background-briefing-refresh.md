@@ -2,7 +2,7 @@
 title: Background briefing refresh
 date: 2026-03-15
 status: implemented
-tags: [briefing, scheduler, daemon, performance]
+tags: [briefing, scheduling, daemon, performance]
 modules: [daemon]
 related:
   - .lore/specs/infrastructure/system-model-defaults.md

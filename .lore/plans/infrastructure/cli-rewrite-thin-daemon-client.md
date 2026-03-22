@@ -2,7 +2,7 @@
 title: CLI rewrite - thin daemon client
 date: 2026-03-14
 status: executed
-tags: [cli, daemon, progressive-discovery, skills]
+tags: [cli, daemon, progressive-discovery, operations]
 modules: [cli, daemon]
 related:
   - .lore/specs/infrastructure/daemon-application-boundary.md

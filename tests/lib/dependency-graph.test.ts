@@ -34,6 +34,7 @@ function makeCommission(overrides: Partial<CommissionMeta> & { commissionId: str
     status: overrides.status ?? "pending",
     type: overrides.type ?? "one-shot",
     sourceSchedule: overrides.sourceSchedule ?? "",
+    sourceTrigger: overrides.sourceTrigger ?? "",
     worker: overrides.worker ?? "researcher",
     workerDisplayTitle: overrides.workerDisplayTitle ?? "Researcher",
     prompt: overrides.prompt ?? "",

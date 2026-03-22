@@ -8,6 +8,39 @@ import ErrorMessage from "./ErrorMessage";
 import type { ChatMessage, ToolUseEntry } from "./types";
 import styles from "./ChatInterface.module.css";
 
+export function draftStorageKey(meetingId: string): string {
+  return `guild-hall:meeting-draft:${meetingId}`;
+}
+
+export function readDraft(meetingId: string): string {
+  try {
+    return localStorage.getItem(draftStorageKey(meetingId)) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function writeDraft(meetingId: string, value: string): void {
+  try {
+    const key = draftStorageKey(meetingId);
+    if (value.trim()) {
+      localStorage.setItem(key, value);
+    } else {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // localStorage unavailable
+  }
+}
+
+export function clearDraft(meetingId: string): void {
+  try {
+    localStorage.removeItem(draftStorageKey(meetingId));
+  } catch {
+    // localStorage unavailable
+  }
+}
+
 export type { ChatMessage, ToolUseEntry };
 
 interface ChatInterfaceProps {
@@ -93,7 +126,15 @@ export default function ChatInterface({
   const [streamingTools, setStreamingTools] = useState<ToolUseEntry[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValueRaw] = useState(() => readDraft(meetingId));
+
+  const setInputValue = useCallback(
+    (value: string) => {
+      setInputValueRaw(value);
+      writeDraft(meetingId, value);
+    },
+    [meetingId],
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -299,7 +340,7 @@ export default function ChatInterface({
         abortRef.current = null;
       }
     },
-    [meetingId, onArtifactLinked]
+    [meetingId, onArtifactLinked, setInputValue]
   );
 
   const handleStop = useCallback(() => {

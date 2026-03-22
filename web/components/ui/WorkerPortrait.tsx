@@ -4,7 +4,7 @@ interface WorkerPortraitProps {
   name?: string;
   title?: string;
   portraitUrl?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
 }
 
 function getInitials(name: string): string {

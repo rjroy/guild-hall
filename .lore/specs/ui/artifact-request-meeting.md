@@ -2,7 +2,7 @@
 title: Artifact Request Meeting
 date: 2026-03-14
 status: implemented
-tags: [ui, meetings, artifact, sidebar]
+tags: [ui, meetings, artifacts, sidebar]
 modules: [guild-hall-ui]
 related:
   - .lore/specs/meetings/guild-hall-meetings.md

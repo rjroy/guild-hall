@@ -22,6 +22,7 @@ function makeCommission(overrides: Partial<CommissionMeta> = {}): CommissionMeta
     status: "pending",
     type: "one-shot",
     sourceSchedule: "",
+    sourceTrigger: "",
     worker: "researcher",
     workerDisplayTitle: "Research Specialist",
     prompt: "Investigate the thing",

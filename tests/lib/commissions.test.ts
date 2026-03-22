@@ -251,6 +251,7 @@ describe("sortCommissions", () => {
       status,
       type: "one-shot",
       sourceSchedule: "",
+      sourceTrigger: "",
       worker: "test",
       workerDisplayTitle: "Test",
       prompt: "",
@@ -380,5 +381,53 @@ current_progress: ""
 `;
     const entries = parseActivityTimeline(raw);
     expect(entries[0].detail).toBe("What format?");
+  });
+});
+
+// -- sourceTrigger --
+
+describe("sourceTrigger", () => {
+  test("populates sourceTrigger from triggered_by.trigger_artifact", async () => {
+    const filePath = await writeCommission(
+      "commission-spawned-20260321-120000.md",
+      `title: "Spawned by trigger"
+status: completed
+worker: reviewer
+prompt: Review code
+triggered_by:
+  source_id: evt-123
+  trigger_artifact: commission-trigger-20260321-100000
+  depth: 1`,
+    );
+
+    const meta = await readCommissionMeta(filePath, "test-project");
+    expect(meta.sourceTrigger).toBe("commission-trigger-20260321-100000");
+  });
+
+  test("sourceTrigger is empty when no triggered_by", async () => {
+    const filePath = await writeCommission(
+      "commission-normal-20260321-120001.md",
+      `title: "Normal commission"
+status: pending
+worker: developer
+prompt: Do something`,
+    );
+
+    const meta = await readCommissionMeta(filePath, "test-project");
+    expect(meta.sourceTrigger).toBe("");
+  });
+
+  test("sourceTrigger is empty for malformed triggered_by", async () => {
+    const filePath = await writeCommission(
+      "commission-bad-20260321-120002.md",
+      `title: "Bad triggered_by"
+status: pending
+worker: developer
+prompt: Do something
+triggered_by: "not-an-object"`,
+    );
+
+    const meta = await readCommissionMeta(filePath, "test-project");
+    expect(meta.sourceTrigger).toBe("");
   });
 });

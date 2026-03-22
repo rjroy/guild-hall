@@ -2947,6 +2947,8 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     async updateScheduleStatus() { return { outcome: "executed", status: "paused" }; },
     async continueCommission() { return { status: "accepted" as const }; },
     async saveCommission() {},
+    async createTriggeredCommission() { return { commissionId: "trigger-001" }; },
+    async updateTriggerStatus() { return { commissionId: "trigger-001", status: "active" }; },
     async recoverCommissions() { return 0; },
     getActiveCommissions() { return 0; },
     shutdown() {},

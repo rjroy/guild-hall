@@ -1,8 +1,8 @@
 ---
 title: Worker Sub-Agents
 date: 2026-03-20
-status: active
-tags: [workers, sub-agents, sdk, activation, agent-sdk]
+status: implemented
+tags: [workers, sub-agents, activation, agent-sdk]
 modules: [daemon/lib/agent-sdk/sdk-runner, lib/types, daemon/services/context-type-registry, packages/shared/worker-activation]
 related:
   - .lore/brainstorm/worker-sub-agents-and-mail-removal.md
