@@ -200,25 +200,33 @@ export default function ArtifactList({
 
   return (
     <>
-      <div className={styles.subTabs}>
-        <button
-          className={`${styles.subTab} ${viewMode === "smart" ? styles.subTabActive : ""}`}
-          onClick={() => setViewMode("smart")}
-        >
-          Smart View
-        </button>
-        <button
-          className={`${styles.subTab} ${viewMode === "tree" ? styles.subTabActive : ""}`}
-          onClick={() => setViewMode("tree")}
-        >
-          Tree View
-        </button>
+      <div className={styles.viewControls}>
+        <div className={styles.subTabs}>
+          <button
+            className={`${styles.subTab} ${viewMode === "smart" ? styles.subTabActive : ""}`}
+            onClick={() => setViewMode("smart")}
+          >
+            Smart View
+          </button>
+          <button
+            className={`${styles.subTab} ${viewMode === "tree" ? styles.subTabActive : ""}`}
+            onClick={() => setViewMode("tree")}
+          >
+            Tree View
+          </button>
+        </div>
+        {viewMode === "smart" && (
+          <SmartViewFilterBar
+            artifacts={artifacts}
+            activeFilter={activeFilter}
+            setActiveFilter={setActiveFilter}
+          />
+        )}
       </div>
       {viewMode === "smart" ? (
         <SmartView
           artifacts={artifacts}
           activeFilter={activeFilter}
-          setActiveFilter={setActiveFilter}
           encodedProjectName={encodedName}
         />
       ) : (
@@ -228,36 +236,49 @@ export default function ArtifactList({
   );
 }
 
-interface SmartViewProps {
+interface SmartViewFilterBarProps {
   artifacts: Artifact[];
   activeFilter: SmartViewFilter;
   setActiveFilter: (filter: SmartViewFilter) => void;
+}
+
+function SmartViewFilterBar({
+  artifacts,
+  activeFilter,
+  setActiveFilter,
+}: SmartViewFilterBarProps) {
+  const counts = smartViewCounts(artifacts);
+  return (
+    <div className={styles.filterBar}>
+      {SMART_VIEW_FILTERS.map(({ key, label }) => (
+        <button
+          key={key}
+          className={`${styles.filterButton} ${activeFilter === key ? styles.filterButtonActive : ""}`}
+          onClick={() => setActiveFilter(key)}
+        >
+          {label}
+          <span className={styles.filterBadge}>{counts[key]}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+interface SmartViewProps {
+  artifacts: Artifact[];
+  activeFilter: SmartViewFilter;
   encodedProjectName: string;
 }
 
 function SmartView({
   artifacts,
   activeFilter,
-  setActiveFilter,
   encodedProjectName,
 }: SmartViewProps) {
-  const counts = smartViewCounts(artifacts);
   const filtered = filterSmartView(artifacts, activeFilter);
 
   return (
     <>
-      <div className={styles.filterBar}>
-        {SMART_VIEW_FILTERS.map(({ key, label }) => (
-          <button
-            key={key}
-            className={`${styles.filterButton} ${activeFilter === key ? styles.filterButtonActive : ""}`}
-            onClick={() => setActiveFilter(key)}
-          >
-            {label}
-            <span className={styles.filterBadge}>{counts[key]}</span>
-          </button>
-        ))}
-      </div>
       {filtered.length === 0 ? (
         <Panel>
           <EmptyState message="No artifacts match this view." />
