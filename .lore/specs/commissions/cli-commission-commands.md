@@ -1,7 +1,7 @@
 ---
 title: CLI Commission Commands
 date: 2026-03-20
-status: draft
+status: approved
 tags: [cli, commissions, lifecycle, daemon-client, operations]
 modules: [cli, daemon/routes/commissions]
 related:
