@@ -26,6 +26,7 @@ export interface GuildHallToolboxDeps {
   getCachedBriefing?: (projectName: string) => Promise<BriefingResult | null>;
   getWorkerIdentities?: () => WorkerIdentity[];
   stateSubdir?: string;
+  workingDirectory?: string;
 }
 
 export interface ToolboxOutput {

@@ -14,23 +14,6 @@
     "domainToolboxes": ["guild-hall-replicate"],
     "domainPlugins": [],
     "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
-    "canUseToolRules": [
-      {
-        "tool": "Bash",
-        "commands": [
-          "mv .lore/**", "cp .lore/**",
-          "rm .lore/**", "rm -f .lore/**",
-          "mkdir .lore/**", "mkdir -p .lore/**",
-          "ls .lore/**"
-        ],
-        "allow": true
-      },
-      {
-        "tool": "Bash",
-        "allow": false,
-        "reason": "Only file operations (mv, cp, rm, mkdir, ls) within .lore/ are permitted"
-      }
-    ],
     "checkoutScope": "full",
     "resourceDefaults": {
       "maxTurns": 120

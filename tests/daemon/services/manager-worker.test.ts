@@ -24,7 +24,6 @@ function makeContext(
     mcpServers: [],
     allowedTools: ["Read", "Glob", "Grep"],
     builtInTools: [],
-    canUseToolRules: [],
   };
 
   return {
@@ -82,38 +81,16 @@ describe("createManagerPackage", () => {
     expect(meta.resourceDefaults?.maxTurns).toBe(200);
   });
 
-  test("builtInTools includes read-only tools and Bash", () => {
+  test("builtInTools includes read-only tools without Bash", () => {
     const pkg = createManagerPackage();
     const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.builtInTools).toEqual(["Read", "Glob", "Grep", "Bash"]);
+    expect(meta.builtInTools).toEqual(["Read", "Glob", "Grep"]);
   });
 
-  test("builtInTools contains Bash (REQ-WTR-17 case 16)", () => {
+  test("builtInTools does not contain Bash (REQ-WTB-4)", () => {
     const pkg = createManagerPackage();
     const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.builtInTools).toContain("Bash");
-  });
-
-  test("canUseToolRules contains allowlist and catch-all deny (REQ-WTR-17 case 17)", () => {
-    const pkg = createManagerPackage();
-    const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.canUseToolRules).toBeDefined();
-    const rules = meta.canUseToolRules!;
-
-    // First rule: allow specific git commands
-    expect(rules[0].tool).toBe("Bash");
-    expect(rules[0].allow).toBe(true);
-    expect(rules[0].commands).toContain("git status");
-    expect(rules[0].commands).toContain("git status *");
-    expect(rules[0].commands).toContain("git log *");
-    expect(rules[0].commands).toContain("git diff *");
-    expect(rules[0].commands).toContain("git show *");
-
-    // Last rule: catch-all deny
-    const lastRule = rules[rules.length - 1];
-    expect(lastRule.tool).toBe("Bash");
-    expect(lastRule.allow).toBe(false);
-    expect(lastRule.reason).toBeDefined();
+    expect(meta.builtInTools).not.toContain("Bash");
   });
 
   test("domainToolboxes is empty", () => {
@@ -242,7 +219,6 @@ describe("activateManager", () => {
       mcpServers: [],
       allowedTools: ["Read", "Glob", "Grep", "CustomTool"],
       builtInTools: [],
-      canUseToolRules: [],
     };
     const context = makeContext({ resolvedTools: tools });
     const result = activateManager(context);

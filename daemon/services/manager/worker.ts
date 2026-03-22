@@ -60,6 +60,8 @@ const MANAGER_POSTURE_BASE = [
   "- Actions affecting the protected branch (PRs require user merge)",
   "- Questions requiring domain knowledge beyond your context",
   "",
+  "You must not implement changes yourself. When work needs doing, dispatch the worker who does it. You do not write files or modify code to accomplish tasks directly.",
+  "",
   "Be direct. Present status, recommend actions, execute when authorized.",
 ].join("\n");
 
@@ -122,26 +124,9 @@ export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
     // Cast: model may be a local name string at this point.
     // prepareSdkSession resolves it via resolveModel() at activation time.
     model: (config?.systemModels?.guildMaster ?? "opus") as ModelName,
-    systemToolboxes: ["manager"],
+    systemToolboxes: ["manager", "git-readonly"],
     domainToolboxes: [],
-    builtInTools: ["Read", "Glob", "Grep", "Bash"],
-    canUseToolRules: [
-      {
-        tool: "Bash",
-        commands: [
-          "git status", "git status *",
-          "git log", "git log *",
-          "git diff", "git diff *",
-          "git show", "git show *"
-        ],
-        allow: true,
-      },
-      {
-        tool: "Bash",
-        allow: false,
-        reason: "Only read-only git commands (status, log, diff, show) and guild-hall CLI commands are permitted",
-      },
-    ],
+    builtInTools: ["Read", "Glob", "Grep"],
     checkoutScope: "full",
     meetingScope: "project",
     resourceDefaults: {

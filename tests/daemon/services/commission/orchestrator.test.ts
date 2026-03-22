@@ -199,14 +199,13 @@ function createMockPrepDeps(overrides?: Partial<SessionPrepDeps>): SessionPrepDe
       mcpServers: [],
       allowedTools: [],
       builtInTools: [],
-      canUseToolRules: [],
     })),
     loadMemories: overrides?.loadMemories ?? (async () => ({
       memoryBlock: "",
           })),
     activateWorker: overrides?.activateWorker ?? (async () => ({
       systemPrompt: "Test system prompt",
-      tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+      tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
       resourceBounds: { maxTurns: 10 },
     })),
     memoryLimit: overrides?.memoryLimit,
@@ -2640,7 +2639,7 @@ describe("halt entry (maxTurns without result)", () => {
     const prepDeps = createMockPrepDeps({
       activateWorker: async () => ({
         systemPrompt: "Test system prompt",
-        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
         resourceBounds: { maxTurns: 1 },
       }),
     });
@@ -2694,7 +2693,7 @@ describe("halt entry (maxTurns without result)", () => {
     const prepDeps = createMockPrepDeps({
       activateWorker: async () => ({
         systemPrompt: "Test system prompt",
-        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
         resourceBounds: { maxTurns: 1 },
       }),
     });
@@ -2734,7 +2733,7 @@ describe("halt entry (maxTurns without result)", () => {
     const prepDeps = createMockPrepDeps({
       activateWorker: async () => ({
         systemPrompt: "Test system prompt",
-        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
         resourceBounds: { maxTurns: 1 },
       }),
     });
@@ -2771,7 +2770,7 @@ describe("halt entry (maxTurns without result)", () => {
     const prepDeps = createMockPrepDeps({
       activateWorker: async () => ({
         systemPrompt: "Test system prompt",
-        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
         resourceBounds: { maxTurns: 1 },
       }),
     });
@@ -2807,7 +2806,7 @@ describe("halt entry (maxTurns without result)", () => {
     const prepDeps = createMockPrepDeps({
       activateWorker: async () => ({
         systemPrompt: "Test system prompt",
-        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
         resourceBounds: { maxTurns: 1 },
       }),
     });
@@ -2890,7 +2889,7 @@ describe("continueCommission", () => {
     const prepDeps = createMockPrepDeps({
       activateWorker: async () => ({
         systemPrompt: "Test system prompt",
-        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
         resourceBounds: { maxTurns: 1 },
       }),
     });
@@ -3008,7 +3007,7 @@ describe("continueCommission", () => {
     const prepDeps = createMockPrepDeps({
       activateWorker: async () => ({
         systemPrompt: "Test system prompt",
-        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
         resourceBounds: { maxTurns: 10 },
       }),
     });
@@ -3081,7 +3080,7 @@ describe("continueCommission", () => {
     const prepDeps = createMockPrepDeps({
       activateWorker: async () => ({
         systemPrompt: "Test system prompt",
-        tools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
         resourceBounds: { maxTurns: 1 },
       }),
     });

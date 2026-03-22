@@ -11,6 +11,7 @@
       "guidance": "Invoke this worker when you need project maintenance, cleanup, or organizational tasks."
     },
     "model": "sonnet",
+    "systemToolboxes": ["git-readonly"],
     "domainToolboxes": ["guild-hall-email"],
     "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"],
     "checkoutScope": "full",

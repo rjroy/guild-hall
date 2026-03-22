@@ -546,7 +546,7 @@ describe("buildManagerContext - meeting session integration", () => {
       identity: { name: "Guild Master", description: "Test manager", displayTitle: "Guild Master" },
       posture: "Test posture.",
       injectedMemory: "",
-      resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [], canUseToolRules: [] },
+      resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
       resourceDefaults: { maxTurns: 200 },
       projectPath: "/tmp/test",
       workingDirectory: "/tmp/test",

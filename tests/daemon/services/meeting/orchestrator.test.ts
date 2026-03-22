@@ -78,7 +78,6 @@ function makeActivationResult(): ActivationResult {
       mcpServers: [],
       allowedTools: ["Read", "Glob"],
       builtInTools: [],
-      canUseToolRules: [],
     },
     resourceBounds: { maxTurns: 30 },
   };

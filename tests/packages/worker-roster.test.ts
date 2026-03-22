@@ -72,7 +72,7 @@ const expectedPostureGuardrails: Record<string, RegExp[]> = {
     /check.*\.lore\/research/i,
   ],
   "guild-hall-writer": [
-    /never modify source code/i,
+    /must not modify source code/i,
     /must be verified against repository sources/i,
     /stay in the current phase/i,
   ],
