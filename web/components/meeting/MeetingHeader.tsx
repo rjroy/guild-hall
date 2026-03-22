@@ -76,7 +76,7 @@ export default function MeetingHeader({
                 href={`/projects/${encodedName}`}
                 className={styles.breadcrumbLink}
               >
-                Project: {projectName}
+                {projectName}
               </Link>
               <span className={styles.separator} aria-hidden="true">
                 &rsaquo;
