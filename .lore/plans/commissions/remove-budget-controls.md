@@ -1,7 +1,7 @@
 ---
 title: "Plan: Remove Budget Controls from Commission System"
 date: 2026-03-22
-status: draft
+status: approved
 spec: .lore/specs/commissions/remove-budget-controls.md
 tags: [commissions, simplification, budget, resource-limits, halted-state]
 modules: [guild-hall-core]
