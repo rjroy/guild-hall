@@ -139,3 +139,132 @@
 .treeSection:last-child {
   margin-bottom: 0;
 }
+
+/* Sub-tabs */
+.subTabs {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.subTab {
+  background: none;
+  border: none;
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-family: inherit;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s;
+}
+
+.subTabActive {
+  color: var(--color-brass);
+  border-bottom-color: var(--color-brass);
+}
+
+/* Smart view filter bar */
+.filterBar {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.filterButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.filterButtonActive {
+  background: rgba(184, 157, 105, 0.15);
+  border-color: var(--color-brass);
+  color: var(--color-parchment);
+}
+
+.filterBadge {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  padding: 0 6px;
+  font-size: 0.75rem;
+  min-width: 1.2em;
+  text-align: center;
+}
+
+/* Smart view list items */
+.smartList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.smartItem {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.smartItem:last-child {
+  border-bottom: none;
+}
+
+.smartLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm) var(--space-md);
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+}
+
+.smartLink:hover {
+  background: rgba(184, 134, 11, 0.1);
+}
+
+.smartItemMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.smartTitle {
+  font-size: 0.95rem;
+  color: var(--color-parchment);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.smartItemMeta {
+  display: flex;
+  gap: var(--space-sm);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.metaLabel {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+}
+
+.metaDate {
+  font-size: 0.75rem;
+}

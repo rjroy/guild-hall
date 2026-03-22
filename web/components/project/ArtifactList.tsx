@@ -9,6 +9,14 @@ import type { Artifact } from "@/lib/types";
 import { statusToGem } from "@/lib/types";
 import { displayTitle, buildArtifactTree } from "@/lib/artifact-grouping";
 import type { TreeNode } from "@/lib/artifact-grouping";
+import {
+  filterSmartView,
+  smartViewCounts,
+  artifactTypeLabel,
+  artifactDomain,
+  SMART_VIEW_FILTERS,
+} from "@/lib/artifact-smart-view";
+import type { SmartViewFilter } from "@/lib/artifact-smart-view";
 import styles from "./ArtifactList.module.css";
 
 const INDENT_PX_PER_DEPTH = 24;
@@ -176,6 +184,9 @@ export default function ArtifactList({
   artifacts,
   projectName,
 }: ArtifactListProps) {
+  const [viewMode, setViewMode] = useState<"smart" | "tree">("smart");
+  const [activeFilter, setActiveFilter] = useState<SmartViewFilter>("whats-next");
+
   if (artifacts.length === 0) {
     return (
       <Panel>
@@ -188,9 +199,109 @@ export default function ArtifactList({
   const encodedName = encodeURIComponent(projectName);
 
   return (
-    <ArtifactTree
-      tree={tree}
-      encodedProjectName={encodedName}
-    />
+    <>
+      <div className={styles.subTabs}>
+        <button
+          className={`${styles.subTab} ${viewMode === "smart" ? styles.subTabActive : ""}`}
+          onClick={() => setViewMode("smart")}
+        >
+          Smart View
+        </button>
+        <button
+          className={`${styles.subTab} ${viewMode === "tree" ? styles.subTabActive : ""}`}
+          onClick={() => setViewMode("tree")}
+        >
+          Tree View
+        </button>
+      </div>
+      {viewMode === "smart" ? (
+        <SmartView
+          artifacts={artifacts}
+          activeFilter={activeFilter}
+          setActiveFilter={setActiveFilter}
+          encodedProjectName={encodedName}
+        />
+      ) : (
+        <ArtifactTree tree={tree} encodedProjectName={encodedName} />
+      )}
+    </>
+  );
+}
+
+interface SmartViewProps {
+  artifacts: Artifact[];
+  activeFilter: SmartViewFilter;
+  setActiveFilter: (filter: SmartViewFilter) => void;
+  encodedProjectName: string;
+}
+
+function SmartView({
+  artifacts,
+  activeFilter,
+  setActiveFilter,
+  encodedProjectName,
+}: SmartViewProps) {
+  const counts = smartViewCounts(artifacts);
+  const filtered = filterSmartView(artifacts, activeFilter);
+
+  return (
+    <>
+      <div className={styles.filterBar}>
+        {SMART_VIEW_FILTERS.map(({ key, label }) => (
+          <button
+            key={key}
+            className={`${styles.filterButton} ${activeFilter === key ? styles.filterButtonActive : ""}`}
+            onClick={() => setActiveFilter(key)}
+          >
+            {label}
+            <span className={styles.filterBadge}>{counts[key]}</span>
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 ? (
+        <Panel>
+          <EmptyState message="No artifacts match this view." />
+        </Panel>
+      ) : (
+        <Panel size="lg">
+          <ul className={styles.smartList}>
+            {filtered.map((artifact) => {
+              const typeLabel = artifactTypeLabel(artifact.relativePath);
+              const domain = artifactDomain(artifact.relativePath);
+              return (
+                <li key={artifact.relativePath} className={styles.smartItem}>
+                  <Link
+                    href={`/projects/${encodedProjectName}/artifacts/${artifact.relativePath}`}
+                    className={styles.smartLink}
+                  >
+                    <div className={styles.smartItemMain}>
+                      <span className={styles.smartTitle}>
+                        {displayTitle(artifact)}
+                      </span>
+                      <StatusBadge
+                        gem={statusToGem(artifact.meta.status)}
+                        label={artifact.meta.status}
+                        size="sm"
+                      />
+                    </div>
+                    <div className={styles.smartItemMeta}>
+                      {typeLabel && (
+                        <span className={styles.metaLabel}>{typeLabel}</span>
+                      )}
+                      {domain && (
+                        <span className={styles.metaLabel}>{domain}</span>
+                      )}
+                      {artifact.meta.date && (
+                        <span className={styles.metaDate}>{artifact.meta.date}</span>
+                      )}
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </Panel>
+      )}
+    </>
   );
 }

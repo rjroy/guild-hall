@@ -86,8 +86,8 @@ export const ARTIFACT_STATUS_GROUP: Record<string, number> = {
   requested: 0,
   queued: 0,
   paused: 0,
+  approved: 0,
   // Group 1: In progress [active gem]
-  approved: 1,
   active: 1,
   current: 1,
   in_progress: 1,
