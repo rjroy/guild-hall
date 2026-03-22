@@ -29,6 +29,8 @@ interface WorkerPickerProps {
   projectName: string;
   isOpen: boolean;
   onClose: () => void;
+  /** Pre-populates the prompt textarea. */
+  initialPrompt?: string;
 }
 
 /**
@@ -40,6 +42,7 @@ export default function WorkerPicker({
   projectName,
   isOpen,
   onClose,
+  initialPrompt,
 }: WorkerPickerProps) {
   if (!isOpen) return null;
 
@@ -49,6 +52,7 @@ export default function WorkerPicker({
     <WorkerPickerContent
       projectName={projectName}
       onClose={onClose}
+      initialPrompt={initialPrompt}
     />,
     document.body,
   );
@@ -61,14 +65,16 @@ export default function WorkerPicker({
 function WorkerPickerContent({
   projectName,
   onClose,
+  initialPrompt,
 }: {
   projectName: string;
   onClose: () => void;
+  initialPrompt?: string;
 }) {
   const router = useRouter();
   const [workers, setWorkers] = useState<WorkerInfo[]>([]);
   const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(initialPrompt ?? "");
   const [loading, setLoading] = useState(true);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Panel from "@/web/components/ui/Panel";
-import StartAudienceButton from "@/web/components/project/StartAudienceButton";
 import type { ProjectConfig } from "@/lib/types";
 import styles from "./ProjectHeader.module.css";
 
@@ -29,8 +28,8 @@ export default function ProjectHeader({ project }: ProjectHeaderProps) {
         <p className={styles.description}>{project.description}</p>
       )}
 
-      <div className={styles.actions}>
-        {project.repoUrl && (
+      {project.repoUrl && (
+        <div className={styles.actions}>
           <a
             href={project.repoUrl}
             target="_blank"
@@ -39,10 +38,8 @@ export default function ProjectHeader({ project }: ProjectHeaderProps) {
           >
             View Repository &#8599;
           </a>
-        )}
-
-        <StartAudienceButton projectName={project.name} />
-      </div>
+        </div>
+      )}
     </Panel>
   );
 }

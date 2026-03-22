@@ -521,24 +521,10 @@ describe("WorkerPicker type contract", () => {
   });
 });
 
-// -- StartAudienceButton type contract tests --
-
-describe("StartAudienceButton type contract", () => {
-  test("StartAudienceButton module exports default", async () => {
-    const mod = await import("@/web/components/project/StartAudienceButton");
-    expect(typeof mod.default).toBe("function");
-  });
-
-  test("accepts projectName prop", () => {
-    const props = { projectName: "my-project" };
-    expect(props.projectName).toBe("my-project");
-  });
-});
-
 // -- ProjectHeader integration (server component, can call directly) --
 
-describe("ProjectHeader with StartAudienceButton", () => {
-  test("renders StartAudienceButton component", async () => {
+describe("ProjectHeader does not render meeting button", () => {
+  test("meeting button lives on Meetings tab, not in header", async () => {
     const { default: ProjectHeader } = await import(
       "@/web/components/project/ProjectHeader"
     );
@@ -552,31 +538,10 @@ describe("ProjectHeader with StartAudienceButton", () => {
     const el = ProjectHeader({ project }) as AnyElement;
 
     const buttons = findComponentElements(el, "StartAudienceButton");
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0].props.projectName).toBe("test-project");
-  });
-
-  test("no longer renders disabled audience button element", async () => {
-    const { default: ProjectHeader } = await import(
-      "@/web/components/project/ProjectHeader"
-    );
-
-    const project = {
-      name: "test-project",
-      path: "/tmp/test-project",
-    };
-
-    const el = ProjectHeader({ project }) as AnyElement;
-
-    // Should not find a raw <button> element with "coming soon" aria label
-    const buttons = findElements(
-      el,
-      (e) =>
-        e.type === "button" &&
-        typeof e.props["aria-label"] === "string" &&
-        e.props["aria-label"].includes("coming soon"),
-    );
     expect(buttons).toHaveLength(0);
+
+    const createButtons = findComponentElements(el, "CreateMeetingButton");
+    expect(createButtons).toHaveLength(0);
   });
 });
 
