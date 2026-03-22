@@ -1,7 +1,7 @@
 ---
 title: Worker Tool Boundaries
 date: 2026-03-22
-status: approved
+status: implemented
 tags: [workers, toolbox, security, permissions, bash, mcp, architecture, posture]
 modules: [daemon-services, toolbox-resolver, sdk-runner, worker-packages]
 related:
