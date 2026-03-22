@@ -21,11 +21,7 @@
           "git log **", "git diff **", "git show **",
           "rm .lore/brainstorm/**", "rm -f .lore/brainstorm/**",
           "mkdir .lore/brainstorm/**", "mkdir -p .lore/brainstorm/**",
-          "mkdir .lore/issues/**", "mkdir -p .lore/issues/**",
-          "guild-hall workspace artifact document list **",
-          "guild-hall workspace artifact document read **",
-          "guild-hall system models catalog list **",
-          "guild-hall system packages worker list **"
+          "mkdir .lore/issues/**", "mkdir -p .lore/issues/**"
         ],
         "allow": true
       },

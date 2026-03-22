@@ -12,19 +12,7 @@
     },
     "model": "sonnet",
     "domainToolboxes": ["guild-hall-email"],
-    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
-    "canUseToolRules": [
-      {
-        "tool": "Bash",
-        "commands": ["guild-hall **"],
-        "allow": true
-      },
-      {
-        "tool": "Bash",
-        "allow": false,
-        "reason": "Only guild-hall CLI commands are permitted"
-      }
-    ],
+    "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"],
     "checkoutScope": "full",
     "resourceDefaults": {
       "maxTurns": 300

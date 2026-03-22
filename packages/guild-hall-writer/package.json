@@ -20,11 +20,7 @@
         "commands": [
           "rm .lore/**", "rm -f .lore/**",
           "mkdir .lore/**", "mkdir -p .lore/**",
-          "mv .lore/**",
-          "guild-hall workspace artifact document list **",
-          "guild-hall workspace artifact document read **",
-          "guild-hall system models catalog list **",
-          "guild-hall system packages worker list **"
+          "mv .lore/**"
         ],
         "allow": true
       },

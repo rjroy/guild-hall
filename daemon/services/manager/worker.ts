@@ -132,8 +132,7 @@ export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
           "git status", "git status *",
           "git log", "git log *",
           "git diff", "git diff *",
-          "git show", "git show *",
-          "guild-hall **",
+          "git show", "git show *"
         ],
         allow: true,
       },
