@@ -170,8 +170,8 @@ The following table lists every field that could serve as a sort key, where it c
 
   | Group | Priority | Statuses | Gem |
   |-------|----------|----------|-----|
-  | Active work | 0 | `draft`, `open`, `pending`, `requested`, `blocked`, `queued` | pending (amber) |
-  | In progress | 1 | `approved`, `active`, `current`, `in_progress`, `dispatched` | active (green) |
+  | Active work | 0 | `draft`, `open`, `pending`, `requested`, `approved`, `queued` | pending (amber) |
+  | In progress | 1 | `active`, `current`, `in_progress`, `dispatched` | active (green) |
   | Terminal | 2 | `complete`, `resolved`, `implemented` | active (green) |
   | Closed negative | 3 | `superseded`, `outdated`, `wontfix`, `declined`, `failed`, `cancelled`, `abandoned` | blocked (red) |
   | Unknown | 4 | Anything not in the above lists | info (blue) |

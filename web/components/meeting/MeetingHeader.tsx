@@ -56,7 +56,7 @@ export default function MeetingHeader({
       <div className={condensed ? styles.headerContentCondensed : styles.headerContent}>
         <div className={styles.workerInfo}>
           <WorkerPortrait
-            name={workerName}
+            name={condensed ? undefined : workerName}
             title={condensed ? undefined : workerDisplayTitle}
             portraitUrl={workerPortraitUrl}
             size={condensed ? "xs" : "lg"}
@@ -64,29 +64,31 @@ export default function MeetingHeader({
         </div>
 
         <div className={condensed ? styles.agendaSectionCondensed : styles.agendaSection}>
-          <nav className={styles.breadcrumb} aria-label="Breadcrumb">
-            <Link href="/" className={styles.breadcrumbLink}>
-              Guild Hall
-            </Link>
-            <span className={styles.separator} aria-hidden="true">
-              &rsaquo;
-            </span>
-            <Link
-              href={`/projects/${encodedName}`}
-              className={styles.breadcrumbLink}
-            >
-              Project: {projectName}
-            </Link>
-            <span className={styles.separator} aria-hidden="true">
-              &rsaquo;
-            </span>
-            <span className={styles.breadcrumbCurrent}>Audience</span>
-          </nav>
+          <div className={condensed ? styles.agendaContentCondensed : undefined}>
+            <nav className={styles.breadcrumb} aria-label="Breadcrumb">
+              <Link href="/" className={styles.breadcrumbLink}>
+                Guild Hall
+              </Link>
+              <span className={styles.separator} aria-hidden="true">
+                &rsaquo;
+              </span>
+              <Link
+                href={`/projects/${encodedName}`}
+                className={styles.breadcrumbLink}
+              >
+                {projectName}
+              </Link>
+              <span className={styles.separator} aria-hidden="true">
+                &rsaquo;
+              </span>
+              <span className={styles.breadcrumbCurrent}>Audience</span>
+            </nav>
 
-          <h3 className={`${styles.agendaTitle} ${condensed ? styles.agendaTitleCondensed : ""}`}>Agenda</h3>
-          <p className={condensed ? styles.agendaTextCondensed : styles.agendaText}>
-            {agenda}
-          </p>
+            <h3 className={`${styles.agendaTitle} ${condensed ? styles.agendaTitleCondensed : ""}`}>Agenda</h3>
+            <p className={condensed ? styles.agendaTextCondensed : styles.agendaText}>
+              {agenda}
+            </p>
+          </div>
 
           <div className={styles.agendaTrailing}>
             {model && (

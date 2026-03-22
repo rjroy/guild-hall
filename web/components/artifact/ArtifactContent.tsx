@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { resolveImageSrc } from "@/web/lib/resolve-image-src";
 import styles from "./ArtifactContent.module.css";
 
@@ -141,7 +142,7 @@ export default function ArtifactContent({
       </div>
       <div className={styles.markdownContent}>
         {body.trim() ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{body}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={markdownComponents}>{body}</ReactMarkdown>
         ) : (
           <pre className={styles.rawFallback}>{rawContent}</pre>
         )}

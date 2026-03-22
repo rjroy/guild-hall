@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
 import CollapsibleToolList from "./CollapsibleToolList";
 import type { ChatMessage } from "./types";
@@ -43,7 +44,7 @@ export default function MessageBubble({
       )}
       <div className={bubbleClass}>
         <div className={styles.content}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
             {message.content}
           </ReactMarkdown>
         </div>

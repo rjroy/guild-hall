@@ -185,9 +185,9 @@ Beta content.
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.artifacts).toHaveLength(2);
-    // draft (group 0) sorts before approved (group 1)
-    expect(body.artifacts[0].meta.status).toBe("draft");
-    expect(body.artifacts[1].meta.status).toBe("approved");
+    // Both group 0; "approved" sorts before "draft" alphabetically by status name
+    expect(body.artifacts[0].meta.status).toBe("approved");
+    expect(body.artifacts[1].meta.status).toBe("draft");
   });
 });
 

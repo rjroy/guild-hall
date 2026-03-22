@@ -1,7 +1,7 @@
 ---
 title: "Plan: Triggered Commissions Web UI"
 date: 2026-03-21
-status: draft
+status: executed
 tags: [commissions, triggers, web-ui, next-js]
 modules: [web-ui, daemon-routes, commission-list, commission-detail]
 related:

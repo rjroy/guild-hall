@@ -19,7 +19,7 @@ export default function ProjectHeader({ project }: ProjectHeaderProps) {
           &rsaquo;
         </span>
         <span className={styles.breadcrumbCurrent}>
-          Project: {project.name}
+          {project.name}
         </span>
       </nav>
 

@@ -21,7 +21,7 @@ export default function ArtifactBreadcrumb({
         &rsaquo;
       </span>
       <Link href={`/projects/${encodedName}`} className={styles.link}>
-        Project: {projectName}
+        {projectName}
       </Link>
       <span className={styles.separator} aria-hidden="true">
         &rsaquo;

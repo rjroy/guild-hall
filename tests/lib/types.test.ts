@@ -5,11 +5,11 @@ import type { GemStatus, AppConfig, ModelDefinition } from "@/lib/types";
 describe("statusToGem", () => {
   const cases: Array<[string, GemStatus]> = [
     // Active (green) - in-progress and active states
-    ["approved", "active"],
+    ["approved", "pending"],
     ["active", "active"],
     ["current", "active"],
     // Case-insensitive
-    ["Approved", "active"],
+    ["Approved", "pending"],
     ["ACTIVE", "active"],
 
     // Pending (amber)
@@ -58,7 +58,7 @@ describe("statusToGem", () => {
   }
 
   test("trims whitespace", () => {
-    expect(statusToGem("  approved  ")).toBe("active");
+    expect(statusToGem("  approved  ")).toBe("pending");
     expect(statusToGem(" draft ")).toBe("pending");
   });
 });

@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
 import CollapsibleToolList from "./CollapsibleToolList";
 import styles from "./StreamingMessage.module.css";
@@ -37,7 +38,7 @@ export default function StreamingMessage({
         )}
         {content && (
           <div className={styles.content}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
               {content}
             </ReactMarkdown>
             <span className={styles.cursor} aria-hidden="true" />

@@ -35,7 +35,7 @@ run_quiet() {
     fi
 }
 
-if ! run_quiet "typecheck" bun run typecheck; then
+if ! run_quiet "typecheck" rtk tsc; then
     FAILED=1
 fi
 

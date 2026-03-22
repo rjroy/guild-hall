@@ -376,10 +376,14 @@ describe("statusToPriority", () => {
   });
 
   test("all ACTIVE_STATUSES (in-progress) map to group 1", () => {
-    const activeStatuses = ["approved", "active", "current", "in_progress", "dispatched"];
+    const activeStatuses = ["active", "current", "in_progress", "dispatched"];
     for (const status of activeStatuses) {
       expect(statusToPriority(status)).toBe(1);
     }
+  });
+
+  test("approved maps to group 0 (active work)", () => {
+    expect(statusToPriority("approved")).toBe(0);
   });
 
   test("hard failures map to group 2", () => {
