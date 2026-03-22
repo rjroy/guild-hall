@@ -81,8 +81,7 @@ describe("worker role smoke tests", () => {
     expect(result.systemPrompt).toContain("never modify");
     expect(metadata.builtInTools).not.toContain("Write");
     expect(metadata.builtInTools).not.toContain("Edit");
-    // Bash is present but constrained to read-only guild-hall CLI commands via canUseToolRules
-    expect(metadata.builtInTools).toContain("Bash");
+    expect(metadata.builtInTools).not.toContain("Bash");
   });
 
   test("researcher posture is present in activation output", async () => {
@@ -114,8 +113,7 @@ describe("worker role smoke tests", () => {
     expect(result.systemPrompt).toContain("submit_result");
     expect(metadata.builtInTools).not.toContain("WebSearch");
     expect(metadata.builtInTools).not.toContain("WebFetch");
-    // Bash is present but constrained to guild-hall CLI commands via canUseToolRules
-    expect(metadata.builtInTools).toContain("Bash");
+    expect(metadata.builtInTools).not.toContain("Bash");
   });
 
   test("activation pass-through keeps resolved tool list unchanged", async () => {

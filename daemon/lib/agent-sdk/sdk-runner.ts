@@ -567,7 +567,7 @@ export async function prepareSdkSession(
     ...(maxTurns ? { maxTurns } : {}),
     ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
     permissionMode: "dontAsk",
-    settingSources: [],
+    settingSources: ["local", "project", "user"],
     abortController: spec.abortController,
     ...(spec.resume ? { resume: spec.resume } : {}),
   };
