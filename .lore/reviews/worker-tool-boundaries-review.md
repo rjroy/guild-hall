@@ -7,6 +7,7 @@ spec: .lore/specs/workers/worker-tool-boundaries.md
 plan: .lore/plans/workers/worker-tool-boundaries.md
 implementation: commission-Dalton-20260322-115736
 reviewer: Thorne
+status: resolved
 ---
 
 # Review: Worker Tool Boundaries Implementation
