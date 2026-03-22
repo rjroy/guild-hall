@@ -548,8 +548,8 @@ export async function prepareSdkSession(
     mcpServers[server.name] = server;
   }
   
-  log.info(`allowedTools: ${Object.keys(activation.tools.allowedTools).join(", ")}`);
-  log.info(`builtInTools: ${Object.keys(activation.tools.builtInTools).join(", ")}`);
+  log.info(`allowedTools: ${activation.tools.allowedTools.join(", ")}`);
+  log.info(`builtInTools: ${activation.tools.builtInTools.join(", ")}`);
 
   const options: SdkQueryOptions = {
     systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
@@ -560,13 +560,13 @@ export async function prepareSdkSession(
     ...(resolvedPlugins.length > 0 ? { plugins: resolvedPlugins } : {}),
     ...(finalModelId ? { model: finalModelId } : {}),
     ...(localEnv ? { env: localEnv } : {}),
-    ...(sandboxSettings ? { sandbox: sandboxSettings } : {}),
+    // ...(sandboxSettings ? { sandbox: sandboxSettings } : {}),
     ...(canUseToolCallback ? { canUseTool: canUseToolCallback } : {}),
     ...(Object.keys(agents).length > 0 ? { agents } : {}),
     ...(maxTurns ? { maxTurns } : {}),
     ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
-    permissionMode: "dontAsk",
-    settingSources: ["local", "project", "user"],
+    permissionMode: "acceptEdits",
+    settingSources: [],
     abortController: spec.abortController,
     ...(spec.resume ? { resume: spec.resume } : {}),
   };
