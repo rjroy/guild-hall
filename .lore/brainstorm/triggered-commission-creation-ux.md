@@ -1,7 +1,7 @@
 ---
 title: "Triggered Commission Creation UX"
 date: 2026-03-21
-status: open
+status: resolved
 author: Octavia
 tags: [brainstorm, ui, commissions, triggers, ux]
 related:
