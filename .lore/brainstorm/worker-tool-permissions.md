@@ -1,7 +1,7 @@
 ---
 title: Worker Tool Permissions — Replacing Bash with Narrow Custom Tools
 date: 2026-03-22
-status: open
+status: resolved
 tags: [security, permissions, bash, mcp, toolbox, workers, architecture]
 modules: [daemon-services, toolbox-resolver, sdk-runner, worker-packages]
 related:
