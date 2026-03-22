@@ -2,7 +2,7 @@
 
 .createButton {
   padding: var(--space-sm) var(--space-md);
-  background-color: rgba(184, 134, 11, 0.15);
+  background-color: var(--color-button-bg);
   border: 1px solid var(--color-brass);
   color: var(--color-brass);
   font-family: var(--font-body);
@@ -16,5 +16,5 @@
 }
 
 .createButton:hover {
-  background-color: rgba(184, 134, 11, 0.25);
+  background-color: var(--color-button-bg-hover);
 }
