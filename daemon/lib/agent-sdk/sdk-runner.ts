@@ -279,9 +279,13 @@ const TOOL_PATH_FIELD: Record<string, string> = {
  */
 function buildCanUseTool(
   rules: CanUseToolRule[],
+  log: Log = nullLog("sdk-runner"),
 ): NonNullable<SdkQueryOptions["canUseTool"]> {
+  log.debug(`Building canUseTool callback with ${rules.length} rules`);  
   return (toolName, input, _options) => {
     const toolInput = input as Record<string, unknown>;
+
+    log.debug(`canUseTool check for tool "${toolName}" with input ${JSON.stringify(input)}`);
 
     for (const rule of rules) {
       if (rule.tool !== toolName) continue;
@@ -525,7 +529,7 @@ export async function prepareSdkSession(
   const sandboxSettings = hasBash
     ? {
         enabled: true,
-        autoAllowBashIfSandboxed: true,
+        autoAllowBashIfSandboxed: false,
         allowUnsandboxedCommands: false,
         network: {
           allowLocalBinding: false,
@@ -536,7 +540,7 @@ export async function prepareSdkSession(
   // 5e. Build canUseTool callback from worker rules (REQ-SBX-20, REQ-SBX-21)
   const canUseToolRules = activation.tools.canUseToolRules;
   const canUseToolCallback = canUseToolRules.length > 0
-    ? buildCanUseTool(canUseToolRules)
+    ? buildCanUseTool(canUseToolRules, log)
     : undefined;
 
   const mcpServers: Record<string, unknown> = {};

@@ -1038,7 +1038,7 @@ describe("prepareSdkSession", () => {
       if (!result.ok) return;
       expect(result.result.options.sandbox).toBeDefined();
       expect(result.result.options.sandbox?.enabled).toBe(true);
-      expect(result.result.options.sandbox?.autoAllowBashIfSandboxed).toBe(true);
+      expect(result.result.options.sandbox?.autoAllowBashIfSandboxed).toBe(false);
       expect(result.result.options.sandbox?.allowUnsandboxedCommands).toBe(false);
     });
 
