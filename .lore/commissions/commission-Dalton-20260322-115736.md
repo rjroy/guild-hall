@@ -1,7 +1,7 @@
 ---
 title: "Commission: Implement worker tool boundaries: Phases 1-4"
 date: 2026-03-22
-status: failed
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -11,20 +11,17 @@ dependencies: []
 linked_artifacts: []
 
 resource_overrides:
-  maxTurns: 50
+  maxTurns: 200
 
 activity_timeline:
-  - timestamp: 2026-03-22T18:43:43.061Z
+  - timestamp: 2026-03-22T18:57:36.379Z
     event: created
     reason: "Commission created"
-  - timestamp: 2026-03-22T18:43:43.063Z
+  - timestamp: 2026-03-22T18:57:36.381Z
     event: status_dispatched
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
-  - timestamp: 2026-03-22T18:50:54.057Z
-    event: status_failed
-    reason: "Session error: error_max_turns"
 current_progress: ""
 projectName: guild-hall
 ---
