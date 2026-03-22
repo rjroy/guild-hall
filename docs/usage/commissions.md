@@ -26,11 +26,7 @@ For a **scheduled** commission, add:
 - `Cron Expression`
 - optional `Repeat Count`
 
-You can also expand **Resource Overrides** to set:
-
-- `Max Turns`
-- `Max Budget (USD)`
-- a `Model` override, including local models when configured
+You can also expand **Resource Overrides** to set a `Model` override, including local models when configured.
 
 Dependencies are entered as comma-separated artifact paths. Guild Hall also provides a shortcut from artifact detail pages that opens the commission form with the current artifact pre-filled as a dependency.
 
@@ -59,7 +55,7 @@ This makes commission detail pages the best place to watch long-running work mov
 
 ## Halted commissions
 
-Commissions that hit their `maxTurns` limit without submitting a result enter a `halted` state rather than failing outright. The worktree and session are preserved, so you have two options:
+Commissions may enter a `halted` state with the worktree and session preserved. When halted, you have two options:
 
 - **Continue** resumes the exact session where it left off, giving the worker more turns to finish.
 - **Save** merges whatever partial work exists into the integration branch, even though the commission didn't complete normally.

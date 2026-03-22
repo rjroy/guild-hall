@@ -56,9 +56,7 @@ workerDisplayTitle: "Research Specialist"
 prompt: "Research OAuth 2.0 patterns for CLI tools..."
 ${deps}
 ${linkedArtifacts}
-resource_overrides:
-  maxTurns: 150
-  maxBudgetUsd: 1.00
+resource_overrides: {}
 ${timeline}
 ${progress}
 ${result}

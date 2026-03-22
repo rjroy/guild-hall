@@ -31,7 +31,6 @@ function makeContext(
     posture: "Test posture text.",
     injectedMemory: "",
     resolvedTools: defaultTools,
-    resourceDefaults: { maxTurns: 200 },
     projectPath: "/tmp/test-project",
     workingDirectory: "/tmp/test-project",
     ...overrides,
@@ -73,12 +72,6 @@ describe("createManagerPackage", () => {
     const pkg = createManagerPackage();
     const meta = pkg.metadata as WorkerMetadata;
     expect(meta.checkoutScope).toBe("full");
-  });
-
-  test("resourceDefaults has maxTurns 200", () => {
-    const pkg = createManagerPackage();
-    const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.resourceDefaults?.maxTurns).toBe(200);
   });
 
   test("builtInTools includes read-only tools without Bash", () => {
@@ -223,24 +216,6 @@ describe("activateManager", () => {
     const context = makeContext({ resolvedTools: tools });
     const result = activateManager(context);
     expect(result.tools).toBe(tools);
-  });
-
-  test("passes through resourceBounds from context", () => {
-    const context = makeContext({
-      resourceDefaults: { maxTurns: 150, maxBudgetUsd: 5.0 },
-    });
-    const result = activateManager(context);
-    expect(result.resourceBounds.maxTurns).toBe(150);
-    expect(result.resourceBounds.maxBudgetUsd).toBe(5.0);
-  });
-
-  test("resourceBounds handles undefined maxBudgetUsd", () => {
-    const context = makeContext({
-      resourceDefaults: { maxTurns: 200 },
-    });
-    const result = activateManager(context);
-    expect(result.resourceBounds.maxTurns).toBe(200);
-    expect(result.resourceBounds.maxBudgetUsd).toBeUndefined();
   });
 
   test("system prompt sections are separated by double newlines", () => {

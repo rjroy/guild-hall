@@ -313,37 +313,13 @@ describe("drainSdkSession", () => {
     expect(outcome.aborted).toBe(false);
   });
 
-  test("reason is 'maxTurns' when turn count reaches maxTurns", async () => {
-    async function* maxTurnsGen(): AsyncGenerator<SdkRunnerEvent> {
-      yield { type: "session", sessionId: "s-max" };
-      yield { type: "turn_end", cost: 0.01 };
-      yield { type: "turn_end", cost: 0.01 };
-      yield { type: "turn_end", cost: 0.01 };
-    }
-    const outcome = await drainSdkSession(maxTurnsGen(), { maxTurns: 3 });
-
-    expect(outcome.reason).toBe("maxTurns");
-    expect(outcome.sessionId).toBe("s-max");
-  });
-
-  test("reason is 'completed' when turn count is below maxTurns", async () => {
-    async function* belowMaxGen(): AsyncGenerator<SdkRunnerEvent> {
-      yield { type: "session", sessionId: "s-below" };
-      yield { type: "turn_end", cost: 0.01 };
-      yield { type: "turn_end", cost: 0.01 };
-    }
-    const outcome = await drainSdkSession(belowMaxGen(), { maxTurns: 5 });
-
-    expect(outcome.reason).toBe("completed");
-  });
-
   test("reason is undefined when aborted", async () => {
     async function* abortedGen(): AsyncGenerator<SdkRunnerEvent> {
       yield { type: "session", sessionId: "s-abort" };
       yield { type: "turn_end", cost: 0.01 };
       yield { type: "aborted" };
     }
-    const outcome = await drainSdkSession(abortedGen(), { maxTurns: 1 });
+    const outcome = await drainSdkSession(abortedGen());
 
     expect(outcome.aborted).toBe(true);
     expect(outcome.reason).toBeUndefined();
@@ -360,7 +336,7 @@ describe("drainSdkSession", () => {
     expect(outcome.reason).toBeUndefined();
   });
 
-  test("reason works without maxTurns opt (always completed on success)", async () => {
+  test("reason is 'completed' on normal success", async () => {
     async function* normalGen(): AsyncGenerator<SdkRunnerEvent> {
       yield { type: "session", sessionId: "s-no-opt" };
       yield { type: "turn_end", cost: 0.01 };
@@ -383,7 +359,6 @@ describe("prepareSdkSession", () => {
     domainToolboxes: [],
     builtInTools: [],
     checkoutScope: "sparse",
-    resourceDefaults: { maxTurns: 10, maxBudgetUsd: 1.0 },
   };
 
   const mockWorkerPkg: DiscoveredPackage = {
@@ -408,7 +383,6 @@ describe("prepareSdkSession", () => {
     systemPrompt: "You are a test worker",
     model: "sonnet",
     tools: mockResolvedTools,
-    resourceBounds: { maxTurns: 10, maxBudgetUsd: 1.0 },
   };
 
   function makeSpec(overrides?: Partial<SessionPrepSpec>): SessionPrepSpec {
@@ -452,8 +426,6 @@ describe("prepareSdkSession", () => {
     expect(opts.cwd).toBe("/tmp/workspace");
     expect(opts.allowedTools).toEqual(["read_file", "write_file"]);
     expect(opts.model).toBe("sonnet");
-    expect(opts.maxTurns).toBe(10);
-    expect(opts.maxBudgetUsd).toBe(1.0);
     expect(opts.permissionMode).toBe("dontAsk");
     expect(opts.settingSources).toEqual(["local", "project", "user"]);
   });
@@ -504,18 +476,6 @@ describe("prepareSdkSession", () => {
     if (result.ok) return;
     expect(result.error).toContain("Worker activation failed");
     expect(result.error).toContain("bad posture");
-  });
-
-  test("resource overrides take precedence over activation bounds", async () => {
-    const result = await prepareSdkSession(
-      makeSpec({ resourceOverrides: { maxTurns: 50, maxBudgetUsd: 5.0 } }),
-      makeDeps(),
-    );
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.result.options.maxTurns).toBe(50);
-    expect(result.result.options.maxBudgetUsd).toBe(5.0);
   });
 
   test("resume passed through to options", async () => {
@@ -793,7 +753,7 @@ describe("prepareSdkSession", () => {
     };
 
     const result = await prepareSdkSession(
-      makeSpec({ resourceOverrides: { maxTurns: 5 } }),
+      makeSpec(),
       makeDeps({ activateWorker: async () => noModelActivation }),
     );
 
@@ -1025,7 +985,6 @@ describe("prepareSdkSession", () => {
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
           tools: context.resolvedTools,
-          resourceBounds: {},
         }),
       });
 
@@ -1048,7 +1007,6 @@ describe("prepareSdkSession", () => {
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
           tools: context.resolvedTools,
-          resourceBounds: {},
         }),
       });
 
@@ -1068,7 +1026,6 @@ describe("prepareSdkSession", () => {
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
           tools: context.resolvedTools,
-          resourceBounds: {},
         }),
       });
 
@@ -1089,7 +1046,6 @@ describe("prepareSdkSession", () => {
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
           tools: context.resolvedTools,
-          resourceBounds: {},
         }),
       });
 
@@ -1108,7 +1064,6 @@ describe("prepareSdkSession", () => {
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
           tools: context.resolvedTools,
-          resourceBounds: {},
         }),
       });
 
@@ -1129,7 +1084,6 @@ describe("prepareSdkSession", () => {
       domainToolboxes: [],
       builtInTools: [],
       checkoutScope: "sparse",
-      resourceDefaults: {},
     };
 
     const mockOtherWorkerPkg: DiscoveredPackage = {
@@ -1411,7 +1365,6 @@ describe("prepareSdkSession", () => {
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
         tools: context.resolvedTools,
-        resourceBounds: {},
       }),
     });
 
@@ -1431,7 +1384,6 @@ describe("prepareSdkSession", () => {
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
         tools: context.resolvedTools,
-        resourceBounds: {},
       }),
     });
 
@@ -1453,7 +1405,6 @@ describe("prepareSdkSession", () => {
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
         tools: context.resolvedTools,
-        resourceBounds: {},
       }),
     });
 
@@ -1476,7 +1427,6 @@ describe("prepareSdkSession", () => {
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
         tools: context.resolvedTools,
-        resourceBounds: {},
       }),
     });
 
@@ -1498,7 +1448,6 @@ describe("prepareSdkSession", () => {
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
         tools: context.resolvedTools,
-        resourceBounds: {},
       }),
     });
 
@@ -1585,7 +1534,6 @@ describe("prepareSdkSession resolvedModel", () => {
     domainToolboxes: [],
     builtInTools: [],
     checkoutScope: "sparse",
-    resourceDefaults: { maxTurns: 10, maxBudgetUsd: 1.0 },
   };
 
   const mockWorkerPkg: DiscoveredPackage = {
@@ -1610,7 +1558,6 @@ describe("prepareSdkSession resolvedModel", () => {
     systemPrompt: "You are a test worker",
     model: "sonnet",
     tools: mockResolvedTools,
-    resourceBounds: { maxTurns: 10, maxBudgetUsd: 1.0 },
   };
 
   const localModelDef: ModelDefinition = {

@@ -14,9 +14,6 @@
     "systemToolboxes": ["git-readonly"],
     "domainToolboxes": [],
     "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep"],
-    "checkoutScope": "full",
-    "resourceDefaults": {
-      "maxTurns": 300
-    }
+    "checkoutScope": "full"
   }
 }

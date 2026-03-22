@@ -280,7 +280,7 @@ function createMockCommissionSession(): MockCommissionSession {
       workerName: string,
       prompt: string,
       dependencies?: string[],
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
+      resourceOverrides?: { model?: string },
       options?: { type?: string; sourceSchedule?: string },
     ): Promise<{ commissionId: string }> {
       calls.push({

@@ -1,7 +1,7 @@
 /**
  * Type for the halted commission state file.
  *
- * When a commission hits maxTurns without submitting a result, the
+ * When a commission is halted without submitting a result, the
  * orchestrator persists this state to disk. The state file enables
  * crash recovery and continuation (REQ-COM-37).
  */

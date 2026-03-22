@@ -149,7 +149,7 @@ export function makeCreateCommissionHandler(
     workerName: string;
     prompt: string;
     dependencies?: string[];
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+    resourceOverrides?: { model?: string };
     dispatch?: boolean;
   }): Promise<ToolResult> => {
     try {
@@ -743,7 +743,7 @@ export function makeCreateScheduledCommissionHandler(
     cron: string;
     repeat?: number | null;
     dependencies?: string[];
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+    resourceOverrides?: { model?: string };
   }): Promise<ToolResult> => {
     try {
       const result = await deps.callRoute(
@@ -826,7 +826,7 @@ export function makeUpdateScheduleHandler(
     repeat?: number | null;
     prompt?: string;
     status?: string;
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+    resourceOverrides?: { model?: string };
   }): Promise<ToolResult> => {
     try {
       const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
@@ -987,21 +987,6 @@ export function makeUpdateScheduleHandler(
 
         // Check if resource_overrides block already exists
         if (/^resource_overrides:$/m.test(raw)) {
-          // Update existing fields or add new ones within the block
-          if (args.resourceOverrides.maxTurns !== undefined) {
-            if (/^  maxTurns: .+$/m.test(raw)) {
-              raw = raw.replace(/^  maxTurns: .+$/m, `  maxTurns: ${args.resourceOverrides.maxTurns}`);
-            } else {
-              raw = raw.replace(/^resource_overrides:$/m, `resource_overrides:\n  maxTurns: ${args.resourceOverrides.maxTurns}`);
-            }
-          }
-          if (args.resourceOverrides.maxBudgetUsd !== undefined) {
-            if (/^  maxBudgetUsd: .+$/m.test(raw)) {
-              raw = raw.replace(/^  maxBudgetUsd: .+$/m, `  maxBudgetUsd: ${args.resourceOverrides.maxBudgetUsd}`);
-            } else {
-              raw = raw.replace(/^resource_overrides:$/m, `resource_overrides:\n  maxBudgetUsd: ${args.resourceOverrides.maxBudgetUsd}`);
-            }
-          }
           if (args.resourceOverrides.model !== undefined) {
             if (/^  model: .+$/m.test(raw)) {
               raw = raw.replace(/^  model: .+$/m, `  model: ${args.resourceOverrides.model}`);
@@ -1011,18 +996,8 @@ export function makeUpdateScheduleHandler(
           }
         } else {
           // Insert a new resource_overrides block before activity_timeline
-          const overrideLines = [];
-          if (args.resourceOverrides.maxTurns !== undefined) {
-            overrideLines.push(`  maxTurns: ${args.resourceOverrides.maxTurns}`);
-          }
-          if (args.resourceOverrides.maxBudgetUsd !== undefined) {
-            overrideLines.push(`  maxBudgetUsd: ${args.resourceOverrides.maxBudgetUsd}`);
-          }
           if (args.resourceOverrides.model !== undefined) {
-            overrideLines.push(`  model: ${args.resourceOverrides.model}`);
-          }
-          if (overrideLines.length > 0) {
-            const block = `resource_overrides:\n${overrideLines.join("\n")}\n`;
+            const block = `resource_overrides:\n  model: ${args.resourceOverrides.model}\n`;
             raw = raw.replace(/^activity_timeline:$/m, `${block}activity_timeline:`);
           }
         }
@@ -1537,10 +1512,8 @@ export function createManagerToolbox(
           prompt: z.string().describe("The work prompt describing what needs to be done"),
           dependencies: z.array(z.string()).optional().describe("Commission IDs this depends on"),
           resourceOverrides: z.object({
-            maxTurns: z.number().optional(),
-            maxBudgetUsd: z.number().optional(),
             model: z.string().optional(),
-          }).optional().describe("Override default resource limits. Use model to override the worker's default model."),
+          }).optional().describe("Override the worker's default model."),
           dispatch: z.boolean().optional().describe("Whether to dispatch immediately (default: true)"),
         },
         (args) => createCommission(args),
@@ -1626,10 +1599,8 @@ export function createManagerToolbox(
           repeat: z.number().nullable().optional().describe("Max number of runs (null for unlimited)"),
           dependencies: z.array(z.string()).optional().describe("Commission IDs this depends on"),
           resourceOverrides: z.object({
-            maxTurns: z.number().optional(),
-            maxBudgetUsd: z.number().optional(),
             model: z.string().optional(),
-          }).optional().describe("Override default resource limits for spawned commissions"),
+          }).optional().describe("Override the worker's default model for spawned commissions."),
         },
         (args) => createScheduledCommission(args),
       ),
@@ -1643,10 +1614,8 @@ export function createManagerToolbox(
           prompt: z.string().optional().describe("New work prompt"),
           status: z.string().optional().describe("New status: 'active', 'paused', or 'completed'"),
           resourceOverrides: z.object({
-            maxTurns: z.number().optional(),
-            maxBudgetUsd: z.number().optional(),
             model: z.string().optional(),
-          }).optional().describe("Updated resource overrides for spawned commissions"),
+          }).optional().describe("Updated model override for spawned commissions."),
         },
         (args) => updateSchedule(args),
       ),

@@ -39,7 +39,6 @@ const WORKER_META: WorkerMetadata = {
   domainToolboxes: [],
   builtInTools: ["Read", "Glob"],
   checkoutScope: "sparse",
-  resourceDefaults: { maxTurns: 30 },
 };
 
 const WORKER_PKG: DiscoveredPackage = {
@@ -68,7 +67,6 @@ function makeActivationResult(): ActivationResult {
       allowedTools: ["Read", "Glob"],
       builtInTools: [],
     },
-    resourceBounds: { maxTurns: 30 },
   };
 }
 
@@ -507,7 +505,6 @@ describe("createMeetingSession", () => {
       });
       expect(call.options.permissionMode).toBe("dontAsk");
       expect(call.options.settingSources).toEqual(["local", "project", "user"]);
-      expect(call.options.maxTurns).toBe(30);
     });
   });
 
@@ -1215,7 +1212,6 @@ describe("createMeetingSession", () => {
       expect(call.pkg.name).toBe("test-assistant");
       expect(call.context.posture).toBe("You are a helpful assistant.");
       expect(call.context.meetingContext?.agenda).toBe("Review code");
-      expect(call.context.resourceDefaults.maxTurns).toBe(30);
       expect(call.context.projectPath).toBe(projectDir);
     });
 
@@ -2969,7 +2965,6 @@ describe("manager worker integration", () => {
       return Promise.resolve({
         systemPrompt: "Manager prompt",
         tools: context.resolvedTools,
-        resourceBounds: { maxTurns: 200 },
       });
     }
 
@@ -3153,7 +3148,6 @@ describe("manager worker integration", () => {
       return Promise.resolve({
         systemPrompt: "Manager prompt",
         tools: context.resolvedTools,
-        resourceBounds: { maxTurns: 200 },
       });
     }
 

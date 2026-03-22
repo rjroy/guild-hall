@@ -129,9 +129,6 @@ export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
     builtInTools: ["Read", "Glob", "Grep"],
     checkoutScope: "full",
     meetingScope: "project",
-    resourceDefaults: {
-      maxTurns: 200,
-    },
   };
 
   return {
@@ -253,9 +250,5 @@ export function activateManager(context: ActivationContext): ActivationResult {
     systemPrompt: parts.join("\n\n"),
     model: context.model ?? "opus",
     tools: context.resolvedTools,
-    resourceBounds: {
-      maxTurns: context.resourceDefaults.maxTurns,
-      maxBudgetUsd: context.resourceDefaults.maxBudgetUsd,
-    },
   };
 }

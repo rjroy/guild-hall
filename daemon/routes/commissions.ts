@@ -53,7 +53,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       workerName?: string;
       prompt?: string;
       dependencies?: string[];
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+      resourceOverrides?: { model?: string };
       type?: string;
       cron?: string;
       repeat?: number;
@@ -165,7 +165,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       commissionId?: string;
       prompt?: string;
       dependencies?: string[];
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+      resourceOverrides?: { model?: string };
     };
     try {
       body = await c.req.json();

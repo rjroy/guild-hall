@@ -14,9 +14,6 @@
     "domainPlugins": ["guild-hall-writer"],
     "domainToolboxes": [],
     "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
-    "checkoutScope": "full",
-    "resourceDefaults": {
-      "maxTurns": 300
-    }
+    "checkoutScope": "full"
   }
 }

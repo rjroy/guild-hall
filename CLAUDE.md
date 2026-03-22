@@ -127,7 +127,7 @@ The Guild Master (`daemon/services/manager/`) is not a package. It is a built-in
 
 **Briefing generator.** Project status briefings run through the full SDK session pipeline with Guild Master identity and read-only tools. Cached by integration worktree HEAD commit with configurable TTL (`briefingCacheTtlMinutes`). Falls back to single-turn query, then static template. Route: `GET /briefing/:projectName`.
 
-**Commission lifecycle.** Commissions flow through: `pending` → `dispatched` → `in_progress` → `completed`/`failed`/`halted`. Commissions that hit `maxTurns` without submitting a result enter `halted` state with worktree and session preserved. `continue` resumes the session; `save` merges partial work. Scheduled commissions use `daemon/services/scheduler/` with croner.
+**Commission lifecycle.** Commissions flow through: `pending` → `dispatched` → `in_progress` → `completed`/`failed`/`halted`. Commissions may enter `halted` state with worktree and session preserved. `continue` resumes the session; `save` merges partial work. Scheduled commissions use `daemon/services/scheduler/` with croner.
 
 **Memory system.** Each scope (global, project, worker) stores memory in a single file with named `## sections`. Workers read via `read_memory` and edit via `edit_memory` (upsert, append, or delete sections). `write_memory` exists as a deprecated alias. Implementation: `daemon/services/memory-injector.ts` (loading), `daemon/services/base-toolbox.ts` (tools).
 

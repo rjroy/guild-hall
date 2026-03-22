@@ -47,11 +47,6 @@ const workerToolboxTuple = z.tuple([
   z.literal("toolbox"),
 ]);
 
-export const resourceDefaultsSchema = z.object({
-  maxTurns: z.number().optional(),
-  maxBudgetUsd: z.number().optional(),
-});
-
 export const workerIdentitySchema = z.object({
   name: z.string(),
   description: z.string(),
@@ -72,7 +67,6 @@ export const workerMetadataSchema = z.object({
   domainPlugins: z.array(z.string()).optional(),
   builtInTools: z.array(z.string()),
   checkoutScope: z.union([z.literal("sparse"), z.literal("full")]),
-  resourceDefaults: resourceDefaultsSchema.optional(),
 });
 
 export const toolboxMetadataSchema = z.object({

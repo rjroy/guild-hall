@@ -182,7 +182,6 @@ function createMockPrepDeps(): SessionPrepDeps {
     activateWorker: async () => ({
       systemPrompt: "Test system prompt",
       tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
-      resourceBounds: { maxTurns: 10 },
     }),
   };
 }

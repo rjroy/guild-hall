@@ -123,11 +123,10 @@ describe("Commission API payload format", () => {
       workerName: "researcher",
       prompt: "Do some research",
       dependencies: ["specs/api.md", "designs/schema.md"],
-      resourceOverrides: { maxTurns: 15, maxBudgetUsd: 3.50 },
+      resourceOverrides: { model: "haiku" },
     };
     expect(payload.dependencies).toHaveLength(2);
-    expect(payload.resourceOverrides.maxTurns).toBe(15);
-    expect(payload.resourceOverrides.maxBudgetUsd).toBe(3.50);
+    expect(payload.resourceOverrides.model).toBe("haiku");
   });
 
   test("dependencies parsed from comma-separated string", () => {

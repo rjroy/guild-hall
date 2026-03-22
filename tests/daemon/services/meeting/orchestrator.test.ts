@@ -50,7 +50,6 @@ const WORKER_META: WorkerMetadata = {
   domainToolboxes: [],
   builtInTools: ["Read", "Glob"],
   checkoutScope: "sparse",
-  resourceDefaults: { maxTurns: 30 },
 };
 
 const WORKER_PKG: DiscoveredPackage = {
@@ -79,7 +78,6 @@ function makeActivationResult(): ActivationResult {
       allowedTools: ["Read", "Glob"],
       builtInTools: [],
     },
-    resourceBounds: { maxTurns: 30 },
   };
 }
 

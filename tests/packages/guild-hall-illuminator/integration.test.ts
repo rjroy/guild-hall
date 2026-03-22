@@ -107,14 +107,6 @@ describe("guild-hall-illuminator package", () => {
       expect(pkgJson.guildHall.checkoutScope).toBe("full");
     });
 
-    test("maxTurns is 120", async () => {
-      const raw = await fs.readFile(
-        path.join(ILLUMINATOR_DIR, "package.json"),
-        "utf-8",
-      );
-      const pkgJson = JSON.parse(raw) as { guildHall: { resourceDefaults: { maxTurns: number } } };
-      expect(pkgJson.guildHall.resourceDefaults.maxTurns).toBe(120);
-    });
   });
 
   describe("toolbox resolution", () => {

@@ -13,9 +13,6 @@
     "model": "opus",
     "domainToolboxes": [],
     "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "WebSearch", "WebFetch", "Write", "Edit"],
-    "checkoutScope": "sparse",
-    "resourceDefaults": {
-      "maxTurns": 300
-    }
+    "checkoutScope": "sparse"
   }
 }

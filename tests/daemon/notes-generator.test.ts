@@ -470,7 +470,6 @@ describe("closeMeeting with notes generation", () => {
     domainToolboxes: [] as string[],
     builtInTools: ["Read", "Glob"],
     checkoutScope: "sparse" as const,
-    resourceDefaults: { maxTurns: 30 },
   };
 
   const WORKER_PKG = {
@@ -561,7 +560,6 @@ describe("closeMeeting with notes generation", () => {
       return Promise.resolve({
         systemPrompt: "You are a helpful assistant.",
         tools: { mcpServers: [], allowedTools: ["Read", "Glob"], builtInTools: [] },
-        resourceBounds: { maxTurns: 30 },
       });
     }
 
@@ -627,7 +625,6 @@ describe("closeMeeting with notes generation", () => {
       return Promise.resolve({
         systemPrompt: "You are a helpful assistant.",
         tools: { mcpServers: [], allowedTools: ["Read", "Glob"], builtInTools: [] },
-        resourceBounds: { maxTurns: 30 },
       });
     }
 
@@ -684,7 +681,6 @@ describe("closeMeeting with notes generation", () => {
       return Promise.resolve({
         systemPrompt: "You are a helpful assistant.",
         tools: { mcpServers: [], allowedTools: ["Read", "Glob"], builtInTools: [] },
-        resourceBounds: { maxTurns: 30 },
       });
     }
 

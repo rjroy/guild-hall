@@ -247,13 +247,13 @@ describe("create_commission", () => {
       workerName: "test-worker",
       prompt: "Work on it",
       dependencies: ["commission-a", "commission-b"],
-      resourceOverrides: { maxTurns: 50, maxBudgetUsd: 2.0 },
+      resourceOverrides: { model: "sonnet" },
       dispatch: false,
     });
 
     const body = mockCallRoute.calls[0].body as Record<string, unknown>;
     expect(body.dependencies).toEqual(["commission-a", "commission-b"]);
-    expect(body.resourceOverrides).toEqual({ maxTurns: 50, maxBudgetUsd: 2.0 });
+    expect(body.resourceOverrides).toEqual({ model: "sonnet" });
   });
 
   test("passes model in resourceOverrides through to create route", async () => {

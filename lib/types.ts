@@ -169,11 +169,6 @@ export function isValidModel(value: string, config?: AppConfig): boolean {
   }
 }
 
-export interface ResourceDefaults {
-  maxTurns?: number;
-  maxBudgetUsd?: number;
-}
-
 export interface WorkerIdentity {
   name: string;
   description: string;
@@ -198,7 +193,6 @@ export interface WorkerMetadata {
   domainPlugins?: string[];
   builtInTools: string[];
   checkoutScope: CheckoutScope;
-  resourceDefaults?: ResourceDefaults;
   /** Determines git isolation for meetings. "project" runs in the integration worktree; "activity" (default) gets its own branch/worktree. */
   meetingScope?: "project" | "activity";
 }
@@ -250,10 +244,6 @@ export interface ActivationContext {
   injectedMemory: string;
   model?: string;
   resolvedTools: ResolvedToolSet;
-  resourceDefaults: {
-    maxTurns?: number;
-    maxBudgetUsd?: number;
-  };
   meetingContext?: {
     meetingId: string;
     agenda: string;
@@ -280,10 +270,6 @@ export interface ActivationResult {
   systemPrompt: string;
   model?: string;
   tools: ResolvedToolSet;
-  resourceBounds: {
-    maxTurns?: number;
-    maxBudgetUsd?: number;
-  };
 }
 
 /**

@@ -14,7 +14,6 @@ import {
   workerMetadataSchema,
   toolboxMetadataSchema,
   workerIdentitySchema,
-  resourceDefaultsSchema,
   MANAGER_WORKER_NAME,
   MANAGER_PORTRAIT_PATH,
 } from "@/lib/packages";
@@ -50,10 +49,6 @@ function validWorkerGuildHall(): object {
     domainToolboxes: ["web-search"],
     builtInTools: ["Read", "Grep"],
     checkoutScope: "sparse",
-    resourceDefaults: {
-      maxTurns: 50,
-      maxBudgetUsd: 1.5,
-    },
   };
 }
 
@@ -186,19 +181,6 @@ describe("Zod schemas", () => {
       name: "researcher",
     });
     expect(result.success).toBe(false);
-  });
-
-  test("resourceDefaultsSchema accepts all optional", () => {
-    const result = resourceDefaultsSchema.safeParse({});
-    expect(result.success).toBe(true);
-  });
-
-  test("resourceDefaultsSchema accepts both fields", () => {
-    const result = resourceDefaultsSchema.safeParse({
-      maxTurns: 50,
-      maxBudgetUsd: 1.5,
-    });
-    expect(result.success).toBe(true);
   });
 
   test("workerMetadataSchema accepts valid worker", () => {
@@ -362,10 +344,6 @@ describe("discoverPackages", () => {
     expect(meta.domainToolboxes).toEqual(["web-search"]);
     expect(meta.builtInTools).toEqual(["Read", "Grep"]);
     expect(meta.checkoutScope).toBe("sparse");
-    expect(meta.resourceDefaults).toEqual({
-      maxTurns: 50,
-      maxBudgetUsd: 1.5,
-    });
   });
 
   test("discovers valid toolbox package", async () => {

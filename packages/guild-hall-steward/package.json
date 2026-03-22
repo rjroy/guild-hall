@@ -14,9 +14,6 @@
     "systemToolboxes": ["git-readonly"],
     "domainToolboxes": ["guild-hall-email"],
     "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"],
-    "checkoutScope": "full",
-    "resourceDefaults": {
-      "maxTurns": 300
-    }
+    "checkoutScope": "full"
   }
 }

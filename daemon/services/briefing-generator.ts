@@ -528,7 +528,7 @@ async function generateWithFullSdk(
     contextType: "briefing",
     eventBus: noopEventBus,
     abortController,
-    resourceOverrides: { maxTurns: 200, model: deps.config.systemModels?.briefing ?? "sonnet" },
+    resourceOverrides: { model: deps.config.systemModels?.briefing ?? "sonnet" },
     activationExtras: { managerContext: context },
   };
 
@@ -545,6 +545,7 @@ async function generateWithFullSdk(
     }
 
     const options = prepResult.result.options;
+    options.maxTurns = 200;
     const generator = runSdkSession(queryFn, BRIEFING_PROMPT, options);
     const text = await collectRunnerText(generator);
 
@@ -626,7 +627,7 @@ async function generateSynthesisWithFullSdk(
     contextType: "briefing",
     eventBus: noopEventBus,
     abortController,
-    resourceOverrides: { maxTurns: 10, model: deps.config.systemModels?.briefing ?? "sonnet" },
+    resourceOverrides: { model: deps.config.systemModels?.briefing ?? "sonnet" },
     activationExtras: { managerContext: "" },
   };
 
@@ -643,6 +644,7 @@ async function generateSynthesisWithFullSdk(
     }
 
     const options = prepResult.result.options;
+    options.maxTurns = 10;
     const generator = runSdkSession(queryFn, synthesisPrompt, options);
     const text = await collectRunnerText(generator);
 

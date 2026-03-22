@@ -27,7 +27,6 @@ function makeActivationContext(posture: string, soul?: string): ActivationContex
     soul,
     injectedMemory: "",
     resolvedTools: makeResolvedTools(),
-    resourceDefaults: { maxTurns: 30 },
     projectPath: "/projects/test",
     workingDirectory: "/projects/test",
   };

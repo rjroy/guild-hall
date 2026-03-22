@@ -98,7 +98,7 @@ export interface CommissionSessionForRoutes {
     workerName: string,
     prompt: string,
     dependencies?: string[],
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
+    resourceOverrides?: { model?: string },
     options?: {
       type?: CommissionType;
       sourceSchedule?: string;
@@ -114,7 +114,7 @@ export interface CommissionSessionForRoutes {
     updates: {
       prompt?: string;
       dependencies?: string[];
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+      resourceOverrides?: { model?: string };
     },
   ): Promise<void>;
   dispatchCommission(
@@ -134,7 +134,7 @@ export interface CommissionSessionForRoutes {
     cron: string;
     repeat?: number | null;
     dependencies?: string[];
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+    resourceOverrides?: { model?: string };
   }): Promise<{ commissionId: string }>;
   createTriggeredCommission(params: {
     projectName: string;
@@ -145,7 +145,7 @@ export interface CommissionSessionForRoutes {
     approval?: "auto" | "confirm";
     maxDepth?: number;
     dependencies?: string[];
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+    resourceOverrides?: { model?: string };
   }): Promise<{ commissionId: string }>;
   updateScheduleStatus(
     commissionId: CommissionId,
@@ -499,19 +499,6 @@ export function createCommissionOrchestrator(
       return;
     }
 
-    // maxTurns without result: halt instead of fail (REQ-COM-36)
-    if (!resultSubmitted && outcome.reason === "maxTurns") {
-      const halted = await handleHalt(ctx, outcome);
-      if (halted) {
-        // Halted commissions leave lifecycle tracked but exit executions.
-        // Don't call lifecycle.forget (commission stays as "halted").
-        executions.delete(ctx.commissionId);
-        enqueueAutoDispatch();
-        return;
-      }
-      // Fall through to normal fail path if halt failed (e.g. no sessionId)
-    }
-
     try {
       if (resultSubmitted) {
         // Result was submitted: attempt finalize (squash-merge)
@@ -533,118 +520,8 @@ export function createCommissionOrchestrator(
     await checkDependencyTransitions(ctx.projectName);
   }
 
-  /**
-   * Halt entry path: commission hit maxTurns without submitting a result.
-   * Preserves the worktree, writes halted state file, increments halt_count,
-   * and records a timeline event (REQ-COM-36, REQ-COM-37, REQ-COM-38,
-   * REQ-COM-45, REQ-COM-45a).
-   *
-   * Returns true if halt succeeded, false if it failed (caller should
-   * fall through to the normal fail path).
-   */
-  async function handleHalt(
-    ctx: ExecutionContext,
-    outcome: SdkRunnerOutcome,
-  ): Promise<boolean> {
-    // 1. Commit pending changes (like sleep entry)
-    try {
-      await gitOps.commitAll(ctx.worktreeDir, `Halted (maxTurns): ${ctx.commissionId as string}`);
-    } catch (err: unknown) {
-      log.warn(`pre-halt commit failed for "${ctx.commissionId as string}":`, errorMessage(err));
-    }
-
-    // 2. Must have a sessionId for resume
-    if (!outcome.sessionId) {
-      log.error(`halt failed for "${ctx.commissionId as string}": no session ID available`);
-      return false;
-    }
-
-    // 3. Transition in_progress -> halted
-    const haltResult = await lifecycle.halt(
-      ctx.commissionId,
-      `Turn limit reached (${outcome.turnsUsed} turns used)`,
-    );
-    if (haltResult.outcome === "skipped") {
-      log.error(`halt transition skipped for "${ctx.commissionId as string}": ${haltResult.reason}`);
-      return false;
-    }
-
-    // 4. Read current progress and increment halt_count
-    const artifactPath = commissionArtifactPath(ctx.worktreeDir, ctx.commissionId);
-    let lastProgress = "";
-    let haltCount = 1;
-    try {
-      lastProgress = await recordOps.readProgress(artifactPath);
-    } catch (err: unknown) {
-      log.warn(`readProgress failed for "${ctx.commissionId as string}":`, errorMessage(err));
-    }
-    try {
-      haltCount = await recordOps.incrementHaltCount(artifactPath);
-    } catch (err: unknown) {
-      log.error(`incrementHaltCount failed for "${ctx.commissionId as string}":`, errorMessage(err));
-    }
-
-    // 5. Write halted state file (REQ-COM-37)
-    const turnsUsed = outcome.turnsUsed;
-    const stateData: HaltedCommissionState = {
-      commissionId: ctx.commissionId as string,
-      projectName: ctx.projectName,
-      workerName: ctx.workerName,
-      status: "halted",
-      worktreeDir: ctx.worktreeDir,
-      branchName: ctx.branchName,
-      sessionId: outcome.sessionId,
-      haltedAt: new Date().toISOString(),
-      turnsUsed,
-      lastProgress,
-    };
-    try {
-      await writeStateFile(
-        ctx.commissionId,
-        stateData as Record<string, unknown>,
-      );
-    } catch (err: unknown) {
-      log.error(
-        `writeStateFile failed for "${ctx.commissionId as string}", rolling back to failed:`,
-        errorMessage(err),
-      );
-      await lifecycle.executionFailed(
-        ctx.commissionId,
-        `Halt state file write failed: ${errorMessage(err)}`,
-      );
-      return false;
-    }
-
-    // 6. Append timeline event (REQ-COM-45a)
-    try {
-      await recordOps.appendTimeline(
-        artifactPath,
-        "status_halted",
-        `Turn limit reached (${turnsUsed} turns used)`,
-        {
-          turnsUsed: String(turnsUsed),
-          lastProgress,
-          haltCount: String(haltCount),
-        },
-      );
-    } catch (err: unknown) {
-      log.warn(`failed to append status_halted timeline:`, errorMessage(err));
-    }
-
-    // 7. Sync halted status to integration worktree
-    await syncStatusToIntegration(
-      ctx.commissionId,
-      ctx.projectName,
-      "halted",
-      `Turn limit reached (${turnsUsed} turns used)`,
-    );
-
-    log.info(
-      `"${ctx.commissionId as string}" halted after ${turnsUsed} turns (halt #${haltCount})`,
-    );
-
-    return true;
-  }
+  // handleHalt removed: no code path triggers halt after maxTurns removal.
+  // The halted infrastructure (continue, save, cancel, recovery) remains for Phase 2 cleanup.
 
   async function handleSuccessfulCompletion(ctx: ExecutionContext): Promise<void> {
     // Transition to completed
@@ -1301,7 +1178,7 @@ export function createCommissionOrchestrator(
     workerName: string,
     prompt: string,
     dependencies: string[] = [],
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string },
+    resourceOverrides?: { model?: string },
     options?: {
       type?: CommissionType;
       sourceSchedule?: string;
@@ -1349,20 +1226,8 @@ export function createCommissionOrchestrator(
         : " []";
 
     const resourceLines =
-      resourceOverrides && (resourceOverrides.maxTurns !== undefined || resourceOverrides.maxBudgetUsd !== undefined || resourceOverrides.model !== undefined)
-        ? `\nresource_overrides:\n${
-            resourceOverrides.maxTurns !== undefined
-              ? `  maxTurns: ${resourceOverrides.maxTurns}\n`
-              : ""
-          }${
-            resourceOverrides.maxBudgetUsd !== undefined
-              ? `  maxBudgetUsd: ${resourceOverrides.maxBudgetUsd}\n`
-              : ""
-          }${
-            resourceOverrides.model !== undefined
-              ? `  model: ${resourceOverrides.model}\n`
-              : ""
-          }`
+      resourceOverrides?.model !== undefined
+        ? `\nresource_overrides:\n  model: ${resourceOverrides.model}\n`
         : "";
 
     const commissionType: CommissionType = options?.type ?? "one-shot";
@@ -1417,7 +1282,7 @@ projectName: ${projectName}
     cron: string;
     repeat?: number | null;
     dependencies?: string[];
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+    resourceOverrides?: { model?: string };
   }): Promise<{ commissionId: string }> {
     const { projectName, title, workerName, prompt, cron, dependencies = [] } = params;
     const repeat = params.repeat ?? null;
@@ -1455,8 +1320,8 @@ projectName: ${projectName}
       : " []";
 
     const ro = params.resourceOverrides;
-    const resourceLines = ro && (ro.maxTurns !== undefined || ro.maxBudgetUsd !== undefined || ro.model !== undefined)
-      ? `resource_overrides:\n${ro.maxTurns !== undefined ? `  maxTurns: ${ro.maxTurns}\n` : ""}${ro.maxBudgetUsd !== undefined ? `  maxBudgetUsd: ${ro.maxBudgetUsd}\n` : ""}${ro.model !== undefined ? `  model: ${ro.model}\n` : ""}`
+    const resourceLines = ro?.model !== undefined
+      ? `resource_overrides:\n  model: ${ro.model}\n`
       : "";
 
     const content = `---
@@ -1519,7 +1384,7 @@ projectName: ${projectName}
     approval?: "auto" | "confirm";
     maxDepth?: number;
     dependencies?: string[];
-    resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+    resourceOverrides?: { model?: string };
   }): Promise<{ commissionId: string }> {
     const { projectName, title, workerName, prompt, match, dependencies = [] } = params;
     const approval = params.approval ?? "confirm";
@@ -1554,8 +1419,8 @@ projectName: ${projectName}
       : " []";
 
     const ro = params.resourceOverrides;
-    const resourceLines = ro && (ro.maxTurns !== undefined || ro.maxBudgetUsd !== undefined || ro.model !== undefined)
-      ? `resource_overrides:\n${ro.maxTurns !== undefined ? `  maxTurns: ${ro.maxTurns}\n` : ""}${ro.maxBudgetUsd !== undefined ? `  maxBudgetUsd: ${ro.maxBudgetUsd}\n` : ""}${ro.model !== undefined ? `  model: ${ro.model}\n` : ""}`
+    const resourceLines = ro?.model !== undefined
+      ? `resource_overrides:\n  model: ${ro.model}\n`
       : "";
 
     // Build the trigger match YAML block
@@ -1745,7 +1610,7 @@ projectName: ${projectName}
     updates: {
       prompt?: string;
       dependencies?: string[];
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+      resourceOverrides?: { model?: string };
     },
   ): Promise<void> {
     const found = await findProjectForCommission(commissionId);
@@ -1792,29 +1657,12 @@ projectName: ${projectName}
     }
 
     if (updates.resourceOverrides !== undefined) {
-      // Read existing overrides from raw content
-      const existingMaxTurnsMatch = raw.match(/^ {2}maxTurns: (\d+)$/m);
-      const existingMaxBudgetMatch = raw.match(/^ {2}maxBudgetUsd: ([\d.]+)$/m);
       const existingModelMatch = raw.match(/^ {2}model: ([^\s]+)$/m);
-
-      const maxTurns = updates.resourceOverrides.maxTurns
-        ?? (existingMaxTurnsMatch ? Number(existingMaxTurnsMatch[1]) : undefined);
-      const maxBudgetUsd = updates.resourceOverrides.maxBudgetUsd
-        ?? (existingMaxBudgetMatch ? Number(existingMaxBudgetMatch[1]) : undefined);
       const model = updates.resourceOverrides.model
         ?? (existingModelMatch ? existingModelMatch[1] : undefined);
 
-      if (maxTurns !== undefined || maxBudgetUsd !== undefined || model !== undefined) {
-        let overrideBlock = "";
-        if (maxTurns !== undefined) {
-          overrideBlock += `\n  maxTurns: ${maxTurns}`;
-        }
-        if (maxBudgetUsd !== undefined) {
-          overrideBlock += `\n  maxBudgetUsd: ${maxBudgetUsd}`;
-        }
-        if (model !== undefined) {
-          overrideBlock += `\n  model: ${model}`;
-        }
+      if (model !== undefined) {
+        const overrideBlock = `\n  model: ${model}`;
 
         // Check if resource_overrides field already exists
         if (/^resource_overrides:/m.test(raw)) {
@@ -1885,14 +1733,8 @@ projectName: ${projectName}
     const prompt = (data.prompt as string | undefined) ?? "";
     const workerName = (data.worker as string | undefined) ?? "";
     const commissionDeps = (data.dependencies as string[] | undefined) ?? [];
-    const overrides = data.resource_overrides as { maxTurns?: number; maxBudgetUsd?: number; model?: string } | undefined;
-    const resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string } = {};
-    if (overrides?.maxTurns !== undefined) {
-      resourceOverrides.maxTurns = Number(overrides.maxTurns);
-    }
-    if (overrides?.maxBudgetUsd !== undefined) {
-      resourceOverrides.maxBudgetUsd = Number(overrides.maxBudgetUsd);
-    }
+    const overrides = data.resource_overrides as { model?: string } | undefined;
+    const resourceOverrides: { model?: string } = {};
     if (overrides?.model !== undefined) {
       resourceOverrides.model = String(overrides.model);
     }
@@ -2133,7 +1975,6 @@ projectName: ${projectName}
       const { options } = prepResult.result;
       const outcome = await drainSdkSession(
         runSdkSession(queryFn, prompt, options, log),
-        { maxTurns: options.maxTurns },
       );
 
       // 3. Normal completion path
@@ -2263,18 +2104,15 @@ projectName: ${projectName}
       "Continue working on the commission from where you left off. Your worktree contains all the work you've done so far. Review what remains and complete the task. When finished, call submit_result with your summary.",
     ].join("\n");
 
-    // 8. Read resource_overrides from integration artifact for fresh turn budget (REQ-COM-40a)
-    let resourceOverrides: { maxTurns?: number; maxBudgetUsd?: number; model?: string } | undefined;
+    // 8. Read resource_overrides from integration artifact for model override
+    let resourceOverrides: { model?: string } | undefined;
     try {
       const iArtifactPath = commissionArtifactPath(iPath, commissionId);
       const artRaw = await fs.readFile(iArtifactPath, "utf-8");
       const { data } = matter(artRaw);
-      const overrides = data.resource_overrides as { maxTurns?: number; maxBudgetUsd?: number; model?: string } | undefined;
-      if (overrides && Object.keys(overrides).length > 0) {
-        resourceOverrides = {};
-        if (overrides.maxTurns !== undefined) resourceOverrides.maxTurns = Number(overrides.maxTurns);
-        if (overrides.maxBudgetUsd !== undefined) resourceOverrides.maxBudgetUsd = Number(overrides.maxBudgetUsd);
-        if (overrides.model !== undefined) resourceOverrides.model = String(overrides.model);
+      const overrides = data.resource_overrides as { model?: string } | undefined;
+      if (overrides?.model !== undefined) {
+        resourceOverrides = { model: String(overrides.model) };
       }
     } catch (err: unknown) {
       log.warn(`failed to read resource_overrides for "${commissionId as string}":`, errorMessage(err));

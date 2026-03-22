@@ -581,7 +581,7 @@ export function toolboxFactory(deps) {
   };
 }
 export function activate(ctx) {
-  return { systemPrompt: "test", tools: { mcpServers: [], allowedTools: [] }, resourceBounds: {} };
+  return { systemPrompt: "test", tools: { mcpServers: [], allowedTools: [] } };
 }
 `,
     );

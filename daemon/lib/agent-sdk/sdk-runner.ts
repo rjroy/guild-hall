@@ -101,7 +101,7 @@ export type SessionPrepSpec = {
   activationExtras?: Partial<ActivationContext>;
   abortController: AbortController;
   resume?: string;
-  resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number; model?: string };
+  resourceOverrides?: { model?: string };
 };
 
 export type SessionPrepDeps = {
@@ -143,8 +143,8 @@ export type SdkRunnerOutcome = {
   sessionId: string | null;
   aborted: boolean;
   error?: string;
-  /** How the session ended. Populated by drainSdkSession when maxTurns is provided. */
-  reason?: "completed" | "maxTurns" | "maxBudget";
+  /** How the session ended. */
+  reason?: "completed";
   /** Number of turns consumed by the session. */
   turnsUsed: number;
 };
@@ -209,7 +209,6 @@ export async function* runSdkSession(
 /** Exhausts a generator fully, returns summary outcome. */
 export async function drainSdkSession(
   generator: AsyncGenerator<SdkRunnerEvent>,
-  opts?: { maxTurns?: number },
 ): Promise<SdkRunnerOutcome> {
   let sessionId: string | null = null;
   let aborted = false;
@@ -233,8 +232,6 @@ export async function drainSdkSession(
     // Aborted sessions don't get a reason
   } else if (firstError) {
     // Error sessions don't get a reason
-  } else if (opts?.maxTurns && turnCount >= opts.maxTurns) {
-    reason = "maxTurns";
   } else {
     reason = "completed";
   }
@@ -343,10 +340,6 @@ export async function prepareSdkSession(
       injectedMemory,
       model: workerMeta.model,
       resolvedTools,
-      resourceDefaults: {
-        maxTurns: workerMeta.resourceDefaults?.maxTurns,
-        maxBudgetUsd: workerMeta.resourceDefaults?.maxBudgetUsd,
-      },
       localModelDefinitions: spec.config.models,
       projectPath: spec.projectPath,
       workingDirectory: spec.workspaceDir,
@@ -398,7 +391,6 @@ export async function prepareSdkSession(
           injectedMemory: subMemory,
           model: subMeta.model,
           resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
-          resourceDefaults: {},
           localModelDefinitions: spec.config.models,
           projectPath: spec.projectPath,
           workingDirectory: spec.workspaceDir,
@@ -427,8 +419,6 @@ export async function prepareSdkSession(
   log.info(`Sub-agent map built: ${Object.keys(agents).length} agents included`);
 
   // 5. Build SDK query options
-  const maxTurns = spec.resourceOverrides?.maxTurns ?? activation.resourceBounds.maxTurns;
-  const maxBudgetUsd = spec.resourceOverrides?.maxBudgetUsd ?? activation.resourceBounds.maxBudgetUsd;
   const resolvedModelName = spec.resourceOverrides?.model ?? activation.model;
 
   // 5a. Resolve model to built-in or local definition (REQ-LOCAL-8)
@@ -501,8 +491,6 @@ export async function prepareSdkSession(
     ...(localEnv ? { env: localEnv } : {}),
     ...(sandboxSettings ? { sandbox: sandboxSettings } : {}),
     ...(Object.keys(agents).length > 0 ? { agents } : {}),
-    ...(maxTurns ? { maxTurns } : {}),
-    ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
     permissionMode: "dontAsk",
     settingSources: ["local", "project", "user"],
     abortController: spec.abortController,

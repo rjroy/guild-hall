@@ -22,7 +22,7 @@ function makeMockCommissionSession(
       workerName: string,
       prompt: string,
       dependencies?: string[],
-      resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number },
+      resourceOverrides?: { model?: string },
       options?: { type?: "one-shot" | "scheduled"; sourceSchedule?: string },
     ) {
       calls.push({
@@ -46,7 +46,7 @@ function makeMockCommissionSession(
       updates: {
         prompt?: string;
         dependencies?: string[];
-        resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number };
+        resourceOverrides?: { model?: string };
       },
     ) {
       calls.push({
@@ -202,7 +202,7 @@ describe("POST /commission/request/commission/create", () => {
         workerName: "builder",
         prompt: "Build the thing",
         dependencies: ["dep-1", "dep-2"],
-        resourceOverrides: { maxTurns: 50, maxBudgetUsd: 2.5 },
+        resourceOverrides: { model: "sonnet" },
       }),
     });
 
@@ -213,7 +213,7 @@ describe("POST /commission/request/commission/create", () => {
     expect(calls[0].args[2]).toBe("builder");
     expect(calls[0].args[3]).toBe("Build the thing");
     expect(calls[0].args[4]).toEqual(["dep-1", "dep-2"]);
-    expect(calls[0].args[5]).toEqual({ maxTurns: 50, maxBudgetUsd: 2.5 });
+    expect(calls[0].args[5]).toEqual({ model: "sonnet" });
   });
 
   test("returns 500 for internal errors", async () => {

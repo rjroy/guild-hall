@@ -67,7 +67,6 @@ function makeManagerPackage(): DiscoveredPackage {
     domainToolboxes: [],
     builtInTools: ["Read", "Glob", "Grep"],
     checkoutScope: "sparse",
-    resourceDefaults: { maxTurns: 200 },
   };
   return { name: MANAGER_PACKAGE_NAME, path: "", metadata };
 }
@@ -547,7 +546,6 @@ describe("buildManagerContext - meeting session integration", () => {
       posture: "Test posture.",
       injectedMemory: "",
       resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
-      resourceDefaults: { maxTurns: 200 },
       projectPath: "/tmp/test",
       workingDirectory: "/tmp/test",
       managerContext: context,

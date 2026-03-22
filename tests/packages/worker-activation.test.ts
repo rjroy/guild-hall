@@ -16,7 +16,6 @@ function makeContext(overrides: Partial<ActivationContext> = {}): ActivationCont
     posture: "POSTURE_CONTENT",
     injectedMemory: "",
     resolvedTools: makeResolvedTools(),
-    resourceDefaults: { maxTurns: 30 },
     projectPath: "/projects/test",
     workingDirectory: "/projects/test",
     ...overrides,

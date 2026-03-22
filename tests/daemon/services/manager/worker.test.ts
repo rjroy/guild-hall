@@ -134,7 +134,6 @@ describe("activateManager", () => {
       posture: "Manager posture text",
       injectedMemory: "",
       resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
-      resourceDefaults: { maxTurns: 200 },
       projectPath: "/tmp/project",
       workingDirectory: "/tmp/work",
       ...overrides,
@@ -180,12 +179,6 @@ describe("activateManager", () => {
   test("uses context.model when provided", () => {
     const result = activateManager(makeContext({ model: "sonnet" }));
     expect(result.model).toBe("sonnet");
-  });
-
-  test("returns resourceBounds from context", () => {
-    const result = activateManager(makeContext({ resourceDefaults: { maxTurns: 50, maxBudgetUsd: 1.0 } }));
-    expect(result.resourceBounds.maxTurns).toBe(50);
-    expect(result.resourceBounds.maxBudgetUsd).toBe(1.0);
   });
 
   test("returns resolved tools from context", () => {

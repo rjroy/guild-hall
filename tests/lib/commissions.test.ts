@@ -49,9 +49,7 @@ dependencies:
   - specs/auth-requirements.md
 linked_artifacts:
   - notes/oauth-notes.md
-resource_overrides:
-  maxTurns: 150
-  maxBudgetUsd: 1.00
+resource_overrides: {}
 activity_timeline:
   - timestamp: 2026-02-21T14:30:00.000Z
     event: created
@@ -78,7 +76,7 @@ describe("readCommissionMeta", () => {
     expect(meta.prompt).toBe("Research OAuth 2.0 patterns for CLI tools");
     expect(meta.dependencies).toEqual(["specs/auth-requirements.md"]);
     expect(meta.linked_artifacts).toEqual(["notes/oauth-notes.md"]);
-    expect(meta.resource_overrides).toEqual({ maxTurns: 150, maxBudgetUsd: 1.00 });
+    expect(meta.resource_overrides).toEqual({});
     expect(meta.current_progress).toBe("Analyzing patterns");
     expect(meta.result_summary).toBe("");
     expect(meta.projectName).toBe("guild-hall");
@@ -127,10 +125,7 @@ describe("readCommissionMeta", () => {
     expect(meta.prompt).toBe("");
     expect(meta.dependencies).toEqual([]);
     expect(meta.linked_artifacts).toEqual([]);
-    expect(meta.resource_overrides).toEqual({
-      maxTurns: undefined,
-      maxBudgetUsd: undefined,
-    });
+    expect(meta.resource_overrides).toEqual({});
     expect(meta.current_progress).toBe("");
     expect(meta.result_summary).toBe("");
   });
