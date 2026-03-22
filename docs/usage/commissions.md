@@ -53,15 +53,6 @@ Active commissions subscribe to event updates so the page can reflect status cha
 
 This makes commission detail pages the best place to watch long-running work move from `queued` or `dispatched` into `in_progress` and finally into a terminal state.
 
-## Halted commissions
-
-Commissions may enter a `halted` state with the worktree and session preserved. When halted, you have two options:
-
-- **Continue** resumes the exact session where it left off, giving the worker more turns to finish.
-- **Save** merges whatever partial work exists into the integration branch, even though the commission didn't complete normally.
-
-Halted commissions appear as a distinct status in the filter panel so they don't get lost among active work.
-
 ## When to use a commission instead of an audience
 
 Choose a commission when:

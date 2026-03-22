@@ -306,10 +306,6 @@ function createMockCommissionSession(): MockCommissionSession {
     updateScheduleStatus(): Promise<{ outcome: string; status?: string }> {
       return Promise.resolve({ outcome: "executed", status: "paused" });
     },
-    continueCommission(): Promise<{ status: "accepted" | "capacity_error" }> {
-      return Promise.resolve({ status: "accepted" });
-    },
-    saveCommission(): Promise<void> { return Promise.resolve(); },
     checkDependencyTransitions(): Promise<void> { return Promise.resolve(); },
     createTriggeredCommission(): Promise<{ commissionId: string }> {
       return Promise.resolve({ commissionId: "trigger-001" });

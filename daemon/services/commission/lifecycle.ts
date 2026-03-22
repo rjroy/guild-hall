@@ -14,8 +14,7 @@
  *   pending     -> dispatched, blocked, cancelled, abandoned
  *   blocked     -> pending, cancelled, abandoned
  *   dispatched  -> in_progress, failed, cancelled
- *   in_progress -> completed, failed, cancelled, halted
- *   halted      -> in_progress, completed, cancelled, abandoned, failed
+ *   in_progress -> completed, failed, cancelled
  *   completed   -> failed
  *   failed      -> pending, abandoned
  *   cancelled   -> pending, abandoned
@@ -49,8 +48,7 @@ const TRANSITIONS: Record<CommissionStatus, CommissionStatus[]> = {
   pending: ["dispatched", "blocked", "cancelled", "abandoned"],
   blocked: ["pending", "cancelled", "abandoned"],
   dispatched: ["in_progress", "failed", "cancelled"],
-  in_progress: ["completed", "failed", "cancelled", "halted"],
-  halted: ["in_progress", "completed", "cancelled", "abandoned", "failed"],
+  in_progress: ["completed", "failed", "cancelled"],
   completed: ["failed"],
   failed: ["pending", "abandoned"],
   cancelled: ["pending", "abandoned"],
@@ -164,14 +162,6 @@ export class CommissionLifecycle {
     return this.transition(id, "pending", "Dependencies satisfied");
   }
 
-
-  async halt(id: CommissionId, reason: string): Promise<TransitionResult> {
-    return this.transition(id, "halted", reason);
-  }
-
-  async continueHalted(id: CommissionId, reason: string): Promise<TransitionResult> {
-    return this.transition(id, "in_progress", reason);
-  }
 
   /**
    * Transition dispatched -> in_progress and update the artifact path.

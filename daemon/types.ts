@@ -60,7 +60,6 @@ export type CommissionStatus =
   | "blocked"
   | "dispatched"
   | "in_progress"
-  | "halted"
   | "completed"
   | "failed"
   | "cancelled"

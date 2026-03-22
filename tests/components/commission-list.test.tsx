@@ -31,8 +31,8 @@ function makeCommission(status: string, id?: string): CommissionMeta {
 }
 
 describe("DEFAULT_STATUSES", () => {
-  test("contains exactly 8 members", () => {
-    expect(DEFAULT_STATUSES.size).toBe(8);
+  test("contains exactly 7 members", () => {
+    expect(DEFAULT_STATUSES.size).toBe(7);
   });
 
   test("contains all expected default-on statuses", () => {
@@ -41,7 +41,6 @@ describe("DEFAULT_STATUSES", () => {
       "blocked",
       "dispatched",
       "in_progress",
-      "halted",
       "active",
       "failed",
       "cancelled",
@@ -69,10 +68,10 @@ describe("FILTER_GROUPS", () => {
     ]);
   });
 
-  test("covers all 11 statuses exactly once", () => {
+  test("covers all 10 statuses exactly once", () => {
     const allStatuses = FILTER_GROUPS.flatMap((g) => g.statuses);
-    expect(allStatuses).toHaveLength(11);
-    expect(new Set(allStatuses).size).toBe(11);
+    expect(allStatuses).toHaveLength(10);
+    expect(new Set(allStatuses).size).toBe(10);
   });
 });
 
