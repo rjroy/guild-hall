@@ -434,6 +434,28 @@ describe("canUseToolRules passthrough", () => {
     expect(result.canUseToolRules).toEqual([]);
   });
 
+  test("gated tools are excluded from allowedTools", async () => {
+    const rules = [
+      { tool: "Bash", commands: ["git status"], allow: true },
+      { tool: "Bash", allow: false, reason: "Only git status" },
+    ];
+    const worker = makeWorker({
+      builtInTools: ["Read", "Glob", "Bash"],
+      canUseToolRules: rules,
+    });
+    const result = await resolveToolSet(worker, [], testContext(), registry);
+
+    // Bash is gated by canUseToolRules, so it must NOT appear in allowedTools
+    expect(result.allowedTools).not.toContain("Bash");
+    // Ungated tools remain in allowedTools
+    expect(result.allowedTools).toContain("Read");
+    expect(result.allowedTools).toContain("Glob");
+    // MCP wildcards are still present
+    expect(result.allowedTools).toContain("mcp__guild-hall-base__*");
+    // builtInTools is unaffected (still reflects the full worker declaration)
+    expect(result.builtInTools).toEqual(["Read", "Glob", "Bash"]);
+  });
+
   test("resolveToolSet returns canUseToolRules matching worker declaration", async () => {
     const rules = [
       { tool: "Bash", commands: ["git status"], allow: true },

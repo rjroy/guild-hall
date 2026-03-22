@@ -144,8 +144,13 @@ export async function resolveToolSet(
   //    allowedTools is a whitelist for ALL tools including MCP tools.
   //    MCP tools follow the naming convention mcp__<server>__<tool>.
   //    Without wildcards, MCP tools are silently filtered out.
+  //    Tools governed by canUseToolRules are excluded from the blanket
+  //    whitelist so they're only accessible through rule evaluation.
+  const gatedTools = new Set(
+    (worker.canUseToolRules ?? []).map((rule) => rule.tool),
+  );
   const allowedTools = [
-    ...worker.builtInTools,
+    ...worker.builtInTools.filter((t) => !gatedTools.has(t)),
     ...mcpServers.map((s) => `mcp__${s.name}__*`),
   ];
 

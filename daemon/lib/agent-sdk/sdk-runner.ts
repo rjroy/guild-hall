@@ -547,6 +547,9 @@ export async function prepareSdkSession(
   for (const server of activation.tools.mcpServers) {
     mcpServers[server.name] = server;
   }
+  
+  log.info(`allowedTools: ${Object.keys(activation.tools.allowedTools).join(", ")}`);
+  log.info(`builtInTools: ${Object.keys(activation.tools.builtInTools).join(", ")}`);
 
   const options: SdkQueryOptions = {
     systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
