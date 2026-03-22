@@ -1,7 +1,7 @@
 ---
 title: "Plan: Triggered Commissions Core Architecture"
 date: 2026-03-21
-status: draft
+status: executed
 tags: [commissions, event-router, triggers, daemon]
 modules: [event-router, commission-orchestrator, trigger-evaluator]
 related:
