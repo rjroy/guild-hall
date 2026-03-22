@@ -164,27 +164,15 @@ export function createGitReadonlyTools(
         count: z.number().optional().describe("Number of commits to show (default: 20)"),
         since: z.string().optional().describe("Show commits after this date (e.g. '2024-01-01')"),
         author: z.string().optional().describe("Filter by author name or email"),
-        format: z.string().optional().describe("Custom format string (overrides structured output)"),
       },
       async (args) => {
-        const gitArgs = ["log"];
-
-        if (args.format) {
-          gitArgs.push(`--format=${args.format}`);
-        } else {
-          gitArgs.push(`--format=${logFormat}`);
-        }
+        const gitArgs = ["log", `--format=${logFormat}`];
 
         gitArgs.push(`-n${args.count ?? 20}`);
         if (args.since) gitArgs.push(`--since=${args.since}`);
         if (args.author) gitArgs.push(`--author=${args.author}`);
 
         const { stdout } = await runGit(workingDirectory, gitArgs);
-
-        if (args.format) {
-          return { content: [{ type: "text", text: stdout }] };
-        }
-
         const commits = parseGitLog(stdout);
         return { content: [{ type: "text", text: JSON.stringify(commits, null, 2) }] };
       },
@@ -221,8 +209,10 @@ export function createGitReadonlyTools(
         const { stdout: headerOut } = await runGit(workingDirectory, [
           "show", "--no-patch", `--format=${showFormat}`, args.ref,
         ]);
+        // Use git diff-tree with --root to handle initial commits (no parent).
+        // --root makes diff-tree show the full diff for root commits instead of erroring.
         const { stdout: diffOut } = await runGit(workingDirectory, [
-          "diff", `${args.ref}~1`, args.ref,
+          "diff-tree", "--root", "-p", args.ref,
         ], { allowNonZero: true });
 
         const fields = headerOut.replace(LOG_SEPARATOR, "").split(FIELD_SEPARATOR);

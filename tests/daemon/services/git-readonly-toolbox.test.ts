@@ -204,6 +204,14 @@ describe("git_log tool", () => {
     expect(capturedArgs.some((a) => a.includes("--author=alice"))).toBe(true);
   });
 
+  test("does not accept a format parameter", () => {
+    const runner: GitRunner = async () => ({ stdout: "", stderr: "", exitCode: 0 });
+    const tools = createGitReadonlyTools("/test", runner);
+    const logTool = findTool(tools, "git_log");
+    const schema = logTool.inputSchema as { properties?: Record<string, unknown> };
+    expect(schema.properties).not.toHaveProperty("format");
+  });
+
   test("returns structured commit objects", async () => {
     const runner = mockGitRunner({
       log: {
@@ -289,6 +297,32 @@ describe("git_show tool", () => {
     expect(parsed).toHaveProperty("hash");
     expect(parsed).toHaveProperty("author");
     expect(parsed).toHaveProperty("diff");
+  });
+
+  test("uses diff-tree --root for initial commit support", async () => {
+    let capturedDiffArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc123${SEP}Alice${SEP}2026-03-22${SEP}Initial${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      capturedDiffArgs = args;
+      return { stdout: "diff for root commit", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "abc123" });
+    const parsed = JSON.parse(text);
+
+    expect(capturedDiffArgs).toContain("diff-tree");
+    expect(capturedDiffArgs).toContain("--root");
+    expect(capturedDiffArgs).toContain("-p");
+    expect(capturedDiffArgs).toContain("abc123");
+    expect(parsed.hash).toBe("abc123");
+    expect(parsed.subject).toBe("Initial");
+    expect(parsed.diff).toBe("diff for root commit");
   });
 });
 
