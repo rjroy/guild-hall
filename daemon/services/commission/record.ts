@@ -382,10 +382,20 @@ function createRecordOps(): CommissionRecordOps {
         throw new Error(`readTriggerMetadata: no trigger block found in ${artifactPath}`);
       }
 
-      const match = trigger.match as TriggerBlock["match"];
-      if (!match || !match.type) {
+      const rawMatch = trigger.match as Record<string, unknown>;
+      if (!rawMatch || !rawMatch.type) {
         throw new Error(`readTriggerMetadata: no match rule in trigger block of ${artifactPath}`);
       }
+
+      // gray-matter coerces YAML values (e.g. "true" -> boolean, "123" -> number).
+      // Coerce fields values back to strings so micromatch receives valid input.
+      const match: TriggerBlock["match"] = {
+        type: String(rawMatch.type) as TriggerBlock["match"]["type"],
+        projectName: rawMatch.projectName ? String(rawMatch.projectName) : undefined,
+        fields: rawMatch.fields && typeof rawMatch.fields === "object"
+          ? Object.fromEntries(Object.entries(rawMatch.fields as Record<string, unknown>).map(([k, v]) => [k, String(v)]))
+          : undefined,
+      };
 
       return {
         match,

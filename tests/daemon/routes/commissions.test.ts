@@ -972,6 +972,49 @@ describe("POST /commission/request/commission/create (triggered)", () => {
     expect(body.error).toContain("match");
   });
 
+  test("returns 400 when match.type is not a valid system event type", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commission/request/commission/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "Bad type",
+        workerName: "writer",
+        prompt: "Test",
+        type: "triggered",
+        match: { type: "not_a_real_event" },
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain("Invalid match.type");
+    expect(body.error).toContain("not_a_real_event");
+  });
+
+  test("returns 400 when match.type is missing", async () => {
+    const { app } = makeTestApp();
+
+    const res = await app.request("/commission/request/commission/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectName: "test-project",
+        title: "No type",
+        workerName: "writer",
+        prompt: "Test",
+        type: "triggered",
+        match: { fields: { status: "completed" } },
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain("Invalid match.type");
+  });
+
   test("triggered with defaults for approval and maxDepth", async () => {
     const { app, calls } = makeTestApp();
 

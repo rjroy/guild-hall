@@ -59,7 +59,7 @@ import {
 } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import { isValidCron } from "@/daemon/services/scheduler/cron";
-import { TRIGGER_STATUS_TRANSITIONS } from "@/daemon/services/manager/toolbox";
+import { TRIGGER_STATUS_TRANSITIONS } from "@/daemon/services/commission/trigger-lifecycle";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import type { CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
 import { replaceYamlField } from "@/daemon/lib/record-utils";

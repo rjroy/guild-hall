@@ -248,6 +248,45 @@ function tracked(harness: TestHarness): TestHarness {
 // -- Tests --
 
 describe("readTriggerArtifact", () => {
+  test("coerces gray-matter-parsed field values to strings", async () => {
+    const h = tracked(await makeHarness());
+    // Write YAML with unquoted values that gray-matter will coerce:
+    // "true" -> boolean true, "123" -> number 123
+    const rawYaml = `---
+title: "Coercion test"
+date: 2026-03-21
+status: active
+type: triggered
+tags: [commission, triggered]
+worker: guild-hall-reviewer
+prompt: "Test coercion"
+dependencies: []
+trigger:
+  match:
+    type: commission_status
+    fields:
+      enabled: true
+      count: 123
+  approval: auto
+  maxDepth: 3
+  runs_completed: 0
+  last_triggered: null
+  last_spawned_id: null
+activity_timeline:
+  - timestamp: 2026-03-21T10:00:00.000Z
+    event: created
+    reason: "Test"
+current_progress: ""
+projectName: test-project
+---
+`;
+    const p = await h.writeTrigger("trigger-coerce.md", rawYaml);
+    const data = await readTriggerArtifact(p);
+    expect(data.trigger.match.fields).toEqual({ enabled: "true", count: "123" });
+    expect(typeof data.trigger.match.fields!.enabled).toBe("string");
+    expect(typeof data.trigger.match.fields!.count).toBe("string");
+  });
+
   test("reads all fields from a trigger artifact", async () => {
     const h = tracked(await makeHarness());
     const p = await h.writeTrigger("trigger-001.md", makeTriggerArtifact({

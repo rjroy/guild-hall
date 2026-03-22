@@ -69,7 +69,16 @@ export async function readTriggerArtifact(artifactPath: string): Promise<Trigger
     throw new Error(`readTriggerArtifact: no trigger.match in ${artifactPath}`);
   }
 
-  const match = trigger.match as TriggerBlock["match"];
+  // gray-matter coerces YAML values (e.g. "true" -> boolean, "123" -> number).
+  // Coerce fields values back to strings so micromatch receives valid input.
+  const rawMatch = trigger.match as Record<string, unknown>;
+  const match: TriggerBlock["match"] = {
+    type: String(rawMatch.type) as TriggerBlock["match"]["type"],
+    projectName: rawMatch.projectName ? String(rawMatch.projectName) : undefined,
+    fields: rawMatch.fields && typeof rawMatch.fields === "object"
+      ? Object.fromEntries(Object.entries(rawMatch.fields as Record<string, unknown>).map(([k, v]) => [k, String(v)]))
+      : undefined,
+  };
   const triggerBlock: TriggerBlock = {
     match,
     approval: trigger.approval as TriggerBlock["approval"],
@@ -98,9 +107,6 @@ export async function readTriggerArtifact(artifactPath: string): Promise<Trigger
 }
 
 // -- Source ID extraction --
-
-/** Commission-sourced event types where the source artifact can be read. */
-const COMMISSION_SOURCE_EVENTS = new Set(["commission_status", "commission_result"]);
 
 /**
  * Extracts the source context ID from an event for provenance tracking.
@@ -260,6 +266,8 @@ export function createTriggerEvaluator(deps: TriggerEvaluatorDeps): TriggerEvalu
           // 9. Conditional dispatch (REQ-TRIG-13, 14, 15)
           if (effectiveApproval === "auto") {
             try {
+              // createCommission returns a plain string; dispatchCommission expects a branded CommissionId.
+              // The value is the same, but the type system doesn't know that.
               await commissionSession.dispatchCommission(spawnedId as unknown as CommissionId);
             } catch (err) {
               log.warn(`dispatch failed for triggered commission ${spawnedId}:`, err instanceof Error ? err.message : String(err));
@@ -267,10 +275,11 @@ export function createTriggerEvaluator(deps: TriggerEvaluatorDeps): TriggerEvalu
           }
 
           // 10. Update trigger artifact state (REQ-TRIG-25, 26)
+          const firedAt = new Date().toISOString();
           try {
             await recordOps.writeTriggerFields(artifactPath, {
               runs_completed: triggerData.trigger.runs_completed + 1,
-              last_triggered: new Date().toISOString(),
+              last_triggered: firedAt,
               last_spawned_id: spawnedId,
             });
             await recordOps.appendTimeline(
@@ -284,7 +293,7 @@ export function createTriggerEvaluator(deps: TriggerEvaluatorDeps): TriggerEvalu
 
           // Mutate the captured data so subsequent firings use the updated count
           triggerData.trigger.runs_completed += 1;
-          triggerData.trigger.last_triggered = new Date().toISOString();
+          triggerData.trigger.last_triggered = firedAt;
           triggerData.trigger.last_spawned_id = spawnedId;
 
           log.info(`trigger "${triggerArtifactName}" fired: created ${spawnedId} (depth: ${depth}, approval: ${effectiveApproval})`);

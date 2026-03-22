@@ -1142,6 +1142,20 @@ describe("readTriggerMetadata", () => {
     const missing = path.join(tmpDir, "does-not-exist.md");
     await expect(ops.readTriggerMetadata(missing)).rejects.toThrow(/artifact not found/);
   });
+
+  test("coerces gray-matter-parsed field values to strings", async () => {
+    // gray-matter coerces "true" to boolean and "123" to number in YAML.
+    // The fields Record<string, string> contract must survive this.
+    await writeTriggerArtifact({
+      fields: "      enabled: true\n      count: 123",
+    });
+
+    const meta = await ops.readTriggerMetadata(artifactPath);
+    expect(meta.match.fields).toEqual({ enabled: "true", count: "123" });
+    // Verify values are strings, not their coerced types
+    expect(typeof meta.match.fields!.enabled).toBe("string");
+    expect(typeof meta.match.fields!.count).toBe("string");
+  });
 });
 
 // -- writeTriggerFields --

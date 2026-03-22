@@ -6,6 +6,7 @@ import type { CommissionSessionForRoutes } from "../services/commission/orchestr
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
+import { SYSTEM_EVENT_TYPES } from "@/lib/types";
 import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveCommissionBasePath } from "@/lib/paths";
 import { scanCommissions, readCommissionMeta, parseActivityTimeline } from "@/lib/commissions";
@@ -103,6 +104,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       } else if (body.type === "triggered") {
         if (!body.match) {
           return c.json({ error: "Missing required field for triggered commission: match" }, 400);
+        }
+        if (!body.match.type || !SYSTEM_EVENT_TYPES.includes(body.match.type as never)) {
+          return c.json({ error: `Invalid match.type: "${body.match.type}". Valid types: ${SYSTEM_EVENT_TYPES.join(", ")}` }, 400);
         }
         result = await deps.commissionSession.createTriggeredCommission({
           projectName,

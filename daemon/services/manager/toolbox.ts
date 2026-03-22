@@ -1054,14 +1054,10 @@ export function makeUpdateScheduleHandler(
 
 // -- Triggered commission tools --
 
-/**
- * Valid status transitions for triggered commissions.
- * Exported for reuse by the future daemon route (Phase 3).
- */
-export const TRIGGER_STATUS_TRANSITIONS: Record<string, string[]> = {
-  active: ["paused", "completed"],
-  paused: ["active", "completed"],
-};
+// Canonical definition lives in commission layer; imported here for local use and re-exported
+// for backward compatibility with existing test imports.
+import { TRIGGER_STATUS_TRANSITIONS } from "@/daemon/services/commission/trigger-lifecycle";
+export { TRIGGER_STATUS_TRANSITIONS };
 
 export function makeCreateTriggeredCommissionHandler(
   deps: ManagerToolboxDeps,
