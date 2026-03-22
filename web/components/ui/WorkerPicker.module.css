@@ -18,7 +18,8 @@
   max-width: 600px;
   width: 90vw;
   max-height: 80vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   background-color: var(--color-panel-bg);
   border: 10px solid transparent;
   border-image-source: url("/images/ui/border.webp");
@@ -46,6 +47,10 @@
 .dialogContent {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
 }
 
 .title {
@@ -53,6 +58,7 @@
   font-weight: 600;
   color: var(--color-brass);
   margin: 0 0 var(--space-md) 0;
+  flex-shrink: 0;
 }
 
 /* Worker list */
@@ -63,6 +69,9 @@
   flex-direction: column;
   gap: var(--space-sm);
   margin-bottom: var(--space-md);
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
 }
 
 .workerItem {
@@ -74,6 +83,7 @@
   border-radius: 8px;
   cursor: pointer;
   transition: border-color 0.2s, background-color 0.2s;
+  flex-shrink: 0;
 }
 
 .workerItem:hover {
@@ -126,6 +136,7 @@
   font-weight: 600;
   color: var(--color-text);
   margin-bottom: var(--space-xs);
+  flex-shrink: 0;
 }
 
 .promptTextarea {
@@ -141,6 +152,7 @@
   line-height: 1.5;
   resize: vertical;
   margin-bottom: var(--space-md);
+  flex-shrink: 0;
 }
 
 .promptTextarea:focus {
@@ -158,6 +170,7 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--space-sm);
+  flex-shrink: 0;
 }
 
 .cancelButton {
