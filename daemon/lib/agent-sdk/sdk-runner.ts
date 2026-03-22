@@ -550,13 +550,14 @@ export async function prepareSdkSession(
   
   log.info(`allowedTools: ${activation.tools.allowedTools.join(", ")}`);
   log.info(`builtInTools: ${activation.tools.builtInTools.join(", ")}`);
+  log.info(`CWD: ${spec.workspaceDir}`);
 
   const options: SdkQueryOptions = {
     systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
     cwd: spec.workspaceDir,
     mcpServers,
-    allowedTools: activation.tools.allowedTools,
-    tools: activation.tools.builtInTools,
+    // allowedTools: activation.tools.allowedTools,
+    // tools: activation.tools.builtInTools,
     ...(resolvedPlugins.length > 0 ? { plugins: resolvedPlugins } : {}),
     ...(finalModelId ? { model: finalModelId } : {}),
     ...(localEnv ? { env: localEnv } : {}),
@@ -565,7 +566,7 @@ export async function prepareSdkSession(
     ...(Object.keys(agents).length > 0 ? { agents } : {}),
     ...(maxTurns ? { maxTurns } : {}),
     ...(maxBudgetUsd ? { maxBudgetUsd } : {}),
-    permissionMode: "acceptEdits",
+    permissionMode: "default",
     settingSources: [],
     abortController: spec.abortController,
     ...(spec.resume ? { resume: spec.resume } : {}),
