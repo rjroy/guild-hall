@@ -1,7 +1,7 @@
 ---
 title: Detail view layout pattern - viewport-locked containers with condensing headers
 date: 2026-03-21
-status: draft
+status: approved
 tags: [ui, layout, css, commissions, artifacts, responsive]
 modules: [commission-view, commission-header, artifact-page, artifact-provenance]
 related:
