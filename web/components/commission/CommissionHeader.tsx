@@ -64,27 +64,44 @@ export default function CommissionHeader({
       {condensed ? (
         <div className={styles.condensedRow}>
           <GemIndicator status={gemStatus} size="sm" />
-          <span className={styles.condensedTitle}>{title || "Untitled Commission"}</span>
-          <span className={styles.condensedStatus}>{displayStatus}</span>
-          {worker && (
-            <span className={styles.condensedWorker}>{workerDisplayTitle || worker}</span>
-          )}
-          {model && (
-            <span className={styles.condensedModel}>
-              Model: {model}
-              {isLocalModel ? " (local)" : ""}
-              {isModelOverride ? " (override)" : ""}
-            </span>
-          )}
-          <button
-            type="button"
-            className={styles.toggleButton}
-            onClick={() => setCondensed(false)}
-            aria-label="Expand header"
-            aria-expanded={false}
-          >
-            {"\u25BC"}
-          </button>
+          <div className={styles.condensedContent}>
+            <nav className={styles.breadcrumb} aria-label="Breadcrumb">
+              <Link href="/" className={styles.breadcrumbLink}>
+                Guild Hall
+              </Link>
+              <span className={styles.separator} aria-hidden="true">
+                &rsaquo;
+              </span>
+              <Link
+                href={`/projects/${encodedProject}`}
+                className={styles.breadcrumbLink}
+              >
+                {projectName}
+              </Link>
+              <span className={styles.separator} aria-hidden="true">
+                &rsaquo;
+              </span>
+              <span className={styles.breadcrumbCurrent}>Commission</span>
+            </nav>
+            <span className={styles.condensedTitle}>{title || "Untitled Commission"}</span>
+          </div>
+          <div className={styles.condensedTrailing}>
+            <span className={styles.condensedStatus}>{displayStatus}</span>
+            {model && (
+              <span className={styles.condensedModel}>
+                {model}
+              </span>
+            )}
+            <button
+              type="button"
+              className={styles.toggleButton}
+              onClick={() => setCondensed(false)}
+              aria-label="Expand header"
+              aria-expanded={false}
+            >
+              {"\u25BC"}
+            </button>
+          </div>
         </div>
       ) : (
         <>
