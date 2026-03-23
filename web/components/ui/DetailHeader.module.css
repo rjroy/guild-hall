@@ -1,0 +1,60 @@
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 50px;
+
+  border-radius: 50px;
+  margin-bottom: var(--space-md);
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+
+  border-image-source: url("/images/ui/scroll-window-dark.webp");
+  border-image-slice: 52 fill;
+  border-image-width: 50px;
+  border-image-repeat: stretch;
+
+  transition: max-height 250ms ease, padding 250ms ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.headerCondensed {
+  padding: var(--space-xs) var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+/* --- Toggle button --- */
+
+.toggleButton {
+  background: none;
+  border: 1px solid var(--color-brass);
+  border-radius: 4px;
+  color: var(--color-brass);
+  cursor: pointer;
+  font-size: 0.65rem;
+  line-height: 1;
+  padding: 2px 6px;
+  transition: color 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.toggleButton:hover {
+  color: var(--color-amber);
+  border-color: var(--color-amber);
+}
+
+.toggleExpanded {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-md);
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 600px) {
+  .header {
+    padding: var(--space-sm) var(--space-md);
+  }
+}

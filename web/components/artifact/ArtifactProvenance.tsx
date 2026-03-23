@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, startTransition } from "react";
-import ArtifactBreadcrumb from "./ArtifactBreadcrumb";
+import Breadcrumb from "@/web/components/ui/Breadcrumb";
+import DetailHeader from "@/web/components/ui/DetailHeader";
 import CopyPathButton from "./CopyPathButton";
 import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
+import type { BreadcrumbSegment } from "@/web/components/ui/Breadcrumb";
 import styles from "./ArtifactProvenance.module.css";
 
 interface ArtifactProvenanceProps {
@@ -18,75 +19,48 @@ interface ArtifactProvenanceProps {
  * and will display the worker who created or last modified this artifact
  * once sessions and worker tracking are in place.
  *
- * Supports condensed state (REQ-DVL-24 through REQ-DVL-29): collapses to
- * a single row with breadcrumb, copy button, and toggle chevron.
+ * Delegates container chrome and condensed state to DetailHeader.
  */
 export default function ArtifactProvenance({
   projectName,
   artifactTitle,
   artifactPath,
 }: ArtifactProvenanceProps) {
-  // REQ-DVL-29: Default to condensed on tablet (<=960px) at mount time.
-  const [condensed, setCondensed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 960px)").matches;
-  });
+  const encodedName = encodeURIComponent(projectName);
 
-  // SSR safety: re-check on mount since SSR always returns false.
-  useEffect(() => {
-    const matches = window.matchMedia("(max-width: 960px)").matches;
-    if (matches) {
-      startTransition(() => setCondensed(true));
-    }
-  }, []);
-
-  const provenanceClassName = `${styles.provenance} ${condensed ? styles.provenanceCondensed : ""}`;
+  const segments: BreadcrumbSegment[] = [
+    { label: "Guild Hall", href: "/" },
+    { label: projectName, href: `/projects/${encodedName}` },
+    { label: artifactTitle },
+  ];
 
   return (
-    <div className={provenanceClassName}>
-      {condensed ? (
+    <DetailHeader
+      expandedMaxHeight="150px"
+      condensedMaxHeight="48px"
+      className={styles.artifact}
+      condensedContent={(toggleButton) => (
         <div className={styles.condensedRow}>
-          <ArtifactBreadcrumb
-            projectName={projectName}
-            artifactTitle={artifactTitle}
-          />
+          <Breadcrumb segments={segments} />
           <CopyPathButton path={`.lore/${artifactPath}`} />
           <div className={styles.condensedTrailing}>
-            <button
-              type="button"
-              className={styles.toggleButton}
-              onClick={() => setCondensed(false)}
-              aria-label="Expand header"
-              aria-expanded={false}
-            >
-              {"\u25BC"}
-            </button>
+            {toggleButton}
           </div>
         </div>
-      ) : (
+      )}
+      expandedContent={(toggleButton) => (
         <>
+          {toggleButton}
           <div className={styles.breadcrumbRow}>
-            <ArtifactBreadcrumb
-              projectName={projectName}
-              artifactTitle={artifactTitle}
-            />
+            <Breadcrumb segments={segments} />
             <CopyPathButton path={`.lore/${artifactPath}`} />
           </div>
           <div className={styles.sourceRow}>
             <WorkerPortrait size="sm" />
             <p className={styles.text}>Source information unavailable.</p>
           </div>
-          <button
-            type="button"
-            className={`${styles.toggleButton} ${styles.toggleExpanded}`}
-            onClick={() => setCondensed(true)}
-            aria-label="Collapse header"
-            aria-expanded={true}
-          >
-            {"\u25B2"}
-          </button>
         </>
       )}
-    </div>
+    />
   );
 }

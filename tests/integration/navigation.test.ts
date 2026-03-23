@@ -394,14 +394,14 @@ describe("project view URL construction", () => {
 
 describe("artifact view URL construction", () => {
   test("breadcrumb home link points to /", () => {
-    // ArtifactBreadcrumb renders Link href="/"
+    // Breadcrumb renders Link href="/"
     const homeHref = "/";
     expect(homeHref).toBe("/");
   });
 
   test("breadcrumb project link points to /projects/{name}", () => {
     const encodedName = encodeURIComponent(PROJECT_NAME);
-    // ArtifactBreadcrumb renders Link href={`/projects/${encodedName}`}
+    // Breadcrumb renders Link href={`/projects/${encodedName}`}
     const projectHref = `/projects/${encodedName}`;
     expect(projectHref).toBe(`/projects/${PROJECT_NAME}`);
   });
@@ -566,7 +566,7 @@ describe("navigation completeness (no dead ends)", () => {
   });
 
   test("artifact view links back to dashboard via breadcrumb", () => {
-    // ArtifactBreadcrumb has Link href="/"
+    // Breadcrumb has Link href="/"
     expect("/").toBe("/");
   });
 

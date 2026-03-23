@@ -1,10 +1,9 @@
 import { describe, test, expect } from "bun:test";
 
 /**
- * ArtifactProvenance is now a client component that uses hooks (useState,
- * useEffect for condensed state). It can't be called as a plain function
- * outside React's rendering context. These tests verify the component's
- * prop-passing logic and path construction without rendering.
+ * ArtifactProvenance is a client component that composes DetailHeader
+ * for container chrome and condensed state. These tests verify the
+ * component's prop-passing logic and path construction without rendering.
  */
 describe("ArtifactProvenance", () => {
   test("module is importable", async () => {
@@ -26,11 +25,20 @@ describe("ArtifactProvenance", () => {
     const copyPath = `.lore/${artifactPath}`;
     expect(copyPath).toBe(".lore/plans/phase-1/step-3.md");
   });
+});
 
-  test("condensed state defaults based on matchMedia at 960px", () => {
-    // The component uses window.matchMedia("(max-width: 960px)").matches
-    // to determine initial condensed state. Verify the breakpoint value.
-    const breakpoint = "(max-width: 960px)";
-    expect(breakpoint).toBe("(max-width: 960px)");
+describe("DetailHeader", () => {
+  test("module is importable", async () => {
+    const mod = await import("@/web/components/ui/DetailHeader");
+    expect(mod.default).toBeDefined();
+    expect(typeof mod.default).toBe("function");
+  });
+});
+
+describe("Breadcrumb", () => {
+  test("module is importable", async () => {
+    const mod = await import("@/web/components/ui/Breadcrumb");
+    expect(mod.default).toBeDefined();
+    expect(typeof mod.default).toBe("function");
   });
 });

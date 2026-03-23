@@ -8,6 +8,12 @@
   overflow: hidden;
 }
 
+.segment {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
 .link {
   color: var(--color-text-muted);
   text-decoration: none;

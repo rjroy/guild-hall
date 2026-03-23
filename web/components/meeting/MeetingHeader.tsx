@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, startTransition } from "react";
-import Link from "next/link";
 import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
+import Breadcrumb from "@/web/components/ui/Breadcrumb";
+import DetailHeader from "@/web/components/ui/DetailHeader";
+import type { BreadcrumbSegment } from "@/web/components/ui/Breadcrumb";
 import styles from "./MeetingHeader.module.css";
 
 interface MeetingHeaderProps {
@@ -31,95 +32,80 @@ export default function MeetingHeader({
   closing,
   isOnline = true,
 }: MeetingHeaderProps) {
-  // REQ-MTG-LAYOUT-17/18: Default to condensed on tablet (<=960px) at mount time.
-  // Not reactive to resize; toggle overrides in either direction.
-  const [condensed, setCondensed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 960px)").matches;
-  });
-
-  // SSR safety: re-check on mount since SSR always returns false.
-  // Uses startTransition to avoid synchronous setState inside an effect.
-  useEffect(() => {
-    const matches = window.matchMedia("(max-width: 960px)").matches;
-    if (matches) {
-      startTransition(() => setCondensed(true));
-    }
-  }, []);
-
   const encodedName = encodeURIComponent(projectName);
 
-  const headerClassName = `${styles.header} ${condensed ? styles.headerCondensed : ""}`;
+  const segments: BreadcrumbSegment[] = [
+    { label: "Guild Hall", href: "/" },
+    { label: projectName, href: `/projects/${encodedName}` },
+    { label: "Audience" },
+  ];
 
   return (
-    <div className={headerClassName}>
-      <div className={condensed ? styles.headerContentCondensed : styles.headerContent}>
-        <div className={styles.workerInfo}>
-          <WorkerPortrait
-            name={condensed ? undefined : workerName}
-            title={condensed ? undefined : workerDisplayTitle}
-            portraitUrl={workerPortraitUrl}
-            size={condensed ? "xs" : "lg"}
-          />
-        </div>
-
-        <div className={condensed ? styles.agendaSectionCondensed : styles.agendaSection}>
-          <div className={condensed ? styles.agendaContentCondensed : undefined}>
-            <nav className={styles.breadcrumb} aria-label="Breadcrumb">
-              <Link href="/" className={styles.breadcrumbLink}>
-                Guild Hall
-              </Link>
-              <span className={styles.separator} aria-hidden="true">
-                &rsaquo;
-              </span>
-              <Link
-                href={`/projects/${encodedName}`}
-                className={styles.breadcrumbLink}
-              >
-                {projectName}
-              </Link>
-              <span className={styles.separator} aria-hidden="true">
-                &rsaquo;
-              </span>
-              <span className={styles.breadcrumbCurrent}>Audience</span>
-            </nav>
-
-            <h3 className={`${styles.agendaTitle} ${condensed ? styles.agendaTitleCondensed : ""}`}>Agenda</h3>
-            <p className={condensed ? styles.agendaTextCondensed : styles.agendaText}>
-              {agenda}
-            </p>
+    <DetailHeader
+      expandedMaxHeight="300px"
+      condensedClassName={styles.meetingCondensed}
+      condensedContent={(toggleButton) => (
+        <div className={styles.headerContentCondensed}>
+          <div className={styles.workerInfo}>
+            <WorkerPortrait
+              portraitUrl={workerPortraitUrl}
+              size="xs"
+            />
           </div>
 
-          <div className={styles.agendaTrailing}>
-            {model && (
-              <span className={styles.modelLabel}>Model: {model}</span>
-            )}
-            <button
-              type="button"
-              className={styles.toggleButton}
-              onClick={() => setCondensed((prev) => !prev)}
-              aria-label={condensed ? "Expand header" : "Collapse header"}
-              aria-expanded={!condensed}
-            >
-              {condensed ? "\u25BC" : "\u25B2"}
-            </button>
-            {/* REQ-MTG-LAYOUT-22: Phone close button in condensed header bar.
-                Rendered when condensed + onClose provided. Hidden above 480px via CSS. */}
-            {condensed && onClose && (
-              <button
-                type="button"
-                className={styles.headerCloseButton}
-                onClick={onClose}
-                disabled={closing || !isOnline}
-                title={!isOnline ? "Daemon offline" : "Close Audience"}
-                aria-label="Close Audience"
-              >
-                ✕
-              </button>
-            )}
+          <div className={styles.agendaSectionCondensed}>
+            <div className={styles.agendaContentCondensed}>
+              <Breadcrumb segments={segments} />
+              <p className={styles.agendaTextCondensed}>{agenda}</p>
+            </div>
+
+            <div className={styles.agendaTrailing}>
+              {model && (
+                <span className={styles.modelLabel}>Model: {model}</span>
+              )}
+              {toggleButton}
+              {onClose && (
+                <button
+                  type="button"
+                  className={styles.headerCloseButton}
+                  onClick={onClose}
+                  disabled={closing || !isOnline}
+                  title={!isOnline ? "Daemon offline" : "Close Audience"}
+                  aria-label="Close Audience"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      )}
+      expandedContent={(toggleButton) => (
+        <div className={styles.headerContent}>
+          <div className={styles.workerInfo}>
+            <WorkerPortrait
+              name={workerName}
+              title={workerDisplayTitle}
+              portraitUrl={workerPortraitUrl}
+              size="lg"
+            />
+          </div>
+
+          <div className={styles.agendaSection}>
+            <Breadcrumb segments={segments} />
+
+            <h3 className={styles.agendaTitle}>Agenda</h3>
+            <p className={styles.agendaText}>{agenda}</p>
+
+            <div className={styles.agendaTrailing}>
+              {model && (
+                <span className={styles.modelLabel}>Model: {model}</span>
+              )}
+              {toggleButton}
+            </div>
+          </div>
+        </div>
+      )}
+    />
   );
 }

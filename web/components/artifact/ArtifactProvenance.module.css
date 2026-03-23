@@ -1,31 +1,5 @@
-.provenance {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-sm) 50px;
-  background-color: rgba(26, 20, 18, 0.85);
-
-  border-radius: 50px;
-  /* vendor prefix must precede standard property in Next.js */
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-
-  border-image-source: url("/images/ui/scroll-window-dark.webp");
-  border-image-slice: 52 fill;
-  border-image-width: 50px;
-  border-image-repeat: stretch;
-
-  /* Transition for condensing animation (REQ-DVL-28) */
-  max-height: 150px;
-  transition: max-height 250ms ease, padding 250ms ease;
-  overflow: hidden;
-  position: relative;
-}
-
-/* Condensed state: simple border, compact height (REQ-DVL-26, REQ-DVL-27) */
-.provenanceCondensed {
-  max-height: 48px;
-  padding: var(--space-xs) var(--space-md);
+/* Artifact-specific: darker background */
+.artifact {
   background-color: rgba(26, 20, 18, 0.85);
 }
 
@@ -46,33 +20,7 @@
   margin-left: auto;
 }
 
-/* --- Toggle button --- */
-
-.toggleButton {
-  background: none;
-  border: 1px solid var(--color-brass);
-  border-radius: 4px;
-  color: var(--color-brass);
-  cursor: pointer;
-  font-size: 0.65rem;
-  line-height: 1;
-  padding: 2px 6px;
-  transition: color 0.2s, border-color 0.2s;
-  flex-shrink: 0;
-}
-
-.toggleButton:hover {
-  color: var(--color-amber);
-  border-color: var(--color-amber);
-}
-
-.toggleExpanded {
-  position: absolute;
-  top: var(--space-sm);
-  right: var(--space-md);
-}
-
-/* --- Existing styles --- */
+/* --- Expanded layout --- */
 
 .breadcrumbRow {
   display: flex;
