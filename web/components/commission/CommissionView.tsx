@@ -13,6 +13,7 @@ import TriggerInfo from "./TriggerInfo";
 import TriggerActions from "./TriggerActions";
 import type { TriggerInfoData } from "./TriggerInfo";
 import Panel from "@/web/components/ui/Panel";
+import InlinePanel from "@/web/components/ui/InlinePanel";
 import type { TimelineEntry } from "@/lib/commissions";
 import type { CommissionArtifact } from "./CommissionLinkedArtifacts";
 import styles from "./CommissionView.module.css";
@@ -75,6 +76,18 @@ export default function CommissionView({
   const [timeline, setTimeline] = useState<TimelineEntry[]>(initialTimeline);
   const [artifacts, setArtifacts] = useState<CommissionArtifact[]>(initialArtifacts);
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 768px)").matches;
+  });
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 768px)");
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
 
   // Track whether the commission is in a live state (worth subscribing to SSE).
   // Queued commissions need SSE to receive commission_dequeued when capacity opens.
@@ -248,70 +261,86 @@ export default function CommissionView({
     router.refresh();
   }, [router]);
 
-  return (
-    <div className={styles.content}>
-      <div className={styles.main}>
-        <Panel>
-          <CommissionPrompt
-            prompt={prompt}
-            status={status}
-            commissionId={commissionId}
-          />
-        </Panel>
-
-        <Panel>
-          <CommissionTimeline timeline={timeline} />
-        </Panel>
-
-        <Panel size="sm">
-          <CommissionNotes
-            commissionId={commissionId}
-            onNoteAdded={handleNoteAdded}
-          />
-        </Panel>
-      </div>
-
-      <div className={styles.sidebar}>
-        {commissionType === "triggered" && triggerInfo ? (
-          <>
-            <Panel size="sm">
-              <TriggerInfo trigger={triggerInfo} projectName={projectName} />
-            </Panel>
-            <Panel size="sm">
-              <TriggerActions
-                status={status}
-                commissionId={commissionId}
-                onStatusChange={handleStatusChange}
-              />
-            </Panel>
-          </>
-        ) : commissionType === "scheduled" && scheduleInfo ? (
-          <>
-            <Panel size="sm">
-              <CommissionScheduleInfo schedule={scheduleInfo} projectName={projectName} />
-            </Panel>
-            <Panel size="sm">
-              <CommissionScheduleActions
-                status={status}
-                commissionId={commissionId}
-                onStatusChange={handleStatusChange}
-              />
-            </Panel>
-          </>
-        ) : (
+  const sidebarContent = (
+    <>
+      {commissionType === "triggered" && triggerInfo ? (
+        <>
           <Panel size="sm">
-            <CommissionActions
+            <TriggerInfo trigger={triggerInfo} projectName={projectName} />
+          </Panel>
+          <Panel size="sm">
+            <TriggerActions
               status={status}
               commissionId={commissionId}
               onStatusChange={handleStatusChange}
             />
           </Panel>
-        )}
-
+        </>
+      ) : commissionType === "scheduled" && scheduleInfo ? (
+        <>
+          <Panel size="sm">
+            <CommissionScheduleInfo schedule={scheduleInfo} projectName={projectName} />
+          </Panel>
+          <Panel size="sm">
+            <CommissionScheduleActions
+              status={status}
+              commissionId={commissionId}
+              onStatusChange={handleStatusChange}
+            />
+          </Panel>
+        </>
+      ) : (
         <Panel size="sm">
-          <CommissionLinkedArtifacts artifacts={artifacts} />
+          <CommissionActions
+            status={status}
+            commissionId={commissionId}
+            onStatusChange={handleStatusChange}
+          />
         </Panel>
+      )}
+
+      <Panel size="sm">
+        <CommissionLinkedArtifacts artifacts={artifacts} />
+      </Panel>
+    </>
+  );
+
+  return (
+    <>
+      <div className={styles.content}>
+        <div className={styles.main}>
+          <Panel>
+            <CommissionPrompt
+              prompt={prompt}
+              status={status}
+              commissionId={commissionId}
+            />
+          </Panel>
+
+          <Panel>
+            <CommissionTimeline timeline={timeline} />
+          </Panel>
+
+          <Panel size="sm">
+            <CommissionNotes
+              commissionId={commissionId}
+              onNoteAdded={handleNoteAdded}
+            />
+          </Panel>
+
+        </div>
+
+        {!isMobile && (
+          <div className={styles.sidebar}>
+            {sidebarContent}
+          </div>
+        )}
       </div>
-    </div>
+      {isMobile && (
+        <InlinePanel label="Details">
+          {sidebarContent}
+        </InlinePanel>
+      )}
+    </>
   );
 }

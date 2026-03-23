@@ -1,61 +1,6 @@
-/* Provenance-style container matching ArtifactProvenance */
-.header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-sm) 50px;
-
-  border-radius: 50px;
-  margin-bottom: var(--space-md);
-  /* vendor prefix must precede standard property in Next.js */
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-
-  border-image-source: url("/images/ui/scroll-window-dark.webp");
-  border-image-slice: 52 fill;
-  border-image-width: 50px;
-  border-image-repeat: stretch;
-
-  /* Transition for condensing animation (REQ-MTG-LAYOUT-15) */
-  max-height: 300px;
-  transition: max-height 250ms ease, padding 250ms ease;
-  overflow: hidden;
-}
-
-/* Condensed state: simple border, compact height */
-.headerCondensed {
-  max-height: 56px;
-  padding: var(--space-xs) var(--space-md);
+/* Meeting-specific condensed override: tighter border-radius */
+.meetingCondensed {
   border-radius: 8px;
-  margin-bottom: var(--space-sm);
-}
-
-/* --- Breadcrumb --- */
-
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  font-size: 0.85rem;
-}
-
-.breadcrumbLink {
-  color: var(--color-text-muted);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-
-.breadcrumbLink:hover {
-  color: var(--color-amber);
-}
-
-.separator {
-  color: var(--color-text-muted);
-}
-
-.breadcrumbCurrent {
-  color: var(--color-brass);
-  font-weight: 500;
 }
 
 /* --- Worker + Agenda row (expanded) --- */
@@ -117,11 +62,6 @@
   letter-spacing: 0.05em;
 }
 
-/* Collapsed in condensed state: hidden but not removed from DOM (REQ-MTG-LAYOUT-13) */
-.agendaTitleCondensed {
-  display: none;
-}
-
 .agendaText {
   font-size: 0.9rem;
   color: var(--color-text);
@@ -154,27 +94,6 @@
   color: var(--color-text-muted);
 }
 
-/* --- Toggle button --- */
-
-.toggleButton {
-  background: none;
-  border: 1px solid var(--color-brass);
-  border-radius: 4px;
-  color: var(--color-brass);
-  cursor: pointer;
-  font-size: 0.65rem;
-  line-height: 1;
-  padding: 2px 6px;
-  transition: color 0.2s, border-color 0.2s;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.toggleButton:hover {
-  color: var(--color-amber);
-  border-color: var(--color-amber);
-}
-
 /* --- Phone close button (REQ-MTG-LAYOUT-22) --- */
 
 .headerCloseButton {
@@ -204,11 +123,6 @@
 /* --- Responsive --- */
 
 @media (max-width: 600px) {
-  .header {
-    padding: var(--space-sm) var(--space-md);
-    border-radius: 12px;
-  }
-
   .headerContent {
     flex-direction: row;
     align-items: flex-start;
@@ -216,11 +130,6 @@
 }
 
 @media (max-width: 480px) {
-  .header {
-    border-image-width: 16px;
-    border-radius: 16px;
-  }
-
   /* REQ-MTG-LAYOUT-22: Show close button in condensed header on phone */
   .headerCloseButton {
     display: inline-flex;

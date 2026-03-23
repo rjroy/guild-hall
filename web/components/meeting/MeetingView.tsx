@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useDaemonStatus } from "@/web/components/ui/DaemonContext";
+import InlinePanel from "@/web/components/ui/InlinePanel";
 import ChatInterface from "./ChatInterface";
 import ArtifactsPanel from "./ArtifactsPanel";
 import MeetingHeader from "./MeetingHeader";
@@ -54,9 +55,6 @@ export default function MeetingView({
     if (typeof window === "undefined") return false;
     return window.matchMedia("(max-width: 768px)").matches;
   });
-
-  // REQ-MTG-LAYOUT-20: Inline panel collapsed by default
-  const [inlinePanelExpanded, setInlinePanelExpanded] = useState(false);
 
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 768px)");
@@ -135,14 +133,8 @@ export default function MeetingView({
     <>
       <ArtifactsPanel
         artifacts={artifacts}
-        expanded={isMobile ? inlinePanelExpanded : artifactsPanelExpanded}
-        onToggle={() => {
-          if (isMobile) {
-            setInlinePanelExpanded((prev) => !prev);
-          } else {
-            setArtifactsPanelExpanded((prev) => !prev);
-          }
-        }}
+        expanded={artifactsPanelExpanded}
+        onToggle={() => setArtifactsPanelExpanded((prev) => !prev)}
       />
       <button
         className={styles.closeButton}
@@ -183,27 +175,9 @@ export default function MeetingView({
 
           {/* REQ-MTG-LAYOUT-19/20: Relocated sidebar content as collapsible panel */}
           {isMobile && (
-            <div className={styles.inlinePanel}>
-              <button
-                type="button"
-                className={styles.inlinePanelHandle}
-                onClick={() => setInlinePanelExpanded((prev) => !prev)}
-                aria-expanded={inlinePanelExpanded}
-              >
-                <span>Artifacts ({artifacts.length})</span>
-                <span
-                  className={`${styles.inlinePanelChevron} ${inlinePanelExpanded ? styles.inlinePanelChevronOpen : ""}`}
-                  aria-hidden="true"
-                >
-                  &#x25B6;
-                </span>
-              </button>
-              {inlinePanelExpanded && (
-                <div className={styles.inlinePanelContent}>
-                  {sidebarContent}
-                </div>
-              )}
-            </div>
+            <InlinePanel label={`Artifacts (${artifacts.length})`}>
+              {sidebarContent}
+            </InlinePanel>
           )}
         </div>
 

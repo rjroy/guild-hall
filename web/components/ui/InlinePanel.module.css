@@ -1,0 +1,50 @@
+/* Collapsible inline panel for relocated sidebar content on mobile viewports */
+
+.inlinePanel {
+  border-top: 1px solid var(--color-brass);
+  padding-top: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  background-color: var(--color-panel-bg);
+  border: 1px solid var(--color-brass);
+  border-radius: 6px;
+  color: var(--color-brass);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  /* vendor prefix must precede standard property in Next.js */
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.handle:hover {
+  background-color: var(--color-dark-bg);
+}
+
+.chevron {
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  max-height: 40vh;
+  overflow-y: auto;
+}

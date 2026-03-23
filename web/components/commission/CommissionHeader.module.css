@@ -1,56 +1,33 @@
-/* Scroll-window container matching MeetingHeader */
-.header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-sm) 50px;
-
-  border-radius: 50px;
-  margin-bottom: var(--space-md);
-  /* vendor prefix must precede standard property in Next.js */
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-
-  border-image-source: url("/images/ui/scroll-window-dark.webp");
-  border-image-slice: 52 fill;
-  border-image-width: 50px;
-  border-image-repeat: stretch;
-
-  /* Transition for condensing animation (REQ-DVL-9) */
-  max-height: 200px;
-  transition: max-height 250ms ease, padding 250ms ease;
-  overflow: hidden;
-  position: relative;
-}
-
-/* Condensed state: simple border, compact height (REQ-DVL-7, REQ-DVL-8) */
-.headerCondensed {
-  max-height: 56px;
-  padding: var(--space-xs) var(--space-md);
-  border: 1px solid rgba(184, 134, 11, 0.3);
-  border-image: none;
-  border-radius: 8px;
-  margin-bottom: var(--space-sm);
-}
-
 /* --- Condensed row layout (REQ-DVL-7) --- */
 
 .condensedRow {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  white-space: nowrap;
   overflow: hidden;
 }
 
-.condensedTitle {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text-heading);
-  overflow: hidden;
-  text-overflow: ellipsis;
+.condensedContent {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.condensedTitle {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.condensedTrailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
 }
 
 .condensedStatus {
@@ -58,74 +35,19 @@
   color: var(--color-brass);
   font-weight: 600;
   text-transform: capitalize;
-  flex-shrink: 0;
-}
-
-.condensedWorker {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  font-style: italic;
-  flex-shrink: 0;
 }
 
 .condensedModel {
   font-size: 0.8rem;
   color: var(--color-text-muted);
-  flex-shrink: 0;
 }
 
-/* --- Toggle button --- */
+/* --- Expanded toggle (absolute-positioned top-right) --- */
 
-.toggleButton {
-  background: none;
-  border: 1px solid var(--color-brass);
-  border-radius: 4px;
-  color: var(--color-brass);
-  cursor: pointer;
-  font-size: 0.65rem;
-  line-height: 1;
-  padding: 2px 6px;
-  transition: color 0.2s, border-color 0.2s;
-  flex-shrink: 0;
-}
-
-.toggleButton:hover {
-  color: var(--color-amber);
-  border-color: var(--color-amber);
-}
-
-.toggleExpanded {
+.expandedToggle {
   position: absolute;
   top: var(--space-sm);
   right: var(--space-md);
-}
-
-/* --- Breadcrumb --- */
-
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  font-size: 0.85rem;
-}
-
-.breadcrumbLink {
-  color: var(--color-text-muted);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-
-.breadcrumbLink:hover {
-  color: var(--color-amber);
-}
-
-.separator {
-  color: var(--color-text-muted);
-}
-
-.breadcrumbCurrent {
-  color: var(--color-brass);
-  font-weight: 500;
 }
 
 /* --- Title row --- */
@@ -173,20 +95,4 @@
 
 .modelLabel {
   color: var(--color-text-muted);
-}
-
-/* --- Responsive --- */
-
-@media (max-width: 600px) {
-  .header {
-    padding: var(--space-sm) var(--space-md);
-    border-radius: 12px;
-  }
-}
-
-@media (max-width: 480px) {
-  .header {
-    border-image-width: 16px;
-    border-radius: 16px;
-  }
 }

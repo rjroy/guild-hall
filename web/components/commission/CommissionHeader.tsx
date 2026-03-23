@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, startTransition } from "react";
-import Link from "next/link";
 import GemIndicator from "@/web/components/ui/GemIndicator";
+import Breadcrumb from "@/web/components/ui/Breadcrumb";
+import DetailHeader from "@/web/components/ui/DetailHeader";
 import { statusToGem } from "@/lib/types";
+import type { BreadcrumbSegment } from "@/web/components/ui/Breadcrumb";
 import styles from "./CommissionHeader.module.css";
 
 interface CommissionHeaderProps {
@@ -21,11 +22,8 @@ interface CommissionHeaderProps {
 
 /**
  * Displays commission identity: title, status gem, worker attribution,
- * and breadcrumb navigation. Rendered by the server component page and
- * also re-rendered client-side when SSE updates change the status.
- *
- * Supports condensed state (REQ-DVL-5 through REQ-DVL-10): collapses to
- * a single row with gem, truncated title, status, worker, model, and toggle.
+ * and breadcrumb navigation. Delegates container chrome and condensed
+ * state to DetailHeader.
  */
 export default function CommissionHeader({
   title,
@@ -39,82 +37,45 @@ export default function CommissionHeader({
   localModelBaseUrl,
   commissionType,
 }: CommissionHeaderProps) {
-  // REQ-DVL-10: Default to condensed on tablet (<=960px) at mount time.
-  const [condensed, setCondensed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 960px)").matches;
-  });
-
-  // SSR safety: re-check on mount since SSR always returns false.
-  useEffect(() => {
-    const matches = window.matchMedia("(max-width: 960px)").matches;
-    if (matches) {
-      startTransition(() => setCondensed(true));
-    }
-  }, []);
-
   const encodedProject = encodeURIComponent(projectName);
   const gemStatus = statusToGem(status);
   const displayStatus = status.replace(/_/g, " ");
 
-  const headerClassName = `${styles.header} ${condensed ? styles.headerCondensed : ""}`;
+  const condensedSegments: BreadcrumbSegment[] = [
+    { label: "Guild Hall", href: "/" },
+    { label: projectName, href: `/projects/${encodedProject}` },
+    { label: "Commission" },
+  ];
+
+  const expandedSegments: BreadcrumbSegment[] = [
+    { label: "Guild Hall", href: "/" },
+    { label: projectName, href: `/projects/${encodedProject}` },
+    { label: "Commissions", href: `/projects/${encodedProject}?tab=commissions` },
+    { label: "Commission" },
+  ];
 
   return (
-    <div className={headerClassName}>
-      {condensed ? (
+    <DetailHeader
+      condensedContent={(toggleButton) => (
         <div className={styles.condensedRow}>
           <GemIndicator status={gemStatus} size="sm" />
-          <span className={styles.condensedTitle}>{title || "Untitled Commission"}</span>
-          <span className={styles.condensedStatus}>{displayStatus}</span>
-          {worker && (
-            <span className={styles.condensedWorker}>{workerDisplayTitle || worker}</span>
-          )}
-          {model && (
-            <span className={styles.condensedModel}>
-              Model: {model}
-              {isLocalModel ? " (local)" : ""}
-              {isModelOverride ? " (override)" : ""}
-            </span>
-          )}
-          <button
-            type="button"
-            className={styles.toggleButton}
-            onClick={() => setCondensed(false)}
-            aria-label="Expand header"
-            aria-expanded={false}
-          >
-            {"\u25BC"}
-          </button>
+          <div className={styles.condensedContent}>
+            <Breadcrumb segments={condensedSegments} />
+            <span className={styles.condensedTitle}>{title || "Untitled Commission"}</span>
+          </div>
+          <div className={styles.condensedTrailing}>
+            <span className={styles.condensedStatus}>{displayStatus}</span>
+            {model && (
+              <span className={styles.condensedModel}>{model}</span>
+            )}
+            {toggleButton}
+          </div>
         </div>
-      ) : (
+      )}
+      expandedContent={(toggleButton) => (
         <>
-          <nav className={styles.breadcrumb} aria-label="Breadcrumb">
-            <Link href="/" className={styles.breadcrumbLink}>
-              Guild Hall
-            </Link>
-            <span className={styles.separator} aria-hidden="true">
-              &rsaquo;
-            </span>
-            <Link
-              href={`/projects/${encodedProject}`}
-              className={styles.breadcrumbLink}
-            >
-              {projectName}
-            </Link>
-            <span className={styles.separator} aria-hidden="true">
-              &rsaquo;
-            </span>
-            <Link
-              href={`/projects/${encodedProject}?tab=commissions`}
-              className={styles.breadcrumbLink}
-            >
-              Commissions
-            </Link>
-            <span className={styles.separator} aria-hidden="true">
-              &rsaquo;
-            </span>
-            <span className={styles.breadcrumbCurrent}>Commission</span>
-          </nav>
+          <div className={styles.expandedToggle}>{toggleButton}</div>
+          <Breadcrumb segments={expandedSegments} />
 
           <div className={styles.titleRow}>
             <GemIndicator status={gemStatus} size="md" />
@@ -142,18 +103,8 @@ export default function CommissionHeader({
               </span>
             )}
           </div>
-
-          <button
-            type="button"
-            className={`${styles.toggleButton} ${styles.toggleExpanded}`}
-            onClick={() => setCondensed(true)}
-            aria-label="Collapse header"
-            aria-expanded={true}
-          >
-            {"\u25B2"}
-          </button>
         </>
       )}
-    </div>
+    />
   );
 }

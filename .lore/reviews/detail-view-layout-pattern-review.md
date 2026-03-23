@@ -1,13 +1,12 @@
 ---
 title: "Review: Detail View Layout Pattern Implementation"
 date: 2026-03-22
-type: review
 tags: [review, ui, layout, css, commissions, artifacts, responsive, condensing-headers]
 spec: .lore/specs/ui/detail-view-layout-pattern.md
 plan: .lore/plans/ui/detail-view-layout-pattern.md
 implementation: commission-Dalton-20260322-135347, commission-Dalton-20260322-135358, commission-Dalton-20260322-135407, commission-Dalton-20260322-135414
 reviewer: Thorne
-status: open
+status: resolved
 ---
 
 # Review: Detail View Layout Pattern Implementation
