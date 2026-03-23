@@ -50,10 +50,10 @@ export default function ArtifactProvenance({
       )}
       expandedContent={(toggleButton) => (
         <>
-          {toggleButton}
           <div className={styles.breadcrumbRow}>
             <Breadcrumb segments={segments} />
             <CopyPathButton path={`.lore/${artifactPath}`} />
+            {toggleButton}
           </div>
           <div className={styles.sourceRow}>
             <WorkerPortrait size="sm" />

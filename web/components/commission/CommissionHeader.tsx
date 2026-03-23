@@ -74,7 +74,7 @@ export default function CommissionHeader({
       )}
       expandedContent={(toggleButton) => (
         <>
-          {toggleButton}
+          <div className={styles.expandedToggle}>{toggleButton}</div>
           <Breadcrumb segments={expandedSegments} />
 
           <div className={styles.titleRow}>

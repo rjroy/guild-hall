@@ -55,7 +55,7 @@ export default function DetailHeader({
   const toggleButton = (
     <button
       type="button"
-      className={`${styles.toggleButton} ${!condensed ? styles.toggleExpanded : ""}`}
+      className={styles.toggleButton}
       onClick={() => setCondensed((prev) => !prev)}
       aria-label={condensed ? "Expand header" : "Collapse header"}
       aria-expanded={!condensed}

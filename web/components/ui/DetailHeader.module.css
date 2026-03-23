@@ -45,12 +45,6 @@
   border-color: var(--color-amber);
 }
 
-.toggleExpanded {
-  position: absolute;
-  top: var(--space-sm);
-  right: var(--space-md);
-}
-
 /* --- Responsive --- */
 
 @media (max-width: 600px) {

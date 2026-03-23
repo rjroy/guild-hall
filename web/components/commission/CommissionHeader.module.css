@@ -42,6 +42,14 @@
   color: var(--color-text-muted);
 }
 
+/* --- Expanded toggle (absolute-positioned top-right) --- */
+
+.expandedToggle {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-md);
+}
+
 /* --- Title row --- */
 
 .titleRow {
