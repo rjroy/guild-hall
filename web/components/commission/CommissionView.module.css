@@ -23,25 +23,6 @@
   overflow-y: auto;
 }
 
-/* On narrow screens, stack sidebar below main content */
-@media (max-width: 768px) {
-  .content {
-    flex-direction: column;
-  }
-
-  .main {
-    flex: 1;
-    min-height: 200px;
-    overflow-y: auto;
-  }
-
-  .sidebar {
-    width: 100%;
-    flex: 1;
-    min-height: 200px;
-    overflow-y: auto;
-  }
-}
 
 @media (max-width: 480px) {
   .content {

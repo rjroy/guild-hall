@@ -4,6 +4,7 @@ import { fetchDaemon } from "@/web/lib/daemon-api";
 import type { Artifact, ArtifactMeta, CommissionMeta } from "@/lib/types";
 import ArtifactProvenance from "@/web/components/artifact/ArtifactProvenance";
 import ArtifactContent from "@/web/components/artifact/ArtifactContent";
+import ArtifactDetailLayout from "@/web/components/artifact/ArtifactDetailLayout";
 import MetadataSidebar from "@/web/components/artifact/MetadataSidebar";
 import ImageArtifactView from "@/web/components/artifact/ImageArtifactView";
 import ImageMetadataSidebar from "@/web/components/artifact/ImageMetadataSidebar";
@@ -69,14 +70,14 @@ export default async function ArtifactPage({
           artifactTitle={imageTitle}
           artifactPath={relativePath}
         />
-        <div className={styles.artifactBody}>
-          <div className={styles.main}>
+        <ArtifactDetailLayout
+          main={
             <ImageArtifactView
               projectName={projectName}
               artifactPath={relativePath}
             />
-          </div>
-          <div className={styles.sidebar}>
+          }
+          sidebar={
             <ImageMetadataSidebar
               filename={filename}
               mimeType={mimeType}
@@ -84,8 +85,8 @@ export default async function ArtifactPage({
               lastModified={lastModified}
               projectName={projectName}
             />
-          </div>
-        </div>
+          }
+        />
       </div>
     );
   }
@@ -137,24 +138,24 @@ export default async function ArtifactPage({
           </Link>
         </div>
       )}
-      <div className={styles.artifactBody}>
-        <div className={styles.main}>
+      <ArtifactDetailLayout
+        main={
           <ArtifactContent
             body={artifact.content}
             rawContent={artifact.rawContent ?? ""}
             projectName={projectName}
             artifactPath={artifact.relativePath}
           />
-        </div>
-        <div className={styles.sidebar}>
+        }
+        sidebar={
           <MetadataSidebar
             meta={artifact.meta}
             projectName={projectName}
             artifactPath={relativePath}
             associatedCommissions={associatedCommissions}
           />
-        </div>
-      </div>
+        }
+      />
     </div>
   );
 }
