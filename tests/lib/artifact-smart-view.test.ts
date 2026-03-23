@@ -193,10 +193,13 @@ describe("exclusions", () => {
     expect(filterSmartView(artifacts, "ready-to-advance")).toHaveLength(0);
   });
 
-  test("root-level files are excluded from all views", () => {
-    const artifacts = [makeArtifact("README.md", "draft")];
-    expect(filterSmartView(artifacts, "whats-next")).toHaveLength(0);
+  test("root-level files are candidates for smart views", () => {
+    const artifacts = [makeArtifact("vision.md", "draft")];
+    // Root-level draft appears in whats-next (Group 0)
+    expect(filterSmartView(artifacts, "whats-next")).toHaveLength(1);
+    // Not a generative investigation type, so excluded from needs-discussion
     expect(filterSmartView(artifacts, "needs-discussion")).toHaveLength(0);
+    // Not a work item type, so excluded from ready-to-advance
     expect(filterSmartView(artifacts, "ready-to-advance")).toHaveLength(0);
   });
 });
