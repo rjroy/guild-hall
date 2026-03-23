@@ -62,7 +62,6 @@
   .briefing {
     order: 1;
     max-height: 40vh;
-    overflow-y: auto;
   }
 
   .audiences {

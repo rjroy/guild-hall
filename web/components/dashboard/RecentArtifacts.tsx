@@ -58,7 +58,7 @@ export default function RecentArtifacts({
   const showProjectLabel = !selectedProject;
 
   return (
-    <Panel title="Recent Scrolls">
+    <Panel title="Recent Scrolls" variant="parchment">
       {artifacts.length === 0 ? (
         <EmptyState message="No recent artifacts." />
       ) : (

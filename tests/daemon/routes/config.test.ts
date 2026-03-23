@@ -121,6 +121,67 @@ describe("GET /system/config/project/read", () => {
   });
 });
 
+// -- Tests: vision.md enrichment --
+
+describe("GET /system/config/project/read - vision enrichment", () => {
+  test("overrides description with vision.md first section", async () => {
+    const projectDir = path.join(guildHallHome, "projects", "project-alpha");
+    const loreDir = path.join(projectDir, ".lore");
+    await fs.mkdir(loreDir, { recursive: true });
+    await fs.writeFile(
+      path.join(loreDir, "vision.md"),
+      `---
+title: Project Alpha Vision
+status: approved
+---
+
+# Vision
+
+Alpha is a tool for exploring the unknown. It does great things.
+
+# Principles
+
+## 1. Be Bold
+`,
+      "utf-8",
+    );
+
+    const app = makeTestApp();
+    const res = await app.request("/system/config/project/read?name=project-alpha");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.description).toBe("Alpha is a tool for exploring the unknown. It does great things.");
+  });
+
+  test("falls back to config description when vision.md does not exist", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/system/config/project/read?name=project-alpha");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.description).toBe("Alpha project");
+  });
+
+  test("falls back to config description when vision.md has no content", async () => {
+    const projectDir = path.join(guildHallHome, "projects", "project-alpha");
+    const loreDir = path.join(projectDir, ".lore");
+    await fs.mkdir(loreDir, { recursive: true });
+    await fs.writeFile(
+      path.join(loreDir, "vision.md"),
+      `---
+title: Empty Vision
+---
+`,
+      "utf-8",
+    );
+
+    const app = makeTestApp();
+    const res = await app.request("/system/config/project/read?name=project-alpha");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.description).toBe("Alpha project");
+  });
+});
+
 // -- Tests: GET /commission/dependency/project/graph --
 
 describe("GET /commission/dependency/project/graph", () => {

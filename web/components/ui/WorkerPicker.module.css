@@ -32,17 +32,6 @@
   backdrop-filter: blur(12px);
 }
 
-/* Paper texture underlay matching Panel */
-.dialog::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url("/images/ui/paper-bg.webp");
-  background-size: cover;
-  opacity: 0.15;
-  pointer-events: none;
-  z-index: 0;
-}
 
 .dialogContent {
   position: relative;

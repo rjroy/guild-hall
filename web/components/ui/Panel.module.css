@@ -1,10 +1,6 @@
 .panel {
   position: relative;
-  background-color: var(--color-panel-bg);
   border: 10px solid transparent;
-  border-image-source: url("/images/ui/border.webp");
-  border-image-slice: 120 120 120 120;
-  border-image-width: 30px;
   border-radius: 30px;
 
   /* vendor prefix must precede standard property in Next.js */
@@ -12,22 +8,52 @@
   backdrop-filter: blur(12px);
 }
 
-/* Paper texture underlay via pseudo-element */
-.panel::before {
+/* Ensure panel content sits above any pseudo-element backgrounds */
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================================
+   Variant: dark (default)
+   Glassmorphic panel over the background image.
+   ============================================================ */
+
+.dark {
+  background-color: var(--color-panel-bg);
+  border-image-source: url("/images/ui/border.webp");
+  border-image-slice: 120 120 120 120;
+  border-image-width: 30px;
+}
+
+/* ============================================================
+   Variant: parchment
+   Warm surface for content panels. Paper texture is the
+   visible background, not a ghost overlay.
+   ============================================================ */
+
+.parchment {
+  background-color: hsla(30, 20%, 14%, 0.85);
+  border-image-source: url("/images/ui/border-ornate.webp");
+  border-image-slice: 52 52 52 52;
+  border-image-width: 20px;
+  border-image-outset: 5px;
+}
+
+/* Paper texture visible as warm underlayer */
+.parchment::before {
   content: "";
   position: absolute;
   inset: 0;
   background-image: url("/images/ui/paper-bg.webp");
   background-size: cover;
-  opacity: 0.15;
+  opacity: 0.08;
   pointer-events: none;
   z-index: 0;
 }
 
-/* Ensure panel content sits above the texture */
-.content {
-  position: relative;
-  z-index: 1;
+.parchment .title {
+  color: var(--color-amber);
 }
 
 /* --- Size Variants --- */
@@ -67,8 +93,15 @@
 @media (max-width: 1200px) {
   .panel {
     border-width: 8px;
-    border-image-width: 22px;
     border-radius: 22px;
+  }
+
+  .dark {
+    border-image-width: 22px;
+  }
+
+  .parchment {
+    border-image-width: 16px;
   }
 
   .title {
@@ -83,7 +116,14 @@
 @media (max-width: 480px) {
   .panel {
     border-width: 6px;
-    border-image-width: 18px;
     border-radius: 18px;
+  }
+
+  .dark {
+    border-image-width: 18px;
+  }
+
+  .parchment {
+    border-image-width: 14px;
   }
 }

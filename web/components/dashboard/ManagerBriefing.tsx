@@ -88,7 +88,7 @@ export default function ManagerBriefing({ projectName }: ManagerBriefingProps) {
   }, [projectName]);
 
   return (
-    <Panel title="Guild Master's Briefing">
+    <Panel title="Guild Master's Briefing" variant="parchment">
       {/* Static decorative asset. next/image optimization not beneficial. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
