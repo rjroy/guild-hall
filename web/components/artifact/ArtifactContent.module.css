@@ -114,19 +114,7 @@
   line-height: 1.7;
 }
 
-/* Parchment texture underlay for the markdown content */
-.markdownContent::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url("/images/ui/paper-bg.webp");
-  background-size: cover;
-  opacity: 0.06;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Ensure markdown content sits above the texture */
+/* Ensure markdown content sits above any positioned children */
 .markdownContent > * {
   position: relative;
   z-index: 1;

@@ -28,18 +28,6 @@
   min-height: 200px;
 }
 
-/* Parchment texture underlay */
-.imageContainer::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url("/images/ui/paper-bg.webp");
-  background-size: cover;
-  opacity: 0.06;
-  pointer-events: none;
-  z-index: 0;
-}
-
 .image {
   max-width: 100%;
   height: auto;

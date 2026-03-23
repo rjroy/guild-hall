@@ -15,7 +15,7 @@ interface PendingAudiencesProps {
  */
 export default function PendingAudiences({ requests, workerPortraits }: PendingAudiencesProps) {
   return (
-    <Panel title="Pending Audiences">
+    <Panel title="Pending Audiences" variant="parchment">
       {requests.length === 0 ? (
         <EmptyState message="No pending meeting requests." />
       ) : (

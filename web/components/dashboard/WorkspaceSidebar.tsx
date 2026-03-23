@@ -22,21 +22,19 @@ export default function WorkspaceSidebar({
 
       <h3 className={styles.sectionHeading}>Active Projects</h3>
 
-      <ul className={styles.projectList}>
+      {projects.length === 0 ? (
+        <EmptyState message="No projects registered. Run `guild-hall register <name> <path>` to add your first project." />
+      ) : (
+        <ul className={styles.projectList}>
         <li className={[styles.projectItem, styles.allProjectsItem, !selectedProject ? styles.selected : ""].filter(Boolean).join(" ")}>
           <Link href="/" className={styles.projectLink}>
+            <GemIndicator status={!selectedProject ? "active" : "inactive"} size="sm" />
             <div className={styles.projectInfo}>
               <span className={styles.projectName}>All Projects</span>
             </div>
           </Link>
         </li>
-      </ul>
-
-      {projects.length === 0 ? (
-        <EmptyState message="No projects registered. Run `guild-hall register <name> <path>` to add your first project." />
-      ) : (
-        <ul className={styles.projectList}>
-          {projects.map((project) => {
+           {projects.map((project) => {
             const isSelected = project.name === selectedProject;
             const itemClass = [
               styles.projectItem,
@@ -51,7 +49,7 @@ export default function WorkspaceSidebar({
                   href={`/?project=${encodeURIComponent(project.name)}`}
                   className={styles.projectLink}
                 >
-                  <GemIndicator status="info" size="sm" />
+                  <GemIndicator status={isSelected ? "active" : "inactive"} size="sm" />
                   <div className={styles.projectInfo}>
                     <span className={styles.projectName}>{project.name}</span>
                     {project.description && (

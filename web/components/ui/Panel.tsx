@@ -2,6 +2,7 @@ import styles from "./Panel.module.css";
 
 interface PanelProps {
   size?: "sm" | "md" | "lg" | "full";
+  variant?: "dark" | "parchment";
   title?: string;
   className?: string;
   children: React.ReactNode;
@@ -9,11 +10,12 @@ interface PanelProps {
 
 export default function Panel({
   size = "md",
+  variant = "dark",
   title,
   className,
   children,
 }: PanelProps) {
-  const classNames = [styles.panel, styles[size], className]
+  const classNames = [styles.panel, styles[size], styles[variant], className]
     .filter(Boolean)
     .join(" ");
 

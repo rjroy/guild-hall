@@ -1,4 +1,5 @@
 .gem {
+  align-self: center;
   display: inline-block;
   object-fit: contain;
 }

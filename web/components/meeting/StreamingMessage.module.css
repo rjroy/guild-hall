@@ -24,18 +24,6 @@
   backdrop-filter: blur(8px);
 }
 
-/* Parchment texture underlay */
-.bubble::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url("/images/ui/paper-bg.webp");
-  background-size: cover;
-  opacity: 0.06;
-  pointer-events: none;
-  border-radius: 8px;
-  z-index: 0;
-}
 
 .content {
   position: relative;
