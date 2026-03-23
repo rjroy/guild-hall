@@ -95,6 +95,7 @@
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   padding: 8px;
+  margin: 3px;
 }
 
 .viewer::before {
