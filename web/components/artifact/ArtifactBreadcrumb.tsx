@@ -26,7 +26,7 @@ export default function ArtifactBreadcrumb({
       <span className={styles.separator} aria-hidden="true">
         &rsaquo;
       </span>
-      <span className={styles.current}>Artifact: {artifactTitle}</span>
+      <span className={styles.current}>{artifactTitle}</span>
     </nav>
   );
 }

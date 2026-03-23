@@ -27,9 +27,6 @@
 .headerCondensed {
   max-height: 56px;
   padding: var(--space-xs) var(--space-md);
-  border: 1px solid rgba(184, 134, 11, 0.3);
-  border-image: none;
-  border-radius: 8px;
   margin-bottom: var(--space-sm);
 }
 
@@ -107,6 +104,10 @@
   align-items: center;
   gap: var(--space-xs);
   font-size: 0.85rem;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .breadcrumbLink {
@@ -180,13 +181,5 @@
 @media (max-width: 600px) {
   .header {
     padding: var(--space-sm) var(--space-md);
-    border-radius: 12px;
-  }
-}
-
-@media (max-width: 480px) {
-  .header {
-    border-image-width: 16px;
-    border-radius: 16px;
   }
 }

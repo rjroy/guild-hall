@@ -13,6 +13,7 @@
   border-image-source: url("/images/ui/scroll-window-dark.webp");
   border-image-slice: 52 fill;
   border-image-width: 50px;
+  border-image-repeat: stretch;
 
   /* Transition for condensing animation (REQ-DVL-28) */
   max-height: 150px;
@@ -25,9 +26,6 @@
 .provenanceCondensed {
   max-height: 48px;
   padding: var(--space-xs) var(--space-md);
-  border: 1px solid rgba(184, 134, 11, 0.3);
-  border-image: none;
-  border-radius: 8px;
   background-color: rgba(26, 20, 18, 0.85);
 }
 

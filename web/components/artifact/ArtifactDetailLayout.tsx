@@ -34,20 +34,22 @@ export default function ArtifactDetailLayout({
   }, []);
 
   return (
-    <div className={styles.artifactBody}>
-      <div className={styles.main}>
-        {main}
-        {isMobile && (
-          <InlinePanel label={panelLabel}>
+    <>
+     <div className={styles.artifactBody}>
+        <div className={styles.main}>
+          {main}
+        </div>
+        {!isMobile && (
+          <div className={styles.sidebar}>
             {sidebar}
-          </InlinePanel>
+          </div>
         )}
       </div>
-      {!isMobile && (
-        <div className={styles.sidebar}>
+      {isMobile && (
+        <InlinePanel label={panelLabel}>
           {sidebar}
-        </div>
+        </InlinePanel>
       )}
-    </div>
+     </>
   );
 }

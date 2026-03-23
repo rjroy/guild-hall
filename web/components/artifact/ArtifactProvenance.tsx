@@ -50,8 +50,8 @@ export default function ArtifactProvenance({
             projectName={projectName}
             artifactTitle={artifactTitle}
           />
+          <CopyPathButton path={`.lore/${artifactPath}`} />
           <div className={styles.condensedTrailing}>
-            <CopyPathButton path={`.lore/${artifactPath}`} />
             <button
               type="button"
               className={styles.toggleButton}

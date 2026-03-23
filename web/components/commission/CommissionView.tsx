@@ -307,39 +307,41 @@ export default function CommissionView({
   );
 
   return (
-    <div className={styles.content}>
-      <div className={styles.main}>
-        <Panel>
-          <CommissionPrompt
-            prompt={prompt}
-            status={status}
-            commissionId={commissionId}
-          />
-        </Panel>
+    <>
+      <div className={styles.content}>
+        <div className={styles.main}>
+          <Panel>
+            <CommissionPrompt
+              prompt={prompt}
+              status={status}
+              commissionId={commissionId}
+            />
+          </Panel>
 
-        <Panel>
-          <CommissionTimeline timeline={timeline} />
-        </Panel>
+          <Panel>
+            <CommissionTimeline timeline={timeline} />
+          </Panel>
 
-        <Panel size="sm">
-          <CommissionNotes
-            commissionId={commissionId}
-            onNoteAdded={handleNoteAdded}
-          />
-        </Panel>
+          <Panel size="sm">
+            <CommissionNotes
+              commissionId={commissionId}
+              onNoteAdded={handleNoteAdded}
+            />
+          </Panel>
 
-        {isMobile && (
-          <InlinePanel label="Details">
+        </div>
+
+        {!isMobile && (
+          <div className={styles.sidebar}>
             {sidebarContent}
-          </InlinePanel>
+          </div>
         )}
       </div>
-
-      {!isMobile && (
-        <div className={styles.sidebar}>
+      {isMobile && (
+        <InlinePanel label="Details">
           {sidebarContent}
-        </div>
+        </InlinePanel>
       )}
-    </div>
+    </>
   );
 }

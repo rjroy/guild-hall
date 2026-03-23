@@ -37,6 +37,9 @@
   align-items: center;
   gap: var(--space-xs);
   font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .breadcrumbLink {
