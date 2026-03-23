@@ -1,7 +1,7 @@
 ---
 title: Commission Incomplete Status
 date: 2026-03-20
-status: approved
+status: wontfix
 tags: [commissions, lifecycle, incomplete, toolbox, event-bus, triage]
 modules: [daemon/services/commission/orchestrator, daemon/services/commission/lifecycle, daemon/services/commission/toolbox, daemon/lib/event-bus, daemon/types]
 related:
