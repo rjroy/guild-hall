@@ -1,7 +1,7 @@
 ---
 title: "Commission: Guild Compendium: Worker declarations and posture updates (Step 5)"
 date: 2026-03-24
-status: blocked
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -20,6 +20,11 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-24T07:21:39.270Z
+    event: status_abandoned
+    reason: "Something is wrong need start over."
+    from: "blocked"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---
