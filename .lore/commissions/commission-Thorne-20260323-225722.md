@@ -1,7 +1,7 @@
 ---
 title: "Commission: Review: Guild Compendium plugin package (Step 9)"
 date: 2026-03-24
-status: dispatched
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -32,6 +32,14 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-24T07:22:15.254Z
+    event: status_cancelled
+    reason: "Commission cancelled by user"
+  - timestamp: 2026-03-24T07:22:22.005Z
+    event: status_abandoned
+    reason: "Something is wrong need start over."
+    from: "cancelled"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---
