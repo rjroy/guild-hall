@@ -9,7 +9,7 @@ related:
   - .lore/design/daemon-rest-api.md
   - .lore/specs/infrastructure/guild-hall-system.md
   - .lore/research/agent-native-applications.md
-  - .lore/specs/workers/worker-tool-rules.md
+  - .lore/_abandoned/specs/worker-tool-rules.md
   - .lore/specs/infrastructure/sandboxed-execution.md
 ---
 
@@ -470,7 +470,7 @@ Phase 4: guild-hall CLI commands → Phase 6: skill contract + eligibility → P
 
 Every worker that invokes a CLI skill needs `"Bash"` in `builtInTools`. Adding Bash auto-triggers the Phase 1 SDK sandbox (REQ-SBX-2). The `canUseToolRules` layer then narrows which Bash commands the worker can run.
 
-The worker tool rules spec (`.lore/specs/workers/worker-tool-rules.md`) established the allowlist-with-catch-all-deny pattern for this. Octavia's `rm .lore/**` rules and the Guild Master's read-only git rules prove the pattern works at the individual worker level. CLI skill access extends it with `guild-hall <subcommand>` patterns.
+The worker tool rules spec (`.lore/_abandoned/specs/worker-tool-rules.md`) established the allowlist-with-catch-all-deny pattern for this. Octavia's `rm .lore/**` rules and the Guild Master's read-only git rules prove the pattern works at the individual worker level. CLI skill access extends it with `guild-hall <subcommand>` patterns.
 
 ### Current Worker Bash Status
 
@@ -608,7 +608,7 @@ Recommendation: Defer this to after Phase 7. Domain plugins are the newest and l
 | Return JSON from daemon read endpoints (Q1) | The daemon should own the parsing contract. Returning raw markdown shifts parsing to every client. |
 | CLI migration after web migration | The CLI has fewer boundary violations and lower user impact. Web migration is higher priority. |
 | Route reorganization in a separate phase (Phase 5) | Avoid scope creep. Build functional routes first, reorganize naming after they're proven. |
-| `canUseToolRules` is the scaling model for per-worker CLI skill access | The WTR spec established allowlist-with-catch-all-deny for Octavia (`rm .lore/**`) and Guild Master (read-only git). The same pattern extends to all workers gaining CLI skill access via `guild-hall` subcommand patterns. Per-worker allowlists keep each worker's Bash surface minimal. Cross-ref: `.lore/specs/workers/worker-tool-rules.md` |
+| `canUseToolRules` is the scaling model for per-worker CLI skill access | The WTR spec established allowlist-with-catch-all-deny for Octavia (`rm .lore/**`) and Guild Master (read-only git). The same pattern extends to all workers gaining CLI skill access via `guild-hall` subcommand patterns. Per-worker allowlists keep each worker's Bash surface minimal. Cross-ref: `.lore/_abandoned/specs/worker-tool-rules.md` |
 | CLI skill access reverses WTR no-Bash decisions for Thorne, Verity, Edmund | REQ-WTR-14/15/16 kept these workers Bash-free because they had no operational need. REQ-DAB-7 creates a new need. The WTR decisions were correct for their context; the DAB migration changes that context. A WTR spec addendum formalizes the new rules at Phase 7. |
 
 ## Validation

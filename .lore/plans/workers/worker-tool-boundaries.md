@@ -7,7 +7,7 @@ modules: [daemon-services, toolbox-resolver, sdk-runner, worker-packages]
 related:
   - .lore/specs/workers/worker-tool-boundaries.md
   - .lore/brainstorm/worker-tool-permissions.md
-  - .lore/plans/workers/worker-tool-rules.md
+  - .lore/_abandoned/specs/worker-tool-rules.md
   - .lore/plans/workers/tool-availability-enforcement.md
 ---
 

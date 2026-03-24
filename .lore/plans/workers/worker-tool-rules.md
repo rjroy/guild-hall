@@ -5,7 +5,7 @@ status: executed
 tags: [workers, security, sandbox, can-use-tool, packages]
 modules: [sdk-runner, manager-worker, guild-hall-writer]
 related:
-  - .lore/specs/workers/worker-tool-rules.md
+  - .lore/_abandoned/specs/worker-tool-rules.md
   - .lore/specs/infrastructure/sandboxed-execution.md
   - .lore/plans/workers/tool-availability-enforcement.md
 ---
@@ -14,7 +14,7 @@ related:
 
 ## Spec Reference
 
-**Spec**: `.lore/specs/workers/worker-tool-rules.md`
+**Spec**: `.lore/_abandoned/specs/worker-tool-rules.md`
 
 Requirements addressed:
 - REQ-WTR-3, WTR-4, WTR-5, WTR-6, WTR-7, WTR-8: Octavia Bash + can-use-toolRules -> Step 1

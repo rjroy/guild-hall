@@ -1,6 +1,6 @@
 ---
 title: "TypeScript Practices: Compendium Research"
-status: complete
+status: resolved
 date: 2026-03-23
 tags: [typescript, compendium, type-safety, testing, bun]
 ---

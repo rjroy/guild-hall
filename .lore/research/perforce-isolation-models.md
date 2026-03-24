@@ -1,7 +1,7 @@
 ---
 title: "Guild Hall Isolation Model on Perforce"
 status: resolved
-created: 2026-03-22
+date: 2026-03-22
 tags: [perforce, git, isolation, worktrees, game-studio]
 ---
 

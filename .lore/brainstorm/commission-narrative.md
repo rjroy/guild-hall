@@ -1,7 +1,7 @@
 ---
 title: "Commission Narrative"
 date: 2026-03-20
-status: wontfix
+status: parked
 author: Celeste
 tags: [brainstorm, commissions, observability, narrative, llm-mediated]
 parent: whats-missing-2026-03-20.md
