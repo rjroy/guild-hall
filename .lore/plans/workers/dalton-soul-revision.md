@@ -1,7 +1,7 @@
 ---
 title: "Plan: Dalton Soul Revision — Internalizing Quality as Character"
 date: 2026-03-23
-status: draft
+status: approved
 tags: [workers, personality, soul, posture, testing, quality, dalton, sable]
 modules: [packages]
 related:
