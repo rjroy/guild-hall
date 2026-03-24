@@ -1,7 +1,7 @@
 ---
 title: "Research: Specification Writing for Software Projects"
 date: 2026-03-23
-status: active
+status: resolved
 tags: [research, compendium, spec-writing, requirements, craft-knowledge]
 ---
 
