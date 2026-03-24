@@ -1,4 +1,5 @@
 import { describe, test, expect } from "bun:test";
+import os from "node:os";
 import { validateArgs } from "@/cli/resolve";
 import type { CliOperation } from "@/cli/resolve";
 
@@ -145,8 +146,8 @@ describe("CLI error handling: daemon route error responses", () => {
   test("404 from commission read (commission not found)", async () => {
     const { createApp } = await import("@/daemon/app");
     const stubSession = makeStubSession();
-    const tmpDir = await import("node:fs/promises").then((fs) => fs.mkdtemp("/tmp/claude-1000/cli-err-"));
-    const config = { projects: [{ name: "test-project", path: "/tmp/claude-1000/nonexistent" }], logLevel: "info" as const };
+    const tmpDir = await import("node:fs/promises").then((fs) => fs.mkdtemp(`${os.tmpdir()}/cli-err-`));
+    const config = { projects: [{ name: "test-project", path: `${os.tmpdir()}/nonexistent` }], logLevel: "info" as const };
     const { app } = createApp({
       health: { getMeetingCount: () => 0, getCommissionCount: () => 0, getUptimeSeconds: () => 42 },
       commissionSession: stubSession,
