@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research: Implementation craft knowledge"
 date: 2026-03-24
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Verity
@@ -14,6 +14,11 @@ activity_timeline:
   - timestamp: 2026-03-24T05:56:30.111Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-24T06:00:01.017Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
