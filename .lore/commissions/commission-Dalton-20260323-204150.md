@@ -1,7 +1,7 @@
 ---
 title: "Commission: Retire Sable: remove test-engineer package and update roster spec"
 date: 2026-03-24
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-24T03:41:50.814Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-24T03:43:38.657Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---
