@@ -84,26 +84,22 @@ The dependency is deep but narrow: one binding call, one lifecycle module, one c
 
 **Verdict:** Better security model than TCP, but significantly more implementation complexity and no Bun-native support. Only worth it if single-user localhost TCP is unacceptable.
 
-### Option C: Windows AF_UNIX
+### ~~Option C: Windows AF_UNIX~~ (eliminated)
 
-**How it works.** Windows 10 1803 added kernel-level AF_UNIX socket support. In theory, you can create a socket file at a normal path (e.g., `C:\Users\user\.guild-hall\guild-hall.sock`) and connect to it just like on Linux/macOS.
-
-**Bun support:** `Bun.serve({ unix })` does not wire to Windows AF_UNIX. The client side (`node:http` with `socketPath`) probably does, since Bun's Node.js compat layer delegates to the OS, but this is untested and undocumented.
-
-**Limitations.** Windows AF_UNIX has restrictions compared to Linux: no `SO_PEERCRED` (can't identify the connecting process), no abstract namespace, socket path length limited to ~108 characters (same as Linux, but Windows paths tend to be longer). More importantly, the socket file doesn't get filesystem permissions in the same way: Windows ACLs don't apply to AF_UNIX sockets the same way POSIX permissions apply to Unix sockets. The security story is weaker than on Linux.
-
-**Verdict:** Would be ideal if Bun supported it. Currently it doesn't, so this isn't an option unless Bun adds `unix:` support on Windows or you drop to `node:net` (which puts you back in Option B territory).
+Windows AF_UNIX is a 2018 kernel bolt-on that Microsoft hasn't invested in deeply since. Even if Bun wires it up, building on a flimsy OS integration through a runtime's compat layer is two layers of uncertainty. TCP localhost is proven and native on Windows going back decades. Don't build on what's shaky when something solid is available.
 
 ### Comparison matrix
 
-| Factor | TCP localhost | Named Pipes | Windows AF_UNIX |
-|--------|--------------|-------------|-----------------|
-| Bun support | Yes | No | No (`Bun.serve`) |
-| Security (local) | Process-visible | ACL-controlled | Limited ACLs |
-| Implementation effort | Low | Medium | Medium |
-| Port collision risk | Yes (mitigable) | No | No |
-| Client changes | URL-based | Pipe path | Socket path |
-| Maturity on Windows | Proven | Proven | New (2018+) |
+| Factor | TCP localhost | Named Pipes |
+|--------|--------------|-------------|
+| Bun support | Yes | No |
+| Security (local) | Process-visible | ACL-controlled |
+| Implementation effort | Low | Medium |
+| Port collision risk | Yes (mitigable) | No |
+| Client changes | URL-based | Pipe path |
+| Maturity on Windows | Proven | Proven |
+
+Windows AF_UNIX is excluded from comparison (see Option C above).
 
 ## 3. Bun on Windows: Current State
 
@@ -266,19 +262,15 @@ Drop Unix sockets entirely. Use `Bun.serve({ port })` on all platforms. Simplifi
 
 **When it makes sense:** If cross-platform simplicity is more important than POSIX-optimal security. Not recommended.
 
-### Option 4: Node.js HTTP server on Windows
+### ~~Option 4: Node.js HTTP server on Windows~~ (eliminated)
 
-Replace `Bun.serve()` with `node:http.createServer()` on Windows, mount Hono via `@hono/node-server`, and listen on a Windows AF_UNIX socket or named pipe.
-
-**Pros:** Could potentially keep the socket-file model on Windows. Named pipes are the "right" Windows IPC primitive.
-
-**Cons:** Significant implementation complexity. Mixes Bun-native and Node-compat server stacks. `@hono/node-server` is an additional dependency. Windows AF_UNIX in Bun's Node compat layer is untested. Named pipe support in `node:net` on Bun is uncertain.
-
-**When it makes sense:** Only if named pipe security isolation is a hard requirement. The complexity cost is high for uncertain benefit.
+This option existed to support AF_UNIX or named pipes through Node's compat layer. With AF_UNIX eliminated and named pipes lacking Bun support, the complexity of mixing Bun-native and Node-compat server stacks has no payoff. TCP localhost handles the Windows case cleanly.
 
 ### Recommended approach
 
-**Option 2 (TCP fallback on Windows only)** is the right starting point. It's the minimum viable change, it works with Bun's current Windows support, and it doesn't require premature abstraction. If Windows adoption grows and TCP's security model becomes a concern, the transport abstraction (Option 1) can be layered on top. Option 3 is a regression on POSIX. Option 4 is overengineered for the current state of Bun.
+**Option 2 (TCP fallback on Windows only)** is the confirmed path. Unix sockets on Linux/macOS, TCP on `127.0.0.1` with dynamic port on Windows. Auto-detect by `process.platform === "win32"`, no configuration setting.
+
+Options C and 4 are eliminated (AF_UNIX is too flimsy to build on). Option 3 is a regression on POSIX. Option B (named pipes) stays on the shelf as a future possibility if Bun adds support, but it's not needed now. TCP security is acceptable for a single-user development tool bound to loopback.
 
 ## 6. Migration Path
 
@@ -297,7 +289,7 @@ These are all low-risk, independently testable, and valuable even before the tra
 
 Introduce platform-aware daemon binding and client connection:
 
-1. **Daemon side**: `daemon/index.ts` checks `process.platform` and either binds a Unix socket or a TCP port. The TCP path writes the port to a file alongside where the socket would be.
+1. **Daemon side**: `daemon/index.ts` checks `process.platform` and either binds a Unix socket or a TCP port on `127.0.0.1` (not `"localhost"`, to avoid IPv4/IPv6 resolution ambiguity). The TCP path writes the port to a file alongside where the socket would be.
 2. **Socket lifecycle**: `daemon/lib/socket.ts` gains a TCP-aware mode: instead of cleaning socket files, it manages port files. PID file logic stays the same.
 3. **Client side**: `lib/daemon-client.ts` detects which transport is active (socket file exists? port file exists?) and connects accordingly.
 4. **Tests**: Socket tests gain Windows-aware assertions. A new test verifies TCP transport on any platform.
@@ -316,7 +308,7 @@ This is the big change. It touches three files substantively. Everything above t
 
 1. **Installation docs**: Windows-specific setup guide (Git for Windows, Bun install, PowerShell vs Git Bash).
 2. **Error messages**: Any platform-specific error messages should say what to do, not just what went wrong.
-3. **Config defaults**: Consider whether `config.yaml` needs a `transport` setting for explicit control, or if auto-detection is sufficient.
+3. **Config defaults**: No `transport` setting needed. Auto-detection by platform is sufficient.
 
 ### What's incremental vs. big-bang
 
@@ -324,14 +316,14 @@ Phase 0 is fully incremental: each fix is an independent PR. Phase 1 is a single
 
 The minimum viable Windows support is Phase 0 + Phase 1. That gets the daemon starting and clients connecting on Windows.
 
-## Open Questions
+## Resolved Questions
 
-1. **Has Bun added `unix:` support on Windows since mid-2025?** If yes, the entire transport abstraction may be unnecessary. Check Bun release notes and `oven-sh/bun` issues.
+1. **Has Bun added `unix:` support on Windows since mid-2025?** Does not matter. Windows AF_UNIX is a flimsy OS integration. Building on it through Bun's compat layer is two layers of uncertainty. TCP localhost is proven and native. Proceed with TCP fallback regardless.
 
-2. **Does `node:http` with `socketPath` work in current Bun on Windows?** If yes, the client side of a Windows AF_UNIX approach is viable, and the question becomes whether `node:http.createServer()` + AF_UNIX works for the server side.
+2. ~~**Does `node:http` with `socketPath` work in current Bun on Windows?**~~ Struck. With TCP as the Windows transport, the client connects via `127.0.0.1:port`, not `socketPath`. No longer on the critical path.
 
-3. **Is TCP security acceptable for this use case?** Guild Hall is a personal development tool running on the user's machine. TCP localhost is visible to all local processes but not the network. For most users, this is fine. For security-conscious users, it's a gap worth documenting.
+3. **Is TCP security acceptable for this use case?** Yes. Bind to `127.0.0.1` explicitly (not the string `"localhost"`, which could resolve to `::1` on some Windows configurations). TCP on loopback is not network-accessible. Any attacker with local code execution already has access to the filesystem, git repos, and SSH keys. The daemon is not the weakest link. Document the local-process visibility trade-off in setup docs.
 
-4. **Should the transport be configurable?** An explicit `transport: "unix" | "tcp"` setting in `config.yaml` gives power users control. Auto-detection by platform is simpler. Configurable is better if we expect users to run on WSL and native Windows on the same machine.
+4. **Should the transport be configurable?** No. Auto-detect by `process.platform === "win32"`. WSL and native Windows have separate home directories and separate Guild Hall installations. There's no cross-environment scenario that needs a config knob. If a real need surfaces later, adding the setting is a small change on top of auto-detection.
 
-5. **What about the Claude Agent SDK sandbox on Windows?** The bubblewrap check is Linux-only, but the SDK has its own sandbox mechanism per platform. Does the SDK's Windows sandbox work correctly? This is outside Guild Hall's control but affects whether commissions can run on Windows.
+5. **What about the Claude Agent SDK sandbox on Windows?** External dependency risk, not a Guild Hall design concern. The bubblewrap check is already platform-gated (`process.platform === "linux"`). Guild Hall delegates sandboxing to the SDK. If the SDK's Windows sandbox has issues, that's the SDK's problem. Document the dependency in setup docs.
