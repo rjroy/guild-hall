@@ -566,7 +566,12 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
 
       idempotent: false,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
-      parameters: [{ name: "projectName", required: true, in: "body" as const }],
+      parameters: [
+        { name: "projectName", required: true, in: "body" as const },
+        { name: "workerName", required: true, in: "body" as const },
+        { name: "title", required: true, in: "body" as const },
+        { name: "prompt", required: true, in: "body" as const },
+      ],
     },
     {
       operationId: "commission.request.commission.update",
@@ -592,7 +597,10 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
 
       idempotent: false,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
-      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+      parameters: [
+        { name: "commissionId", required: true, in: "body" as const },
+        { name: "content", required: true, in: "body" as const },
+      ],
     },
     {
       operationId: "commission.request.commission.list",
@@ -605,7 +613,11 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
 
       idempotent: true,
       hierarchy: { root: "commission", feature: "request", object: "commission" },
-      parameters: [{ name: "projectName", required: true, in: "query" as const }],
+      parameters: [
+        { name: "projectName", required: true, in: "query" as const },
+        { name: "status", required: false, in: "query" as const },
+        { name: "worker", required: false, in: "query" as const },
+      ],
     },
     {
       operationId: "commission.request.commission.read",
@@ -670,7 +682,10 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
 
       idempotent: true,
       hierarchy: { root: "commission", feature: "run" },
-      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+      parameters: [
+        { name: "commissionId", required: true, in: "body" as const },
+        { name: "reason", required: true, in: "body" as const },
+      ],
     },
     {
       operationId: "commission.schedule.commission.update",
@@ -683,7 +698,10 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
 
       idempotent: true,
       hierarchy: { root: "commission", feature: "schedule", object: "commission" },
-      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+      parameters: [
+        { name: "commissionId", required: true, in: "body" as const },
+        { name: "status", required: true, in: "body" as const },
+      ],
     },
     {
       operationId: "commission.trigger.commission.update",
@@ -696,7 +714,11 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
 
       idempotent: true,
       hierarchy: { root: "commission", feature: "trigger", object: "commission" },
-      parameters: [{ name: "commissionId", required: true, in: "body" as const }],
+      parameters: [
+        { name: "commissionId", required: true, in: "body" as const },
+        { name: "status", required: true, in: "body" as const },
+        { name: "projectName", required: false, in: "body" as const },
+      ],
     },
     {
       operationId: "commission.dependency.project.check",
