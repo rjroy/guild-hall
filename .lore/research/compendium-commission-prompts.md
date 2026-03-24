@@ -1,7 +1,7 @@
 ---
 title: "Research: Writing Effective Commission Prompts"
 date: 2026-03-23
-status: active
+status: resolved
 tags: [research, compendium, commission-prompts, delegation, prompt-engineering, craft-knowledge]
 ---
 
