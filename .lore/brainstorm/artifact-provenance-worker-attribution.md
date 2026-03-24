@@ -1,7 +1,7 @@
 ---
 title: "Brainstorm: Artifact Provenance Worker Attribution"
 date: 2026-03-23
-status: active
+status: resolved
 author: Octavia
 tags: [ui, artifacts, provenance, workers, attribution]
 related:
