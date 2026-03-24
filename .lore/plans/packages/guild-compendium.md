@@ -25,11 +25,11 @@ Requirements addressed:
 - REQ-CMP-10, REQ-CMP-11, REQ-CMP-12: `consult-compendium` skill -> Step 3
 - REQ-CMP-13, REQ-CMP-14, REQ-CMP-15, REQ-CMP-16: `propose-entry` skill -> Step 4
 - REQ-CMP-17, REQ-CMP-18, REQ-CMP-19, REQ-CMP-20: Reference entry format -> Step 3 (documented in skill, enforced editorially)
-- REQ-CMP-21, REQ-CMP-22: Population workflow -> Out of scope (follow-on research commissions)
+- REQ-CMP-21, REQ-CMP-22: Population workflow -> Steps 7-8 (research commissions + distillation)
 - REQ-CMP-23, REQ-CMP-23a: Worker declarations and posture updates -> Step 5
 - REQ-CMP-24: Researcher exclusion -> Step 5 (by omission)
 - REQ-CMP-25: Guild Master exclusion -> Out of scope (per spec)
-- REQ-CMP-26: Initial content targets -> Step 2 (empty `reference/` directory ships; content is follow-on)
+- REQ-CMP-26: Initial content targets -> Step 2 (empty directory ships), Steps 7-8 (populated via research + distillation)
 
 ## Codebase Context
 
@@ -178,7 +178,7 @@ These tests verify REQ-CMP-3, REQ-CMP-4, and REQ-CMP-5 by demonstrating the exis
 }
 ```
 
-The `reference/` directory sits inside `consult-compendium/` per REQ-CMP-9. Ship with a `.gitkeep` so the empty directory is tracked. The five target filenames from REQ-CMP-26 (`spec-writing.md`, `code-review.md`, `typescript-practices.md`, `implementation.md`, `commission-prompts.md`) are not created here. Content is follow-on research work.
+The `reference/` directory sits inside `consult-compendium/` per REQ-CMP-9. Ship with a `.gitkeep` so the empty directory is tracked. The five target filenames from REQ-CMP-26 (`spec-writing.md`, `code-review.md`, `typescript-practices.md`, `implementation.md`, `commission-prompts.md`) are not created here. Content is populated in Steps 7-8 via research commissions and distillation.
 
 **Scope**: Small. File creation only, no logic.
 
@@ -260,7 +260,63 @@ Each posture line goes at the end of the worker's existing posture content, in a
 
 **Scope**: Medium. Many files, but each change is small. The posture lines require reading existing posture content to find appropriate placement.
 
-### Step 6: Validate against spec
+### Step 7: Research commissions for initial entries
+
+**Commissions dispatched**: 5 research commissions to Verity (one per topic)
+
+**Addresses**: REQ-CMP-21 (option 1: research commission path), REQ-CMP-26 (initial content targets)
+
+Each commission asks Verity to research a domain and produce a research document in `.lore/research/`. The five topics from REQ-CMP-26:
+
+| Commission | Topic | Research focus |
+|------------|-------|----------------|
+| 1 | spec-writing | What makes requirements testable, common failure modes in specs, structural patterns that work |
+| 2 | code-review | What to look for in reviews, severity calibration, how to present findings constructively |
+| 3 | typescript-practices | Established community patterns, common pitfalls, conventions that prevent bugs |
+| 4 | implementation | Working from a plan effectively, when to deviate, testing alongside implementation |
+| 5 | commission-prompts | What makes a good prompt for delegated work, common gaps that cause rework |
+
+Commission prompts should direct Verity to draw on external best practices (REQ-CMP-26: "entries draw on external best practices rather than echo local habits"). Each prompt should specify:
+- Research the domain broadly, not just Guild Hall's patterns
+- Produce a research document suitable for distillation into a 500-1000 word reference entry
+- Include sources and citations where possible
+- Focus on actionable guidance, not survey/taxonomy
+
+**Parallelism**: These five commissions have no dependencies on Steps 1-5. They can run as soon as the plan is approved. The research output lands in `.lore/research/`, which exists independently of the compendium package.
+
+**Scope**: Five independent commissions. Each is a standard research task for Verity.
+
+### Step 8: Distill research into compendium entries
+
+**Files created** (5 reference entries):
+- `packages/guild-compendium/plugin/skills/consult-compendium/reference/spec-writing.md`
+- `packages/guild-compendium/plugin/skills/consult-compendium/reference/code-review.md`
+- `packages/guild-compendium/plugin/skills/consult-compendium/reference/typescript-practices.md`
+- `packages/guild-compendium/plugin/skills/consult-compendium/reference/implementation.md`
+- `packages/guild-compendium/plugin/skills/consult-compendium/reference/commission-prompts.md`
+
+**Addresses**: REQ-CMP-17 (frontmatter format), REQ-CMP-18 (500-1000 words), REQ-CMP-19 (self-contained), REQ-CMP-20 (worker-agnostic), REQ-CMP-22 (user gates every addition), REQ-CMP-26 (initial entries populated)
+
+**Depends on**: Step 2 (package structure exists) and Step 7 (research documents exist)
+
+Each research document from Step 7 is distilled into a compendium entry following the format from REQ-CMP-17:
+
+```yaml
+---
+title: What Makes a Good Spec
+domain: software-development
+last_updated: 2026-03-23
+source: "research commission (Verity, 2026-03-23)"
+---
+```
+
+Distillation means: read the research document, extract the actionable guidance, compress to 500-1000 words, and make it worker-agnostic (REQ-CMP-20). The entry should orient a worker entering the domain, not exhaustively cover it.
+
+**Who distills**: Octavia. The research documents are Verity's output; shaping them into compendium entries is documentation craft. The user reviews each entry before it ships (REQ-CMP-22).
+
+**Scope**: Medium. Five entries, each requiring judgment about what to keep and what to cut. Can be batched into one commission if the research documents are all available.
+
+### Step 9: Validate against spec
 
 Launch a fresh-context sub-agent to:
 1. Read the spec at `.lore/specs/packages/guild-compendium.md`
@@ -269,6 +325,7 @@ Launch a fresh-context sub-agent to:
 4. Verify `prepareSdkSession` resolves the plugin for each declaring worker
 5. Run existing tests to confirm no regression
 6. Run new tests from Step 1
+7. Verify reference entries exist and conform to REQ-CMP-17 through REQ-CMP-20 (frontmatter format, word count, self-contained, worker-agnostic)
 
 This step is not optional. The spec has 26 requirements. Missing one is easy; a checklist review catches it.
 
@@ -281,11 +338,15 @@ This step is not optional. The spec has 26 requirements. Missing one is easy; a 
 | 3. consult-compendium skill | Octavia | Text authoring. Skill trigger language requires domain knowledge of how workers use reference material. |
 | 4. propose-entry skill | Octavia | Text authoring. Simpler than Step 3. Bundle with Step 3. |
 | 5. Worker declarations + posture | Dalton | Mechanical edits across 12 files. Posture lines are provided in the plan. |
-| 6. Spec validation | Thorne | Fresh-context review. Catches drift between plan and spec. **Dispatch only after Step 5 completes.** |
+| 7. Research commissions (x5) | Verity | External research. Each topic is independent. |
+| 8. Distill into entries | Octavia | Documentation craft. Compress research into 500-1000 word entries. |
+| 9. Spec validation | Thorne | Fresh-context review. Catches drift between plan and spec. **Dispatch only after Steps 5 and 8 complete.** |
 
-**Recommended sequencing**: Steps 1-2 together (one commission to Dalton), Steps 3-4 together (one commission to Octavia), Step 5 (second commission to Dalton, depends on Steps 1-2), Step 6 after all implementation (commission to Thorne).
+**Recommended sequencing**:
 
-Steps 1-2 and 3-4 can run in parallel since they touch different files.
+- **Parallel wave 1**: Steps 1-2 (Dalton), Steps 3-4 (Octavia), Step 7 (Verity, all five commissions). All independent, no shared files.
+- **Sequential**: Step 5 (Dalton, depends on Steps 1-2). Step 8 (Octavia, depends on Steps 2 and 7).
+- **Final**: Step 9 (Thorne, after all implementation and content are in place).
 
 ## Risks
 
@@ -328,6 +389,8 @@ Each worker's posture.md has a different structure. The compendium guidance line
 | 3. consult-compendium skill | 1 | Medium (authoring) |
 | 4. propose-entry skill | 1 | Small |
 | 5. Worker declarations | 12 (6 package.json + 6 posture.md) | Medium (breadth) |
-| 6. Validation | 0 (review only) | Small |
+| 7. Research commissions | 5 research docs in `.lore/research/` | Medium (5 independent commissions) |
+| 8. Distill entries | 5 reference entries | Medium (authoring + compression) |
+| 9. Validation | 0 (review only) | Small |
 
-Total: ~22 files touched. Two commissions in parallel (Dalton: Steps 1+2, Octavia: Steps 3+4), then one sequential (Dalton: Step 5), then validation (Thorne: Step 6).
+Total: ~32 files touched. Three parallel commissions in wave 1 (Dalton: Steps 1+2, Octavia: Steps 3+4, Verity: Step 7 x5), then sequential (Dalton: Step 5, Octavia: Step 8), then validation (Thorne: Step 9).
