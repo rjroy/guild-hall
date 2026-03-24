@@ -1,7 +1,7 @@
 ---
 title: "Research: Implementation Craft - Working from Plan to Code"
 date: 2026-03-23
-status: active
+status: resolved
 tags: [research, compendium, implementation, testing, plan-execution, craft-knowledge]
 ---
 
