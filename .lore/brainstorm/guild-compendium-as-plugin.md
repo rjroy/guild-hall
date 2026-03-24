@@ -42,6 +42,8 @@ packages/guild-compendium/
       commission-prompts.md
 ```
 
+USER NOTE: Skills worker better if the `reference` foler is at the same level as `SKILL.md`. This has to do with access rights proved by the claude SDK.
+
 No `index.ts`. No `soul.md` or `posture.md`. This is not a worker. It's a pure plugin package, not a toolbox either. Its `package.json` declares a `type` that the package discovery system can recognize, and workers reference it by name in their `domainPlugins` array.
 
 ### package.json
