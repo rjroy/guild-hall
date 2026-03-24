@@ -79,7 +79,7 @@ This requires one infrastructure change: the package discovery system currently 
     "guildHall": {
       "type": "plugin",
       "name": "guild-compendium",
-      "description": "Curated craft knowledge for the guild. Reference entries on spec writing, code review, TypeScript practices, and other recurring domains."
+      "description": "Curated craft knowledge for the guild. Reference entries covering domains encountered during commissions and meetings."
     }
   }
   ```
@@ -90,7 +90,7 @@ This requires one infrastructure change: the package discovery system currently 
 
 ### Skill: consult-compendium
 
-- REQ-CMP-10: The `consult-compendium` SKILL.md description triggers when a worker is about to start work in a domain covered by the compendium. The description names specific trigger contexts: starting a code review, writing a spec, beginning implementation from a plan, writing a commission prompt, or working with TypeScript patterns.
+- REQ-CMP-10: The `consult-compendium` SKILL.md description triggers when a worker is about to start work in a domain covered by the compendium. The description names specific trigger contexts: starting a code review, writing a spec, beginning implementation from a plan, writing a commission prompt, working with TypeScript patterns, generating images, or working in any domain where the compendium has relevant entries. The trigger list grows as entries are added.
 
 - REQ-CMP-11: When invoked, the skill instructs the agent to use Read and Glob tool calls against the `reference/` directory directly: (1) list the files in `reference/` to see available entries, (2) read the relevant entry or entries based on the current task, (3) use the key points as context for the work ahead. The skill does not inject content automatically or return a summary. It guides the agent to pull what it needs via file reads.
 
@@ -139,29 +139,31 @@ This requires one infrastructure change: the package discovery system currently 
 
 ### Worker Declarations
 
-- REQ-CMP-23: Four worker packages declare `"guild-compendium"` in their `domainPlugins` array:
+- REQ-CMP-23: Six worker packages declare `"guild-compendium"` in their `domainPlugins` array:
   - `guild-hall-writer` (Octavia): consults for spec writing, documentation craft
   - `guild-hall-reviewer` (Thorne): consults for code review practices, finding calibration
   - `guild-hall-developer` (Dalton): consults for implementation patterns, testing practices
   - `guild-hall-steward` (Edmund): consults for maintenance patterns, cleanup practices
+  - `guild-hall-illuminator` (Sienna): consults for visual craft, art styles, image generation practices
+  - `guild-hall-visionary` (Celeste): consults for strategic framing, analysis patterns
 
 - REQ-CMP-23a: Each declaring worker's `posture.md` gains a line directing the worker to consult the compendium before starting work in a covered domain. Example: "Before starting a code review, check the compendium for relevant craft guidance." This is a belt-and-suspenders mechanism: the skill description triggers on domain keywords, but posture guidance ensures the worker actively looks for relevant reference material rather than waiting for a passive trigger. The exact wording is per-worker and should reference the domains relevant to that worker's role.
 
-- REQ-CMP-24: Three worker packages do not declare the compendium:
+- REQ-CMP-24: One worker package does not declare the compendium:
   - `guild-hall-researcher` (Verity): produces knowledge, does not consume craft guidance. She researches domains from scratch rather than consulting standing reference.
-  - `guild-hall-illuminator` (Sienna): image generation work does not benefit from software craft knowledge.
-  - `guild-hall-visionary` (Celeste): strategic vision work operates at a level above implementation craft. If the compendium grows to cover strategic topics, this decision can be revisited.
 
 - REQ-CMP-25: The Guild Master is a built-in worker (not a package). Adding compendium access to the Guild Master would require changes to its session preparation in `daemon/services/manager/`. This is out of scope for this spec.
 
 ### Initial Content
 
-- REQ-CMP-26: The compendium targets five initial reference entries, populated through the research commission path (REQ-CMP-21, option 1) to ensure entries draw on external best practices rather than echo local habits:
+- REQ-CMP-26: The compendium targets five initial reference entries based on current commission output gaps, populated through the research commission path (REQ-CMP-21, option 1) to ensure entries draw on external best practices rather than echo local habits:
   - `spec-writing.md`: what makes requirements testable, common failure modes, structure
   - `code-review.md`: what to look for, severity calibration, presenting findings
   - `typescript-practices.md`: established patterns, pitfalls, community conventions
   - `implementation.md`: working from a plan, when to deviate, testing alongside
   - `commission-prompts.md`: what makes a good commission prompt, common gaps
+
+  Future entries may cover any domain where workers encounter recurring knowledge needs: visual styles, strategic analysis patterns, research methodology, or domains that don't exist yet. The initial set reflects observed gaps, not a boundary on what the compendium can contain.
 
   The package structure (REQ-CMP-6) ships without content files. The `reference/` directory is created empty. Research commissions to populate entries are follow-on work, not part of this spec's deliverables.
 
@@ -196,7 +198,7 @@ This spec deliberately excludes the following:
 - [ ] Plugin-type packages do not appear in `getWorkers()` or `getToolboxes()` results
 - [ ] `guild-compendium` package is discoverable and its `pluginPath` is set
 - [ ] Workers declaring `domainPlugins: ["guild-compendium"]` resolve the plugin path during session preparation
-- [ ] Four worker packages (writer, reviewer, developer, steward) declare the compendium
+- [ ] Six worker packages (writer, reviewer, developer, steward, illuminator, visionary) declare the compendium
 
 **Manual/editorial (verifiable by inspection or live session):**
 - [ ] `consult-compendium` skill is available to workers with the compendium plugin
@@ -219,7 +221,7 @@ This spec deliberately excludes the following:
 ## Constraints
 
 - Plugin contents are opaque to Guild Hall. The daemon does not parse or validate plugin files beyond confirming `plugin/.claude-plugin/plugin.json` exists.
-- The compendium's reference entries are committed to the repo in `packages/`. Since `packages/` is per-installation (not per-project), the compendium is available to all registered projects. This matches the intent of craft knowledge that is project-agnostic.
+- The compendium's reference entries are committed to the repo in `packages/`. Since `packages/` is per-installation (not per-project), the compendium is available to all registered projects. This matches the intent: craft knowledge is domain-specific but project-agnostic.
 - The `domainPlugins` resolution mechanism (REQ-DPL-7, REQ-DPL-8 from the worker-domain-plugins spec) applies: missing packages and packages without plugins produce clear activation errors.
 - Growth is unbounded. The on-demand access model means total collection size matters less than individual entry quality. At 500-1000 words per entry, even 50 entries remain manageable as a directory listing.
 
@@ -237,7 +239,7 @@ The brainstorm raised five open questions. This spec resolves them:
 
 2. **How does the compendium relate to `.lore/`?** Different lifecycles, different locations. `.lore/` holds project-specific work artifacts (specs, retros, research). The compendium holds project-agnostic craft knowledge. Proposals from `propose-entry` land in `.lore/issues/` because they're project-scoped action items, even though the compendium itself is cross-project.
 
-3. **Which workers declare it?** Writer, reviewer, developer, steward. Not researcher (produces knowledge, doesn't consume craft guidance), not illuminator (image generation domain), not visionary (strategic level above implementation craft). Guild Master is deferred (built-in worker, different session preparation path).
+3. **Which workers declare it?** All worker packages except researcher. Verity produces knowledge from scratch rather than consulting standing reference. The compendium covers any craft domain (software, visual, strategic), so every worker whose role involves applying craft knowledge opts in. Guild Master is deferred (built-in worker, different session preparation path).
 
 4. **Should entries be worker-specific or worker-agnostic?** Worker-agnostic. Same entry, different interpretation via posture. No worker-specific sections.
 
