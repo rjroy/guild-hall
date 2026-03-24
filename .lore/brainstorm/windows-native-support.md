@@ -1,7 +1,7 @@
 ---
 title: "Windows Native Support"
 date: 2026-03-24
-status: open
+status: resolved
 tags: [windows, sockets, ipc, cross-platform, bun, architecture]
 modules: [daemon, daemon-lib-socket, daemon-lib-git, lib-daemon-client, lib-paths, notification-service]
 related:
