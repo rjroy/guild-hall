@@ -1,7 +1,7 @@
 ---
 title: "Commission: Guild Compendium: Skill authoring (Steps 3-4) [recommission]"
 date: 2026-03-24
-status: blocked
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -20,6 +20,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-03-24T07:31:29.088Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-03-24T07:31:29.091Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
