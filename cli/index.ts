@@ -164,10 +164,6 @@ async function main(): Promise<void> {
       const data: unknown = await result.json();
 
       if (!result.ok) {
-        if (result.status === 429) {
-          console.error("At capacity, cannot continue commission. Try again later.");
-          process.exit(1);
-        }
         const errObj = data as { error?: string };
         console.error(
           errObj.error ?? `Request failed (HTTP ${result.status})`,

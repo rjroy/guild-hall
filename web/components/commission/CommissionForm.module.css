@@ -243,6 +243,12 @@
   margin: 0;
 }
 
+.matchSummary code {
+  font-family: var(--font-code);
+  color: var(--color-brass);
+  margin-right: 0.4em;
+}
+
 /* Collapsible resource overrides */
 
 .overridesToggle {
