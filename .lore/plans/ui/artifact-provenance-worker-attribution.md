@@ -1,7 +1,7 @@
 ---
 title: Worker attribution in artifact provenance
 date: 2026-03-23
-status: active
+status: draft
 tags: [ui, artifacts, provenance, workers, attribution, plan]
 modules: [artifact-provenance, artifact-page, worker-portrait]
 related:
