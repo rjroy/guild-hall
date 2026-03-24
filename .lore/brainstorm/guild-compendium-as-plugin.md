@@ -32,17 +32,17 @@ packages/guild-compendium/
     skills/
       consult-compendium/
         SKILL.md
+        reference/
+          spec-writing.md
+          code-review.md
+          typescript-practices.md
+          implementation.md
+          commission-prompts.md
       propose-entry/
         SKILL.md
-    reference/
-      spec-writing.md
-      code-review.md
-      typescript-practices.md
-      implementation.md
-      commission-prompts.md
 ```
 
-USER NOTE: Skills worker better if the `reference` foler is at the same level as `SKILL.md`. This has to do with access rights proved by the claude SDK.
+The `reference/` directory sits alongside `SKILL.md` inside the skill directory rather than at the plugin root. This is a constraint of the Claude SDK's access rights model: skills can reliably read files at their own level and below, but reaching into sibling directories is less dependable. Placing reference material inside the skill that consults it guarantees the agent can read what it needs.
 
 No `index.ts`. No `soul.md` or `posture.md`. This is not a worker. It's a pure plugin package, not a toolbox either. Its `package.json` declares a `type` that the package discovery system can recognize, and workers reference it by name in their `domainPlugins` array.
 
@@ -119,23 +119,21 @@ The frontmatter carries `domain` for categorization, `last_updated` for stalenes
 
 ### How big are entries?
 
-They should be concise. These aren't textbooks. A reference entry on spec writing might be 500-1000 words: enough to orient a worker, not enough to become noise. The compendium's value is density. If an entry is long enough that a worker wouldn't read the whole thing, it's too long.
+Individual entries should be precise. A reference entry on spec writing might be 500-1000 words: enough to orient a worker, not enough to become noise. If an entry is long enough that a worker wouldn't read the whole thing, it's too long.
 
-USER NOTE: I'd counter this just a little. Correct they aren't textbooks, but the compendium as a whole could be. So good frontmatter can make searching for information efficient, like an index. Then each entry is a section within the textbook. And a directory could be an entire textbook. Agreed we still need to be precise.
+That said, the compendium as a whole can be substantial. Think of it like a textbook: each entry is a section, each directory is a chapter, and the frontmatter serves as the index. Good frontmatter makes searching efficient. An agent consulting the compendium doesn't need to read the whole thing. It reads the index, finds the relevant section, and pulls just that. The density constraint applies to individual entries, not to the collection. A compendium with 50 well-indexed, precise entries is more useful than one with 10 sprawling ones.
 
 ### Initial scope
 
-Start with entries matching the guild's actual work domains:
+The compendium shouldn't just codify Guild Hall's internal patterns. It should capture the collective wisdom that's out there: established practices from the broader software engineering community, distilled into forms the guild can use. The starting topics match the guild's work domains, but the content comes from actual research, not just from what we've observed locally:
 
-- `spec-writing.md` (what makes requirements testable, common failure modes)
-- `code-review.md` (what to look for, how to calibrate severity, presenting findings)
-- `typescript-practices.md` (patterns the codebase follows, pitfalls)
-- `implementation.md` (working from a plan, when to deviate, testing alongside)
-- `commission-prompts.md` (what makes a good commission prompt, common gaps)
+- `spec-writing.md` (what makes requirements testable, common failure modes, industry standards)
+- `code-review.md` (what to look for, severity calibration, presenting findings, known best practices)
+- `typescript-practices.md` (established patterns, pitfalls, community conventions)
+- `implementation.md` (working from a plan, when to deviate, testing alongside, proven methodologies)
+- `commission-prompts.md` (what makes a good commission prompt, common gaps, prompt engineering principles)
 
-This is a starting set, not a fixed list. The user decides when new entries belong.
-
-USER NOTE: I wouldn't just use what is in guild-hall. In fact I'd counter with this should be actual research. What is out there in the ether as the collective wisdom.
+This is a starting set, not a fixed list. The user decides when new entries belong. The research-first population workflow (see below) ensures entries draw on external sources rather than echo-chambering local habits.
 
 ## How Agents Access the Compendium
 
@@ -151,9 +149,7 @@ This is the same pattern as how agents currently use skills: the skill exists, t
 
 2. **A `consult-compendium` skill.** The skill's description in SKILL.md triggers when the agent is about to do work in a compendium domain. The skill reads the right reference entry and returns it. This is more structured than relying on posture alone.
 
-Both approaches work within existing plugin mechanics.
-
-USER NOTE: Need to do use the `plugin-dev` `skill-development` agent to make sure the skill is well written.
+Both approaches work within existing plugin mechanics. The skills themselves deserve care in construction. The `plugin-dev` `skill-development` agent should review the `consult-compendium` and `propose-entry` skills to ensure their descriptions trigger reliably and their behavior is well-defined. A poorly written skill description undermines the whole on-demand model.
 
 ## The Population Workflow
 
@@ -163,9 +159,7 @@ The user identifies a gap. Something goes wrong in a commission, or a pattern sh
 
 The user commissions Verity to research the question: "What makes a good spec?" Verity does what Verity does: gathers external context, reads prior art, consults existing lore artifacts. The output is a research document in `.lore/research/`. The user reviews it. If it's worth encoding as standing craft knowledge, the user (or Octavia) distills the research into a compendium entry and commits it to `packages/guild-compendium/plugin/reference/`.
 
-This is the highest-quality path. Research commissions produce thorough, sourced material. The distillation step ensures only the actionable parts make it into the compendium.
-
-USER NOTE: This is my prefered mechnism for the initial generation.
+This is the highest-quality path and the preferred mechanism for initial population. Research commissions produce thorough, sourced material grounded in collective wisdom rather than local echo. The distillation step ensures only the actionable parts make it into the compendium. For the initial set of entries, every topic should go through this pipeline.
 
 ### Option 2: Direct write
 
@@ -201,19 +195,13 @@ This skill is passive guidance. It doesn't change the worker's posture or identi
 
 **Behavior:** Writes a proposal to `.lore/issues/` (or a dedicated `.lore/compendium-proposals/` directory) with the gap description, suggested scope, and evidence. The user reviews proposals during cleanup cycles or on demand.
 
-This skill doesn't write to the compendium directly. It proposes. The user decides.
+This skill doesn't write to the compendium directly. It proposes. The user decides. Because the skill lives in the agent's knowledge, workers have standing license to notice gaps and raise them. And because the output is an issue file, the user has standing license to ignore it. The asymmetry is right: low cost to propose, no pressure to accept.
 
-USER NOTE: I like this idea. as a skill it'll be in the agents knowledge. This gives it license to propose entries where it felt there was something missing. And as an issue gives the user license to ignore the request.
+### Not included: `update-entry`
 
-### Maybe: `update-entry`
+An `update-entry` skill was considered and rejected. The idea: a worker reads an existing entry, reads relevant retros or research, and produces an updated draft in place.
 
-**Trigger:** User asks a worker to update an existing compendium entry based on new experience.
-
-**Behavior:** Reads the existing entry, reads relevant retros or research, produces an updated draft. This would need Write access to the plugin directory, which raises a question about whether workers should modify the compendium package during commissions. Probably not: compendium updates should be deliberate, not side effects of other work. The user would run a dedicated commission for this.
-
-This skill might not be needed at launch. Updates can be direct writes or dedicated commissions.
-
-USER NOTE: Nah. This tightens the loop too much. It needs to be difficult to prevent hallucinations.
+The problem is that this tightens the loop too much. Compendium entries are supposed to be curated, verified knowledge. If a worker can update them during a commission, the barrier between "something I just encountered" and "standing craft knowledge" collapses. That's how hallucinations get encoded as truth. The difficulty of updating the compendium is a feature, not a friction. Updates should go through the same deliberate path as creation: research commission, user review, explicit commit. Direct writes or dedicated commissions handle updates. No skill needed.
 
 ## Comparison: Plugin Model vs. Original `~/.guild-hall/compendium/`
 
@@ -229,21 +217,15 @@ USER NOTE: Nah. This tightens the loop too much. It needs to be difficult to pre
 
 ### What's lost
 
-**Automatic domain matching.** The original proposal had `prepareSdkSession` match compendium entries to commission task types: a code review commission gets the code review entry. With the plugin model, the agent or its posture handles that matching. This is arguably better (agents can judge relevance in context) but less automatic.
+**Automatic domain matching.** The original proposal had `prepareSdkSession` match compendium entries to commission task types: a code review commission gets the code review entry. In practice, this wouldn't have been effective. Matching task types to reference domains is itself an LLM-grade judgment call. Building that matching logic into `prepareSdkSession` would duplicate what SKILL progressive discovery already does: the agent encounters a domain, the skill's description triggers, and the right reference material surfaces. That's the mechanism that already exists. Pre-matching adds complexity without adding accuracy.
 
-USER NOTE: I disagree that this would even have been efective. We'd have needed an LLM to determine which domain file was helpful. Why do that when that's what SKILL progressive discovery is for?
+**Guild Master curation role.** The original proposal had the Guild Master propose compendium entries as a post-retro step. That tightened the loop too much. Automatic proposal-from-retro blurs the line between "pattern we noticed" and "knowledge worth encoding." The existing Haiku triage system already pulls insights from commissions into memory. That system could be extended to leverage the `propose-entry` skill: when triage identifies a recurring pattern, it files a compendium proposal as an issue. The user reviews it on their own timeline. This keeps the Guild Master out of the curation path while still surfacing candidates.
 
-**Guild Master curation role.** The original proposal had the Guild Master propose compendium entries as a post-retro step. The plugin model puts curation entirely with the user. The Guild Master could still propose (via `propose-entry` skill findings), but it's less integrated into the retro workflow.
-
-USER NOTE: I think this tightened the loop too much. We actually have a haiku system which pulls things from commissions as memory. We could extend that to leverage the `propose-entry` skill.
-
-**Global scope.** `~/.guild-hall/compendium/` would be shared across all projects. A package in `packages/` belongs to the repo where it lives. If the user wants the same compendium across multiple Guild Hall projects, they'd need to either copy the package or publish it. For a single-project setup (which is the current reality), this doesn't matter.
-
-USER NOTE: This is a false statement. The `packages` folder is per installation which is used for multiple projects. This is just false.
+**Global scope.** This was initially flagged as a loss, but the concern is unfounded. The `packages/` folder is per installation, not per repository. All registered projects share the same package set. A compendium in `packages/guild-compendium/` is already globally available to every project in the installation, exactly as it would have been under `~/.guild-hall/compendium/`. No loss here.
 
 ### Net assessment
 
-The plugin model is simpler, better aligned with existing patterns, and gives the user more control. The losses are minor: automatic domain matching can be handled by skill descriptions and posture, and global scope isn't needed yet. The one infrastructure gap (no pure plugin package type) is small.
+The plugin model is simpler, better aligned with existing patterns, and gives the user more control. The supposed losses dissolve on inspection: automatic domain matching is better handled by skill progressive discovery than by custom matching logic, Guild Master curation can be replaced by extending the Haiku triage system, and global scope was never actually at risk since packages are per-installation. The one infrastructure gap (no pure plugin package type) is small.
 
 ## Does This Need New Infrastructure?
 
