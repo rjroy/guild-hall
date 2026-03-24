@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research: Commission prompt craft knowledge [recommission]"
 date: 2026-03-24
-status: dispatched
+status: completed
 type: one-shot
 tags: [commission]
 worker: Verity
@@ -9,7 +9,8 @@ workerDisplayTitle: "Guild Pathfinder"
 prompt: "Research what makes effective commission prompts for delegated AI work. This research will be distilled into a compendium reference entry for Guild Hall workers.\n\nFocus areas:\n- What makes a good prompt for delegated work (clear scope, explicit constraints, success criteria, context pointers)\n- Common gaps that cause rework (missing constraints, assumed context, ambiguous scope boundaries, unspecified edge cases)\n- How prompt structure affects output quality (front-loading key information, naming files and line numbers, stating what NOT to do)\n- The difference between prompts for implementation, review, research, and documentation work\n- How to reference plans and specs effectively in prompts (pointer vs. summary, what to repeat vs. what to trust the worker to read)\n- Anti-patterns (over-specification that constrains good judgment, under-specification that requires guessing, mixing concerns in one prompt)\n\nDraw on external best practices (prompt engineering research, delegation literature, LLM usage studies), not just Guild Hall's local patterns. Include sources and citations where available.\n\nProduce a research document suitable for distillation into a 500-1000 word reference entry. Focus on actionable guidance. The audience is the Guild Master or a user writing commission prompts.\n\nNOTE: A previous commission for this exact research completed. Check if `.lore/research/compendium-commission-prompts.md` already exists. If it does and the content is solid, you're done. If it doesn't exist or is incomplete, produce it fresh.\n\nOutput to `.lore/research/compendium-commission-prompts.md`."
 dependencies:
   - commission-Octavia-20260324-003032
-linked_artifacts: []
+linked_artifacts:
+  - .lore/research/compendium-commission-prompts.md
 
 activity_timeline:
   - timestamp: 2026-03-24T07:31:24.522Z
@@ -30,6 +31,23 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
-current_progress: ""
+  - timestamp: 2026-03-24T07:32:45.617Z
+    event: status_in_progress
+    reason: "Execution started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-03-24T07:32:51.458Z
+    event: progress_report
+    reason: "Checking if previous research document exists at .lore/research/compendium-commission-prompts.md"
+  - timestamp: 2026-03-24T07:33:12.917Z
+    event: result_submitted
+    reason: "Research document already exists at `.lore/research/compendium-commission-prompts.md` from a prior commission. Evaluated it against all six focus areas in the task description: every area is covered with external citations (Anthropic, Cursor, Augment Code, Osmani, deliberate.codes) and local evidence (85+ commissions, 30+ retros). The synthesis section provides 15 distillation-ready principles organized by structure, work-type calibration, common traps, and context referencing. Confidence assessment table included. No content gaps found. No changes needed."
+  - timestamp: 2026-03-24T07:33:16.589Z
+    event: status_completed
+    reason: "Execution completed"
+    from: "in_progress"
+    to: "completed"
+current_progress: "Checking if previous research document exists at .lore/research/compendium-commission-prompts.md"
 projectName: guild-hall
 ---
+Research document already exists at `.lore/research/compendium-commission-prompts.md` from a prior commission. Evaluated it against all six focus areas in the task description: every area is covered with external citations (Anthropic, Cursor, Augment Code, Osmani, deliberate.codes) and local evidence (85+ commissions, 30+ retros). The synthesis section provides 15 distillation-ready principles organized by structure, work-type calibration, common traps, and context referencing. Confidence assessment table included. No content gaps found. No changes needed.
