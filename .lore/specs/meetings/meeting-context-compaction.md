@@ -44,45 +44,45 @@ Out of scope:
 
 ### Event Translator: Translate compact_boundary
 
-- MCC-1: The event translator emits a new `SdkRunnerEvent` variant when it encounters a system message with `subtype: 'compact_boundary'`. The event carries the trigger type (`'manual' | 'auto'`) and the pre-compaction token count (`preTokens: number`).
+- REQ-MCC-1: The event translator emits a new `SdkRunnerEvent` variant when it encounters a system message with `subtype: 'compact_boundary'`. The event carries the trigger type (`'manual' | 'auto'`) and the pre-compaction token count (`preTokens: number`).
 
-- MCC-2: The new event type is `context_compacted`. It is added to the `SdkRunnerEvent` union in `sdk-runner.ts`:
+- REQ-MCC-2: The new event type is `context_compacted`. It is added to the `SdkRunnerEvent` union in `sdk-runner.ts`:
 
   ```typescript
   | { type: "context_compacted"; trigger: "manual" | "auto"; preTokens: number }
   ```
 
-- MCC-3: The `SdkSystemMessage` local type projection in `event-translator.ts` is extended with optional fields for the compact metadata (`compact_metadata?: { trigger: string; pre_tokens: number }`). The `translateSystemMessage` function handles `subtype === 'compact_boundary'` as a second case alongside the existing `subtype === 'init'` path.
+- REQ-MCC-3: The `SdkSystemMessage` local type projection in `event-translator.ts` is extended with optional fields for the compact metadata (`compact_metadata?: { trigger: string; pre_tokens: number }`). The `translateSystemMessage` function handles `subtype === 'compact_boundary'` as a second case alongside the existing `subtype === 'init'` path.
 
-- MCC-4: System messages with subtypes other than `'init'` and `'compact_boundary'` continue to return empty arrays. The existing comment listing dropped subtypes is updated to remove `compact_boundary` from the "internal" list.
+- REQ-MCC-4: System messages with subtypes other than `'init'` and `'compact_boundary'` continue to return empty arrays. The existing comment listing dropped subtypes is updated to remove `compact_boundary` from the "internal" list.
 
 ### PostCompact Hook: Capture the Summary
 
-- MCC-5: `prepareSdkSession` in `sdk-runner.ts` accepts an optional `onCompactSummary` callback in `SessionPrepSpec`. The callback signature is `(summary: string, trigger: 'manual' | 'auto') => void`.
+- REQ-MCC-5: `prepareSdkSession` in `sdk-runner.ts` accepts an optional `onCompactSummary` callback in `SessionPrepSpec`. The callback signature is `(summary: string, trigger: 'manual' | 'auto') => void`.
 
-- MCC-6: When `onCompactSummary` is provided, `prepareSdkSession` constructs a `hooks` entry in the `SdkQueryOptions` that registers a `PostCompact` hook. The hook callback invokes `onCompactSummary` with the `compact_summary` and `trigger` fields from `PostCompactHookInput`.
+- REQ-MCC-6: When `onCompactSummary` is provided, `prepareSdkSession` constructs a `hooks` entry in the `SdkQueryOptions` that registers a `PostCompact` hook. The hook callback invokes `onCompactSummary` with the `compact_summary` and `trigger` fields from `PostCompactHookInput`.
 
-- MCC-7: The `SdkQueryOptions` type in `sdk-runner.ts` is extended with an optional `hooks` field matching the SDK's hook configuration shape. The exact shape should be derived from the `@anthropic-ai/claude-agent-sdk` types for `HookEvent`.
+- REQ-MCC-7: The `SdkQueryOptions` type in `sdk-runner.ts` is extended with an optional `hooks` field. The type is `Partial<Record<HookEvent, HookCallbackMatcher[]>>`, imported from `@anthropic-ai/claude-agent-sdk`. The hook callback must return `Promise<HookJSONOutput>` (returning `{ continue: true }` for PostCompact). The `onCompactSummary` callback in MCC-5 is Guild Hall's internal interface; the `prepareSdkSession` implementation wraps it in an SDK-compatible `HookCallback` that extracts fields from `PostCompactHookInput` and returns the required `HookJSONOutput`.
 
-- MCC-8: When `onCompactSummary` is not provided (the default), no hooks are registered. Existing behavior is unchanged. Commission sessions do not provide this callback unless explicitly opted in (see MCC-15).
+- REQ-MCC-8: When `onCompactSummary` is not provided (the default), no hooks are registered. Existing behavior is unchanged. Commission sessions do not provide this callback unless explicitly opted in (see REQ-MCC-15).
 
 ### Session Loop: Map to GuildHallEvent
 
-- MCC-9: The `GuildHallEvent` union in `daemon/types.ts` gains a new variant:
+- REQ-MCC-9: The `GuildHallEvent` union in `daemon/types.ts` gains a new variant:
 
   ```typescript
   | { type: "context_compacted"; trigger: "manual" | "auto"; preTokens: number; summary?: string }
   ```
 
-  The `summary` field is optional because the stream event (MCC-1) arrives before the hook callback (MCC-5) delivers the summary. The two are correlated by timing within the same turn.
+  The `summary` field is optional because the stream event (REQ-MCC-1) arrives before the hook callback (REQ-MCC-5) delivers the summary. The two are correlated by timing within the same turn.
 
-- MCC-10: The `iterateSession` function in `session-loop.ts` maps the `SdkRunnerEvent` `context_compacted` event to the `GuildHallEvent` `context_compacted` event, decorating it with the meeting context. If a compact summary has been captured by the hook callback for this session, it is attached to the event.
+- REQ-MCC-10: The `iterateSession` function in `session-loop.ts` maps the `SdkRunnerEvent` `context_compacted` event to the `GuildHallEvent` `context_compacted` event, decorating it with the meeting context. If a compact summary has been captured by the hook callback for this session, it is attached to the event.
 
-- MCC-11: The meeting orchestrator wires the `onCompactSummary` callback into the `SessionPrepSpec` when building the meeting prep spec. The callback stores the most recent summary on the `ActiveMeetingEntry` (or a local variable scoped to the session loop) so `iterateSession` can attach it to the `context_compacted` GuildHallEvent.
+- REQ-MCC-11: The meeting orchestrator wires the `onCompactSummary` callback into the `SessionPrepSpec` when building the meeting prep spec. The callback stores the most recent summary on the `ActiveMeetingEntry` (or a local variable scoped to the session loop) so `iterateSession` can attach it to the `context_compacted` GuildHallEvent.
 
 ### Transcript Persistence
 
-- MCC-12: When a `context_compacted` event is encountered during `iterateSession`, a compaction marker is appended to the meeting transcript. The marker format is:
+- REQ-MCC-12: When a `context_compacted` event is encountered during `iterateSession`, a compaction marker is appended to the meeting transcript. The marker format is:
 
   ```
   ## Context Compacted (2026-03-23T14:30:00.000Z)
@@ -94,7 +94,7 @@ Out of scope:
 
   This uses the same file-append pattern as `appendAssistantTurn` and `appendUserTurn`. The summary blockquote is omitted if no summary was captured yet (the hook may fire slightly after the boundary message).
 
-- MCC-13: The transcript parser (`parseTranscriptMessages` in `transcript.ts`) recognizes `## Context Compacted` headings and produces a `TranscriptMessage` with a new role value or a dedicated type. This allows the web UI to render compaction events distinctly from user and assistant turns when displaying transcript history.
+- REQ-MCC-13: The transcript parser (`parseTranscriptMessages` in `transcript.ts`) recognizes `## Context Compacted` headings and produces a `TranscriptMessage` with a new role value or a dedicated type. This allows the web UI to render compaction events distinctly from user and assistant turns when displaying transcript history.
 
   Decision: Add a `'system'` role to `TranscriptMessage` rather than a separate type. This keeps the message array homogeneous and lets the UI handle it as a rendering variant. The `TranscriptMessage` type becomes:
 
@@ -109,7 +109,7 @@ Out of scope:
 
 ### Web UI Rendering
 
-- MCC-14: The `ChatInterface` component in `web/components/meeting/ChatInterface.tsx` handles the `context_compacted` SSE event. When received, it inserts a system message into the chat message list with a visual indicator that compaction occurred. The message shows:
+- REQ-MCC-14: The `ChatInterface` component in `web/components/meeting/ChatInterface.tsx` handles the `context_compacted` SSE event. When received, it inserts a system message into the chat message list with a visual indicator that compaction occurred. The message shows:
   - A brief label: "Context was compressed" (with trigger type and token count).
   - If a summary is present: an expandable section (e.g., `<details>`) showing the compact summary text.
 
@@ -117,23 +117,23 @@ Out of scope:
 
 ### Commission Sessions
 
-- MCC-15: Commission sessions emit the `context_compacted` `SdkRunnerEvent` from the event translator (this is automatic from MCC-1, since commissions use the same `runSdkSession` and `createStreamTranslator`). The commission orchestrator's `drainSdkSession` does not need to handle this event specially; it falls through as an unrecognized event type and is ignored.
+- REQ-MCC-15: Commission sessions emit the `context_compacted` `SdkRunnerEvent` from the event translator (this is automatic from REQ-MCC-1, since commissions use the same `runSdkSession` and `createStreamTranslator`). The commission orchestrator's `drainSdkSession` does not need to handle this event specially; it falls through as an unrecognized event type and is ignored.
 
-- MCC-16: Commission sessions do not register the `PostCompact` hook callback by default. The `onCompactSummary` field on `SessionPrepSpec` is not populated for commissions. Rationale: commissions are non-interactive. The user cannot act on the information during the session. The compaction event still appears in the SDK debug log (via `logSdkMessage`). If future work wants compaction in the commission timeline, it can opt in by providing the callback.
+- REQ-MCC-16: Commission sessions do not register the `PostCompact` hook callback by default. The `onCompactSummary` field on `SessionPrepSpec` is not populated for commissions. Rationale: commissions are non-interactive. The user cannot act on the information during the session. The compaction event still appears in the SDK debug log (via `logSdkMessage`). If future work wants compaction in the commission timeline, it can opt in by providing the callback.
 
 ## Design Decisions
 
 **Compact summary in transcript (permanent record) vs. transient UI notification.**
-Both. The `context_compacted` GuildHallEvent provides real-time notification via SSE (MCC-9, MCC-14). The transcript marker (MCC-12) provides the permanent record. The transcript is the meeting's source of truth; losing compaction events from it would mean the meeting notes generator has no visibility into context loss that occurred during the session.
+Both. The `context_compacted` GuildHallEvent provides real-time notification via SSE (REQ-MCC-9, REQ-MCC-14). The transcript marker (REQ-MCC-12) provides the permanent record. The transcript is the meeting's source of truth; losing compaction events from it would mean the meeting notes generator has no visibility into context loss that occurred during the session.
 
 **Compact summary storage: meeting notes system vs. separate state file.**
-Neither. The summary is stored inline in the transcript (MCC-12) as a `## Context Compacted` section. This is the simplest approach: no new file format, no new state directory, and the notes generator already reads the transcript. A separate state file would require cleanup on meeting close, and the notes system generates content at close time from the transcript, so the transcript is the right place.
+Neither. The summary is stored inline in the transcript (REQ-MCC-12) as a `## Context Compacted` section. This is the simplest approach: no new file format, no new state directory, and the notes generator already reads the transcript. A separate state file would require cleanup on meeting close, and the notes system generates content at close time from the transcript, so the transcript is the right place.
 
 **Hook callback timing vs. stream event timing.**
-The `SDKCompactBoundaryMessage` arrives in the stream; the `PostCompact` hook fires separately in the SDK's execution loop. They may not arrive in a predictable order. The design handles this by making the `summary` field optional on the `context_compacted` GuildHallEvent (MCC-9). If the summary arrives after the boundary message, the transcript append (MCC-12) can be updated with the summary when it arrives, or the summary can be written as a separate append. The implementation should prefer a brief buffering window (e.g., store the boundary event, wait for the hook within the same SDK iteration cycle, emit the combined event). If the hook fires first, store the summary and attach it when the boundary arrives.
+The `SDKCompactBoundaryMessage` arrives in the stream; the `PostCompact` hook fires separately in the SDK's execution loop. They may not arrive in a predictable order. The design handles this by making the `summary` field optional on the `context_compacted` GuildHallEvent (REQ-MCC-9). If the summary arrives after the boundary message, the transcript append (REQ-MCC-12) can be updated with the summary when it arrives, or the summary can be written as a separate append. The implementation should prefer a brief buffering window (e.g., store the boundary event, wait for the hook within the same SDK iteration cycle, emit the combined event). If the hook fires first, store the summary and attach it when the boundary arrives.
 
 **Commission opt-in.**
-Commissions get the stream event for free (MCC-15) but don't register the hook (MCC-16). This is the minimum viable approach. Adding commission timeline entries for compaction is a separate concern that doesn't block meeting surfacing.
+Commissions get the stream event for free (REQ-MCC-15) but don't register the hook (REQ-MCC-16). This is the minimum viable approach. Adding commission timeline entries for compaction is a separate concern that doesn't block meeting surfacing.
 
 ## Exit Points
 
