@@ -803,7 +803,7 @@ describe("TriggerEvaluator dynamic registration", () => {
     await h.writeTrigger("trigger-b.md", makeTriggerArtifact({
       matchType: "commission_status",
       matchFields: { status: "completed" },
-      worker: "guild-hall-test-engineer",
+      worker: "guild-hall-developer",
       prompt: "Test B for {{commissionId}}",
     }));
 
@@ -813,7 +813,7 @@ describe("TriggerEvaluator dynamic registration", () => {
 
     expect(h.createCalls).toHaveLength(2);
     const workers = h.createCalls.map((c) => c.workerName).sort();
-    expect(workers).toEqual(["guild-hall-reviewer", "guild-hall-test-engineer"]);
+    expect(workers).toEqual(["guild-hall-developer", "guild-hall-reviewer"]);
     h.triggerEvaluator.shutdown();
     h.cleanupRouter();
   });

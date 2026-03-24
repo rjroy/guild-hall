@@ -5,6 +5,9 @@ import GemIndicator from "@/web/components/ui/GemIndicator";
 import { statusToGem } from "@/lib/types";
 import type { TimelineEntry } from "@/lib/commissions";
 import styles from "./CommissionTimeline.module.css";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 
 export type TimelineTab = "all" | "worker" | "user" | "manager";
 
@@ -172,7 +175,13 @@ function TimelineEntryRow({ entry }: { entry: TimelineEntry }) {
             &#10003;
           </span>
           <span className={styles.eventContent}>
-            Result submitted{detail ? `: ${detail}` : ""}
+          {detail ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+              {`## Result submitted\n\n${detail}`}
+            </ReactMarkdown>
+          ) : (
+            <p>No result submitted.</p>
+          )}
           </span>
         </div>
       );

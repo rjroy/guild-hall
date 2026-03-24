@@ -68,10 +68,10 @@ export function artifactDomain(relativePath: string): string | null {
   return capitalize(parts[1]);
 }
 
-/** Excludes meetings/, commissions/, and root-level files from smart views. */
+/** Excludes meetings/ and commissions/ from smart views. */
 function isSmartViewCandidate(artifact: Artifact): boolean {
   const segment = artifactTypeSegment(artifact.relativePath);
-  if (segment === null) return false;
+  if (segment === null) return true;
   return !EXCLUDED_DIRECTORIES.has(segment);
 }
 

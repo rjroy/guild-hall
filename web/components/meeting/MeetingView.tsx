@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useDaemonStatus } from "@/web/components/ui/DaemonContext";
 import InlinePanel from "@/web/components/ui/InlinePanel";
 import ChatInterface from "./ChatInterface";
@@ -50,19 +50,6 @@ export default function MeetingView({
   const [closed, setClosed] = useState(false);
   const [notes, setNotes] = useState<string | undefined>(undefined);
 
-  // REQ-MTG-LAYOUT-19: Reactive sidebar relocation below 768px
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 768px)").matches;
-  });
-
-  useEffect(() => {
-    const mql = window.matchMedia("(max-width: 768px)");
-    setIsMobile(mql.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mql.addEventListener("change", handler);
-    return () => mql.removeEventListener("change", handler);
-  }, []);
 
   const projectHref = `/projects/${encodeURIComponent(projectName)}`;
 
@@ -174,19 +161,17 @@ export default function MeetingView({
           />
 
           {/* REQ-MTG-LAYOUT-19/20: Relocated sidebar content as collapsible panel */}
-          {isMobile && (
+          <div className={styles.mobileSidebar}>
             <InlinePanel label={`Artifacts (${artifacts.length})`}>
               {sidebarContent}
             </InlinePanel>
-          )}
+          </div>
         </div>
 
-        {/* REQ-MTG-LAYOUT-23: Sidebar hidden below 768px (content relocated above) */}
-        {!isMobile && (
-          <div className={styles.sidebar}>
-            {sidebarContent}
-          </div>
-        )}
+        {/* REQ-MTG-LAYOUT-23: Sidebar hidden below 768px via CSS */}
+        <div className={styles.sidebar}>
+          {sidebarContent}
+        </div>
       </div>
     </>
   );

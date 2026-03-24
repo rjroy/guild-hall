@@ -89,6 +89,8 @@
   /* Typography */
   --font-body: "Ysabeau Office", Georgia, serif;
   --font-code: "Source Code Pro", "Courier New", monospace;
+
+  scrollbar-color: var(--color-bronze) var(--color-dark-bg);
 }
 
 /* --- Reset --- */

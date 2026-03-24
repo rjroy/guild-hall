@@ -51,7 +51,7 @@ The repo is a monorepo with four top-level systems:
 - **`web/`** -- Next.js App Router UI (server components for reads, client components for interaction)
 - **`daemon/`** -- Hono server on a Unix socket (`~/.guild-hall/guild-hall.sock`), owns all write operations, meeting/commission sessions, and the EventBus
 - **`cli/`** -- Bun scripts for project registration, config validation, and git operations
-- **`packages/`** -- Worker and toolbox packages (developer, email, illuminator, replicate, researcher, reviewer, steward, test-engineer, visionary, writer, shared)
+- **`packages/`** -- Worker and toolbox packages (developer, email, illuminator, replicate, researcher, reviewer, steward, visionary, writer, shared)
 
 Supporting directories:
 

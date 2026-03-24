@@ -102,7 +102,6 @@ These are the natural feature groupings identified from entry point analysis. Ea
 | guild-hall-developer | `packages/guild-hall-developer/index.ts` | Uses shared activation pattern |
 | guild-hall-researcher | `packages/guild-hall-researcher/index.ts` | Uses shared activation pattern |
 | guild-hall-reviewer | `packages/guild-hall-reviewer/index.ts` | Uses shared activation pattern |
-| guild-hall-test-engineer | `packages/guild-hall-test-engineer/index.ts` | Uses shared activation pattern |
 | guild-hall-writer | `packages/guild-hall-writer/index.ts` | Uses shared activation pattern |
 | Shared activation | `packages/shared/worker-activation.ts` | Builds system prompt, sets model to opus |
 

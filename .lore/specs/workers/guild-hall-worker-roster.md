@@ -2,7 +2,7 @@
 title: Guild Hall Worker Roster
 date: 2026-02-25
 status: implemented
-tags: [workers, roster, posture, developer, reviewer, researcher, writer, test-engineer]
+tags: [workers, roster, posture, developer, reviewer, researcher, writer, steward]
 modules: [guild-hall-workers]
 related:
   - .lore/brainstorm/worker-roster-generic-workers.md
@@ -18,7 +18,7 @@ req-prefix: WRS
 
 ## Overview
 
-Guild Hall needs a practical default roster of generic workers so the manager can delegate real work. This spec defines five project-agnostic workers (Developer, Code Reviewer, Researcher, Technical Writer, Test Engineer), their required metadata, posture depth, and validation criteria. This spec specializes worker identity and posture selection behavior while preserving the core worker runtime contract defined in the Workers and System specs.
+Guild Hall needs a practical default roster of generic workers so the manager can delegate real work. This spec defines five project-agnostic workers (Developer, Code Reviewer, Researcher, Technical Writer, Steward), their required metadata, posture depth, and validation criteria. The Test Engineer role (Sable) was retired and absorbed into the Developer (Dalton), whose revised character internalizes testing and quality as craft pride rather than external compliance. See `.lore/plans/workers/dalton-soul-revision.md` for the rationale. This spec specializes worker identity and posture selection behavior while preserving the core worker runtime contract defined in the Workers and System specs.
 
 ## Entry Points
 
@@ -28,7 +28,7 @@ Guild Hall needs a practical default roster of generic workers so the manager ca
 
 ## Requirements
 
-- REQ-WRS-1: The default generic roster MUST include five worker packages: `guild-hall-developer`, `guild-hall-reviewer`, `guild-hall-researcher`, `guild-hall-writer`, and `guild-hall-test-engineer`. Additional workers MAY coexist.
+- REQ-WRS-1: The default generic roster MUST include five worker packages: `guild-hall-developer`, `guild-hall-reviewer`, `guild-hall-researcher`, `guild-hall-writer`, and `guild-hall-steward`. Additional workers MAY coexist.
 
 - REQ-WRS-2: Each roster worker MUST conform to the existing worker package API in [Spec: guild-hall-workers](guild-hall-workers.md) (identity metadata, posture, toolbox requirements, built-in tool requirements, checkout scope, resource defaults). This spec does not introduce a new package contract.
 
@@ -44,7 +44,7 @@ Guild Hall needs a practical default roster of generic workers so the manager ca
 
 - REQ-WRS-8: Technical Writer MUST be configured for documentation work with full checkout scope and explicit requirement to verify technical claims against actual code/configuration.
 
-- REQ-WRS-9: Test Engineer MUST be configured for verification work with full checkout scope, base file tools plus Bash, and testing-focused posture standards.
+- REQ-WRS-9: ~~Test Engineer MUST be configured for verification work.~~ **Retired.** The Test Engineer role (Sable) was absorbed into the Developer (Dalton). Testing responsibilities are now part of the Developer's character and workflow, not a separate worker.
 
 - REQ-WRS-10: Worker `description` metadata MUST be written so manager routing is unambiguous by task intent (implement, review, research, document, test).
 
@@ -68,7 +68,7 @@ Guild Hall needs a practical default roster of generic workers so the manager ca
 - [ ] Worker selection from descriptions passes predefined routing fixtures for representative intents
 - [ ] Reviewer commissions produce structured findings without code edits
 - [ ] Researcher commissions can produce source-backed recommendations and optional `.lore` artifacts
-- [ ] Developer and Test Engineer can execute build/test commands when required
+- [ ] Developer can execute build/test commands when required
 - [ ] Writer output references verified code/config behavior
 - [ ] `sample-assistant` is removed without breaking worker discovery or existing flows
 

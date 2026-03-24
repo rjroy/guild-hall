@@ -10,7 +10,7 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 Core systems are built and stable. 3145 tests pass across 137 files. Active development is issue-driven.
 
-**What exists:** Web UI (dashboard, project views, artifact browser, meeting/commission viewers), daemon (REST API over Unix socket), CLI (project management, content migration), 10 worker packages (developer, email, illuminator, replicate, researcher, reviewer, steward, test-engineer, visionary, writer), Guild Master coordination, project briefings, scheduled commissions, model selection (cloud and local), memory system, domain plugins, injectable logging, and package skill handlers.
+**What exists:** Web UI (dashboard, project views, artifact browser, meeting/commission viewers), daemon (REST API over Unix socket), CLI (project management, content migration), 9 worker packages (developer, email, illuminator, replicate, researcher, reviewer, steward, visionary, writer), Guild Master coordination, project briefings, scheduled commissions, model selection (cloud and local), memory system, domain plugins, injectable logging, and package skill handlers.
 
 ## Architecture
 
@@ -106,7 +106,6 @@ All packages live in `packages/`. Each has a `package.json` with worker metadata
 | `guild-hall-researcher` | Investigation and analysis | |
 | `guild-hall-reviewer` | Code review and quality | |
 | `guild-hall-writer` | Documentation and artifacts | Has `cleanup-commissions` domain plugin |
-| `guild-hall-test-engineer` | Testing | |
 | `guild-hall-steward` | Project maintenance | |
 | `guild-hall-visionary` | Vision and strategic direction | |
 | `guild-hall-illuminator` | Image generation and analysis | Full project checkout scope |

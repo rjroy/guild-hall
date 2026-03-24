@@ -33,7 +33,6 @@ Workers are specialist AI agents that execute meetings and commissions. Each wor
 | Developer | guild-hall-developer | full | Read, Glob, Grep, Write, Edit, Bash | (none) | (none) | 80 |
 | Researcher | guild-hall-researcher | sparse | Read, Glob, Grep, WebSearch, WebFetch | (none) | (none) | 70 |
 | Reviewer | guild-hall-reviewer | full | Read, Glob, Grep | (none) | (none) | 60 |
-| Test Engineer | guild-hall-test-engineer | full | Read, Glob, Grep, Write, Edit, Bash | (none) | (none) | 80 |
 | Writer | guild-hall-writer | full | Read, Glob, Grep, Write, Edit | (none) | (none) | 60 |
 
 All workers use `model: "opus"`. The Researcher uses `sparse` checkout (`.lore/` only) since it doesn't need full repo access.

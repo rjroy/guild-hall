@@ -77,17 +77,6 @@ export default function CommissionView({
   const [artifacts, setArtifacts] = useState<CommissionArtifact[]>(initialArtifacts);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 768px)").matches;
-  });
-
-  useEffect(() => {
-    const mql = window.matchMedia("(max-width: 768px)");
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mql.addEventListener("change", handler);
-    return () => mql.removeEventListener("change", handler);
-  }, []);
 
   // Track whether the commission is in a live state (worth subscribing to SSE).
   // Queued commissions need SSE to receive commission_dequeued when capacity opens.
@@ -330,17 +319,15 @@ export default function CommissionView({
 
         </div>
 
-        {!isMobile && (
-          <div className={styles.sidebar}>
-            {sidebarContent}
-          </div>
-        )}
+        <div className={styles.sidebar}>
+          {sidebarContent}
+        </div>
       </div>
-      {isMobile && (
+      <div className={styles.mobileSidebar}>
         <InlinePanel label="Details">
           {sidebarContent}
         </InlinePanel>
-      )}
+      </div>
     </>
   );
 }

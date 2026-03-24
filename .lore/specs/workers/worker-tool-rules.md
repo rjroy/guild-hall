@@ -60,20 +60,6 @@ Source: `packages/guild-hall-developer/package.json`
 
 ---
 
-### Sable (Guild Breaker, test engineer)
-
-**Current `builtInTools`:** `["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"]`
-
-Source: `packages/guild-hall-test-engineer/package.json`
-
-- REQ-WTR-2: Sable MUST NOT have `can-use-toolRules`. The Phase 1 SDK sandbox is sufficient.
-
-**Reasoning:** Same rationale as Dalton. Sable needs full Bash to run test suites, invoke test runners with arbitrary flags, compile test fixtures, and debug test failures. Test engineering requires the same command diversity as development. The sandbox boundary (worktree-scoped writes, no network) is sufficient.
-
-**Package change:** None.
-
----
-
 ### Octavia (Guild Chronicler, writer)
 
 **Current `builtInTools`:** `["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"]`

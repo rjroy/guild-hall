@@ -12,6 +12,8 @@
   flex-direction: column;
   gap: var(--space-md);
   overflow-y: auto;
+  border: 1px solid var(--color-bronze);
+  border-radius: 6px;
 }
 
 .sidebar {
@@ -23,6 +25,19 @@
   overflow-y: auto;
 }
 
+.mobileSidebar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+
+  .mobileSidebar {
+    display: block;
+  }
+}
 
 @media (max-width: 480px) {
   .content {

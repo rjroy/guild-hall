@@ -24,12 +24,6 @@
     "expectedRole": "writer"
   },
   {
-    "name": "test representative",
-    "kind": "representative",
-    "intent": "Test cancellation flow, reproduce failures, and report regression status.",
-    "expectedRole": "test-engineer"
-  },
-  {
     "name": "steward representative",
     "kind": "representative",
     "intent": "Triage my inbox for the past week and flag anything urgent.",
@@ -58,12 +52,6 @@
     "kind": "adversarial",
     "intent": "Write a concise operator guide for the test workflow using verified commands.",
     "expectedRole": "writer"
-  },
-  {
-    "name": "test adversarial",
-    "kind": "adversarial",
-    "intent": "Verify the docs example commands pass in CI and capture pass/fail evidence.",
-    "expectedRole": "test-engineer"
   },
   {
     "name": "steward adversarial",

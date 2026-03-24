@@ -23,6 +23,7 @@
 .headerCondensed {
   padding: var(--space-xs) var(--space-md);
   margin-bottom: var(--space-sm);
+  cursor: pointer;
 }
 
 /* --- Toggle button --- */

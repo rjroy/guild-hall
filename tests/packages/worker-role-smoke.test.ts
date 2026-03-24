@@ -5,10 +5,9 @@ import { activate as activateDeveloper } from "@/packages/guild-hall-developer";
 import { activate as activateReviewer } from "@/packages/guild-hall-reviewer";
 import { activate as activateResearcher } from "@/packages/guild-hall-researcher";
 import { activate as activateWriter } from "@/packages/guild-hall-writer";
-import { activate as activateTestEngineer } from "@/packages/guild-hall-test-engineer";
 import { activate as activateSteward } from "@/packages/guild-hall-steward";
 
-type RoleLabel = "developer" | "reviewer" | "researcher" | "writer" | "test-engineer" | "steward";
+type RoleLabel = "developer" | "reviewer" | "researcher" | "writer" | "steward";
 
 const PACKAGES_DIR = path.resolve(__dirname, "../../packages");
 
@@ -96,13 +95,6 @@ describe("worker role smoke tests", () => {
     expect(result.systemPrompt).toContain("documentation-first and reader-oriented");
   });
 
-  test("test engineer posture is present in activation output", async () => {
-    const metadata = await readWorkerMetadata("guild-hall-test-engineer");
-    const result = activateTestEngineer(makeActivationContext(metadata.posture, metadata.soul));
-
-    expect(result.systemPrompt).toContain("verification-first and evidence-based");
-  });
-
   test("steward posture enforces advisory-only behavior", async () => {
     const metadata = await readWorkerMetadata("guild-hall-steward");
     const result = activateSteward(makeActivationContext(metadata.posture, metadata.soul));
@@ -120,7 +112,7 @@ describe("worker role smoke tests", () => {
       reviewer: "guild-hall-reviewer",
       researcher: "guild-hall-researcher",
       writer: "guild-hall-writer",
-      "test-engineer": "guild-hall-test-engineer",
+
       steward: "guild-hall-steward",
     };
 
@@ -129,7 +121,7 @@ describe("worker role smoke tests", () => {
       reviewer: activateReviewer,
       researcher: activateResearcher,
       writer: activateWriter,
-      "test-engineer": activateTestEngineer,
+
       steward: activateSteward,
     };
 
@@ -149,7 +141,7 @@ describe("worker role smoke tests", () => {
       reviewer: "guild-hall-reviewer",
       researcher: "guild-hall-researcher",
       writer: "guild-hall-writer",
-      "test-engineer": "guild-hall-test-engineer",
+
       steward: "guild-hall-steward",
     };
 
@@ -158,7 +150,7 @@ describe("worker role smoke tests", () => {
       reviewer: activateReviewer,
       researcher: activateResearcher,
       writer: activateWriter,
-      "test-engineer": activateTestEngineer,
+
       steward: activateSteward,
     };
 
