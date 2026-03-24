@@ -1,7 +1,7 @@
 ---
 title: Triggered commission creation UX
 date: 2026-03-23
-status: active
+status: approved
 tags: [ui, commissions, triggers, form, client-component, plan]
 modules: [web/components/commission/CommissionForm]
 related:
