@@ -1,0 +1,9 @@
+{
+  "name": "guild-compendium",
+  "version": "0.1.0",
+  "guildHall": {
+    "type": "plugin",
+    "name": "guild-compendium",
+    "description": "Curated craft knowledge for the guild. Reference entries covering domains encountered during commissions and meetings."
+  }
+}

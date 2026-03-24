@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 name: propose-entry
 description: Propose a new compendium entry when you notice a knowledge gap during work. Use when the compendium doesn't cover a domain you need, when a topic would benefit from a reference entry, when you encounter a recurring pattern that should be documented, or when no compendium entry exists for a topic you're working in. Triggers include "compendium gap", "propose entry", "needs a reference entry", "compendium doesn't cover this".
@@ -61,3 +62,6 @@ Filing the proposal is a side action. Return to your primary task after writing 
 - **Does not write to the compendium.** Proposals go to `.lore/issues/`. The compendium is populated through a deliberate path: research, user review, explicit commit.
 - **Does not guarantee acceptance.** A proposal is a signal, not a commitment. The user decides what belongs in the compendium.
 - **Does not trigger automatically.** You decide when a gap is worth proposing based on the evidence from your current work.
+=======
+Skill content pending.
+>>>>>>> claude/commission/commission-Dalton-20260323-225538

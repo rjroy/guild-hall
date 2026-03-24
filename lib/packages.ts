@@ -75,9 +75,16 @@ export const toolboxMetadataSchema = z.object({
   description: z.string(),
 });
 
+export const pluginMetadataSchema = z.object({
+  type: z.literal("plugin"),
+  name: z.string(),
+  description: z.string(),
+});
+
 export const packageMetadataSchema = z.union([
   workerMetadataSchema,
   toolboxMetadataSchema,
+  pluginMetadataSchema,
 ]);
 
 // -- Discovery --

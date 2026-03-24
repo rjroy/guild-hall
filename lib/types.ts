@@ -206,7 +206,17 @@ export interface ToolboxMetadata {
   description: string;
 }
 
-export type PackageMetadata = WorkerMetadata | ToolboxMetadata;
+/**
+ * Metadata for a plugin package. Plugin packages contain only a Claude Code
+ * plugin directory (skills, hooks, etc.) with no worker identity or toolbox factory.
+ */
+export interface PluginMetadata {
+  type: "plugin";
+  name: string;
+  description: string;
+}
+
+export type PackageMetadata = WorkerMetadata | ToolboxMetadata | PluginMetadata;
 
 /**
  * A package discovered on disk. The name comes from package.json's name field,

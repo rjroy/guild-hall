@@ -1,7 +1,7 @@
 ---
 title: "Commission: Research: TypeScript practices craft knowledge"
 date: 2026-03-24
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Verity
@@ -14,6 +14,11 @@ activity_timeline:
   - timestamp: 2026-03-24T05:56:21.339Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-24T05:58:30.340Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
