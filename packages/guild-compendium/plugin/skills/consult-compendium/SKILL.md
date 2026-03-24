@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ---
 name: consult-compendium
 description: Consult the guild's craft knowledge compendium for reference material relevant to the current task. Use when starting a code review, writing a spec, beginning implementation from a plan, writing a commission prompt, working with TypeScript patterns, generating images, designing visual assets, conducting strategic analysis, or entering any domain the compendium covers. Triggers include "check the compendium", "consult reference", "craft guidance", "reference entries".
@@ -64,6 +63,3 @@ Entries are self-contained. You can understand the topic from a single entry wit
 - **Does not inject content automatically.** You pull what you need via file reads. No context window cost when the material isn't relevant.
 - **Does not modify your behavior.** The reference material informs; your posture directs.
 - **Does not require all entries be read.** Read what's relevant. Skip what isn't.
-=======
-Skill content pending.
->>>>>>> claude/commission/commission-Dalton-20260323-225538
