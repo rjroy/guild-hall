@@ -121,6 +121,8 @@ The frontmatter carries `domain` for categorization, `last_updated` for stalenes
 
 They should be concise. These aren't textbooks. A reference entry on spec writing might be 500-1000 words: enough to orient a worker, not enough to become noise. The compendium's value is density. If an entry is long enough that a worker wouldn't read the whole thing, it's too long.
 
+USER NOTE: I'd counter this just a little. Correct they aren't textbooks, but the compendium as a whole could be. So good frontmatter can make searching for information efficient, like an index. Then each entry is a section within the textbook. And a directory could be an entire textbook. Agreed we still need to be precise.
+
 ### Initial scope
 
 Start with entries matching the guild's actual work domains:
@@ -132,6 +134,8 @@ Start with entries matching the guild's actual work domains:
 - `commission-prompts.md` (what makes a good commission prompt, common gaps)
 
 This is a starting set, not a fixed list. The user decides when new entries belong.
+
+USER NOTE: I wouldn't just use what is in guild-hall. In fact I'd counter with this should be actual research. What is out there in the ether as the collective wisdom.
 
 ## How Agents Access the Compendium
 
@@ -149,6 +153,8 @@ This is the same pattern as how agents currently use skills: the skill exists, t
 
 Both approaches work within existing plugin mechanics.
 
+USER NOTE: Need to do use the `plugin-dev` `skill-development` agent to make sure the skill is well written.
+
 ## The Population Workflow
 
 The user identifies a gap. Something goes wrong in a commission, or a pattern shows up in retros, or the user simply notices that workers lack knowledge in a domain. Then:
@@ -158,6 +164,8 @@ The user identifies a gap. Something goes wrong in a commission, or a pattern sh
 The user commissions Verity to research the question: "What makes a good spec?" Verity does what Verity does: gathers external context, reads prior art, consults existing lore artifacts. The output is a research document in `.lore/research/`. The user reviews it. If it's worth encoding as standing craft knowledge, the user (or Octavia) distills the research into a compendium entry and commits it to `packages/guild-compendium/plugin/reference/`.
 
 This is the highest-quality path. Research commissions produce thorough, sourced material. The distillation step ensures only the actionable parts make it into the compendium.
+
+USER NOTE: This is my prefered mechnism for the initial generation.
 
 ### Option 2: Direct write
 
@@ -195,6 +203,8 @@ This skill is passive guidance. It doesn't change the worker's posture or identi
 
 This skill doesn't write to the compendium directly. It proposes. The user decides.
 
+USER NOTE: I like this idea. as a skill it'll be in the agents knowledge. This gives it license to propose entries where it felt there was something missing. And as an issue gives the user license to ignore the request.
+
 ### Maybe: `update-entry`
 
 **Trigger:** User asks a worker to update an existing compendium entry based on new experience.
@@ -202,6 +212,8 @@ This skill doesn't write to the compendium directly. It proposes. The user decid
 **Behavior:** Reads the existing entry, reads relevant retros or research, produces an updated draft. This would need Write access to the plugin directory, which raises a question about whether workers should modify the compendium package during commissions. Probably not: compendium updates should be deliberate, not side effects of other work. The user would run a dedicated commission for this.
 
 This skill might not be needed at launch. Updates can be direct writes or dedicated commissions.
+
+USER NOTE: Nah. This tightens the loop too much. It needs to be difficult to prevent hallucinations.
 
 ## Comparison: Plugin Model vs. Original `~/.guild-hall/compendium/`
 
@@ -219,9 +231,15 @@ This skill might not be needed at launch. Updates can be direct writes or dedica
 
 **Automatic domain matching.** The original proposal had `prepareSdkSession` match compendium entries to commission task types: a code review commission gets the code review entry. With the plugin model, the agent or its posture handles that matching. This is arguably better (agents can judge relevance in context) but less automatic.
 
+USER NOTE: I disagree that this would even have been efective. We'd have needed an LLM to determine which domain file was helpful. Why do that when that's what SKILL progressive discovery is for?
+
 **Guild Master curation role.** The original proposal had the Guild Master propose compendium entries as a post-retro step. The plugin model puts curation entirely with the user. The Guild Master could still propose (via `propose-entry` skill findings), but it's less integrated into the retro workflow.
 
+USER NOTE: I think this tightened the loop too much. We actually have a haiku system which pulls things from commissions as memory. We could extend that to leverage the `propose-entry` skill.
+
 **Global scope.** `~/.guild-hall/compendium/` would be shared across all projects. A package in `packages/` belongs to the repo where it lives. If the user wants the same compendium across multiple Guild Hall projects, they'd need to either copy the package or publish it. For a single-project setup (which is the current reality), this doesn't matter.
+
+USER NOTE: This is a false statement. The `packages` folder is per installation which is used for multiple projects. This is just false.
 
 ### Net assessment
 
