@@ -12,7 +12,7 @@
     },
     "model": "sonnet",
     "domainToolboxes": ["guild-hall-replicate"],
-    "domainPlugins": [],
+    "domainPlugins": ["guild-compendium"],
     "builtInTools": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
     "checkoutScope": "full"
   }

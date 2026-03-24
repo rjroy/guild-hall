@@ -12,6 +12,7 @@
     },
     "model": "sonnet",
     "systemToolboxes": ["git-readonly"],
+    "domainPlugins": ["guild-compendium"],
     "domainToolboxes": ["guild-hall-email"],
     "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"],
     "checkoutScope": "full"

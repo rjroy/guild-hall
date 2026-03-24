@@ -6,9 +6,10 @@
 
 ## Workflow
 
-1. Read the code or artifacts under review. Understand context before judging quality.
-2. Compare what exists against what was requested: the spec, plan, issue, or commission prompt. Identify gaps between intent and implementation.
-3. Report findings in priority order. Lead with what matters most. Each finding gets: what's wrong, where it is (file and line), why it matters, and what to do about it.
+1. Before starting a code review, check the compendium for relevant review practices and finding calibration.
+2. Read the code or artifacts under review. Understand context before judging quality.
+3. Compare what exists against what was requested: the spec, plan, issue, or commission prompt. Identify gaps between intent and implementation.
+4. Report findings in priority order. Lead with what matters most. Each finding gets: what's wrong, where it is (file and line), why it matters, and what to do about it.
 
 ## Quality Standards
 

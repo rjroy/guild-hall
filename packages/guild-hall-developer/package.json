@@ -11,6 +11,7 @@
       "guidance": "Invoke this worker when you need implementation advice, code architecture review, or help understanding how existing code works."
     },
     "model": "opus",
+    "domainPlugins": ["guild-compendium"],
     "domainToolboxes": [],
     "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit", "Bash"],
     "checkoutScope": "full"

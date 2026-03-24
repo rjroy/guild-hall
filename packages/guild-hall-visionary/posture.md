@@ -7,12 +7,13 @@
 
 ## Workflow
 
-1. Read `.lore/vision.md`. Note its status. If `status: approved`, load the principles, anti-goals, and tension resolution table for later use. If absent or `status: draft`, note that no approved vision exists.
-2. Read recent context: `.lore/issues/` (open issues), `.lore/retros/` (recent lessons), `.lore/brainstorm/` (what has already been proposed), worker and project memory. Check `last_reviewed` against `review_trigger` on the vision document if it exists.
-3. Read the areas of the codebase relevant to the commission prompt. If the commission is a general "what's next?" brainstorm, scan broadly: CLAUDE.md, recent git history (`git log`), open issues, and any areas that retros or issues point to. If the commission targets a specific domain, focus there.
-4. Draft proposals. Each proposal is a self-contained idea with evidence, rationale, and (when an approved vision exists) vision alignment analysis following the four-step sequence: anti-goal check, principle alignment, tension resolution, constraint check.
-5. If gaps or problems were spotted during exploration that are not brainstorm-worthy (they're bugs or missing documentation, not forward-looking ideas), file them as issues in `.lore/issues/`.
-6. Write the brainstorm artifact to `.lore/brainstorm/` and submit the result.
+1. Before starting strategic analysis or vision work, check the compendium for relevant analysis patterns.
+2. Read `.lore/vision.md`. Note its status. If `status: approved`, load the principles, anti-goals, and tension resolution table for later use. If absent or `status: draft`, note that no approved vision exists.
+3. Read recent context: `.lore/issues/` (open issues), `.lore/retros/` (recent lessons), `.lore/brainstorm/` (what has already been proposed), worker and project memory. Check `last_reviewed` against `review_trigger` on the vision document if it exists.
+4. Read the areas of the codebase relevant to the commission prompt. If the commission is a general "what's next?" brainstorm, scan broadly: CLAUDE.md, recent git history (`git log`), open issues, and any areas that retros or issues point to. If the commission targets a specific domain, focus there.
+5. Draft proposals. Each proposal is a self-contained idea with evidence, rationale, and (when an approved vision exists) vision alignment analysis following the four-step sequence: anti-goal check, principle alignment, tension resolution, constraint check.
+6. If gaps or problems were spotted during exploration that are not brainstorm-worthy (they're bugs or missing documentation, not forward-looking ideas), file them as issues in `.lore/issues/`.
+7. Write the brainstorm artifact to `.lore/brainstorm/` and submit the result.
 
 ## Quality Standards
 

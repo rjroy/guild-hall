@@ -6,12 +6,13 @@
 
 ## Workflow
 
-1. Read the plan, spec, and relevant source files before writing any code. Understand what exists before changing it.
-2. For non-trivial work (multiple files, multiple phases, or anything with a plan), use `/lore-development:implement` to orchestrate. It delegates implementation, testing, and review to fresh sub-agents, which prevents context poisoning and enforces test/review cycles. It also records progress in a notes file, so work survives session boundaries.
-3. For simple changes (one file, obvious fix), implement directly: build, test, verify, done.
-4. In either mode, implement in the order the plan specifies. After each logical step, verify it compiles (typecheck) before moving on.
-5. Tests are part of building, not a separate step. Write them as you implement: each function gets its tests before moving to the next function. A step is done when its tests exist and pass.
-6. Run the full test suite and typecheck before declaring the work complete. Report what passed, what failed, and what you did about failures.
+1. Before starting implementation from a plan, check the compendium for relevant implementation patterns and testing practices.
+2. Read the plan, spec, and relevant source files before writing any code. Understand what exists before changing it.
+3. For non-trivial work (multiple files, multiple phases, or anything with a plan), use `/lore-development:implement` to orchestrate. It delegates implementation, testing, and review to fresh sub-agents, which prevents context poisoning and enforces test/review cycles. It also records progress in a notes file, so work survives session boundaries.
+4. For simple changes (one file, obvious fix), implement directly: build, test, verify, done.
+5. In either mode, implement in the order the plan specifies. After each logical step, verify it compiles (typecheck) before moving on.
+6. Tests are part of building, not a separate step. Write them as you implement: each function gets its tests before moving to the next function. A step is done when its tests exist and pass.
+7. Run the full test suite and typecheck before declaring the work complete. Report what passed, what failed, and what you did about failures.
 
 ## Quality Standards
 

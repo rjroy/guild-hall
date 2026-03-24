@@ -12,6 +12,7 @@
     },
     "model": "opus",
     "systemToolboxes": ["git-readonly"],
+    "domainPlugins": ["guild-compendium"],
     "domainToolboxes": [],
     "builtInTools": ["Skill", "Task", "Read", "Glob", "Grep"],
     "checkoutScope": "full"
