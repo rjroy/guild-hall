@@ -1,7 +1,7 @@
 ---
 title: "Commission: Guild Compendium: Distill research into reference entries (Step 8)"
 date: 2026-03-24
-status: dispatched
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -35,6 +35,14 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-24T07:21:57.952Z
+    event: status_cancelled
+    reason: "Commission cancelled by user"
+  - timestamp: 2026-03-24T07:22:04.504Z
+    event: status_abandoned
+    reason: "Something is wrong need start over."
+    from: "cancelled"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---
