@@ -1,7 +1,7 @@
 ---
 title: "Commission: Dalton soul and posture revision (steps 1-4)"
 date: 2026-03-24
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -14,6 +14,11 @@ activity_timeline:
   - timestamp: 2026-03-24T03:41:43.160Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-24T03:41:50.196Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
