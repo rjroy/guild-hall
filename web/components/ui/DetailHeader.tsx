@@ -89,19 +89,8 @@ export default function DetailHeader({
     <div
       className={containerClass}
       style={{ maxHeight }}
-      onClick={handleCondensedClick}
       role={condensed ? "button" : undefined}
       tabIndex={condensed ? 0 : undefined}
-      onKeyDown={
-        condensed
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setCondensed(false);
-              }
-            }
-          : undefined
-      }
     >
       {condensed
         ? condensedContent(toggleButton)
