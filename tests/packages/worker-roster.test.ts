@@ -78,7 +78,7 @@ const expectedPostureGuardrails: Record<string, RegExp[]> = {
   ],
   "guild-hall-developer": [
     /follow the plan/i,
-    /write tests alongside/i,
+    /tests are part of building/i,
     /run the full test suite/i,
   ],
   "guild-hall-test-engineer": [
