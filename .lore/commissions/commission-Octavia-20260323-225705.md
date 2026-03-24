@@ -1,7 +1,7 @@
 ---
 title: "Commission: Guild Compendium: Distill research into reference entries (Step 8)"
 date: 2026-03-24
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -20,6 +20,11 @@ activity_timeline:
   - timestamp: 2026-03-24T05:57:05.935Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-24T05:57:39.836Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---
