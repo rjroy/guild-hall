@@ -1,7 +1,7 @@
 ---
 title: "Review: Remove Budget Controls Phase 1"
 date: 2026-03-22
-status: complete
+status: archived
 tags: [review, commissions, budget-removal]
 reviewer: Thorne
 commission: commission-Dalton-20260322-124224
