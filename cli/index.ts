@@ -19,6 +19,11 @@ import {
 } from "./format";
 import type { HelpNode } from "./format";
 import { streamOperation } from "./stream";
+import {
+  getCommissionFormatter,
+  isCommissionAction,
+  formatActionConfirmation,
+} from "./commission-format";
 
 /**
  * Fetches the flat operation list from the daemon.
@@ -166,6 +171,17 @@ async function main(): Promise<void> {
         process.exit(1);
       }
 
+      if (!jsonMode) {
+        const customFormatter = getCommissionFormatter(skill.invocation.path);
+        if (customFormatter) {
+          console.log(customFormatter(data));
+          return;
+        }
+        if (isCommissionAction(skill.invocation.path)) {
+          console.log(formatActionConfirmation(data, skill, positionalArgs));
+          return;
+        }
+      }
       console.log(formatResponse(data, jsonMode));
     }
   }

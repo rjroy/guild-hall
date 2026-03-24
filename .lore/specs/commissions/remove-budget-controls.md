@@ -6,7 +6,7 @@ tags: [commissions, simplification, budget, resource-limits, halted-state]
 modules: [guild-hall-core]
 related:
   - .lore/specs/commissions/guild-hall-commissions.md
-  - .lore/specs/commissions/commission-halted-continuation.md
+  - .lore/_abandoned/specs/commission-halted-continuation.md
   - .lore/specs/commissions/guild-hall-scheduled-commissions.md
   - .lore/specs/infrastructure/model-selection.md
   - .lore/specs/workers/guild-hall-workers.md

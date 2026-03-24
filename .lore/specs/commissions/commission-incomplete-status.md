@@ -1,13 +1,13 @@
 ---
 title: Commission Incomplete Status
 date: 2026-03-20
-status: wontfix
+status: superseded
 tags: [commissions, lifecycle, incomplete, toolbox, event-bus, triage]
 modules: [daemon/services/commission/orchestrator, daemon/services/commission/lifecycle, daemon/services/commission/toolbox, daemon/lib/event-bus, daemon/types]
 related:
   - .lore/brainstorm/worker-sub-agents-and-mail-removal.md
   - .lore/specs/commissions/guild-hall-commissions.md
-  - .lore/specs/commissions/commission-halted-continuation.md
+  - .lore/_abandoned/specs/commission-halted-continuation.md
   - .lore/specs/infrastructure/event-router.md
   - .lore/specs/infrastructure/commission-outcomes-to-memory.md
   - .lore/brainstorm/triggered-commissions.md

@@ -6,7 +6,7 @@ tags: [ui, commissions, halted, client-component, plan]
 modules: [commission-actions, api-proxy]
 related:
   - .lore/specs/ui/halted-commission-actions.md
-  - .lore/specs/commissions/commission-halted-continuation.md
+  - .lore/_abandoned/specs/commission-halted-continuation.md
   - .lore/brainstorm/halted-commission-ui.md
 ---
 

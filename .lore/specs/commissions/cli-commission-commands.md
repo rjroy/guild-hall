@@ -1,14 +1,14 @@
 ---
 title: CLI Commission Commands
 date: 2026-03-20
-status: approved
+status: implemented
 tags: [cli, commissions, lifecycle, daemon-client, operations]
 modules: [cli, daemon/routes/commissions]
 related:
   - .lore/specs/infrastructure/cli-progressive-discovery.md
   - .lore/specs/infrastructure/daemon-application-boundary.md
   - .lore/specs/commissions/guild-hall-commissions.md
-  - .lore/specs/commissions/commission-halted-continuation.md
+  - .lore/_abandoned/specs/commission-halted-continuation.md
   - .lore/specs/commissions/triggered-commissions.md
 req-prefix: CLI-COM
 ---

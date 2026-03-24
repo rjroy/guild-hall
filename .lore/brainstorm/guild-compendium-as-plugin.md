@@ -1,7 +1,7 @@
 ---
 title: "Guild Compendium as Plugin Package"
 date: 2026-03-23
-status: draft
+status: resolved
 tags: [compendium, plugins, craft-knowledge, packages, domain-plugins, reference]
 modules: [packages, sdk-runner, toolbox-resolver, lib-packages]
 related:

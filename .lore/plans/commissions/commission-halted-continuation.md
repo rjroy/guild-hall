@@ -5,7 +5,7 @@ status: executed
 tags: [commissions, lifecycle, halted, continuation, max-turns, recovery]
 modules: [commission/lifecycle, commission/orchestrator, manager-toolbox, commission-routes, lib/commissions, daemon/types]
 related:
-  - .lore/specs/commissions/commission-halted-continuation.md
+  - .lore/_abandoned/specs/commission-halted-continuation.md
   - .lore/specs/commissions/guild-hall-commissions.md
   - .lore/plans/commissions/abandoned-commission-state.md
 ---
@@ -14,7 +14,7 @@ related:
 
 ## Spec Reference
 
-**Spec**: `.lore/specs/commissions/commission-halted-continuation.md`
+**Spec**: `.lore/_abandoned/specs/commission-halted-continuation.md`
 
 Requirements addressed:
 - REQ-COM-33: `halted` status definition → Phase 1
@@ -467,7 +467,7 @@ Do NOT rely on the existing tracked path in `abandonCommission` because it does 
 
 ### Phase 7: Validate against spec
 
-Launch a sub-agent that reads the spec at `.lore/specs/commissions/commission-halted-continuation.md`, reviews the implementation, and verifies every success criterion. This step is not optional.
+Launch a sub-agent that reads the spec at `.lore/_abandoned/specs/commission-halted-continuation.md`, reviews the implementation, and verifies every success criterion. This step is not optional.
 
 **Success criteria checklist:**
 - [ ] `halted` is a valid commission status with correct transitions in the state machine

@@ -31,12 +31,12 @@
 .toggleButton {
   background: none;
   border: 1px solid var(--color-brass);
-  border-radius: 4px;
+  border-radius: 5px;
   color: var(--color-brass);
   cursor: pointer;
-  font-size: 0.65rem;
+  font-size: 0.80rem;
   line-height: 1;
-  padding: 2px 6px;
+  padding: 4px 7px;
   transition: color 0.2s, border-color 0.2s;
   flex-shrink: 0;
 }

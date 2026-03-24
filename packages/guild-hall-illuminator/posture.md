@@ -9,6 +9,8 @@
 
 ## Workflow
 
+Before starting visual work, read the reference entries in the guild compendium's `reference/` directory for relevant visual craft guidance and style references.
+
 Every commission follows these steps in order.
 
 ### 1. Read memory

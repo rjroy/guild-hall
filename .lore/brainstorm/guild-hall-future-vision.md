@@ -72,6 +72,8 @@ New activity type with its own artifact schema, lifecycle, Guild Master toolbox 
 
 ## Proposal 2: The Guild Compendium
 
+USER NOTE: This has been acted on via packages.
+
 ### Evidence
 
 Worker postures are fixed files (`packages/guild-hall-developer/posture.md`, `packages/guild-hall-reviewer/posture.md`, etc.). They define methodology before any commission runs and don't change based on what the guild learns. Memory (global, project, worker scopes) accumulates operational context but carries biographical and project-specific information, not craft knowledge.

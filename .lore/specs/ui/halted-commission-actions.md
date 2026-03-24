@@ -5,7 +5,7 @@ status: implemented
 tags: [ui, commissions, halted, client-component]
 modules: [web/components/commission/CommissionActions, web/app/api/commissions]
 related:
-  - .lore/specs/commissions/commission-halted-continuation.md
+  - .lore/_abandoned/specs/commission-halted-continuation.md
   - .lore/brainstorm/halted-commission-ui.md
   - .lore/issues/halted-commission-ui-gap.md
 req-prefix: HCA

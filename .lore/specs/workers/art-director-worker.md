@@ -9,7 +9,7 @@ related:
   - .lore/specs/workers/guild-hall-workers.md
   - .lore/specs/workers/guild-hall-worker-roster.md
   - .lore/specs/workers/worker-identity-and-personality.md
-  - .lore/specs/workers/worker-tool-rules.md
+  - .lore/_abandoned/specs/worker-tool-rules.md
   - .lore/specs/infrastructure/replicate-native-toolbox.md
   - .lore/specs/workers/guild-hall-steward-worker.md
 req-prefix: ILL

@@ -8,7 +8,7 @@ related:
   - .lore/specs/infrastructure/daemon-application-boundary.md
   - .lore/design/daemon-rest-api.md
   - .lore/plans/infrastructure/daemon-application-boundary.md
-  - .lore/specs/workers/worker-tool-rules.md
+  - .lore/_abandoned/specs/worker-tool-rules.md
   - .lore/specs/workers/guild-hall-worker-roster.md
 ---
 

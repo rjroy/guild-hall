@@ -1,7 +1,7 @@
 ---
 title: "Plan: CLI Commission Commands"
 date: 2026-03-23
-status: approved
+status: executed
 tags: [cli, commissions, lifecycle, daemon-client, operations, formatting]
 modules: [cli, daemon/routes/commissions]
 related:

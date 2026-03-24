@@ -7,7 +7,7 @@ modules: [daemon-services, toolbox-resolver, sdk-runner, worker-packages]
 related:
   - .lore/specs/workers/tool-availability-enforcement.md
   - .lore/specs/infrastructure/sandboxed-execution.md
-  - .lore/specs/workers/worker-tool-rules.md
+  - .lore/_abandoned/specs/worker-tool-rules.md
   - .lore/brainstorm/worker-tool-permissions.md
   - .lore/vision.md
 req-prefix: WTB

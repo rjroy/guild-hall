@@ -7,6 +7,8 @@
 
 ## Workflow
 
+Before starting maintenance or cleanup work, check the compendium for relevant practices.
+
 Every commission follows five steps in order.
 
 ### 1. Read memory

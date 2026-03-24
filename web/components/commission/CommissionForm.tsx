@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useDaemonStatus } from "@/web/components/ui/DaemonContext";
+import { SYSTEM_EVENT_TYPES } from "@/lib/types";
+import { EVENT_TYPE_FIELDS, buildMatchSummaryParts, buildTriggerPayloadFields } from "./trigger-form-data";
 import styles from "./CommissionForm.module.css";
 
 interface WorkerInfo {
@@ -54,9 +56,14 @@ export default function CommissionForm({
   const [overridesOpen, setOverridesOpen] = useState(false);
   const [models, setModels] = useState<ModelsResponse | null>(null);
 
-  const [commissionType, setCommissionType] = useState<"one-shot" | "scheduled">("one-shot");
+  const [commissionType, setCommissionType] = useState<"one-shot" | "scheduled" | "triggered">("one-shot");
   const [cron, setCron] = useState("");
   const [repeat, setRepeat] = useState("");
+  const [matchType, setMatchType] = useState("");
+  const [approval, setApproval] = useState<"confirm" | "auto">("confirm");
+  const [projectFilter, setProjectFilter] = useState("");
+  const [fieldPatterns, setFieldPatterns] = useState<{ key: string; value: string }[]>([]);
+  const [maxDepth, setMaxDepth] = useState("");
 
   const [workers, setWorkers] = useState<WorkerInfo[]>([]);
   const [loadingWorkers, setLoadingWorkers] = useState(true);
@@ -152,6 +159,12 @@ export default function CommissionForm({
         }
       }
     }
+    if (commissionType === "triggered") {
+      const triggerFields = buildTriggerPayloadFields(
+        matchType, projectFilter, fieldPatterns, approval, maxDepth
+      );
+      Object.assign(payload, triggerFields);
+    }
 
     try {
       const response = await fetch("/api/commissions", {
@@ -184,13 +197,15 @@ export default function CommissionForm({
       setError(message);
       setSubmitting(false);
     }
-  }, [title, workerName, prompt, dependencies, modelOverride, commissionType, cron, repeat, projectName, onCreated]);
+  }, [title, workerName, prompt, dependencies, modelOverride, commissionType, cron, repeat, matchType, approval, projectFilter, fieldPatterns, maxDepth, projectName, onCreated]);
 
   const canSubmit =
     title.trim().length > 0 &&
     workerName.length > 0 &&
     prompt.trim().length > 0 &&
-    (commissionType === "one-shot" || cron.trim().length > 0) &&
+    (commissionType === "one-shot"
+      || (commissionType === "scheduled" && cron.trim().length > 0)
+      || (commissionType === "triggered" && matchType.length > 0)) &&
     !submitting &&
     isOnline;
 
@@ -222,6 +237,18 @@ export default function CommissionForm({
               disabled={submitting}
             />
             Schedule
+          </label>
+          <label className={`${styles.typeOption} ${commissionType === "triggered" ? styles.typeOptionActive : ""}`}>
+            <input
+              type="radio"
+              name="commission-type"
+              value="triggered"
+              checked={commissionType === "triggered"}
+              onChange={() => setCommissionType("triggered")}
+              className={styles.typeRadio}
+              disabled={submitting}
+            />
+            Trigger
           </label>
         </div>
       </div>
@@ -263,6 +290,129 @@ export default function CommissionForm({
         </div>
       )}
 
+      {commissionType === "triggered" && (
+        <div className={styles.triggerFields}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="commission-event-type">
+              Event Type
+            </label>
+            <select
+              id="commission-event-type"
+              className={styles.select}
+              value={matchType}
+              onChange={(e) => setMatchType(e.target.value)}
+              disabled={submitting}
+            >
+              <option value="">Select an event type...</option>
+              {SYSTEM_EVENT_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className={styles.fieldGroup}>
+            <span className={styles.label}>Approval</span>
+            <div className={styles.approvalRadios}>
+              <label className={styles.approvalOption}>
+                <input
+                  type="radio"
+                  name="trigger-approval"
+                  value="confirm"
+                  checked={approval === "confirm"}
+                  onChange={() => setApproval("confirm")}
+                  disabled={submitting}
+                />
+                Confirm before dispatch
+              </label>
+              <label className={styles.approvalOption}>
+                <input
+                  type="radio"
+                  name="trigger-approval"
+                  value="auto"
+                  checked={approval === "auto"}
+                  onChange={() => setApproval("auto")}
+                  disabled={submitting}
+                />
+                Auto-dispatch
+              </label>
+            </div>
+          </div>
+
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="commission-project-filter">
+              Project filter (optional)
+            </label>
+            <input
+              id="commission-project-filter"
+              className={styles.textInput}
+              type="text"
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              placeholder="Project name"
+              disabled={submitting}
+            />
+            <span className={styles.fieldHint}>
+              Only respond to events from this project. Leave blank for any.
+            </span>
+          </div>
+
+          <div className={styles.fieldGroup}>
+            <span className={styles.label}>Field Patterns</span>
+            {fieldPatterns.map((fp, i) => (
+              <div key={i} className={styles.fieldPatternRow}>
+                <div className={styles.fieldPatternInputs}>
+                  <input
+                    className={styles.textInput}
+                    type="text"
+                    value={fp.key}
+                    onChange={(e) => {
+                      const updated = [...fieldPatterns];
+                      updated[i] = { ...fp, key: e.target.value };
+                      setFieldPatterns(updated);
+                    }}
+                    placeholder="field name"
+                    disabled={submitting}
+                  />
+                  <input
+                    className={styles.textInput}
+                    type="text"
+                    value={fp.value}
+                    onChange={(e) => {
+                      const updated = [...fieldPatterns];
+                      updated[i] = { ...fp, value: e.target.value };
+                      setFieldPatterns(updated);
+                    }}
+                    placeholder="glob pattern"
+                    disabled={submitting}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className={styles.removeButton}
+                  onClick={() => setFieldPatterns(fieldPatterns.filter((_, idx) => idx !== i))}
+                  disabled={submitting}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className={styles.addPatternButton}
+              onClick={() => setFieldPatterns([...fieldPatterns, { key: "", value: "" }])}
+              disabled={submitting}
+            >
+              + Add pattern
+            </button>
+            <span className={styles.fieldHint}>
+              {matchType
+                ? <>Available keys: {EVENT_TYPE_FIELDS[matchType]?.join(", ") ?? "none"}. Supports glob patterns: <code>*</code>, <code>?</code>, <code>{"{a,b}"}</code>, <code>!pattern</code></>
+                : "Select an event type to see available field keys."}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className={styles.fieldGroup}>
         <label className={styles.label} htmlFor="commission-title">
           Title
@@ -276,6 +426,15 @@ export default function CommissionForm({
           placeholder="e.g. Implement user authentication"
           disabled={submitting}
         />
+        {commissionType === "triggered" && (
+          <span className={styles.templateVarHint}>
+            {matchType
+              ? <>Template variables: {EVENT_TYPE_FIELDS[matchType]?.map((k) => (
+                  <code key={k}>{`{{${k}}}`}</code>
+                )) ?? null}</>
+              : "Template variables: select an event type to see available variables."}
+          </span>
+        )}
       </div>
 
       <div className={styles.fieldGroup}>
@@ -314,6 +473,15 @@ export default function CommissionForm({
           placeholder="Describe what you want this worker to accomplish..."
           disabled={submitting}
         />
+        {commissionType === "triggered" && (
+          <span className={styles.templateVarHint}>
+            {matchType
+              ? <>Template variables: {EVENT_TYPE_FIELDS[matchType]?.map((k) => (
+                  <code key={k}>{`{{${k}}}`}</code>
+                )) ?? null}</>
+              : "Template variables: select an event type to see available variables."}
+          </span>
+        )}
       </div>
 
       <div className={styles.fieldGroup}>
@@ -379,11 +547,38 @@ export default function CommissionForm({
                 )}
               </select>
             </div>
+            {commissionType === "triggered" && (
+              <div className={styles.overridesField}>
+                <label className={styles.overridesLabel} htmlFor="commission-max-depth">
+                  Max chain depth
+                </label>
+                <input
+                  id="commission-max-depth"
+                  className={styles.numberInput}
+                  type="number"
+                  min="1"
+                  value={maxDepth}
+                  onChange={(e) => setMaxDepth(e.target.value)}
+                  placeholder="3"
+                  disabled={submitting}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {error && <p className={styles.errorMessage}>{error}</p>}
+
+      {commissionType === "triggered" && matchType && (
+        <p className={styles.matchSummary}>
+          {buildMatchSummaryParts(matchType, projectFilter, fieldPatterns).map((seg, i) =>
+            seg.isCode
+              ? <code key={i} className={styles.fieldHint}>{seg.text}</code>
+              : <span key={i}>{seg.text}</span>
+          )}
+        </p>
+      )}
 
       <div className={styles.buttonRow}>
         {onCancel && (
@@ -407,7 +602,9 @@ export default function CommissionForm({
             ? "Creating..."
             : commissionType === "scheduled"
               ? "Create Schedule"
-              : "Create Commission"}
+              : commissionType === "triggered"
+                ? "Create Trigger"
+                : "Create Commission"}
         </button>
       </div>
     </div>
