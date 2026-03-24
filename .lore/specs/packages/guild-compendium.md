@@ -1,7 +1,7 @@
 ---
 title: Guild Compendium plugin package
 date: 2026-03-23
-status: approved
+status: implemented
 tags: [compendium, plugins, craft-knowledge, packages, domain-plugins, reference, skills]
 modules: [lib-types, lib-packages, packages/guild-compendium]
 related:
