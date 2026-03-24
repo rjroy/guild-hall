@@ -3,6 +3,23 @@
 import { useState, useEffect, startTransition, type ReactNode } from "react";
 import styles from "./DetailHeader.module.css";
 
+/**
+ * Computes the interactive props for the header container based on condensed state.
+ * In condensed mode, the entire container acts as a click target to expand.
+ * In expanded mode, only the toggle button collapses (no container-level handler).
+ */
+export function containerInteractiveProps(condensed: boolean): {
+  role: string | undefined;
+  tabIndex: number | undefined;
+  hasClickHandler: boolean;
+} {
+  return {
+    role: condensed ? "button" : undefined,
+    tabIndex: condensed ? 0 : undefined,
+    hasClickHandler: condensed,
+  };
+}
+
 interface DetailHeaderProps {
   /** Content rendered when the header is collapsed. Receives the toggle button for placement. */
   condensedContent: (toggleButton: ReactNode) => ReactNode;
@@ -53,7 +70,10 @@ export default function DetailHeader({
     <button
       type="button"
       className={styles.toggleButton}
-      onClick={() => setCondensed((prev) => !prev)}
+      onClick={(e) => {
+        if (condensed) e.stopPropagation();
+        setCondensed((prev) => !prev);
+      }}
       aria-label={condensed ? "Expand header" : "Collapse header"}
       aria-expanded={!condensed}
     >
@@ -61,8 +81,28 @@ export default function DetailHeader({
     </button>
   );
 
+  const handleCondensedClick = condensed
+    ? () => setCondensed(false)
+    : undefined;
+
   return (
-    <div className={containerClass} style={{ maxHeight }}>
+    <div
+      className={containerClass}
+      style={{ maxHeight }}
+      onClick={handleCondensedClick}
+      role={condensed ? "button" : undefined}
+      tabIndex={condensed ? 0 : undefined}
+      onKeyDown={
+        condensed
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setCondensed(false);
+              }
+            }
+          : undefined
+      }
+    >
       {condensed
         ? condensedContent(toggleButton)
         : expandedContent(toggleButton)}
