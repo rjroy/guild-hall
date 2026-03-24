@@ -63,8 +63,7 @@ This aligns with Vision Principle 7: changes to the base agent architecture shou
 
   | Worker | Package | Bash | Reason |
   |--------|---------|------|--------|
-  | Dalton | `guild-hall-developer` | Keep | Development requires unrestricted shell access |
-  | Sable | `guild-hall-test-engineer` | Keep | Test execution requires unrestricted shell access |
+  | Dalton | `guild-hall-developer` | Keep | Development and testing require unrestricted shell access |
   | Octavia | `guild-hall-writer` | Keep | Lore-development skills invoke Bash for file operations |
   | Celeste | `guild-hall-visionary` | Keep | Lore-development skills invoke Bash for file operations |
   | Verity | `guild-hall-researcher` | Keep | Lore-development skills invoke Bash for file operations |
