@@ -28,15 +28,12 @@ export default function DetailHeader({
   className,
   condensedClassName,
 }: DetailHeaderProps) {
-  const [condensed, setCondensed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia(TABLET_BREAKPOINT).matches;
-  });
+  // Always start expanded to match SSR output, then correct on mount.
+  const [condensed, setCondensed] = useState(false);
 
-  // SSR safety: re-check on mount since SSR always returns false.
   useEffect(() => {
-    const matches = window.matchMedia(TABLET_BREAKPOINT).matches;
-    if (matches) {
+    const mql = window.matchMedia(TABLET_BREAKPOINT);
+    if (mql.matches) {
       startTransition(() => setCondensed(true));
     }
   }, []);

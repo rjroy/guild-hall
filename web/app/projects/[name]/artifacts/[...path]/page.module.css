@@ -29,6 +29,10 @@
   overflow-y: auto;
 }
 
+.mobileSidebar {
+  display: none;
+}
+
 .meetingBanner {
   flex-shrink: 0;
   padding: var(--space-sm) var(--space-md);
@@ -45,6 +49,16 @@
 
 .meetingBannerLink:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+
+  .mobileSidebar {
+    display: block;
+  }
 }
 
 @media (max-width: 480px) {

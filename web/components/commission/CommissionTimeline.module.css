@@ -99,12 +99,15 @@
 }
 
 .eventContent {
-  display: flex;
   align-items: center;
-  gap: var(--space-xs);
   color: var(--color-text);
   flex: 1;
   min-width: 0;
+  padding: 0px var(--space-sm);
+}
+
+.eventContent ul {
+  padding: 0px 20px;
 }
 
 .reason {

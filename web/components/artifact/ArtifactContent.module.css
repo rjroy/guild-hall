@@ -96,6 +96,7 @@
   backdrop-filter: blur(12px);
   padding: 8px;
   margin: 3px;
+  height: calc(100% - 6px);
 }
 
 .viewer::before {
@@ -113,6 +114,10 @@
   padding: var(--space-lg);
   position: relative;
   line-height: 1.7;
+  overflow-y:scroll;
+
+  /* Calculate height based on padding and the toolbar element */
+  height: calc(100% - var(--space-lg) - var(--space-md) - var(--space-sm));
 }
 
 /* Ensure markdown content sits above any positioned children */
@@ -292,6 +297,8 @@
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   padding: 8px;
+  margin: 3px;
+  height: calc(100% - 6px);
 }
 
 .editor::before {
@@ -314,9 +321,9 @@
   background-color: rgba(0, 0, 0, 0.3);
   border: none;
   padding: var(--space-md);
-  min-height: 500px;
   width: 100%;
-  resize: vertical;
+  height: 100%;
+  resize: none;
   outline: none;
 }
 

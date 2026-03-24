@@ -31,6 +31,7 @@
   overflow-y: auto;
   padding: var(--space-lg);
   scroll-behavior: smooth;
+  margin: 6px 7px 0 0; /* Account for border */
 }
 
 /* Scrollbar styling for the message area */

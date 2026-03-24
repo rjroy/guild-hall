@@ -22,6 +22,10 @@
   overflow-y: auto;
 }
 
+.mobileSidebar {
+  display: none;
+}
+
 .closeButton {
   padding: var(--space-xs) var(--space-md);
   background-color: rgba(180, 60, 60, 0.15);
@@ -47,6 +51,16 @@
 .closeButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+
+  .mobileSidebar {
+    display: block;
+  }
 }
 
 @media (max-width: 480px) {
