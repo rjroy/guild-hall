@@ -185,7 +185,7 @@ describe("CLI error handling: daemon route error responses", () => {
   test("429 returns error body message (not hardcoded commission text)", async () => {
     const { createApp } = await import("@/daemon/app");
     const stubSession = makeStubSession();
-    const { app } = createApp({
+    createApp({
       health: { getMeetingCount: () => 0, getCommissionCount: () => 0, getUptimeSeconds: () => 42 },
       commissionSession: stubSession,
     });
@@ -231,7 +231,6 @@ describe("CLI error handling: daemon route error responses", () => {
 
 // Minimal stub session for tests that need one
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
-import type { CommissionId } from "@/daemon/types";
 
 function makeStubSession(overrides: Partial<CommissionSessionForRoutes> = {}): CommissionSessionForRoutes {
   return {

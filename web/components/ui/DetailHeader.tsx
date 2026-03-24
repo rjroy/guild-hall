@@ -81,10 +81,6 @@ export default function DetailHeader({
     </button>
   );
 
-  const handleCondensedClick = condensed
-    ? () => setCondensed(false)
-    : undefined;
-
   return (
     <div
       className={containerClass}

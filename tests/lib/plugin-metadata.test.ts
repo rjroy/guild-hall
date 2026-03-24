@@ -18,6 +18,7 @@ import type {
   DiscoveredPackage,
 } from "@/lib/types";
 import { prepareSdkSession } from "@/daemon/lib/agent-sdk/sdk-runner";
+import { noopEventBus } from "@/daemon/lib/event-bus";
 import type { ActivationResult, ResolvedToolSet } from "@/lib/types";
 
 let tmpDir: string;
@@ -70,7 +71,7 @@ async function writePackage(
   return pkgDir;
 }
 
-async function writePackageWithPosture(
+async function _writePackageWithPosture(
   scanDir: string,
   dirName: string,
   pkgJson: object,
@@ -181,7 +182,7 @@ describe("discoverPackages with plugin packages", () => {
 // -- getWorkers and getToolboxes exclusion tests --
 
 describe("getWorkers and getToolboxes exclude plugin packages", () => {
-  test("getWorkers excludes plugin packages", async () => {
+  test("getWorkers excludes plugin packages", () => {
     const pluginPkg: DiscoveredPackage = {
       name: "guild-compendium",
       path: "/tmp/guild-compendium",
@@ -291,6 +292,8 @@ describe("prepareSdkSession resolves plugin-type package", () => {
       config: { projects: [] } as AppConfig,
       contextId: "ctx-1",
       contextType: "commission" as const,
+      eventBus: noopEventBus,
+      abortController: new AbortController(),
       ...overrides,
     };
   }
@@ -303,15 +306,15 @@ describe("prepareSdkSession resolves plugin-type package", () => {
             "identity" in p.metadata &&
             (p.name === name || p.metadata.identity.name === name),
         ),
-      resolveToolSet: async () =>
-        ({
+      resolveToolSet: () =>
+        Promise.resolve({
           mcpServers: [],
           allowedTools: ["Read"],
           builtInTools: ["Read"],
-        }) as ResolvedToolSet,
-      loadMemories: async () => ({ memoryBlock: "", budgetInfo: { used: 0, limit: 16000, percentage: 0 } }),
-      activateWorker: async () => mockActivation,
-      checkReachability: async () => {},
+        } as ResolvedToolSet),
+      loadMemories: () => Promise.resolve({ memoryBlock: "", budgetInfo: { used: 0, limit: 16000, percentage: 0 } }),
+      activateWorker: () => Promise.resolve(mockActivation),
+      checkReachability: () => Promise.resolve({ reachable: true }),
       log: { info: () => {}, warn: () => {}, error: () => {} },
     };
   }
