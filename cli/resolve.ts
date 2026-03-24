@@ -100,6 +100,7 @@ export function buildQueryString(
   const pairs: string[] = [];
 
   for (let i = 0; i < params.length && i < positionalArgs.length; i++) {
+    if (positionalArgs[i] === "") continue;
     pairs.push(
       `${encodeURIComponent(params[i].name)}=${encodeURIComponent(positionalArgs[i])}`,
     );

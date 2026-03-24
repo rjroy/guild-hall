@@ -229,6 +229,31 @@ describe("buildQueryString", () => {
     });
     expect(buildQueryString(skill, ["val1"])).toBe("?a=val1");
   });
+
+  test("skips empty string positional arguments", () => {
+    const skill = makeOperation({
+      parameters: [
+        { name: "projectName", required: true, in: "query" },
+        { name: "status", required: false, in: "query" },
+        { name: "worker", required: false, in: "query" },
+      ],
+    });
+    // Skip status (empty string) but include worker
+    expect(buildQueryString(skill, ["myproject", "", "guild-hall-developer"]))
+      .toBe("?projectName=myproject&worker=guild-hall-developer");
+  });
+
+  test("skips all empty string arguments", () => {
+    const skill = makeOperation({
+      parameters: [
+        { name: "projectName", required: true, in: "query" },
+        { name: "status", required: false, in: "query" },
+        { name: "worker", required: false, in: "query" },
+      ],
+    });
+    expect(buildQueryString(skill, ["myproject", "", ""]))
+      .toBe("?projectName=myproject");
+  });
 });
 
 describe("buildBody", () => {

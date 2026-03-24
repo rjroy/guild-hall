@@ -445,7 +445,19 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     try {
       const iPath = integrationWorktreePath(deps.guildHallHome, projectName);
       const lorePath = projectLorePath(iPath);
-      const commissions = await scanCommissions(lorePath, projectName);
+      const allCommissions = await scanCommissions(lorePath, projectName);
+
+      const statusFilter = c.req.query("status");
+      const workerFilter = c.req.query("worker");
+
+      let commissions = allCommissions;
+      if (statusFilter) {
+        commissions = commissions.filter((cm) => cm.status === statusFilter);
+      }
+      if (workerFilter) {
+        commissions = commissions.filter((cm) => cm.worker === workerFilter);
+      }
+
       return c.json({ commissions });
     } catch (err: unknown) {
       return c.json({ error: errorMessage(err) }, 500);

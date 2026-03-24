@@ -184,6 +184,127 @@ activity_timeline:
   });
 });
 
+// -- Tests: List filtering --
+
+describe("GET /commission/request/commission/list filtering", () => {
+  async function seedCommissions() {
+    await writeCommission(
+      "commission-Dev-20260313-100000",
+      `---
+title: Dev Commission
+status: in_progress
+worker: guild-hall-developer
+prompt: Build it
+date: 2026-03-13
+activity_timeline:
+  - timestamp: 2026-03-13T10:00:00.000Z
+    event: created
+---
+`,
+    );
+    await writeCommission(
+      "commission-Rev-20260313-110000",
+      `---
+title: Review Commission
+status: completed
+worker: guild-hall-reviewer
+prompt: Review it
+date: 2026-03-13
+activity_timeline:
+  - timestamp: 2026-03-13T11:00:00.000Z
+    event: created
+---
+`,
+    );
+    await writeCommission(
+      "commission-Dev-20260313-120000",
+      `---
+title: Another Dev Commission
+status: halted
+worker: guild-hall-developer
+prompt: Fix it
+date: 2026-03-13
+activity_timeline:
+  - timestamp: 2026-03-13T12:00:00.000Z
+    event: created
+---
+`,
+    );
+  }
+
+  test("filters by status", async () => {
+    await seedCommissions();
+    const app = makeTestApp();
+    const res = await app.request(
+      "/commission/request/commission/list?projectName=test-project&status=completed",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.commissions).toHaveLength(1);
+    expect(body.commissions[0].status).toBe("completed");
+  });
+
+  test("filters by worker", async () => {
+    await seedCommissions();
+    const app = makeTestApp();
+    const res = await app.request(
+      "/commission/request/commission/list?projectName=test-project&worker=guild-hall-developer",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.commissions).toHaveLength(2);
+    for (const c of body.commissions) {
+      expect(c.worker).toBe("guild-hall-developer");
+    }
+  });
+
+  test("combines status and worker filters (intersection)", async () => {
+    await seedCommissions();
+    const app = makeTestApp();
+    const res = await app.request(
+      "/commission/request/commission/list?projectName=test-project&status=halted&worker=guild-hall-developer",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.commissions).toHaveLength(1);
+    expect(body.commissions[0].status).toBe("halted");
+    expect(body.commissions[0].worker).toBe("guild-hall-developer");
+  });
+
+  test("returns all commissions when no filters provided", async () => {
+    await seedCommissions();
+    const app = makeTestApp();
+    const res = await app.request(
+      "/commission/request/commission/list?projectName=test-project",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.commissions).toHaveLength(3);
+  });
+
+  test("empty string status filter is treated as absent", async () => {
+    await seedCommissions();
+    const app = makeTestApp();
+    const res = await app.request(
+      "/commission/request/commission/list?projectName=test-project&status=",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.commissions).toHaveLength(3);
+  });
+
+  test("returns empty array when filter matches nothing", async () => {
+    await seedCommissions();
+    const app = makeTestApp();
+    const res = await app.request(
+      "/commission/request/commission/list?projectName=test-project&status=cancelled",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.commissions).toHaveLength(0);
+  });
+});
+
 // -- Tests: GET /commission/request/commission/read --
 
 describe("GET /commission/request/commission/read", () => {
