@@ -1,4 +1,5 @@
 import { describe, test, expect } from "bun:test";
+import { buildTriggerPayloadFields } from "@/web/components/commission/trigger-form-data";
 
 /**
  * Commission form and commission list component tests.
@@ -207,5 +208,103 @@ describe("Commission API payload format", () => {
     expect(parseRepeat("0")).toBeUndefined();
     expect(parseRepeat("-1")).toBeUndefined();
     expect(parseRepeat("abc")).toBeUndefined();
+  });
+
+  test("triggered payload includes type and match with event type", () => {
+    const triggerFields = buildTriggerPayloadFields(
+      "commission_result", "", [], "confirm", ""
+    );
+    const payload: Record<string, unknown> = {
+      projectName: "test-project",
+      title: "Review results",
+      workerName: "reviewer",
+      prompt: "Review the commission result",
+      ...triggerFields,
+    };
+    expect(payload.type).toBe("triggered");
+    expect(payload.match).toEqual({ type: "commission_result" });
+    expect(payload).not.toHaveProperty("approval");
+    expect(payload).not.toHaveProperty("maxDepth");
+  });
+
+  test("triggered payload with all optional fields", () => {
+    const triggerFields = buildTriggerPayloadFields(
+      "commission_status", "guild-hall",
+      [{ key: "status", value: "completed" }],
+      "auto", "5"
+    );
+    const payload: Record<string, unknown> = {
+      projectName: "test-project",
+      title: "React to status",
+      workerName: "developer",
+      prompt: "Handle the status change",
+      ...triggerFields,
+    };
+    expect(payload.type).toBe("triggered");
+    expect(payload.match).toEqual({
+      type: "commission_status",
+      projectName: "guild-hall",
+      fields: { status: "completed" },
+    });
+    expect(payload.approval).toBe("auto");
+    expect(payload.maxDepth).toBe(5);
+  });
+
+  test("triggered payload omits approval when 'confirm'", () => {
+    const triggerFields = buildTriggerPayloadFields(
+      "meeting_started", "", [], "confirm", ""
+    );
+    expect(triggerFields).not.toHaveProperty("approval");
+  });
+
+  test("triggered payload omits maxDepth when empty", () => {
+    const triggerFields = buildTriggerPayloadFields(
+      "meeting_started", "", [], "confirm", ""
+    );
+    expect(triggerFields).not.toHaveProperty("maxDepth");
+  });
+});
+
+// -- canSubmit logic tests --
+
+describe("canSubmit logic", () => {
+  // Simulates the canSubmit derivation from CommissionForm
+  function canSubmit(opts: {
+    title: string;
+    workerName: string;
+    prompt: string;
+    commissionType: "one-shot" | "scheduled" | "triggered";
+    cron?: string;
+    matchType?: string;
+  }): boolean {
+    return (
+      opts.title.trim().length > 0 &&
+      opts.workerName.length > 0 &&
+      opts.prompt.trim().length > 0 &&
+      (opts.commissionType === "one-shot"
+        || (opts.commissionType === "scheduled" && (opts.cron ?? "").trim().length > 0)
+        || (opts.commissionType === "triggered" && (opts.matchType ?? "").length > 0))
+    );
+  }
+
+  test("triggered type with no matchType returns false", () => {
+    expect(canSubmit({
+      title: "Test", workerName: "dev", prompt: "Do things",
+      commissionType: "triggered", matchType: "",
+    })).toBe(false);
+  });
+
+  test("triggered type with matchType set returns true", () => {
+    expect(canSubmit({
+      title: "Test", workerName: "dev", prompt: "Do things",
+      commissionType: "triggered", matchType: "commission_status",
+    })).toBe(true);
+  });
+
+  test("triggered type with missing title returns false", () => {
+    expect(canSubmit({
+      title: "", workerName: "dev", prompt: "Do things",
+      commissionType: "triggered", matchType: "commission_status",
+    })).toBe(false);
   });
 });
