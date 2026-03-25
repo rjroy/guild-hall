@@ -192,7 +192,7 @@ Use plain text, no markdown headers. Be factual, not conversational.`;
         model: notesModel,
         ...(notesEnv ? { env: notesEnv } : {}),
         permissionMode: "dontAsk",
-        settingSources: [],
+        settingSources: ['user', 'project', 'local'],
       },
     });
 
