@@ -72,8 +72,8 @@ describe("cleanGitEnv", () => {
       expect(env.GIT_DIR).toBeUndefined();
       expect(env.GIT_WORK_TREE).toBeUndefined();
       expect(env.GIT_INDEX_FILE).toBeUndefined();
-      // Other env vars should still be present
-      expect(env.HOME).toBeDefined();
+      // Other env vars should still be present (use PATH, which exists on all platforms)
+      expect(env.PATH ?? env.Path).toBeDefined();
     } finally {
       // Restore original values
       if (original === undefined) delete process.env.GIT_DIR;
@@ -429,10 +429,15 @@ describe("listWorktrees", () => {
 
     const worktrees = await ops.listWorktrees(repoPath);
 
+    // Normalize paths for comparison: git returns long-form paths with forward
+    // slashes on Windows, while mkdtemp may return 8.3 short names with backslashes.
+    const normalize = (p: string) => fs.realpathSync.native(p).replaceAll("\\", "/");
+    const normalizedWorktrees = worktrees.map(normalize);
+
     // Should include the main repo and both worktrees
-    expect(worktrees).toContain(repoPath);
-    expect(worktrees).toContain(wt1);
-    expect(worktrees).toContain(wt2);
+    expect(normalizedWorktrees).toContain(normalize(repoPath));
+    expect(normalizedWorktrees).toContain(normalize(wt1));
+    expect(normalizedWorktrees).toContain(normalize(wt2));
     expect(worktrees.length).toBe(3);
   });
 });

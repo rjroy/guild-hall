@@ -281,6 +281,9 @@ beforeEach(async () => {
   integrationDir = integrationWorktreePath(ghHomeDir, "test-project");
   await fs.mkdir(projectDir, { recursive: true });
   await fs.mkdir(ghHomeDir, { recursive: true });
+  // Manager toolbox discovery requires a transport file.
+  // Create a fake port file so discoverTransport() succeeds in tests.
+  await fs.writeFile(path.join(ghHomeDir, "guild-hall.port"), "19999");
   // Create the integration worktree directory (simulates what daemon boot does)
   await fs.mkdir(integrationDir, { recursive: true });
 });

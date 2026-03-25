@@ -94,10 +94,12 @@ function createMockWorkspace(overrides?: Partial<{
       // For this mock, we look at the baseBranch's artifacts directory.
       // The orchestrator commits to the integration worktree before prepare,
       // so we need to find those files.
-      const sourceBase = config.worktreeDir.replace(
+      // Normalize to forward slashes for regex, then restore platform separators
+      const normalized = config.worktreeDir.replaceAll("\\", "/");
+      const sourceBase = normalized.replace(
         /worktrees\/[^/]+\/commission-.*$/,
         `projects/${TEST_PROJECT}`,
-      );
+      ).replaceAll("/", path.sep);
       try {
         const files = await fs.readdir(
           path.join(sourceBase, ".lore", "commissions"),
@@ -253,6 +255,8 @@ beforeEach(async () => {
   await fs.mkdir(projectPath, { recursive: true });
   await fs.mkdir(path.join(ghHome, "state", "commissions"), { recursive: true });
   await fs.mkdir(path.join(ghHome, "worktrees", TEST_PROJECT), { recursive: true });
+  // Manager toolbox discovery requires a transport file.
+  await fs.writeFile(path.join(ghHome, "guild-hall.port"), "19999");
 });
 
 afterEach(async () => {

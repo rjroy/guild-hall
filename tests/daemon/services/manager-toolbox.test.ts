@@ -891,9 +891,12 @@ describe("initiate_meeting", () => {
 
   test("returns error on filesystem failure", async () => {
     const deps = makeDeps({
-      // Use a guildHallHome under a non-writable path so the derived
-      // integration path can't be created
-      guildHallHome: "/nonexistent/readonly/path",
+      // Use a guildHallHome under a non-writable path so mkdir fails.
+      // On Windows, NUL is a reserved device name that can't be a directory.
+      // On Unix, /nonexistent/readonly/path won't exist.
+      guildHallHome: process.platform === "win32"
+        ? "NUL"
+        : "/nonexistent/readonly/path",
     });
     const handler = makeInitiateMeetingHandler(deps);
 

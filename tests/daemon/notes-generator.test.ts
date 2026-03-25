@@ -425,7 +425,7 @@ The architecture follows a clean separation of concerns.
     const options = mock.calls[0].options;
     expect(options.maxTurns).toBe(1);
     expect(options.permissionMode).toBe("dontAsk");
-    expect(options.settingSources).toEqual([]);
+    expect(options.settingSources).toEqual(["user", "project", "local"]);
     expect(options.maxBudgetUsd).toBeUndefined();
     expect(options.systemPrompt).toContain("meeting notes generator");
   });

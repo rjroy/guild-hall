@@ -288,6 +288,6 @@ describe("Bun.serve TCP compatibility", () => {
       idleTimeout: 0 as never,
     });
     expect(server.port).toBeGreaterThan(0);
-    server.stop();
+    void server.stop();
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import * as path from "node:path";
 import { loadPackageOperations } from "@/daemon/services/operations-loader";
 import type { ImportModule } from "@/daemon/services/operations-loader";
 import type { DiscoveredPackage } from "@/lib/types";
@@ -86,7 +87,7 @@ describe("loadPackageOperations", () => {
     const { logger } = silentLogger();
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
+      [[path.resolve(pkg.path, "index.ts")]]: {
         operationFactory: () => ({ operations: [skill] }) satisfies OperationFactoryOutput,
       },
     });
@@ -102,7 +103,7 @@ describe("loadPackageOperations", () => {
     const { logger } = silentLogger();
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: { toolboxFactory: () => ({}) },
+      [[path.resolve(pkg.path, "index.ts")]]: { toolboxFactory: () => ({}) },
     });
 
     const result = await loadPackageOperations([pkg], makeDeps(), logger, importer);
@@ -114,7 +115,7 @@ describe("loadPackageOperations", () => {
     const { logger, warnings } = silentLogger();
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
+      [[path.resolve(pkg.path, "index.ts")]]: {
         operationFactory: () => {
           throw new Error("factory boom");
         },
@@ -153,7 +154,7 @@ describe("loadPackageOperations", () => {
     };
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
+      [[path.resolve(pkg.path, "index.ts")]]: {
         operationFactory: () => ({ operations: [skill] }),
       },
     });
@@ -177,7 +178,7 @@ describe("loadPackageOperations", () => {
     };
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
+      [[path.resolve(pkg.path, "index.ts")]]: {
         operationFactory: () => ({ operations: [skill] }),
       },
     });
@@ -198,7 +199,7 @@ describe("loadPackageOperations", () => {
     };
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
+      [[path.resolve(pkg.path, "index.ts")]]: {
         operationFactory: () => ({ operations: [skill] }),
       },
     });
@@ -221,7 +222,7 @@ describe("loadPackageOperations", () => {
     };
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
+      [[path.resolve(pkg.path, "index.ts")]]: {
         operationFactory: () => ({ operations: [skill] }),
       },
     });
@@ -243,7 +244,7 @@ describe("loadPackageOperations", () => {
     });
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
+      [[path.resolve(pkg.path, "index.ts")]]: {
         operationFactory: () => ({ operations: [skill] }),
       },
     });
@@ -263,7 +264,7 @@ describe("loadPackageOperations", () => {
     });
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
+      [[path.resolve(pkg.path, "index.ts")]]: {
         operationFactory: () => ({ operations: [skill] }),
       },
     });
@@ -283,10 +284,10 @@ describe("loadPackageOperations", () => {
     });
 
     const importer = makeImporter({
-      [`${goodPkg.path}/index.ts`]: {
+      [[path.resolve(goodPkg.path, "index.ts")]]: {
         operationFactory: () => ({ operations: [goodSkill] }),
       },
-      [`${badPkg.path}/index.ts`]: {
+      [[path.resolve(badPkg.path, "index.ts")]]: {
         operationFactory: () => {
           throw new Error("broken");
         },
@@ -317,7 +318,7 @@ describe("loadPackageOperations", () => {
     };
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
+      [[path.resolve(pkg.path, "index.ts")]]: {
         operationFactory: () => ({ operations: [validSkill, invalidSkill] }),
       },
     });
@@ -341,7 +342,7 @@ describe("loadPackageOperations", () => {
     };
 
     const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
+      [[path.resolve(pkg.path, "index.ts")]]: {
         operationFactory: () => ({ operations: [streamOp] }),
       },
     });

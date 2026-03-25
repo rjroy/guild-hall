@@ -169,6 +169,7 @@ describe("worker routing deterministic validation", () => {
     const rendered = renderConfusionMatrix(matrix);
     const expectedArtifact = await Bun.file(CONFUSION_MATRIX_ARTIFACT_PATH).text();
 
-    expect(rendered).toBe(expectedArtifact);
+    // Normalize line endings for cross-platform comparison
+    expect(rendered.replaceAll("\r\n", "\n")).toBe(expectedArtifact.replaceAll("\r\n", "\n"));
   });
 });
