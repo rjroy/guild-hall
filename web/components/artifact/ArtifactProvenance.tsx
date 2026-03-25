@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Breadcrumb from "@/web/components/ui/Breadcrumb";
 import DetailHeader from "@/web/components/ui/DetailHeader";
 import CopyPathButton from "./CopyPathButton";
@@ -7,17 +8,26 @@ import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
 import type { BreadcrumbSegment } from "@/web/components/ui/Breadcrumb";
 import styles from "./ArtifactProvenance.module.css";
 
+export interface Attribution {
+  workerName: string;
+  workerTitle?: string;
+  workerPortraitUrl?: string;
+  commissionId?: string;
+  commissionTitle?: string;
+}
+
 interface ArtifactProvenanceProps {
   projectName: string;
   artifactTitle: string;
   artifactPath: string;
+  attribution?: Attribution;
 }
 
 /**
- * Combines the breadcrumb navigation with source/provenance info
- * in a single styled bar. The provenance line is stubbed for Phase 1
- * and will display the worker who created or last modified this artifact
- * once sessions and worker tracking are in place.
+ * Combines breadcrumb navigation with worker attribution in a single
+ * styled bar. When attribution is present, renders a source row with
+ * worker portrait, name, and optional commission link. When absent,
+ * the source row is hidden entirely.
  *
  * Delegates container chrome and condensed state to DetailHeader.
  */
@@ -25,6 +35,7 @@ export default function ArtifactProvenance({
   projectName,
   artifactTitle,
   artifactPath,
+  attribution,
 }: ArtifactProvenanceProps) {
   const encodedName = encodeURIComponent(projectName);
 
@@ -55,10 +66,28 @@ export default function ArtifactProvenance({
             <CopyPathButton path={`.lore/${artifactPath}`} />
             {toggleButton}
           </div>
-          <div className={styles.sourceRow}>
-            <WorkerPortrait size="sm" />
-            <p className={styles.text}>Source information unavailable.</p>
-          </div>
+          {attribution && (
+            <div className={styles.sourceRow}>
+              <WorkerPortrait
+                size="sm"
+                portraitUrl={attribution.workerPortraitUrl}
+              />
+              <p className={styles.attributedText}>
+                Written by {attribution.workerName}
+                {attribution.commissionId && (
+                  <>
+                    {" for "}
+                    <Link
+                      href={`/projects/${encodedName}/commissions/${encodeURIComponent(attribution.commissionId)}`}
+                      className={styles.commissionLink}
+                    >
+                      {attribution.commissionTitle || attribution.commissionId}
+                    </Link>
+                  </>
+                )}
+              </p>
+            </div>
+          )}
         </>
       )}
     />

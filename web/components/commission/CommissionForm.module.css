@@ -33,7 +33,7 @@
   border-radius: 4px;
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: 1rem;
   line-height: 1.5;
 }
 
@@ -54,7 +54,7 @@
   border-radius: 4px;
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: 1rem;
   line-height: 1.5;
   cursor: pointer;
   appearance: none;
@@ -83,7 +83,7 @@
   border-radius: 4px;
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: 1rem;
   line-height: 1.5;
   resize: vertical;
 }
@@ -311,7 +311,7 @@
   border-radius: 4px;
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: 1rem;
   line-height: 1.5;
 }
 
