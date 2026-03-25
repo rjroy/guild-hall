@@ -461,10 +461,11 @@ meeting_log:
       }
 
       // Return path relative to integration worktree's .lore/
+      // Normalize to POSIX separators: relativePath is a logical path, not a filesystem path
       const relativePath = path.relative(
         path.join(intPath, ".lore"),
         artifactPath,
-      );
+      ).split(path.sep).join("/");
 
       log.info(
         `Created meeting request for "${args.workerName}" (artifact: ${relativePath})`,
