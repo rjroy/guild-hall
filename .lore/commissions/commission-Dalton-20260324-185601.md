@@ -1,7 +1,7 @@
 ---
 title: "Commission: Fix: Windows backslash paths break artifact smart views and tree view"
 date: 2026-03-25
-status: dispatched
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -50,6 +50,14 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-25T02:16:38.701Z
+    event: status_cancelled
+    reason: "Commission cancelled by user"
+  - timestamp: 2026-03-25T02:22:30.365Z
+    event: status_abandoned
+    reason: "Prompt framing was wrong. Told Dalton to replace backslashes with forward slashes without establishing that relativePath is a POSIX logical path by convention. Replacing with a properly framed commission."
+    from: "cancelled"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---
