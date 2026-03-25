@@ -1,7 +1,7 @@
 ---
 title: "Commission: Fix: Windows backslash paths break artifact smart views and tree view"
 date: 2026-03-25
-status: dispatched
+status: cancelled
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -19,6 +19,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-25T02:13:04.029Z
+    event: status_cancelled
+    reason: "Commission cancelled by user"
 current_progress: ""
 projectName: guild-hall
 ---
