@@ -47,9 +47,21 @@ function buildEventEnv(event: SystemEvent): Record<string, string> {
   return env;
 }
 
-/** Default shell dispatch: runs command via sh -c with a 10s timeout. */
+/**
+ * Returns the shell command array for the current platform.
+ * Extracted for testability: Windows branch is testable on any platform
+ * without mocking process.platform.
+ */
+export function shellForPlatform(platform: string): [string, string] {
+  return platform === "win32"
+    ? ["cmd.exe", "/c"]
+    : ["sh", "-c"];
+}
+
+/** Default shell dispatch: runs command via the platform-appropriate shell with a 10s timeout. */
 export async function defaultDispatchShell(command: string, env: Record<string, string>): Promise<void> {
-  const proc = Bun.spawn(["sh", "-c", command], {
+  const [shell, flag] = shellForPlatform(process.platform);
+  const proc = Bun.spawn([shell, flag, command], {
     env: { ...process.env, ...env },
     stdout: "ignore",
     stderr: "pipe",

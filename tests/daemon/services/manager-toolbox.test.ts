@@ -1316,7 +1316,7 @@ activity_timeline:
 
 describe("createDaemonRouteCaller", () => {
   test("returns a function with correct signature", () => {
-    const caller = createDaemonRouteCaller("/tmp/test.sock");
+    const caller = createDaemonRouteCaller({ type: "unix", socketPath: "/tmp/test.sock" });
     expect(typeof caller).toBe("function");
   });
 });

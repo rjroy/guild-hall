@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 
 /**
@@ -12,11 +13,9 @@ import * as path from "node:path";
 export function getGuildHallHome(homeOverride?: string): string {
   if (homeOverride) return path.join(homeOverride, ".guild-hall");
   if (process.env.GUILD_HALL_HOME) return process.env.GUILD_HALL_HOME;
-  const home = process.env.HOME;
+  const home = os.homedir();
   if (!home) {
-    throw new Error(
-      "Cannot determine home directory: HOME environment variable is not set"
-    );
+    throw new Error("Cannot determine home directory");
   }
   return path.join(home, ".guild-hall");
 }

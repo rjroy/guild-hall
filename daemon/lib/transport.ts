@@ -2,7 +2,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { getGuildHallHome } from "@/lib/paths";
 
+export type TransportDescriptor =
+  | { type: "unix"; socketPath: string }
+  | { type: "tcp"; hostname: string; port: number };
+
 const SOCKET_NAME = "guild-hall.sock";
+const PORT_FILE_NAME = "guild-hall.port";
 const PID_SUFFIX = ".pid";
 
 /**
@@ -106,6 +111,77 @@ export function removePidFile(socketPath: string): void {
  */
 export function removeSocketFile(socketPath: string): void {
   safeUnlink(socketPath);
+}
+
+/**
+ * Returns the path to the port discovery file.
+ * Defaults to ~/.guild-hall/guild-hall.port.
+ */
+export function getPortFilePath(guildHallHome?: string): string {
+  const home = guildHallHome ?? getGuildHallHome();
+  return path.join(home, PORT_FILE_NAME);
+}
+
+/**
+ * Writes the assigned port number to the discovery file.
+ * Creates parent directories if needed.
+ */
+export function writePortFile(portFilePath: string, port: number): void {
+  const dir = path.dirname(portFilePath);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(portFilePath, String(port), "utf-8");
+}
+
+/**
+ * Removes the port discovery file. No-op if absent.
+ */
+export function removePortFile(portFilePath: string): void {
+  safeUnlink(portFilePath);
+}
+
+/**
+ * Cleans up a stale port file left behind by a crashed daemon.
+ *
+ * If a PID file exists:
+ *   - If the process is alive, throws (another daemon is running).
+ *   - If the process is dead, removes both port and PID files.
+ *   - If the PID file is corrupt, removes both.
+ *
+ * If the port file exists but no PID file, removes the port file
+ * (unclean shutdown without PID tracking).
+ *
+ * If neither exists, does nothing.
+ */
+export function cleanStalePort(portFilePath: string): void {
+  const pidPath = pidFilePathFor(portFilePath);
+  const pidExists = fs.existsSync(pidPath);
+  const portExists = fs.existsSync(portFilePath);
+
+  if (pidExists) {
+    const raw = fs.readFileSync(pidPath, "utf-8").trim();
+    const pid = parseInt(raw, 10);
+
+    if (isNaN(pid)) {
+      safeUnlink(pidPath);
+      safeUnlink(portFilePath);
+      return;
+    }
+
+    if (isProcessAlive(pid)) {
+      throw new Error(
+        `Another daemon is already running (PID ${pid}). ` +
+          `Port file: ${portFilePath}`
+      );
+    }
+
+    safeUnlink(pidPath);
+    safeUnlink(portFilePath);
+    return;
+  }
+
+  if (portExists) {
+    safeUnlink(portFilePath);
+  }
 }
 
 function safeUnlink(filePath: string): void {

@@ -55,7 +55,7 @@ import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import type { TriggerEvaluator } from "@/daemon/services/trigger-evaluator";
 import { isValidCron } from "@/daemon/services/scheduler/cron";
 import { SYSTEM_EVENT_TYPES } from "@/lib/types";
-import { daemonFetch, isDaemonError } from "@/lib/daemon-client";
+import { daemonFetch, isDaemonError, discoverTransport, type TransportDescriptor } from "@/lib/daemon-client";
 
 // -- Daemon route caller --
 
@@ -70,14 +70,14 @@ export type RouteCaller = (
 ) => Promise<{ ok: true; status: number; data: unknown } | { ok: false; error: string }>;
 
 /**
- * Creates a RouteCaller backed by daemonFetch over the Unix socket.
+ * Creates a RouteCaller backed by daemonFetch over the daemon's transport.
  */
-export function createDaemonRouteCaller(socketPath: string): RouteCaller {
+export function createDaemonRouteCaller(transport: TransportDescriptor): RouteCaller {
   return async (routePath: string, body: unknown) => {
     const result = await daemonFetch(
       routePath,
       { method: "POST", body: JSON.stringify(body) },
-      socketPath,
+      transport,
     );
 
     if (isDaemonError(result)) {
@@ -1531,14 +1531,17 @@ export function createManagerToolbox(
  * through deps.services.commissionSession directly.
  */
 export const managerToolboxFactory: ToolboxFactory = (ctx) => {
-  // The manager toolbox calls the daemon's own socket (same process).
+  // The manager toolbox calls the daemon's own transport (same process).
   // This is safe: Hono is async, Bun serves concurrent requests, no deadlock.
-  const socketPath = path.join(ctx.guildHallHome, "guild-hall.sock");
+  const transport = discoverTransport(ctx.guildHallHome);
+  if (!transport) {
+    throw new Error("Manager toolbox requires an active daemon transport, but no discovery file was found");
+  }
   return {
     server: createManagerToolbox({
       projectName: ctx.projectName,
       guildHallHome: ctx.guildHallHome,
-      callRoute: createDaemonRouteCaller(socketPath),
+      callRoute: createDaemonRouteCaller(transport),
       eventBus: ctx.eventBus,
       config: ctx.services!.config,
       getProjectConfig: (name: string) =>

@@ -24,9 +24,28 @@ describe("getGuildHallHome", () => {
     expect(result).toBe("/tmp/test-home/.guild-hall");
   });
 
-  test("uses HOME env var when no override", () => {
+  test("uses os.homedir() when no override", () => {
     const result = getGuildHallHome();
-    expect(result).toBe(path.join(process.env.HOME!, ".guild-hall"));
+    expect(result).toBe(path.join(os.homedir(), ".guild-hall"));
+  });
+
+  test("falls back to os.homedir() when HOME is unset", () => {
+    const savedHome = process.env.HOME;
+    const savedGhHome = process.env.GUILD_HALL_HOME;
+    try {
+      delete process.env.HOME;
+      delete process.env.GUILD_HALL_HOME;
+      const result = getGuildHallHome();
+      // os.homedir() falls back to platform-native resolution (e.g., passwd
+      // on Linux, USERPROFILE on Windows) when HOME is unset.
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThan(0);
+      // Windows-specific scenario (USERPROFILE fallback) is manual-only
+      // until a Windows CI runner exists.
+    } finally {
+      if (savedHome !== undefined) process.env.HOME = savedHome;
+      if (savedGhHome !== undefined) process.env.GUILD_HALL_HOME = savedGhHome;
+    }
   });
 });
 
@@ -36,10 +55,10 @@ describe("getConfigPath", () => {
     expect(result).toBe("/tmp/test-home/.guild-hall/config.yaml");
   });
 
-  test("uses HOME env var when no override", () => {
+  test("uses os.homedir() when no override", () => {
     const result = getConfigPath();
     expect(result).toBe(
-      path.join(process.env.HOME!, ".guild-hall", "config.yaml")
+      path.join(os.homedir(), ".guild-hall", "config.yaml")
     );
   });
 });
