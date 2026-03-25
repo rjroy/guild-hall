@@ -14,7 +14,7 @@ activity_timeline:
   - timestamp: 2026-03-25T01:56:01.408Z
     event: created
     reason: "Commission created"
-  - timestamp: 2026-03-25T02:08:03.576Z
+  - timestamp: 2026-03-25T02:08:57.781Z
     event: status_dispatched
     reason: "Dispatched to worker"
     from: "pending"
