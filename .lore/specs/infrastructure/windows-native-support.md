@@ -1,7 +1,7 @@
 ---
 title: Windows native support
 date: 2026-03-24
-status: approved
+status: implemented
 tags: [windows, cross-platform, transport, ipc, tcp, sockets, portability]
 modules: [daemon, daemon-lib-socket, daemon-lib-git, lib-daemon-client, lib-paths, notification-service]
 related:
