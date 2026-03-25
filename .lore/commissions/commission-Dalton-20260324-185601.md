@@ -32,6 +32,24 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-03-25T02:14:57.606Z
+    event: status_failed
+    reason: "Workspace preparation failed: git -c failed (exit 128): Preparing worktree (checking out 'claude/commission/commission-Dalton-20260324-185601-2')\nfatal: 'C:/Users/RonaldRoy/.guild-hall/worktrees/guild-hall/commission-Dalton-20260324-185601' already exists"
+    from: "dispatched"
+    to: "failed"
+  - timestamp: 2026-03-25T02:14:57.609Z
+    event: status_failed
+    reason: "Workspace preparation failed: git -c failed (exit 128): Preparing worktree (checking out 'claude/commission/commission-Dalton-20260324-185601-2')\nfatal: 'C:/Users/RonaldRoy/.guild-hall/worktrees/guild-hall/commission-Dalton-20260324-185601' already exists"
+  - timestamp: 2026-03-25T02:15:51.563Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "failed"
+    to: "pending"
+  - timestamp: 2026-03-25T02:15:51.569Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
