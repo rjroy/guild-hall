@@ -5,6 +5,7 @@ import { createEventRouter } from "@/daemon/services/event-router";
 import {
   createNotificationService,
   camelToScreamingSnake,
+  shellForPlatform,
   defaultDispatchShell,
   defaultDispatchWebhook,
 } from "@/daemon/services/notification-service";
@@ -276,6 +277,20 @@ describe("camelToScreamingSnake", () => {
 
   test("summary -> SUMMARY", () => {
     expect(camelToScreamingSnake("summary")).toBe("SUMMARY");
+  });
+});
+
+describe("shellForPlatform", () => {
+  test("linux returns sh -c", () => {
+    expect(shellForPlatform("linux")).toEqual(["sh", "-c"]);
+  });
+
+  test("darwin returns sh -c", () => {
+    expect(shellForPlatform("darwin")).toEqual(["sh", "-c"]);
+  });
+
+  test("win32 returns cmd.exe /c", () => {
+    expect(shellForPlatform("win32")).toEqual(["cmd.exe", "/c"]);
   });
 });
 

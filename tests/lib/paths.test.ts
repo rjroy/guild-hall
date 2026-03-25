@@ -21,25 +21,44 @@ import {
 describe("getGuildHallHome", () => {
   test("returns override path when provided", () => {
     const result = getGuildHallHome("/tmp/test-home");
-    expect(result).toBe("/tmp/test-home/.guild-hall");
+    expect(result).toBe(path.join("/tmp/test-home", ".guild-hall"));
   });
 
-  test("uses HOME env var when no override", () => {
+  test("uses os.homedir() when no override", () => {
     const result = getGuildHallHome();
-    expect(result).toBe(path.join(process.env.HOME!, ".guild-hall"));
+    expect(result).toBe(path.join(os.homedir(), ".guild-hall"));
+  });
+
+  test("falls back to os.homedir() when HOME is unset", () => {
+    const savedHome = process.env.HOME;
+    const savedGhHome = process.env.GUILD_HALL_HOME;
+    try {
+      delete process.env.HOME;
+      delete process.env.GUILD_HALL_HOME;
+      const result = getGuildHallHome();
+      // os.homedir() falls back to platform-native resolution (e.g., passwd
+      // on Linux, USERPROFILE on Windows) when HOME is unset.
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThan(0);
+      // Windows-specific scenario (USERPROFILE fallback) is manual-only
+      // until a Windows CI runner exists.
+    } finally {
+      if (savedHome !== undefined) process.env.HOME = savedHome;
+      if (savedGhHome !== undefined) process.env.GUILD_HALL_HOME = savedGhHome;
+    }
   });
 });
 
 describe("getConfigPath", () => {
   test("returns config.yaml under guild-hall home", () => {
     const result = getConfigPath("/tmp/test-home");
-    expect(result).toBe("/tmp/test-home/.guild-hall/config.yaml");
+    expect(result).toBe(path.join("/tmp/test-home", ".guild-hall", "config.yaml"));
   });
 
-  test("uses HOME env var when no override", () => {
+  test("uses os.homedir() when no override", () => {
     const result = getConfigPath();
     expect(result).toBe(
-      path.join(process.env.HOME!, ".guild-hall", "config.yaml")
+      path.join(os.homedir(), ".guild-hall", "config.yaml")
     );
   });
 });
@@ -47,41 +66,41 @@ describe("getConfigPath", () => {
 describe("projectLorePath", () => {
   test("appends .lore to project path", () => {
     expect(projectLorePath("/home/user/my-project")).toBe(
-      "/home/user/my-project/.lore"
+      path.join("/home/user/my-project", ".lore")
     );
   });
 
   test("handles trailing slash in project path", () => {
     const result = projectLorePath("/home/user/my-project/");
-    expect(result).toBe("/home/user/my-project/.lore");
+    expect(result).toBe(path.join("/home/user/my-project", ".lore"));
   });
 });
 
 describe("integrationWorktreePath", () => {
   test("returns correct path", () => {
     expect(integrationWorktreePath("/home/user/.guild-hall", "my-project"))
-      .toBe("/home/user/.guild-hall/projects/my-project");
+      .toBe(path.join("/home/user/.guild-hall", "projects", "my-project"));
   });
 });
 
 describe("activityWorktreeRoot", () => {
   test("returns correct path", () => {
     expect(activityWorktreeRoot("/home/user/.guild-hall", "my-project"))
-      .toBe("/home/user/.guild-hall/worktrees/my-project");
+      .toBe(path.join("/home/user/.guild-hall", "worktrees", "my-project"));
   });
 });
 
 describe("commissionWorktreePath", () => {
   test("returns correct path", () => {
     expect(commissionWorktreePath("/home/user/.guild-hall", "my-project", "commission-Assistant-20260222-120000"))
-      .toBe("/home/user/.guild-hall/worktrees/my-project/commission-Assistant-20260222-120000");
+      .toBe(path.join("/home/user/.guild-hall", "worktrees", "my-project", "commission-Assistant-20260222-120000"));
   });
 });
 
 describe("meetingWorktreePath", () => {
   test("returns correct path", () => {
     expect(meetingWorktreePath("/home/user/.guild-hall", "my-project", "kickoff"))
-      .toBe("/home/user/.guild-hall/worktrees/my-project/meeting-kickoff");
+      .toBe(path.join("/home/user/.guild-hall", "worktrees", "my-project", "meeting-kickoff"));
   });
 });
 
@@ -107,14 +126,14 @@ describe("meetingBranchName", () => {
 describe("briefingCachePath", () => {
   test("returns correct path", () => {
     expect(briefingCachePath("/home/user/.guild-hall", "my-project"))
-      .toBe("/home/user/.guild-hall/state/briefings/my-project.json");
+      .toBe(path.join("/home/user/.guild-hall", "state", "briefings", "my-project.json"));
   });
 });
 
 describe("allProjectsBriefingCachePath", () => {
   test("returns _all.json path", () => {
     expect(allProjectsBriefingCachePath("/home/user/.guild-hall"))
-      .toBe("/home/user/.guild-hall/state/briefings/_all.json");
+      .toBe(path.join("/home/user/.guild-hall", "state", "briefings", "_all.json"));
   });
 });
 

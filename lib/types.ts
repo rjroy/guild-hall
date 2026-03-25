@@ -58,6 +58,7 @@ export interface ArtifactMeta {
 export interface Artifact {
   meta: ArtifactMeta;
   filePath: string;
+  /** POSIX-style logical path relative to .lore/, always uses `/` separators regardless of OS. Consumers can rely on splitting on `/`. */
   relativePath: string;
   content: string;
   rawContent?: string;

@@ -253,7 +253,7 @@ describe("POST /workspace/git/lore/commit", () => {
       },
     );
     // Integration worktree path is <guildHallHome>/projects/<projectName>
-    expect(capturedPath).toBe(`/tmp/test-gh/projects/${TEST_PROJECT}`);
+    expect(capturedPath).toBe(path.join("/tmp/test-gh", "projects", TEST_PROJECT));
     // Message should be trimmed
     expect(capturedMessage).toBe("My commit");
   });

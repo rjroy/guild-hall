@@ -12,6 +12,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { getGuildHallHome } from "@/lib/paths";
 import { readTranscript } from "@/daemon/services/meeting/transcript";
 import { readLinkedArtifacts } from "@/daemon/services/meeting/record";
 import type { MeetingId } from "@/daemon/types";
@@ -113,7 +114,7 @@ export async function generateMeetingNotes(
   workerName: string,
   deps: NotesGeneratorDeps,
 ): Promise<NotesResult> {
-  const guildHallHome = deps.guildHallHome ?? defaultGuildHallHome();
+  const guildHallHome = deps.guildHallHome ?? getGuildHallHome();
   const log = deps.log ?? nullLog("notes-generator");
 
   if (!deps.queryFn) {
@@ -191,7 +192,7 @@ Use plain text, no markdown headers. Be factual, not conversational.`;
         model: notesModel,
         ...(notesEnv ? { env: notesEnv } : {}),
         permissionMode: "dontAsk",
-        settingSources: [],
+        settingSources: ['user', 'project', 'local'],
       },
     });
 
@@ -204,12 +205,3 @@ Use plain text, no markdown headers. Be factual, not conversational.`;
   }
 }
 
-// -- Utility --
-
-function defaultGuildHallHome(): string {
-  const home = process.env.HOME;
-  if (!home) {
-    throw new Error("Cannot determine home directory: HOME is not set");
-  }
-  return path.join(home, ".guild-hall");
-}

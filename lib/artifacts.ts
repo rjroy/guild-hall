@@ -20,6 +20,17 @@ export const IMAGE_MIME_TYPES: Record<string, string> = {
   ".svg": "image/svg+xml",
 };
 
+// -- Path normalization --
+
+/**
+ * Converts an OS-native path to POSIX-style forward slashes.
+ * Used when crossing from filesystem paths into logical paths (relativePath,
+ * URL segments, artifact grouping keys) that must use `/` on all platforms.
+ */
+function toPosixPath(p: string): string {
+  return p.split(path.sep).join("/");
+}
+
 // -- Path validation --
 
 /**
@@ -124,7 +135,8 @@ export async function scanArtifacts(lorePath: string): Promise<Artifact[]> {
       if (IMAGE_EXTENSIONS.has(ext)) {
         // Synthetic metadata for image artifacts (REQ-IMG-4)
         const stat = await fs.stat(filePath);
-        const relPath = path.relative(resolvedBase, filePath);
+        // Normalize OS path to POSIX for the logical relativePath convention
+        const relPath = toPosixPath(path.relative(resolvedBase, filePath));
         const filename = path.basename(filePath, ext);
         const title = filename
           .replace(/[-_]/g, " ")
@@ -165,7 +177,8 @@ export async function scanArtifacts(lorePath: string): Promise<Artifact[]> {
         artifacts.push({
           meta,
           filePath,
-          relativePath: path.relative(resolvedBase, filePath),
+          // Normalize OS path to POSIX for the logical relativePath convention
+          relativePath: toPosixPath(path.relative(resolvedBase, filePath)),
           content,
           lastModified: stat.mtime,
           artifactType: "document",

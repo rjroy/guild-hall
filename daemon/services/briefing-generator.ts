@@ -581,7 +581,7 @@ Write a dashboard status widget, not a report. Cover what's in progress, any blo
         maxTurns: 1,
         model: "sonnet",
         permissionMode: "dontAsk",
-        settingSources: [],
+        settingSources: ['user', 'project', 'local'],
       },
     });
 
@@ -676,7 +676,7 @@ async function generateSynthesisWithSingleTurn(
         maxTurns: 1,
         model: "sonnet",
         permissionMode: "dontAsk",
-        settingSources: [],
+        settingSources: ['user', 'project', 'local'],
       },
     });
 

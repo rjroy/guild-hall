@@ -1,11 +1,16 @@
+import * as fs from "node:fs";
 import http from "node:http";
 import * as path from "node:path";
 import { getGuildHallHome } from "./paths";
 
 /**
- * Daemon client for Next.js to communicate with the Guild Hall daemon
- * over its Unix socket. Uses node:http with socketPath option.
+ * Daemon client for Next.js and CLI to communicate with the Guild Hall daemon.
+ * Supports both Unix socket (POSIX) and TCP (Windows) transports.
  */
+
+export type TransportDescriptor =
+  | { type: "unix"; socketPath: string }
+  | { type: "tcp"; hostname: string; port: number };
 
 export type DaemonError = {
   type: "daemon_offline" | "socket_not_found" | "request_failed";
@@ -26,13 +31,47 @@ export function isDaemonError(value: unknown): value is DaemonError {
 }
 
 /**
- * Returns the path to the daemon's Unix socket.
- * Mirrors daemon/lib/socket.ts getSocketPath() but lives in lib/
- * so Next.js code doesn't import from daemon/.
+ * Discovers the active daemon transport by checking for discovery files.
+ * Checks socket file first (POSIX), then port file (Windows).
+ * Returns null if neither exists.
+ *
+ * Detection is file-based (not process.platform) so transport tests
+ * are runnable on any OS.
  */
-export function getSocketPath(homeOverride?: string): string {
+export function discoverTransport(homeOverride?: string): TransportDescriptor | null {
   const home = homeOverride ?? getGuildHallHome();
-  return path.join(home, "guild-hall.sock");
+  const socketPath = path.join(home, "guild-hall.sock");
+  const portFilePath = path.join(home, "guild-hall.port");
+
+  if (fs.existsSync(socketPath)) {
+    return { type: "unix", socketPath };
+  }
+
+  if (fs.existsSync(portFilePath)) {
+    const raw = fs.readFileSync(portFilePath, "utf-8").trim();
+    const port = parseInt(raw, 10);
+    if (isNaN(port)) return null;
+    return { type: "tcp", hostname: "127.0.0.1", port };
+  }
+
+  return null;
+}
+
+function noTransportError(): DaemonError {
+  return {
+    type: "socket_not_found",
+    message: "No daemon discovery file found (neither socket nor port file exists)",
+  };
+}
+
+/**
+ * Converts a TransportDescriptor into the options needed by http.request().
+ */
+function transportOptions(transport: TransportDescriptor): { socketPath: string } | { hostname: string; port: number } {
+  if (transport.type === "unix") {
+    return { socketPath: transport.socketPath };
+  }
+  return { hostname: transport.hostname, port: transport.port };
 }
 
 /**
@@ -60,7 +99,7 @@ function classifyError(err: unknown): DaemonError {
 }
 
 /**
- * Makes an HTTP request to the daemon over its Unix socket.
+ * Makes an HTTP request to the daemon over its transport (Unix socket or TCP).
  *
  * Returns a standard Response on success, or a DaemonError on failure.
  * The caller must check with isDaemonError() before using the result.
@@ -68,16 +107,18 @@ function classifyError(err: unknown): DaemonError {
 export async function daemonFetch(
   requestPath: string,
   options?: { method?: string; body?: string },
-  socketPathOverride?: string,
+  transportOverride?: TransportDescriptor,
 ): Promise<Response | DaemonError> {
-  const socketPath = socketPathOverride ?? getSocketPath();
+  const transport = transportOverride ?? discoverTransport();
+  if (!transport) return noTransportError();
+
   const method = options?.method ?? "GET";
   const body = options?.body;
 
   return new Promise((resolve) => {
     const req = http.request(
       {
-        socketPath,
+        ...transportOptions(transport),
         path: requestPath,
         method,
         headers: {
@@ -121,16 +162,17 @@ export async function daemonFetch(
  */
 export async function daemonFetchBinary(
   requestPath: string,
-  socketPathOverride?: string,
+  transportOverride?: TransportDescriptor,
 ): Promise<
   | { status: number; headers: Record<string, string>; body: Buffer }
   | DaemonError
 > {
-  const socketPath = socketPathOverride ?? getSocketPath();
+  const transport = transportOverride ?? discoverTransport();
+  if (!transport) return noTransportError();
 
   return new Promise((resolve) => {
     const req = http.request(
-      { socketPath, path: requestPath, method: "GET" },
+      { ...transportOptions(transport), path: requestPath, method: "GET" },
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -161,9 +203,9 @@ export interface DaemonHealthData {
  * or null if it's unreachable.
  */
 export async function daemonHealth(
-  socketPathOverride?: string,
+  transportOverride?: TransportDescriptor,
 ): Promise<DaemonHealthData | null> {
-  const result = await daemonFetch("/system/runtime/daemon/health", undefined, socketPathOverride);
+  const result = await daemonFetch("/system/runtime/daemon/health", undefined, transportOverride);
   if (isDaemonError(result)) return null;
 
   try {
@@ -186,32 +228,10 @@ export async function daemonHealth(
 export function daemonStream(
   requestPath: string,
   body?: string,
-  socketPathOverride?: string,
+  transportOverride?: TransportDescriptor,
 ): ReadableStream<Uint8Array> | DaemonError {
-  const socketPath = socketPathOverride ?? getSocketPath();
-
-  // We need to detect connection errors synchronously-ish before
-  // returning the stream. Use a deferred pattern: the stream's start()
-  // callback initiates the request. If connection fails, the stream
-  // errors. If it succeeds, chunks flow through.
-  //
-  // However, callers need to distinguish "daemon offline" (return 503)
-  // from "stream started" (return SSE). Since we can't know until the
-  // TCP connection completes, we return a ReadableStream that will error
-  // on the consumer side if the daemon is down. The API route catches
-  // this by first doing a daemonFetch to /health, or by trying daemonFetch
-  // for non-streaming endpoints.
-  //
-  // For SSE routes: try daemonFetch first as a connectivity check is
-  // wasteful. Instead, return the stream and let the route handle errors
-  // by wrapping in a try pattern. But since ReadableStream errors are
-  // hard to catch before piping, we use a different approach:
-  // return a Promise-based function that resolves to either a stream
-  // or an error.
-
-  // Actually, the cleanest approach: return a ReadableStream. If the
-  // daemon is down, the stream will produce an SSE error event and close.
-  // This way the client always gets a valid SSE stream.
+  const transport = transportOverride ?? discoverTransport();
+  if (!transport) return noTransportError();
 
   let requestObj: http.ClientRequest;
 
@@ -220,7 +240,7 @@ export function daemonStream(
       start(controller) {
         requestObj = http.request(
           {
-            socketPath,
+            ...transportOptions(transport),
             path: requestPath,
             method: "POST",
             headers: {
@@ -282,16 +302,18 @@ export function daemonStream(
 export function daemonStreamAsync(
   requestPath: string,
   body?: string,
-  socketPathOverride?: string,
+  transportOverride?: TransportDescriptor,
   options?: { method?: string },
 ): Promise<ReadableStream<Uint8Array> | DaemonError> {
-  const socketPath = socketPathOverride ?? getSocketPath();
+  const transport = transportOverride ?? discoverTransport();
+  if (!transport) return Promise.resolve(noTransportError());
+
   const method = options?.method ?? "POST";
 
   return new Promise((resolve) => {
     const req = http.request(
       {
-        socketPath,
+        ...transportOptions(transport),
         path: requestPath,
         method,
         headers: {

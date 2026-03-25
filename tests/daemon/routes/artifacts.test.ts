@@ -417,7 +417,7 @@ describe("POST /workspace/artifact/document/write", () => {
     });
 
     expect(commitCalled).toBe(true);
-    expect(commitPath).toContain("projects/test-project");
+    expect(commitPath).toContain(path.join("projects", "test-project"));
     expect(commitMessage).toContain("specs/commit-test.md");
   });
 

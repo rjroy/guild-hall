@@ -22,6 +22,10 @@ let guildHallHome: string;
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-resolver-"));
   guildHallHome = path.join(tmpDir, ".guild-hall");
+  // Manager toolbox discovery requires a transport file to exist.
+  // Create a fake port file so discoverTransport() doesn't throw.
+  await fs.mkdir(guildHallHome, { recursive: true });
+  await fs.writeFile(path.join(guildHallHome, "guild-hall.port"), "19999");
 });
 
 afterEach(async () => {

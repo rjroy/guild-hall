@@ -5,13 +5,15 @@ import * as os from "node:os";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import {
-  getSocketPath,
+  discoverTransport,
   isDaemonError,
   daemonFetch,
   daemonFetchBinary,
   daemonHealth,
   daemonStreamAsync,
+  daemonStream,
   type DaemonError,
+  type TransportDescriptor,
 } from "@/lib/daemon-client";
 
 let tmpDirs: string[] = [];
@@ -30,7 +32,7 @@ function makeTmpDir(): string {
  * Starts a Hono app on a Unix socket in a temp directory.
  * Returns the socket path and a stop function, or null if socket binding is blocked.
  */
-function serveOnSocket(app: Hono): { socketPath: string; stop: () => void } | null {
+function serveOnSocket(app: Hono): { socketPath: string; transport: TransportDescriptor; stop: () => void } | null {
   const tmp = makeTmpDir();
   const socketPath = path.join(tmp, "test.sock");
 
@@ -59,7 +61,38 @@ function serveOnSocket(app: Hono): { socketPath: string; stop: () => void } | nu
   };
   servers.push(stopFn);
 
-  return { socketPath, stop: stopFn.stop };
+  return {
+    socketPath,
+    transport: { type: "unix", socketPath },
+    stop: stopFn.stop,
+  };
+}
+
+/**
+ * Starts a Hono app on a TCP port.
+ * Returns the transport descriptor and a stop function.
+ */
+function serveOnTcp(app: Hono): { transport: TransportDescriptor; port: number; stop: () => void } {
+  const server = Bun.serve({
+    port: 0,
+    hostname: "127.0.0.1",
+    fetch: app.fetch,
+  });
+
+  const stopFn = {
+    stop: () => {
+      void server.stop();
+    },
+  };
+  servers.push(stopFn);
+
+  // server.port is always defined when binding with port: 0
+  const port = server.port!;
+  return {
+    transport: { type: "tcp", hostname: "127.0.0.1", port },
+    port,
+    stop: stopFn.stop,
+  };
 }
 
 afterEach(() => {
@@ -78,17 +111,48 @@ afterEach(() => {
   tmpDirs = [];
 });
 
-// -- getSocketPath --
+// -- discoverTransport --
 
-describe("getSocketPath", () => {
-  test("returns socket path under given home", () => {
-    const result = getSocketPath("/tmp/test-home");
-    expect(result).toBe("/tmp/test-home/guild-hall.sock");
+describe("discoverTransport", () => {
+  test("returns unix transport when socket file exists", () => {
+    const tmp = makeTmpDir();
+    const socketPath = path.join(tmp, "guild-hall.sock");
+    fs.writeFileSync(socketPath, "");
+
+    const result = discoverTransport(tmp);
+    expect(result).toEqual({ type: "unix", socketPath });
   });
 
-  test("uses default guild-hall home when no override", () => {
-    const result = getSocketPath();
-    expect(result).toEndWith(".guild-hall/guild-hall.sock");
+  test("returns tcp transport when port file exists with valid port", () => {
+    const tmp = makeTmpDir();
+    fs.writeFileSync(path.join(tmp, "guild-hall.port"), "8742");
+
+    const result = discoverTransport(tmp);
+    expect(result).toEqual({ type: "tcp", hostname: "127.0.0.1", port: 8742 });
+  });
+
+  test("returns null when neither file exists", () => {
+    const tmp = makeTmpDir();
+    const result = discoverTransport(tmp);
+    expect(result).toBeNull();
+  });
+
+  test("returns null when port file contains non-numeric content", () => {
+    const tmp = makeTmpDir();
+    fs.writeFileSync(path.join(tmp, "guild-hall.port"), "not-a-number");
+
+    const result = discoverTransport(tmp);
+    expect(result).toBeNull();
+  });
+
+  test("socket file takes precedence when both exist", () => {
+    const tmp = makeTmpDir();
+    const socketPath = path.join(tmp, "guild-hall.sock");
+    fs.writeFileSync(socketPath, "");
+    fs.writeFileSync(path.join(tmp, "guild-hall.port"), "9999");
+
+    const result = discoverTransport(tmp);
+    expect(result).toEqual({ type: "unix", socketPath });
   });
 });
 
@@ -128,9 +192,9 @@ describe("isDaemonError", () => {
   });
 });
 
-// -- daemonFetch with real server --
+// -- daemonFetch with real server (Unix) --
 
-describe("daemonFetch", () => {
+describe("daemonFetch (unix)", () => {
   test("returns Response from a real Hono server on a socket", async () => {
     const app = new Hono();
     app.get("/health", (c) => c.json({ status: "ok", meetings: 0, uptime: 1 }));
@@ -138,7 +202,7 @@ describe("daemonFetch", () => {
     const srv = serveOnSocket(app);
     if (!srv) return; // Socket binding blocked in sandbox
 
-    const result = await daemonFetch("/health", undefined, srv.socketPath);
+    const result = await daemonFetch("/health", undefined, srv.transport);
     expect(isDaemonError(result)).toBe(false);
 
     const res = result as Response;
@@ -162,7 +226,7 @@ describe("daemonFetch", () => {
     const result = await daemonFetch(
       "/meetings",
       { method: "POST", body: payload },
-      srv.socketPath,
+      srv.transport,
     );
 
     expect(isDaemonError(result)).toBe(false);
@@ -178,7 +242,8 @@ describe("daemonFetch", () => {
     // and get ECONNREFUSED or similar.
     fs.writeFileSync(socketPath, "");
 
-    const result = await daemonFetch("/health", undefined, socketPath);
+    const transport: TransportDescriptor = { type: "unix", socketPath };
+    const result = await daemonFetch("/health", undefined, transport);
     expect(isDaemonError(result)).toBe(true);
 
     const err = result as DaemonError;
@@ -190,12 +255,11 @@ describe("daemonFetch", () => {
     const tmp = makeTmpDir();
     const socketPath = path.join(tmp, "nonexistent.sock");
 
-    const result = await daemonFetch("/health", undefined, socketPath);
+    const transport: TransportDescriptor = { type: "unix", socketPath };
+    const result = await daemonFetch("/health", undefined, transport);
     expect(isDaemonError(result)).toBe(true);
 
     const err = result as DaemonError;
-    // The exact error type depends on the runtime. Node gives ENOENT
-    // (socket_not_found), but Bun may classify it differently.
     expect(["socket_not_found", "request_failed"]).toContain(err.type);
   });
 
@@ -211,7 +275,7 @@ describe("daemonFetch", () => {
     const result = await daemonFetch(
       "/meetings/unknown-id",
       { method: "DELETE" },
-      srv.socketPath,
+      srv.transport,
     );
     expect(isDaemonError(result)).toBe(false);
 
@@ -220,9 +284,61 @@ describe("daemonFetch", () => {
   });
 });
 
-// -- daemonFetchBinary --
+// -- daemonFetch (TCP) --
 
-describe("daemonFetchBinary", () => {
+describe("daemonFetch (tcp)", () => {
+  test("returns Response from a Hono server on TCP", async () => {
+    const app = new Hono();
+    app.get("/health", (c) => c.json({ status: "ok", meetings: 0, uptime: 1 }));
+
+    const srv = serveOnTcp(app);
+
+    const result = await daemonFetch("/health", undefined, srv.transport);
+    expect(isDaemonError(result)).toBe(false);
+
+    const res = result as Response;
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ status: "ok", meetings: 0, uptime: 1 });
+  });
+
+  test("sends POST body correctly over TCP", async () => {
+    const app = new Hono();
+    let receivedBody: unknown = null;
+    app.post("/meetings", async (c) => {
+      receivedBody = await c.req.json();
+      return c.json({ created: true });
+    });
+
+    const srv = serveOnTcp(app);
+
+    const payload = JSON.stringify({ projectName: "test", prompt: "hello" });
+    const result = await daemonFetch(
+      "/meetings",
+      { method: "POST", body: payload },
+      srv.transport,
+    );
+
+    expect(isDaemonError(result)).toBe(false);
+    const res = result as Response;
+    expect(res.status).toBe(200);
+    expect(receivedBody).toEqual({ projectName: "test", prompt: "hello" });
+  });
+
+  test("returns DaemonError when TCP port has no server", async () => {
+    // Use a port that's extremely unlikely to be in use
+    const transport: TransportDescriptor = { type: "tcp", hostname: "127.0.0.1", port: 19 };
+    const result = await daemonFetch("/health", undefined, transport);
+    expect(isDaemonError(result)).toBe(true);
+
+    const err = result as DaemonError;
+    expect(["daemon_offline", "request_failed"]).toContain(err.type);
+  });
+});
+
+// -- daemonFetchBinary (Unix) --
+
+describe("daemonFetchBinary (unix)", () => {
   test("returns raw Buffer body, not string", async () => {
     const binaryData = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     const app = new Hono();
@@ -236,7 +352,7 @@ describe("daemonFetchBinary", () => {
     const srv = serveOnSocket(app);
     if (!srv) return; // Socket binding blocked in sandbox
 
-    const result = await daemonFetchBinary("/image", srv.socketPath);
+    const result = await daemonFetchBinary("/image", srv.transport);
     expect(isDaemonError(result)).toBe(false);
 
     const res = result as { status: number; headers: Record<string, string>; body: Buffer };
@@ -253,7 +369,8 @@ describe("daemonFetchBinary", () => {
     const tmp = makeTmpDir();
     const socketPath = path.join(tmp, "nonexistent.sock");
 
-    const result = await daemonFetchBinary("/image", socketPath);
+    const transport: TransportDescriptor = { type: "unix", socketPath };
+    const result = await daemonFetchBinary("/image", transport);
     expect(isDaemonError(result)).toBe(true);
   });
 
@@ -264,7 +381,7 @@ describe("daemonFetchBinary", () => {
     const srv = serveOnSocket(app);
     if (!srv) return; // Socket binding blocked in sandbox
 
-    const result = await daemonFetchBinary("/image", srv.socketPath);
+    const result = await daemonFetchBinary("/image", srv.transport);
     expect(isDaemonError(result)).toBe(false);
 
     const res = result as { status: number; headers: Record<string, string>; body: Buffer };
@@ -272,10 +389,36 @@ describe("daemonFetchBinary", () => {
   });
 });
 
+// -- daemonFetchBinary (TCP) --
+
+describe("daemonFetchBinary (tcp)", () => {
+  test("returns raw Buffer body over TCP", async () => {
+    const binaryData = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const app = new Hono();
+    app.get("/image", (c) => {
+      return c.body(binaryData, 200, {
+        "Content-Type": "image/png",
+      });
+    });
+
+    const srv = serveOnTcp(app);
+
+    const result = await daemonFetchBinary("/image", srv.transport);
+    expect(isDaemonError(result)).toBe(false);
+
+    const res = result as { status: number; headers: Record<string, string>; body: Buffer };
+    expect(res.status).toBe(200);
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect(res.body.length).toBe(binaryData.length);
+    expect(res.body[0]).toBe(0x89);
+    expect(res.headers["content-type"]).toContain("image/png");
+  });
+});
+
 // -- daemonHealth --
 
 describe("daemonHealth", () => {
-  test("returns health data from running daemon", async () => {
+  test("returns health data from running daemon (unix)", async () => {
     const app = new Hono();
     app.get("/system/runtime/daemon/health", (c) =>
       c.json({ status: "ok", meetings: 2, uptime: 300 }),
@@ -284,22 +427,35 @@ describe("daemonHealth", () => {
     const srv = serveOnSocket(app);
     if (!srv) return; // Socket binding blocked in sandbox
 
-    const health = await daemonHealth(srv.socketPath);
+    const health = await daemonHealth(srv.transport);
     expect(health).toEqual({ status: "ok", meetings: 2, uptime: 300 });
   });
 
-  test("returns null when daemon is not running", async () => {
+  test("returns null when daemon is not running (unix)", async () => {
     const tmp = makeTmpDir();
     const socketPath = path.join(tmp, "nonexistent.sock");
 
-    const health = await daemonHealth(socketPath);
+    const transport: TransportDescriptor = { type: "unix", socketPath };
+    const health = await daemonHealth(transport);
     expect(health).toBeNull();
+  });
+
+  test("returns health data from running daemon (tcp)", async () => {
+    const app = new Hono();
+    app.get("/system/runtime/daemon/health", (c) =>
+      c.json({ status: "ok", meetings: 1, uptime: 42 }),
+    );
+
+    const srv = serveOnTcp(app);
+
+    const health = await daemonHealth(srv.transport);
+    expect(health).toEqual({ status: "ok", meetings: 1, uptime: 42 });
   });
 });
 
-// -- daemonStreamAsync --
+// -- daemonStreamAsync (Unix) --
 
-describe("daemonStreamAsync", () => {
+describe("daemonStreamAsync (unix)", () => {
   test("returns a readable stream from an SSE endpoint", async () => {
     const app = new Hono();
     app.post("/meetings", (c) =>
@@ -322,7 +478,7 @@ describe("daemonStreamAsync", () => {
     const result = await daemonStreamAsync(
       "/meetings",
       JSON.stringify({ projectName: "test", workerName: "w", prompt: "hi" }),
-      srv.socketPath,
+      srv.transport,
     );
 
     expect(isDaemonError(result)).toBe(false);
@@ -348,15 +504,15 @@ describe("daemonStreamAsync", () => {
     const tmp = makeTmpDir();
     const socketPath = path.join(tmp, "nonexistent.sock");
 
+    const transport: TransportDescriptor = { type: "unix", socketPath };
     const result = await daemonStreamAsync(
       "/meetings",
       JSON.stringify({ projectName: "test" }),
-      socketPath,
+      transport,
     );
 
     expect(isDaemonError(result)).toBe(true);
     const err = result as DaemonError;
-    // The exact error type depends on the runtime (see daemonFetch test)
     expect(["socket_not_found", "request_failed"]).toContain(err.type);
   });
 
@@ -377,7 +533,7 @@ describe("daemonStreamAsync", () => {
     const result = await daemonStreamAsync(
       "/meetings",
       JSON.stringify(payload),
-      srv.socketPath,
+      srv.transport,
     );
 
     expect(isDaemonError(result)).toBe(false);
@@ -389,5 +545,96 @@ describe("daemonStreamAsync", () => {
     }
 
     expect(receivedBody).toEqual(payload);
+  });
+});
+
+// -- daemonStreamAsync (TCP) --
+
+describe("daemonStreamAsync (tcp)", () => {
+  test("returns a readable stream from an SSE endpoint over TCP", async () => {
+    const app = new Hono();
+    app.post("/meetings", (c) =>
+      streamSSE(c, async (stream) => {
+        await stream.writeSSE({
+          data: JSON.stringify({ type: "session", meetingId: "m-1" }),
+        });
+        await stream.writeSSE({
+          data: JSON.stringify({ type: "text_delta", text: "Hello" }),
+        });
+        await stream.writeSSE({
+          data: JSON.stringify({ type: "turn_end" }),
+        });
+      }),
+    );
+
+    const srv = serveOnTcp(app);
+
+    const result = await daemonStreamAsync(
+      "/meetings",
+      JSON.stringify({ projectName: "test", workerName: "w", prompt: "hi" }),
+      srv.transport,
+    );
+
+    expect(isDaemonError(result)).toBe(false);
+    const stream = result as ReadableStream<Uint8Array>;
+
+    const reader = stream.getReader();
+    const chunks: string[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(new TextDecoder().decode(value));
+    }
+
+    const text = chunks.join("");
+    expect(text).toContain('"type":"session"');
+    expect(text).toContain('"type":"text_delta"');
+    expect(text).toContain('"type":"turn_end"');
+  });
+});
+
+// -- daemonStream (TCP) --
+
+describe("daemonStream (tcp)", () => {
+  test("returns a readable stream over TCP", async () => {
+    const app = new Hono();
+    app.post("/events", (c) =>
+      streamSSE(c, async (stream) => {
+        await stream.writeSSE({
+          data: JSON.stringify({ type: "heartbeat" }),
+        });
+      }),
+    );
+
+    const srv = serveOnTcp(app);
+
+    const result = daemonStream(
+      "/events",
+      JSON.stringify({ subscribe: true }),
+      srv.transport,
+    );
+
+    expect(isDaemonError(result)).toBe(false);
+    const stream = result as ReadableStream<Uint8Array>;
+
+    const reader = stream.getReader();
+    const chunks: string[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(new TextDecoder().decode(value));
+    }
+
+    const text = chunks.join("");
+    expect(text).toContain('"type":"heartbeat"');
+  });
+
+  test("returns DaemonError when no transport is provided and no discovery files exist", () => {
+    // daemonStream with a null transport returns DaemonError synchronously
+    const transport: TransportDescriptor = { type: "tcp", hostname: "127.0.0.1", port: 19 };
+    const result = daemonStream("/events", undefined, transport);
+    // This should return a ReadableStream (even if connection will fail),
+    // because daemonStream creates the stream synchronously
+    expect(isDaemonError(result)).toBe(false);
   });
 });

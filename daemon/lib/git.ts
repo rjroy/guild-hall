@@ -237,7 +237,7 @@ export function createGitOps(): GitOps {
     },
 
     async createWorktree(repoPath, worktreePath, branchName) {
-      await runGit(repoPath, ["worktree", "add", worktreePath, branchName]);
+      await runGit(repoPath, ["-c", "core.longpaths=true", "worktree", "add", worktreePath, branchName]);
     },
 
     async removeWorktree(repoPath, worktreePath) {

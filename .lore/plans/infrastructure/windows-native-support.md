@@ -1,7 +1,7 @@
 ---
 title: "Plan: Windows Native Support"
 date: 2026-03-24
-status: approved
+status: executed
 tags: [windows, cross-platform, transport, ipc, tcp, sockets, portability, plan]
 modules: [daemon, daemon-lib-socket, daemon-lib-git, lib-daemon-client, lib-paths, notification-service]
 related:

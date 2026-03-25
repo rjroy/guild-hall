@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import * as path from "node:path";
 import { loadPackageOperations } from "@/daemon/services/operations-loader";
 import type { ImportModule } from "@/daemon/services/operations-loader";
 import type { DiscoveredPackage } from "@/lib/types";
@@ -62,8 +63,14 @@ function makeValidOperation(overrides?: Partial<PackageOperation>): PackageOpera
 function makeImporter(
   modules: Record<string, Record<string, unknown>>,
 ): ImportModule {
+  // The loader uses path.resolve() to build import paths, so normalize
+  // the lookup keys the same way for cross-platform matching.
+  const resolved = new Map<string, Record<string, unknown>>();
+  for (const [key, val] of Object.entries(modules)) {
+    resolved.set(path.resolve(key), val);
+  }
   return (modulePath: string) => {
-    const mod = modules[modulePath];
+    const mod = resolved.get(modulePath);
     if (!mod) return Promise.reject(new Error(`Module not found: ${modulePath}`));
     return Promise.resolve(mod);
   };

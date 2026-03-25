@@ -61,6 +61,20 @@ describe("scanArtifacts", () => {
     expect(paths).toEqual(["plans/deep/nested.md", "root.md", "specs/system.md"]);
   });
 
+  test("relativePath uses POSIX separators on all platforms", async () => {
+    await writeTestArtifact(
+      "specs/infrastructure/daemon.md",
+      "title: Daemon",
+      "Content"
+    );
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(1);
+    // Must use forward slashes regardless of OS (the contract consumers rely on)
+    expect(artifacts[0].relativePath).toBe("specs/infrastructure/daemon.md");
+    expect(artifacts[0].relativePath).not.toContain("\\");
+  });
+
   test("ignores unsupported file types", async () => {
     await writeTestArtifact("doc.md", "title: Doc", "Content");
     const txtPath = path.join(tmpDir, "notes.txt");

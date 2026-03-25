@@ -9,7 +9,11 @@ import {
   writePidFile,
   removePidFile,
   removeSocketFile,
-} from "@/daemon/lib/socket";
+  getPortFilePath,
+  writePortFile,
+  removePortFile,
+  cleanStalePort,
+} from "@/daemon/lib/transport";
 
 let tmpDirs: string[] = [];
 
@@ -29,12 +33,12 @@ afterEach(() => {
 describe("getSocketPath", () => {
   test("returns socket path under given guild-hall home", () => {
     const result = getSocketPath("/tmp/test-gh");
-    expect(result).toBe("/tmp/test-gh/guild-hall.sock");
+    expect(result).toBe(path.join("/tmp/test-gh", "guild-hall.sock"));
   });
 
   test("uses default guild-hall home when no override", () => {
     const result = getSocketPath();
-    expect(result).toEndWith(".guild-hall/guild-hall.sock");
+    expect(result).toEndWith(path.join(".guild-hall", "guild-hall.sock"));
   });
 });
 
@@ -165,5 +169,125 @@ describe("removeSocketFile", () => {
     const socketPath = path.join(tmp, "guild-hall.sock");
     // Should not throw
     removeSocketFile(socketPath);
+  });
+});
+
+// --- TCP transport: port file functions ---
+
+describe("getPortFilePath", () => {
+  test("returns port file path under given guild-hall home", () => {
+    const result = getPortFilePath("/tmp/test-gh");
+    expect(result).toBe(path.join("/tmp/test-gh", "guild-hall.port"));
+  });
+
+  test("uses default guild-hall home when no override", () => {
+    const result = getPortFilePath();
+    expect(result).toEndWith(path.join(".guild-hall", "guild-hall.port"));
+  });
+});
+
+describe("writePortFile / removePortFile", () => {
+  test("round-trip: write port, read it back, remove, verify gone", () => {
+    const tmp = makeTmpDir();
+    const portFilePath = path.join(tmp, "guild-hall.port");
+
+    writePortFile(portFilePath, 8080);
+    const content = fs.readFileSync(portFilePath, "utf-8");
+    expect(content).toBe("8080");
+
+    removePortFile(portFilePath);
+    expect(fs.existsSync(portFilePath)).toBe(false);
+  });
+
+  test("writePortFile creates parent directories if needed", () => {
+    const tmp = makeTmpDir();
+    const portFilePath = path.join(tmp, "nested", "dir", "guild-hall.port");
+
+    writePortFile(portFilePath, 3000);
+    expect(fs.existsSync(portFilePath)).toBe(true);
+    expect(fs.readFileSync(portFilePath, "utf-8")).toBe("3000");
+  });
+
+  test("removePortFile is no-op when file does not exist", () => {
+    const tmp = makeTmpDir();
+    const portFilePath = path.join(tmp, "guild-hall.port");
+    // Should not throw
+    removePortFile(portFilePath);
+  });
+});
+
+describe("cleanStalePort", () => {
+  test("does nothing when neither port nor PID file exists", () => {
+    const tmp = makeTmpDir();
+    const portFilePath = path.join(tmp, "guild-hall.port");
+    // Should not throw
+    cleanStalePort(portFilePath);
+    expect(fs.existsSync(portFilePath)).toBe(false);
+  });
+
+  test("removes orphaned port file when no PID file exists", () => {
+    const tmp = makeTmpDir();
+    const portFilePath = path.join(tmp, "guild-hall.port");
+    fs.writeFileSync(portFilePath, "8080");
+
+    cleanStalePort(portFilePath);
+    expect(fs.existsSync(portFilePath)).toBe(false);
+  });
+
+  test("removes port and PID file when process is dead", () => {
+    const tmp = makeTmpDir();
+    const portFilePath = path.join(tmp, "guild-hall.port");
+    const pidPath = pidFilePathFor(portFilePath);
+
+    fs.writeFileSync(portFilePath, "8080");
+    // Use a PID that almost certainly doesn't exist.
+    const deadPid = 4194304 + Math.floor(Math.random() * 1000000);
+    fs.writeFileSync(pidPath, String(deadPid));
+
+    cleanStalePort(portFilePath);
+    expect(fs.existsSync(portFilePath)).toBe(false);
+    expect(fs.existsSync(pidPath)).toBe(false);
+  });
+
+  test("throws when PID file references a live process", () => {
+    const tmp = makeTmpDir();
+    const portFilePath = path.join(tmp, "guild-hall.port");
+    const pidPath = pidFilePathFor(portFilePath);
+
+    fs.writeFileSync(portFilePath, "8080");
+    // Use the current process PID, which is definitely alive
+    fs.writeFileSync(pidPath, String(process.pid));
+
+    expect(() => cleanStalePort(portFilePath)).toThrow(
+      /Another daemon is already running/
+    );
+    // Port and PID file should still exist (not cleaned up)
+    expect(fs.existsSync(portFilePath)).toBe(true);
+    expect(fs.existsSync(pidPath)).toBe(true);
+  });
+
+  test("removes corrupt PID file and port file", () => {
+    const tmp = makeTmpDir();
+    const portFilePath = path.join(tmp, "guild-hall.port");
+    const pidPath = pidFilePathFor(portFilePath);
+
+    fs.writeFileSync(portFilePath, "8080");
+    fs.writeFileSync(pidPath, "not-a-number");
+
+    cleanStalePort(portFilePath);
+    expect(fs.existsSync(portFilePath)).toBe(false);
+    expect(fs.existsSync(pidPath)).toBe(false);
+  });
+});
+
+describe("Bun.serve TCP compatibility", () => {
+  test("Bun.serve({ port: 0 }) supports idleTimeout: 0", () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: () => new Response("ok"),
+      idleTimeout: 0 as never,
+    });
+    expect(server.port).toBeGreaterThan(0);
+    void server.stop();
   });
 });
