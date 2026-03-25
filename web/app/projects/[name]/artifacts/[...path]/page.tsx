@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { fetchDaemon } from "@/web/lib/daemon-api";
 import type { Artifact, ArtifactMeta, CommissionMeta } from "@/lib/types";
 import ArtifactProvenance from "@/web/components/artifact/ArtifactProvenance";
+import type { Attribution } from "@/web/components/artifact/ArtifactProvenance";
+import { resolveAttribution } from "@/web/lib/resolve-attribution";
 import ArtifactContent from "@/web/components/artifact/ArtifactContent";
 import ArtifactDetailLayout from "@/web/components/artifact/ArtifactDetailLayout";
 import MetadataSidebar from "@/web/components/artifact/MetadataSidebar";
@@ -114,6 +116,27 @@ export default async function ArtifactPage({
     c.linked_artifacts.includes(relativePath),
   );
 
+  // Resolve worker attribution from frontmatter extras
+  const workersResult = await fetchDaemon<{ workers: Array<{ displayName: string; portraitUrl: string | null }> }>(
+    "/system/packages/worker/list",
+  );
+  const portraitMap = new Map<string, string | null>();
+  if (workersResult.ok) {
+    for (const w of workersResult.data.workers) {
+      portraitMap.set(w.displayName, w.portraitUrl);
+    }
+  }
+
+  const extras = artifact.meta.extras;
+  const resolved = resolveAttribution(extras, portraitMap);
+  const attribution: Attribution | undefined = resolved
+    ? {
+        ...resolved,
+        commissionId: associatedCommissions[0]?.commissionId,
+        commissionTitle: associatedCommissions[0]?.title || undefined,
+      }
+    : undefined;
+
   // For open meeting artifacts, show a link to the live meeting view
   const isMeeting = relativePath.startsWith("meetings/");
   const isOpen = artifact.meta.status.toLowerCase().trim() === "open";
@@ -130,6 +153,7 @@ export default async function ArtifactPage({
         projectName={projectName}
         artifactTitle={displayTitle}
         artifactPath={relativePath}
+        attribution={attribution}
       />
       {meetingLink && (
         <div className={styles.meetingBanner}>
