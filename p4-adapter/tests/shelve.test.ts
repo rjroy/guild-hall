@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { writeState, type AdapterState } from "../state";
-import { shelve, type GitRunner, type ShelveOptions } from "../shelve";
+import { shelve, type GitRunner } from "../shelve";
 import type { P4Runner, P4Result } from "../p4";
 
 function createTempDir(): string {
@@ -36,10 +36,10 @@ function mockP4Runner(
   responder?: (args: string[]) => P4Result,
 ): { runner: P4Runner; calls: string[][] } {
   const calls: string[][] = [];
-  const runner: P4Runner = async (args: string[]) => {
+  const runner: P4Runner = (args: string[]) => {
     calls.push(args);
-    if (responder) return responder(args);
-    return { stdout: "", stderr: "", exitCode: 0 };
+    if (responder) return Promise.resolve(responder(args));
+    return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });
   };
   return { runner, calls };
 }
@@ -51,10 +51,10 @@ function mockGitRunner(
   responder?: (args: string[]) => { stdout: string; exitCode: number },
 ): { runner: GitRunner; calls: string[][] } {
   const calls: string[][] = [];
-  const runner: GitRunner = async (args: string[]) => {
+  const runner: GitRunner = (args: string[]) => {
     calls.push(args);
-    if (responder) return responder(args);
-    return { stdout: "", exitCode: 0 };
+    if (responder) return Promise.resolve(responder(args));
+    return Promise.resolve({ stdout: "", exitCode: 0 });
   };
   return { runner, calls };
 }
@@ -90,19 +90,6 @@ function standardP4Responder(
       return { stdout: "", stderr: "", exitCode: 1 };
     }
     return { stdout: "", stderr: "", exitCode: 0 };
-  };
-}
-
-function makeOptions(
-  dir: string,
-  overrides: Partial<ShelveOptions>,
-): ShelveOptions {
-  return {
-    workspaceDir: dir,
-    description: "Test shelve",
-    p4Runner: overrides.p4Runner!,
-    gitRunner: overrides.gitRunner!,
-    ...overrides,
   };
 }
 
@@ -267,7 +254,7 @@ describe("shelve empty manifest", () => {
     const { runner: p4Runner } = mockP4Runner(standardP4Responder());
     const gitRunner = standardGitRunner(""); // empty diff
 
-    await expect(
+    expect(
       shelve({
         workspaceDir: dir,
         description: "Empty shelve",
@@ -299,7 +286,7 @@ describe("shelve conflict detection", () => {
     );
     const gitRunner = standardGitRunner("M\tSource/Conflict.cpp\n");
 
-    await expect(
+    expect(
       shelve({
         workspaceDir: dir,
         description: "Conflict shelve",
@@ -329,7 +316,7 @@ describe("shelve conflict detection", () => {
     );
     const gitRunner = standardGitRunner("M\tSource/File.cpp\n");
 
-    await expect(
+    expect(
       shelve({
         workspaceDir: dir,
         description: "Blocked shelve",
@@ -394,7 +381,7 @@ describe("shelve cleanup on failure", () => {
     );
     const gitRunner = standardGitRunner("M\tSource/Locked.cpp\n");
 
-    await expect(
+    expect(
       shelve({
         workspaceDir: dir,
         description: "Failing shelve",
@@ -424,7 +411,7 @@ describe("shelve preconditions", () => {
     const { runner: p4Runner } = mockP4Runner();
     const { runner: gitRunner } = mockGitRunner();
 
-    await expect(
+    expect(
       shelve({
         workspaceDir: dir,
         description: "No state",
@@ -451,7 +438,7 @@ describe("shelve preconditions", () => {
       return { stdout: "", exitCode: 0 };
     }).runner;
 
-    await expect(
+    expect(
       shelve({
         workspaceDir: dir,
         description: "With worktrees",

@@ -90,14 +90,14 @@ describe("resolveP4Env", () => {
 });
 
 describe("P4Runner safety (REQ-P4A-36)", () => {
-  test("module does not export a submit function", () => {
+  test("module does not export a submit function", async () => {
     // The module's public API: P4Result, P4Runner, resolveP4Env, createP4Runner.
     // There must be no 'submit', 'p4Submit', or similar export.
-    const p4Module = require("../p4");
+    const p4Module = await import("../p4");
     const exportedNames = Object.keys(p4Module);
 
     const submitRelated = exportedNames.filter(
-      (name: string) =>
+      (name) =>
         name.toLowerCase().includes("submit") ||
         name.toLowerCase().includes("p4submit"),
     );

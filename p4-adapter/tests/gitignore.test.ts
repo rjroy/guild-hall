@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "bun:test";
-import { mkdtempSync, rmSync, readFileSync } from "fs";
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import {
@@ -162,7 +162,6 @@ describe("ensureP4Ignore", () => {
   it("adds missing entries to existing .p4ignore", () => {
     const dir = createTempDir();
     const filePath = join(dir, ".p4ignore");
-    const { writeFileSync } = require("fs");
     writeFileSync(filePath, "*.bak\n", "utf-8");
 
     ensureP4Ignore(dir);
@@ -177,7 +176,6 @@ describe("ensureP4Ignore", () => {
     const dir = createTempDir();
     const filePath = join(dir, ".p4ignore");
     const original = ".git/\n.gitignore\n.p4-adapter.json\n";
-    const { writeFileSync } = require("fs");
     writeFileSync(filePath, original, "utf-8");
 
     ensureP4Ignore(dir);

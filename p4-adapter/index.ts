@@ -49,7 +49,7 @@ async function main(): Promise<void> {
       }
     } catch (error) {
       console.error(
-        `init failed: ${error instanceof Error ? error.message : error}`,
+        `init failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       console.error("\nHint: Ensure you are in a P4 workspace with a whitelist .gitignore.");
       process.exit(1);
@@ -107,4 +107,4 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+void main();

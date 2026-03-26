@@ -4,6 +4,7 @@ import {
   mkdirSync,
   writeFileSync,
   existsSync,
+  readFileSync,
   rmSync,
 } from "fs";
 import { join } from "path";
@@ -49,27 +50,27 @@ function createMockP4Runner(
   },
 ): { runner: P4Runner; calls: string[][] } {
   const calls: string[][] = [];
-  const runner: P4Runner = async (args) => {
+  const runner: P4Runner = (args) => {
     calls.push([...args]);
     if (args[0] === "info") {
-      return (
+      return Promise.resolve(
         overrides?.infoResult ?? {
           stdout: `Client root: ${workspaceDir}\nUser name: testuser\n`,
           stderr: "",
           exitCode: 0,
-        }
+        },
       );
     }
     if (args[0] === "changes") {
-      return (
+      return Promise.resolve(
         overrides?.changesResult ?? {
           stdout: "Change 12345 on 2026/03/25 by testuser@testclient 'sync'\n",
           stderr: "",
           exitCode: 0,
-        }
+        },
       );
     }
-    return OK;
+    return Promise.resolve(OK);
   };
   return { runner, calls };
 }
@@ -85,31 +86,31 @@ function createMockCommandRunner(
   handler?: (command: string, args: string[]) => P4Result | undefined,
 ): { run: CommandRunner; calls: MockCall[] } {
   const calls: MockCall[] = [];
-  const run: CommandRunner = async (command, args) => {
+  const run: CommandRunner = (command, args) => {
     calls.push({ command, args: [...args] });
     const result = handler?.(command, args);
-    if (result) return result;
+    if (result) return Promise.resolve(result);
 
     // Smart defaults for git commands
     if (command === "git" && args.includes("rev-parse")) {
-      return { stdout: "abc123def456\n", stderr: "", exitCode: 0 };
+      return Promise.resolve({ stdout: "abc123def456\n", stderr: "", exitCode: 0 });
     }
     if (command === "git" && args.includes("ls-files")) {
-      return {
+      return Promise.resolve({
         stdout: "Source/file1.cpp\nSource/file2.h\n",
         stderr: "",
         exitCode: 0,
-      };
+      });
     }
     if (command === "git" && args.includes("worktree")) {
       // Single worktree (main only)
-      return {
+      return Promise.resolve({
         stdout: `worktree /path/to/main\nHEAD abc123\nbranch refs/heads/main\n`,
         stderr: "",
         exitCode: 0,
-      };
+      });
     }
-    return OK;
+    return Promise.resolve(OK);
   };
   return { run, calls };
 }
@@ -213,7 +214,7 @@ describe("init: P4 workspace validation", () => {
     });
     const { run } = createMockCommandRunner();
 
-    await expect(
+    expect(
       init({ workspaceDir: dir, p4Runner, run, platform: "linux" }),
     ).rejects.toThrow("Not a P4 workspace");
   });
@@ -229,7 +230,7 @@ describe("init: P4 workspace validation", () => {
     });
     const { run } = createMockCommandRunner();
 
-    await expect(
+    expect(
       init({ workspaceDir: dir, p4Runner, run, platform: "linux" }),
     ).rejects.toThrow("Not a P4 workspace");
   });
@@ -243,7 +244,7 @@ describe("init: .gitignore validation", () => {
     const { runner: p4Runner } = createMockP4Runner(dir);
     const { run } = createMockCommandRunner();
 
-    await expect(
+    expect(
       init({ workspaceDir: dir, p4Runner, run, platform: "linux" }),
     ).rejects.toThrow("No .gitignore found");
   });
@@ -254,7 +255,7 @@ describe("init: .gitignore validation", () => {
     const { runner: p4Runner } = createMockP4Runner(dir);
     const { run } = createMockCommandRunner();
 
-    await expect(
+    expect(
       init({ workspaceDir: dir, p4Runner, run, platform: "linux" }),
     ).rejects.toThrow("whitelist model");
   });
@@ -330,7 +331,7 @@ describe("init: cleanup on failure (REQ-P4A-14)", () => {
       return undefined;
     });
 
-    await expect(
+    expect(
       init({ workspaceDir: dir, p4Runner, run, platform: "linux" }),
     ).rejects.toThrow("git commit failed");
 
@@ -355,7 +356,7 @@ describe("init: cleanup on failure (REQ-P4A-14)", () => {
       return undefined;
     });
 
-    await expect(
+    expect(
       init({ workspaceDir: dir, p4Runner, run, platform: "linux" }),
     ).rejects.toThrow("chmod failed");
 
@@ -393,7 +394,7 @@ describe("init: worktree safety (REQ-P4A-30)", () => {
       return undefined;
     });
 
-    await expect(
+    expect(
       init({ workspaceDir: dir, p4Runner, run, platform: "linux" }),
     ).rejects.toThrow("Active git worktrees found");
   });
@@ -425,10 +426,7 @@ describe("init: mutual exclusion", () => {
 
     await init({ workspaceDir: dir, p4Runner, run, platform: "linux" });
 
-    const gitignore = require("fs").readFileSync(
-      join(dir, ".gitignore"),
-      "utf-8",
-    );
+    const gitignore = readFileSync(join(dir, ".gitignore"), "utf-8");
     expect(gitignore).toContain(".p4config");
     expect(gitignore).toContain(".p4ignore");
     expect(gitignore).toContain(".p4-adapter.json");
@@ -441,10 +439,7 @@ describe("init: mutual exclusion", () => {
 
     await init({ workspaceDir: dir, p4Runner, run, platform: "linux" });
 
-    const p4ignore = require("fs").readFileSync(
-      join(dir, ".p4ignore"),
-      "utf-8",
-    );
+    const p4ignore = readFileSync(join(dir, ".p4ignore"), "utf-8");
     expect(p4ignore).toContain(".git/");
     expect(p4ignore).toContain(".gitignore");
     expect(p4ignore).toContain(".p4-adapter.json");
