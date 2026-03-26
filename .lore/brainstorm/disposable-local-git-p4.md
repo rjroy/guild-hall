@@ -1,7 +1,7 @@
 ---
 title: "Disposable local git as P4 isolation layer"
 date: 2026-03-23
-status: open
+status: resolved
 tags: [perforce, git, isolation, game-studio, disposable-git, p4-integration]
 related: [.lore/research/perforce-isolation-models.md]
 ---
@@ -22,36 +22,20 @@ The question that prompted this brainstorm: what if Guild Hall doesn't need P4 t
 
 Instead of making P4 act like git or bridging the two at the protocol level, treat P4 as two bookend operations around a disposable git repo.
 
-**Bootstrap:**
-```
-p4 sync                    # Get current depot state
-git init                   # Create a fresh local git repo
-git add .                  # Commit everything as the baseline
-git commit -m "p4 sync baseline"
-```
+The P4 boundaries are human-operated. Guild Hall never touches P4. A standalone adapter CLI handles the bookend operations.
 
-**Work:**
-Guild Hall operates against this git repo. Commissions, meetings, worktrees, three-tier branching, sparse checkout, the entire isolation model works unchanged. No P4 awareness needed. No Guild Hall code changes.
+**The cycle:**
 
-**Submit (replaces "create PR"):**
-```
-# Derive change manifest from git
-git diff --name-status <baseline>..<final>
+1. User runs `p4 sync` to get current depot state
+2. User tells the adapter to initialize (or re-initialize) the git workspace
+3. Adapter creates a fresh git repo, applies the `.gitignore` whitelist, makes tracked files writable (P4 sets everything read-only after sync), commits baseline
+4. User registers the project with Guild Hall (`guild-hall register`) if not already done
+5. User works in Guild Hall normally: commissions, meetings, worktrees, three-tier branching. No P4 awareness.
+6. User asks the adapter to "submit work." The adapter derives the change manifest from git, copies changed files into the P4 workspace, runs `p4 reconcile`, and creates a shelve.
+7. User creates a P4 Swarm review from the shelve (standard P4 workflow)
+8. User syncs P4 and runs the adapter's reset. Fresh cycle.
 
-# Integrate changes back to P4
-p4 sync                    # Catch up to depot head
-# Copy changed files from git over the synced workspace
-p4 reconcile               # Let P4 detect adds/edits/deletes
-p4 shelve                  # Save for human review
-```
-
-**Reset (after shelve is committed by a human):**
-```
-rm -rf .git
-p4 sync
-git init
-# Fresh cycle
-```
+**Critical constraint:** `p4 sync` must not happen mid-cycle. The cycle is atomic from the user's perspective. Drift is prevented by workflow, not detected by tooling.
 
 ## What This Buys
 
@@ -61,40 +45,58 @@ git init
 - **No protocol bridge.** No git-p4, no LFS incompatibility, no history conversion. The git repo has no P4 history in it at all.
 - **Works with binary assets in P4.** Git never needs to push or bridge to P4. The `.git` directory is disposable.
 
+## Why Pure Bookends Are Sufficient
+
+The adapter is two operations: **init** (create git repo from P4 workspace) and **submit** (create P4 shelve from git changes). Guild Hall sees a git repo. P4 sees a shelf. Neither knows the other exists.
+
+The natural concern: does losing mid-cycle P4 awareness miss anything? Three things are invisible during work:
+
+- **Exclusive locks.** If another developer `p4 lock`s a file the commission is editing, you don't find out until `p4 reconcile` at submit. But reconcile surfaces it, and the human resolves it.
+- **Critical submits.** If someone lands a breaking change to a dependency, the commission works against stale code. But this is the same risk any developer takes between syncs, and the cycle is short.
+- **P4 filetypes.** `p4 reconcile` infers file types. Studios with custom typemap rules might get wrong inferences on new files. A deployment note, not a design gap.
+
+All three surface at the submit bookend. None are silent failures. The human is in the loop at exactly the moment they'd need to be. Mid-cycle P4 awareness would require polling, lock checking, and depot monitoring, all to solve problems that are already solved by keeping the cycle short and the scope narrow.
+
+The bookend is where the P4 problems live, and it's where the P4 answers live too. There's no gap in the middle that the adapter needs to fill.
+
 ## Scoping: The "Guild Hall Spec"
 
 A full `git add .` on a 100GB workspace would create a massive `.git` directory. That's wasteful when commissions only touch source code.
 
 A `.gitignore` that restricts tracking to specific directories solves this. Call it a "guild hall spec" for the workspace: it defines which directories are in scope for AI work, and everything else is invisible to git.
 
-```gitignore
-# Ignore everything by default
-/*
+The `.gitignore` uses a whitelist model: deny everything, then permit specific paths.
 
-# Track only code directories
+```gitignore
+# Nothing tracked by default
+*
+
+# Allow these directories (each parent in the chain must be listed)
 !/Source/
+!/Source/Runtime/
+!/Source/Runtime/MyFeature/**
 !/Config/
-!/Scripts/
 ```
 
-This is functionally equivalent to sparse checkout but enforced by ignore rules. Commissions can only touch what git tracks. That's a feature: it's the scope boundary for AI work at the studio.
+This is an access boundary, not just a performance optimization. Anything git tracks, commissions can modify. Studios with proprietary engine modifications or NDA-covered platform code should treat this file as an access control list.
+
+**Gotcha:** Git's negation rules require each parent directory in the chain to be un-ignored separately. `!/Source/Runtime/MyFeature/**` won't work unless `!/Source/` and `!/Source/Runtime/` are also present.
+
+**Guidance:** Start narrow, expand only when a commission fails because it couldn't reach something it needed. Each expansion is a conscious decision about what AI is allowed to touch.
 
 The studio defines this file once based on their depot layout. It's the only configuration artifact the approach needs.
 
+**Writable files:** P4 sets all files read-only after sync. The adapter's init step must chmod tracked files writable, or commissions fail. This is part of bootstrap, not optional.
+
 ## Edge Cases
 
-### Drift During Work (the hard one)
+### Drift During Work
 
-Between `git init` and shelve, other developers submit to P4. The git repo is frozen at the sync point. At shelve time, the changes are based on a stale depot revision.
+Drift is prevented by workflow: no `p4 sync` mid-cycle. The cycle stays atomic. At submit time, `p4 reconcile` surfaces whatever P4 finds. The human reviews the shelve in Swarm before it lands.
 
-The "integrate back" step handles this partially: `p4 sync` before shelving catches up to head, then the git-side changes are copied over the synced workspace. But this is a manual rebase. If someone else edited the same file, the git version silently overwrites their changes.
+The adapter records the baseline P4 changelist at init. At submit, it can check whether any commission-touched file was also submitted by another developer since the baseline. If so, flag those files and block auto-shelve. The human decides: merge manually, discard the commission's changes to that file, or re-cycle.
 
-**Possible mitigations:**
-- Run a pre-shelve diff check: compare the git-changed files against the depot versions. If any file was also modified in P4 since the baseline sync, flag it for manual review before shelving.
-- Keep the cycle short. The longer between sync and shelve, the more drift accumulates. Commissions that complete in hours have less exposure than ones that run for days.
-- Scope the guild hall spec narrowly. If AI work only touches `Source/Runtime/MyFeature/`, the overlap surface with other developers is small.
-
-This edge case could warrant its own brainstorm. The core question: how much conflict detection can be automated in the integrate-back step without making it fragile?
+Revision-level detection is sufficient. Content-level three-way merge is a future concern if studios find the manual step painful at scale.
 
 ### Integrate-Back Translation
 
@@ -140,20 +142,25 @@ Deleting `.git` destroys all worktrees that reference it. This is a workflow con
 
 The main trade-off: this approach gains zero code changes and zero server load at the cost of no P4 history for in-progress work and a manual drift-reconciliation step.
 
-## Open Questions
+## Resolved Questions
 
-1. **How much conflict detection can the integrate-back script automate?** Comparing file timestamps or P4 revisions between baseline sync and current head could flag files that both the commission and other developers touched. Is that sufficient, or does it need content-level diffing?
+These were open questions in the original brainstorm. Resolved in meeting 2026-03-25.
 
-2. **Is the reset step always necessary?** If no one else submitted to the tracked directories, the git repo is still valid. The reset is a "re-sync with the world" operation. Could Guild Hall detect when a reset is needed vs. when the existing repo is still fresh?
+1. **Conflict detection:** Revision-level check at submit time. The adapter records the baseline P4 changelist at init. At submit, it queries whether commission-touched files were also submitted since baseline. Flag conflicts, block auto-shelve, human resolves. The workflow prevents drift by keeping `p4 sync` out of the middle of a cycle.
 
-3. **What's the right granularity for the guild hall spec?** Too broad (all of `Source/`) and git tracks too much. Too narrow (one feature directory) and commissions can't touch shared code. The studio needs to define this, but what guidance would help them get it right?
+2. **Always reset?** Yes. Always destroy `.git` and re-init after a cycle. The simplicity is worth more than the time saved detecting whether the repo is still fresh. One mental model: sync, init, work, submit, done.
 
-4. **Does the disposable git approach compose with P4 triggers or review tools?** Some studios have P4 triggers that validate shelves (style checks, build verification). The shelve from this workflow should look like any other shelve to P4, but that assumption needs verification.
+3. **Scope granularity:** Whitelist model (`*` deny all, then explicit exceptions). Start narrow, expand only when a commission fails because it couldn't reach something. Treat the `.gitignore` as an access boundary, not just performance tuning. Studios with proprietary or NDA-covered code need to think about this as access control.
 
-5. **Could the bootstrap and integrate-back steps be a Guild Hall "P4 adapter" that lives outside the daemon?** A CLI tool or shell script that wraps the bookend operations, keeping Guild Hall itself completely P4-unaware. The adapter is the only thing that knows P4 exists.
+4. **P4 triggers and review tools:** Composes cleanly. `p4 reconcile` + `p4 shelve` produces a standard shelf. Swarm reviews it normally. Triggers fire normally. The provenance of the edits (git worktree vs. IDE) is invisible to P4. Studio-specific trigger quirks (e.g., triggers that expect `p4 edit` before modification) are a deployment note, not a design concern.
+
+5. **Separate tool?** Yes. The adapter lives in the guild-hall repo as a sibling directory (e.g., `p4-adapter/`). It has its own entry point and tests. No imports from `daemon/` or `web/`, and neither imports from it. Colocated, not coupled. Same pattern as `cli/`. Guild Hall remains "git is the world." The adapter is the only thing that knows P4 exists.
 
 ## Next Steps
 
-- Brainstorm the drift/conflict detection problem in more depth. That's the edge case with the most risk and the most design space.
-- Sketch the integrate-back script. Even a pseudocode version would clarify how messy the rename and delete cases actually are.
-- Consider whether the "guild hall spec" (the `.gitignore` that scopes AI work) is a general concept that applies beyond P4. It's essentially a "what can AI touch" boundary for any large repo.
+The adapter's entire surface is two commands. Everything else is either Guild Hall's existing behavior or the user's existing P4 workflow.
+
+- **Specify `init`:** Given a P4 workspace directory and a `.gitignore` whitelist, create a git repo with a baseline commit. Make tracked files writable. Record the baseline P4 changelist number.
+- **Specify `submit`:** Given a git repo created by `init`, derive the change manifest (`git diff --name-status`), copy changed files to the P4 workspace, run `p4 reconcile`, create a shelve. Check for conflicts against the recorded baseline changelist. (Reset is just `init` again.)
+- **Decide the rename case:** Git's heuristic rename detection vs. P4's explicit `p4 move`. Current leaning: treat renames as delete + add (conservative, loses P4 rename history, avoids misattribution).
+- **Consider whether the whitelist `.gitignore` concept** ("what can AI touch") is a general Guild Hall feature beyond P4. Any large repo benefits from a scope boundary for AI work.
