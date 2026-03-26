@@ -1,7 +1,7 @@
 ---
 title: P4 Adapter (Disposable Local Git)
 date: 2026-03-25
-status: approved
+status: implemented
 tags: [perforce, git, isolation, adapter, p4-integration, infrastructure]
 modules: [p4-adapter]
 related:
