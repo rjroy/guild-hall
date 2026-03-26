@@ -247,7 +247,7 @@ describe("shelve changelist", () => {
 
 // Test case 15: Reports "no changes" on empty manifest
 describe("shelve empty manifest", () => {
-  it("reports 'no changes' when manifest is empty", async () => {
+  it("reports 'no changes' when manifest is empty", () => {
     const dir = createTempDir();
     writeState(dir, BASELINE_STATE);
 
@@ -267,7 +267,7 @@ describe("shelve empty manifest", () => {
 
 // Test case 16: Detects conflicts when P4 head revision exceeds baseline
 describe("shelve conflict detection", () => {
-  it("detects conflicts when P4 head revision exceeds baseline", async () => {
+  it("detects conflicts when P4 head revision exceeds baseline", () => {
     const dir = createTempDir();
     writeState(dir, BASELINE_STATE);
 
@@ -297,7 +297,7 @@ describe("shelve conflict detection", () => {
   });
 
   // Test case 17: Blocks shelve on conflict without --force
-  it("blocks shelve on conflict without --force", async () => {
+  it("blocks shelve on conflict without --force", () => {
     const dir = createTempDir();
     writeState(dir, BASELINE_STATE);
 
@@ -381,14 +381,17 @@ describe("shelve cleanup on failure", () => {
     );
     const gitRunner = standardGitRunner("M\tSource/Locked.cpp\n");
 
-    expect(
-      shelve({
+    try {
+      await shelve({
         workspaceDir: dir,
         description: "Failing shelve",
         p4Runner,
         gitRunner,
-      }),
-    ).rejects.toThrow("p4 edit failed");
+      });
+      throw new Error("Expected shelve to throw");
+    } catch (err) {
+      expect((err as Error).message).toContain("p4 edit failed");
+    }
 
     // Verify cleanup: revert and change -d were called
     const revertCalls = p4Calls.filter((c) => c[0] === "revert");
@@ -404,7 +407,7 @@ describe("shelve cleanup on failure", () => {
 
 // Test case 20: Fails when .p4-adapter.json is missing
 describe("shelve preconditions", () => {
-  it("fails when .p4-adapter.json is missing", async () => {
+  it("fails when .p4-adapter.json is missing", () => {
     const dir = createTempDir();
     // No state file written
 
@@ -422,7 +425,7 @@ describe("shelve preconditions", () => {
   });
 
   // Test case 21: Fails when active worktrees exist
-  it("fails when active worktrees exist", async () => {
+  it("fails when active worktrees exist", () => {
     const dir = createTempDir();
     writeState(dir, BASELINE_STATE);
 

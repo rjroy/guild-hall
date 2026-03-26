@@ -203,7 +203,7 @@ describe("init: re-init", () => {
 
 // Test case 4: Fails on invalid P4 workspace
 describe("init: P4 workspace validation", () => {
-  it("fails when workspace is not a valid P4 workspace", async () => {
+  it("fails when workspace is not a valid P4 workspace", () => {
     const dir = setupWorkspace();
     const { runner: p4Runner } = createMockP4Runner(dir, {
       infoResult: {
@@ -219,7 +219,7 @@ describe("init: P4 workspace validation", () => {
     ).rejects.toThrow("Not a P4 workspace");
   });
 
-  it("fails when p4 info returns an error", async () => {
+  it("fails when p4 info returns an error", () => {
     const dir = setupWorkspace();
     const { runner: p4Runner } = createMockP4Runner(dir, {
       infoResult: {
@@ -238,7 +238,7 @@ describe("init: P4 workspace validation", () => {
 
 // Test case 5: Fails on missing/non-whitelist .gitignore
 describe("init: .gitignore validation", () => {
-  it("fails when .gitignore is missing", async () => {
+  it("fails when .gitignore is missing", () => {
     const dir = createTempDir();
     // No .gitignore created
     const { runner: p4Runner } = createMockP4Runner(dir);
@@ -249,7 +249,7 @@ describe("init: .gitignore validation", () => {
     ).rejects.toThrow("No .gitignore found");
   });
 
-  it("fails when .gitignore does not use whitelist model", async () => {
+  it("fails when .gitignore does not use whitelist model", () => {
     const dir = createTempDir();
     writeFileSync(join(dir, ".gitignore"), "node_modules/\n*.log\n", "utf-8");
     const { runner: p4Runner } = createMockP4Runner(dir);
@@ -331,9 +331,12 @@ describe("init: cleanup on failure (REQ-P4A-14)", () => {
       return undefined;
     });
 
-    expect(
-      init({ workspaceDir: dir, p4Runner, run, platform: "linux" }),
-    ).rejects.toThrow("git commit failed");
+    try {
+      await init({ workspaceDir: dir, p4Runner, run, platform: "linux" });
+      throw new Error("Expected init to throw");
+    } catch (err) {
+      expect((err as Error).message).toContain("git commit failed");
+    }
 
     // .git/ must be cleaned up
     expect(existsSync(join(dir, ".git"))).toBe(false);
@@ -356,9 +359,12 @@ describe("init: cleanup on failure (REQ-P4A-14)", () => {
       return undefined;
     });
 
-    expect(
-      init({ workspaceDir: dir, p4Runner, run, platform: "linux" }),
-    ).rejects.toThrow("chmod failed");
+    try {
+      await init({ workspaceDir: dir, p4Runner, run, platform: "linux" });
+      throw new Error("Expected init to throw");
+    } catch (err) {
+      expect((err as Error).message).toContain("chmod failed");
+    }
 
     expect(existsSync(join(dir, ".git"))).toBe(false);
   });
@@ -366,7 +372,7 @@ describe("init: cleanup on failure (REQ-P4A-14)", () => {
 
 // Test case 9: Fails when active worktrees exist
 describe("init: worktree safety (REQ-P4A-30)", () => {
-  it("fails when active git worktrees exist", async () => {
+  it("fails when active git worktrees exist", () => {
     const dir = setupWorkspace();
     // Create a fake .git directory so the worktree check runs
     mkdirSync(join(dir, ".git"));
