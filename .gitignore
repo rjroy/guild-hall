@@ -48,8 +48,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-
-
 # local
 *.local.json
 *.local.md
