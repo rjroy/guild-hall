@@ -10,6 +10,7 @@ import type { AppConfig, ProjectConfig } from "@/lib/types";
 
 export const projectConfigSchema = z.object({
   name: z.string(),
+  title: z.string().optional(),
   path: z.string(),
   description: z.string().optional(),
   repoUrl: z.string().optional(),

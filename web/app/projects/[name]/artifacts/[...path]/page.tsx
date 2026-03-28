@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchDaemon } from "@/web/lib/daemon-api";
-import type { Artifact, ArtifactMeta, CommissionMeta } from "@/lib/types";
+import { projectDisplayTitle } from "@/lib/types";
+import type { Artifact, ArtifactMeta, CommissionMeta, ProjectConfig } from "@/lib/types";
 import ArtifactProvenance from "@/web/components/artifact/ArtifactProvenance";
 import type { Attribution } from "@/web/components/artifact/ArtifactProvenance";
 import { resolveAttribution } from "@/web/lib/resolve-attribution";
@@ -39,13 +40,14 @@ export default async function ArtifactPage({
   const encoded = encodeURIComponent(projectName);
 
   // Verify project exists
-  const projectResult = await fetchDaemon<Record<string, unknown>>(`/system/config/project/read?name=${encoded}`);
+  const projectResult = await fetchDaemon<ProjectConfig>(`/system/config/project/read?name=${encoded}`);
   if (!projectResult.ok) {
     if (projectResult.error.includes("not found")) {
       notFound();
     }
     return <DaemonError message={projectResult.error} />;
   }
+  const projectTitle = projectDisplayTitle(projectResult.data);
 
   // Check if this is an image artifact
   const ext = relativePath.split(".").pop()?.toLowerCase() ?? "";
@@ -69,6 +71,7 @@ export default async function ArtifactPage({
       <div className={styles.artifactView}>
         <ArtifactProvenance
           projectName={projectName}
+          projectTitle={projectTitle}
           artifactTitle={imageTitle}
           artifactPath={relativePath}
         />

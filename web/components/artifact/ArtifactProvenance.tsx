@@ -18,6 +18,7 @@ export interface Attribution {
 
 interface ArtifactProvenanceProps {
   projectName: string;
+  projectTitle?: string;
   artifactTitle: string;
   artifactPath: string;
   attribution?: Attribution;
@@ -33,6 +34,7 @@ interface ArtifactProvenanceProps {
  */
 export default function ArtifactProvenance({
   projectName,
+  projectTitle,
   artifactTitle,
   artifactPath,
   attribution,
@@ -41,7 +43,7 @@ export default function ArtifactProvenance({
 
   const segments: BreadcrumbSegment[] = [
     { label: "Guild Hall", href: "/" },
-    { label: projectName, href: `/projects/${encodedName}` },
+    { label: projectTitle ?? projectName, href: `/projects/${encodedName}` },
     { label: artifactTitle },
   ];
 

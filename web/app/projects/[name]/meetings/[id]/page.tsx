@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { fetchDaemon } from "@/web/lib/daemon-api";
-import type { MeetingMeta, TranscriptChatMessage } from "@/lib/types";
+import { projectDisplayTitle } from "@/lib/types";
+import type { MeetingMeta, TranscriptChatMessage, ProjectConfig } from "@/lib/types";
 import MeetingHeader from "@/web/components/meeting/MeetingHeader";
 import MeetingView from "@/web/components/meeting/MeetingView";
 import Panel from "@/web/components/ui/Panel";
@@ -55,13 +56,15 @@ export default async function MeetingPage({
   const projectName = decodeURIComponent(rawName);
   const encoded = encodeURIComponent(projectName);
 
-  // Fetch meeting detail and workers in parallel
-  const [detailResult, workersResult] = await Promise.all([
+  // Fetch meeting detail, workers, and project config in parallel
+  const [detailResult, workersResult, projectResult] = await Promise.all([
     fetchDaemon<MeetingDetail>(
       `/meeting/request/meeting/read?meetingId=${encodeURIComponent(id)}&projectName=${encoded}`,
     ),
     fetchDaemon<{ workers: WorkerInfo[] }>("/system/packages/worker/list"),
+    fetchDaemon<ProjectConfig>(`/system/config/project/read?name=${encoded}`),
   ]);
+  const projectTitle = projectResult.ok ? projectDisplayTitle(projectResult.data) : projectName;
 
   if (!detailResult.ok) {
     if (detailResult.error.includes("not found")) {
@@ -94,6 +97,7 @@ export default async function MeetingPage({
       <div className={styles.meetingView}>
         <MeetingHeader
           projectName={projectName}
+          projectTitle={projectTitle}
           workerName={workerName}
           workerDisplayTitle={workerDisplayTitle}
           workerPortraitUrl={workerPortraitUrl}
@@ -122,6 +126,7 @@ export default async function MeetingPage({
       <MeetingView
         meetingId={id}
         projectName={projectName}
+        projectTitle={projectTitle}
         workerName={workerName}
         workerDisplayTitle={workerDisplayTitle}
         workerPortraitUrl={workerPortraitUrl}

@@ -8,6 +8,7 @@ import styles from "./MeetingHeader.module.css";
 
 interface MeetingHeaderProps {
   projectName: string;
+  projectTitle?: string;
   workerName: string;
   workerDisplayTitle: string;
   workerPortraitUrl?: string;
@@ -23,6 +24,7 @@ interface MeetingHeaderProps {
 
 export default function MeetingHeader({
   projectName,
+  projectTitle,
   workerName,
   workerDisplayTitle,
   workerPortraitUrl,
@@ -36,7 +38,7 @@ export default function MeetingHeader({
 
   const segments: BreadcrumbSegment[] = [
     { label: "Guild Hall", href: "/" },
-    { label: projectName, href: `/projects/${encodedName}` },
+    { label: projectTitle ?? projectName, href: `/projects/${encodedName}` },
     { label: "Audience" },
   ];
 

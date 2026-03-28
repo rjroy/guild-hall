@@ -169,6 +169,8 @@ This replaces the Phase 1 prototype architecture. MCP-based plugins, JSON-RPC pr
   - **Project registry**: Each entry maps a project name to its repository path, with optional per-project settings (meeting cap, memory limits).
   - **Application settings**: Global defaults for all projects.
 
+- REQ-SYS-35a: Each project entry has a `name` field that serves as the machine identifier (used in URLs, API calls, file paths, and branch names). An optional `title` field provides a human-readable display label. When `title` is absent, the UI falls back to `name`. The `name` is never renamed or reformatted for display purposes; it remains stable for programmatic use.
+
 - REQ-SYS-36: config.yaml is the source of truth. It is a plain YAML file, machine-parseable and human-editable. Agents edit it directly. Humans edit it directly or use CLI tools for validated operations.
 
 - REQ-SYS-37: CLI tools provide validated operations for common tasks:

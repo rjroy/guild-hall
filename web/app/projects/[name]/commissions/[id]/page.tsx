@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import { fetchDaemon } from "@/web/lib/daemon-api";
 import {
   resolveModel,
+  projectDisplayTitle,
   type AppConfig,
+  type ProjectConfig,
   type CommissionMeta,
   type TimelineEntry,
   type DependencyGraph,
@@ -79,14 +81,16 @@ export default async function CommissionPage({
   const encoded = encodeURIComponent(projectName);
 
   // Fetch commission detail, workers, config, graph, and all commissions in parallel
-  const [detailResult, workersResult, configResult, graphResult, allCommissionsResult] =
+  const [detailResult, workersResult, configResult, graphResult, allCommissionsResult, projectResult] =
     await Promise.all([
       fetchDaemon<CommissionDetail>(`/commission/request/commission/read?commissionId=${encodeURIComponent(id)}&projectName=${encoded}`),
       fetchDaemon<{ workers: WorkerInfo[] }>("/system/packages/worker/list"),
       fetchDaemon<AppConfig>("/system/config/application/read"),
       fetchDaemon<DependencyGraph>(`/commission/dependency/project/graph?projectName=${encoded}`),
       fetchDaemon<{ commissions: CommissionMeta[] }>(`/commission/request/commission/list?projectName=${encoded}`),
+      fetchDaemon<ProjectConfig>(`/system/config/project/read?name=${encoded}`),
     ]);
+  const projectTitle = projectResult.ok ? projectDisplayTitle(projectResult.data) : projectName;
 
   if (!detailResult.ok) {
     if (detailResult.error.includes("not found")) {
@@ -170,6 +174,7 @@ export default async function CommissionPage({
         worker={commission.worker}
         workerDisplayTitle={commission.workerDisplayTitle}
         projectName={projectName}
+        projectTitle={projectTitle}
         model={effectiveModel}
         isModelOverride={isModelOverride}
         isLocalModel={isLocalModel}
