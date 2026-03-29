@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import { createApp } from "@/daemon/app";
 import type { AdminDeps } from "@/daemon/routes/admin";
@@ -199,7 +200,7 @@ describe("POST /system/config/project/register", () => {
   let savedGHHome: string | undefined;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join("/tmp/claude-1000", "gh-admin-reg-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-admin-reg-"));
     ghHome = path.join(tmpDir, "guild-hall");
     await fs.mkdir(ghHome, { recursive: true });
 
@@ -341,7 +342,7 @@ describe("GET /system/config/application/validate", () => {
   let savedGHHome: string | undefined;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join("/tmp/claude-1000", "gh-admin-val-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-admin-val-"));
     ghHome = path.join(tmpDir, "guild-hall");
     await fs.mkdir(ghHome, { recursive: true });
 

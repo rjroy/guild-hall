@@ -4,6 +4,7 @@ import type { Hono } from "hono";
 
 export interface ProjectConfig {
   name: string;
+  title?: string;
   path: string;
   description?: string;
   repoUrl?: string;
@@ -11,6 +12,10 @@ export interface ProjectConfig {
   commissionCap?: number;
   defaultBranch?: string;
   memoryLimit?: number;
+}
+
+export function projectDisplayTitle(project: ProjectConfig): string {
+  return project.title ?? project.name;
 }
 
 export interface ModelDefinition {

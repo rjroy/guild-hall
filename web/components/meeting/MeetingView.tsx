@@ -14,6 +14,7 @@ import styles from "./MeetingView.module.css";
 interface MeetingViewProps {
   meetingId: string;
   projectName: string;
+  projectTitle?: string;
   workerName: string;
   workerDisplayTitle: string;
   workerPortraitUrl?: string;
@@ -35,6 +36,7 @@ interface MeetingViewProps {
 export default function MeetingView({
   meetingId,
   projectName,
+  projectTitle,
   workerName,
   workerDisplayTitle,
   workerPortraitUrl,
@@ -100,6 +102,7 @@ export default function MeetingView({
       <>
         <MeetingHeader
           projectName={projectName}
+          projectTitle={projectTitle}
           workerName={workerName}
           workerDisplayTitle={workerDisplayTitle}
           workerPortraitUrl={workerPortraitUrl}

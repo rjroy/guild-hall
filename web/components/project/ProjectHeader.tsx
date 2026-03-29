@@ -3,6 +3,7 @@
 import Breadcrumb from "@/web/components/ui/Breadcrumb";
 import DetailHeader from "@/web/components/ui/DetailHeader";
 import type { BreadcrumbSegment } from "@/web/components/ui/Breadcrumb";
+import { projectDisplayTitle } from "@/lib/types";
 import type { ProjectConfig } from "@/lib/types";
 import styles from "./ProjectHeader.module.css";
 
@@ -11,9 +12,11 @@ interface ProjectHeaderProps {
 }
 
 export default function ProjectHeader({ project }: ProjectHeaderProps) {
+  const displayTitle = projectDisplayTitle(project);
+
   const segments: BreadcrumbSegment[] = [
     { label: "Guild Hall", href: "/" },
-    { label: project.name },
+    { label: displayTitle },
   ];
 
   const title = project.repoUrl ? (
@@ -23,10 +26,10 @@ export default function ProjectHeader({ project }: ProjectHeaderProps) {
       rel="noopener noreferrer"
       className={styles.titleLink}
     >
-      {project.name} <span className={styles.externalIcon}>&#8599;</span>
+      {displayTitle} <span className={styles.externalIcon}>&#8599;</span>
     </a>
   ) : (
-    <span>{project.name}</span>
+    <span>{displayTitle}</span>
   );
 
   return (

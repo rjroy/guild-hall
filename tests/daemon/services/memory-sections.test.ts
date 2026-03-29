@@ -1,7 +1,9 @@
 import { describe, test, expect } from "bun:test";
 import {
+  deduplicateSections,
   parseMemorySections,
   renderMemorySections,
+  sanitizeSectionContent,
   withMemoryLock,
 } from "@/daemon/services/memory-sections";
 
@@ -236,6 +238,95 @@ describe("round-trip fidelity", () => {
     const input = "## Test\nLine with spaces   \nClean line\n";
     const result = renderMemorySections(parseMemorySections(input));
     expect(result).toBe("## Test\nLine with spaces\nClean line\n");
+  });
+});
+
+describe("sanitizeSectionContent", () => {
+  test("downgrades ## headers to ### in content", () => {
+    const input = "## Guild Hall Visual Identity\nSome text\n## ink-mirror\nMore text";
+    const result = sanitizeSectionContent(input);
+    expect(result).toBe("### Guild Hall Visual Identity\nSome text\n### ink-mirror\nMore text");
+  });
+
+  test("does not affect ### or deeper headers", () => {
+    const input = "### Already safe\n#### Also safe\n##### Deep";
+    expect(sanitizeSectionContent(input)).toBe(input);
+  });
+
+  test("does not affect ## mid-line", () => {
+    const input = "This has ## in the middle";
+    expect(sanitizeSectionContent(input)).toBe(input);
+  });
+
+  test("handles content with no headers", () => {
+    const input = "Plain text\nAnother line";
+    expect(sanitizeSectionContent(input)).toBe(input);
+  });
+
+  test("handles empty string", () => {
+    expect(sanitizeSectionContent("")).toBe("");
+  });
+});
+
+describe("deduplicateSections", () => {
+  test("merges sections with same name (case-insensitive)", () => {
+    const sections = [
+      { name: "Style Preferences", content: "First content\n" },
+      { name: "Other", content: "Unique\n" },
+      { name: "Style Preferences", content: "Second content\n" },
+    ];
+    const result = deduplicateSections(sections);
+    expect(result).toHaveLength(2);
+    expect(result[0].name).toBe("Style Preferences");
+    expect(result[0].content).toContain("First content");
+    expect(result[0].content).toContain("Second content");
+    expect(result[1].name).toBe("Other");
+  });
+
+  test("preserves first occurrence casing", () => {
+    const sections = [
+      { name: "Style Preferences", content: "A\n" },
+      { name: "style preferences", content: "B\n" },
+    ];
+    const result = deduplicateSections(sections);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("Style Preferences");
+  });
+
+  test("does not merge preamble sections", () => {
+    const sections = [
+      { name: "", content: "Preamble 1\n" },
+      { name: "Named", content: "Content\n" },
+      { name: "", content: "Preamble 2\n" },
+    ];
+    const result = deduplicateSections(sections);
+    expect(result).toHaveLength(3);
+  });
+
+  test("handles no duplicates", () => {
+    const sections = [
+      { name: "A", content: "1\n" },
+      { name: "B", content: "2\n" },
+    ];
+    const result = deduplicateSections(sections);
+    expect(result).toHaveLength(2);
+  });
+
+  test("merges three duplicates into one", () => {
+    const sections = [
+      { name: "X", content: "First\n" },
+      { name: "X", content: "Second\n" },
+      { name: "X", content: "Third\n" },
+    ];
+    const result = deduplicateSections(sections);
+    expect(result).toHaveLength(1);
+    expect(result[0].content).toContain("First");
+    expect(result[0].content).toContain("Second");
+    expect(result[0].content).toContain("Third");
+  });
+
+  test("returns empty array for empty input", () => {
+    expect(deduplicateSections([])).toEqual([]);
   });
 });
 

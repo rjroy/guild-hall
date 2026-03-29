@@ -2,6 +2,7 @@ import Link from "next/link";
 import Panel from "@/web/components/ui/Panel";
 import GemIndicator from "@/web/components/ui/GemIndicator";
 import EmptyState from "@/web/components/ui/EmptyState";
+import { projectDisplayTitle } from "@/lib/types";
 import type { ProjectConfig } from "@/lib/types";
 import styles from "./WorkspaceSidebar.module.css";
 
@@ -51,7 +52,7 @@ export default function WorkspaceSidebar({
                 >
                   <GemIndicator status={isSelected ? "active" : "inactive"} size="sm" />
                   <div className={styles.projectInfo}>
-                    <span className={styles.projectName}>{project.name}</span>
+                    <span className={styles.projectName}>{projectDisplayTitle(project)}</span>
                     {project.description && (
                       <span className={styles.projectDescription}>
                         {project.description}

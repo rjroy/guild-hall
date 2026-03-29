@@ -13,6 +13,7 @@ interface CommissionHeaderProps {
   worker: string;
   workerDisplayTitle: string;
   projectName: string;
+  projectTitle?: string;
   model?: string;
   isModelOverride?: boolean;
   isLocalModel?: boolean;
@@ -31,6 +32,7 @@ export default function CommissionHeader({
   worker,
   workerDisplayTitle,
   projectName,
+  projectTitle,
   model,
   isModelOverride,
   isLocalModel,
@@ -43,13 +45,13 @@ export default function CommissionHeader({
 
   const condensedSegments: BreadcrumbSegment[] = [
     { label: "Guild Hall", href: "/" },
-    { label: projectName, href: `/projects/${encodedProject}` },
+    { label: projectTitle ?? projectName, href: `/projects/${encodedProject}` },
     { label: "Commission" },
   ];
 
   const expandedSegments: BreadcrumbSegment[] = [
     { label: "Guild Hall", href: "/" },
-    { label: projectName, href: `/projects/${encodedProject}` },
+    { label: projectTitle ?? projectName, href: `/projects/${encodedProject}` },
     { label: "Commissions", href: `/projects/${encodedProject}?tab=commissions` },
     { label: "Commission" },
   ];
