@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 import { logSdkMessage } from "@/daemon/lib/agent-sdk/sdk-logging";
 import type { Log } from "@/daemon/lib/log";
 
-/** Creates a Log that collects info messages into an array. */
+/** Creates a Log that collects all messages into an array. */
 function collectingLogForSdk(): { log: Log; logs: string[] } {
   const logs: string[] = [];
   const log: Log = {
@@ -21,6 +21,8 @@ describe("logSdkMessage", () => {
     return logs;
   }
 
+  // -- Types with their own summary line --
+
   test("logs system messages", () => {
     const logs = collect({ type: "system", subtype: "init", session_id: "abc" });
     expect(logs).toEqual(["[msg 1] system"]);
@@ -30,6 +32,34 @@ describe("logSdkMessage", () => {
     const logs = collect({ type: "rate_limit_event" });
     expect(logs).toEqual(["[msg 1] rate_limit_event"]);
   });
+
+  test("logs result with stop reason and cost", () => {
+    const logs = collect({
+      type: "result",
+      stop_reason: "end_turn",
+      total_cost_usd: "0.05",
+    });
+    expect(logs).toEqual(["[msg 1] result (stop=end_turn cost=$0.05)"]);
+  });
+
+  test("logs result without cost", () => {
+    const logs = collect({ type: "result", stop_reason: "end_turn" });
+    expect(logs).toEqual(["[msg 1] result (stop=end_turn)"]);
+  });
+
+  // -- Types silently skipped (no content blocks to inspect) --
+
+  test("silently skips stream_event messages", () => {
+    const logs = collect({ type: "stream_event", event: { type: "content_block_delta" } });
+    expect(logs).toEqual([]);
+  });
+
+  test("silently skips unknown SDK message types", () => {
+    const logs = collect({ type: "tool_progress" });
+    expect(logs).toEqual([]);
+  });
+
+  // -- Content-block types (assistant, user) --
 
   test("logs text content blocks", () => {
     const logs = collect({
@@ -89,26 +119,14 @@ describe("logSdkMessage", () => {
     expect(logs[0]).toContain("part1; part2");
   });
 
-  test("logs result messages with stop reason and cost", () => {
-    const logs = collect({
-      type: "result",
-      stop_reason: "end_turn",
-      total_cost_usd: "0.05",
-      message: { content: [{ type: "text", text: "done" }] },
-    });
-    expect(logs).toHaveLength(2);
-    expect(logs[0]).toContain("result (stop=end_turn cost=$0.05)");
-    expect(logs[1]).toContain("result/text: done");
-  });
-
-  test("logs non-result messages without content blocks", () => {
+  test("notes missing content blocks for assistant messages", () => {
     const logs = collect({ type: "assistant" });
     expect(logs).toEqual(["[msg 1] assistant (no content blocks)"]);
   });
 
-  test("suppresses 'no content blocks' for result messages", () => {
-    const logs = collect({ type: "result", stop_reason: "end_turn" });
-    expect(logs).toEqual(["[msg 1] result (stop=end_turn)"]);
+  test("notes missing content blocks for user messages", () => {
+    const logs = collect({ type: "user" });
+    expect(logs).toEqual(["[msg 1] user (no content blocks)"]);
   });
 
   test("logs unknown block types with type prefix", () => {
