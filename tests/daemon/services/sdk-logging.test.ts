@@ -101,9 +101,14 @@ describe("logSdkMessage", () => {
     expect(logs[1]).toContain("result/text: done");
   });
 
-  test("logs messages without content blocks", () => {
+  test("logs non-result messages without content blocks", () => {
     const logs = collect({ type: "assistant" });
     expect(logs).toEqual(["[msg 1] assistant (no content blocks)"]);
+  });
+
+  test("suppresses 'no content blocks' for result messages", () => {
+    const logs = collect({ type: "result", stop_reason: "end_turn" });
+    expect(logs).toEqual(["[msg 1] result (stop=end_turn)"]);
   });
 
   test("logs unknown block types with type prefix", () => {

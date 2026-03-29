@@ -49,7 +49,11 @@ export function logSdkMessage(
   }
 
   if (!Array.isArray(content)) {
-    log.info(`${prefix} ${type} (no content blocks)`);
+    // Result events rarely have content blocks; the result line above is sufficient.
+    // For other types, missing content is unusual enough to note at debug level.
+    if (type !== "result") {
+      log.info(`${prefix} ${type} (no content blocks)`);
+    }
     return;
   }
 
