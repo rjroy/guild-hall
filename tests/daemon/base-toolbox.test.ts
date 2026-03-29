@@ -445,6 +445,57 @@ describe("edit_memory", () => {
     const fileExists = await fs.access(filePath).then(() => true, () => false);
     expect(fileExists).toBe(true);
   });
+
+  test("upsert downgrades ## headers in content to ###", async () => {
+    const { read, edit } = makeHandlers();
+    await read({ scope: "worker" });
+
+    await edit({
+      scope: "worker",
+      section: "Style",
+      operation: "upsert",
+      content: "## Guild Hall Visual Identity\nPalette: amber\n## ink-mirror\nCreamy",
+    });
+
+    const filePath = path.join(guildHallHome, "memory", "workers", `${workerName}.md`);
+    const content = await fs.readFile(filePath, "utf-8");
+    // The ## headers in the content should be downgraded to ###
+    expect(content).toContain("### Guild Hall Visual Identity");
+    expect(content).toContain("### ink-mirror");
+    // The section header itself should remain ##
+    expect(content).toContain("## Style");
+  });
+
+  test("edit heals duplicate sections in existing file", async () => {
+    const { read, edit } = makeHandlers();
+
+    // Write a file with duplicate sections (simulating the existing bug)
+    const filePath = path.join(guildHallHome, "memory", "workers", `${workerName}.md`);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(
+      filePath,
+      "## Style\nFirst\n## Other\nKeep\n## Style\nSecond\n## Style\nThird\n",
+      "utf-8",
+    );
+
+    await read({ scope: "worker" });
+    // Edit an unrelated section to trigger dedup
+    await edit({
+      scope: "worker",
+      section: "Other",
+      operation: "upsert",
+      content: "Updated",
+    });
+
+    const content = await fs.readFile(filePath, "utf-8");
+    // All three "Style" sections should be merged into one
+    const styleCount = (content.match(/^## Style$/gm) || []).length;
+    expect(styleCount).toBe(1);
+    expect(content).toContain("First");
+    expect(content).toContain("Second");
+    expect(content).toContain("Third");
+    expect(content).toContain("Updated");
+  });
 });
 
 // -- read-before-write guard (REQ-MEM-27) --

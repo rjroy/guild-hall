@@ -14,8 +14,10 @@ import type { WorkerIdentity } from "@/lib/types";
 import { memoryScopeFile, memoryScopeDir, migrateIfNeeded } from "./memory-injector";
 import type { MemoryScope } from "./memory-injector";
 import {
+  deduplicateSections,
   parseMemorySections,
   renderMemorySections,
+  sanitizeSectionContent,
   withMemoryLock,
 } from "./memory-sections";
 import type { ToolboxFactory } from "./toolbox-types";
@@ -188,7 +190,12 @@ export function makeEditMemoryHandler(
 
     return withMemoryLock(lockKey, async () => {
       const raw = await readScopeFile(filePath);
-      let sections = parseMemorySections(raw);
+      // Deduplicate on load to heal files with duplicate section names
+      let sections = deduplicateSections(parseMemorySections(raw));
+
+      // Sanitize content: downgrade ## headers to ### so they don't
+      // create accidental section boundaries on next parse
+      const safeContent = args.content ? sanitizeSectionContent(args.content) : args.content;
 
       // Find existing section (case-insensitive)
       const idx = sections.findIndex(
@@ -199,10 +206,10 @@ export function makeEditMemoryHandler(
         case "upsert": {
           if (idx >= 0) {
             // Replace content, preserve original casing
-            sections[idx] = { name: sections[idx].name, content: args.content! + "\n" };
+            sections[idx] = { name: sections[idx].name, content: safeContent! + "\n" };
           } else {
             // Append new section with provided casing
-            sections.push({ name: args.section, content: args.content! + "\n" });
+            sections.push({ name: args.section, content: safeContent! + "\n" });
           }
           break;
         }
@@ -212,10 +219,10 @@ export function makeEditMemoryHandler(
             const existing = sections[idx].content.trimEnd();
             sections[idx] = {
               name: sections[idx].name,
-              content: existing + "\n\n" + args.content! + "\n",
+              content: existing + "\n\n" + safeContent! + "\n",
             };
           } else {
-            sections.push({ name: args.section, content: args.content! + "\n" });
+            sections.push({ name: args.section, content: safeContent! + "\n" });
           }
           break;
         }

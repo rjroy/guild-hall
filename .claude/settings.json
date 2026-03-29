@@ -1,13 +1,4 @@
 {
-  "plansDirectory": ".lore/plans",
-  "sandbox": {
-    "excludedCommands": [
-      "guild-hall",
-      "guild-hall *",
-      "bun test",
-      "bun test *"
-    ]
-  },
   "hooks": {
     "SessionStart": [
       {

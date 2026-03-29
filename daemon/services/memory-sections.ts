@@ -99,6 +99,52 @@ export function renderMemorySections(sections: MemorySection[]): string {
   return result;
 }
 
+// -- Content sanitization --
+
+/**
+ * Downgrades `## ` headers in content to `### ` so they don't collide with
+ * the section delimiter format. Only affects lines that start with exactly
+ * `## ` (not `### ` or deeper, which are already safe).
+ */
+export function sanitizeSectionContent(content: string): string {
+  return content.replace(/^## (?!#)/gm, "### ");
+}
+
+// -- Deduplication --
+
+/**
+ * Merges sections that share the same name (case-insensitive). Keeps the
+ * first occurrence's casing. Concatenates content of duplicates with a blank
+ * line separator. Preamble sections (empty name) are not merged.
+ */
+export function deduplicateSections(sections: MemorySection[]): MemorySection[] {
+  const seen = new Map<string, number>(); // lowercase name → index in result
+  const result: MemorySection[] = [];
+
+  for (const section of sections) {
+    // Don't merge preamble sections
+    if (section.name === "") {
+      result.push(section);
+      continue;
+    }
+
+    const key = section.name.toLowerCase();
+    const existingIdx = seen.get(key);
+
+    if (existingIdx !== undefined) {
+      // Merge into existing: concatenate content with blank line separator
+      const existing = result[existingIdx];
+      const merged = existing.content.trimEnd() + "\n\n" + section.content.trimEnd() + "\n";
+      result[existingIdx] = { name: existing.name, content: merged };
+    } else {
+      seen.set(key, result.length);
+      result.push({ ...section });
+    }
+  }
+
+  return result;
+}
+
 // -- Mutex --
 
 const locks = new Map<string, Promise<void>>();
