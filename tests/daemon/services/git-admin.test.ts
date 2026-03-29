@@ -165,8 +165,9 @@ function createMockGitOps(): MockGitOps {
   };
 }
 
-// Use /tmp/claude-1000/ for sandbox compatibility
-const TMP_ROOT = "/tmp/claude-1000";
+import * as os from "node:os";
+
+const TMP_ROOT = os.tmpdir();
 
 let tmpDir: string;
 let ghHome: string;
