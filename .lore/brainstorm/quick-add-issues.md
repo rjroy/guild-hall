@@ -1,7 +1,7 @@
 ---
 title: "Quick Add Issues"
 date: 2026-03-29
-status: open
+status: resolved
 author: Octavia
 tags: [brainstorm, ux, issues, cli, web-ui]
 related:
