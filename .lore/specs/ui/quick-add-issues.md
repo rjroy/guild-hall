@@ -1,7 +1,7 @@
 ---
 title: "Quick Add Issues"
 date: 2026-03-29
-status: draft
+status: approved
 author: Octavia
 tags: [ux, issues, web-ui, cli, daemon, artifacts]
 modules: [daemon/routes/workspace-issue, daemon/app, web/components/project/NewIssueButton, "web/app/projects/[name]/page"]
