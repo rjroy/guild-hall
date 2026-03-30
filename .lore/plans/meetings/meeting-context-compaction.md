@@ -1,7 +1,7 @@
 ---
 title: Meeting context compaction detection and surfacing
 date: 2026-03-24
-status: draft
+status: approved
 tags: [plan, meetings, agent-sdk, context-compaction, ux, observability]
 modules: [event-translator, sdk-runner, session-loop, meeting-orchestrator, chat-interface, transcript]
 related:
