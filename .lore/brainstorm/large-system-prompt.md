@@ -1,7 +1,7 @@
 ---
 title: "Large System Prompt: Component Analysis and Optimization Options"
 date: 2026-03-29
-status: draft
+status: open
 author: Octavia
 tags: [brainstorm, performance, system-prompt, memory, tokens, architecture]
 related: .lore/issues/large-system-prompt.md
