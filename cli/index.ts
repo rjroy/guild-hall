@@ -54,6 +54,18 @@ async function fetchHelpTree(segments: string[]): Promise<HelpNode | null> {
   return (await result.json()) as HelpNode;
 }
 
+/**
+ * Reads all of stdin into a string. Used when a positional arg is "-"
+ * to support piping body content from another command.
+ */
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString("utf-8");
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const { segments, options } = extractFlags(argv);
@@ -138,9 +150,21 @@ async function main(): Promise<void> {
         process.exit(1);
       }
 
+      // REQ-QAI-22: when a positional arg is literal "-", replace it
+      // with content read from stdin. This supports piping body text
+      // into commands like: echo "body" | guild-hall workspace issue create proj "title" -
+      // Note: the CLI uses positional args, not --body flags.
+      let finalArgs = resolvedArgs;
+      const hyphenIndex = resolvedArgs.indexOf("-");
+      if (hyphenIndex >= 0) {
+        const stdinContent = await readStdin();
+        finalArgs = [...resolvedArgs];
+        finalArgs[hyphenIndex] = stdinContent;
+      }
+
       // Streaming skills use SSE
       if (skill.streaming) {
-        const body = buildBody(skill, resolvedArgs);
+        const body = buildBody(skill, finalArgs);
         await streamOperation(skill.invocation.path, body);
         return;
       }
@@ -148,12 +172,12 @@ async function main(): Promise<void> {
       // Standard request
       const isGet = skill.invocation.method === "GET";
       const requestPath = isGet
-        ? `${skill.invocation.path}${buildQueryString(skill, resolvedArgs)}`
+        ? `${skill.invocation.path}${buildQueryString(skill, finalArgs)}`
         : skill.invocation.path;
 
       const result = await daemonFetch(requestPath, {
         method: skill.invocation.method,
-        body: isGet ? undefined : buildBody(skill, resolvedArgs),
+        body: isGet ? undefined : buildBody(skill, finalArgs),
       });
 
       if (isDaemonError(result)) {

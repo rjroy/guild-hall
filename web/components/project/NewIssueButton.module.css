@@ -1,0 +1,122 @@
+.newIssueButton {
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-button-bg);
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.newIssueButton:hover {
+  background-color: var(--color-button-bg-hover);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.titleInput {
+  min-width: 240px;
+  padding: var(--space-xs) var(--space-sm);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(184, 134, 11, 0.4);
+  border-radius: 4px;
+  color: var(--color-parchment, #e8d5b0);
+}
+
+.titleInput:focus {
+  outline: none;
+  border-color: var(--color-brass);
+}
+
+.bodyTextarea {
+  min-width: 240px;
+  padding: var(--space-xs) var(--space-sm);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(184, 134, 11, 0.4);
+  border-radius: 4px;
+  color: var(--color-parchment, #e8d5b0);
+  resize: vertical;
+}
+
+.bodyTextarea:focus {
+  outline: none;
+  border-color: var(--color-brass);
+}
+
+.validationError {
+  font-size: 0.8rem;
+  color: #c97070;
+}
+
+.formActions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.submitButton {
+  padding: var(--space-xs) var(--space-md);
+  background-color: rgba(184, 134, 11, 0.2);
+  border: 1px solid var(--color-brass);
+  color: var(--color-brass);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.submitButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.cancelLink {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.cancelLink:hover {
+  opacity: 1;
+}
+
+.resultText {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.resultError {
+  font-size: 0.85rem;
+  color: #c97070;
+}

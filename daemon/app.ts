@@ -12,6 +12,7 @@ import { createModelsRoutes } from "./routes/models";
 import { createAdminRoutes, type AdminDeps } from "./routes/admin";
 import { createArtifactRoutes, type ArtifactDeps } from "./routes/artifacts";
 import { createGitLoreRoutes, type GitLoreDeps } from "./routes/git-lore";
+import { createWorkspaceIssueRoutes, type IssueRouteDeps } from "./routes/workspace-issue";
 import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
 import { createHelpRoutes } from "./routes/help";
 import { createOperationsRegistry, type OperationsRegistry } from "@/daemon/lib/operations-registry";
@@ -40,6 +41,7 @@ export interface AppDeps {
   admin?: AdminDeps;
   artifacts?: ArtifactDeps;
   gitLore?: GitLoreDeps;
+  workspaceIssue?: IssueRouteDeps;
   configRoutes?: ConfigRoutesDeps;
   /** Route module from package-contributed operations. When provided, its operations
    *  enter the same registry as built-in operations and its routes are mounted. */
@@ -125,6 +127,10 @@ export function createApp(deps: AppDeps): { app: Hono; registry: OperationsRegis
 
   if (deps.gitLore) {
     mount(createGitLoreRoutes(deps.gitLore));
+  }
+
+  if (deps.workspaceIssue) {
+    mount(createWorkspaceIssueRoutes(deps.workspaceIssue));
   }
 
   if (deps.configRoutes) {
@@ -623,6 +629,11 @@ export async function createProductionApp(options?: {
         commissionSession.checkDependencyTransitions(projectName),
     },
     gitLore: {
+      config,
+      guildHallHome,
+      gitOps: git,
+    },
+    workspaceIssue: {
       config,
       guildHallHome,
       gitOps: git,
