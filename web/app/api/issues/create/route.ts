@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
   if (!title || title.trim() === "") {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
   }
-  if (title.trim().length > 100) {
-    return NextResponse.json({ error: "Title must be 100 characters or fewer" }, { status: 400 });
+  if (title.trim().length > 200) {
+    return NextResponse.json({ error: "Title must be 200 characters or fewer" }, { status: 400 });
   }
 
   const payload: Record<string, string> = { projectName, title: title.trim() };
