@@ -1,7 +1,7 @@
 ---
 title: "Commission: Review: System prompt optimization Phase 1"
 date: 2026-03-30
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-30T10:06:28.970Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-30T10:09:57.965Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---

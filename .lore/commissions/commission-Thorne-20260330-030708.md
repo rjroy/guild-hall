@@ -1,7 +1,7 @@
 ---
 title: "Commission: Review: System prompt optimization Phase 2"
 date: 2026-03-30
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-30T10:07:08.394Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-30T10:09:57.963Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---
