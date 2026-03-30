@@ -1,7 +1,7 @@
 ---
 title: "Quick Add Issues"
 date: 2026-03-29
-status: draft
+status: approved
 tags: [ui, issues, web-ui, cli, daemon, artifacts]
 modules: [daemon/routes/workspace-issue, daemon/app, "web/app/projects/[name]/page", web/components/project/NewIssueButton, web/app/api/issues/create, cli/index]
 related:
