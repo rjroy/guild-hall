@@ -175,6 +175,13 @@ A future extension worth naming: a global "capture" affordance accessible from a
 ## Open Questions
 
 - Should the artifact list auto-scroll to the new issue after creation, or is a page-level notification (like "Issue created: quick-add-issues") sufficient?
+USER RESPONSE: page-level notification is sufficient.
+
 - Should the form support `tags` as an optional "Add tags" expander, for users who want to categorize on creation? Or is post-creation editing enough?
+USER RESPONSE: post-creation editing is enough. The goal of this is quick low-friction.
+
 - If `O_EXCL` semantics aren't available for Bun's fs, what's the right conflict resolution fallback? (Check existence first, then write with retry — it's slightly racey but acceptable for this use case.)
+USER RESPONSE: There is only one user. No need to solve this. There's too many other problems to worry about this.
+
 - When multiple projects are registered, should the CLI require `--projectName` or infer from the current directory (traverse up looking for `.lore/issues/`)?
+USER RESPONSE: `projectName` should be one of the arguments. `guild-hall workspace issue create <project> <title> [body]`
