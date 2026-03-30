@@ -19,6 +19,25 @@ export default function MessageBubble({
   workerName,
   workerPortraitUrl,
 }: MessageBubbleProps) {
+  // System messages render as centered info banners, not speech bubbles
+  if (message.role === "system") {
+    const parts = message.content.split("\n\n");
+    const firstLine = parts[0];
+    const restOfContent = parts.slice(1).join("\n\n");
+
+    return (
+      <div className={styles.systemMessage}>
+        <p className={styles.systemText}>{firstLine}</p>
+        {restOfContent && (
+          <details className={styles.systemDetails}>
+            <summary>Compaction summary</summary>
+            <p>{restOfContent}</p>
+          </details>
+        )}
+      </div>
+    );
+  }
+
   const isUser = message.role === "user";
 
   const bubbleClass = [

@@ -386,7 +386,7 @@ export interface ToolUseEntry {
 
 export type ChatMessage = {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   toolUses?: ToolUseEntry[];
 };

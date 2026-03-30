@@ -9,6 +9,7 @@ import CommissionList from "@/web/components/commission/CommissionList";
 import CreateCommissionButton from "@/web/components/commission/CreateCommissionButton";
 import CreateMeetingButton from "@/web/components/meeting/CreateMeetingButton";
 import CommitLoreButton from "@/web/components/project/CommitLoreButton";
+import NewIssueButton from "@/web/components/project/NewIssueButton";
 import DaemonError from "@/web/components/ui/DaemonError";
 import styles from "./page.module.css";
 
@@ -60,6 +61,7 @@ export default async function ProjectPage({
         {tab === "artifacts" && (
           <div className={styles.artifactTab}>
             <div className={styles.artifactActions}>
+              <NewIssueButton projectName={projectName} />
               <CommitLoreButton
                 projectName={projectName}
                 hasPendingChanges={hasPendingChanges}

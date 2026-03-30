@@ -6,7 +6,11 @@
  * meeting yields it.
  */
 
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKMessage,
+  HookEvent,
+  HookCallbackMatcher,
+} from "@anthropic-ai/claude-agent-sdk";
 import type {
   ActivationContext,
   ActivationResult,
@@ -36,6 +40,7 @@ export type SdkRunnerEvent =
   | { type: "tool_result"; name: string; output: string; toolUseId?: string }
   | { type: "turn_end"; cost?: number }
   | { type: "error"; reason: string }
+  | { type: "context_compacted"; trigger: "manual" | "auto"; preTokens: number }
   | { type: "aborted" };
 
 export type SdkQueryOptions = {
@@ -85,6 +90,7 @@ export type SdkQueryOptions = {
     | { behavior: "allow"; updatedInput: unknown }
     | { behavior: "deny"; message: string; interrupt?: boolean }
   >;
+  hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
 };
 
 export type SessionPrepSpec = {
@@ -103,6 +109,7 @@ export type SessionPrepSpec = {
   abortController: AbortController;
   resume?: string;
   resourceOverrides?: { model?: string };
+  onCompactSummary?: (summary: string, trigger: "manual" | "auto") => void;
 };
 
 export type SessionPrepDeps = {
@@ -479,6 +486,36 @@ export async function prepareSdkSession(
     abortController: spec.abortController,
     ...(spec.resume ? { resume: spec.resume } : {}),
   };
+
+  // Wire PostCompact hook when onCompactSummary is provided (REQ-MCC-6)
+  if (spec.onCompactSummary) {
+    const callback = spec.onCompactSummary;
+    options.hooks = {
+      PostCompact: [
+        {
+          hooks: [
+            // eslint-disable-next-line @typescript-eslint/require-await -- callback is sync but HookCallback requires Promise return
+            async (input) => {
+              const typed = input as {
+                trigger?: string;
+                compact_summary?: string;
+              };
+              const trigger =
+                typed.trigger === "manual"
+                  ? ("manual" as const)
+                  : ("auto" as const);
+              const summary =
+                typeof typed.compact_summary === "string"
+                  ? typed.compact_summary
+                  : "";
+              callback(summary, trigger);
+              return { continue: true };
+            },
+          ],
+        },
+      ],
+    };
+  }
 
   log.info(`prepared session. systemPrompt length=${activation.systemPrompt.length}, sessionContext length=${activation.sessionContext.length}`);
   return { ok: true, result: { options, resolvedModel: resolvedModelResult, sessionContext: activation.sessionContext } };

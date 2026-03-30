@@ -27,6 +27,10 @@ interface SdkSystemMessage {
   type: "system";
   subtype?: string;
   session_id?: string;
+  compact_metadata?: {
+    trigger: string;
+    pre_tokens: number;
+  };
 }
 
 interface SdkStreamEventMessage {
@@ -196,19 +200,31 @@ export function translateSdkMessage(
 function translateSystemMessage(
   message: SdkSystemMessage,
 ): SdkRunnerEvent[] {
-  // The SDK uses "system" for multiple subtypes. Only "init" maps to a
-  // Guild Hall event; compact_boundary, status, hook_*, task_*, and
-  // files_persisted are internal.
-  if (message.subtype !== "init") {
-    return [];
+  if (message.subtype === "init") {
+    return [
+      {
+        type: "session",
+        sessionId: message.session_id ?? "",
+      },
+    ];
   }
 
-  return [
-    {
-      type: "session",
-      sessionId: message.session_id ?? "",
-    },
-  ];
+  if (message.subtype === "compact_boundary" && message.compact_metadata) {
+    return [
+      {
+        type: "context_compacted",
+        trigger:
+          message.compact_metadata.trigger === "manual" ? "manual" : "auto",
+        preTokens:
+          typeof message.compact_metadata.pre_tokens === "number"
+            ? message.compact_metadata.pre_tokens
+            : 0,
+      },
+    ];
+  }
+
+  // status, hook_*, task_*, files_persisted remain internal.
+  return [];
 }
 
 // -- Stream events (partial assistant messages) --

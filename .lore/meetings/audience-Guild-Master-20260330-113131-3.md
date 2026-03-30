@@ -5,11 +5,11 @@ status: open
 tags: [meeting]
 worker: Guild Master
 workerDisplayTitle: "Guild Master"
-agenda: "Next steps."
+agenda: "next steps"
 deferred_until: ""
 linked_artifacts: []
 meeting_log:
-  - timestamp: 2026-03-30T01:15:06.212Z
+  - timestamp: 2026-03-30T18:31:31.719Z
     event: opened
     reason: "User started audience"
 ---

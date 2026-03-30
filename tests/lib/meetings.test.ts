@@ -937,4 +937,81 @@ Some text in between.
     expect(messages[0].toolUses![0].name).toBe("readFile");
     expect(messages[0].toolUses![0].output).toBe("first line\n\nthird line");
   });
+
+  test("recognizes Context Compacted headings as system role", () => {
+    const transcript = `---
+meetingId: test
+---
+
+## User (2026-03-23T10:00:00.000Z)
+
+Hello
+
+## Context Compacted (2026-03-23T10:05:00.000Z)
+
+Context was compressed (auto, 95000 tokens before compaction).
+
+> Summary: The conversation was about testing.
+
+## Assistant (2026-03-23T10:05:01.000Z)
+
+Here is my response.
+`;
+
+    const messages = parseTranscriptToMessages(transcript);
+    expect(messages).toHaveLength(3);
+    expect(messages[0].role).toBe("user");
+    expect(messages[1].role).toBe("system");
+    expect(messages[1].content).toContain("Context was compressed");
+    expect(messages[2].role).toBe("assistant");
+  });
+
+  test("system messages interleaved with user/assistant have correct order", () => {
+    const transcript = `---
+meetingId: test
+---
+
+## User (2026-03-23T10:00:00.000Z)
+
+First question
+
+## Assistant (2026-03-23T10:00:01.000Z)
+
+First answer
+
+## Context Compacted (2026-03-23T10:05:00.000Z)
+
+Context was compressed (auto, 95000 tokens).
+
+## User (2026-03-23T10:06:00.000Z)
+
+Second question
+
+## Assistant (2026-03-23T10:06:01.000Z)
+
+Second answer
+`;
+
+    const messages = parseTranscriptToMessages(transcript);
+    expect(messages).toHaveLength(5);
+    expect(messages.map((m) => m.role)).toEqual([
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "assistant",
+    ]);
+  });
+
+  test("system messages have no toolUses", () => {
+    const transcript = `## Context Compacted (2026-03-23T10:05:00.000Z)
+
+Context was compressed (auto, 95000 tokens before compaction).
+`;
+
+    const messages = parseTranscriptToMessages(transcript);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe("system");
+    expect(messages[0].toolUses).toBeUndefined();
+  });
 });

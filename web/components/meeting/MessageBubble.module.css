@@ -121,6 +121,40 @@
   margin: 0.4em 0;
 }
 
+/* --- System messages (compaction banners) --- */
+
+.systemMessage {
+  text-align: center;
+  padding: var(--space-sm) var(--space-md);
+  margin: var(--space-sm) 0;
+  border: 1px solid var(--color-brass);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-parchment) 30%, transparent);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.systemText {
+  margin: 0;
+}
+
+.systemDetails {
+  margin-top: var(--space-xs);
+  text-align: left;
+}
+
+.systemDetails summary {
+  cursor: pointer;
+  color: var(--color-brass);
+  font-size: 0.8rem;
+}
+
+.systemDetails p {
+  margin: var(--space-xs) 0 0 0;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+}
+
 /* --- Tool uses section --- */
 
 .tools {

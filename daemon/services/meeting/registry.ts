@@ -24,6 +24,8 @@ export type ActiveMeetingEntry = {
   status: MeetingStatus;
   /** Git isolation model. "project" operates in the integration worktree; "activity" (default) gets its own branch/worktree. */
   scope: "project" | "activity";
+  /** Most recent compact summary from PostCompact hook, consumed by iterateSession. */
+  lastCompactSummary?: string;
 };
 
 export class MeetingRegistry {

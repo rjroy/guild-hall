@@ -516,6 +516,9 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
       activationExtras,
       abortController: meeting.abortController,
       ...(resumeSessionId ? { resume: resumeSessionId as string } : {}),
+      onCompactSummary: (summary) => {
+        meeting.lastCompactSummary = summary;
+      },
     };
 
     return { ok: true, spec };
