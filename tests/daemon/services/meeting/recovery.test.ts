@@ -63,6 +63,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
 function makeActivationResult(): ActivationResult {
   return {
     systemPrompt: "You are a helpful assistant.",
+    sessionContext: "",
     tools: {
       mcpServers: [],
       allowedTools: ["Read", "Glob"],

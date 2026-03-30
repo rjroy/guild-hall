@@ -65,7 +65,7 @@ describe("buildSystemPrompt assembly order", () => {
     expect(result.systemPrompt).toContain(soulText);
   });
 
-  test("activity context still appended after memory", () => {
+  test("commission context is in sessionContext, not systemPrompt", () => {
     const context = makeContext({
       soul: "SOUL",
       injectedMemory: "MEMORY",
@@ -77,14 +77,17 @@ describe("buildSystemPrompt assembly order", () => {
     });
     const result = activateWorkerWithSharedPattern(context);
 
-    const memoryIndex = result.systemPrompt.indexOf("MEMORY");
-    const commissionIndex = result.systemPrompt.indexOf("Build the thing.");
+    // Commission context belongs in sessionContext (REQ-SPO-14)
+    expect(result.sessionContext).toContain("Build the thing.");
+    expect(result.sessionContext).toContain("Commission protocol");
+    expect(result.systemPrompt).not.toContain("Build the thing.");
+    expect(result.systemPrompt).not.toContain("Commission protocol");
 
-    expect(memoryIndex).toBeGreaterThan(0);
-    expect(commissionIndex).toBeGreaterThan(memoryIndex);
+    // Memory content is in sessionContext
+    expect(result.sessionContext).toContain("MEMORY");
   });
 
-  test("meeting context appended after memory", () => {
+  test("meeting context is in sessionContext, not systemPrompt", () => {
     const context = makeContext({
       injectedMemory: "MEMORY",
       meetingContext: {
@@ -95,22 +98,41 @@ describe("buildSystemPrompt assembly order", () => {
     });
     const result = activateWorkerWithSharedPattern(context);
 
-    const memoryIndex = result.systemPrompt.indexOf("MEMORY");
-    const meetingIndex = result.systemPrompt.indexOf("Discuss the plan.");
+    // Meeting context belongs in sessionContext (REQ-SPO-14)
+    expect(result.sessionContext).toContain("Discuss the plan.");
+    expect(result.systemPrompt).not.toContain("Discuss the plan.");
 
-    expect(memoryIndex).toBeGreaterThan(0);
-    expect(meetingIndex).toBeGreaterThan(memoryIndex);
+    // Memory content is in sessionContext
+    expect(result.sessionContext).toContain("MEMORY");
   });
 
-  test("stability: same inputs produce identical output", () => {
+  test("memoryGuidance is included in systemPrompt (REQ-SPO-9)", () => {
+    const context = makeContext({
+      memoryGuidance: "GUIDANCE_TEXT_HERE",
+    });
+    const result = activateWorkerWithSharedPattern(context);
+
+    expect(result.systemPrompt).toContain("GUIDANCE_TEXT_HERE");
+    expect(result.systemPrompt).toContain("Injected Memory");
+  });
+
+  test("sessionContext is empty when no memory or activity context", () => {
+    const context = makeContext({ soul: "SOUL" });
+    const result = activateWorkerWithSharedPattern(context);
+
+    expect(result.sessionContext).toBe("");
+  });
+
+  test("stability: same inputs produce identical systemPrompt (REQ-SPO-13)", () => {
     const context = makeContext({
       soul: "SOUL",
-      injectedMemory: "MEMORY",
+      memoryGuidance: "GUIDANCE",
     });
     const result1 = activateWorkerWithSharedPattern(context);
     const result2 = activateWorkerWithSharedPattern(context);
 
     expect(result1.systemPrompt).toBe(result2.systemPrompt);
+    expect(result1.sessionContext).toBe(result2.sessionContext);
   });
 
   test("identity metadata block includes name, title, description", () => {
@@ -128,14 +150,14 @@ describe("buildSystemPrompt assembly order", () => {
     const context = makeContext({
       soul: "THE_SOUL",
       posture: "THE_POSTURE",
-      injectedMemory: "THE_MEMORY",
+      memoryGuidance: "THE_GUIDANCE",
     });
     const result = activateWorkerWithSharedPattern(context);
 
-    // Soul, identity, posture, memory should all be separated by \n\n
+    // Soul, identity, posture, guidance should all be separated by \n\n in systemPrompt
     expect(result.systemPrompt).toContain("THE_SOUL\n\n");
     expect(result.systemPrompt).toContain("THE_POSTURE\n\n");
-    expect(result.systemPrompt).toContain("THE_MEMORY");
+    expect(result.systemPrompt).toContain("THE_GUIDANCE");
   });
 });
 

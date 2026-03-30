@@ -205,6 +205,7 @@ function createMockPrepDeps(overrides?: Partial<SessionPrepDeps>): SessionPrepDe
           })),
     activateWorker: overrides?.activateWorker ?? (async () => ({
       systemPrompt: "Test system prompt",
+      sessionContext: "",
       tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
     })),
     memoryLimit: overrides?.memoryLimit,

@@ -17,6 +17,7 @@ import type {
   WorkerMetadata,
 } from "@/lib/types";
 import { buildSubAgentDescription } from "@/packages/shared/sub-agent-description";
+import { MEMORY_GUIDANCE } from "@/daemon/services/memory-injector";
 import type { ContextTypeName } from "@/daemon/services/context-type-registry";
 import type { Log } from "@/daemon/lib/log";
 import { nullLog } from "@/daemon/lib/log";
@@ -137,7 +138,7 @@ export type SessionPrepDeps = {
   memoryLimit?: number;
 };
 
-export type SessionPrepResult = { options: SdkQueryOptions; resolvedModel?: ResolvedModel };
+export type SessionPrepResult = { options: SdkQueryOptions; resolvedModel?: ResolvedModel; sessionContext: string };
 
 export type SdkRunnerOutcome = {
   sessionId: string | null;
@@ -338,6 +339,7 @@ export async function prepareSdkSession(
       posture: workerMeta.posture,
       soul: workerMeta.soul,
       injectedMemory,
+      memoryGuidance: MEMORY_GUIDANCE,
       model: workerMeta.model,
       resolvedTools,
       localModelDefinitions: spec.config.models,
@@ -476,7 +478,7 @@ export async function prepareSdkSession(
     ...(spec.resume ? { resume: spec.resume } : {}),
   };
 
-  log.info(`prepared session. systemPrompt length=${activation.systemPrompt.length}`);
-  return { ok: true, result: { options, resolvedModel: resolvedModelResult } };
+  log.info(`prepared session. systemPrompt length=${activation.systemPrompt.length}, sessionContext length=${activation.sessionContext.length}`);
+  return { ok: true, result: { options, resolvedModel: resolvedModelResult, sessionContext: activation.sessionContext } };
 }
 

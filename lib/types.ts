@@ -257,6 +257,8 @@ export interface ActivationContext {
   posture: string;
   soul?: string;
   injectedMemory: string;
+  /** Memory guidance text for inclusion in system prompt. Populated by prepareSdkSession from MEMORY_GUIDANCE constant. */
+  memoryGuidance?: string;
   model?: string;
   resolvedTools: ResolvedToolSet;
   meetingContext?: {
@@ -283,6 +285,8 @@ export interface ActivationContext {
  */
 export interface ActivationResult {
   systemPrompt: string;
+  /** Session-specific content: memory scope data + activity context. Passed as first user message, not system prompt. */
+  sessionContext: string;
   model?: string;
   tools: ResolvedToolSet;
 }

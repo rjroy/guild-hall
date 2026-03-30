@@ -381,6 +381,7 @@ describe("prepareSdkSession", () => {
 
   const mockActivation: ActivationResult = {
     systemPrompt: "You are a test worker",
+    sessionContext: "",
     model: "sonnet",
     tools: mockResolvedTools,
   };
@@ -428,6 +429,42 @@ describe("prepareSdkSession", () => {
     expect(opts.model).toBe("sonnet");
     expect(opts.permissionMode).toBe("dontAsk");
     expect(opts.settingSources).toEqual(["local", "project", "user"]);
+    // sessionContext is threaded through (REQ-SPO-18)
+    expect(result.result.sessionContext).toBe("");
+  });
+
+  test("memoryGuidance is populated in calling worker's activation context (REQ-SPO-10)", async () => {
+    let capturedContext: ActivationContext | undefined;
+    const result = await prepareSdkSession(
+      makeSpec(),
+      makeDeps({
+        activateWorker: async (_pkg, ctx) => {
+          capturedContext = ctx;
+          return mockActivation;
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(capturedContext).toBeDefined();
+    expect(capturedContext!.memoryGuidance).toBeDefined();
+    expect(capturedContext!.memoryGuidance).toContain("edit_memory");
+  });
+
+  test("sessionContext is threaded from activation result (REQ-SPO-18)", async () => {
+    const activationWithContext: ActivationResult = {
+      ...mockActivation,
+      sessionContext: "# Commission Context\n\nBuild the thing.",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec(),
+      makeDeps({ activateWorker: async () => activationWithContext }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.sessionContext).toBe("# Commission Context\n\nBuild the thing.");
   });
 
   test("worker not found returns error", async () => {
@@ -984,6 +1021,7 @@ describe("prepareSdkSession", () => {
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
+          sessionContext: "",
           tools: context.resolvedTools,
         }),
       });
@@ -1006,6 +1044,7 @@ describe("prepareSdkSession", () => {
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
+          sessionContext: "",
           tools: context.resolvedTools,
         }),
       });
@@ -1025,6 +1064,7 @@ describe("prepareSdkSession", () => {
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
+          sessionContext: "",
           tools: context.resolvedTools,
         }),
       });
@@ -1045,6 +1085,7 @@ describe("prepareSdkSession", () => {
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
+          sessionContext: "",
           tools: context.resolvedTools,
         }),
       });
@@ -1063,6 +1104,7 @@ describe("prepareSdkSession", () => {
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
+          sessionContext: "",
           tools: context.resolvedTools,
         }),
       });
@@ -1396,6 +1438,8 @@ describe("prepareSdkSession", () => {
       expect(capturedContext!.model).toBe("haiku");
       expect(capturedContext!.projectPath).toBe("/tmp/project");
       expect(capturedContext!.workingDirectory).toBe("/tmp/workspace");
+      // Sub-agent context should not have memoryGuidance (REQ-SPO-10)
+      expect(capturedContext!.memoryGuidance).toBeUndefined();
     });
   });
 
@@ -1410,6 +1454,7 @@ describe("prepareSdkSession", () => {
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
+        sessionContext: "",
         tools: context.resolvedTools,
       }),
     });
@@ -1429,6 +1474,7 @@ describe("prepareSdkSession", () => {
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
+        sessionContext: "",
         tools: context.resolvedTools,
       }),
     });
@@ -1450,6 +1496,7 @@ describe("prepareSdkSession", () => {
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
+        sessionContext: "",
         tools: context.resolvedTools,
       }),
     });
@@ -1472,6 +1519,7 @@ describe("prepareSdkSession", () => {
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
+        sessionContext: "",
         tools: context.resolvedTools,
       }),
     });
@@ -1493,6 +1541,7 @@ describe("prepareSdkSession", () => {
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
+        sessionContext: "",
         tools: context.resolvedTools,
       }),
     });
@@ -1602,6 +1651,7 @@ describe("prepareSdkSession resolvedModel", () => {
 
   const mockActivation: ActivationResult = {
     systemPrompt: "You are a test worker",
+    sessionContext: "",
     model: "sonnet",
     tools: mockResolvedTools,
   };

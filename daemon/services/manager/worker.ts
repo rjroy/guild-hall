@@ -176,16 +176,19 @@ export async function activateWorker(
  * soul -> identity -> posture -> memory -> manager context.
  */
 export function activateManager(context: ActivationContext): ActivationResult {
-  const parts: string[] = [];
+  const systemParts: string[] = [];
+  const sessionParts: string[] = [];
+
+  // System prompt: soul, identity, posture + model guidance, memory guidance
 
   // 1. Soul
   if (context.soul) {
-    parts.push(`# Soul\n\n${context.soul}`);
+    systemParts.push(`# Soul\n\n${context.soul}`);
   }
 
   // 2. Identity metadata
   if (context.identity) {
-    parts.push(
+    systemParts.push(
       [
         '# Identity\n',
         `Your name is: ${context.identity.name}`,
@@ -195,23 +198,30 @@ export function activateManager(context: ActivationContext): ActivationResult {
     );
   }
 
-  // 3. Posture + dynamic model guidance (REQ-LOCAL-20)
+  // 3. Posture + dynamic model guidance (REQ-LOCAL-20, REQ-SPO-16)
   const modelGuidance = buildModelGuidance(context.localModelDefinitions);
-  parts.push(`# Posture\n\n${context.posture}\n\n${modelGuidance}`);
+  systemParts.push(`# Posture\n\n${context.posture}\n\n${modelGuidance}`);
 
-  // 4. Injected memory
+  // 4. Memory guidance (REQ-SPO-9, REQ-SPO-10)
+  if (context.memoryGuidance) {
+    systemParts.push(`# Injected Memory\n\n## Memories\n\n${context.memoryGuidance}`);
+  }
+
+  // Session context: memory content, meeting, commission, manager
+
+  // 1. Memory content (scope data)
   if (context.injectedMemory) {
-    parts.push(`# Injected Memory\n\n${context.injectedMemory}`);
+    sessionParts.push(`# Injected Memory\n\n${context.injectedMemory}`);
   }
 
-  // 5. Meeting context
+  // 2. Meeting context
   if (context.meetingContext) {
-    parts.push(`# Meeting Context\n\nAgenda: ${context.meetingContext.agenda}`);
+    sessionParts.push(`# Meeting Context\n\nAgenda: ${context.meetingContext.agenda}`);
   }
 
-  // 6. Commission context
+  // 3. Commission context
   if (context.commissionContext) {
-    parts.push(
+    const commParts: string[] = [
       '# Commission Context',
       '',
       'You are executing a commission (an async work item).',
@@ -220,16 +230,17 @@ export function activateManager(context: ActivationContext): ActivationResult {
       '',
       context.commissionContext.prompt,
       '',
-    );
+    ];
 
     if (context.commissionContext.dependencies.length > 0) {
-      parts.push(
+      commParts.push(
         '## Dependencies (artifacts to reference):',
         context.commissionContext.dependencies.map((dependency) => `- ${dependency}`).join("\n"),
+        '',
       );
     }
 
-    parts.push(
+    commParts.push(
       [
         "## Commission protocol",
         "",
@@ -239,15 +250,18 @@ export function activateManager(context: ActivationContext): ActivationResult {
         "- The commission is not considered complete unless you call submit_result. Just responding with text is not enough.",
       ].join("\n"),
     );
+
+    sessionParts.push(commParts.join("\n"));
   }
 
-  // 7. Manager context
+  // 4. Manager context
   if (context.managerContext) {
-    parts.push(`# Manager Context\n\n${context.managerContext}`);
+    sessionParts.push(`# Manager Context\n\n${context.managerContext}`);
   }
 
   return {
-    systemPrompt: parts.join("\n\n"),
+    systemPrompt: systemParts.join("\n\n"),
+    sessionContext: sessionParts.join("\n\n"),
     model: context.model ?? "opus",
     tools: context.resolvedTools,
   };

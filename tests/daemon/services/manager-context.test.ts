@@ -552,8 +552,10 @@ describe("buildManagerContext - meeting session integration", () => {
     } satisfies import("@/lib/types").ActivationContext;
 
     const result = activateManager(activationCtx);
-    expect(result.systemPrompt).toContain("## Available Workers");
-    expect(result.systemPrompt).toContain("Active work item");
+    // Manager context is now in sessionContext (REQ-SPO-14)
+    expect(result.sessionContext).toContain("## Available Workers");
+    expect(result.sessionContext).toContain("Active work item");
+    // Posture stays in systemPrompt
     expect(result.systemPrompt).toContain("Test posture.");
   });
 });

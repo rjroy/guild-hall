@@ -174,7 +174,19 @@ export async function* startSession(
     return;
   }
 
-  const sdkPrompt = opts?.isInitial ? MEETING_GREETING_PROMPT : prompt;
+  // Compose the SDK prompt from sessionContext based on path (REQ-SPO-21, REQ-SPO-23)
+  const { sessionContext } = prep.result;
+  let sdkPrompt: string;
+  if (opts?.isInitial) {
+    // New session: sessionContext (memory + agenda) + greeting instruction
+    sdkPrompt = sessionContext
+      ? `${sessionContext}\n\n${MEETING_GREETING_PROMPT}`
+      : MEETING_GREETING_PROMPT;
+  } else {
+    // Renewal / no-session-resume: sessionContext already contains the transcript
+    // via meetingContext.agenda from buildMeetingPrepSpec
+    sdkPrompt = sessionContext || prompt;
+  }
   yield* iterateSession(deps, meeting, sdkPrompt, prep.result.options, false, prep.result.resolvedModel);
 
   // Update state file with captured session ID

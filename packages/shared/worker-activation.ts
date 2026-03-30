@@ -1,5 +1,10 @@
 import type { ActivationContext, ActivationResult } from "@/lib/types";
 
+/**
+ * Builds the stable system prompt: soul, identity, posture, memory guidance.
+ * This content is identical across sessions for the same worker, enabling
+ * prompt caching (REQ-SPO-7, REQ-SPO-13).
+ */
 function buildSystemPrompt(context: ActivationContext): string {
   const parts: string[] = [];
 
@@ -24,17 +29,35 @@ function buildSystemPrompt(context: ActivationContext): string {
   // 3. Posture (principles, workflow, quality standards) — always present
   parts.push(`# Posture\n\n${context.posture}`);
 
-  // 4. Injected memory — if present
+  // 4. Memory guidance — behavioral instructions for memory tools (REQ-SPO-9, REQ-SPO-10)
+  if (context.memoryGuidance) {
+    parts.push(`# Injected Memory\n\n## Memories\n\n${context.memoryGuidance}`);
+  }
+
+  return parts.join("\n\n");
+}
+
+/**
+ * Builds session-specific context: memory scope data, then activity context.
+ * This content varies per session and is passed as the first user message
+ * (REQ-SPO-8, REQ-SPO-14).
+ */
+function buildSessionContext(context: ActivationContext): string {
+  const parts: string[] = [];
+
+  // 1. Memory content (scope data from loadMemories)
   if (context.injectedMemory) {
     parts.push(`# Injected Memory\n\n${context.injectedMemory}`);
   }
 
+  // 2. Meeting context
   if (context.meetingContext) {
     parts.push(`# Meeting Context\n\nAgenda: ${context.meetingContext.agenda}`);
   }
 
+  // 3. Commission context with protocol
   if (context.commissionContext) {
-    parts.push(
+    const commParts: string[] = [
       '# Commission Context',
       '',
       'You are executing a commission (an async work item).',
@@ -43,16 +66,17 @@ function buildSystemPrompt(context: ActivationContext): string {
       '',
       context.commissionContext.prompt,
       '',
-    );
+    ];
 
     if (context.commissionContext.dependencies.length > 0) {
-      parts.push(
+      commParts.push(
         '## Dependencies (artifacts to reference):',
         context.commissionContext.dependencies.map((dependency) => `- ${dependency}`).join("\n"),
+        '',
       );
     }
 
-    parts.push(
+    commParts.push(
       [
         "## Commission protocol",
         "",
@@ -62,6 +86,8 @@ function buildSystemPrompt(context: ActivationContext): string {
         "- The commission is not considered complete unless you call submit_result. Just responding with text is not enough.",
       ].join("\n"),
     );
+
+    parts.push(commParts.join("\n"));
   }
 
   return parts.join("\n\n");
@@ -72,6 +98,7 @@ export function activateWorkerWithSharedPattern(
 ): ActivationResult {
   return {
     systemPrompt: buildSystemPrompt(context),
+    sessionContext: buildSessionContext(context),
     model: context.model ?? "opus",
     tools: context.resolvedTools,
   };

@@ -273,6 +273,7 @@ describe("prepareSdkSession resolves plugin-type package", () => {
 
   const mockActivation: ActivationResult = {
     systemPrompt: "You are a test worker.",
+    sessionContext: "",
     model: "sonnet",
     tools: {
       mcpServers: [],

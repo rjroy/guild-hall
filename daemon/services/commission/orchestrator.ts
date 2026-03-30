@@ -1785,7 +1785,7 @@ projectName: ${projectName}
       resourceOverrides: Object.keys(resourceOverrides).length > 0 ? resourceOverrides : undefined,
     };
 
-    void runCommissionSession(execCtx, prepSpec, prompt);
+    void runCommissionSession(execCtx, prepSpec);
 
     return { status: "accepted" };
   }
@@ -1798,7 +1798,6 @@ projectName: ${projectName}
   async function runCommissionSession(
     ctx: ExecutionContext,
     prepSpec: SessionPrepSpec,
-    prompt: string,
   ): Promise<void> {
     let resultSubmitted = false;
 
@@ -1832,10 +1831,10 @@ projectName: ${projectName}
 
       resolvedModel = prepResult.result.resolvedModel;
 
-      // 2. Run and drain the SDK session
-      const { options } = prepResult.result;
+      // 2. Run and drain the SDK session (REQ-SPO-19: sessionContext is the prompt, eliminating task duplication)
+      const { options, sessionContext } = prepResult.result;
       const outcome = await drainSdkSession(
-        runSdkSession(queryFn, prompt, options, log),
+        runSdkSession(queryFn, sessionContext, options, log),
       );
 
       // 3. Normal completion path

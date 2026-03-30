@@ -159,16 +159,30 @@ describe("activateManager", () => {
     expect(result.systemPrompt).toContain("Model Selection");
   });
 
-  test("includes injected memory when present", () => {
-    const result = activateManager(makeContext({ injectedMemory: "Remember this" }));
+  test("includes memory guidance in systemPrompt when present (REQ-SPO-9)", () => {
+    const result = activateManager(makeContext({ memoryGuidance: "MEMORY_GUIDANCE_TEXT" }));
     expect(result.systemPrompt).toContain("# Injected Memory");
-    expect(result.systemPrompt).toContain("Remember this");
+    expect(result.systemPrompt).toContain("MEMORY_GUIDANCE_TEXT");
   });
 
-  test("includes manager context when present", () => {
+  test("includes injected memory in sessionContext, not systemPrompt (REQ-SPO-14)", () => {
+    const result = activateManager(makeContext({ injectedMemory: "Remember this" }));
+    expect(result.sessionContext).toContain("# Injected Memory");
+    expect(result.sessionContext).toContain("Remember this");
+    // Memory content should NOT be in systemPrompt
+    expect(result.systemPrompt).not.toContain("Remember this");
+  });
+
+  test("includes manager context in sessionContext, not systemPrompt (REQ-SPO-14)", () => {
     const result = activateManager(makeContext({ managerContext: "Active commissions: 3" }));
-    expect(result.systemPrompt).toContain("# Manager Context");
-    expect(result.systemPrompt).toContain("Active commissions: 3");
+    expect(result.sessionContext).toContain("# Manager Context");
+    expect(result.sessionContext).toContain("Active commissions: 3");
+    expect(result.systemPrompt).not.toContain("Active commissions: 3");
+  });
+
+  test("sessionContext is empty when no memory, meeting, commission, or manager context", () => {
+    const result = activateManager(makeContext());
+    expect(result.sessionContext).toBe("");
   });
 
   test("returns opus as default model when context.model is absent", () => {
