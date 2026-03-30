@@ -1438,8 +1438,9 @@ describe("prepareSdkSession", () => {
       expect(capturedContext!.model).toBe("haiku");
       expect(capturedContext!.projectPath).toBe("/tmp/project");
       expect(capturedContext!.workingDirectory).toBe("/tmp/workspace");
-      // Sub-agent context should not have memoryGuidance (REQ-SPO-10)
-      expect(capturedContext!.memoryGuidance).toBeUndefined();
+      // Sub-agent context includes memoryGuidance per REQ-SPO-24
+      expect(capturedContext!.memoryGuidance).toBeDefined();
+      expect(capturedContext!.memoryGuidance).toContain("edit_memory");
     });
   });
 

@@ -87,6 +87,21 @@ describe("buildSystemPrompt assembly order", () => {
     expect(result.sessionContext).toContain("MEMORY");
   });
 
+  test("commission dependencies appear in sessionContext (INFO-3)", () => {
+    const context = makeContext({
+      commissionContext: {
+        commissionId: "dep-test",
+        prompt: "Build with deps.",
+        dependencies: ["commission-A", "commission-B"],
+      },
+    });
+    const result = activateWorkerWithSharedPattern(context);
+
+    expect(result.sessionContext).toContain("Dependencies (artifacts to reference):");
+    expect(result.sessionContext).toContain("- commission-A");
+    expect(result.sessionContext).toContain("- commission-B");
+  });
+
   test("meeting context is in sessionContext, not systemPrompt", () => {
     const context = makeContext({
       injectedMemory: "MEMORY",
@@ -113,7 +128,7 @@ describe("buildSystemPrompt assembly order", () => {
     const result = activateWorkerWithSharedPattern(context);
 
     expect(result.systemPrompt).toContain("GUIDANCE_TEXT_HERE");
-    expect(result.systemPrompt).toContain("Injected Memory");
+    expect(result.systemPrompt).toContain("# Memory");
   });
 
   test("sessionContext is empty when no memory or activity context", () => {

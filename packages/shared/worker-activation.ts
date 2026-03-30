@@ -31,7 +31,7 @@ function buildSystemPrompt(context: ActivationContext): string {
 
   // 4. Memory guidance — behavioral instructions for memory tools (REQ-SPO-9, REQ-SPO-10)
   if (context.memoryGuidance) {
-    parts.push(`# Injected Memory\n\n## Memories\n\n${context.memoryGuidance}`);
+    parts.push(`# Memory\n\n## Memories\n\n${context.memoryGuidance}`);
   }
 
   return parts.join("\n\n");

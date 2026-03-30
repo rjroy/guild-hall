@@ -366,11 +366,13 @@ export async function prepareSdkSession(
 
     try {
       // Construct ActivationContext without activity context or memory (REQ-SPO-1, REQ-SPO-2, REQ-SUBAG-15, REQ-SUBAG-16)
+      // memoryGuidance included per REQ-SPO-24 (soul + identity + posture + memory guidance)
       const subActivationContext: ActivationContext = {
         identity: subMeta.identity,
         posture: subMeta.posture,
         soul: subMeta.soul,
         injectedMemory: "",
+        memoryGuidance: MEMORY_GUIDANCE,
         model: subMeta.model,
         resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
         localModelDefinitions: spec.config.models,

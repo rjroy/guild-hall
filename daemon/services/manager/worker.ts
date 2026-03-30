@@ -204,7 +204,7 @@ export function activateManager(context: ActivationContext): ActivationResult {
 
   // 4. Memory guidance (REQ-SPO-9, REQ-SPO-10)
   if (context.memoryGuidance) {
-    systemParts.push(`# Injected Memory\n\n## Memories\n\n${context.memoryGuidance}`);
+    systemParts.push(`# Memory\n\n## Memories\n\n${context.memoryGuidance}`);
   }
 
   // Session context: memory content, meeting, commission, manager
