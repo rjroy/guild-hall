@@ -1,6 +1,6 @@
 ---
 title: "Windows ProjFS as Guild Hall Isolation Mechanism"
-status: active
+status: archived
 date: 2026-03-25
 tags: [projfs, windows, isolation, worktrees, virtual-filesystem, perforce, game-studio]
 related: [.lore/research/perforce-isolation-models.md, .lore/brainstorm/disposable-local-git-p4.md]
