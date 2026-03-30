@@ -452,11 +452,38 @@ describe("translateSdkMessage", () => {
   });
 
   describe("unknown/internal message types", () => {
-    test("SDKCompactBoundaryMessage produces empty array", () => {
+    test("SDKCompactBoundaryMessage (auto) produces context_compacted event", () => {
       const msg = {
         type: "system",
         subtype: "compact_boundary",
-        compact_metadata: { trigger: "auto", pre_tokens: 5000 },
+        compact_metadata: { trigger: "auto", pre_tokens: 95000 },
+        uuid: "00000000-0000-0000-0000-000000000050",
+        session_id: "sdk-session-abc",
+      } as unknown as SDKMessage;
+
+      expect(translateSdkMessage(msg)).toEqual([
+        { type: "context_compacted", trigger: "auto", preTokens: 95000 },
+      ]);
+    });
+
+    test("SDKCompactBoundaryMessage (manual) produces context_compacted with trigger manual", () => {
+      const msg = {
+        type: "system",
+        subtype: "compact_boundary",
+        compact_metadata: { trigger: "manual", pre_tokens: 50000 },
+        uuid: "00000000-0000-0000-0000-000000000050",
+        session_id: "sdk-session-abc",
+      } as unknown as SDKMessage;
+
+      expect(translateSdkMessage(msg)).toEqual([
+        { type: "context_compacted", trigger: "manual", preTokens: 50000 },
+      ]);
+    });
+
+    test("SDKCompactBoundaryMessage without compact_metadata returns empty array", () => {
+      const msg = {
+        type: "system",
+        subtype: "compact_boundary",
         uuid: "00000000-0000-0000-0000-000000000050",
         session_id: "sdk-session-abc",
       } as unknown as SDKMessage;
@@ -790,6 +817,23 @@ describe("createStreamTranslator (input_json_delta accumulation)", () => {
     expect(events).toEqual([{ type: "session", sessionId: "sess-99" }]);
   });
 
+  test("compact_boundary system message passes through stateful translator", () => {
+    const translate = createStreamTranslator();
+
+    const msg = {
+      type: "system",
+      subtype: "compact_boundary",
+      compact_metadata: { trigger: "auto", pre_tokens: 80000 },
+      uuid: "00000000-0000-0000-0000-100000000010" as `${string}-${string}-${string}-${string}-${string}`,
+      session_id: "sdk-session-abc",
+    } as unknown as SDKMessage;
+
+    const events = translate(msg);
+    expect(events).toEqual([
+      { type: "context_compacted", trigger: "auto", preTokens: 80000 },
+    ]);
+  });
+
   test("malformed JSON in accumulated chunks emits nothing on block stop", () => {
     const translate = createStreamTranslator();
 
@@ -813,7 +857,6 @@ describe("createStreamTranslator (input_json_delta accumulation)", () => {
 });
 
 describe("GuildHallEvent type coverage", () => {
-  // Verifies all 6 event types can be constructed and are properly shaped
   test("all event types are constructible", () => {
     const events: GuildHallEvent[] = [
       { type: "session", meetingId: "m", sessionId: "s", worker: "w" },
@@ -825,11 +868,12 @@ describe("GuildHallEvent type coverage", () => {
       { type: "tool_result", name: "Read", output: "contents", toolUseId: "tool-1" },
       { type: "turn_end", cost: 0.01 },
       { type: "turn_end" }, // cost is optional
+      { type: "context_compacted", trigger: "auto", preTokens: 95000 },
+      { type: "context_compacted", trigger: "manual", preTokens: 50000, summary: "Context was summarized" },
       { type: "error", reason: "something went wrong" },
     ];
 
-    expect(events).toHaveLength(10);
-    // Verify each has a type field
+    expect(events).toHaveLength(12);
     for (const event of events) {
       expect(event.type).toBeDefined();
     }

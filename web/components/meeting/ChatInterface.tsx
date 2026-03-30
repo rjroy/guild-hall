@@ -299,6 +299,25 @@ export default function ChatInterface({
                 break;
               }
 
+              case "context_compacted": {
+                const trigger = event.trigger as string;
+                const preTokens = event.preTokens as number;
+                const summary = event.summary as string | undefined;
+
+                let compactionContent = `Context was compressed (${trigger}, ${preTokens.toLocaleString()} tokens before compaction).`;
+                if (summary) {
+                  compactionContent += `\n\n${summary}`;
+                }
+
+                const systemMessage: ChatMessage = {
+                  id: generateId(),
+                  role: "system",
+                  content: compactionContent,
+                };
+                setMessages((prev) => [...prev, systemMessage]);
+                break;
+              }
+
               case "turn_end": {
                 const assistantMessage: ChatMessage = {
                   id: generateId(),

@@ -5,8 +5,10 @@ import * as os from "node:os";
 import {
   truncateTranscript,
   appendAssistantTurnSafe,
+  appendCompactionMarker,
   createTranscript,
   readTranscript,
+  parseTranscriptMessages,
   TRANSCRIPT_MAX_CHARS,
 } from "@/daemon/services/meeting/transcript";
 
@@ -207,5 +209,118 @@ describe("appendAssistantTurnSafe", () => {
       // Restore permissions for cleanup
       await fs.chmod(path.join(readOnlyHome, "meetings"), 0o755);
     }
+  });
+});
+
+// -- appendCompactionMarker --
+
+describe("appendCompactionMarker", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-transcript-compact-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  test("writes Context Compacted heading with trigger and token count", async () => {
+    const meetingId = "compact-test-001";
+    await createTranscript(meetingId, "test-worker", "test-project", tmpDir);
+
+    await appendCompactionMarker(meetingId, "auto", 95000, undefined, tmpDir);
+
+    const content = await readTranscript(meetingId, tmpDir);
+    expect(content).toContain("## Context Compacted (");
+    expect(content).toContain("Context was compressed (auto, 95000 tokens before compaction).");
+    expect(content).not.toContain("> Summary:");
+  });
+
+  test("includes summary when provided", async () => {
+    const meetingId = "compact-test-002";
+    await createTranscript(meetingId, "test-worker", "test-project", tmpDir);
+
+    await appendCompactionMarker(meetingId, "manual", 50000, "The conversation covered testing.", tmpDir);
+
+    const content = await readTranscript(meetingId, tmpDir);
+    expect(content).toContain("## Context Compacted (");
+    expect(content).toContain("Context was compressed (manual, 50000 tokens before compaction).");
+    expect(content).toContain("> Summary: The conversation covered testing.");
+  });
+
+  test("omits summary blockquote when summary is undefined", async () => {
+    const meetingId = "compact-test-003";
+    await createTranscript(meetingId, "test-worker", "test-project", tmpDir);
+
+    await appendCompactionMarker(meetingId, "auto", 80000, undefined, tmpDir);
+
+    const content = await readTranscript(meetingId, tmpDir);
+    expect(content).not.toContain("> Summary:");
+  });
+});
+
+// -- parseTranscriptMessages with compaction markers --
+
+describe("parseTranscriptMessages with compaction markers", () => {
+  test("recognizes Context Compacted headings as system role", () => {
+    const raw = `---
+meetingId: test
+---
+
+## User (2026-03-23T10:00:00.000Z)
+
+Hello
+
+## Context Compacted (2026-03-23T10:05:00.000Z)
+
+Context was compressed (auto, 95000 tokens before compaction).
+
+> Summary: The conversation was about testing.
+
+## Assistant (2026-03-23T10:05:01.000Z)
+
+Here is my response.
+`;
+
+    const messages = parseTranscriptMessages(raw);
+    expect(messages).toHaveLength(3);
+    expect(messages[0].role).toBe("user");
+    expect(messages[1].role).toBe("system");
+    expect(messages[1].content).toContain("Context was compressed");
+    expect(messages[1].content).toContain("> Summary:");
+    expect(messages[1].timestamp).toBe("2026-03-23T10:05:00.000Z");
+    expect(messages[2].role).toBe("assistant");
+  });
+
+  test("system messages have no toolUses", () => {
+    const raw = `## Context Compacted (2026-03-23T10:05:00.000Z)
+
+Context was compressed (auto, 95000 tokens before compaction).
+`;
+
+    const messages = parseTranscriptMessages(raw);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe("system");
+    expect(messages[0].toolUses).toBeUndefined();
+  });
+});
+
+// -- truncateTranscript with Context Compacted --
+
+describe("truncateTranscript with Context Compacted headings", () => {
+  test("preserves Context Compacted turn boundaries", () => {
+    const turn1 = "## User (2026-01-01T00:00:00Z)\n\nFirst message that is fairly long\n";
+    const compact = "## Context Compacted (2026-01-01T00:01:00Z)\n\nContext was compressed (auto, 95000 tokens).\n";
+    const turn2 = "## Assistant (2026-01-01T00:02:00Z)\n\nResponse after compaction\n";
+    const transcript = turn1 + "\n" + compact + "\n" + turn2;
+
+    // Set limit so only the last two sections fit
+    const lastTwoLen = compact.length + turn2.length + 2;
+    const result = truncateTranscript(transcript, lastTwoLen);
+
+    expect(result).not.toContain("First message");
+    expect(result).toContain("Context was compressed");
+    expect(result).toContain("Response after compaction");
   });
 });

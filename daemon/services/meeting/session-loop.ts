@@ -23,6 +23,8 @@ import type { GuildHallEvent, MeetingId, SdkSessionId } from "@/daemon/types";
 import { asSdkSessionId } from "@/daemon/types";
 import {
   appendAssistantTurnSafe,
+  appendCompactionMarkerSafe,
+  appendCompactSummarySafe,
   type ToolUseEntry,
 } from "@/daemon/services/meeting/transcript";
 import type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
@@ -132,6 +134,26 @@ export async function* iterateSession(
       };
     } else if (event.type === "aborted") {
       yield { type: "error", reason: "Turn interrupted" };
+    } else if (event.type === "context_compacted") {
+      // REQ-MCC-10: Map to GuildHallEvent with optional summary from hook
+      const summary = meeting.lastCompactSummary;
+      meeting.lastCompactSummary = undefined;
+
+      // REQ-MCC-12: Append compaction marker to transcript
+      await appendCompactionMarkerSafe(
+        meeting.meetingId as string,
+        event.trigger,
+        event.preTokens,
+        summary,
+        deps.guildHallHome,
+      );
+
+      yield {
+        type: "context_compacted",
+        trigger: event.trigger,
+        preTokens: event.preTokens,
+        ...(summary ? { summary } : {}),
+      };
     } else if (event.type === "error") {
       // Track for post-loop session expiry detection
       const prefixed = prefixLocalModelError(event.reason, resolvedModel);
@@ -151,6 +173,17 @@ export async function* iterateSession(
   // Append the assistant turn to the transcript (single post-loop call
   // handles all cases including abort/error with partial content).
   await appendAssistantTurnSafe(meeting.meetingId as string, textParts, toolUses, deps.guildHallHome);
+
+  // Post-loop cleanup: if a PostCompact hook fired after the boundary
+  // event was already processed, append the summary to the transcript.
+  if (meeting.lastCompactSummary) {
+    await appendCompactSummarySafe(
+      meeting.meetingId as string,
+      meeting.lastCompactSummary,
+      deps.guildHallHome,
+    );
+    meeting.lastCompactSummary = undefined;
+  }
 
   return { lastError, hasExpiryError };
 }

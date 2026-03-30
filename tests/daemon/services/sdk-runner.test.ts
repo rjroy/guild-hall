@@ -345,6 +345,21 @@ describe("drainSdkSession", () => {
 
     expect(outcome.reason).toBe("completed");
   });
+
+  test("context_compacted event passes through without error (REQ-MCC-15)", async () => {
+    async function* genWithCompaction(): AsyncGenerator<SdkRunnerEvent> {
+      yield { type: "session", sessionId: "s-compact" };
+      yield { type: "context_compacted", trigger: "auto", preTokens: 95000 };
+      yield { type: "turn_end", cost: 0.05 };
+    }
+    const outcome = await drainSdkSession(genWithCompaction());
+
+    expect(outcome.sessionId).toBe("s-compact");
+    expect(outcome.aborted).toBe(false);
+    expect(outcome.error).toBeUndefined();
+    expect(outcome.reason).toBe("completed");
+    expect(outcome.turnsUsed).toBe(1);
+  });
 });
 
 // -- prepareSdkSession tests --
@@ -1742,5 +1757,64 @@ describe("prepareSdkSession resolvedModel", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.result.resolvedModel).toBeUndefined();
+  });
+
+  test("onCompactSummary adds PostCompact hooks entry", async () => {
+    const summaries: Array<{ summary: string; trigger: string }> = [];
+    const spec = makeSpec({
+      onCompactSummary: (summary, trigger) => {
+        summaries.push({ summary, trigger });
+      },
+    });
+
+    const result = await prepareSdkSession(spec, makeDeps());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const opts = result.result.options;
+    expect(opts.hooks).toBeDefined();
+    expect(opts.hooks?.PostCompact).toBeDefined();
+    expect(opts.hooks!.PostCompact).toHaveLength(1);
+    expect(opts.hooks!.PostCompact![0].hooks).toHaveLength(1);
+  });
+
+  test("onCompactSummary absent means no hooks entry", async () => {
+    const result = await prepareSdkSession(makeSpec(), makeDeps());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.result.options.hooks).toBeUndefined();
+  });
+
+  test("PostCompact hook callback invokes onCompactSummary with correct args", async () => {
+    const summaries: Array<{ summary: string; trigger: string }> = [];
+    const spec = makeSpec({
+      onCompactSummary: (summary, trigger) => {
+        summaries.push({ summary, trigger });
+      },
+    });
+
+    const result = await prepareSdkSession(spec, makeDeps());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const hookCallback = result.result.options.hooks!.PostCompact![0].hooks[0];
+    const mockInput = {
+      hook_event_name: "PostCompact",
+      trigger: "auto",
+      compact_summary: "The conversation was about testing...",
+    };
+    const hookResult = await hookCallback(
+      mockInput as never,
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(hookResult).toEqual({ continue: true });
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0].summary).toBe("The conversation was about testing...");
+    expect(summaries[0].trigger).toBe("auto");
   });
 });

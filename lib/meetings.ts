@@ -256,7 +256,7 @@ export function sortMeetingRequests(requests: MeetingMeta[]): MeetingMeta[] {
  */
 export interface TranscriptChatMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   toolUses?: Array<{
     name: string;
@@ -285,9 +285,9 @@ export function parseTranscriptToMessages(raw: string): TranscriptChatMessage[] 
   const messages: TranscriptChatMessage[] = [];
 
   // Split on ## headings that start a new turn.
-  const headingPattern = /^## (User|Assistant) \(([^)]+)\)\s*$/gm;
+  const headingPattern = /^## (User|Assistant|Context Compacted) \(([^)]+)\)\s*$/gm;
   const headings: Array<{
-    role: "user" | "assistant";
+    role: "user" | "assistant" | "system";
     index: number;
     length: number;
   }> = [];
@@ -295,7 +295,9 @@ export function parseTranscriptToMessages(raw: string): TranscriptChatMessage[] 
   let match: RegExpExecArray | null;
   while ((match = headingPattern.exec(raw)) !== null) {
     headings.push({
-      role: match[1].toLowerCase() as "user" | "assistant",
+      role: match[1] === "Context Compacted"
+        ? ("system" as const)
+        : (match[1].toLowerCase() as "user" | "assistant"),
       index: match.index,
       length: match[0].length,
     });
@@ -309,7 +311,13 @@ export function parseTranscriptToMessages(raw: string): TranscriptChatMessage[] 
     const bodyEnd = i + 1 < headings.length ? headings[i + 1].index : raw.length;
     const body = raw.slice(bodyStart, bodyEnd).trim();
 
-    if (heading.role === "assistant") {
+    if (heading.role === "system") {
+      messages.push({
+        id: `transcript-${nextId++}`,
+        role: "system",
+        content: body,
+      });
+    } else if (heading.role === "assistant") {
       const { text, toolUses } = parseAssistantBody(body);
       const msg: TranscriptChatMessage = {
         id: `transcript-${nextId++}`,

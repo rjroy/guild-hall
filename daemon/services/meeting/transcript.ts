@@ -33,7 +33,7 @@ export type ToolUseEntry = {
 };
 
 export type TranscriptMessage = {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   toolUses?: ToolUseEntry[];
   timestamp: string;
@@ -165,7 +165,7 @@ export function truncateTranscript(transcript: string, maxChars = TRANSCRIPT_MAX
   if (transcript.length <= maxChars) return transcript;
 
   // Split on turn headings, keeping the delimiter with the following section
-  const turnPattern = /^(## (?:User|Assistant) \([^)]+\))/m;
+  const turnPattern = /^(## (?:User|Assistant|Context Compacted) \([^)]+\))/m;
   const parts = transcript.split(turnPattern);
 
   // parts alternates: [preamble, heading1, body1, heading2, body2, ...]
@@ -211,6 +211,69 @@ export async function appendAssistantTurnSafe(
   } catch (err: unknown) {
     const reason = errorMessage(err);
     log.warn(`Transcript append failed for meeting ${meetingId} (non-fatal): ${reason}`);
+  }
+}
+
+/**
+ * Appends a context compaction marker to the transcript.
+ */
+export async function appendCompactionMarker(
+  meetingId: string,
+  trigger: "manual" | "auto",
+  preTokens: number,
+  summary: string | undefined,
+  guildHallHome?: string,
+): Promise<void> {
+  validateMeetingId(meetingId);
+  const filePath = transcriptPath(meetingId, guildHallHome);
+  const timestamp = new Date().toISOString();
+
+  let section = `\n## Context Compacted (${timestamp})\n\n`;
+  section += `Context was compressed (${trigger}, ${preTokens} tokens before compaction).\n`;
+
+  if (summary) {
+    section += `\n> Summary: ${summary}\n`;
+  }
+
+  await fs.appendFile(filePath, section, "utf-8");
+}
+
+/**
+ * Safe wrapper for appendCompactionMarker: swallows errors so transcript
+ * failures don't break the meeting flow.
+ */
+export async function appendCompactionMarkerSafe(
+  meetingId: string,
+  trigger: "manual" | "auto",
+  preTokens: number,
+  summary: string | undefined,
+  guildHallHome: string,
+  log: Log = nullLog("transcript"),
+): Promise<void> {
+  try {
+    await appendCompactionMarker(meetingId, trigger, preTokens, summary, guildHallHome);
+  } catch (err: unknown) {
+    log.warn(`Transcript compaction marker failed for meeting ${meetingId} (non-fatal): ${errorMessage(err)}`);
+  }
+}
+
+/**
+ * Appends a late-arriving compact summary to the transcript. Used when the
+ * PostCompact hook fires after the boundary event has already been written.
+ */
+export async function appendCompactSummarySafe(
+  meetingId: string,
+  summary: string,
+  guildHallHome: string,
+  log: Log = nullLog("transcript"),
+): Promise<void> {
+  try {
+    validateMeetingId(meetingId);
+    const filePath = transcriptPath(meetingId, guildHallHome);
+    const section = `\n> Summary: ${summary}\n`;
+    await fs.appendFile(filePath, section, "utf-8");
+  } catch (err: unknown) {
+    log.warn(`Transcript compact summary append failed for meeting ${meetingId} (non-fatal): ${errorMessage(err)}`);
   }
 }
 
@@ -261,9 +324,9 @@ export function parseTranscriptMessages(raw: string): TranscriptMessage[] {
 
   // Split on ## headings that start a new turn.
   // The regex captures: role and timestamp from the heading.
-  const headingPattern = /^## (User|Assistant) \(([^)]+)\)\s*$/gm;
+  const headingPattern = /^## (User|Assistant|Context Compacted) \(([^)]+)\)\s*$/gm;
   const headings: Array<{
-    role: "user" | "assistant";
+    role: "user" | "assistant" | "system";
     timestamp: string;
     index: number;
     length: number;
@@ -272,7 +335,9 @@ export function parseTranscriptMessages(raw: string): TranscriptMessage[] {
   let match: RegExpExecArray | null;
   while ((match = headingPattern.exec(raw)) !== null) {
     headings.push({
-      role: match[1].toLowerCase() as "user" | "assistant",
+      role: match[1] === "Context Compacted"
+        ? ("system" as const)
+        : (match[1].toLowerCase() as "user" | "assistant"),
       timestamp: match[2],
       index: match.index,
       length: match[0].length,
@@ -285,7 +350,13 @@ export function parseTranscriptMessages(raw: string): TranscriptMessage[] {
     const bodyEnd = i + 1 < headings.length ? headings[i + 1].index : raw.length;
     const body = raw.slice(bodyStart, bodyEnd).trim();
 
-    if (heading.role === "assistant") {
+    if (heading.role === "system") {
+      messages.push({
+        role: "system",
+        content: body,
+        timestamp: heading.timestamp,
+      });
+    } else if (heading.role === "assistant") {
       const { text, toolUses } = parseAssistantBody(body);
       const msg: TranscriptMessage = {
         role: "assistant",

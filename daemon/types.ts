@@ -92,4 +92,5 @@ export type GuildHallEvent =
   | { type: "tool_input"; toolUseId: string; input: unknown }
   | { type: "tool_result"; name: string; output: string; toolUseId?: string }
   | { type: "turn_end"; cost?: number }
+  | { type: "context_compacted"; trigger: "manual" | "auto"; preTokens: number; summary?: string }
   | { type: "error"; reason: string };
