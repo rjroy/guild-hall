@@ -559,6 +559,7 @@ describe("closeMeeting with notes generation", () => {
     function mockActivate() {
       return Promise.resolve({
         systemPrompt: "You are a helpful assistant.",
+        sessionContext: "",
         tools: { mcpServers: [], allowedTools: ["Read", "Glob"], builtInTools: [] },
       });
     }
@@ -624,6 +625,7 @@ describe("closeMeeting with notes generation", () => {
     function mockActivate() {
       return Promise.resolve({
         systemPrompt: "You are a helpful assistant.",
+        sessionContext: "",
         tools: { mcpServers: [], allowedTools: ["Read", "Glob"], builtInTools: [] },
       });
     }
@@ -680,6 +682,7 @@ describe("closeMeeting with notes generation", () => {
     function mockActivate() {
       return Promise.resolve({
         systemPrompt: "You are a helpful assistant.",
+        sessionContext: "",
         tools: { mcpServers: [], allowedTools: ["Read", "Glob"], builtInTools: [] },
       });
     }

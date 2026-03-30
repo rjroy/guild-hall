@@ -1,7 +1,7 @@
 ---
 title: "Commission Templates"
 date: 2026-03-20
-status: open
+status: archived
 author: Celeste
 tags: [brainstorm, commissions, templates, prompt-engineering]
 parent: whats-missing-2026-03-20.md

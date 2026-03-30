@@ -164,23 +164,29 @@ describe("activateManager", () => {
     );
   });
 
-  test("includes injected memory in system prompt when present", () => {
+  test("includes injected memory in sessionContext, not systemPrompt (REQ-SPO-14)", () => {
     const context = makeContext({
       injectedMemory: "Project memory: the team uses TypeScript and bun.",
     });
     const result = activateManager(context);
-    expect(result.systemPrompt).toContain(
+    expect(result.sessionContext).toContain(
+      "Project memory: the team uses TypeScript and bun.",
+    );
+    expect(result.systemPrompt).not.toContain(
       "Project memory: the team uses TypeScript and bun.",
     );
   });
 
-  test("includes manager context in system prompt when present", () => {
+  test("includes manager context in sessionContext, not systemPrompt (REQ-SPO-14)", () => {
     const context = makeContext({
       managerContext:
         "Active commissions: 3 in_progress, 1 pending. No blocked items.",
     });
     const result = activateManager(context);
-    expect(result.systemPrompt).toContain(
+    expect(result.sessionContext).toContain(
+      "Active commissions: 3 in_progress, 1 pending.",
+    );
+    expect(result.systemPrompt).not.toContain(
       "Active commissions: 3 in_progress, 1 pending.",
     );
   });
@@ -191,8 +197,9 @@ describe("activateManager", () => {
       injectedMemory: "Some memory.",
     });
     const result = activateManager(context);
-    expect(result.systemPrompt).toContain("Some memory.");
+    expect(result.sessionContext).toContain("Some memory.");
     // Should not contain "undefined" as literal text
+    expect(result.sessionContext).not.toContain("undefined");
     expect(result.systemPrompt).not.toContain("undefined");
   });
 
@@ -202,9 +209,11 @@ describe("activateManager", () => {
       injectedMemory: "",
     });
     const result = activateManager(context);
-    // System prompt now includes identity lines between soul and posture
+    // System prompt includes identity lines between soul and posture
     expect(result.systemPrompt).toContain("Your name is:");
     expect(result.systemPrompt).toContain(context.posture);
+    // sessionContext should be empty
+    expect(result.sessionContext).toBe("");
   });
 
   test("passes through resolvedTools unchanged", () => {
@@ -222,15 +231,23 @@ describe("activateManager", () => {
     const context = makeContext({
       soul: "THE_SOUL",
       posture: "THE_POSTURE",
+      memoryGuidance: "THE_GUIDANCE",
+    });
+    const result = activateManager(context);
+    // Soul, identity, posture, guidance all separated by \n\n in systemPrompt
+    expect(result.systemPrompt).toContain("THE_SOUL\n\n");
+    expect(result.systemPrompt).toContain("THE_POSTURE\n\n");
+    expect(result.systemPrompt).toContain("THE_GUIDANCE");
+  });
+
+  test("sessionContext sections are separated by double newlines", () => {
+    const context = makeContext({
       injectedMemory: "THE_MEMORY",
       managerContext: "THE_CONTEXT",
     });
     const result = activateManager(context);
-    // Soul, identity, posture, memory, context all separated by \n\n
-    expect(result.systemPrompt).toContain("THE_SOUL\n\n");
-    expect(result.systemPrompt).toContain("THE_POSTURE\n\n");
-    expect(result.systemPrompt).toContain("THE_MEMORY\n\n");
-    expect(result.systemPrompt).toContain("THE_CONTEXT");
+    expect(result.sessionContext).toContain("THE_MEMORY\n\n");
+    expect(result.sessionContext).toContain("THE_CONTEXT");
   });
 
   test("activateManager includes soul in system prompt", () => {
@@ -251,10 +268,11 @@ describe("activateManager", () => {
     expect(result.systemPrompt).toContain("You are described as: Runs the hall.");
   });
 
-  test("activateManager assembly order: soul, identity, posture, memory, meeting, commission, manager context", () => {
+  test("activateManager assembly order: soul, identity, posture in systemPrompt; memory, meeting, commission, manager in sessionContext", () => {
     const context = makeContext({
       soul: "SOUL",
       posture: "POSTURE",
+      memoryGuidance: "MEM_GUIDANCE",
       injectedMemory: "MEMORY",
       meetingContext: { meetingId: "m1", agenda: "MEETING_AGENDA", referencedArtifacts: [] },
       commissionContext: { commissionId: "c1", prompt: "COMMISSION_PROMPT", dependencies: [] },
@@ -262,39 +280,46 @@ describe("activateManager", () => {
     });
     const result = activateManager(context);
 
+    // System prompt: soul, identity, posture, memory guidance
     const soulIdx = result.systemPrompt.indexOf("SOUL");
     const identityIdx = result.systemPrompt.indexOf("Your name is:");
     const postureIdx = result.systemPrompt.indexOf("POSTURE");
-    const memoryIdx = result.systemPrompt.indexOf("MEMORY");
-    const meetingIdx = result.systemPrompt.indexOf("MEETING_AGENDA");
-    const commissionIdx = result.systemPrompt.indexOf("COMMISSION_PROMPT");
-    const managerIdx = result.systemPrompt.indexOf("MANAGER_CONTEXT");
+    const guidanceIdx = result.systemPrompt.indexOf("MEM_GUIDANCE");
 
     expect(soulIdx).toBeGreaterThanOrEqual(0);
     expect(identityIdx).toBeGreaterThan(soulIdx);
     expect(postureIdx).toBeGreaterThan(identityIdx);
-    expect(memoryIdx).toBeGreaterThan(postureIdx);
+    expect(guidanceIdx).toBeGreaterThan(postureIdx);
+
+    // Session context: memory, meeting, commission, manager
+    const memoryIdx = result.sessionContext.indexOf("MEMORY");
+    const meetingIdx = result.sessionContext.indexOf("MEETING_AGENDA");
+    const commissionIdx = result.sessionContext.indexOf("COMMISSION_PROMPT");
+    const managerIdx = result.sessionContext.indexOf("MANAGER_CONTEXT");
+
+    expect(memoryIdx).toBeGreaterThanOrEqual(0);
     expect(meetingIdx).toBeGreaterThan(memoryIdx);
     expect(commissionIdx).toBeGreaterThan(meetingIdx);
     expect(managerIdx).toBeGreaterThan(commissionIdx);
   });
 
-  test("includes meeting agenda in system prompt when meetingContext is provided", () => {
+  test("includes meeting agenda in sessionContext when meetingContext is provided", () => {
     const context = makeContext({
       meetingContext: { meetingId: "mtg-1", agenda: "Discuss Q2 roadmap priorities", referencedArtifacts: [] },
     });
     const result = activateManager(context);
-    expect(result.systemPrompt).toContain("# Meeting Context");
-    expect(result.systemPrompt).toContain("Agenda: Discuss Q2 roadmap priorities");
+    expect(result.sessionContext).toContain("# Meeting Context");
+    expect(result.sessionContext).toContain("Agenda: Discuss Q2 roadmap priorities");
+    expect(result.systemPrompt).not.toContain("# Meeting Context");
   });
 
   test("excludes meeting context section when meetingContext is not provided", () => {
     const context = makeContext();
     const result = activateManager(context);
-    expect(result.systemPrompt).not.toContain("# Meeting Context");
+    expect(result.sessionContext).not.toContain("# Meeting Context");
   });
 
-  test("includes commission context in system prompt when commissionContext is provided", () => {
+  test("includes commission context in sessionContext when commissionContext is provided", () => {
     const context = makeContext({
       commissionContext: {
         commissionId: "comm-1",
@@ -303,10 +328,11 @@ describe("activateManager", () => {
       },
     });
     const result = activateManager(context);
-    expect(result.systemPrompt).toContain("# Commission Context");
-    expect(result.systemPrompt).toContain("You are executing a commission (an async work item).");
-    expect(result.systemPrompt).toContain("Fix the login bug in auth.ts");
-    expect(result.systemPrompt).toContain("## Commission protocol");
+    expect(result.sessionContext).toContain("# Commission Context");
+    expect(result.sessionContext).toContain("You are executing a commission (an async work item).");
+    expect(result.sessionContext).toContain("Fix the login bug in auth.ts");
+    expect(result.sessionContext).toContain("## Commission protocol");
+    expect(result.systemPrompt).not.toContain("# Commission Context");
   });
 
   test("includes commission dependencies when provided", () => {
@@ -318,15 +344,15 @@ describe("activateManager", () => {
       },
     });
     const result = activateManager(context);
-    expect(result.systemPrompt).toContain("## Dependencies (artifacts to reference):");
-    expect(result.systemPrompt).toContain("- .lore/specs/feature-x.md");
-    expect(result.systemPrompt).toContain("- .lore/design/feature-x.md");
+    expect(result.sessionContext).toContain("## Dependencies (artifacts to reference):");
+    expect(result.sessionContext).toContain("- .lore/specs/feature-x.md");
+    expect(result.sessionContext).toContain("- .lore/design/feature-x.md");
   });
 
   test("excludes commission context section when commissionContext is not provided", () => {
     const context = makeContext();
     const result = activateManager(context);
-    expect(result.systemPrompt).not.toContain("# Commission Context");
+    expect(result.sessionContext).not.toContain("# Commission Context");
   });
 
   test("uses context.model when provided", () => {

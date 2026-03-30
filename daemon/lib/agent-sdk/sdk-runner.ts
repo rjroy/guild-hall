@@ -17,6 +17,7 @@ import type {
   WorkerMetadata,
 } from "@/lib/types";
 import { buildSubAgentDescription } from "@/packages/shared/sub-agent-description";
+import { MEMORY_GUIDANCE } from "@/daemon/services/memory-injector";
 import type { ContextTypeName } from "@/daemon/services/context-type-registry";
 import type { Log } from "@/daemon/lib/log";
 import { nullLog } from "@/daemon/lib/log";
@@ -137,7 +138,7 @@ export type SessionPrepDeps = {
   memoryLimit?: number;
 };
 
-export type SessionPrepResult = { options: SdkQueryOptions; resolvedModel?: ResolvedModel };
+export type SessionPrepResult = { options: SdkQueryOptions; resolvedModel?: ResolvedModel; sessionContext: string };
 
 export type SdkRunnerOutcome = {
   sessionId: string | null;
@@ -338,6 +339,7 @@ export async function prepareSdkSession(
       posture: workerMeta.posture,
       soul: workerMeta.soul,
       injectedMemory,
+      memoryGuidance: MEMORY_GUIDANCE,
       model: workerMeta.model,
       resolvedTools,
       localModelDefinitions: spec.config.models,
@@ -359,60 +361,41 @@ export async function prepareSdkSession(
 
   const agents: Record<string, { description: string; prompt: string; model: string }> = {};
 
-  if (otherWorkerPackages.length > 0) {
-    // Load memories concurrently (REQ-SUBAG-9)
-    const memoryResults = await Promise.allSettled(
-      otherWorkerPackages.map((pkg) => {
-        return deps.loadMemories(pkg.metadata.identity.name, spec.projectName, {
-          guildHallHome: spec.guildHallHome,
-          memoryLimit: deps.memoryLimit,
-        });
-      }),
-    );
+  for (const subPkg of otherWorkerPackages) {
+    const subMeta = subPkg.metadata;
 
-    for (let i = 0; i < otherWorkerPackages.length; i++) {
-      const subPkg = otherWorkerPackages[i];
-      const subMeta = subPkg.metadata;
-      const memoryResult = memoryResults[i];
+    try {
+      // Construct ActivationContext without activity context or memory (REQ-SPO-1, REQ-SPO-2, REQ-SUBAG-15, REQ-SUBAG-16)
+      // memoryGuidance included per REQ-SPO-24 (soul + identity + posture + memory guidance)
+      const subActivationContext: ActivationContext = {
+        identity: subMeta.identity,
+        posture: subMeta.posture,
+        soul: subMeta.soul,
+        injectedMemory: "",
+        memoryGuidance: MEMORY_GUIDANCE,
+        model: subMeta.model,
+        resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
+        localModelDefinitions: spec.config.models,
+        projectPath: spec.projectPath,
+        workingDirectory: spec.workspaceDir,
+      };
 
-      try {
-        // If memory load failed, log and skip (REQ-SUBAG-8)
-        if (memoryResult.status === "rejected") {
-          throw memoryResult.reason;
-        }
+      const subActivation = await deps.activateWorker(subPkg, subActivationContext);
+      const description = buildSubAgentDescription(subMeta.identity);
 
-        const subMemory = memoryResult.value.memoryBlock;
+      // Resolve model: "inherit" when absent or "inherit", otherwise use directly (REQ-SUBAG-10, REQ-SUBAG-11)
+      const resolvedSubAgentModel = (!subMeta.subAgentModel || subMeta.subAgentModel === "inherit")
+        ? "inherit"
+        : subMeta.subAgentModel;
 
-        // Construct ActivationContext without activity context (REQ-SUBAG-15, REQ-SUBAG-16)
-        const subActivationContext: ActivationContext = {
-          identity: subMeta.identity,
-          posture: subMeta.posture,
-          soul: subMeta.soul,
-          injectedMemory: subMemory,
-          model: subMeta.model,
-          resolvedTools: { mcpServers: [], allowedTools: [], builtInTools: [] },
-          localModelDefinitions: spec.config.models,
-          projectPath: spec.projectPath,
-          workingDirectory: spec.workspaceDir,
-        };
-
-        const subActivation = await deps.activateWorker(subPkg, subActivationContext);
-        const description = buildSubAgentDescription(subMeta.identity);
-
-        // Resolve model: "inherit" when absent or "inherit", otherwise use directly (REQ-SUBAG-10, REQ-SUBAG-11)
-        const resolvedSubAgentModel = (!subMeta.subAgentModel || subMeta.subAgentModel === "inherit")
-          ? "inherit"
-          : subMeta.subAgentModel;
-
-        // No tools field (REQ-SUBAG-12)
-        agents[subMeta.identity.name] = {
-          description,
-          prompt: subActivation.systemPrompt,
-          model: resolvedSubAgentModel,
-        };
-      } catch (err: unknown) {
-        log.warn(`Failed to build sub-agent for worker '${subMeta.identity.name}': ${errorMessage(err)}`);
-      }
+      // No tools field (REQ-SUBAG-12)
+      agents[subMeta.identity.name] = {
+        description,
+        prompt: subActivation.systemPrompt,
+        model: resolvedSubAgentModel,
+      };
+    } catch (err: unknown) {
+      log.warn(`Failed to build sub-agent for worker '${subMeta.identity.name}': ${errorMessage(err)}`);
     }
   }
 
@@ -497,7 +480,7 @@ export async function prepareSdkSession(
     ...(spec.resume ? { resume: spec.resume } : {}),
   };
 
-  log.info(`prepared session. systemPrompt length=${activation.systemPrompt.length}`);
-  return { ok: true, result: { options, resolvedModel: resolvedModelResult } };
+  log.info(`prepared session. systemPrompt length=${activation.systemPrompt.length}, sessionContext length=${activation.sessionContext.length}`);
+  return { ok: true, result: { options, resolvedModel: resolvedModelResult, sessionContext: activation.sessionContext } };
 }
 

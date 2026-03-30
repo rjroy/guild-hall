@@ -182,6 +182,7 @@ function makeMockPrepDeps() {
           }),
     activateWorker: async (_pkg, context: ActivationContext) => ({
       systemPrompt: `You are ${context.identity.name}`,
+      sessionContext: "",
       tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
       model: "opus",
     }),

@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
-import { loadMemories, memoryScopeFile } from "@/daemon/services/memory-injector";
+import { loadMemories, memoryScopeFile, MEMORY_GUIDANCE } from "@/daemon/services/memory-injector";
 
 let tmpDir: string;
 let guildHallHome: string;
@@ -31,17 +31,46 @@ async function writeScopeFile(
   await fs.writeFile(filePath, content, "utf-8");
 }
 
+// -- MEMORY_GUIDANCE constant --
+
+describe("MEMORY_GUIDANCE constant", () => {
+  test("contains edit_memory instructions", () => {
+    expect(MEMORY_GUIDANCE).toContain("edit_memory");
+    expect(MEMORY_GUIDANCE).toContain("read_memory");
+  });
+
+  test("describes section-based organization", () => {
+    expect(MEMORY_GUIDANCE).toContain("section");
+    expect(MEMORY_GUIDANCE).toContain("upsert");
+    expect(MEMORY_GUIDANCE).toContain("append");
+    expect(MEMORY_GUIDANCE).toContain("delete");
+  });
+
+  test("suggests standard section names", () => {
+    expect(MEMORY_GUIDANCE).toContain("User");
+    expect(MEMORY_GUIDANCE).toContain("Feedback");
+    expect(MEMORY_GUIDANCE).toContain("Project");
+    expect(MEMORY_GUIDANCE).toContain("Reference");
+  });
+
+  test("mentions write_memory as deprecated", () => {
+    expect(MEMORY_GUIDANCE).toContain("write_memory");
+    expect(MEMORY_GUIDANCE).toContain("deprecated");
+  });
+});
+
 // -- No memory files --
 
 describe("loadMemories: no files", () => {
-  test("returns guidance block when no memory files exist", async () => {
+  test("returns memoryBlock without guidance when no memory files exist", async () => {
     const result = await loadMemories("test-worker", "test-project", {
       guildHallHome,
     });
 
     expect(result.memoryBlock).toContain("## Memories");
-    expect(result.memoryBlock).toContain("edit_memory");
     expect(result.memoryBlock).toContain("No memories saved yet.");
+    // Guidance is no longer in memoryBlock (REQ-SPO-11)
+    expect(result.memoryBlock).not.toContain("edit_memory");
   });
 
   test("result has no needsCompaction field", async () => {
@@ -56,7 +85,7 @@ describe("loadMemories: no files", () => {
 // -- Single scope --
 
 describe("loadMemories: single scope", () => {
-  test("includes global scope content", async () => {
+  test("includes global scope content without guidance", async () => {
     await writeScopeFile("global", "## Preferences\n\nUse dark mode\n");
 
     const result = await loadMemories("test-worker", "test-project", {
@@ -67,6 +96,8 @@ describe("loadMemories: single scope", () => {
     expect(result.memoryBlock).toContain("### Global");
     expect(result.memoryBlock).toContain("## Preferences");
     expect(result.memoryBlock).toContain("Use dark mode");
+    // No guidance in memoryBlock
+    expect(result.memoryBlock).not.toContain("edit_memory");
   });
 
   test("includes project scope content", async () => {
@@ -178,7 +209,7 @@ describe("loadMemories: budget enforcement", () => {
     expect(result.memoryBlock).not.toContain("Huge");
   });
 
-  test("MEMORY_GUIDANCE is not counted against budget", async () => {
+  test("MEMORY_GUIDANCE is not counted against budget (guidance is separate)", async () => {
     // Small content that fits in a tiny budget
     await writeScopeFile("global", "## Note\n\nSmall\n");
 
@@ -187,8 +218,7 @@ describe("loadMemories: budget enforcement", () => {
       memoryLimit: 200,
     });
 
-    // Guidance should be present even though the total memoryBlock is much larger
-    expect(result.memoryBlock).toContain("edit_memory");
+    // Content should be present (guidance no longer inflates the block)
     expect(result.memoryBlock).toContain("Small");
   });
 
@@ -317,43 +347,5 @@ describe("loadMemories: edge cases", () => {
     expect(result.memoryBlock).toContain("## Feedback");
     expect(result.memoryBlock).toContain("Preferences here");
     expect(result.memoryBlock).toContain("Don't do X");
-  });
-});
-
-// -- MEMORY_GUIDANCE content --
-
-describe("loadMemories: MEMORY_GUIDANCE", () => {
-  test("references edit_memory not write_memory", async () => {
-    const result = await loadMemories("test-worker", "test-project", {
-      guildHallHome,
-    });
-
-    expect(result.memoryBlock).toContain("edit_memory");
-    expect(result.memoryBlock).toContain("read_memory");
-    // write_memory mentioned only as deprecated
-    expect(result.memoryBlock).toContain("write_memory");
-    expect(result.memoryBlock).toContain("deprecated");
-  });
-
-  test("describes section-based organization", async () => {
-    const result = await loadMemories("test-worker", "test-project", {
-      guildHallHome,
-    });
-
-    expect(result.memoryBlock).toContain("section");
-    expect(result.memoryBlock).toContain("upsert");
-    expect(result.memoryBlock).toContain("append");
-    expect(result.memoryBlock).toContain("delete");
-  });
-
-  test("suggests standard section names", async () => {
-    const result = await loadMemories("test-worker", "test-project", {
-      guildHallHome,
-    });
-
-    expect(result.memoryBlock).toContain("User");
-    expect(result.memoryBlock).toContain("Feedback");
-    expect(result.memoryBlock).toContain("Project");
-    expect(result.memoryBlock).toContain("Reference");
   });
 });

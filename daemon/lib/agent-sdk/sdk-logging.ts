@@ -19,9 +19,18 @@ function sdkStr(obj: Record<string, unknown>, key: string, fallback = ""): strin
   return typeof val === "string" ? val : (typeof val === "number" ? String(val) : fallback);
 }
 
+// Message types that carry { message: { content: [...] } } and are worth
+// logging at the content-block level. Everything else either has its own
+// log line (system, result) or doesn't carry content blocks at all
+// (stream_event, rate_limit_event, and any future SDK internal types).
+const CONTENT_BLOCK_TYPES = new Set(["assistant", "user"]);
+
 /**
- * Extracts content blocks from an SDK message's nested `message` property
- * and logs text, tool_use (with inputs), and tool_result blocks.
+ * Logs SDK messages at appropriate detail levels.
+ *
+ * Only assistant and user messages have content blocks worth inspecting.
+ * Other types get a single summary line or are silently skipped when they
+ * carry no actionable information.
  */
 export function logSdkMessage(
   log: Log,
@@ -37,23 +46,27 @@ export function logSdkMessage(
     return;
   }
 
-  // The SDK wraps messages: { type: "assistant"|"user"|"result", message: { content: [...] } }
-  const inner = (m.message ?? m) as Record<string, unknown>;
-  const content = inner.content as Array<Record<string, unknown>> | undefined;
-
   if (type === "result") {
+    const inner = (m.message ?? m) as Record<string, unknown>;
     const stop = sdkStr(m, "stop_reason") || sdkStr(inner, "stop_reason") || "?";
     const costVal = sdkStr(m, "total_cost_usd");
     const cost = costVal ? ` cost=$${costVal}` : "";
     log.info(`${prefix} result (stop=${stop}${cost})`);
+    return;
   }
 
-  if (!Array.isArray(content)) {
-    // Result events rarely have content blocks; the result line above is sufficient.
-    // For other types, missing content is unusual enough to note at debug level.
-    if (type !== "result") {
-      log.info(`${prefix} ${type} (no content blocks)`);
-    }
+  // stream_event, and any other SDK-internal types: nothing to log.
+  // The event translator already extracts their useful data.
+  if (!CONTENT_BLOCK_TYPES.has(type)) {
+    return;
+  }
+
+  // assistant and user messages carry { message: { content: [...] } }
+  const inner = (m.message ?? m) as Record<string, unknown>;
+  const content = inner.content as Array<Record<string, unknown>> | undefined;
+
+  if (!Array.isArray(content) || content.length === 0) {
+    log.info(`${prefix} ${type} (no content blocks)`);
     return;
   }
 

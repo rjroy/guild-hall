@@ -205,6 +205,7 @@ function createMockPrepDeps(overrides?: Partial<SessionPrepDeps>): SessionPrepDe
           })),
     activateWorker: overrides?.activateWorker ?? (async () => ({
       systemPrompt: "Test system prompt",
+      sessionContext: "",
       tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
     })),
     memoryLimit: overrides?.memoryLimit,
@@ -231,6 +232,8 @@ function createMockQueryFn(options: {
 } = {}): {
   queryFn: (params: { prompt: string; options: Record<string, unknown> }) => AsyncGenerator<SDKMessage>;
   runCount: number;
+  /** The prompt from the last queryFn invocation */
+  lastPrompt: string;
   /** Manually complete the session (only in manual mode). Pass resultSubmitted to emit event. */
   resolve: (opts?: { resultSubmitted?: boolean; aborted?: boolean; error?: string }) => void;
 } {
@@ -245,7 +248,7 @@ function createMockQueryFn(options: {
 
   let manualResolve: ((opts?: { resultSubmitted?: boolean; aborted?: boolean; error?: string }) => void) | null = null;
 
-  const state = { runCount: 0 };
+  const state = { runCount: 0, lastPrompt: "" };
 
   async function* generate(
     emitResult: boolean,
@@ -289,11 +292,13 @@ function createMockQueryFn(options: {
 
   return {
     get runCount() { return state.runCount; },
+    get lastPrompt() { return state.lastPrompt; },
     resolve(opts) {
       if (manualResolve) manualResolve(opts);
     },
     queryFn(_params) {
       state.runCount++;
+      state.lastPrompt = _params.prompt;
 
       if (resolveAfterMs < 0) {
         // Manual mode: return a generator that blocks until resolved
@@ -660,6 +665,41 @@ describe("dispatch flow", () => {
     // Verify queued event was emitted
     const queuedEvents = eventBus.events.filter((e) => e.type === "commission_queued");
     expect(queuedEvents.length).toBe(1);
+  });
+});
+
+describe("commission prompt composition (REQ-SPO-19)", () => {
+  test("sessionContext from activation is passed as the prompt to runSdkSession", async () => {
+    const eventBus = createTestEventBus();
+    const commissionId = asCommissionId("commission-test-prompt-001");
+    const mockQueryFn = createMockQueryFn({
+      resultSubmitted: true,
+      resolveAfterMs: 10,
+      eventBus,
+      commissionId: commissionId as string,
+    });
+    const prepDeps = createMockPrepDeps({
+      activateWorker: async () => ({
+        systemPrompt: "Test system prompt",
+        sessionContext: "SESSION_CONTEXT_FOR_COMMISSION",
+        tools: { mcpServers: [], allowedTools: [], builtInTools: [] },
+      }),
+    });
+    const workspace = createMockWorkspace();
+    const { orchestrator, mockQueryFn: mqf } = buildDeps({
+      workspace,
+      mockQueryFn,
+      prepDeps,
+      eventBus,
+    });
+
+    await writeCommissionArtifact(integrationPath, commissionId as string);
+    await orchestrator.dispatchCommission(commissionId);
+
+    await new Promise<void>((r) => setTimeout(r, 200));
+
+    // The orchestrator should pass sessionContext as the prompt, not duplicating the task
+    expect(mqf.lastPrompt).toContain("SESSION_CONTEXT_FOR_COMMISSION");
   });
 });
 

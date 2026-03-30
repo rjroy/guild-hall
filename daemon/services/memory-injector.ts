@@ -16,7 +16,7 @@ import { parseMemorySections, type MemorySection } from "@/daemon/services/memor
 
 const DEFAULT_MEMORY_LIMIT = 16000;
 
-const MEMORY_GUIDANCE = [
+export const MEMORY_GUIDANCE = [
   "You have a persistent memory system. Use the `edit_memory` tool to save information worth preserving across sessions.",
   "",
   "Scopes:",
@@ -291,7 +291,7 @@ export async function loadMemories(
 
   if (!hasContent) {
     return {
-      memoryBlock: `## Memories\n\n${MEMORY_GUIDANCE}\n\nNo memories saved yet.`,
+      memoryBlock: `## Memories\n\nNo memories saved yet.`,
     };
   }
 
@@ -355,11 +355,11 @@ export async function loadMemories(
 
   if (formattedScopes.length === 0) {
     return {
-      memoryBlock: `## Memories\n\n${MEMORY_GUIDANCE}\n\nNo memories fit within budget.`,
+      memoryBlock: `## Memories\n\nNo memories fit within budget.`,
     };
   }
 
-  const memoryBlock = `## Memories\n\n${MEMORY_GUIDANCE}\n\n${formattedScopes.join("\n\n")}`;
+  const memoryBlock = `## Memories\n\n${formattedScopes.join("\n\n")}`;
 
   return { memoryBlock };
 }

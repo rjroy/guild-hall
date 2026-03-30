@@ -1,7 +1,7 @@
 ---
 title: "ProjFS as lazy worktree population for P4-backed repos"
 date: 2026-03-25
-status: open
+status: archived
 tags: [projfs, windows, worktrees, performance, p4-integration, isolation, virtual-filesystem]
 modules: [daemon, p4-adapter]
 related:

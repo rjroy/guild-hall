@@ -32,6 +32,26 @@ import type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
 export const MEETING_GREETING_PROMPT =
   "Briefly introduce yourself and summarize your understanding of the meeting agenda, then ask how the user would like to proceed.";
 
+/**
+ * Pure function for meeting prompt composition (REQ-SPO-21, REQ-SPO-23).
+ * Extracted for testability per plan recommendation.
+ *
+ * - isInitial (new session): sessionContext + greeting prompt
+ * - renewal / no-session-resume: sessionContext alone (falls back to prompt if empty)
+ */
+export function composeMeetingPrompt(
+  sessionContext: string,
+  prompt: string,
+  isInitial: boolean,
+): string {
+  if (isInitial) {
+    return sessionContext
+      ? `${sessionContext}\n\n${MEETING_GREETING_PROMPT}`
+      : MEETING_GREETING_PROMPT;
+  }
+  return sessionContext || prompt;
+}
+
 // -- Dependency types --
 
 export type SessionLoopDeps = {
@@ -174,7 +194,8 @@ export async function* startSession(
     return;
   }
 
-  const sdkPrompt = opts?.isInitial ? MEETING_GREETING_PROMPT : prompt;
+  // Compose the SDK prompt from sessionContext based on path (REQ-SPO-21, REQ-SPO-23)
+  const sdkPrompt = composeMeetingPrompt(prep.result.sessionContext, prompt, !!opts?.isInitial);
   yield* iterateSession(deps, meeting, sdkPrompt, prep.result.options, false, prep.result.resolvedModel);
 
   // Update state file with captured session ID

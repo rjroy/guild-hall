@@ -381,6 +381,7 @@ describe("prepareSdkSession", () => {
 
   const mockActivation: ActivationResult = {
     systemPrompt: "You are a test worker",
+    sessionContext: "",
     model: "sonnet",
     tools: mockResolvedTools,
   };
@@ -428,6 +429,42 @@ describe("prepareSdkSession", () => {
     expect(opts.model).toBe("sonnet");
     expect(opts.permissionMode).toBe("dontAsk");
     expect(opts.settingSources).toEqual(["local", "project", "user"]);
+    // sessionContext is threaded through (REQ-SPO-18)
+    expect(result.result.sessionContext).toBe("");
+  });
+
+  test("memoryGuidance is populated in calling worker's activation context (REQ-SPO-10)", async () => {
+    let capturedContext: ActivationContext | undefined;
+    const result = await prepareSdkSession(
+      makeSpec(),
+      makeDeps({
+        activateWorker: async (_pkg, ctx) => {
+          capturedContext = ctx;
+          return mockActivation;
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(capturedContext).toBeDefined();
+    expect(capturedContext!.memoryGuidance).toBeDefined();
+    expect(capturedContext!.memoryGuidance).toContain("edit_memory");
+  });
+
+  test("sessionContext is threaded from activation result (REQ-SPO-18)", async () => {
+    const activationWithContext: ActivationResult = {
+      ...mockActivation,
+      sessionContext: "# Commission Context\n\nBuild the thing.",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec(),
+      makeDeps({ activateWorker: async () => activationWithContext }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.sessionContext).toBe("# Commission Context\n\nBuild the thing.");
   });
 
   test("worker not found returns error", async () => {
@@ -984,6 +1021,7 @@ describe("prepareSdkSession", () => {
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
+          sessionContext: "",
           tools: context.resolvedTools,
         }),
       });
@@ -1006,6 +1044,7 @@ describe("prepareSdkSession", () => {
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
+          sessionContext: "",
           tools: context.resolvedTools,
         }),
       });
@@ -1025,6 +1064,7 @@ describe("prepareSdkSession", () => {
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
+          sessionContext: "",
           tools: context.resolvedTools,
         }),
       });
@@ -1045,6 +1085,7 @@ describe("prepareSdkSession", () => {
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
+          sessionContext: "",
           tools: context.resolvedTools,
         }),
       });
@@ -1063,6 +1104,7 @@ describe("prepareSdkSession", () => {
         }),
         activateWorker: async (_pkg, context) => ({
           systemPrompt: "test",
+          sessionContext: "",
           tools: context.resolvedTools,
         }),
       });
@@ -1218,9 +1260,9 @@ describe("prepareSdkSession", () => {
       const result = await prepareSdkSession(
         makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
         makeDeps({
-          loadMemories: async (name) => {
-            if (name === "other-worker") throw new Error("memory load failed");
-            return { memoryBlock: "test memories" };
+          activateWorker: async (_pkg, ctx) => {
+            if (ctx.identity.name === "other-worker") throw new Error("activation failed");
+            return mockActivation;
           },
         }),
       );
@@ -1258,15 +1300,11 @@ describe("prepareSdkSession", () => {
       expect(capturedContext!.soul).toBe("A thoughtful soul");
     });
 
-    test("agent with memory content has prompt containing memory", async () => {
+    test("sub-agent receives empty memory regardless of loadMemories (REQ-SPO-1, REQ-SPO-2)", async () => {
       let capturedContext: ActivationContext | undefined;
       const result = await prepareSdkSession(
         makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
         makeDeps({
-          loadMemories: async (name) => {
-            if (name === "other-worker") return { memoryBlock: "sub-agent memory content" };
-            return { memoryBlock: "test memories" };
-          },
           activateWorker: async (_pkg, ctx) => {
             if (ctx.identity.name === "other-worker") {
               capturedContext = ctx;
@@ -1278,7 +1316,7 @@ describe("prepareSdkSession", () => {
 
       expect(result.ok).toBe(true);
       expect(capturedContext).toBeDefined();
-      expect(capturedContext!.injectedMemory).toBe("sub-agent memory content");
+      expect(capturedContext!.injectedMemory).toBe("");
     });
 
     test("toolbox packages excluded from agent map", async () => {
@@ -1323,9 +1361,9 @@ describe("prepareSdkSession", () => {
       const result = await prepareSdkSession(
         makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
         makeDeps({
-          loadMemories: async (name) => {
-            if (name === "other-worker") throw new Error("all fail");
-            return { memoryBlock: "test memories" };
+          activateWorker: async (_pkg, ctx) => {
+            if (ctx.identity.name === "other-worker") throw new Error("activation failed");
+            return mockActivation;
           },
         }),
       );
@@ -1351,6 +1389,59 @@ describe("prepareSdkSession", () => {
       expect(agent.model).toBe("inherit");
       expect(agent.model).toBeDefined();
     });
+
+    test("loadMemories called exactly once for calling worker, not for sub-agents (REQ-SPO-1)", async () => {
+      const memoryCalls: string[] = [];
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps({
+          loadMemories: async (name) => {
+            memoryCalls.push(name);
+            return { memoryBlock: "test memories" };
+          },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(memoryCalls).toEqual(["test-worker"]);
+    });
+
+    test("sub-agent context has empty memory but retains soul, identity, posture, model (REQ-SPO-3)", async () => {
+      const pkgWithSoul: DiscoveredPackage = {
+        ...mockOtherWorkerPkg,
+        metadata: {
+          ...mockOtherWorkerMeta,
+          soul: "A thoughtful soul",
+          model: "haiku",
+        },
+      };
+
+      let capturedContext: ActivationContext | undefined;
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, pkgWithSoul, mockToolboxPkg] }),
+        makeDeps({
+          activateWorker: async (_pkg, ctx) => {
+            if (ctx.identity.name === "other-worker") {
+              capturedContext = ctx;
+            }
+            return mockActivation;
+          },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(capturedContext).toBeDefined();
+      expect(capturedContext!.injectedMemory).toBe("");
+      expect(capturedContext!.soul).toBe("A thoughtful soul");
+      expect(capturedContext!.identity).toEqual(mockOtherWorkerMeta.identity);
+      expect(capturedContext!.posture).toBe("diligent reviewer");
+      expect(capturedContext!.model).toBe("haiku");
+      expect(capturedContext!.projectPath).toBe("/tmp/project");
+      expect(capturedContext!.workingDirectory).toBe("/tmp/workspace");
+      // Sub-agent context includes memoryGuidance per REQ-SPO-24
+      expect(capturedContext!.memoryGuidance).toBeDefined();
+      expect(capturedContext!.memoryGuidance).toContain("edit_memory");
+    });
   });
 
   // -- Tool availability enforcement tests (REQ-TAE-10) --
@@ -1364,6 +1455,7 @@ describe("prepareSdkSession", () => {
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
+        sessionContext: "",
         tools: context.resolvedTools,
       }),
     });
@@ -1383,6 +1475,7 @@ describe("prepareSdkSession", () => {
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
+        sessionContext: "",
         tools: context.resolvedTools,
       }),
     });
@@ -1404,6 +1497,7 @@ describe("prepareSdkSession", () => {
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
+        sessionContext: "",
         tools: context.resolvedTools,
       }),
     });
@@ -1426,6 +1520,7 @@ describe("prepareSdkSession", () => {
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
+        sessionContext: "",
         tools: context.resolvedTools,
       }),
     });
@@ -1447,6 +1542,7 @@ describe("prepareSdkSession", () => {
       }),
       activateWorker: async (_pkg, context) => ({
         systemPrompt: "test",
+        sessionContext: "",
         tools: context.resolvedTools,
       }),
     });
@@ -1556,6 +1652,7 @@ describe("prepareSdkSession resolvedModel", () => {
 
   const mockActivation: ActivationResult = {
     systemPrompt: "You are a test worker",
+    sessionContext: "",
     model: "sonnet",
     tools: mockResolvedTools,
   };

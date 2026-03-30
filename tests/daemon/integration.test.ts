@@ -168,6 +168,7 @@ function makeMockActivateFn() {
     calls.push({ pkg, context });
     return {
       systemPrompt: context.posture,
+      sessionContext: "",
       tools: {
         mcpServers: [],
         allowedTools: ["Read", "Glob", "Grep"],

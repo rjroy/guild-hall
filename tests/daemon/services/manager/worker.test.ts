@@ -159,16 +159,59 @@ describe("activateManager", () => {
     expect(result.systemPrompt).toContain("Model Selection");
   });
 
-  test("includes injected memory when present", () => {
-    const result = activateManager(makeContext({ injectedMemory: "Remember this" }));
-    expect(result.systemPrompt).toContain("# Injected Memory");
-    expect(result.systemPrompt).toContain("Remember this");
+  test("includes memory guidance in systemPrompt when present (REQ-SPO-9)", () => {
+    const result = activateManager(makeContext({ memoryGuidance: "MEMORY_GUIDANCE_TEXT" }));
+    expect(result.systemPrompt).toContain("# Memory");
+    expect(result.systemPrompt).toContain("MEMORY_GUIDANCE_TEXT");
   });
 
-  test("includes manager context when present", () => {
+  test("includes injected memory in sessionContext, not systemPrompt (REQ-SPO-14)", () => {
+    const result = activateManager(makeContext({ injectedMemory: "Remember this" }));
+    expect(result.sessionContext).toContain("# Injected Memory");
+    expect(result.sessionContext).toContain("Remember this");
+    // Memory content should NOT be in systemPrompt
+    expect(result.systemPrompt).not.toContain("Remember this");
+  });
+
+  test("includes manager context in sessionContext, not systemPrompt (REQ-SPO-14)", () => {
     const result = activateManager(makeContext({ managerContext: "Active commissions: 3" }));
-    expect(result.systemPrompt).toContain("# Manager Context");
-    expect(result.systemPrompt).toContain("Active commissions: 3");
+    expect(result.sessionContext).toContain("# Manager Context");
+    expect(result.sessionContext).toContain("Active commissions: 3");
+    expect(result.systemPrompt).not.toContain("Active commissions: 3");
+  });
+
+  test("meeting and commission context excluded from systemPrompt (INFO-2)", () => {
+    const result = activateManager(makeContext({
+      meetingContext: { meetingId: "m1", agenda: "Test agenda", referencedArtifacts: [] },
+      commissionContext: { commissionId: "c1", prompt: "Test task", dependencies: [] },
+    }));
+    expect(result.systemPrompt).not.toContain("Test agenda");
+    expect(result.systemPrompt).not.toContain("Test task");
+    expect(result.sessionContext).toContain("Test agenda");
+    expect(result.sessionContext).toContain("Test task");
+  });
+
+  test("sessionContext parts ordered: memory < meeting < commission < manager (INFO-1)", () => {
+    const result = activateManager(makeContext({
+      injectedMemory: "MEMORY_BLOCK",
+      meetingContext: { meetingId: "m1", agenda: "MEETING_AGENDA", referencedArtifacts: [] },
+      commissionContext: { commissionId: "c1", prompt: "COMMISSION_TASK", dependencies: [] },
+      managerContext: "MANAGER_BLOCK",
+    }));
+    const memIdx = result.sessionContext.indexOf("MEMORY_BLOCK");
+    const meetIdx = result.sessionContext.indexOf("MEETING_AGENDA");
+    const commIdx = result.sessionContext.indexOf("COMMISSION_TASK");
+    const mgrIdx = result.sessionContext.indexOf("MANAGER_BLOCK");
+
+    expect(memIdx).toBeGreaterThanOrEqual(0);
+    expect(meetIdx).toBeGreaterThan(memIdx);
+    expect(commIdx).toBeGreaterThan(meetIdx);
+    expect(mgrIdx).toBeGreaterThan(commIdx);
+  });
+
+  test("sessionContext is empty when no memory, meeting, commission, or manager context", () => {
+    const result = activateManager(makeContext());
+    expect(result.sessionContext).toBe("");
   });
 
   test("returns opus as default model when context.model is absent", () => {
