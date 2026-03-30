@@ -1,7 +1,7 @@
 ---
 title: "Plan: System Prompt Optimization"
 date: 2026-03-30
-status: draft
+status: approved
 tags: [system-prompt, memory, activation, performance, prompt-caching, sub-agents]
 modules: [packages/shared/worker-activation, daemon/lib/agent-sdk/sdk-runner, daemon/services/memory-injector, daemon/services/manager/worker, lib/types, daemon/services/commission/orchestrator, daemon/services/meeting/orchestrator, daemon/services/meeting/session-loop]
 related:
