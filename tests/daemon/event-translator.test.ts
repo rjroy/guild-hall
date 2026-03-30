@@ -451,7 +451,7 @@ describe("translateSdkMessage", () => {
     });
   });
 
-  describe("unknown/internal message types", () => {
+  describe("compact_boundary system messages", () => {
     test("SDKCompactBoundaryMessage (auto) produces context_compacted event", () => {
       const msg = {
         type: "system",
@@ -490,7 +490,9 @@ describe("translateSdkMessage", () => {
 
       expect(translateSdkMessage(msg)).toEqual([]);
     });
+  });
 
+  describe("unknown/internal message types", () => {
     test("SDKStatusMessage produces empty array", () => {
       const msg = {
         type: "system",
