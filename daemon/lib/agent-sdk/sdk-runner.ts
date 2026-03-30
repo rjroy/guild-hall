@@ -494,6 +494,7 @@ export async function prepareSdkSession(
       PostCompact: [
         {
           hooks: [
+            // eslint-disable-next-line @typescript-eslint/require-await -- callback is sync but HookCallback requires Promise return
             async (input) => {
               const typed = input as {
                 trigger?: string;

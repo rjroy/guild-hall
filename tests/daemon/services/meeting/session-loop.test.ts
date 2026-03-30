@@ -150,6 +150,7 @@ describe("iterateSession post-loop cleanup", () => {
     // shared meeting object. This runs before the for-await loop in
     // runSdkSession exits, simulating the race condition where the hook
     // callback fires after the boundary event was already processed.
+    // eslint-disable-next-line @typescript-eslint/require-await -- AsyncGenerator required by queryFn signature; yields but doesn't await
     async function* lateHookQuery(_params: {
       prompt: string;
       options: SdkQueryOptions;
@@ -209,6 +210,7 @@ describe("iterateSession post-loop cleanup", () => {
       scope: "activity",
     };
 
+    // eslint-disable-next-line @typescript-eslint/require-await -- AsyncGenerator required by queryFn signature; yields but doesn't await
     async function* normalQuery(_params: {
       prompt: string;
       options: SdkQueryOptions;
