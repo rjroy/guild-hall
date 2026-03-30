@@ -1218,9 +1218,9 @@ describe("prepareSdkSession", () => {
       const result = await prepareSdkSession(
         makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
         makeDeps({
-          loadMemories: async (name) => {
-            if (name === "other-worker") throw new Error("memory load failed");
-            return { memoryBlock: "test memories" };
+          activateWorker: async (_pkg, ctx) => {
+            if (ctx.identity.name === "other-worker") throw new Error("activation failed");
+            return mockActivation;
           },
         }),
       );
@@ -1258,15 +1258,11 @@ describe("prepareSdkSession", () => {
       expect(capturedContext!.soul).toBe("A thoughtful soul");
     });
 
-    test("agent with memory content has prompt containing memory", async () => {
+    test("sub-agent receives empty memory regardless of loadMemories (REQ-SPO-1, REQ-SPO-2)", async () => {
       let capturedContext: ActivationContext | undefined;
       const result = await prepareSdkSession(
         makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
         makeDeps({
-          loadMemories: async (name) => {
-            if (name === "other-worker") return { memoryBlock: "sub-agent memory content" };
-            return { memoryBlock: "test memories" };
-          },
           activateWorker: async (_pkg, ctx) => {
             if (ctx.identity.name === "other-worker") {
               capturedContext = ctx;
@@ -1278,7 +1274,7 @@ describe("prepareSdkSession", () => {
 
       expect(result.ok).toBe(true);
       expect(capturedContext).toBeDefined();
-      expect(capturedContext!.injectedMemory).toBe("sub-agent memory content");
+      expect(capturedContext!.injectedMemory).toBe("");
     });
 
     test("toolbox packages excluded from agent map", async () => {
@@ -1323,9 +1319,9 @@ describe("prepareSdkSession", () => {
       const result = await prepareSdkSession(
         makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
         makeDeps({
-          loadMemories: async (name) => {
-            if (name === "other-worker") throw new Error("all fail");
-            return { memoryBlock: "test memories" };
+          activateWorker: async (_pkg, ctx) => {
+            if (ctx.identity.name === "other-worker") throw new Error("activation failed");
+            return mockActivation;
           },
         }),
       );
@@ -1350,6 +1346,56 @@ describe("prepareSdkSession", () => {
       const agent = result.result.options.agents!["other-worker"];
       expect(agent.model).toBe("inherit");
       expect(agent.model).toBeDefined();
+    });
+
+    test("loadMemories called exactly once for calling worker, not for sub-agents (REQ-SPO-1)", async () => {
+      const memoryCalls: string[] = [];
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, mockOtherWorkerPkg, mockToolboxPkg] }),
+        makeDeps({
+          loadMemories: async (name) => {
+            memoryCalls.push(name);
+            return { memoryBlock: "test memories" };
+          },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(memoryCalls).toEqual(["test-worker"]);
+    });
+
+    test("sub-agent context has empty memory but retains soul, identity, posture, model (REQ-SPO-3)", async () => {
+      const pkgWithSoul: DiscoveredPackage = {
+        ...mockOtherWorkerPkg,
+        metadata: {
+          ...mockOtherWorkerMeta,
+          soul: "A thoughtful soul",
+          model: "haiku",
+        },
+      };
+
+      let capturedContext: ActivationContext | undefined;
+      const result = await prepareSdkSession(
+        makeSpec({ packages: [mockWorkerPkg, pkgWithSoul, mockToolboxPkg] }),
+        makeDeps({
+          activateWorker: async (_pkg, ctx) => {
+            if (ctx.identity.name === "other-worker") {
+              capturedContext = ctx;
+            }
+            return mockActivation;
+          },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(capturedContext).toBeDefined();
+      expect(capturedContext!.injectedMemory).toBe("");
+      expect(capturedContext!.soul).toBe("A thoughtful soul");
+      expect(capturedContext!.identity).toEqual(mockOtherWorkerMeta.identity);
+      expect(capturedContext!.posture).toBe("diligent reviewer");
+      expect(capturedContext!.model).toBe("haiku");
+      expect(capturedContext!.projectPath).toBe("/tmp/project");
+      expect(capturedContext!.workingDirectory).toBe("/tmp/workspace");
     });
   });
 
