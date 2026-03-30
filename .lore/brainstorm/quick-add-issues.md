@@ -90,7 +90,7 @@ The caller constructs the full markdown content (YAML frontmatter + body), picks
 
 **Path 2: New `POST /workspace/issue/create` daemon endpoint**
 
-Accepts `{ projectName, title, body?, tags? }`. The server generates the slug, checks for conflicts, constructs the frontmatter, writes the file, and commits with a meaningful message. Returns `{ path }` — the relative path of the created file.
+Accepts `{ projectName, title, body? }`. The server generates the slug, checks for conflicts, constructs the frontmatter, writes the file, and commits with a meaningful message. Returns `{ path }` — the relative path of the created file.
 
 - Pro: Server owns the slug logic. Meaningful commit messages. Type-safe. Easily testable.
 - Con: More code to write and test.
@@ -103,7 +103,7 @@ Straightforward: lowercase the title, replace spaces and special characters with
 
 `"Quick Add Issues"` → `quick-add-issues`
 
-Conflict resolution: if `issues/quick-add-issues.md` exists, try `quick-add-issues-2.md`, `quick-add-issues-3.md`. Rare in practice; no need to over-engineer it.
+Conflict resolution: if `issues/quick-add-issues.md` exists, try `quick-add-issues-2.md`, `quick-add-issues-3.md`. Rare in practice for a single user; no need to over-engineer it.
 
 ### Git Commit
 
@@ -116,21 +116,20 @@ The operations-registry pattern means a new daemon endpoint automatically become
 The CLI invocation:
 
 ```
-guild-hall workspace issue create "Title text"
-guild-hall workspace issue create "Title text" "Optional body text"
-guild-hall workspace issue create "Title text" --body "Longer body from a flag"
+guild-hall workspace issue create <project> "Title text"
+guild-hall workspace issue create <project> "Title text" "Optional body text"
 ```
 
 For multi-line bodies (the terminal use case), accepting stdin is valuable:
 
 ```bash
 echo "The build fails on Linux when GUILD_HALL_HOME has spaces" | \
-  guild-hall workspace issue create "Build failure with spaces in path"
+  guild-hall workspace issue create my-project "Build failure with spaces in path"
 ```
 
-The project name flag (`--projectName`) follows the existing convention. It could default to the registered project if exactly one exists, which covers the majority case.
+`projectName` is a positional argument — the first after `create`. This matches the shape of other workspace commands and avoids flag syntax for required arguments.
 
-The operation definition would declare `projectName` as required-in-query (consistent with other operations) and `title` as required-in-body. `body` optional-in-body.
+The operation definition would declare `projectName` as required-in-path (positional), `title` as required-in-body, and `body` as optional-in-body.
 
 ## Interaction with the Artifact System
 
@@ -150,8 +149,6 @@ SSE event on creation: optional for v1. The artifact tree refreshes on navigatio
 
 **Project not in config:** The endpoint uses the same project lookup as all other artifact routes. Returns 404 if the project isn't registered.
 
-**Concurrent creates:** Two users submitting the same title at the same time could both get `quick-add-issues.md` if the conflict check races. The slug generation should use `O_EXCL` (exclusive create) semantics — create the file with `wx` flag, catch EEXIST, increment suffix, retry. This is the same pattern the commission ID generator should use.
-
 **Write fails:** The endpoint returns an error. No partial state to clean up since the file either exists or it doesn't.
 
 **No project context in web UI:** The quick-add form lives in the project view, so `projectName` is always available from the route params. No project picker needed.
@@ -162,26 +159,12 @@ A future extension worth naming: a global "capture" affordance accessible from a
 
 ## Recommended Approach
 
-**Daemon:** `POST /workspace/issue/create` endpoint. Accepts `{ projectName, title, body?, tags? }`. Generates slug, writes frontmatter + body, commits. Returns `{ path, slug }`. Operation registered with the registry under `workspace.issue.create`.
+**Daemon:** `POST /workspace/issue/create` endpoint. Accepts `{ projectName, title, body? }`. Generates slug, writes frontmatter + body, commits. Returns `{ path, slug }`. Operation registered with the registry under `workspace.issue.create`.
 
-**Web UI:** "New Issue" button in the artifact list panel header. Opens an inline form (not a modal — the `CommitLoreButton` inline form pattern is the right model). Two fields: title (required), body (optional textarea). Submit auto-closes the form and optionally highlights the new artifact in the tree.
+**Web UI:** "New Issue" button in the artifact list panel header. Opens an inline form (not a modal — the `CommitLoreButton` inline form pattern is the right model). Two fields: title (required), body (optional textarea). Submit auto-closes the form; a page-level notification confirms creation ("Issue created: quick-add-issues").
 
-**CLI:** Inherits from the daemon operation. `guild-hall workspace issue create <title> [body]` with `--projectName` flag. Accepts body from stdin when body arg is `-`.
+**CLI:** Inherits from the daemon operation. `guild-hall workspace issue create <project> <title> [body]`. Accepts body from stdin when body arg is `-`.
 
 **Fields:** `title` required, `body` optional. `date` and `status` auto-set server-side. No extended fields in the quick-add path.
 
 **Commit:** `"Add issue: <slug>"`. Non-fatal failure.
-
-## Open Questions
-
-- Should the artifact list auto-scroll to the new issue after creation, or is a page-level notification (like "Issue created: quick-add-issues") sufficient?
-USER RESPONSE: page-level notification is sufficient.
-
-- Should the form support `tags` as an optional "Add tags" expander, for users who want to categorize on creation? Or is post-creation editing enough?
-USER RESPONSE: post-creation editing is enough. The goal of this is quick low-friction.
-
-- If `O_EXCL` semantics aren't available for Bun's fs, what's the right conflict resolution fallback? (Check existence first, then write with retry — it's slightly racey but acceptable for this use case.)
-USER RESPONSE: There is only one user. No need to solve this. There's too many other problems to worry about this.
-
-- When multiple projects are registered, should the CLI require `--projectName` or infer from the current directory (traverse up looking for `.lore/issues/`)?
-USER RESPONSE: `projectName` should be one of the arguments. `guild-hall workspace issue create <project> <title> [body]`
