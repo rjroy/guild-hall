@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, startTransition } from "react";
+import { useState, useEffect, useRef, startTransition, useCallback } from "react";
 import styles from "./CollapsibleSidebar.module.css";
 
 interface CollapsibleSidebarProps {
@@ -39,6 +39,7 @@ export default function CollapsibleSidebar({
   const [collapsed, setCollapsed] = useState(false);
   const expandTabRef = useRef<HTMLButtonElement>(null);
   const collapseButtonRef = useRef<HTMLButtonElement>(null);
+  const hasToggledRef = useRef(false);
 
   // SSR-safe localStorage read: reconcile after mount (same pattern as DetailHeader)
   useEffect(() => {
@@ -47,23 +48,23 @@ export default function CollapsibleSidebar({
     }
   }, [storageKey]);
 
-  const toggle = () => {
+  const toggle = useCallback(() => {
+    hasToggledRef.current = true;
     setCollapsed((prev) => {
       const next = !prev;
       writeCollapsed(storageKey, next);
       return next;
     });
-  };
+  }, [storageKey]);
 
-  // Move focus to the counterpart button after toggle
+  // Move focus to the counterpart button after user-initiated toggle only
   useEffect(() => {
+    if (!hasToggledRef.current) return;
     if (collapsed) {
       expandTabRef.current?.focus();
     } else {
       collapseButtonRef.current?.focus();
     }
-    // Only run on collapsed changes, not on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapsed]);
 
   return (
