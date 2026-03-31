@@ -817,6 +817,40 @@ describe("splitDiffByFile", () => {
     expect(result).toHaveLength(1);
     expect(result[0].path).toBe("new-name.ts");
   });
+
+  test("handles new file mode headers", () => {
+    const diff = [
+      "diff --git a/new-file.ts b/new-file.ts",
+      "new file mode 100644",
+      "index 0000000..abc1234",
+      "--- /dev/null",
+      "+++ b/new-file.ts",
+      "@@ -0,0 +1,3 @@",
+      "+line1",
+      "+line2",
+      "+line3",
+    ].join("\n");
+
+    const result = splitDiffByFile(diff);
+    expect(result).toHaveLength(1);
+    expect(result[0].path).toBe("new-file.ts");
+    expect(result[0].content).toContain("new file mode 100644");
+    expect(result[0].content).toContain("+line1");
+  });
+
+  test("handles mode change only (no hunks)", () => {
+    const diff = [
+      "diff --git a/script.sh b/script.sh",
+      "old mode 100644",
+      "new mode 100755",
+    ].join("\n");
+
+    const result = splitDiffByFile(diff);
+    expect(result).toHaveLength(1);
+    expect(result[0].path).toBe("script.sh");
+    expect(result[0].content).toContain("old mode 100644");
+    expect(result[0].content).toContain("new mode 100755");
+  });
 });
 
 describe("applyPerFileCap", () => {
