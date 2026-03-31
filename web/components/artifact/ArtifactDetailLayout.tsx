@@ -1,4 +1,5 @@
 import InlinePanel from "@/web/components/ui/InlinePanel";
+import CollapsibleSidebar from "@/web/components/ui/CollapsibleSidebar";
 import styles from "@/web/app/projects/[name]/artifacts/[...path]/page.module.css";
 
 interface ArtifactDetailLayoutProps {
@@ -9,9 +10,8 @@ interface ArtifactDetailLayoutProps {
 
 /**
  * Responsive layout for artifact detail views.
- * On desktop (>768px), renders main content and sidebar side-by-side.
- * On mobile (<=768px), hides the sidebar and shows an InlinePanel below main content.
- * Uses CSS media queries instead of JS state to avoid hydration mismatches.
+ * On desktop (>768px), renders main content and a collapsible sidebar side-by-side.
+ * On mobile (<=768px), hides the desktop sidebar and shows an InlinePanel below main content.
  */
 export default function ArtifactDetailLayout({
   main,
@@ -24,9 +24,14 @@ export default function ArtifactDetailLayout({
         <div className={styles.main}>
           {main}
         </div>
-        <div className={styles.sidebar}>
+        <CollapsibleSidebar
+          storageKey="sidebar-collapsed:artifact"
+          label={panelLabel}
+          width={280}
+          className={styles.desktopSidebar}
+        >
           {sidebar}
-        </div>
+        </CollapsibleSidebar>
       </div>
       <div className={styles.mobileSidebar}>
         <InlinePanel label={panelLabel}>

@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { useDaemonStatus } from "@/web/components/ui/DaemonContext";
 import InlinePanel from "@/web/components/ui/InlinePanel";
+import CollapsibleSidebar from "@/web/components/ui/CollapsibleSidebar";
 import ChatInterface from "./ChatInterface";
 import ArtifactsPanel from "./ArtifactsPanel";
 import MeetingHeader from "./MeetingHeader";
@@ -172,9 +173,14 @@ export default function MeetingView({
         </div>
 
         {/* REQ-MTG-LAYOUT-23: Sidebar hidden below 768px via CSS */}
-        <div className={styles.sidebar}>
+        <CollapsibleSidebar
+          storageKey="sidebar-collapsed:meeting"
+          label={`Artifacts (${artifacts.length})`}
+          width={260}
+          className={styles.desktopSidebar}
+        >
           {sidebarContent}
-        </div>
+        </CollapsibleSidebar>
       </div>
     </>
   );
