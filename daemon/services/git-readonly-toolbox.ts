@@ -173,10 +173,10 @@ export function applyPerFileCap(
       return { ...f, capped: false };
     }
 
-    const actualSize = f.content.length;
+    const actualSizeLabel = Math.round(f.content.length / 1024) + "KB";
     const notice =
       `diff --git a/${f.path} b/${f.path}\n` +
-      `[File diff exceeds ${sizeLabel} limit (${actualSize}). Use git_diff with file="${f.path}" to view full diff.]`;
+      `[File diff exceeds ${sizeLabel} limit (${actualSizeLabel}). Use git_diff with file="${f.path}" to view full diff.]`;
     return { path: f.path, content: notice + "\n", capped: true };
   });
 }
@@ -390,11 +390,25 @@ export function createGitReadonlyTools(
         staged: z.boolean().optional().describe("Show staged changes (--cached)"),
         ref: z.string().optional().describe("Diff against a ref (e.g. 'HEAD~3', 'main..feature')"),
         file: z.string().optional().describe("Scope diff to a specific file"),
+        stat: z.boolean().optional().describe("Return diff stat (file names and line counts) instead of full unified diff. Useful for surveying large ref ranges."),
         include_binary: z.boolean().optional().describe("Include binary file diffs in output (default: false). Warning: can produce very large output."),
         include_generated: z.boolean().optional().describe("Include lockfiles, build artifacts, and other generated files in diff (default: false)."),
-        max_file_size: z.number().optional().describe("Maximum bytes per file diff before truncation (default: 20480). Set to 0 to disable."),
+        max_file_size: z.number().optional().describe("Maximum size per file diff before truncation (default: 20480). Set to 0 to disable."),
       },
       async (args) => {
+        // stat mode: return stat output directly, no filtering layers
+        if (args.stat) {
+          const statArgs = ["diff", "--stat"];
+          if (args.staged) statArgs.push("--cached");
+          if (args.ref) statArgs.push(args.ref);
+          if (args.file) {
+            statArgs.push("--");
+            statArgs.push(args.file);
+          }
+          const { stdout } = await runGit(workingDirectory, statArgs, { allowNonZero: true });
+          return { content: [{ type: "text", text: stdout || "(no differences)" }] };
+        }
+
         // Build the excluded file summary before running the filtered diff
         let excludedSummary = "";
         if (!args.include_generated) {
@@ -446,12 +460,13 @@ export function createGitReadonlyTools(
     ),
     tool(
       "git_show",
-      "Show commit details with diff for a given ref.",
+      "Show commit details. Returns diff stat by default. Use diff='full' for the complete patch (filtered for size). Use diff='none' for metadata only.",
       {
         ref: z.string().describe("The commit ref to show (e.g. 'HEAD', 'abc1234', 'main~2')"),
+        diff: z.enum(["none", "stat", "full"]).optional().default("stat").describe("Diff output mode. 'stat' (default): file names and line counts. 'full': complete patch (filtered for size). 'none': metadata only."),
         include_binary: z.boolean().optional().describe("Include binary file diffs in output (default: false). Warning: can produce very large output."),
         include_generated: z.boolean().optional().describe("Include lockfiles, build artifacts, and other generated files in diff (default: false)."),
-        max_file_size: z.number().optional().describe("Maximum bytes per file diff before truncation (default: 20480). Set to 0 to disable."),
+        max_file_size: z.number().optional().describe("Maximum size per file diff before truncation (default: 20480). Set to 0 to disable."),
       },
       async (args) => {
         const showFormat = `%H${FIELD_SEPARATOR}%an${FIELD_SEPARATOR}%aI${FIELD_SEPARATOR}%s${FIELD_SEPARATOR}%b${LOG_SEPARATOR}`;
@@ -459,7 +474,42 @@ export function createGitReadonlyTools(
           "show", "--no-patch", `--format=${showFormat}`, args.ref,
         ]);
 
-        // Build excluded file summary before running the filtered diff
+        const fields = headerOut.replace(LOG_SEPARATOR, "").split(FIELD_SEPARATOR);
+        const body = fields[4]?.trim();
+        const metadata: Record<string, string | number> = {
+          hash: fields[0]?.trim() ?? "",
+          author: fields[1]?.trim() ?? "",
+          date: fields[2]?.trim() ?? "",
+          subject: fields[3]?.trim() ?? "",
+          ...(body ? { body } : {}),
+        };
+
+        const diffMode = args.diff ?? "stat";
+
+        // diff="none": metadata only, no diff subprocess
+        if (diffMode === "none") {
+          return { content: [{ type: "text", text: JSON.stringify(metadata, null, 2) }] };
+        }
+
+        // diff="stat": metadata + stat output
+        if (diffMode === "stat") {
+          const { stdout: statOut } = await runGit(
+            workingDirectory,
+            ["diff-tree", "--stat", "--root", args.ref],
+            { allowNonZero: true },
+          );
+          // Count per-file stat lines (lines containing " | " that aren't the summary)
+          let totalFiles = 0;
+          for (const line of statOut.split("\n")) {
+            if (line.includes(" | ") && !/ files? changed/.test(line)) {
+              totalFiles++;
+            }
+          }
+          const result = { ...metadata, stat: statOut, total_files: totalFiles };
+          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        }
+
+        // diff="full": metadata + filtered patch
         let excludedSummary = "";
         if (!args.include_generated) {
           const statArgs = ["diff-tree", "--stat", "--root", args.ref];
@@ -467,8 +517,6 @@ export function createGitReadonlyTools(
           excludedSummary = buildExcludedSummary(statOut, GENERATED_FILE_EXCLUSIONS);
         }
 
-        // Use git diff-tree with --root to handle initial commits (no parent).
-        // --root makes diff-tree show the full diff for root commits instead of erroring.
         const diffTreeArgs = ["diff-tree", "--root"];
         if (!args.include_binary) diffTreeArgs.push("--no-binary");
         diffTreeArgs.push("-p", args.ref);
@@ -492,16 +540,7 @@ export function createGitReadonlyTools(
           processedDiff = diffOut;
         }
 
-        const fields = headerOut.replace(LOG_SEPARATOR, "").split(FIELD_SEPARATOR);
-        const body = fields[4]?.trim();
-        const result: Record<string, string> = {
-          hash: fields[0]?.trim() ?? "",
-          author: fields[1]?.trim() ?? "",
-          date: fields[2]?.trim() ?? "",
-          subject: fields[3]?.trim() ?? "",
-          ...(body ? { body } : {}),
-          diff: processedDiff,
-        };
+        const result: Record<string, string | number> = { ...metadata, diff: processedDiff };
         if (excludedSummary) {
           result.excluded = excludedSummary;
         }

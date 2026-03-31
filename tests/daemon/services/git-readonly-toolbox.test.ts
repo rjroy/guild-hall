@@ -288,7 +288,7 @@ describe("git_diff tool", () => {
 });
 
 describe("git_show tool", () => {
-  test("returns structured commit with diff", async () => {
+  test("default returns stat, not full diff", async () => {
     const runner: GitRunner = async (_cwd, args) => {
       if (args.includes("--no-patch")) {
         return {
@@ -297,7 +297,14 @@ describe("git_show tool", () => {
           exitCode: 0,
         };
       }
-      return { stdout: "diff output here", stderr: "", exitCode: 0 };
+      if (args.includes("--stat")) {
+        return {
+          stdout: " src/index.ts | 10 ++++\n 1 file changed, 10 insertions(+)",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
     const text = await callTool(tools, "git_show", { ref: "HEAD" });
@@ -305,10 +312,13 @@ describe("git_show tool", () => {
 
     expect(parsed).toHaveProperty("hash");
     expect(parsed).toHaveProperty("author");
-    expect(parsed).toHaveProperty("diff");
+    expect(parsed).toHaveProperty("stat");
+    expect(parsed).toHaveProperty("total_files");
+    expect(parsed).not.toHaveProperty("diff");
+    expect(parsed.total_files).toBe(1);
   });
 
-  test("uses diff-tree --root for initial commit support", async () => {
+  test("diff='full' uses diff-tree --root for initial commit support", async () => {
     let capturedDiffArgs: string[] = [];
     const runner: GitRunner = async (_cwd, args) => {
       if (args.includes("--no-patch")) {
@@ -318,11 +328,13 @@ describe("git_show tool", () => {
           exitCode: 0,
         };
       }
-      capturedDiffArgs = args;
+      if (args[0] === "diff-tree" && args.includes("-p")) {
+        capturedDiffArgs = args;
+      }
       return { stdout: "diff for root commit", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
-    const text = await callTool(tools, "git_show", { ref: "abc123" });
+    const text = await callTool(tools, "git_show", { ref: "abc123", diff: "full" });
     const parsed = JSON.parse(text);
 
     expect(capturedDiffArgs).toContain("diff-tree");
@@ -425,7 +437,7 @@ describe("git_show binary exclusion", () => {
       return { stdout: "", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
-    await callTool(tools, "git_show", { ref: "HEAD" });
+    await callTool(tools, "git_show", { ref: "HEAD", diff: "full" });
 
     expect(capturedDiffArgs).toContain("diff-tree");
     expect(capturedDiffArgs).toContain("--no-binary");
@@ -445,11 +457,13 @@ describe("git_show binary exclusion", () => {
           exitCode: 0,
         };
       }
-      capturedDiffArgs = args;
+      if (args[0] === "diff-tree" && args.includes("-p")) {
+        capturedDiffArgs = args;
+      }
       return { stdout: "", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
-    await callTool(tools, "git_show", { ref: "HEAD", include_binary: true, include_generated: true });
+    await callTool(tools, "git_show", { ref: "HEAD", diff: "full", include_binary: true, include_generated: true });
 
     expect(capturedDiffArgs).toContain("diff-tree");
     expect(capturedDiffArgs).not.toContain("--no-binary");
@@ -647,7 +661,7 @@ describe("git_diff generated file exclusion", () => {
 });
 
 describe("git_show generated file exclusion", () => {
-  test("appends pathspec exclusions to diff-tree by default", async () => {
+  test("appends pathspec exclusions to diff-tree with diff='full'", async () => {
     let capturedDiffArgs: string[] = [];
     const runner: GitRunner = async (_cwd, args) => {
       if (args.includes("--no-patch")) {
@@ -657,13 +671,13 @@ describe("git_show generated file exclusion", () => {
           exitCode: 0,
         };
       }
-      if (args[0] === "diff-tree" && !args.includes("--stat")) {
+      if (args[0] === "diff-tree" && args.includes("-p")) {
         capturedDiffArgs = args;
       }
       return { stdout: "", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
-    await callTool(tools, "git_show", { ref: "HEAD" });
+    await callTool(tools, "git_show", { ref: "HEAD", diff: "full" });
 
     expect(capturedDiffArgs).toContain("--");
     expect(capturedDiffArgs).toContain(":!*.lock");
@@ -680,19 +694,19 @@ describe("git_show generated file exclusion", () => {
           exitCode: 0,
         };
       }
-      if (args[0] === "diff-tree" && !args.includes("--stat")) {
+      if (args[0] === "diff-tree" && args.includes("-p")) {
         capturedDiffArgs = args;
       }
       return { stdout: "", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
-    await callTool(tools, "git_show", { ref: "HEAD", include_generated: true });
+    await callTool(tools, "git_show", { ref: "HEAD", diff: "full", include_generated: true });
 
     expect(capturedDiffArgs).not.toContain("--");
     expect(capturedDiffArgs).not.toContain(":!*.lock");
   });
 
-  test("response includes excluded field when files are filtered", async () => {
+  test("response includes excluded field when files are filtered with diff='full'", async () => {
     const runner: GitRunner = async (_cwd, args) => {
       if (args.includes("--no-patch")) {
         return {
@@ -711,7 +725,7 @@ describe("git_show generated file exclusion", () => {
       return { stdout: "filtered diff", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
-    const text = await callTool(tools, "git_show", { ref: "HEAD" });
+    const text = await callTool(tools, "git_show", { ref: "HEAD", diff: "full" });
     const parsed = JSON.parse(text);
 
     expect(parsed.excluded).toContain("1 files excluded by default filters");
@@ -730,7 +744,7 @@ describe("git_show generated file exclusion", () => {
       return { stdout: "diff output", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
-    const text = await callTool(tools, "git_show", { ref: "HEAD", include_generated: true });
+    const text = await callTool(tools, "git_show", { ref: "HEAD", diff: "full", include_generated: true });
     const parsed = JSON.parse(text);
 
     expect(parsed.excluded).toBeUndefined();
@@ -815,7 +829,7 @@ describe("applyPerFileCap", () => {
     const result = applyPerFileCap(files, DEFAULT_MAX_FILE_SIZE);
     expect(result).toHaveLength(2);
     expect(result[0].capped).toBe(true);
-    expect(result[0].content).toContain("[File diff exceeds 20KB limit (25000)");
+    expect(result[0].content).toContain("[File diff exceeds 20KB limit (24KB)");
     expect(result[0].content).toContain('Use git_diff with file="big.ts" to view full diff.');
     expect(result[0].content).toContain("diff --git a/big.ts b/big.ts");
     expect(result[1].capped).toBe(false);
@@ -831,10 +845,10 @@ describe("applyPerFileCap", () => {
     expect(result[0].content).toBe("small content");
   });
 
-  test("notice includes actual file size", () => {
+  test("notice includes actual file size in KB", () => {
     const files = [{ path: "huge.ts", content: "z".repeat(50_000) }];
     const result = applyPerFileCap(files, DEFAULT_MAX_FILE_SIZE);
-    expect(result[0].content).toContain("(50000)");
+    expect(result[0].content).toContain("(49KB)");
   });
 
   test("with maxFileSize 0 disables capping", () => {
@@ -966,7 +980,7 @@ describe("git_diff per-file cap integration", () => {
 });
 
 describe("git_show per-file cap integration", () => {
-  test("applies per-file cap to diff output", async () => {
+  test("applies per-file cap to diff output with diff='full'", async () => {
     const largeDiff = [
       "diff --git a/big.ts b/big.ts",
       "--- a/big.ts",
@@ -987,11 +1001,269 @@ describe("git_show per-file cap integration", () => {
       return { stdout: largeDiff, stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
-    const text = await callTool(tools, "git_show", { ref: "HEAD", include_generated: true });
+    const text = await callTool(tools, "git_show", { ref: "HEAD", diff: "full", include_generated: true });
     const parsed = JSON.parse(text);
 
     expect(parsed.diff).toContain("[File diff exceeds 20KB limit");
     expect(parsed.diff).not.toContain("x".repeat(25_000));
+  });
+
+  test("max_file_size 0 disables capping with diff='full'", async () => {
+    const largeDiff = [
+      "diff --git a/big.ts b/big.ts",
+      "--- a/big.ts",
+      "+++ b/big.ts",
+      "@@ -1 +1 @@",
+      "x".repeat(25_000),
+    ].join("\n");
+
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc${SEP}A${SEP}2026-01${SEP}Fix${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      if (args.includes("--stat")) return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: largeDiff, stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD", diff: "full", max_file_size: 0, include_generated: true });
+    const parsed = JSON.parse(text);
+
+    expect(parsed.diff).toContain("x".repeat(25_000));
+    expect(parsed.diff).not.toContain("File diff exceeds");
+  });
+});
+
+// -- Phase 4: Diff mode parameter tests --
+
+describe("git_show diff parameter", () => {
+  const headerResponse = {
+    stdout: `abc123${SEP}Alice${SEP}2026-03-22${SEP}Fix something${SEP}Detailed body${END}`,
+    stderr: "",
+    exitCode: 0,
+  };
+
+  test("diff='none' makes no diff-tree call", async () => {
+    let diffTreeCalled = false;
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) return headerResponse;
+      if (args[0] === "diff-tree") diffTreeCalled = true;
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_show", { ref: "HEAD", diff: "none" });
+
+    expect(diffTreeCalled).toBe(false);
+  });
+
+  test("diff='none' returns metadata only", async () => {
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) return headerResponse;
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD", diff: "none" });
+    const parsed = JSON.parse(text);
+
+    expect(parsed.hash).toBe("abc123");
+    expect(parsed.author).toBe("Alice");
+    expect(parsed.date).toBe("2026-03-22");
+    expect(parsed.subject).toBe("Fix something");
+    expect(parsed.body).toBe("Detailed body");
+    expect(parsed).not.toHaveProperty("diff");
+    expect(parsed).not.toHaveProperty("stat");
+    expect(parsed).not.toHaveProperty("excluded");
+  });
+
+  test("diff='stat' (default) returns stat and total_files", async () => {
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) return headerResponse;
+      if (args.includes("--stat")) {
+        return {
+          stdout: " src/a.ts | 10 ++++\n src/b.ts |  5 ++--\n 2 files changed, 12 insertions(+), 3 deletions(-)",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD" });
+    const parsed = JSON.parse(text);
+
+    expect(parsed.stat).toContain("src/a.ts | 10");
+    expect(parsed.stat).toContain("src/b.ts |  5");
+    expect(parsed.total_files).toBe(2);
+    expect(parsed).not.toHaveProperty("diff");
+  });
+
+  test("diff='stat' calls diff-tree --stat", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) return headerResponse;
+      capturedArgs = args;
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_show", { ref: "HEAD" });
+
+    expect(capturedArgs).toContain("diff-tree");
+    expect(capturedArgs).toContain("--stat");
+    expect(capturedArgs).toContain("--root");
+  });
+
+  test("diff='full' returns diff field with filtered output", async () => {
+    const diffOutput = [
+      "diff --git a/src/a.ts b/src/a.ts",
+      "--- a/src/a.ts",
+      "+++ b/src/a.ts",
+      "@@ -1 +1 @@",
+      "-old",
+      "+new",
+    ].join("\n");
+
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) return headerResponse;
+      if (args.includes("--stat")) return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: diffOutput, stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD", diff: "full", include_generated: true });
+    const parsed = JSON.parse(text);
+
+    expect(parsed).toHaveProperty("diff");
+    expect(parsed.diff).toContain("-old");
+    expect(parsed.diff).toContain("+new");
+    expect(parsed).not.toHaveProperty("stat");
+  });
+
+  test("diff='full' applies all three filtering layers", async () => {
+    const largeDiff = [
+      "diff --git a/big.ts b/big.ts",
+      "--- a/big.ts",
+      "+++ b/big.ts",
+      "@@ -1 +1 @@",
+      "x".repeat(25_000),
+    ].join("\n");
+
+    let capturedPatchArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) return headerResponse;
+      if (args[0] === "diff-tree" && args.includes("-p")) {
+        capturedPatchArgs = args;
+        return { stdout: largeDiff, stderr: "", exitCode: 0 };
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD", diff: "full" });
+    const parsed = JSON.parse(text);
+
+    // Layer 1: binary exclusion
+    expect(capturedPatchArgs).toContain("--no-binary");
+    // Layer 2: generated file exclusion
+    expect(capturedPatchArgs).toContain(":!*.lock");
+    // Layer 3: per-file cap
+    expect(parsed.diff).toContain("[File diff exceeds 20KB limit");
+  });
+
+  test("diff='full' includes excluded field when files are filtered", async () => {
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) return headerResponse;
+      if (args.includes("--stat")) {
+        return {
+          stdout: " bun.lockb | 50 +++\n src/a.ts | 5 +++\n 2 files changed",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      return { stdout: "patch output", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD", diff: "full" });
+    const parsed = JSON.parse(text);
+
+    expect(parsed.excluded).toContain("bun.lockb (lockfile)");
+  });
+});
+
+describe("git_diff stat parameter", () => {
+  test("stat: true passes --stat to git", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      capturedArgs = args;
+      return { stdout: " src/a.ts | 10 ++++\n 1 file changed", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_diff", { stat: true });
+
+    expect(capturedArgs).toContain("diff");
+    expect(capturedArgs).toContain("--stat");
+  });
+
+  test("stat: true does not apply filtering layers", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      capturedArgs = args;
+      return { stdout: " src/a.ts | 10 ++++\n 1 file changed", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_diff", { stat: true });
+
+    // No --no-binary (Layer 1 not applied)
+    expect(capturedArgs).not.toContain("--no-binary");
+    // No pathspec exclusions (Layer 2 not applied)
+    expect(capturedArgs).not.toContain(":!*.lock");
+    expect(capturedArgs).not.toContain("--");
+    // No per-file/total cap artifacts in output (Layer 3 not applied)
+    expect(text).not.toContain("File diff exceeds");
+    expect(text).not.toContain("truncated");
+  });
+
+  test("stat: true with ref passes both args correctly", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      capturedArgs = args;
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_diff", { stat: true, ref: "HEAD~5" });
+
+    expect(capturedArgs).toContain("--stat");
+    expect(capturedArgs).toContain("HEAD~5");
+  });
+
+  test("stat: true with file scopes correctly", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      capturedArgs = args;
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_diff", { stat: true, file: "src/index.ts" });
+
+    expect(capturedArgs).toContain("--stat");
+    expect(capturedArgs).toContain("--");
+    expect(capturedArgs).toContain("src/index.ts");
+  });
+
+  test("default behavior unchanged (no --stat, filtering applied)", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args[0] === "diff" && !args.includes("--stat")) {
+        capturedArgs = args;
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_diff");
+
+    expect(capturedArgs).not.toContain("--stat");
+    expect(capturedArgs).toContain("--no-binary");
+    expect(capturedArgs).toContain(":!*.lock");
   });
 });
 
@@ -1028,6 +1300,59 @@ describe("full pipeline integration", () => {
     expect(output).toContain("c.ts");
     expect(output).toContain("d.ts");
     expect(output).not.toContain("truncated");
+  });
+});
+
+// -- Edge case tests from spec testing section --
+
+describe("spec edge cases", () => {
+  test("commit with only binary files shows binary notice, no per-file cap", async () => {
+    // Binary files with --no-binary produce a short notice, not a large patch
+    const binaryDiff = "diff --git a/image.png b/image.png\nBinary files differ\n";
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc${SEP}A${SEP}2026-01${SEP}Add image${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      if (args.includes("--stat")) return { stdout: " image.png | Bin 0 -> 1234\n 1 file changed", stderr: "", exitCode: 0 };
+      return { stdout: binaryDiff, stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD", diff: "full", include_generated: true });
+    const parsed = JSON.parse(text);
+
+    expect(parsed.diff).toContain("Binary files differ");
+    expect(parsed.diff).not.toContain("File diff exceeds");
+  });
+
+  test("commit with only excluded files returns empty diff with excluded summary", async () => {
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc${SEP}A${SEP}2026-01${SEP}Update lockfile${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      if (args.includes("--stat")) {
+        return {
+          stdout: " package-lock.json | 500 +++\n 1 file changed, 500 insertions(+)",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      // Filtered diff returns empty (all files excluded)
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD", diff: "full" });
+    const parsed = JSON.parse(text);
+
+    expect(parsed.diff).toBe("");
+    expect(parsed.excluded).toContain("package-lock.json (lockfile)");
   });
 });
 
