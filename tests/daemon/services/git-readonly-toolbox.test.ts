@@ -7,6 +7,9 @@ import {
   parseGitBranch,
   LOG_SEPARATOR,
   FIELD_SEPARATOR,
+  GENERATED_FILE_EXCLUSIONS,
+  matchesExclusionPattern,
+  buildExcludedSummary,
 } from "@/daemon/services/git-readonly-toolbox";
 import type { GitRunner } from "@/daemon/services/git-readonly-toolbox";
 
@@ -363,6 +366,357 @@ describe("git_branch tool", () => {
     await callTool(tools, "git_branch", { remote: true });
 
     expect(capturedArgs).toContain("--remotes");
+  });
+});
+
+// -- Phase 1: Binary exclusion tests --
+
+describe("git_diff binary exclusion", () => {
+  test("passes --no-binary by default", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      capturedArgs = args;
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_diff");
+
+    expect(capturedArgs).toContain("--no-binary");
+  });
+
+  test("omits --no-binary when include_binary is true", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      capturedArgs = args;
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_diff", { include_binary: true, include_generated: true });
+
+    expect(capturedArgs).not.toContain("--no-binary");
+  });
+});
+
+describe("git_show binary exclusion", () => {
+  test("passes --no-binary to diff-tree by default", async () => {
+    let capturedDiffArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc${SEP}A${SEP}2026-01${SEP}Fix${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      capturedDiffArgs = args;
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_show", { ref: "HEAD" });
+
+    expect(capturedDiffArgs).toContain("diff-tree");
+    expect(capturedDiffArgs).toContain("--no-binary");
+  });
+
+  test("omits --no-binary when include_binary is true", async () => {
+    let capturedDiffArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc${SEP}A${SEP}2026-01${SEP}Fix${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      capturedDiffArgs = args;
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_show", { ref: "HEAD", include_binary: true, include_generated: true });
+
+    expect(capturedDiffArgs).toContain("diff-tree");
+    expect(capturedDiffArgs).not.toContain("--no-binary");
+  });
+});
+
+// -- Phase 2: Generated file exclusion tests --
+
+describe("matchesExclusionPattern", () => {
+  test("matches wildcard extension patterns", () => {
+    expect(matchesExclusionPattern("Gemfile.lock", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "*.lock", category: "lockfile" });
+    expect(matchesExclusionPattern("src/app.min.js", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "*.min.js", category: "minified" });
+    expect(matchesExclusionPattern("lib/utils.min.css", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "*.min.css", category: "minified" });
+    // __pycache__/foo.pyc matches __pycache__/* first (directory prefix before *.pyc)
+    expect(matchesExclusionPattern("__pycache__/foo.pyc", GENERATED_FILE_EXCLUSIONS)).not.toBeNull();
+    // Test *.pyc with a path that doesn't match a directory prefix
+    expect(matchesExclusionPattern("src/foo.pyc", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "*.pyc", category: "compiled" });
+  });
+
+  test("matches exact basename patterns", () => {
+    expect(matchesExclusionPattern("package-lock.json", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "package-lock.json", category: "lockfile" });
+    // yarn.lock matches *.lock first (wildcard before exact); both are lockfile category
+    expect(matchesExclusionPattern("yarn.lock", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "*.lock", category: "lockfile" });
+    expect(matchesExclusionPattern("bun.lockb", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "bun.lockb", category: "lockfile" });
+    // These all match *.lock first; the exact-match entries exist as fallback documentation
+    expect(matchesExclusionPattern("poetry.lock", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "*.lock", category: "lockfile" });
+    expect(matchesExclusionPattern("Cargo.lock", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "*.lock", category: "lockfile" });
+    expect(matchesExclusionPattern("composer.lock", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "*.lock", category: "lockfile" });
+  });
+
+  test("matches directory prefix patterns", () => {
+    expect(matchesExclusionPattern("dist/bundle.js", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "dist/*", category: "build artifact" });
+    expect(matchesExclusionPattern("build/output.css", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "build/*", category: "build artifact" });
+    expect(matchesExclusionPattern(".next/cache/file", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: ".next/*", category: "build artifact" });
+    expect(matchesExclusionPattern("out/index.html", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "out/*", category: "build artifact" });
+    expect(matchesExclusionPattern("target/debug/bin", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: "target/*", category: "build artifact" });
+    expect(matchesExclusionPattern("__pycache__/mod.cpython-312.pyc", GENERATED_FILE_EXCLUSIONS)).not.toBeNull();
+    expect(matchesExclusionPattern(".cache/data", GENERATED_FILE_EXCLUSIONS)).toEqual({ pattern: ".cache/*", category: "cache" });
+  });
+
+  test("returns null for non-matching paths", () => {
+    expect(matchesExclusionPattern("src/index.ts", GENERATED_FILE_EXCLUSIONS)).toBeNull();
+    expect(matchesExclusionPattern("lib/utils.ts", GENERATED_FILE_EXCLUSIONS)).toBeNull();
+    expect(matchesExclusionPattern("README.md", GENERATED_FILE_EXCLUSIONS)).toBeNull();
+    expect(matchesExclusionPattern("package.json", GENERATED_FILE_EXCLUSIONS)).toBeNull();
+  });
+});
+
+describe("buildExcludedSummary", () => {
+  test("returns formatted summary for excluded files", () => {
+    const statOutput = [
+      " package-lock.json | 500 +++",
+      " dist/bundle.js    | 200 +++",
+      " src/index.ts      |  10 +++",
+      " 3 files changed, 710 insertions(+)",
+    ].join("\n");
+
+    const result = buildExcludedSummary(statOutput, GENERATED_FILE_EXCLUSIONS);
+    expect(result).toContain("2 files excluded by default filters");
+    expect(result).toContain("package-lock.json (lockfile)");
+    expect(result).toContain("dist/bundle.js (build artifact)");
+    expect(result).toContain("Use include_generated=true to include these files.");
+  });
+
+  test("returns empty string when no files match", () => {
+    const statOutput = [
+      " src/index.ts | 10 +++",
+      " src/utils.ts |  5 +++",
+      " 2 files changed, 15 insertions(+)",
+    ].join("\n");
+
+    const result = buildExcludedSummary(statOutput, GENERATED_FILE_EXCLUSIONS);
+    expect(result).toBe("");
+  });
+
+  test("returns empty string for empty input", () => {
+    expect(buildExcludedSummary("", GENERATED_FILE_EXCLUSIONS)).toBe("");
+  });
+});
+
+describe("GENERATED_FILE_EXCLUSIONS completeness", () => {
+  test("contains all patterns from REQ-TEG-5", () => {
+    const patterns = GENERATED_FILE_EXCLUSIONS.map((e) => e.pattern);
+
+    // Lockfiles
+    expect(patterns).toContain("*.lock");
+    expect(patterns).toContain("package-lock.json");
+    expect(patterns).toContain("yarn.lock");
+    expect(patterns).toContain("bun.lockb");
+    expect(patterns).toContain("poetry.lock");
+    expect(patterns).toContain("Gemfile.lock");
+    expect(patterns).toContain("composer.lock");
+    expect(patterns).toContain("Cargo.lock");
+
+    // Minified
+    expect(patterns).toContain("*.min.js");
+    expect(patterns).toContain("*.min.css");
+
+    // Build artifacts
+    expect(patterns).toContain("dist/*");
+    expect(patterns).toContain("build/*");
+    expect(patterns).toContain(".next/*");
+    expect(patterns).toContain("out/*");
+    expect(patterns).toContain("target/*");
+
+    // Cache/compiled
+    expect(patterns).toContain("__pycache__/*");
+    expect(patterns).toContain(".cache/*");
+    expect(patterns).toContain("*.pyc");
+  });
+});
+
+describe("git_diff generated file exclusion", () => {
+  test("appends pathspec exclusions by default", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      // Capture only the main diff call, not the stat call
+      if (args[0] === "diff" && !args.includes("--stat")) {
+        capturedArgs = args;
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_diff");
+
+    expect(capturedArgs).toContain("--");
+    expect(capturedArgs).toContain(":!*.lock");
+    expect(capturedArgs).toContain(":!package-lock.json");
+    expect(capturedArgs).toContain(":!dist/*");
+  });
+
+  test("omits exclusions when include_generated is true", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args[0] === "diff" && !args.includes("--stat")) {
+        capturedArgs = args;
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_diff", { include_generated: true });
+
+    expect(capturedArgs).not.toContain(":!*.lock");
+    expect(capturedArgs).not.toContain("--");
+  });
+
+  test("file arg placed before exclusion patterns after --", async () => {
+    let capturedArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args[0] === "diff" && !args.includes("--stat")) {
+        capturedArgs = args;
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_diff", { file: "src/index.ts" });
+
+    const dashDashIndex = capturedArgs.indexOf("--");
+    const fileIndex = capturedArgs.indexOf("src/index.ts");
+    const exclusionIndex = capturedArgs.indexOf(":!*.lock");
+
+    expect(dashDashIndex).toBeGreaterThan(-1);
+    expect(fileIndex).toBe(dashDashIndex + 1);
+    expect(exclusionIndex).toBeGreaterThan(fileIndex);
+  });
+
+  test("output includes excluded summary when files are filtered", async () => {
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--stat")) {
+        return {
+          stdout: " package-lock.json | 100 +++\n src/index.ts | 5 +++\n 2 files changed",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      return { stdout: "diff output here", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_diff");
+
+    expect(text).toContain("diff output here");
+    expect(text).toContain("1 files excluded by default filters");
+    expect(text).toContain("package-lock.json (lockfile)");
+  });
+
+  test("output omits summary when include_generated is true", async () => {
+    const runner: GitRunner = async (_cwd, args) => {
+      return { stdout: "diff output here", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_diff", { include_generated: true });
+
+    expect(text).not.toContain("excluded by default filters");
+  });
+});
+
+describe("git_show generated file exclusion", () => {
+  test("appends pathspec exclusions to diff-tree by default", async () => {
+    let capturedDiffArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc${SEP}A${SEP}2026-01${SEP}Fix${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      if (args[0] === "diff-tree" && !args.includes("--stat")) {
+        capturedDiffArgs = args;
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_show", { ref: "HEAD" });
+
+    expect(capturedDiffArgs).toContain("--");
+    expect(capturedDiffArgs).toContain(":!*.lock");
+    expect(capturedDiffArgs).toContain(":!dist/*");
+  });
+
+  test("omits exclusions when include_generated is true", async () => {
+    let capturedDiffArgs: string[] = [];
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc${SEP}A${SEP}2026-01${SEP}Fix${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      if (args[0] === "diff-tree" && !args.includes("--stat")) {
+        capturedDiffArgs = args;
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    await callTool(tools, "git_show", { ref: "HEAD", include_generated: true });
+
+    expect(capturedDiffArgs).not.toContain("--");
+    expect(capturedDiffArgs).not.toContain(":!*.lock");
+  });
+
+  test("response includes excluded field when files are filtered", async () => {
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc${SEP}A${SEP}2026-01${SEP}Fix${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      if (args.includes("--stat")) {
+        return {
+          stdout: " bun.lockb | 100 +++\n src/app.ts | 5 +++\n 2 files changed",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      return { stdout: "filtered diff", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD" });
+    const parsed = JSON.parse(text);
+
+    expect(parsed.excluded).toContain("1 files excluded by default filters");
+    expect(parsed.excluded).toContain("bun.lockb (lockfile)");
+  });
+
+  test("omits excluded field when include_generated is true", async () => {
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc${SEP}A${SEP}2026-01${SEP}Fix${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      return { stdout: "diff output", stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD", include_generated: true });
+    const parsed = JSON.parse(text);
+
+    expect(parsed.excluded).toBeUndefined();
   });
 });
 

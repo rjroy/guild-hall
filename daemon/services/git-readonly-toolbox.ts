@@ -16,6 +16,103 @@ import { z } from "zod/v4";
 import { cleanGitEnv } from "@/daemon/lib/git";
 import type { ToolboxFactory } from "./toolbox-types";
 
+// -- Generated file exclusion patterns --
+
+export const GENERATED_FILE_EXCLUSIONS: Array<{ pattern: string; category: string }> = [
+  { pattern: "*.lock", category: "lockfile" },
+  { pattern: "package-lock.json", category: "lockfile" },
+  { pattern: "yarn.lock", category: "lockfile" },
+  { pattern: "bun.lockb", category: "lockfile" },
+  { pattern: "poetry.lock", category: "lockfile" },
+  { pattern: "Gemfile.lock", category: "lockfile" },
+  { pattern: "composer.lock", category: "lockfile" },
+  { pattern: "Cargo.lock", category: "lockfile" },
+  { pattern: "*.min.js", category: "minified" },
+  { pattern: "*.min.css", category: "minified" },
+  { pattern: "dist/*", category: "build artifact" },
+  { pattern: "build/*", category: "build artifact" },
+  { pattern: ".next/*", category: "build artifact" },
+  { pattern: "out/*", category: "build artifact" },
+  { pattern: "target/*", category: "build artifact" },
+  { pattern: "__pycache__/*", category: "cache" },
+  { pattern: ".cache/*", category: "cache" },
+  { pattern: "*.pyc", category: "compiled" },
+];
+
+// -- Pattern matching helpers --
+
+/**
+ * Test whether a file path matches any exclusion pattern.
+ * Returns the first matching exclusion entry, or null.
+ *
+ * Matching rules:
+ * - `*.ext` patterns: file name ends with `.ext`
+ * - `dir/*` patterns: file path starts with `dir/`
+ * - Exact name patterns: file basename matches exactly
+ */
+export function matchesExclusionPattern(
+  filePath: string,
+  exclusions: typeof GENERATED_FILE_EXCLUSIONS,
+): { pattern: string; category: string } | null {
+  const basename = filePath.includes("/") ? filePath.slice(filePath.lastIndexOf("/") + 1) : filePath;
+
+  for (const exclusion of exclusions) {
+    const { pattern } = exclusion;
+
+    if (pattern.startsWith("*") && !pattern.includes("/")) {
+      // Wildcard extension: *.lock, *.min.js, *.pyc
+      const suffix = pattern.slice(1); // e.g. ".lock"
+      if (basename.endsWith(suffix)) return exclusion;
+    } else if (pattern.endsWith("/*")) {
+      // Directory prefix: dist/*, build/*, __pycache__/*
+      const dir = pattern.slice(0, -2); // e.g. "dist"
+      if (filePath.startsWith(dir + "/") || filePath === dir) return exclusion;
+    } else {
+      // Exact basename: package-lock.json, yarn.lock
+      if (basename === pattern) return exclusion;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Build a summary of files excluded by generated file filters.
+ * Parses git --stat output and tests each path against exclusion patterns.
+ * Returns empty string if no files match.
+ */
+export function buildExcludedSummary(
+  statOutput: string,
+  exclusions: typeof GENERATED_FILE_EXCLUSIONS,
+): string {
+  if (!statOutput) return "";
+
+  const excluded: Array<{ file: string; category: string }> = [];
+
+  for (const line of statOutput.split("\n")) {
+    // Stat lines look like: " path | N +++---"
+    const pipeIndex = line.indexOf(" | ");
+    if (pipeIndex === -1) continue;
+
+    // Skip the summary line ("N files changed, ...")
+    const afterPipe = line.slice(pipeIndex + 3).trim();
+    if (afterPipe.includes("changed")) continue;
+
+    const filePath = line.slice(0, pipeIndex).trim();
+    if (!filePath) continue;
+
+    const match = matchesExclusionPattern(filePath, exclusions);
+    if (match) {
+      excluded.push({ file: filePath, category: match.category });
+    }
+  }
+
+  if (excluded.length === 0) return "";
+
+  const fileList = excluded.map((e) => `${e.file} (${e.category})`).join(", ");
+  return `[${excluded.length} files excluded by default filters: ${fileList}]\nUse include_generated=true to include these files.`;
+}
+
 // -- Types --
 
 export interface GitRunnerResult {
@@ -184,18 +281,46 @@ export function createGitReadonlyTools(
         staged: z.boolean().optional().describe("Show staged changes (--cached)"),
         ref: z.string().optional().describe("Diff against a ref (e.g. 'HEAD~3', 'main..feature')"),
         file: z.string().optional().describe("Scope diff to a specific file"),
+        include_binary: z.boolean().optional().describe("Include binary file diffs in output (default: false). Warning: can produce very large output."),
+        include_generated: z.boolean().optional().describe("Include lockfiles, build artifacts, and other generated files in diff (default: false)."),
       },
       async (args) => {
+        // Build the excluded file summary before running the filtered diff
+        let excludedSummary = "";
+        if (!args.include_generated) {
+          const statArgs = ["diff", "--stat"];
+          if (args.staged) statArgs.push("--cached");
+          if (args.ref) statArgs.push(args.ref);
+          if (args.file) {
+            statArgs.push("--");
+            statArgs.push(args.file);
+          }
+          const { stdout: statOut } = await runGit(workingDirectory, statArgs, { allowNonZero: true });
+          excludedSummary = buildExcludedSummary(statOut, GENERATED_FILE_EXCLUSIONS);
+        }
+
         const gitArgs = ["diff"];
+        if (!args.include_binary) gitArgs.push("--no-binary");
         if (args.staged) gitArgs.push("--cached");
         if (args.ref) gitArgs.push(args.ref);
-        if (args.file) {
+
+        // Pathspec separator and arguments
+        if (args.file || !args.include_generated) {
           gitArgs.push("--");
-          gitArgs.push(args.file);
+          if (args.file) gitArgs.push(args.file);
+          if (!args.include_generated) {
+            for (const exclusion of GENERATED_FILE_EXCLUSIONS) {
+              gitArgs.push(`:!${exclusion.pattern}`);
+            }
+          }
         }
 
         const { stdout } = await runGit(workingDirectory, gitArgs, { allowNonZero: true });
-        return { content: [{ type: "text", text: stdout || "(no differences)" }] };
+        let output = stdout || "(no differences)";
+        if (excludedSummary) {
+          output = output + "\n\n" + excludedSummary;
+        }
+        return { content: [{ type: "text", text: output }] };
       },
     ),
     tool(
@@ -203,21 +328,40 @@ export function createGitReadonlyTools(
       "Show commit details with diff for a given ref.",
       {
         ref: z.string().describe("The commit ref to show (e.g. 'HEAD', 'abc1234', 'main~2')"),
+        include_binary: z.boolean().optional().describe("Include binary file diffs in output (default: false). Warning: can produce very large output."),
+        include_generated: z.boolean().optional().describe("Include lockfiles, build artifacts, and other generated files in diff (default: false)."),
       },
       async (args) => {
         const showFormat = `%H${FIELD_SEPARATOR}%an${FIELD_SEPARATOR}%aI${FIELD_SEPARATOR}%s${FIELD_SEPARATOR}%b${LOG_SEPARATOR}`;
         const { stdout: headerOut } = await runGit(workingDirectory, [
           "show", "--no-patch", `--format=${showFormat}`, args.ref,
         ]);
+
+        // Build excluded file summary before running the filtered diff
+        let excludedSummary = "";
+        if (!args.include_generated) {
+          const statArgs = ["diff-tree", "--stat", "--root", args.ref];
+          const { stdout: statOut } = await runGit(workingDirectory, statArgs, { allowNonZero: true });
+          excludedSummary = buildExcludedSummary(statOut, GENERATED_FILE_EXCLUSIONS);
+        }
+
         // Use git diff-tree with --root to handle initial commits (no parent).
         // --root makes diff-tree show the full diff for root commits instead of erroring.
-        const { stdout: diffOut } = await runGit(workingDirectory, [
-          "diff-tree", "--root", "-p", args.ref,
-        ], { allowNonZero: true });
+        const diffTreeArgs = ["diff-tree", "--root"];
+        if (!args.include_binary) diffTreeArgs.push("--no-binary");
+        diffTreeArgs.push("-p", args.ref);
+        if (!args.include_generated) {
+          diffTreeArgs.push("--");
+          for (const exclusion of GENERATED_FILE_EXCLUSIONS) {
+            diffTreeArgs.push(`:!${exclusion.pattern}`);
+          }
+        }
+
+        const { stdout: diffOut } = await runGit(workingDirectory, diffTreeArgs, { allowNonZero: true });
 
         const fields = headerOut.replace(LOG_SEPARATOR, "").split(FIELD_SEPARATOR);
         const body = fields[4]?.trim();
-        const result = {
+        const result: Record<string, string> = {
           hash: fields[0]?.trim() ?? "",
           author: fields[1]?.trim() ?? "",
           date: fields[2]?.trim() ?? "",
@@ -225,6 +369,9 @@ export function createGitReadonlyTools(
           ...(body ? { body } : {}),
           diff: diffOut,
         };
+        if (excludedSummary) {
+          result.excluded = excludedSummary;
+        }
 
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       },
