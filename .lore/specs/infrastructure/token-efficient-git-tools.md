@@ -1,7 +1,7 @@
 ---
 title: Token-Efficient Git Tools
 date: 2026-03-30
-status: approved
+status: implemented 
 tags: [git, tokens, toolbox, mcp-tools, performance]
 modules: [daemon/services/git-readonly-toolbox]
 related:
