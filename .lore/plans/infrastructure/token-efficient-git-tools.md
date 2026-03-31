@@ -1,7 +1,7 @@
 ---
 title: "Plan: Token-Efficient Git Tools"
 date: 2026-03-30
-status: approved
+status: executed 
 tags: [git, tokens, toolbox, mcp-tools, performance, plan]
 modules: [daemon/services/git-readonly-toolbox]
 related:
