@@ -18,6 +18,10 @@ import type { ToolboxFactory } from "./toolbox-types";
 
 // -- Generated file exclusion patterns --
 
+// Specific lockfile entries (package-lock.json, yarn.lock, etc.) overlap with *.lock
+// in the pattern matcher but serve two purposes: (1) they're passed as git pathspec
+// arguments where exact names are more reliable, and (2) they document the full
+// inventory of excluded files for readability.
 export const GENERATED_FILE_EXCLUSIONS: Array<{ pattern: string; category: string }> = [
   { pattern: "*.lock", category: "lockfile" },
   { pattern: "package-lock.json", category: "lockfile" },
@@ -66,7 +70,7 @@ export function matchesExclusionPattern(
     } else if (pattern.endsWith("/*")) {
       // Directory prefix: dist/*, build/*, __pycache__/*
       const dir = pattern.slice(0, -2); // e.g. "dist"
-      if (filePath.startsWith(dir + "/") || filePath === dir) return exclusion;
+      if (filePath.startsWith(dir + "/")) return exclusion;
     } else {
       // Exact basename: package-lock.json, yarn.lock
       if (basename === pattern) return exclusion;
@@ -111,6 +115,111 @@ export function buildExcludedSummary(
 
   const fileList = excluded.map((e) => `${e.file} (${e.category})`).join(", ");
   return `[${excluded.length} files excluded by default filters: ${fileList}]\nUse include_generated=true to include these files.`;
+}
+
+// -- Per-file and total output caps --
+
+export const DEFAULT_MAX_FILE_SIZE = 20_480;
+export const MAX_TOTAL_OUTPUT = 102_400;
+
+/**
+ * Split a unified diff into per-file segments.
+ * Each segment starts with a `diff --git a/<path> b/<path>` header.
+ * The path is extracted from the `b/` side (destination path).
+ */
+export function splitDiffByFile(diffOutput: string): Array<{ path: string; content: string }> {
+  if (!diffOutput.trim()) return [];
+
+  const files: Array<{ path: string; content: string }> = [];
+  const headerPattern = /^diff --git a\/.+ b\/(.+)$/gm;
+
+  let match: RegExpExecArray | null;
+  const starts: Array<{ path: string; index: number }> = [];
+
+  while ((match = headerPattern.exec(diffOutput)) !== null) {
+    starts.push({ path: match[1], index: match.index });
+  }
+
+  if (starts.length === 0) return [];
+
+  for (let i = 0; i < starts.length; i++) {
+    const start = starts[i].index;
+    const end = i + 1 < starts.length ? starts[i + 1].index : diffOutput.length;
+    files.push({
+      path: starts[i].path,
+      content: diffOutput.slice(start, end),
+    });
+  }
+
+  return files;
+}
+
+/**
+ * Apply per-file size cap. Files exceeding maxFileSize get replaced with a
+ * truncation notice. Set maxFileSize to 0 to disable capping.
+ */
+export function applyPerFileCap(
+  files: Array<{ path: string; content: string }>,
+  maxFileSize: number,
+): Array<{ path: string; content: string; capped: boolean }> {
+  if (maxFileSize === 0) {
+    return files.map((f) => ({ ...f, capped: false }));
+  }
+
+  const sizeLabel = Math.round(maxFileSize / 1024) + "KB";
+
+  return files.map((f) => {
+    if (f.content.length <= maxFileSize) {
+      return { ...f, capped: false };
+    }
+
+    const actualSize = f.content.length;
+    const notice =
+      `diff --git a/${f.path} b/${f.path}\n` +
+      `[File diff exceeds ${sizeLabel} limit (${actualSize}). Use git_diff with file="${f.path}" to view full diff.]`;
+    return { path: f.path, content: notice + "\n", capped: true };
+  });
+}
+
+/**
+ * Apply total output cap. Includes files until adding the next one would
+ * exceed maxTotal, then appends a truncation notice listing remaining files.
+ */
+export function applyTotalCap(
+  files: Array<{ path: string; content: string; capped: boolean }>,
+  maxTotal: number,
+): string {
+  if (files.length === 0) return "";
+
+  let total = 0;
+  const included: string[] = [];
+  const remaining: string[] = [];
+
+  for (const file of files) {
+    if (remaining.length > 0) {
+      remaining.push(file.path);
+      continue;
+    }
+
+    if (total + file.content.length > maxTotal && included.length > 0) {
+      remaining.push(file.path);
+      continue;
+    }
+
+    included.push(file.content);
+    total += file.content.length;
+  }
+
+  let output = included.join("");
+
+  if (remaining.length > 0) {
+    const sizeLabel = Math.round(maxTotal / 1024) + "KB";
+    output +=
+      `[Output truncated at ${sizeLabel}. ${remaining.length} remaining files not shown: ${remaining.join(", ")}]\n` +
+      `Use git_diff with file="<path>" to inspect specific files.\n`;
+  }
+
+  return output;
 }
 
 // -- Types --
@@ -283,6 +392,7 @@ export function createGitReadonlyTools(
         file: z.string().optional().describe("Scope diff to a specific file"),
         include_binary: z.boolean().optional().describe("Include binary file diffs in output (default: false). Warning: can produce very large output."),
         include_generated: z.boolean().optional().describe("Include lockfiles, build artifacts, and other generated files in diff (default: false)."),
+        max_file_size: z.number().optional().describe("Maximum bytes per file diff before truncation (default: 20480). Set to 0 to disable."),
       },
       async (args) => {
         // Build the excluded file summary before running the filtered diff
@@ -316,7 +426,18 @@ export function createGitReadonlyTools(
         }
 
         const { stdout } = await runGit(workingDirectory, gitArgs, { allowNonZero: true });
-        let output = stdout || "(no differences)";
+
+        // Pipeline: split → per-file cap → total cap → reassemble
+        const maxFileSize = args.max_file_size ?? DEFAULT_MAX_FILE_SIZE;
+        const fileDiffs = splitDiffByFile(stdout);
+        let output: string;
+        if (fileDiffs.length > 0) {
+          const capped = applyPerFileCap(fileDiffs, maxFileSize);
+          output = applyTotalCap(capped, MAX_TOTAL_OUTPUT);
+        } else {
+          output = stdout || "(no differences)";
+        }
+
         if (excludedSummary) {
           output = output + "\n\n" + excludedSummary;
         }
@@ -330,6 +451,7 @@ export function createGitReadonlyTools(
         ref: z.string().describe("The commit ref to show (e.g. 'HEAD', 'abc1234', 'main~2')"),
         include_binary: z.boolean().optional().describe("Include binary file diffs in output (default: false). Warning: can produce very large output."),
         include_generated: z.boolean().optional().describe("Include lockfiles, build artifacts, and other generated files in diff (default: false)."),
+        max_file_size: z.number().optional().describe("Maximum bytes per file diff before truncation (default: 20480). Set to 0 to disable."),
       },
       async (args) => {
         const showFormat = `%H${FIELD_SEPARATOR}%an${FIELD_SEPARATOR}%aI${FIELD_SEPARATOR}%s${FIELD_SEPARATOR}%b${LOG_SEPARATOR}`;
@@ -359,6 +481,17 @@ export function createGitReadonlyTools(
 
         const { stdout: diffOut } = await runGit(workingDirectory, diffTreeArgs, { allowNonZero: true });
 
+        // Pipeline: split → per-file cap → total cap → reassemble
+        const maxFileSize = args.max_file_size ?? DEFAULT_MAX_FILE_SIZE;
+        const fileDiffs = splitDiffByFile(diffOut);
+        let processedDiff: string;
+        if (fileDiffs.length > 0) {
+          const capped = applyPerFileCap(fileDiffs, maxFileSize);
+          processedDiff = applyTotalCap(capped, MAX_TOTAL_OUTPUT);
+        } else {
+          processedDiff = diffOut;
+        }
+
         const fields = headerOut.replace(LOG_SEPARATOR, "").split(FIELD_SEPARATOR);
         const body = fields[4]?.trim();
         const result: Record<string, string> = {
@@ -367,7 +500,7 @@ export function createGitReadonlyTools(
           date: fields[2]?.trim() ?? "",
           subject: fields[3]?.trim() ?? "",
           ...(body ? { body } : {}),
-          diff: diffOut,
+          diff: processedDiff,
         };
         if (excludedSummary) {
           result.excluded = excludedSummary;

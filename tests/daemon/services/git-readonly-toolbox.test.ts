@@ -10,6 +10,11 @@ import {
   GENERATED_FILE_EXCLUSIONS,
   matchesExclusionPattern,
   buildExcludedSummary,
+  splitDiffByFile,
+  applyPerFileCap,
+  applyTotalCap,
+  DEFAULT_MAX_FILE_SIZE,
+  MAX_TOTAL_OUTPUT,
 } from "@/daemon/services/git-readonly-toolbox";
 import type { GitRunner } from "@/daemon/services/git-readonly-toolbox";
 
@@ -372,16 +377,22 @@ describe("git_branch tool", () => {
 // -- Phase 1: Binary exclusion tests --
 
 describe("git_diff binary exclusion", () => {
-  test("passes --no-binary by default", async () => {
+  test("passes --no-binary by default, before -- separator", async () => {
     let capturedArgs: string[] = [];
     const runner: GitRunner = async (_cwd, args) => {
-      capturedArgs = args;
+      if (args[0] === "diff" && !args.includes("--stat")) {
+        capturedArgs = args;
+      }
       return { stdout: "", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
     await callTool(tools, "git_diff");
 
     expect(capturedArgs).toContain("--no-binary");
+    const noBinaryIdx = capturedArgs.indexOf("--no-binary");
+    const dashDashIdx = capturedArgs.indexOf("--");
+    expect(dashDashIdx).toBeGreaterThan(-1);
+    expect(noBinaryIdx).toBeLessThan(dashDashIdx);
   });
 
   test("omits --no-binary when include_binary is true", async () => {
@@ -398,7 +409,7 @@ describe("git_diff binary exclusion", () => {
 });
 
 describe("git_show binary exclusion", () => {
-  test("passes --no-binary to diff-tree by default", async () => {
+  test("passes --no-binary to diff-tree by default, before -- separator", async () => {
     let capturedDiffArgs: string[] = [];
     const runner: GitRunner = async (_cwd, args) => {
       if (args.includes("--no-patch")) {
@@ -408,7 +419,9 @@ describe("git_show binary exclusion", () => {
           exitCode: 0,
         };
       }
-      capturedDiffArgs = args;
+      if (args[0] === "diff-tree" && !args.includes("--stat")) {
+        capturedDiffArgs = args;
+      }
       return { stdout: "", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
@@ -416,6 +429,10 @@ describe("git_show binary exclusion", () => {
 
     expect(capturedDiffArgs).toContain("diff-tree");
     expect(capturedDiffArgs).toContain("--no-binary");
+    const noBinaryIdx = capturedDiffArgs.indexOf("--no-binary");
+    const dashDashIdx = capturedDiffArgs.indexOf("--");
+    expect(dashDashIdx).toBeGreaterThan(-1);
+    expect(noBinaryIdx).toBeLessThan(dashDashIdx);
   });
 
   test("omits --no-binary when include_binary is true", async () => {
@@ -619,7 +636,7 @@ describe("git_diff generated file exclusion", () => {
   });
 
   test("output omits summary when include_generated is true", async () => {
-    const runner: GitRunner = async (_cwd, args) => {
+    const runner: GitRunner = async () => {
       return { stdout: "diff output here", stderr: "", exitCode: 0 };
     };
     const tools = createGitReadonlyTools("/test", runner);
@@ -717,6 +734,300 @@ describe("git_show generated file exclusion", () => {
     const parsed = JSON.parse(text);
 
     expect(parsed.excluded).toBeUndefined();
+  });
+});
+
+// -- Phase 3: Per-file size cap and total output cap tests --
+
+describe("splitDiffByFile", () => {
+  test("splits multi-file diff output", () => {
+    const diff = [
+      "diff --git a/src/a.ts b/src/a.ts",
+      "--- a/src/a.ts",
+      "+++ b/src/a.ts",
+      "@@ -1 +1 @@",
+      "-old a",
+      "+new a",
+      "diff --git a/src/b.ts b/src/b.ts",
+      "--- a/src/b.ts",
+      "+++ b/src/b.ts",
+      "@@ -1 +1 @@",
+      "-old b",
+      "+new b",
+    ].join("\n");
+
+    const result = splitDiffByFile(diff);
+    expect(result).toHaveLength(2);
+    expect(result[0].path).toBe("src/a.ts");
+    expect(result[0].content).toContain("diff --git a/src/a.ts b/src/a.ts");
+    expect(result[0].content).toContain("-old a");
+    expect(result[0].content).not.toContain("-old b");
+    expect(result[1].path).toBe("src/b.ts");
+    expect(result[1].content).toContain("-old b");
+  });
+
+  test("handles single-file diffs", () => {
+    const diff = [
+      "diff --git a/file.ts b/file.ts",
+      "--- a/file.ts",
+      "+++ b/file.ts",
+      "@@ -1 +1 @@",
+      "-old",
+      "+new",
+    ].join("\n");
+
+    const result = splitDiffByFile(diff);
+    expect(result).toHaveLength(1);
+    expect(result[0].path).toBe("file.ts");
+  });
+
+  test("handles empty diff", () => {
+    expect(splitDiffByFile("")).toEqual([]);
+    expect(splitDiffByFile("  ")).toEqual([]);
+  });
+
+  test("handles rename headers", () => {
+    const diff = [
+      "diff --git a/old-name.ts b/new-name.ts",
+      "similarity index 95%",
+      "rename from old-name.ts",
+      "rename to new-name.ts",
+      "--- a/old-name.ts",
+      "+++ b/new-name.ts",
+      "@@ -1 +1 @@",
+      "-old",
+      "+new",
+    ].join("\n");
+
+    const result = splitDiffByFile(diff);
+    expect(result).toHaveLength(1);
+    expect(result[0].path).toBe("new-name.ts");
+  });
+});
+
+describe("applyPerFileCap", () => {
+  test("replaces oversized file with notice", () => {
+    const files = [
+      { path: "big.ts", content: "x".repeat(25_000) },
+      { path: "small.ts", content: "y".repeat(100) },
+    ];
+
+    const result = applyPerFileCap(files, DEFAULT_MAX_FILE_SIZE);
+    expect(result).toHaveLength(2);
+    expect(result[0].capped).toBe(true);
+    expect(result[0].content).toContain("[File diff exceeds 20KB limit (25000)");
+    expect(result[0].content).toContain('Use git_diff with file="big.ts" to view full diff.');
+    expect(result[0].content).toContain("diff --git a/big.ts b/big.ts");
+    expect(result[1].capped).toBe(false);
+    expect(result[1].content).toBe("y".repeat(100));
+  });
+
+  test("preserves files under the cap", () => {
+    const files = [
+      { path: "a.ts", content: "small content" },
+    ];
+    const result = applyPerFileCap(files, DEFAULT_MAX_FILE_SIZE);
+    expect(result[0].capped).toBe(false);
+    expect(result[0].content).toBe("small content");
+  });
+
+  test("notice includes actual file size", () => {
+    const files = [{ path: "huge.ts", content: "z".repeat(50_000) }];
+    const result = applyPerFileCap(files, DEFAULT_MAX_FILE_SIZE);
+    expect(result[0].content).toContain("(50000)");
+  });
+
+  test("with maxFileSize 0 disables capping", () => {
+    const files = [
+      { path: "big.ts", content: "x".repeat(100_000) },
+    ];
+    const result = applyPerFileCap(files, 0);
+    expect(result[0].capped).toBe(false);
+    expect(result[0].content).toBe("x".repeat(100_000));
+  });
+
+  test("custom maxFileSize changes the limit label", () => {
+    const files = [{ path: "a.ts", content: "x".repeat(50_000) }];
+    const result = applyPerFileCap(files, 40_960);
+    expect(result[0].capped).toBe(true);
+    expect(result[0].content).toContain("40KB limit");
+  });
+});
+
+describe("applyTotalCap", () => {
+  test("includes all files when under limit", () => {
+    const files = [
+      { path: "a.ts", content: "aaa\n", capped: false },
+      { path: "b.ts", content: "bbb\n", capped: false },
+    ];
+    const result = applyTotalCap(files, MAX_TOTAL_OUTPUT);
+    expect(result).toBe("aaa\nbbb\n");
+    expect(result).not.toContain("truncated");
+  });
+
+  test("truncates at file boundary when over limit", () => {
+    const files = [
+      { path: "a.ts", content: "a".repeat(60), capped: false },
+      { path: "b.ts", content: "b".repeat(60), capped: false },
+      { path: "c.ts", content: "c".repeat(60), capped: false },
+    ];
+    const result = applyTotalCap(files, 100);
+    expect(result).toContain("a".repeat(60));
+    expect(result).not.toContain("b".repeat(60));
+    expect(result).toContain("truncated");
+  });
+
+  test("lists remaining file names in the notice", () => {
+    const files = [
+      { path: "a.ts", content: "a".repeat(80), capped: false },
+      { path: "b.ts", content: "b".repeat(80), capped: false },
+      { path: "c.ts", content: "c".repeat(80), capped: false },
+    ];
+    const result = applyTotalCap(files, 100);
+    expect(result).toContain("2 remaining files not shown: b.ts, c.ts");
+    expect(result).toContain('Use git_diff with file="<path>" to inspect specific files.');
+  });
+
+  test("always includes at least the first file even if it exceeds the cap", () => {
+    const files = [
+      { path: "huge.ts", content: "x".repeat(200), capped: false },
+      { path: "small.ts", content: "y", capped: false },
+    ];
+    const result = applyTotalCap(files, 100);
+    expect(result).toContain("x".repeat(200));
+    expect(result).toContain("1 remaining files not shown: small.ts");
+  });
+
+  test("returns empty string for empty input", () => {
+    expect(applyTotalCap([], MAX_TOTAL_OUTPUT)).toBe("");
+  });
+});
+
+describe("git_diff per-file cap integration", () => {
+  test("applies per-file cap by default", async () => {
+    const largeDiff = [
+      "diff --git a/big.ts b/big.ts",
+      "--- a/big.ts",
+      "+++ b/big.ts",
+      "@@ -1 +1 @@",
+      "x".repeat(25_000),
+    ].join("\n");
+
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--stat")) return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: largeDiff, stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_diff", { include_generated: true });
+
+    expect(text).toContain("[File diff exceeds 20KB limit");
+    expect(text).toContain('file="big.ts"');
+    expect(text).not.toContain("x".repeat(25_000));
+  });
+
+  test("respects custom max_file_size parameter", async () => {
+    const mediumDiff = [
+      "diff --git a/med.ts b/med.ts",
+      "--- a/med.ts",
+      "+++ b/med.ts",
+      "@@ -1 +1 @@",
+      "m".repeat(5_000),
+    ].join("\n");
+
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--stat")) return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: mediumDiff, stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_diff", { max_file_size: 1000, include_generated: true });
+
+    expect(text).toContain("[File diff exceeds 1KB limit");
+  });
+
+  test("max_file_size 0 disables capping", async () => {
+    const largeDiff = [
+      "diff --git a/big.ts b/big.ts",
+      "--- a/big.ts",
+      "+++ b/big.ts",
+      "@@ -1 +1 @@",
+      "x".repeat(25_000),
+    ].join("\n");
+
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--stat")) return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: largeDiff, stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_diff", { max_file_size: 0, include_generated: true });
+
+    expect(text).toContain("x".repeat(25_000));
+    expect(text).not.toContain("File diff exceeds");
+  });
+});
+
+describe("git_show per-file cap integration", () => {
+  test("applies per-file cap to diff output", async () => {
+    const largeDiff = [
+      "diff --git a/big.ts b/big.ts",
+      "--- a/big.ts",
+      "+++ b/big.ts",
+      "@@ -1 +1 @@",
+      "x".repeat(25_000),
+    ].join("\n");
+
+    const runner: GitRunner = async (_cwd, args) => {
+      if (args.includes("--no-patch")) {
+        return {
+          stdout: `abc${SEP}A${SEP}2026-01${SEP}Fix${SEP}${END}`,
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      if (args.includes("--stat")) return { stdout: "", stderr: "", exitCode: 0 };
+      return { stdout: largeDiff, stderr: "", exitCode: 0 };
+    };
+    const tools = createGitReadonlyTools("/test", runner);
+    const text = await callTool(tools, "git_show", { ref: "HEAD", include_generated: true });
+    const parsed = JSON.parse(text);
+
+    expect(parsed.diff).toContain("[File diff exceeds 20KB limit");
+    expect(parsed.diff).not.toContain("x".repeat(25_000));
+  });
+});
+
+describe("full pipeline integration", () => {
+  test("split then per-file cap then total cap", () => {
+    // Build a diff with several files: 2 oversized, 1 normal, and enough total to trigger total cap
+    const makeFileDiff = (name: string, size: number) => [
+      `diff --git a/${name} b/${name}`,
+      `--- a/${name}`,
+      `+++ b/${name}`,
+      "@@ -1 +1 @@",
+      "x".repeat(size),
+    ].join("\n") + "\n";
+
+    const diff =
+      makeFileDiff("a.ts", 25_000) +
+      makeFileDiff("b.ts", 100) +
+      makeFileDiff("c.ts", 25_000) +
+      makeFileDiff("d.ts", 100);
+
+    const files = splitDiffByFile(diff);
+    expect(files).toHaveLength(4);
+
+    const capped = applyPerFileCap(files, DEFAULT_MAX_FILE_SIZE);
+    expect(capped[0].capped).toBe(true);
+    expect(capped[1].capped).toBe(false);
+    expect(capped[2].capped).toBe(true);
+    expect(capped[3].capped).toBe(false);
+
+    // All four should fit within 100KB since the two oversized files got capped
+    const output = applyTotalCap(capped, MAX_TOTAL_OUTPUT);
+    expect(output).toContain("a.ts");
+    expect(output).toContain("b.ts");
+    expect(output).toContain("c.ts");
+    expect(output).toContain("d.ts");
+    expect(output).not.toContain("truncated");
   });
 });
 
