@@ -1,7 +1,7 @@
 ---
 title: "Commission: Review: Token-efficient git tools — Phases 1 & 2"
 date: 2026-03-31
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-31T02:57:20.986Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-31T03:02:26.325Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---

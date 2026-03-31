@@ -1,7 +1,7 @@
 ---
 title: "Commission: Build: Token-efficient git tools — Phase 4"
 date: 2026-03-31
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -15,6 +15,11 @@ activity_timeline:
   - timestamp: 2026-03-31T02:57:40.799Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-03-31T03:02:26.323Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---
