@@ -1,7 +1,7 @@
 ---
 title: "Collapsible metadata sidebar for artifacts and meetings"
 date: 2026-03-31
-status: draft
+status: approved
 tags: [ui, layout, css, sidebar, artifacts, meetings]
 modules: [web/components/artifact/ArtifactDetailLayout, web/components/meeting/MeetingView, web/app/projects]
 related:
