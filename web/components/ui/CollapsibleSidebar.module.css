@@ -1,0 +1,69 @@
+.wrapper {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width 200ms ease;
+  position: relative;
+}
+
+.collapsed {
+  width: 0;
+  overflow: hidden;
+}
+
+.collapseButton {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  background: none;
+  border: 1px solid var(--color-brass);
+  border-radius: 4px;
+  color: var(--color-brass);
+  cursor: pointer;
+  font-size: 0.6rem;
+  line-height: 1;
+  padding: 4px 6px;
+  transition: color 0.2s, border-color 0.2s;
+  z-index: 1;
+}
+
+.collapseButton:hover {
+  color: var(--color-amber);
+  border-color: var(--color-amber);
+}
+
+.expandTab {
+  flex-shrink: 0;
+  writing-mode: vertical-rl;
+  background: var(--color-panel-bg);
+  border: 1px solid rgba(184, 134, 11, 0.3);
+  border-radius: 4px 0 0 4px;
+  color: var(--color-brass);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  padding: var(--space-sm) var(--space-xs);
+  transition: color 0.2s, border-color 0.2s;
+  align-self: flex-start;
+}
+
+.expandTab:hover {
+  color: var(--color-amber);
+  border-color: var(--color-amber);
+}
+
+.expandLabel {
+  margin-top: var(--space-xs);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}

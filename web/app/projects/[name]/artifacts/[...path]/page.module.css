@@ -23,10 +23,8 @@
   overflow-y: auto;
 }
 
-.sidebar {
-  width: 280px;
-  flex-shrink: 0;
-  overflow-y: auto;
+.desktopSidebar {
+  /* CollapsibleSidebar handles width, overflow, and collapse */
 }
 
 .mobileSidebar {
@@ -52,7 +50,7 @@
 }
 
 @media (max-width: 768px) {
-  .sidebar {
+  .desktopSidebar {
     display: none;
   }
 

@@ -43,6 +43,7 @@
 .artifactActions {
   display: flex;
   justify-content: flex-start;
+  gap: 0 var(--space-sm)
 }
 
 /* --- Responsive --- */

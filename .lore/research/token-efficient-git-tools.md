@@ -1,7 +1,7 @@
 ---
 title: "Token-Efficient Git Tool Output: Industry Landscape"
 date: 2026-03-29
-status: open
+status: resolved 
 tags: [git, tokens, mcp-tools, toolbox, performance]
 related:
   - .lore/brainstorm/improve-token-perf-git-tools.md

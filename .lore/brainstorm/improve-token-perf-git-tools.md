@@ -1,7 +1,7 @@
 ---
 title: "Improve token performance of git-readonly tools"
 date: 2026-03-29
-status: open
+status: resolved
 tags: [git, performance, toolbox, tokens, mcp-tools]
 modules: [git-readonly-toolbox]
 related:
