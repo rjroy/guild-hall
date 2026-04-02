@@ -1,6 +1,6 @@
 ---
 title: Project List Management
-status: approved
+status: resolved
 date: 2026-03-31
 related:
   - .lore/issues/project-list-mgmt.md
