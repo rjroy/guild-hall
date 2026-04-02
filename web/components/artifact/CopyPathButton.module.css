@@ -21,6 +21,6 @@
 /* Confirmed state: brief green flash to signal success */
 .copyButton[aria-label="Path copied"] {
   background-color: rgba(76, 148, 76, 0.2);
-  border-color: #4c944c;
-  color: #8bc88b;
+  border-color: var(--color-success);
+  color: var(--color-success-light);
 }

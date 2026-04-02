@@ -71,8 +71,8 @@
 
 .stopButton {
   background-color: rgba(224, 96, 96, 0.15);
-  border: 1px solid #e06060;
-  color: #e06060;
+  border: 1px solid var(--color-error-light);
+  color: var(--color-error-light);
 }
 
 .stopButton:hover {

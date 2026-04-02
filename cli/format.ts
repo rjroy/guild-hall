@@ -233,14 +233,16 @@ function levenshtein(a: string, b: string): number {
 }
 
 /**
- * Extracts --json and --tty flags from argv, returning cleaned segments
- * and the format options.
+ * Extracts --json and --tty flags from argv, returning cleaned segments,
+ * the format options, and any additional boolean flags (e.g. --clean → { clean: true }).
  */
 export function extractFlags(argv: string[]): {
   segments: string[];
   options: FormatOptions;
+  flags: Record<string, boolean>;
 } {
   const options: FormatOptions = { json: false, tty: false };
+  const flags: Record<string, boolean> = {};
   const segments: string[] = [];
 
   for (const arg of argv) {
@@ -248,10 +250,12 @@ export function extractFlags(argv: string[]): {
       options.json = true;
     } else if (arg === "--tty") {
       options.tty = true;
+    } else if (arg.startsWith("--")) {
+      flags[arg.slice(2)] = true;
     } else {
       segments.push(arg);
     }
   }
 
-  return { segments, options };
+  return { segments, options, flags };
 }

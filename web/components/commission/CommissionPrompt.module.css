@@ -189,5 +189,5 @@
 
 .error {
   font-size: 0.8rem;
-  color: #c44;
+  color: var(--color-error);
 }

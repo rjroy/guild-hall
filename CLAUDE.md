@@ -88,6 +88,8 @@ bun run guild-hall sync [project-name]     # post-merge sync
 
 `web/app/globals.css` defines design tokens. Styling uses CSS Modules, not Tailwind.
 
+**No raw color values in CSS Modules.** All colors must use `var(--color-*)` tokens from `globals.css`. If a new color is needed, add a token there first. Never use hex, rgb, or hsl literals in `.module.css` files.
+
 ## Documentation Map
 
 | Directory | Consult when... |

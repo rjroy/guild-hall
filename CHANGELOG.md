@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Project grouping:** Projects can be organized into named groups via a new `group` field in `config.yaml`. Two new CLI commands: `guild-hall system config project group <name> <group>` to assign a group and `guild-hall system config project deregister <name> [--clean]` to remove a project (with optional worktree cleanup). The `register` command accepts an optional third positional argument for group. The sidebar renders collapsible group sections (collapse state persisted per browser session) with an A→Z/Z→A sort toggle. The "All Projects" dashboard view shows projects organized into collapsible group sub-sections. The `"ungrouped"` group always sorts last.
+
 ## [1.1.0] - 2026-03-20
 
 ### Added

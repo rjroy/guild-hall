@@ -12,6 +12,7 @@ export interface ProjectConfig {
   commissionCap?: number;
   defaultBranch?: string;
   memoryLimit?: number;
+  group?: string;
 }
 
 export function projectDisplayTitle(project: ProjectConfig): string {

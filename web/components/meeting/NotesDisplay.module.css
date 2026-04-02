@@ -70,7 +70,7 @@
 }
 
 .notes strong {
-  color: var(--color-text-bright, #e8e0d0);
+  color: var(--color-text-bright);
 }
 
 .notes code {

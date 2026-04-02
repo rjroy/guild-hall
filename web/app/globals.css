@@ -80,6 +80,13 @@
   --color-status-info: #6a95f8;
   --color-status-inactive: #6A6A6A;
 
+  /* Semantic colors */
+  --color-error: hsl(0, 60%, 52%);
+  --color-error-light: hsl(0, 65%, 63%);
+  --color-success: hsl(100, 32%, 44%);
+  --color-success-light: hsl(120, 35%, 66%);
+  --color-text-placeholder: hsl(12, 35%, 60%);
+  --color-text-bright: hsl(38, 41%, 90%);
 
   /* Breakpoints (reference only -- CSS custom properties
      cannot be used in @media conditions) */

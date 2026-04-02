@@ -151,11 +151,11 @@
 }
 
 .status_completed {
-  color: var(--color-success, #6b8e23);
+  color: var(--color-success);
 }
 
 .status_failed {
-  color: var(--color-error, #c44);
+  color: var(--color-error);
 }
 
 .status_in_progress {

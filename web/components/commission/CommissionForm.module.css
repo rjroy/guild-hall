@@ -70,7 +70,7 @@
 }
 
 .select option {
-  background-color: #1a1412;
+  background-color: var(--color-dark-bg);
   color: var(--color-text);
 }
 
@@ -206,7 +206,7 @@
 }
 
 .removeButton:hover {
-  color: #c87a6a;
+  color: var(--color-text-placeholder);
 }
 
 .addPatternButton {
@@ -379,7 +379,7 @@
 /* Error display */
 
 .errorMessage {
-  color: #c87a6a;
+  color: var(--color-text-placeholder);
   font-size: 0.9rem;
   margin: 0;
 }

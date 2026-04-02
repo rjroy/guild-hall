@@ -111,17 +111,27 @@ export function buildQueryString(
 
 /**
  * Builds a JSON body from positional args mapped to POST parameters.
+ * Optional extraFields are merged in (e.g. boolean flags like --clean → { clean: true }).
  */
 export function buildBody(
   skill: CliOperation,
   positionalArgs: string[],
+  extraFields?: Record<string, unknown>,
 ): string | undefined {
   const params = (skill.parameters ?? []).filter((p) => p.in === "body");
-  if (params.length === 0 && positionalArgs.length === 0) return undefined;
+  if (params.length === 0 && positionalArgs.length === 0 && (!extraFields || Object.keys(extraFields).length === 0)) return undefined;
 
-  const body: Record<string, string> = {};
+  const body: Record<string, unknown> = {};
   for (let i = 0; i < params.length && i < positionalArgs.length; i++) {
     body[params[i].name] = positionalArgs[i];
+  }
+
+  if (extraFields) {
+    for (const [key, value] of Object.entries(extraFields)) {
+      if (!(key in body)) {
+        body[key] = value;
+      }
+    }
   }
 
   return JSON.stringify(body);
