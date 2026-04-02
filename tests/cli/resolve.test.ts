@@ -53,6 +53,24 @@ describe("resolveCommand", () => {
       invocation: { method: "POST", path: "/commission/run/dispatch" },
       parameters: [{ name: "commissionId", required: true, in: "body" }],
     }),
+    makeOperation({
+      operationId: "system.config.project.group",
+      name: "group",
+      invocation: { method: "POST", path: "/system/config/project/group" },
+      parameters: [
+        { name: "name", required: true, in: "body" },
+        { name: "group", required: true, in: "body" },
+      ],
+    }),
+    makeOperation({
+      operationId: "system.config.project.deregister",
+      name: "deregister",
+      invocation: { method: "POST", path: "/system/config/project/deregister" },
+      parameters: [
+        { name: "name", required: true, in: "body" },
+        { name: "clean", required: false, in: "body" },
+      ],
+    }),
   ];
 
   test("empty segments returns help", () => {
@@ -194,6 +212,32 @@ describe("resolveCommand", () => {
       expect(result.command.positionalArgs).toEqual(["abc123"]);
     }
   });
+
+  // p3-group-cmd: routing for group command
+  test("routes 'system config project group <name> <group>' correctly", () => {
+    const result = resolveCommand(
+      ["system", "config", "project", "group", "my-project", "my-team"],
+      skills,
+    );
+    expect(result.type).toBe("command");
+    if (result.type === "command") {
+      expect(result.command.operation.operationId).toBe("system.config.project.group");
+      expect(result.command.positionalArgs).toEqual(["my-project", "my-team"]);
+    }
+  });
+
+  // p3-deregister-cmd: routing for deregister command (--clean already stripped by extractFlags)
+  test("routes 'system config project deregister <name>' correctly", () => {
+    const result = resolveCommand(
+      ["system", "config", "project", "deregister", "my-project"],
+      skills,
+    );
+    expect(result.type).toBe("command");
+    if (result.type === "command") {
+      expect(result.command.operation.operationId).toBe("system.config.project.deregister");
+      expect(result.command.positionalArgs).toEqual(["my-project"]);
+    }
+  });
 });
 
 describe("buildQueryString", () => {
@@ -288,6 +332,89 @@ describe("buildBody", () => {
     const body = buildBody(skill, ["qval", "bval"]);
     // Only body params are included, and args map to body params only
     expect(JSON.parse(body!)).toEqual({ b: "qval" });
+  });
+
+  // p3-register-group: optional third positional arg maps to group
+  test("register with 3 positional args maps name, path, group", () => {
+    const skill = makeOperation({
+      invocation: { method: "POST", path: "/system/config/project/register" },
+      parameters: [
+        { name: "name", required: true, in: "body" },
+        { name: "path", required: true, in: "body" },
+        { name: "group", required: false, in: "body" },
+      ],
+    });
+    const body = buildBody(skill, ["my-project", "/resolved/path", "my-team"]);
+    expect(JSON.parse(body!)).toEqual({
+      name: "my-project",
+      path: "/resolved/path",
+      group: "my-team",
+    });
+  });
+
+  // p3-register-group: without third arg, group is absent from body
+  test("register with 2 positional args omits group", () => {
+    const skill = makeOperation({
+      invocation: { method: "POST", path: "/system/config/project/register" },
+      parameters: [
+        { name: "name", required: true, in: "body" },
+        { name: "path", required: true, in: "body" },
+        { name: "group", required: false, in: "body" },
+      ],
+    });
+    const body = buildBody(skill, ["my-project", "/resolved/path"]);
+    expect(JSON.parse(body!)).toEqual({
+      name: "my-project",
+      path: "/resolved/path",
+    });
+  });
+
+  // p3-group-cmd: group command maps name and group
+  test("group command maps name and new-group positional args", () => {
+    const skill = makeOperation({
+      invocation: { method: "POST", path: "/system/config/project/group" },
+      parameters: [
+        { name: "name", required: true, in: "body" },
+        { name: "group", required: true, in: "body" },
+      ],
+    });
+    const body = buildBody(skill, ["my-project", "my-team"]);
+    expect(JSON.parse(body!)).toEqual({ name: "my-project", group: "my-team" });
+  });
+
+  // p3-deregister-cmd: deregister without --clean has no clean field
+  test("deregister without extraFields omits clean from body", () => {
+    const skill = makeOperation({
+      invocation: { method: "POST", path: "/system/config/project/deregister" },
+      parameters: [
+        { name: "name", required: true, in: "body" },
+        { name: "clean", required: false, in: "body" },
+      ],
+    });
+    const body = buildBody(skill, ["my-project"]);
+    expect(JSON.parse(body!)).toEqual({ name: "my-project" });
+  });
+
+  // p3-deregister-cmd: deregister with --clean flag → clean: true in body
+  test("deregister with extraFields { clean: true } sets clean boolean", () => {
+    const skill = makeOperation({
+      invocation: { method: "POST", path: "/system/config/project/deregister" },
+      parameters: [
+        { name: "name", required: true, in: "body" },
+        { name: "clean", required: false, in: "body" },
+      ],
+    });
+    const body = buildBody(skill, ["my-project"], { clean: true });
+    expect(JSON.parse(body!)).toEqual({ name: "my-project", clean: true });
+  });
+
+  // extraFields do not override positional args
+  test("extraFields do not overwrite positionally-mapped params", () => {
+    const skill = makeOperation({
+      parameters: [{ name: "name", required: true, in: "body" }],
+    });
+    const body = buildBody(skill, ["explicit-name"], { name: "should-not-win" });
+    expect(JSON.parse(body!)).toEqual({ name: "explicit-name" });
   });
 });
 

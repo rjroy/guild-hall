@@ -161,7 +161,7 @@
 .confirmYes {
   background-color: rgba(180, 60, 60, 0.2);
   border: 1px solid rgba(180, 60, 60, 0.4);
-  color: #e88;
+  color: var(--color-error-light);
 }
 
 .confirmYes:hover:not(:disabled) {
@@ -202,6 +202,6 @@
 
 .error {
   font-size: 0.8rem;
-  color: #c44;
+  color: var(--color-error);
   margin: 0;
 }

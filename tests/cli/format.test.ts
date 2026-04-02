@@ -236,4 +236,25 @@ describe("extractFlags", () => {
     expect(options.json).toBe(false);
     expect(options.tty).toBe(false);
   });
+
+  // p3-deregister-cmd: --clean becomes a boolean flag, not a positional arg
+  test("--clean is captured as a boolean flag and removed from segments", () => {
+    const { segments, options, flags } = extractFlags([
+      "system", "config", "project", "deregister", "my-project", "--clean",
+    ]);
+    expect(segments).toEqual(["system", "config", "project", "deregister", "my-project"]);
+    expect(options.json).toBe(false);
+    expect(flags).toEqual({ clean: true });
+  });
+
+  test("unknown boolean flags are collected without affecting segments", () => {
+    const { segments, flags } = extractFlags(["some", "--dry-run", "command"]);
+    expect(segments).toEqual(["some", "command"]);
+    expect(flags).toEqual({ "dry-run": true });
+  });
+
+  test("no flags returns empty flags record", () => {
+    const { flags } = extractFlags(["system", "runtime"]);
+    expect(flags).toEqual({});
+  });
 });

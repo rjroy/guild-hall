@@ -217,7 +217,7 @@
 
 .error {
   font-size: 0.8rem;
-  color: #d4534b;
+  color: var(--color-error);
   margin: 0;
 }
 

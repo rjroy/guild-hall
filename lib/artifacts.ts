@@ -272,8 +272,13 @@ export async function recentArtifacts(
   limit: number
 ): Promise<Artifact[]> {
   const all = await scanArtifacts(lorePath);
-  all.sort(compareArtifactsByRecency);
-  return all.slice(0, limit);
+  const filtered = all.filter(
+    (a) =>
+      !a.relativePath.startsWith("commissions/") &&
+      !a.relativePath.startsWith("meetings/")
+  );
+  filtered.sort(compareArtifactsByRecency);
+  return filtered.slice(0, limit);
 }
 
 // -- Internal helpers --

@@ -18,6 +18,7 @@ export const projectConfigSchema = z.object({
   commissionCap: z.number().optional(),
   defaultBranch: z.string().optional(),
   memoryLimit: z.number().optional(),
+  group: z.string().optional(),
 });
 
 const modelAuthSchema = z.object({
@@ -190,6 +191,13 @@ export async function readConfig(
       .map((i) => `  ${i.path.join(".")}: ${i.message}`)
       .join("\n");
     throw new Error(`Config validation failed in ${filePath}:\n${issues}`);
+  }
+
+  // Normalize group: absent/empty → "ungrouped"
+  for (const project of result.data.projects) {
+    if (!project.group || !project.group.trim()) {
+      project.group = "ungrouped";
+    }
   }
 
   return result.data as AppConfig;

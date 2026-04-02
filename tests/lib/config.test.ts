@@ -836,3 +836,87 @@ describe("SYSTEM_EVENT_TYPES sync", () => {
     expect(SYSTEM_EVENT_TYPES.length as number).toBe(knownEventTypes.length);
   });
 });
+
+describe("group normalization in readConfig", () => {
+  test("missing group field is normalized to 'ungrouped'", async () => {
+    const yaml = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+`;
+    await fs.writeFile(configPath(), yaml, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.projects[0].group).toBe("ungrouped");
+  });
+
+  test("empty string group is normalized to 'ungrouped'", async () => {
+    const yaml = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+    group: ""
+`;
+    await fs.writeFile(configPath(), yaml, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.projects[0].group).toBe("ungrouped");
+  });
+
+  test("whitespace-only group is normalized to 'ungrouped'", async () => {
+    const yaml = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+    group: "   "
+`;
+    await fs.writeFile(configPath(), yaml, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.projects[0].group).toBe("ungrouped");
+  });
+
+  test("explicit group value passes through unchanged", async () => {
+    const yaml = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+    group: backend
+`;
+    await fs.writeFile(configPath(), yaml, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.projects[0].group).toBe("backend");
+  });
+
+  test("mixed projects: some with group, some without", async () => {
+    const yaml = `
+projects:
+  - name: project-a
+    path: /home/user/a
+    group: frontend
+  - name: project-b
+    path: /home/user/b
+  - name: project-c
+    path: /home/user/c
+    group: backend
+  - name: project-d
+    path: /home/user/d
+    group: ""
+`;
+    await fs.writeFile(configPath(), yaml, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.projects[0].group).toBe("frontend");
+    expect(config.projects[1].group).toBe("ungrouped");
+    expect(config.projects[2].group).toBe("backend");
+    expect(config.projects[3].group).toBe("ungrouped");
+  });
+
+  test("group 'Ungrouped' with capital U passes through unchanged", async () => {
+    const yaml = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+    group: Ungrouped
+`;
+    await fs.writeFile(configPath(), yaml, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.projects[0].group).toBe("Ungrouped");
+  });
+});

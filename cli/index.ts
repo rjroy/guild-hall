@@ -68,7 +68,7 @@ async function readStdin(): Promise<string> {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const { segments, options } = extractFlags(argv);
+  const { segments, options, flags } = extractFlags(argv);
   const jsonMode = shouldOutputJson(options);
 
   // Special case: migrate-content is a local command, not a daemon skill
@@ -164,7 +164,7 @@ async function main(): Promise<void> {
 
       // Streaming skills use SSE
       if (skill.streaming) {
-        const body = buildBody(skill, finalArgs);
+        const body = buildBody(skill, finalArgs, flags);
         await streamOperation(skill.invocation.path, body);
         return;
       }
@@ -177,7 +177,7 @@ async function main(): Promise<void> {
 
       const result = await daemonFetch(requestPath, {
         method: skill.invocation.method,
-        body: isGet ? undefined : buildBody(skill, finalArgs),
+        body: isGet ? undefined : buildBody(skill, finalArgs, flags),
       });
 
       if (isDaemonError(result)) {

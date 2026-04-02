@@ -498,3 +498,294 @@ describe("POST /workspace/git/integration/sync", () => {
     expect(body.error).toContain("not found");
   });
 });
+
+// -- Tests for Phase 2: group, deregister, register with group --
+
+describe("POST /system/config/project/register with group", () => {
+  let tmpDir: string;
+  let ghHome: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-admin-reg2-"));
+    ghHome = path.join(tmpDir, "guild-hall");
+    await fs.mkdir(ghHome, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  test("stores group when provided", async () => {
+    const projectDir = path.join(tmpDir, "my-project");
+    await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
+    await fs.mkdir(path.join(projectDir, ".lore"), { recursive: true });
+
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [] }, configPath);
+
+    const config: AppConfig = { projects: [] };
+    const deps = makeAdminDeps({ guildHallHome: ghHome, config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "my-project", path: projectDir, group: "backend" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.registered).toBe(true);
+    expect(body.group).toBe("backend");
+    expect(config.projects[0].group).toBe("backend");
+  });
+
+  test("omits group when not provided", async () => {
+    const projectDir = path.join(tmpDir, "no-group");
+    await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
+    await fs.mkdir(path.join(projectDir, ".lore"), { recursive: true });
+
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [] }, configPath);
+
+    const config: AppConfig = { projects: [] };
+    const deps = makeAdminDeps({ guildHallHome: ghHome, config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "no-group", path: projectDir }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.registered).toBe(true);
+    expect("group" in body).toBe(false);
+    expect("group" in config.projects[0]).toBe(false);
+  });
+});
+
+describe("POST /system/config/project/group", () => {
+  let tmpDir: string;
+  let ghHome: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-admin-grp-"));
+    ghHome = path.join(tmpDir, "guild-hall");
+    await fs.mkdir(ghHome, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  test("updates group in memory and on disk", async () => {
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [{ name: "proj", path: "/proj" }] }, configPath);
+
+    const config: AppConfig = { projects: [{ name: "proj", path: "/proj" }] };
+    const deps = makeAdminDeps({ guildHallHome: ghHome, config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/group", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "proj", group: "frontend" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.updated).toBe(true);
+    expect(body.name).toBe("proj");
+    expect(body.group).toBe("frontend");
+    expect(config.projects[0].group).toBe("frontend");
+  });
+
+  test("returns 404 when project not found", async () => {
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [] }, configPath);
+
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/group", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "ghost", group: "nowhere" }),
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  test("returns 400 when name is missing", async () => {
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/group", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ group: "backend" }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("returns 400 when group is missing", async () => {
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/group", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "proj" }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /system/config/project/deregister", () => {
+  let tmpDir: string;
+  let ghHome: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-admin-dereg-"));
+    ghHome = path.join(tmpDir, "guild-hall");
+    await fs.mkdir(ghHome, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  test("removes project from config and memory", async () => {
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [{ name: "proj", path: "/proj" }] }, configPath);
+
+    const config: AppConfig = { projects: [{ name: "proj", path: "/proj" }] };
+    const deps = makeAdminDeps({
+      guildHallHome: ghHome,
+      config,
+      hasActiveActivities: () => Promise.resolve(false),
+    });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/deregister", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "proj" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.deregistered).toBe(true);
+    expect(body.name).toBe("proj");
+    expect(config.projects).toHaveLength(0);
+  });
+
+  test("returns 404 when project not found", async () => {
+    const deps = makeAdminDeps({
+      guildHallHome: ghHome,
+      hasActiveActivities: () => Promise.resolve(false),
+    });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/deregister", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "ghost" }),
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  test("returns 409 when project has active activities", async () => {
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [{ name: "busy", path: "/busy" }] }, configPath);
+
+    const config: AppConfig = { projects: [{ name: "busy", path: "/busy" }] };
+    const deps = makeAdminDeps({
+      guildHallHome: ghHome,
+      config,
+      hasActiveActivities: () => Promise.resolve(true),
+    });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/deregister", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "busy" }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toContain("active activities");
+  });
+
+  test("clean flag attempts filesystem cleanup", async () => {
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [{ name: "cleanme", path: "/cleanme" }] }, configPath);
+
+    const config: AppConfig = { projects: [{ name: "cleanme", path: "/cleanme" }] };
+
+    // Create fake integration worktree directory
+    const integrationPath = path.join(ghHome, "projects", "cleanme");
+    await fs.mkdir(integrationPath, { recursive: true });
+    await fs.writeFile(path.join(integrationPath, "marker.txt"), "test");
+
+    // Create fake activity worktrees directory
+    const worktreeRoot = path.join(ghHome, "worktrees", "cleanme");
+    await fs.mkdir(worktreeRoot, { recursive: true });
+
+    const deps = makeAdminDeps({
+      guildHallHome: ghHome,
+      config,
+      hasActiveActivities: () => Promise.resolve(false),
+    });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/deregister", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "cleanme", clean: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.deregistered).toBe(true);
+    expect(Array.isArray(body.cleaned)).toBe(true);
+    expect(Array.isArray(body.failedCleanup)).toBe(true);
+
+    // Both directories should have been removed (or attempted)
+    // Integration path may fail git worktree remove (not a real worktree) but rm should succeed
+    const integrationExists = await fs.stat(integrationPath).then(() => true).catch(() => false);
+    expect(integrationExists).toBe(false);
+  });
+
+  test("clean flag is non-fatal on cleanup failure", async () => {
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [{ name: "proj", path: "/proj" }] }, configPath);
+
+    const config: AppConfig = { projects: [{ name: "proj", path: "/proj" }] };
+    const deps = makeAdminDeps({
+      guildHallHome: ghHome,
+      config,
+      hasActiveActivities: () => Promise.resolve(false),
+    });
+    const app = makeTestApp(deps);
+
+    // clean:true but no dirs exist — rm with force: true will succeed silently
+    const res = await app.request("/system/config/project/deregister", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "proj", clean: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.deregistered).toBe(true);
+    // Config removal is authoritative regardless of cleanup
+    expect(config.projects).toHaveLength(0);
+  });
+});

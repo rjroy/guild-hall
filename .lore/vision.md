@@ -2,7 +2,7 @@
 title: Guild Hall Vision
 date: 2026-03-22
 version: 3
-status: approved
+status: active
 last_reviewed: 2026-03-22
 approved_by: Ronald Roy
 approved_date: 2026-03-22

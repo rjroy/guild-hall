@@ -217,7 +217,7 @@
 }
 
 .errorMessage {
-  color: #c87a6a;
+  color: var(--color-text-placeholder);
   font-size: 0.9rem;
   text-align: center;
   padding: var(--space-md);

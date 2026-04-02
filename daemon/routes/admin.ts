@@ -4,12 +4,13 @@ import { Hono } from "hono";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
-import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
+import { CLAUDE_BRANCH, cleanGitEnv, type GitOps } from "@/daemon/lib/git";
 import { integrationWorktreePath, activityWorktreeRoot } from "@/lib/paths";
 import { readConfig, writeConfig } from "@/lib/config";
 import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import {
   syncProject as syncProjectDefault,
+  hasActiveActivities as hasActiveActivitiesDefault,
   rebaseAll,
   syncAll,
 } from "@/daemon/services/git-admin";
@@ -29,6 +30,8 @@ export interface AdminDeps {
     gitOps?: GitOps,
     defaultBranch?: string,
   ) => Promise<unknown>;
+  /** Optional DI override for hasActiveActivities (for testability). */
+  hasActiveActivities?: (ghHome: string, projectName: string) => Promise<boolean>;
 }
 
 /**
@@ -44,6 +47,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
   const log = deps.log ?? nullLog("admin");
   const routes = new Hono();
   const doSyncProject = deps.syncProject ?? syncProjectDefault;
+  const doHasActiveActivities = deps.hasActiveActivities ?? hasActiveActivitiesDefault;
 
   routes.post("/system/config/application/reload", async (c) => {
     const freshConfig = await deps.readConfigFromDisk();
@@ -103,7 +107,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
   // Owns the full registration sequence: validate, git setup, config write, reload.
   routes.post("/system/config/project/register", async (c) => {
     try {
-      const body: { name?: string; path?: string } = await c.req.json();
+      const body: { name?: string; path?: string; group?: string } = await c.req.json();
 
       if (!body.name || !body.path) {
         return c.json({ error: "name and path are required" }, 400);
@@ -159,11 +163,11 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       // Write to config.yaml on disk
       const configPath = path.join(deps.guildHallHome, "config.yaml");
       const diskConfig = await readConfig(configPath);
-      diskConfig.projects.push({ name, path: resolved, defaultBranch });
+      diskConfig.projects.push({ name, path: resolved, defaultBranch, ...(body.group ? { group: body.group } : {}) });
       await writeConfig(diskConfig, configPath);
 
       // Update the in-memory config so all daemon references see the new project
-      deps.config.projects.push({ name, path: resolved, defaultBranch });
+      deps.config.projects.push({ name, path: resolved, defaultBranch, ...(body.group ? { group: body.group } : {}) });
 
       log.info(`Registered project '${name}' at ${resolved}`);
 
@@ -172,9 +176,125 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
         name,
         path: resolved,
         defaultBranch,
+        ...(body.group ? { group: body.group } : {}),
       });
     } catch (err: unknown) {
       log.error("register-project failed:", errorMessage(err));
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  // -- POST /system/config/project/group --
+  // Sets (or updates) the group field for a registered project.
+  routes.post("/system/config/project/group", async (c) => {
+    try {
+      const body: { name?: string; group?: string } = await c.req.json();
+
+      if (!body.name || !body.group) {
+        return c.json({ error: "name and group are required" }, 400);
+      }
+
+      const { name, group } = body;
+
+      const memIdx = deps.config.projects.findIndex((p) => p.name === name);
+      if (memIdx === -1) {
+        return c.json({ error: `project '${name}' not found` }, 404);
+      }
+
+      const configPath = path.join(deps.guildHallHome, "config.yaml");
+      const diskConfig = await readConfig(configPath);
+      const diskIdx = diskConfig.projects.findIndex((p) => p.name === name);
+      if (diskIdx !== -1) {
+        diskConfig.projects[diskIdx].group = group;
+      }
+      await writeConfig(diskConfig, configPath);
+
+      deps.config.projects[memIdx].group = group;
+
+      return c.json({ updated: true, name, group });
+    } catch (err: unknown) {
+      log.error("group-project failed:", errorMessage(err));
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
+  // -- POST /system/config/project/deregister --
+  // Removes a project from config and optionally cleans filesystem artifacts.
+  routes.post("/system/config/project/deregister", async (c) => {
+    try {
+      const body: { name?: string; clean?: boolean } = await c.req.json();
+
+      if (!body.name) {
+        return c.json({ error: "name is required" }, 400);
+      }
+
+      const name = body.name;
+
+      const memIdx = deps.config.projects.findIndex((p) => p.name === name);
+      if (memIdx === -1) {
+        return c.json({ error: `project '${name}' not found` }, 404);
+      }
+
+      const active = await doHasActiveActivities(deps.guildHallHome, name);
+      if (active) {
+        return c.json(
+          { error: `project '${name}' has active activities; stop them before deregistering` },
+          409,
+        );
+      }
+
+      // Remove from disk config
+      const configPath = path.join(deps.guildHallHome, "config.yaml");
+      const diskConfig = await readConfig(configPath);
+      const diskIdx = diskConfig.projects.findIndex((p) => p.name === name);
+      if (diskIdx !== -1) {
+        diskConfig.projects.splice(diskIdx, 1);
+      }
+      await writeConfig(diskConfig, configPath);
+
+      // Remove from in-memory config
+      deps.config.projects.splice(memIdx, 1);
+
+      const cleaned: string[] = [];
+      const failedCleanup: string[] = [];
+
+      if (body.clean) {
+        const integrationPath = integrationWorktreePath(deps.guildHallHome, name);
+        const worktreeRoot = activityWorktreeRoot(deps.guildHallHome, name);
+
+        // Try git worktree remove, then rm for integration worktree
+        try {
+          const proc = Bun.spawn(["git", "worktree", "remove", "--force", integrationPath], {
+            cwd: deps.guildHallHome,
+            stdout: "pipe",
+            stderr: "pipe",
+            env: cleanGitEnv(),
+          });
+          await proc.exited;
+        } catch {
+          // Non-fatal — proceed to rm
+        }
+        try {
+          await fs.rm(integrationPath, { recursive: true, force: true });
+          cleaned.push(integrationPath);
+        } catch {
+          failedCleanup.push(integrationPath);
+        }
+
+        // Remove activity worktrees root
+        try {
+          await fs.rm(worktreeRoot, { recursive: true, force: true });
+          cleaned.push(worktreeRoot);
+        } catch {
+          failedCleanup.push(worktreeRoot);
+        }
+      }
+
+      log.info(`Deregistered project '${name}'`);
+
+      return c.json({ deregistered: true, name, cleaned, failedCleanup });
+    } catch (err: unknown) {
+      log.error("deregister-project failed:", errorMessage(err));
       return c.json({ error: errorMessage(err) }, 500);
     }
   });
@@ -301,7 +421,11 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
 
       idempotent: false,
       hierarchy: { root: "system", feature: "config", object: "project" },
-      parameters: [{ name: "name", required: true, in: "body" as const }, { name: "path", required: true, in: "body" as const }],
+      parameters: [
+        { name: "name", required: true, in: "body" as const },
+        { name: "path", required: true, in: "body" as const },
+        { name: "group", required: false, in: "body" as const },
+      ],
     },
     {
       operationId: "system.config.application.validate",
@@ -314,6 +438,36 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
 
       idempotent: true,
       hierarchy: { root: "system", feature: "config", object: "application" },
+    },
+    {
+      operationId: "system.config.project.group",
+      version: "1",
+      name: "group",
+      description: "Set a project's group",
+      invocation: { method: "POST", path: "/system/config/project/group" },
+      sideEffects: "Updates group field in config.yaml and in-memory config",
+      context: {},
+      idempotent: true,
+      hierarchy: { root: "system", feature: "config", object: "project" },
+      parameters: [
+        { name: "name", required: true, in: "body" as const },
+        { name: "group", required: true, in: "body" as const },
+      ],
+    },
+    {
+      operationId: "system.config.project.deregister",
+      version: "1",
+      name: "deregister",
+      description: "Deregister a project from guild-hall",
+      invocation: { method: "POST", path: "/system/config/project/deregister" },
+      sideEffects: "Removes project from config.yaml, in-memory config, and optionally filesystem artifacts",
+      context: {},
+      idempotent: false,
+      hierarchy: { root: "system", feature: "config", object: "project" },
+      parameters: [
+        { name: "name", required: true, in: "body" as const },
+        { name: "clean", required: false, in: "body" as const },
+      ],
     },
     {
       operationId: "workspace.git.branch.rebase",

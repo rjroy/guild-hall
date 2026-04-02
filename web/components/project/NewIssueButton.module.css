@@ -43,7 +43,7 @@
   background-color: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(184, 134, 11, 0.4);
   border-radius: 4px;
-  color: var(--color-parchment, #e8d5b0);
+  color: var(--color-parchment);
 }
 
 .titleInput:focus {
@@ -59,7 +59,7 @@
   background-color: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(184, 134, 11, 0.4);
   border-radius: 4px;
-  color: var(--color-parchment, #e8d5b0);
+  color: var(--color-parchment);
   resize: vertical;
 }
 
@@ -70,7 +70,7 @@
 
 .validationError {
   font-size: 0.8rem;
-  color: #c97070;
+  color: var(--color-error);
 }
 
 .formActions {
@@ -118,5 +118,5 @@
 
 .resultError {
   font-size: 0.85rem;
-  color: #c97070;
+  color: var(--color-error);
 }

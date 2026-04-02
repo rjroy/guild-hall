@@ -362,6 +362,40 @@ describe("recentArtifacts", () => {
     );
     expect(recent).toEqual([]);
   });
+
+  test("excludes artifacts under commissions/", async () => {
+    await writeTestArtifact("specs/system.md", "title: System Spec", "Body");
+    await writeTestArtifact("commissions/some-commission.md", "title: Some Commission", "Body");
+
+    const recent = await recentArtifacts(tmpDir, 10);
+    const titles = recent.map((a) => a.meta.title);
+    expect(titles).toContain("System Spec");
+    expect(titles).not.toContain("Some Commission");
+  });
+
+  test("excludes artifacts under meetings/", async () => {
+    await writeTestArtifact("plans/roadmap.md", "title: Roadmap", "Body");
+    await writeTestArtifact("meetings/some-meeting.md", "title: Some Meeting", "Body");
+
+    const recent = await recentArtifacts(tmpDir, 10);
+    const titles = recent.map((a) => a.meta.title);
+    expect(titles).toContain("Roadmap");
+    expect(titles).not.toContain("Some Meeting");
+  });
+
+  test("includes artifacts from other subdirectories", async () => {
+    await writeTestArtifact("specs/spec.md", "title: A Spec", "Body");
+    await writeTestArtifact("plans/plan.md", "title: A Plan", "Body");
+    await writeTestArtifact("commissions/c.md", "title: A Commission", "Body");
+    await writeTestArtifact("meetings/m.md", "title: A Meeting", "Body");
+
+    const recent = await recentArtifacts(tmpDir, 10);
+    const titles = recent.map((a) => a.meta.title);
+    expect(titles).toContain("A Spec");
+    expect(titles).toContain("A Plan");
+    expect(titles).not.toContain("A Commission");
+    expect(titles).not.toContain("A Meeting");
+  });
 });
 
 describe("date parsing in frontmatter", () => {

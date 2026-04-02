@@ -13,6 +13,8 @@
   line-height: 1.6;
   white-space: pre-line;
   margin: 0;
+  max-height: 150px;
+  overflow-y: auto;
   padding: 0 var(--space-xs);
   overflow-wrap: break-word;
   word-break: break-word;
