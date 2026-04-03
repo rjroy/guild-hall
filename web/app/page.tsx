@@ -4,6 +4,7 @@ import WorkspaceSidebar from "@/web/components/dashboard/WorkspaceSidebar";
 import ManagerBriefing from "@/web/components/dashboard/ManagerBriefing";
 import InFlight from "@/web/components/dashboard/DependencyMap";
 import RecentArtifacts from "@/web/components/dashboard/RecentArtifacts";
+import ActiveMeetings from "@/web/components/dashboard/ActiveMeetings";
 import PendingAudiences from "@/web/components/dashboard/PendingAudiences";
 import DaemonError from "@/web/components/ui/DaemonError";
 import styles from "./page.module.css";
@@ -55,7 +56,7 @@ export default async function DashboardPage({
   }
 
   // Fetch commissions and meeting requests for all projects in parallel
-  const [commissionResults, meetingResults, workersResult] = await Promise.all([
+  const [commissionResults, meetingResults, activeMeetingResults, workersResult] = await Promise.all([
     Promise.all(
       config.projects.map((p) =>
         fetchDaemon<{ commissions: CommissionMeta[] }>(
@@ -70,6 +71,13 @@ export default async function DashboardPage({
         ),
       ),
     ),
+    Promise.all(
+      config.projects.map((p) =>
+        fetchDaemon<{ meetings: MeetingMeta[] }>(
+          `/meeting/request/meeting/list?projectName=${encodeURIComponent(p.name)}&view=open`,
+        ),
+      ),
+    ),
     fetchDaemon<{ workers: WorkerInfo[] }>("/system/packages/worker/list"),
   ]);
 
@@ -79,6 +87,10 @@ export default async function DashboardPage({
 
   // Daemon returns meeting requests pre-sorted (REQ-SORT-11)
   const allRequests: MeetingMeta[] = meetingResults
+    .filter((r) => r.ok)
+    .flatMap((r) => (r as { ok: true; data: { meetings: MeetingMeta[] } }).data.meetings);
+
+  const allActiveMeetings: MeetingMeta[] = activeMeetingResults
     .filter((r) => r.ok)
     .flatMap((r) => (r as { ok: true; data: { meetings: MeetingMeta[] } }).data.meetings);
 
@@ -118,6 +130,12 @@ export default async function DashboardPage({
         />
       </div>
       <div className={styles.audiences}>
+        <ActiveMeetings
+          meetings={selectedProject
+            ? allActiveMeetings.filter((m) => m.projectName === selectedProject)
+            : allActiveMeetings}
+          workerPortraits={workerPortraits}
+        />
         <PendingAudiences
           requests={selectedProject ? allRequests.filter((r) => r.projectName === selectedProject) : allRequests}
           workerPortraits={workerPortraits}

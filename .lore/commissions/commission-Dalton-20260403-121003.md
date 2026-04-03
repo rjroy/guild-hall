@@ -1,7 +1,7 @@
 ---
 title: "Commission: Front-page meetings Phase 3: Dashboard integration (page.tsx + page.module.css)"
 date: 2026-04-03
-status: dispatched
+status: completed
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -10,8 +10,11 @@ prompt: "Implement Phase 3 of the front-page active meetings plan at `.lore/plan
 dependencies:
   - commission-Dalton-20260403-120935
   - commission-Dalton-20260403-120947
-linked_artifacts: []
+linked_artifacts:
+  - web/app/page.tsx
 
+  - web/app/page.module.css
+  - web/app/page.module.css
 resource_overrides:
   model: sonnet
 
@@ -34,6 +37,32 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
-current_progress: ""
+  - timestamp: 2026-04-03T19:13:16.795Z
+    event: status_in_progress
+    reason: "Execution started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-04-03T19:13:23.072Z
+    event: progress_report
+    reason: "Reading plan and dependency artifacts to understand what was built in Phases 1 and 2."
+  - timestamp: 2026-04-03T19:13:41.643Z
+    event: progress_report
+    reason: "Phase 2 components confirmed. Implementing Phase 3: updating page.tsx and page.module.css."
+  - timestamp: 2026-04-03T19:15:29.177Z
+    event: result_submitted
+    reason: "Phase 3 complete. Dashboard now fetches and renders active meetings alongside pending audiences.\n\nChanges:\n- `web/app/page.tsx`: Added `ActiveMeetings` import, extended the `Promise.all` to a four-item destructure with a parallel `activeMeetingResults` fetch (view=open for each project), assembled `allActiveMeetings` using the same filter/flatMap pattern as `allRequests`, and rendered `<ActiveMeetings>` above `<PendingAudiences>` inside `.audiences` with the project-filter applied.\n- `web/app/page.module.css`: Added `display: flex; flex-direction: column; gap: var(--space-md)` to `.audiences` so the two panels stack.\n\nVerification: typecheck clean, lint clean (pre-existing failures in unrelated files unchanged), 3673 tests pass, production build succeeds."
+  - timestamp: 2026-04-03T19:15:33.581Z
+    event: status_completed
+    reason: "Execution completed"
+    from: "in_progress"
+    to: "completed"
+current_progress: "Phase 2 components confirmed. Implementing Phase 3: updating page.tsx and page.module.css."
 projectName: guild-hall
 ---
+Phase 3 complete. Dashboard now fetches and renders active meetings alongside pending audiences.
+
+Changes:
+- `web/app/page.tsx`: Added `ActiveMeetings` import, extended the `Promise.all` to a four-item destructure with a parallel `activeMeetingResults` fetch (view=open for each project), assembled `allActiveMeetings` using the same filter/flatMap pattern as `allRequests`, and rendered `<ActiveMeetings>` above `<PendingAudiences>` inside `.audiences` with the project-filter applied.
+- `web/app/page.module.css`: Added `display: flex; flex-direction: column; gap: var(--space-md)` to `.audiences` so the two panels stack.
+
+Verification: typecheck clean, lint clean (pre-existing failures in unrelated files unchanged), 3673 tests pass, production build succeeds.
