@@ -358,4 +358,86 @@ describe("loadPackageOperations", () => {
     expect(result[0].definition.operationId).toBe("stream.skill");
     expect(result[0].streamHandler).toBeDefined();
   });
+
+  test("skips plugin-type packages without warning", async () => {
+    const pluginPkg: DiscoveredPackage = {
+      name: "guild-compendium",
+      path: "/tmp/packages/guild-compendium",
+      metadata: {
+        type: "plugin",
+        name: "guild-compendium",
+        description: "A plugin-only package",
+      },
+    };
+    const { logger, warnings } = silentLogger();
+
+    // The importer should never be called for plugin packages
+    const importer: ImportModule = () => {
+      throw new Error("should not be called for plugin packages");
+    };
+
+    const result = await loadPackageOperations([pluginPkg], makeDeps(), logger, importer);
+    expect(result).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  test("skips built-in pseudo-packages (path === '') without warning", async () => {
+    const builtInPkg: DiscoveredPackage = {
+      name: "guild-master",
+      path: "",
+      metadata: {
+        type: "worker",
+        identity: {
+          name: "Guild Master",
+          description: "Built-in manager",
+          displayTitle: "Guild Master",
+        },
+        posture: "test posture",
+        systemToolboxes: [],
+        domainToolboxes: [],
+        builtInTools: [],
+        checkoutScope: "full",
+      },
+    };
+    const { logger, warnings } = silentLogger();
+
+    const importer: ImportModule = () => {
+      throw new Error("should not be called for built-in packages");
+    };
+
+    const result = await loadPackageOperations([builtInPkg], makeDeps(), logger, importer);
+    expect(result).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  test("processes toolbox packages alongside skipped plugin packages", async () => {
+    const toolboxPkg = makePackage("my-toolbox");
+    const pluginPkg: DiscoveredPackage = {
+      name: "my-plugin",
+      path: "/tmp/packages/my-plugin",
+      metadata: {
+        type: "plugin",
+        name: "my-plugin",
+        description: "Plugin only",
+      },
+    };
+    const { logger, warnings } = silentLogger();
+
+    const skill = makeValidOperation();
+    const importer = makeImporter({
+      [`${toolboxPkg.path}/index.ts`]: {
+        operationFactory: () => ({ operations: [skill] }) satisfies OperationFactoryOutput,
+      },
+    });
+
+    const result = await loadPackageOperations(
+      [pluginPkg, toolboxPkg],
+      makeDeps(),
+      logger,
+      importer,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].definition.sourcePackage).toBe("my-toolbox");
+    expect(warnings).toEqual([]);
+  });
 });

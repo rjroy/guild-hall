@@ -632,6 +632,35 @@ describe("prepareSdkSession", () => {
     ]);
   });
 
+  test("worker with domainPlugins referencing a plugin-type package with pluginPath produces options.plugins", async () => {
+    const pluginWorkerMeta: WorkerMetadata = {
+      ...mockWorkerMeta,
+      domainPlugins: ["guild-compendium"],
+    };
+    const pluginWorkerPkg: DiscoveredPackage = {
+      name: "@guild-hall/test-worker",
+      path: "/tmp/packages/test-worker",
+      metadata: pluginWorkerMeta,
+    };
+    const compendiumPkg: DiscoveredPackage = {
+      name: "guild-compendium",
+      path: "/tmp/packages/guild-compendium",
+      metadata: { type: "plugin", name: "guild-compendium", description: "Compendium plugin" },
+      pluginPath: "/tmp/packages/guild-compendium/plugin",
+    };
+
+    const result = await prepareSdkSession(
+      makeSpec({ packages: [pluginWorkerPkg, compendiumPkg] }),
+      makeDeps(),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.options.plugins).toEqual([
+      { type: "local", path: "/tmp/packages/guild-compendium/plugin" },
+    ]);
+  });
+
   test("worker with domainPlugins where package is missing returns error", async () => {
     const pluginWorkerMeta: WorkerMetadata = {
       ...mockWorkerMeta,
