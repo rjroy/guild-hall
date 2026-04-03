@@ -20,9 +20,9 @@ req-prefix: HBT
 
 The heartbeat replaces both the scheduled commission system (~900 lines in `daemon/services/scheduler/`) and the triggered commission system (~300 lines in `daemon/services/trigger-evaluator.ts`) with a single mechanism: a per-project markdown file of standing instructions evaluated by a Guild Master session on Haiku at a configurable interval.
 
-Instead of cron expressions and event-match rules frozen in YAML schemas, the user writes natural-language standing orders in `.lore/heartbeat.md`. Between ticks, the daemon appends condensed activity summaries from the EventBus. On each tick, Haiku reads the standing orders plus recent activity and decides which orders warrant new commissions. Trust markers (`[auto]`/`[confirm]`) on each order control whether commissions dispatch immediately or await user approval.
+Instead of cron expressions and event-match rules frozen in YAML schemas, the user writes natural-language standing orders in `.lore/heartbeat.md`. Between ticks, the daemon appends condensed activity summaries from the EventBus. On each tick, Haiku reads the standing orders plus recent activity and decides which orders warrant new commissions. The GM session has access to the standard coordination tools (`create_commission`, `dispatch_commission`, `initiate_meeting`), so standing orders can express any intent the GM can act on. Any worker can add entries to the heartbeat file during their own sessions via `add_heartbeat_entry`.
 
-This spec covers: the heartbeat file format, the daemon loop, the GM session, event condensation, provenance, file scaffolding, dashboard UI, configuration, removal of the scheduler and trigger infrastructure, migration, and `CommissionType` simplification.
+This spec covers: the heartbeat file format, the daemon loop, the GM session, event condensation, the worker-facing heartbeat entry tool, commission source provenance, file scaffolding, dashboard UI, configuration, removal of the scheduler and trigger infrastructure, migration, and `CommissionType` simplification.
 
 Supersedes: [Spec: Guild Hall Scheduled Commissions](commissions/guild-hall-scheduled-commissions.md) (SCOM), [Spec: Triggered Commissions](commissions/triggered-commissions.md) (TRIG).
 
@@ -31,6 +31,7 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 ## Entry Points
 
 - User writes standing orders in `.lore/heartbeat.md` via the artifact browser (from artifact editing UX)
+- Worker calls `add_heartbeat_entry` during a commission or meeting session (from worker toolbox)
 - Daemon heartbeat loop ticks and evaluates standing orders per project (from daemon timer)
 - User clicks `[Tick Now]` on the dashboard to trigger an immediate heartbeat evaluation (from dashboard UI)
 - Daemon starts up and ensures `heartbeat.md` exists with instructional header (from project initialization)
@@ -44,19 +45,17 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 
 - REQ-HBT-2: The file has an instructional header followed by four sections, each introduced by a level-2 heading:
 
-  **Instructional header** (everything before the first `##`): usage instructions explaining what the file is, how standing orders work, and how trust markers behave. Written by the daemon on scaffolding, never consumed by the heartbeat session.
+  **Instructional header** (everything before the first `##`): usage instructions explaining what the file is and how standing orders work. Written by the daemon on scaffolding, never consumed by the heartbeat session.
 
-  **`## Standing Orders`**: each line is a standing instruction. Lines beginning with `- ` are orders. Trust markers appear at the start of the order text:
-     - `[auto]`: commission is created and dispatched immediately.
-     - `[confirm]`: commission is created in `pending` status for user review.
-     - No marker: defaults to `[confirm]`.
+  **`## Standing Orders`**: each line is a standing instruction. Lines beginning with `- ` are orders. Orders are written in natural language. If the user wants the GM to confirm before acting, they write that into the order text. No special syntax or markers.
 
      Example:
      ```markdown
      ## Standing Orders
-     - [auto] After any Dalton implementation, dispatch a Thorne review
-     - [confirm] If test count has decreased since last week, investigate
+     - After any Dalton implementation, dispatch a Thorne review
+     - If test count has decreased since last week, investigate
      - Check for stale draft specs monthly
+     - Before dispatching anything related to the P4 adapter, check with me first
      ```
 
   **`## Watch Items`**: things to monitor but not necessarily act on. Haiku reads these as context that shapes judgment but does not create commissions from them directly.
@@ -72,9 +71,8 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 - REQ-HBT-4: The daemon runs a heartbeat loop on a configurable interval (REQ-HBT-28). On each tick, it iterates all registered projects sequentially. For each project:
   1. Reads `.lore/heartbeat.md` from the integration worktree.
   2. Checks whether any content exists below the instructional header. If the file contains only the header (or doesn't exist), the project is skipped. Zero cost.
-  3. Runs a constrained Guild Master session on Haiku (REQ-HBT-8).
-  4. Processes the session's commission requests (REQ-HBT-12).
-  5. Clears the `## Recent Activity` section (REQ-HBT-20).
+  3. Runs a Guild Master session on Haiku with standard coordination tools (REQ-HBT-8, REQ-HBT-10). The GM creates commissions, dispatches them, and starts meetings directly during the session.
+  4. Clears the `## Recent Activity` section (REQ-HBT-20).
 
 - REQ-HBT-5: The loop uses post-completion scheduling (same pattern as `createBriefingRefreshService` in `daemon/services/briefing-refresh.ts`). After all projects are evaluated, the next tick is scheduled after the configured interval. This prevents pile-up if a tick takes longer than the interval.
 
@@ -91,28 +89,24 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
   - For each standing order, decide whether it warrants a new commission right now.
   - Consider watch items and context notes when making decisions.
   - If an order is ambiguous (the instruction itself is unclear or contradictory), skip it entirely.
-  - If the order is clear but the context is insufficient to know whether action is warranted, create the request with `confirm` trust regardless of the order's marker.
-  - Do not modify the heartbeat file, propose architectural changes, or expand scope.
+  - If no standing orders exist, take no action.
+  - Do not propose architectural changes or expand scope beyond what the standing orders request.
   - Check recent activity for evidence that an order has already been acted on. If a commission for the same order was created recently, skip it.
+  - If the heartbeat file has grown unwieldy (too many standing orders, redundant entries, watch items that have been resolved), commission a cleanup. The cleanup commission should consolidate, prune, and reorganize the file while preserving the user's intent.
 
-- REQ-HBT-10: The session has access to a constrained tool set. The GM's system toolboxes are stripped (same approach as the briefing's `makeBriefingResolveToolSet`), then replaced with a heartbeat-specific toolbox containing:
-  - **`create_heartbeat_commission`**: creates a commission request (not direct commission creation). Parameters: `worker` (string), `title` (string), `prompt` (string), `trust` (`"auto"` | `"confirm"`), `standing_order` (the original order text that prompted this request), `activity_context` (the activity line that triggered it, if any).
-  - **Read-only project state tools**: the base toolbox's `read_memory` and `project_briefing` tools, so Haiku can check what's already in progress.
-
-  The session does NOT have access to `create_commission`, `dispatch_commission`, `initiate_meeting`, or any other manager coordination tools.
+- REQ-HBT-10: The session has access to the GM's standard coordination tools: `create_commission`, `dispatch_commission`, and `initiate_meeting` (`initiate_meeting` is internally-routed with no daemon HTTP path per REQ-DAB-11; the heartbeat service must receive meeting write dependencies directly, same pattern as `CommissionSessionForRoutes` for commissions). The GM's system toolboxes are stripped (same approach as the briefing's `makeBriefingResolveToolSet`), then replaced with the manager toolbox's coordination tools plus read-only project state tools (`read_memory`, `project_briefing`). The GM uses these tools directly during the session to create commissions, dispatch them, or start meetings as the standing orders require. No proxy tools, no post-session batch processing.
 
 - REQ-HBT-11: The session receives the heartbeat file content as the user prompt. The system prompt provides the behavioral constraints. `maxTurns` is set to 30 (sufficient for reading the file and making tool calls, but bounded). `contextId` is `heartbeat-{projectName}-{tickTimestamp}` (unique per tick, no conversation continuity across ticks). Each tick is a fresh evaluation with no memory of prior ticks.
 
-### Commission Request Processing
+### Worker Heartbeat Entry Tool
 
-- REQ-HBT-12: The heartbeat session's `create_heartbeat_commission` tool calls are collected after the session completes. Each call becomes a commission request. The daemon processes requests sequentially:
+- REQ-HBT-12: Workers can add entries to a project's `heartbeat.md` during any session via an `add_heartbeat_entry` tool. Parameters:
+  - `prompt` (string): the text of the entry to add (a standing order, watch item, or context note).
+  - `section` (string): the target section heading (`"Standing Orders"`, `"Watch Items"`, or `"Context Notes"`).
 
-  1. Validate the `worker` field against discovered worker packages. Skip if unknown (log at `warn`).
-  2. Determine effective trust: if the request's `trust` is `"auto"` AND the corresponding standing order has `[auto]`, use `auto`. Otherwise, use `confirm`. Haiku can downgrade but never upgrade trust.
-  3. Create the commission via the existing `createCommission` API on `CommissionSessionForRoutes`, with `type: "one-shot"` and `heartbeat_source` provenance (REQ-HBT-21).
-  4. If effective trust is `auto`, dispatch immediately via the existing dispatch path. If `confirm`, leave in `pending` status.
+  The tool appends the prompt as a `- ` prefixed list item under the named section heading. If the section doesn't exist, the tool creates it at the end of the file (before `## Recent Activity` if present). The tool writes to the integration worktree's copy of `heartbeat.md`.
 
-- REQ-HBT-13: Trust validation works by comparing the request's `standing_order` field against lines in `## Standing Orders`. For each line marked `[auto]`, the daemon extracts the order text (everything after `[auto] `, trimmed). The `standing_order` field from Haiku's request is also trimmed. A match is exact equality (case-insensitive) between the extracted line text and the request's `standing_order`. If no matching `[auto]` line is found, effective trust is `confirm` regardless of what Haiku requested. This prevents a compromised or confused model from auto-dispatching work the user hasn't explicitly trusted.
+- REQ-HBT-13: The `add_heartbeat_entry` tool is available in the base toolbox, accessible to all workers. It is not restricted to the heartbeat GM session. Any worker during any commission or meeting can add entries. This is how workers surface things they notice: "I found a recurring pattern worth monitoring" becomes a watch item, "this area needs periodic review" becomes a standing order.
 
 ### Event Condensation
 
@@ -142,44 +136,36 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 
 - REQ-HBT-20: After each successful heartbeat tick for a project, the daemon clears the `## Recent Activity` section (replaces its contents with an empty list). This prevents unbounded growth and ensures each tick sees only activity since the last tick.
 
-### Provenance
+### Commission Source Provenance
 
-- REQ-HBT-21: Commissions created by the heartbeat carry a `heartbeat_source` block in their YAML frontmatter:
-
-  ```yaml
-  heartbeat_source:
-    prompt: "After any Dalton implementation, dispatch a Thorne review"
-    activity: "commission-Dalton-20260401-140000 completed"
-    tick: "2026-04-01T15:00:00.000Z"
-  ```
-
-  | Field | Type | Purpose |
-  |-------|------|---------|
-  | `prompt` | string | The standing order text that caused this commission |
-  | `activity` | string or null | The activity line that triggered the order, if identifiable |
-  | `tick` | string (ISO 8601) | Timestamp of the heartbeat tick that created this commission |
-
-- REQ-HBT-22: The `heartbeat_source` block is written by the `createCommission` call. The creation API gains a new optional field in its `options` parameter:
+- REQ-HBT-21: The `createCommission` API gains a general-purpose `source` option:
 
   ```typescript
   options?: {
-    heartbeatSource?: {
-      prompt: string;
-      activity: string | null;
-      tick: string;
+    source?: {
+      description: string;
     };
   }
   ```
 
-  This replaces the existing `sourceSchedule` and `sourceTrigger` options, which are removed (REQ-HBT-34).
+  This replaces the existing `sourceSchedule` and `sourceTrigger` options, which are removed (REQ-HBT-39). The `source` field is not heartbeat-specific. Any commission creator (heartbeat session, meeting, manual) can attach a source description.
 
-- REQ-HBT-23: No depth tracking or mechanical loop prevention. Deduplication is Haiku's responsibility: the system prompt instructs it to check recent activity for evidence that an order has already been acted on. If a matching commission was created in the most recent tick's activity, skip the order. If deduplication proves unreliable in practice, a simple daemon-side check can be added later: before creating a commission, search recent commissions for one with a matching `heartbeat_source.prompt` in the last N hours.
+- REQ-HBT-22: Commissions with a `source` carry it in their YAML frontmatter:
 
-- REQ-HBT-24: The `activity_timeline` entry for heartbeat-created commissions records: `"Commission created by heartbeat (standing order: {prompt text})"`.
+  ```yaml
+  source:
+    description: "Heartbeat: after any Dalton implementation, dispatch a Thorne review"
+  ```
+
+  The heartbeat GM writes source descriptions that identify the standing order and any triggering activity. The format is not enforced; it's whatever the GM writes. Manual commissions, meeting-spawned commissions, and future mechanisms all use the same `source` field.
+
+- REQ-HBT-23: No depth tracking or mechanical loop prevention. Deduplication is Haiku's responsibility: the system prompt instructs it to check recent activity for evidence that an order has already been acted on. If a matching commission was created in the most recent tick's activity, skip the order. If deduplication proves unreliable in practice, a simple daemon-side check can be added later.
+
+- REQ-HBT-24: The `activity_timeline` entry for commissions with a source records: `"Commission created ({source description})"`.
 
 ### File Scaffolding
 
-- REQ-HBT-25: When the daemon initializes a project (reads its config and sets up the integration worktree), it checks whether `.lore/heartbeat.md` exists. If not, it creates it with the instructional header and empty section headings. If the file exists, the daemon does not modify it.
+- REQ-HBT-25: When the daemon initializes a project (reads its config and sets up the integration worktree), it checks whether `.lore/heartbeat.md` exists. If not, it creates it with the instructional header and empty section headings. If the file exists, the daemon replaces everything before the first `##` with the template header. This repairs any corruption from workers writing outside section boundaries. Content in the sections themselves is never touched by scaffolding.
 
 - REQ-HBT-26: The scaffolded file content. The instructional header (everything before the first `##`) explains usage. The sections below are bare headings with no content, ready for the user to populate:
 
@@ -188,11 +174,11 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 
   This file controls what the guild does autonomously. Every hour (configurable),
   a Guild Master session reads this file and decides which standing orders warrant
-  new commissions.
+  action: creating commissions, dispatching work, or starting meetings.
 
-  **Standing Orders** are lines starting with `- `. Add trust markers to control dispatch:
-  - `[auto]` dispatches immediately without your approval
-  - `[confirm]` (or no marker) creates the commission for your review
+  **Standing Orders** are lines starting with `- `. Write them in plain language.
+  If you want the guild to check with you before acting on an order, say so in the
+  order itself.
 
   **Watch Items** are things to monitor. The guild reads these for context but won't
   create commissions from them directly.
@@ -200,6 +186,7 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
   **Context Notes** are operational context the guild should know (merge freezes, priorities).
 
   **Recent Activity** is managed by the daemon. Don't edit this section manually.
+  Workers can also add entries to this file during their sessions.
 
   ## Standing Orders
 
@@ -276,7 +263,7 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 ### Removal: Shared Infrastructure
 
 - REQ-HBT-34: The following types and interfaces are removed from `daemon/types.ts`:
-  - `CommissionType` union (REQ-HBT-36 explains the replacement)
+  - `CommissionType` union (REQ-HBT-42 explains the simplification)
   - `TriggeredBy` interface
   - `TriggerBlock` interface
   - `ScheduledCommissionStatus` type
@@ -315,7 +302,7 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 - REQ-HBT-39: The following are removed from `daemon/services/commission/orchestrator.ts`:
   - `createScheduledCommission` method and its YAML template
   - `createTriggeredCommission` method and its YAML template
-  - `sourceSchedule` and `sourceTrigger` from the `createCommission` options type
+  - `sourceSchedule` and `sourceTrigger` from the `createCommission` options type (replaced by `source`, REQ-HBT-21)
   - The `sourceScheduleLine` and `triggeredByBlock` construction in `createCommission`
   - The import of `isValidCron` from `daemon/services/scheduler/cron`
   - The import of `TRIGGER_STATUS_TRANSITIONS` from `daemon/services/commission/trigger-lifecycle`
@@ -334,12 +321,12 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
   - Remove `sourceSchedule` and `sourceTrigger` fields from the `Commission` interface.
   - Remove the `extractSourceTrigger` function.
   - Remove parsing of `source_schedule` and `triggered_by` frontmatter fields.
-  - Add `heartbeatSource` field (type `{ prompt: string; activity: string | null; tick: string } | null`) and parse it from `heartbeat_source` frontmatter.
+  - Add `source` field (type `{ description: string } | null`) and parse it from `source` frontmatter.
 
 - REQ-HBT-41b: The commission detail page at `web/app/projects/[name]/commissions/[id]/page.tsx` is modified:
   - Remove the `scheduleInfo` and `triggerInfo` build blocks.
   - Remove conditional rendering that passes these to `CommissionScheduleInfo`, `CommissionScheduleActions`, `TriggerInfo`, and `TriggerActions`.
-  - Optionally add display of `heartbeatSource` provenance (standing order text and tick timestamp) if the commission has one.
+  - Optionally add display of `source.description` if the commission has one.
 
 ### CommissionType Simplification
 
@@ -349,24 +336,22 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 
 - REQ-HBT-44: Existing commission artifacts with `type: scheduled` or `type: triggered` in their frontmatter become historical. They are not automatically cleaned up. The `type` field is harmless (unknown frontmatter fields are ignored by gray-matter). If a `tend` sweep encounters them, it can flag them for manual removal.
 
-### HeartbeatSource in Commission Record
+### Source in Commission Record
 
 - REQ-HBT-45: The `CommissionRecordOps` interface gains a new method:
 
   ```
-  readHeartbeatSource(artifactPath: string): Promise<HeartbeatSource | null>
+  readSource(artifactPath: string): Promise<CommissionSource | null>
   ```
 
-  Where `HeartbeatSource` is:
+  Where `CommissionSource` is:
   ```typescript
-  interface HeartbeatSource {
-    prompt: string;
-    activity: string | null;
-    tick: string;
+  interface CommissionSource {
+    description: string;
   }
   ```
 
-  This replaces `readTriggeredBy`. The implementation reads the `heartbeat_source` YAML block from commission frontmatter.
+  This replaces `readTriggeredBy`. The implementation reads the `source` YAML block from commission frontmatter.
 
 ### Migration
 
@@ -389,7 +374,7 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
   becomes:
   ```markdown
   # Standing order (new):
-  - [auto] After any Dalton implementation completes, dispatch a Thorne review of the completed commission
+  - After any Dalton implementation completes, dispatch a Thorne review of the completed commission
   ```
 
 ### Spec Retirement
@@ -416,41 +401,38 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 
 | Exit | Triggers When | Target |
 |------|---------------|--------|
-| Deduplication backstop | Haiku proves unreliable at skipping already-acted-on orders | Simple daemon-side check: reject commissions with matching `heartbeat_source.prompt` in last N hours |
+| Deduplication backstop | Haiku proves unreliable at skipping already-acted-on orders | Simple daemon-side check: reject commissions with matching `source.description` in last N hours |
 | Cross-project heartbeat | User needs standing orders that span multiple projects | Global `heartbeat.md` at `~/.guild-hall/heartbeat.md`, evaluated once per tick |
 | Heartbeat history | User wants to see what the heartbeat has done over time | Heartbeat tick log in state directory, viewable from dashboard |
 
 ## Success Criteria
 
 - [ ] `.lore/heartbeat.md` is created with instructional header on project initialization
-- [ ] Standing orders with `[auto]`/`[confirm]` markers are respected by the heartbeat session
-- [ ] No marker defaults to `[confirm]` behavior
-- [ ] Haiku can downgrade trust to `confirm` but never upgrade to `auto`
+- [ ] Standing orders written in natural language are evaluated by the heartbeat GM session
 - [ ] The heartbeat loop ticks at the configured interval and evaluates all registered projects
 - [ ] Projects with empty heartbeat files (no content below header) are skipped at zero cost
 - [ ] Rate-limit errors are logged and skipped, not retried
 - [ ] Event condensation appends outcome summaries to `## Recent Activity` between ticks
 - [ ] The `## Recent Activity` section is cleared after each successful tick
-- [ ] Commissions created by the heartbeat carry `heartbeat_source` frontmatter with prompt, activity, and tick
+- [ ] Commissions can carry a `source` block in frontmatter with a `description` field
 - [ ] The `[Tick Now]` button triggers an immediate heartbeat evaluation for a project
 - [ ] The heartbeat model defaults to Haiku and is configurable via `systemModels.heartbeat`
 - [ ] The heartbeat interval defaults to 60 minutes and is configurable via `heartbeatIntervalMinutes`
 - [ ] The heartbeat service is constructed in `createProductionApp()` and starts its loop and condensation subscriber on daemon startup
 - [ ] `GET /heartbeat/{projectName}/status` returns file content status, standing order count, last tick timestamp, and interval
-- [ ] Trust matching uses case-insensitive exact equality after prefix stripping, not substring
+- [ ] `add_heartbeat_entry` tool is available to all workers and appends entries to the correct section
+- [ ] The heartbeat GM session has access to `create_commission`, `dispatch_commission`, and `initiate_meeting`
 - [ ] All scheduler files are removed: `daemon/services/scheduler/` (3 files), tests (3 files), UI (4 files), API route (1 file)
 - [ ] All trigger files are removed: `daemon/services/trigger-evaluator.ts`, `trigger-lifecycle.ts`, tests (3 files), UI (5 files), API route (1 file)
-- [ ] `lib/commissions.ts` `sourceSchedule`/`sourceTrigger` fields replaced with `heartbeatSource`
+- [ ] `lib/commissions.ts` `sourceSchedule`/`sourceTrigger` fields replaced with `source`
 - [ ] `CommissionType`, `TriggeredBy`, `TriggerBlock`, `ScheduledCommissionStatus` are removed from `daemon/types.ts`
 - [ ] Schedule/trigger record operations are removed from `daemon/services/commission/record.ts`
 - [ ] Schedule/trigger manager toolbox tools are removed
 - [ ] `schedule_spawned` event type is removed from EventBus and `SYSTEM_EVENT_TYPES`
 - [ ] Commission creation no longer accepts `sourceSchedule` or `sourceTrigger` options
-- [ ] Commission creation accepts `heartbeatSource` option and writes `heartbeat_source` frontmatter
+- [ ] Commission creation accepts `source` option and writes `source` frontmatter
 - [ ] Schedule/trigger specs are moved to `_abandoned/` with status `superseded`
 - [ ] Existing schedule/trigger artifacts remain in place as historical records
-- [ ] The heartbeat session has read-only project state tools and `create_heartbeat_commission` only
-- [ ] The heartbeat session does NOT have access to manager coordination tools
 
 ## AI Validation
 
@@ -460,19 +442,18 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 - Code review by fresh-context sub-agent
 
 **Custom:**
-- Heartbeat loop test: create a heartbeat file with standing orders, mock the SDK session to return commission requests, verify commissions are created with correct `heartbeat_source` frontmatter
-- Trust escalation prevention test: Haiku requests `auto` for an order that has no `[auto]` marker; verify commission is created with `confirm`
-- Trust downgrade test: Haiku requests `confirm` for an `[auto]` order; verify commission is created with `confirm`
+- Heartbeat loop test: create a heartbeat file with standing orders, mock the SDK session, verify the GM session is started with correct system prompt and tools
 - Empty file skip test: heartbeat file with only instructional header; verify no SDK session is started
 - Event condensation test: emit commission_status (completed) and commission_result events; verify summary lines appear in `## Recent Activity`
 - Activity clearing test: after a successful tick, verify `## Recent Activity` is empty
 - Rate limit handling test: SDK session throws rate limit error; verify project is skipped, activity is preserved, next project is evaluated
 - Tick Now test: POST to `/heartbeat/{project}/tick`; verify immediate evaluation runs and returns result
 - Scaffolding test: initialize a project without `heartbeat.md`; verify file is created with correct header
-- Scaffolding idempotency test: initialize a project with existing `heartbeat.md` content; verify file is not modified
-- Trust matching specificity test: verify `[auto]` trust is granted only when the `standing_order` text exactly matches (case-insensitive, trimmed) a line in `## Standing Orders` marked `[auto]`; verify a similar but distinct line does not grant auto trust
+- Scaffolding header repair test: initialize a project with a `heartbeat.md` whose header has been corrupted; verify header is replaced with template while section content is preserved
 - Removal verification: after implementation, verify all files listed in REQ-HBT-32 through REQ-HBT-41b are gone, `bun typecheck` passes, and `bun test` passes
-- Provenance roundtrip test: create a commission via heartbeat, read it back, verify `heartbeat_source` fields match
+- Source provenance roundtrip test: create a commission with `source` option, read it back, verify `source.description` matches
+- Add heartbeat entry test: call `add_heartbeat_entry` with each section name; verify entries appear as list items under the correct headings
+- Add heartbeat entry missing section test: call `add_heartbeat_entry` for a section that doesn't exist; verify section is created
 
 ## Constraints
 
