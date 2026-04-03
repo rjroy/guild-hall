@@ -39,6 +39,8 @@ For deeper architectural context, see `.lore/specs/infrastructure/daemon-applica
 
 **Five Concerns.** Session, Activity, Artifact, Toolbox, and Worker are separate concerns with boundary rules. See `.lore/specs/infrastructure/daemon-application-boundary.md`.
 
+**Plugin naming.** Claude plugin names in `plugin/.claude-plugin/plugin.json` must be kebab-case (e.g. `"name": "guild-compendium"`). The Claude Agent SDK will not load plugins with spaces or other non-kebab naming.
+
 ## Commands
 
 ```bash
