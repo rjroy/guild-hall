@@ -1,7 +1,7 @@
 ---
 title: "Campaign Planning Theory: Grounding for Guild Campaigns Spec"
 date: 2026-04-02
-status: resolved
+status: active
 tags: [research, campaigns, rolling-wave, stage-gate, agent-memory, planning-theory]
 related:
   - .lore/brainstorm/guild-campaigns-artifact-design.md
