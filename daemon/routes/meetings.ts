@@ -15,8 +15,10 @@ import {
   getActiveMeetingWorktrees,
   sortMeetingArtifacts,
   sortMeetingRequests,
+  sortActiveMeetings,
   parseTranscriptToMessages,
 } from "@/lib/meetings";
+import type { MeetingMeta } from "@/lib/meetings";
 import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";
 
 export interface MeetingRoutesDeps {
@@ -326,6 +328,59 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
         return c.json({ meetings: sorted.map(serializeArtifact) });
       }
 
+      // Open view: return MeetingMeta[] for active (open) meetings,
+      // merging integration worktree and active meeting worktrees.
+      if (view === "open") {
+        const meetingsPath = path.join(lorePath, "meetings");
+
+        // Enumerate integration worktree meetings
+        let integrationFiles: string[] = [];
+        try {
+          integrationFiles = (await fs.readdir(meetingsPath))
+            .filter((f) => f.endsWith(".md"));
+        } catch {
+          // Directory may not exist yet
+        }
+
+        // Enumerate active worktree meetings
+        const activeWorktrees = await getActiveMeetingWorktrees(deps.guildHallHome, projectName);
+        const worktreeFiles: Array<{ dir: string; file: string }> = [];
+        for (const wt of activeWorktrees) {
+          const wtMeetingsPath = path.join(wt, ".lore", "meetings");
+          try {
+            const files = (await fs.readdir(wtMeetingsPath)).filter((f) => f.endsWith(".md"));
+            for (const f of files) {
+              worktreeFiles.push({ dir: wtMeetingsPath, file: f });
+            }
+          } catch {
+            // Skip missing directories
+          }
+        }
+
+        // Merge, deduplicating by filename (integration wins)
+        const seenFiles = new Set(integrationFiles);
+        const allFileEntries: Array<{ dir: string; file: string }> = [
+          ...integrationFiles.map((f) => ({ dir: meetingsPath, file: f })),
+          ...worktreeFiles.filter((e) => !seenFiles.has(e.file)),
+        ];
+
+        // Read metadata and filter to open status
+        const metas: MeetingMeta[] = [];
+        for (const entry of allFileEntries) {
+          try {
+            const meta = await readMeetingMeta(path.join(entry.dir, entry.file), projectName);
+            if (meta.status === "open") {
+              metas.push(meta);
+            }
+          } catch {
+            // Skip unreadable files
+          }
+        }
+
+        const sorted = sortActiveMeetings(metas);
+        return c.json({ meetings: sorted });
+      }
+
       // Default: return meeting requests (pending/deferred), sorted
       const meetings = await scanMeetingRequests(lorePath, projectName);
       const sorted = sortMeetingRequests(meetings);
@@ -443,14 +498,17 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       operationId: "meeting.request.meeting.list",
       version: "1",
       name: "list",
-      description: "List meeting requests for a project",
+      description: "List meeting requests for a project. view=open returns active (open-status) meetings.",
       invocation: { method: "GET", path: "/meeting/request/meeting/list" },
       sideEffects: "",
       context: { project: true },
 
       idempotent: true,
       hierarchy: { root: "meeting", feature: "request", object: "meeting" },
-      parameters: [{ name: "projectName", required: true, in: "query" as const }],
+      parameters: [
+        { name: "projectName", required: true, in: "query" as const },
+        { name: "view", required: false, in: "query" as const },
+      ],
     },
     {
       operationId: "meeting.request.meeting.read",

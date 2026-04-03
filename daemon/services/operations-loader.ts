@@ -17,12 +17,24 @@ import type {
 export type ImportModule = (modulePath: string) => Promise<unknown>;
 
 /**
+ * Returns true if a package could have an operationFactory export.
+ * Plugin-only packages have no index.ts. Built-in pseudo-packages
+ * (path === "") also have no entry point on disk.
+ */
+function canHaveOperations(pkg: DiscoveredPackage): boolean {
+  if (pkg.path === "") return false;
+  if (pkg.metadata.type === "plugin") return false;
+  return true;
+}
+
+/**
  * Loads and validates package operations from all discovered packages.
  *
- * For each package, attempts to import its entry point and look for an
- * `operationFactory` export. Packages without one are silently skipped.
- * Individual operations that fail validation are skipped with a warning;
- * failures in one package don't affect others.
+ * Skips packages that cannot have an operationFactory (plugin-only packages,
+ * built-in pseudo-packages). For remaining packages, attempts to import the
+ * entry point and look for an `operationFactory` export. Packages without
+ * one are silently skipped. Individual operations that fail validation are
+ * skipped with a warning; failures in one package don't affect others.
  */
 export async function loadPackageOperations(
   packages: DiscoveredPackage[],
@@ -32,7 +44,7 @@ export async function loadPackageOperations(
 ): Promise<PackageOperation[]> {
   const result: PackageOperation[] = [];
 
-  for (const pkg of packages) {
+  for (const pkg of packages.filter(canHaveOperations)) {
     const entryPoint = path.resolve(pkg.path, "index.ts");
 
     let mod: Record<string, unknown>;

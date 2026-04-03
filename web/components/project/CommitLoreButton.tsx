@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./CommitLoreButton.module.css";
 
 interface CommitLoreButtonProps {
@@ -16,6 +17,7 @@ export default function CommitLoreButton({
   hasPendingChanges,
   pendingFileCount,
 }: CommitLoreButtonProps) {
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +67,7 @@ export default function CommitLoreButton({
         setResult({ kind: "success", text: "Committed." });
         setShowForm(false);
         setMessage("");
+        router.refresh();
         // Clear result after 4 seconds
         if (fadeTimer.current) clearTimeout(fadeTimer.current);
         fadeTimer.current = setTimeout(() => setResult(null), 4000);
@@ -77,7 +80,7 @@ export default function CommitLoreButton({
     }
 
     setSubmitting(false);
-  }, [message, projectName]);
+  }, [message, projectName, router]);
 
   return (
     <div>

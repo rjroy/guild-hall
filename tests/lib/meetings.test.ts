@@ -10,6 +10,7 @@ import {
   parseTranscriptToMessages,
   sortMeetingArtifacts,
   sortMeetingRequests,
+  sortActiveMeetings,
 } from "@/lib/meetings";
 import type { MeetingMeta } from "@/lib/meetings";
 import type { Artifact } from "@/lib/types";
@@ -480,6 +481,61 @@ describe("sortMeetingRequests", () => {
     const original = [...requests];
     sortMeetingRequests(requests);
     expect(requests.map((r) => r.title)).toEqual(original.map((r) => r.title));
+  });
+});
+
+// -- sortActiveMeetings tests --
+
+function makeActiveMeeting(overrides: {
+  date?: string;
+  title?: string;
+}): MeetingMeta {
+  return {
+    meetingId: "test-meeting",
+    title: overrides.title ?? "",
+    status: "open",
+    worker: "Assistant",
+    agenda: "",
+    date: overrides.date ?? "2026-02-01",
+    deferred_until: "",
+    linked_artifacts: [],
+    notes: "",
+    workerDisplayTitle: "",
+    projectName: "test",
+  };
+}
+
+describe("sortActiveMeetings", () => {
+  test("empty array returns empty array", () => {
+    expect(sortActiveMeetings([])).toEqual([]);
+  });
+
+  test("single item is returned unchanged", () => {
+    const meeting = makeActiveMeeting({ title: "Only", date: "2026-03-01" });
+    const sorted = sortActiveMeetings([meeting]);
+    expect(sorted).toHaveLength(1);
+    expect(sorted[0].title).toBe("Only");
+  });
+
+  test("multiple items sorted by date descending", () => {
+    const older = makeActiveMeeting({ title: "Older", date: "2026-01-01" });
+    const newer = makeActiveMeeting({ title: "Newer", date: "2026-03-01" });
+    const middle = makeActiveMeeting({ title: "Middle", date: "2026-02-01" });
+
+    const sorted = sortActiveMeetings([older, newer, middle]);
+    expect(sorted[0].title).toBe("Newer");
+    expect(sorted[1].title).toBe("Middle");
+    expect(sorted[2].title).toBe("Older");
+  });
+
+  test("does not mutate input array", () => {
+    const meetings = [
+      makeActiveMeeting({ title: "A", date: "2026-01-01" }),
+      makeActiveMeeting({ title: "B", date: "2026-03-01" }),
+    ];
+    const original = meetings.map((m) => m.title);
+    sortActiveMeetings(meetings);
+    expect(meetings.map((m) => m.title)).toEqual(original);
   });
 });
 

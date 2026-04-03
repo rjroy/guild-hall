@@ -318,19 +318,61 @@ With campaigns: the post-wave synthesis would have flagged "the wave 1 result co
 
 ---
 
-## Open Questions Worth Resolving Before Spec
+## Open Questions — Resolved (2026-04-02 meeting)
 
-**File structure.** One campaign artifact vs. multiple files? The proposal suggests a single `campaign-<name>.md`. That works for small campaigns but gets unwieldy for long ones. An alternative: a campaign directory with `campaign.md` (goal, status, wave index), `plan.md` (the living plan), and `milestone-<n>.md` files. Cleaner separation of concerns.
+### File structure — RESOLVED: Directory model
 
-**Milestone triggers.** Who decides when a milestone fires? Options: every wave completes (user-configurable), at specific plan points the Guild Master declares, when the Guild Master's synthesis identifies a plan revision. Probably all three, but the interactions need thought.
+`.lore/campaigns/<name>/` with separate files for each concern:
+- `campaign.md` — goal, goal history, status, metadata
+- `plan.md` — current plan + plan history (the living plan)
+- `waves.md` — active wave tracking + historical wave summaries with commission links
+- `milestone-N.md` — prepared checkpoint documents for user decision points
 
-**Wave granularity.** The proposal implies a wave is a batch of commissions dispatched together. But some campaigns might have waves that last weeks. How does the system handle commissions dispatched mid-wave as a response to an in-wave finding? Is that a sub-wave, or does the concept need to accommodate iterative dispatch within a wave?
+Rationale: "contained sprawl." Each document serves a different reader at a different time. The living plan gets rewritten; the wave record is append-only; milestones accumulate. Different update patterns belong in different files.
 
-**Campaign registration.** How does the daemon know a campaign exists? If campaigns are just `.lore/campaigns/` files, the daemon either discovers them or they're registered. Registration creates a workflow (user initiates campaign through some UI/CLI action). Discovery creates a convention (the file structure is the registration). The commission system uses registration. Campaigns probably should too, so the Guild Master has access to the campaign list and can associate dispatched commissions with a campaign.
+### Milestone triggers — RESOLVED (provisional, pending research)
 
-**Commission-campaign binding.** The proposal doesn't address how commissions are tagged as belonging to a campaign. If the Guild Master dispatches commissions for a campaign wave, those commissions need a campaign reference in their frontmatter. Does the dispatch action set this, or does the campaign's commission list determine it? The former is more reliable (the record is on the commission); the latter is more fragile (the campaign is the only source of truth for membership).
+Three trigger types, all producing sequentially numbered milestones:
+1. **Wave completion** — the default. Configurable frequency (every wave, every N waves, at named plan points).
+2. **Plan-revision escalation** — mid-wave, when a commission result contradicts a plan assumption. The GM halts and surfaces a checkpoint before the rest of the wave runs.
+3. **On-demand** — user requests "where are we?" at any time.
 
-**Abandonment.** Campaigns can complete or be paused. Can they be abandoned mid-campaign? What does the artifact state look like for an abandoned campaign? This matters for the artifact browser — an abandoned campaign shouldn't show as "active" indefinitely.
+Trigger type recorded in milestone frontmatter (`trigger: wave_complete | plan_revision | user_request`).
+
+Provisional because stage-gate anti-patterns research (`.lore/issues/campaign-planning-theory-research-needed.md`) may refine frequency constraints.
+
+### Wave granularity — RESOLVED: Fixed batches
+
+Waves are fixed batches defined at dispatch time. They can complete or abort, but cannot expand mid-wave. If a mid-wave finding requires new work, it goes into the next wave.
+
+Wave sizing and composition are the Guild Master's planning responsibility. Phase-organized waves (a brainstorm wave, then a spec wave, then a plan wave, then implementation waves per the plan's batch structure) are a recommended practice but not a structural requirement. The principle is: one wave, one kind of work, to prevent too many different types of changes happening at once.
+
+### Campaign registration — RESOLVED: File-based discovery
+
+If `.lore/campaigns/<name>/campaign.md` exists, it's a campaign. The daemon discovers campaigns by scanning the directory. No separate registry, no registration API, no "campaign create" ceremony. The Guild Master creates the directory and writes the file. The daemon sees it.
+
+Principle: files are the source of truth. If the directory exists, it wants to be tracked.
+
+### Commission-campaign binding — RESOLVED: Commission is source of truth
+
+Commissions get a `campaign` frontmatter field set at dispatch time (e.g., `campaign: triggered-commissions`). This is the authoritative binding.
+
+`waves.md` also lists commissions under the active wave, serving as the Guild Master's working surface for wave management. The GM reads `waves.md` to decide when a wave is complete, then writes the wave summary and archives the wave. Both the commission field and the waves.md entry are set at dispatch time via `create_commission`.
+
+If commission frontmatter and waves.md disagree, the commission wins.
+
+### Abandonment — RESOLVED: Three states
+
+Campaign status in `campaign.md` frontmatter:
+- **active** — campaign is live. "Paused" is just active with no dispatched wave.
+- **completed** — goal achieved, all waves done.
+- **abandoned** — stopped permanently. Must record reason in plan history.
+
+No deletion of directory or artifacts on abandonment. The campaign becomes historical but stays navigable.
+
+### Research dependency
+
+Filed `.lore/issues/campaign-planning-theory-research-needed.md` for Verity. Three areas: rolling-wave planning failure modes, multi-session strategic context in agent systems, stage-gate anti-patterns. Findings would most directly inform milestone trigger constraints and the living plan model.
 
 ---
 

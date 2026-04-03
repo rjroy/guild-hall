@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./NewIssueButton.module.css";
 
 interface NewIssueButtonProps {
@@ -10,6 +11,7 @@ interface NewIssueButtonProps {
 type ResultState = { slug: string } | { error: string } | null;
 
 export default function NewIssueButton({ projectName }: NewIssueButtonProps) {
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -67,6 +69,7 @@ export default function NewIssueButton({ projectName }: NewIssueButtonProps) {
       setTitle("");
       setBody("");
       setResult({ slug: data.slug ?? "" });
+      router.refresh();
       if (fadeTimer.current) clearTimeout(fadeTimer.current);
       fadeTimer.current = setTimeout(() => setResult(null), 4000);
     } catch {
@@ -74,7 +77,7 @@ export default function NewIssueButton({ projectName }: NewIssueButtonProps) {
     }
 
     setSubmitting(false);
-  }, [title, body, projectName]);
+  }, [title, body, projectName, router]);
 
   return (
     <div>

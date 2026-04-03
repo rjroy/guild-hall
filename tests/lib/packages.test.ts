@@ -727,6 +727,29 @@ describe("discoverPackages", () => {
     expect(packages[0].pluginPath).toBeUndefined();
   });
 
+  test("plugin-type package with plugin/.claude-plugin/plugin.json gets pluginPath populated", async () => {
+    const pkgDir = await writePackage(tmpDir, "guild-compendium", {
+      name: "guild-compendium",
+      guildHall: {
+        type: "plugin",
+        name: "guild-compendium",
+        description: "Craft knowledge for the guild",
+      },
+    });
+    await fs.mkdir(path.join(pkgDir, "plugin", ".claude-plugin"), { recursive: true });
+    await fs.writeFile(
+      path.join(pkgDir, "plugin", ".claude-plugin", "plugin.json"),
+      "{}",
+      "utf-8"
+    );
+
+    const packages = await discoverPackages([tmpDir]);
+    expect(packages).toHaveLength(1);
+    expect(packages[0].name).toBe("guild-compendium");
+    expect(packages[0].metadata.type).toBe("plugin");
+    expect(packages[0].pluginPath).toBe(path.join(pkgDir, "plugin"));
+  });
+
   test("discovers worker with model field in metadata", async () => {
     const guildHall = { ...validWorkerGuildHall(), model: "haiku" };
     await writePackage(tmpDir, "haiku-worker", {

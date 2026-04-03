@@ -1,0 +1,65 @@
+/* Navigation card for an active (live) meeting.
+   Visually muted relative to MeetingRequestCard — no action buttons,
+   slightly quieter background and border. REQ-FPM-03, REQ-FPM-05 */
+
+.card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: 8px;
+  background-color: var(--color-button-bg);
+  border: 1px solid var(--color-bronze);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.card:hover {
+  background-color: var(--color-button-bg-hover);
+  border-color: var(--color-brass);
+}
+
+/* Green filled circle — live/active indicator. REQ-FPM-03 */
+.liveIndicator {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-status-active);
+  align-self: flex-start;
+  margin-top: var(--space-xs);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.workerTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-heading);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meetingTitle {
+  font-size: 0.85rem;
+  color: var(--color-text);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}

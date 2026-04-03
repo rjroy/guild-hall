@@ -265,28 +265,9 @@ describe("POST /system/config/project/register", () => {
     expect(body.error).toContain(".git/");
   });
 
-  test("returns 400 when .lore is missing", async () => {
-    const projectDir = path.join(tmpDir, "no-lore-project");
-    await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
-
-    const deps = makeAdminDeps({ guildHallHome: ghHome });
-    const app = makeTestApp(deps);
-
-    const res = await app.request("/system/config/project/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "test", path: projectDir }),
-    });
-
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toContain(".lore/");
-  });
-
   test("returns 409 for duplicate project names", async () => {
     const projectDir = path.join(tmpDir, "dup-project");
     await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
-    await fs.mkdir(path.join(projectDir, ".lore"), { recursive: true });
 
     const config: AppConfig = {
       projects: [{ name: "existing", path: "/some/path" }],
@@ -305,7 +286,7 @@ describe("POST /system/config/project/register", () => {
     expect(body.error).toContain("already registered");
   });
 
-  test("successfully registers a valid project", async () => {
+  test("successfully registers a valid project with .git and .lore", async () => {
     const projectDir = path.join(tmpDir, "valid-project");
     await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
     await fs.mkdir(path.join(projectDir, ".lore"), { recursive: true });
@@ -333,6 +314,34 @@ describe("POST /system/config/project/register", () => {
     // In-memory config should be updated
     expect(config.projects).toHaveLength(1);
     expect(config.projects[0].name).toBe("my-project");
+  });
+
+  test("successfully registers a project without .lore directory", async () => {
+    const projectDir = path.join(tmpDir, "no-lore-project");
+    await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
+
+    // Write an initial config.yaml so the route can read/write it
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({ projects: [] }, configPath);
+
+    const config: AppConfig = { projects: [] };
+    const deps = makeAdminDeps({ guildHallHome: ghHome, config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "bare-project", path: projectDir }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.registered).toBe(true);
+    expect(body.name).toBe("bare-project");
+
+    // In-memory config should be updated
+    expect(config.projects).toHaveLength(1);
+    expect(config.projects[0].name).toBe("bare-project");
   });
 });
 
@@ -392,7 +401,7 @@ describe("GET /system/config/application/validate", () => {
     expect(body.issues[0]).toContain("does not exist");
   });
 
-  test("reports issues for missing .git and .lore", async () => {
+  test("reports .git as issue but .lore as warning", async () => {
     const projectDir = path.join(tmpDir, "bare-dir");
     await fs.mkdir(projectDir, { recursive: true });
 
@@ -407,15 +416,43 @@ describe("GET /system/config/application/validate", () => {
     const res = await app.request("/system/config/application/validate");
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { valid: boolean; issues: string[]; warnings: string[] };
     expect(body.valid).toBe(false);
-    expect(body.issues.length).toBeGreaterThanOrEqual(2);
+    // .git is an issue
+    expect(body.issues.length).toBeGreaterThanOrEqual(1);
+    expect(body.issues.some((i) => i.includes(".git/"))).toBe(true);
+    // .lore is a warning, not an issue
+    expect(body.warnings).toBeDefined();
+    expect(body.warnings.some((w) => w.includes(".lore/"))).toBe(true);
   });
 
-  test("returns valid when all projects check out", async () => {
+  test("allows project without .lore but requires .git", async () => {
+    const projectDir = path.join(tmpDir, "git-only-project");
+    await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
+
+    const configPath = path.join(ghHome, "config.yaml");
+    await writeConfig({
+      projects: [{ name: "git-only", path: projectDir }],
+    }, configPath);
+
+    const deps = makeAdminDeps({ guildHallHome: ghHome });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/application/validate");
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { valid: boolean; issues: string[]; warnings: string[] };
+    expect(body.valid).toBe(true);
+    // No git issues
+    expect(body.issues.filter((i) => i.includes("git-only")).length).toBe(0);
+    // But should have warning about missing .lore
+    expect(body.warnings).toBeDefined();
+    expect(body.warnings.some((w) => w.includes(".lore/"))).toBe(true);
+  });
+
+  test("returns valid when project has .git (even without .lore)", async () => {
     const projectDir = path.join(tmpDir, "good-project");
     await fs.mkdir(path.join(projectDir, ".git"), { recursive: true });
-    await fs.mkdir(path.join(projectDir, ".lore"), { recursive: true });
 
     const configPath = path.join(ghHome, "config.yaml");
     await writeConfig({
@@ -431,6 +468,9 @@ describe("GET /system/config/application/validate", () => {
     const body = await res.json();
     expect(body.valid).toBe(true);
     expect(body.projectCount).toBe(1);
+    // Should have warning about missing .lore
+    expect(body.warnings).toBeDefined();
+    expect(body.warnings.length).toBeGreaterThan(0);
   });
 });
 

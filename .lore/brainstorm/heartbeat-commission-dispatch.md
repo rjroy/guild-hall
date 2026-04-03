@@ -1,7 +1,7 @@
 ---
 title: "Heartbeat Commission Dispatch"
 date: 2026-03-31
-status: approved
+status: resolved
 author: Celeste
 tags: [brainstorm, commissions, scheduling, triggers, simplification, haiku]
 context_scanned:
