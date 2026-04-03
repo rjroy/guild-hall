@@ -1,7 +1,7 @@
 ---
 title: "Commission: Update Heartbeat Plan"
 date: 2026-04-03
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Octavia
@@ -17,6 +17,11 @@ activity_timeline:
   - timestamp: 2026-04-03T17:26:49.961Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-04-03T19:12:56.117Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
