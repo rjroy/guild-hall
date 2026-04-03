@@ -1,7 +1,7 @@
 ---
 title: "Commission: Fix CLI register command dropping group argument"
 date: 2026-04-03
-status: dispatched
+status: completed
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -22,6 +22,32 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
-current_progress: ""
+  - timestamp: 2026-04-03T04:10:47.810Z
+    event: status_in_progress
+    reason: "Execution started"
+    from: "dispatched"
+    to: "in_progress"
+  - timestamp: 2026-04-03T04:11:08.007Z
+    event: progress_report
+    reason: "Starting fix for CLI register command dropping group argument. Issue: cli-project-group-failed.md. Root cause located in cli/index.ts lines 138-144 where path resolution creates a 2-element array only."
+  - timestamp: 2026-04-03T04:11:48.628Z
+    event: result_submitted
+    reason: "Fixed the CLI register command argument drop bug. The `guild-hall register` command was dropping the `group` argument due to path resolution logic in cli/index.ts lines 138-144 creating a new 2-element array instead of preserving all positional args. \n\n**Changes:**\n- Updated cli/index.ts line 143 to preserve additional args: `[positionalArgs[0], path.resolve(positionalArgs[1]), ...positionalArgs.slice(2)]`\n- Updated issue status in .lore/issues/cli-project-group-failed.md to `resolved`\n\n**Verification:**\n- All 100 CLI tests pass\n- Full test suite: 3647 tests pass, 4 skip, 0 fail\n- Existing register command tests already verify 3-arg mapping works correctly (resolve.test.ts lines 338-353)"
+  - timestamp: 2026-04-03T04:11:50.638Z
+    event: status_completed
+    reason: "Execution completed"
+    from: "in_progress"
+    to: "completed"
+current_progress: "Starting fix for CLI register command dropping group argument. Issue: cli-project-group-failed.md. Root cause located in cli/index.ts lines 138-144 where path resolution creates a 2-element array only."
 projectName: guild-hall
 ---
+Fixed the CLI register command argument drop bug. The `guild-hall register` command was dropping the `group` argument due to path resolution logic in cli/index.ts lines 138-144 creating a new 2-element array instead of preserving all positional args. 
+
+**Changes:**
+- Updated cli/index.ts line 143 to preserve additional args: `[positionalArgs[0], path.resolve(positionalArgs[1]), ...positionalArgs.slice(2)]`
+- Updated issue status in .lore/issues/cli-project-group-failed.md to `resolved`
+
+**Verification:**
+- All 100 CLI tests pass
+- Full test suite: 3647 tests pass, 4 skip, 0 fail
+- Existing register command tests already verify 3-arg mapping works correctly (resolve.test.ts lines 338-353)

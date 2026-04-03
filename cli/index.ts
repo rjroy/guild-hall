@@ -140,7 +140,7 @@ async function main(): Promise<void> {
       const isRegister = cmdSegments[cmdSegments.length - 1] === "register";
       const resolvedArgs =
         isRegister && positionalArgs.length >= 2
-          ? [positionalArgs[0], path.resolve(positionalArgs[1])]
+          ? [positionalArgs[0], path.resolve(positionalArgs[1]), ...positionalArgs.slice(2)]
           : positionalArgs;
 
       // Validate required args
