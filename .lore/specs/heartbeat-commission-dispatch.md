@@ -76,7 +76,9 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 
 - REQ-HBT-5: The loop uses post-completion scheduling (same pattern as `createBriefingRefreshService` in `daemon/services/briefing-refresh.ts`). After all projects are evaluated, the next tick is scheduled after the configured interval. This prevents pile-up if a tick takes longer than the interval.
 
-- REQ-HBT-6: Error handling per project: if the heartbeat session fails for a project (SDK error, rate limit, timeout), the daemon logs the error at `warn` level and moves to the next project. No retry. Rate-limit errors are expected (subscription users hitting hourly caps) and should not be treated as exceptional. The `## Recent Activity` section is NOT cleared on failure, so the context is preserved for the next tick.
+- REQ-HBT-6: Error handling per project: if the heartbeat session fails for a project with a non-rate-limit error (SDK error, timeout), the daemon logs the error at `warn` level and moves to the next project. No retry. The `## Recent Activity` section is NOT cleared on failure, so the context is preserved for the next tick.
+
+- REQ-HBT-6a: If any project's heartbeat session fails with a rate-limit error, the loop stops evaluating remaining projects and schedules the next tick after the configured backoff duration (REQ-HBT-28a). The rate limit has already been hit; evaluating further projects will produce the same result. Activity sections for unevaluated projects are preserved (they were never read). The failed project's activity is also preserved per REQ-HBT-6.
 
 - REQ-HBT-7: On daemon startup, the heartbeat loop starts after the briefing refresh service. No catch-up logic. If the daemon was down, the first tick happens at the configured interval after startup. Standing orders are not time-sensitive enough to warrant immediate evaluation on restart.
 
@@ -205,6 +207,8 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 ### Configuration
 
 - REQ-HBT-28: The heartbeat interval is configured in `~/.guild-hall/config.yaml` as `heartbeatIntervalMinutes`. Type: positive integer. Default: 60 (1 hour). Minimum: 5 (to prevent abuse of Haiku calls). The config schema in `lib/config.ts` validates this field with `z.number().int().min(5).optional()`.
+
+- REQ-HBT-28a: The rate-limit backoff duration is configured in `~/.guild-hall/config.yaml` as `heartbeatBackoffMinutes`. Type: positive integer. Default: 300 (5 hours, matching the Anthropic subscription rate-limit window). The config schema in `lib/config.ts` validates this field with `z.number().int().min(60).optional()`. Minimum 60 to prevent rapid retry loops against a rate limit that won't clear sooner.
 
 - REQ-HBT-29: The heartbeat model is configured via `systemModels.heartbeat` in `~/.guild-hall/config.yaml`. Default: `"haiku"`. This follows the same pattern as `systemModels.briefing`. The `SystemModels` interface in `lib/types.ts` gains a `heartbeat?: string` field, and the `systemModelsSchema` in `lib/config.ts` gains `heartbeat: z.string().min(1).optional()`. If the user wants more capable evaluation, they set it to `"sonnet"`.
 
@@ -411,7 +415,8 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 - [ ] Standing orders written in natural language are evaluated by the heartbeat GM session
 - [ ] The heartbeat loop ticks at the configured interval and evaluates all registered projects
 - [ ] Projects with empty heartbeat files (no content below header) are skipped at zero cost
-- [ ] Rate-limit errors are logged and skipped, not retried
+- [ ] Rate-limit errors stop the current tick, skip remaining projects, and schedule the next tick after the configured backoff (default 5 hours)
+- [ ] The backoff duration defaults to 300 minutes and is configurable via `heartbeatBackoffMinutes`
 - [ ] Event condensation appends outcome summaries to `## Recent Activity` between ticks
 - [ ] The `## Recent Activity` section is cleared after each successful tick
 - [ ] Commissions can carry a `source` block in frontmatter with a `description` field
@@ -446,7 +451,7 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 - Empty file skip test: heartbeat file with only instructional header; verify no SDK session is started
 - Event condensation test: emit commission_status (completed) and commission_result events; verify summary lines appear in `## Recent Activity`
 - Activity clearing test: after a successful tick, verify `## Recent Activity` is empty
-- Rate limit handling test: SDK session throws rate limit error; verify project is skipped, activity is preserved, next project is evaluated
+- Rate limit backoff test: SDK session throws rate limit error on project 2 of 3; verify project 2 and 3 activity is preserved, remaining projects are not evaluated, and next tick is scheduled at backoff interval (not normal interval)
 - Tick Now test: POST to `/heartbeat/{project}/tick`; verify immediate evaluation runs and returns result
 - Scaffolding test: initialize a project without `heartbeat.md`; verify file is created with correct header
 - Scaffolding header repair test: initialize a project with a `heartbeat.md` whose header has been corrupted; verify header is replaced with template while section content is preserved
