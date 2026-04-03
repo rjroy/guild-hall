@@ -1,7 +1,7 @@
 ---
 title: "Commission: Front-page meetings Phase 1: Backend (view=open endpoint + sortActiveMeetings)"
 date: 2026-04-03
-status: failed
+status: abandoned
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -25,6 +25,11 @@ activity_timeline:
   - timestamp: 2026-04-03T17:15:36.952Z
     event: status_failed
     reason: "Session error: Claude Code returned an error result: You've hit your limit · resets 12pm (America/Los_Angeles)"
+  - timestamp: 2026-04-03T17:16:26.677Z
+    event: status_abandoned
+    reason: "ran out of tokens ... we'll want to restart."
+    from: "failed"
+    to: "abandoned"
 current_progress: ""
 projectName: guild-hall
 ---
