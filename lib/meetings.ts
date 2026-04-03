@@ -225,6 +225,15 @@ export function sortMeetingArtifacts(meetings: Artifact[]): Artifact[] {
 }
 
 /**
+ * Sorts active (open-status) meetings for the dashboard ActiveMeetings panel.
+ * By date descending — most recently started first.
+ * REQ-SORT-12
+ */
+export function sortActiveMeetings(meetings: MeetingMeta[]): MeetingMeta[] {
+  return [...meetings].sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
  * Sorts meeting requests for the dashboard Pending Audiences (Surface 5).
  * Non-deferred first, deferred by deferred_until ascending, then date descending.
  * REQ-SORT-11
