@@ -133,13 +133,6 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
         return c.json({ error: `'${resolved}' does not contain a .git/ directory` }, 400);
       }
 
-      // Validate .lore/ exists
-      try {
-        await fs.stat(path.join(resolved, ".lore"));
-      } catch {
-        return c.json({ error: `'${resolved}' does not contain a .lore/ directory` }, 400);
-      }
-
       // Reject duplicate names
       if (deps.config.projects.some((p) => p.name === name)) {
         return c.json({ error: `project '${name}' is already registered` }, 409);
@@ -321,6 +314,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       }
 
       const issues: string[] = [];
+      const warnings: string[] = [];
 
       for (const project of config.projects) {
         const resolved = path.resolve(project.path);
@@ -347,7 +341,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
         try {
           await fs.stat(path.join(resolved, ".lore"));
         } catch {
-          issues.push(
+          warnings.push(
             `${project.name}: '${resolved}' does not contain a .lore/ directory`,
           );
         }
@@ -356,6 +350,7 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       return c.json({
         valid: issues.length === 0,
         issues,
+        ...(warnings.length > 0 && { warnings }),
         projectCount: config.projects.length,
       });
     } catch (err: unknown) {
