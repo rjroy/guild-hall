@@ -1,7 +1,7 @@
 ---
 title: "Commission: Front-page meetings Phase 1: Backend (view=open endpoint + sortActiveMeetings)"
 date: 2026-04-03
-status: dispatched
+status: failed
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -22,6 +22,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-04-03T17:15:36.952Z
+    event: status_failed
+    reason: "Session error: Claude Code returned an error result: You've hit your limit · resets 12pm (America/Los_Angeles)"
 current_progress: ""
 projectName: guild-hall
 ---
