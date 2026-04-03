@@ -181,11 +181,11 @@ date: 2026-03-01
       "/meeting/request/meeting/list?projectName=test-project&view=open",
     );
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { meetings: { meetingId: string; title: string }[] };
 
     // Should only have one entry (deduped), and it should be the integration copy
     const shared = body.meetings.filter(
-      (m: { meetingId: string; title: string }) => m.meetingId === "meeting-shared",
+      (m) => m.meetingId === "meeting-shared",
     );
     expect(shared).toHaveLength(1);
     expect(shared[0].title).toBe("Integration Copy");

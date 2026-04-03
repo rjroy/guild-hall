@@ -416,14 +416,14 @@ describe("GET /system/config/application/validate", () => {
     const res = await app.request("/system/config/application/validate");
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { valid: boolean; issues: string[]; warnings: string[] };
     expect(body.valid).toBe(false);
     // .git is an issue
     expect(body.issues.length).toBeGreaterThanOrEqual(1);
-    expect(body.issues.some((i: string) => i.includes(".git/"))).toBe(true);
+    expect(body.issues.some((i) => i.includes(".git/"))).toBe(true);
     // .lore is a warning, not an issue
     expect(body.warnings).toBeDefined();
-    expect(body.warnings.some((w: string) => w.includes(".lore/"))).toBe(true);
+    expect(body.warnings.some((w) => w.includes(".lore/"))).toBe(true);
   });
 
   test("allows project without .lore but requires .git", async () => {
@@ -441,13 +441,13 @@ describe("GET /system/config/application/validate", () => {
     const res = await app.request("/system/config/application/validate");
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { valid: boolean; issues: string[]; warnings: string[] };
     expect(body.valid).toBe(true);
     // No git issues
-    expect(body.issues.filter((i: string) => i.includes("git-only")).length).toBe(0);
+    expect(body.issues.filter((i) => i.includes("git-only")).length).toBe(0);
     // But should have warning about missing .lore
     expect(body.warnings).toBeDefined();
-    expect(body.warnings.some((w: string) => w.includes(".lore/"))).toBe(true);
+    expect(body.warnings.some((w) => w.includes(".lore/"))).toBe(true);
   });
 
   test("returns valid when project has .git (even without .lore)", async () => {

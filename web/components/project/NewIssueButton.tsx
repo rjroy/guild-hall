@@ -77,7 +77,7 @@ export default function NewIssueButton({ projectName }: NewIssueButtonProps) {
     }
 
     setSubmitting(false);
-  }, [title, body, projectName]);
+  }, [title, body, projectName, router]);
 
   return (
     <div>

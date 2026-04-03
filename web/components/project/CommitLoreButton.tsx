@@ -80,7 +80,7 @@ export default function CommitLoreButton({
     }
 
     setSubmitting(false);
-  }, [message, projectName]);
+  }, [message, projectName, router]);
 
   return (
     <div>
