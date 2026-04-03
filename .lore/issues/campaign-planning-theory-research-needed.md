@@ -1,7 +1,7 @@
 ---
 title: "Research needed: project planning theory grounding for guild campaigns"
 date: 2026-04-02
-status: open
+status: resolved
 tags: [research, campaigns, planning-theory, rolling-wave, stage-gate]
 related:
   - .lore/brainstorm/guild-campaigns-artifact-design.md
