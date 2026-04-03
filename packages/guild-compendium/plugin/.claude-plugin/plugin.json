@@ -1,4 +1,5 @@
 {
-  "name": "Guild Compendium",
-  "description": "Curated craft knowledge workers consult on demand. Skills for reading reference entries and proposing new ones."
+  "name": "guild-compendium",
+  "description": "Curated craft knowledge workers consult on demand. Skills for reading reference entries and proposing new ones.",
+  "version": "0.1.0"
 }
