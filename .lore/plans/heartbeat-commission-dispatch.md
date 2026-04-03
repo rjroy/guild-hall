@@ -26,7 +26,8 @@ Requirements addressed:
 - REQ-HBT-3: No structural parsing beyond header check → Phase 2, Step 1
 - REQ-HBT-4: Daemon heartbeat loop → Phase 2, Step 1
 - REQ-HBT-5: Post-completion scheduling pattern → Phase 2, Step 1
-- REQ-HBT-6: Per-project error handling, no retry → Phase 2, Step 1
+- REQ-HBT-6: Per-project error handling for non-rate-limit errors, no retry → Phase 2, Step 1
+- REQ-HBT-6a: Rate-limit error handling with loop abort and backoff scheduling → Phase 2, Step 1
 - REQ-HBT-7: Startup after briefing refresh, no catch-up → Phase 2, Step 1
 - REQ-HBT-8: GM session via prepareSdkSession + runSdkSession on Haiku → Phase 2, Step 2
 - REQ-HBT-9: System prompt constraints (dispatcher mode) → Phase 2, Step 2
@@ -49,6 +50,7 @@ Requirements addressed:
 - REQ-HBT-26: Scaffolded file content (header + empty sections) → Phase 1, Step 3
 - REQ-HBT-27: Dashboard [Tick Now] button + standing order count → Phase 5, Step 2
 - REQ-HBT-28: heartbeatIntervalMinutes config → Phase 1, Step 1
+- REQ-HBT-28a: heartbeatBackoffMinutes config → Phase 1, Step 1
 - REQ-HBT-29: systemModels.heartbeat config → Phase 1, Step 1
 - REQ-HBT-30: POST /heartbeat/{projectName}/tick → Phase 5, Step 1
 - REQ-HBT-31: GET /heartbeat/{projectName}/status → Phase 5, Step 1
@@ -121,13 +123,13 @@ Everything else depends on these primitives. Config schema, the `source` field o
 
 ### Step 1: Config Schema and Types
 
-**Addresses**: REQ-HBT-28, REQ-HBT-29
+**Addresses**: REQ-HBT-28, REQ-HBT-28a, REQ-HBT-29
 
 **Files modified**:
-- `lib/types.ts`: Add `heartbeatIntervalMinutes?: number` to `AppConfig` interface. Add `heartbeat?: string` to `SystemModels` interface.
-- `lib/config.ts`: Add `heartbeatIntervalMinutes: z.number().int().min(5).optional()` to `appConfigSchema`. Add `heartbeat: z.string().min(1).optional()` to `systemModelsSchema`.
+- `lib/types.ts`: Add `heartbeatIntervalMinutes?: number` and `heartbeatBackoffMinutes?: number` to `AppConfig` interface. Add `heartbeat?: string` to `SystemModels` interface.
+- `lib/config.ts`: Add `heartbeatIntervalMinutes: z.number().int().min(5).optional()` and `heartbeatBackoffMinutes: z.number().int().min(60).optional()` to `appConfigSchema`. Add `heartbeat: z.string().min(1).optional()` to `systemModelsSchema`.
 
-**Testing**: Unit tests for config validation (accepts valid interval, rejects < 5, defaults to undefined when omitted). Test that systemModels.heartbeat parses correctly.
+**Testing**: Unit tests for config validation (accepts valid interval, rejects < 5, defaults to undefined when omitted). Test that backoff defaults to 300 minutes, accepts values ≥ 60, and rejects values < 60. Test that systemModels.heartbeat parses correctly.
 
 ### Step 2: Commission Source Provenance
 
@@ -162,12 +164,12 @@ The central mechanism. Depends on Phase 1 for config, source provenance, and fil
 
 ### Step 1: Heartbeat Loop
 
-**Addresses**: REQ-HBT-3, REQ-HBT-4, REQ-HBT-5, REQ-HBT-6, REQ-HBT-7, REQ-HBT-20
+**Addresses**: REQ-HBT-3, REQ-HBT-4, REQ-HBT-5, REQ-HBT-6, REQ-HBT-6a, REQ-HBT-7, REQ-HBT-20
 
 **Files created**:
-- `daemon/services/heartbeat/index.ts`: The `HeartbeatService` with `start()`/`stop()` lifecycle. Follows the `briefing-refresh.ts` post-completion pattern. Iterates registered projects sequentially. For each project: reads heartbeat file, checks for content below header, runs GM session (Step 2), clears Recent Activity on success. Per-project error handling: log at warn, skip, preserve activity on failure. Starts after briefing refresh, first tick after configured interval (no catch-up). Exports `tickProject(projectName)` for the manual tick route (Phase 5).
+- `daemon/services/heartbeat/index.ts`: The `HeartbeatService` with `start()`/`stop()` lifecycle. Follows the `briefing-refresh.ts` post-completion pattern. Iterates registered projects sequentially. For each project: reads heartbeat file, checks for content below header, runs GM session (Step 2), clears Recent Activity on success. Two error paths: (1) non-rate-limit errors: log at warn, skip project, preserve activity, continue to next project; (2) rate-limit errors: abort the loop immediately, preserve activity for all remaining (unevaluated) projects, and schedule the next tick after the configured backoff duration (`heartbeatBackoffMinutes`, default 300 minutes) rather than the normal interval. Starts after briefing refresh, first tick after configured interval (no catch-up). Exports `tickProject(projectName)` for the manual tick route (Phase 5).
 
-**Testing**: Mock SDK session. Verify loop iterates all projects. Verify empty files are skipped (no session started). Verify activity cleared after successful tick. Verify activity preserved after failed tick. Verify rate-limit errors are logged and skipped. Verify next tick is scheduled after all projects complete (post-completion, not fixed interval). Verify `commissionsCreatedLastTick` count is tracked per project (consumed by Phase 5's `/status` route).
+**Testing**: Mock SDK session. Verify loop iterates all projects. Verify empty files are skipped (no session started). Verify activity cleared after successful tick. Verify activity preserved after non-rate-limit error (loop continues to next project). Verify rate-limit error on project 2 of 3 stops the loop, preserves activity for project 2 and 3, and schedules next tick at backoff interval (not normal interval). Verify next tick is scheduled after all projects complete (post-completion, not fixed interval). Verify `commissionsCreatedLastTick` count is tracked per project (consumed by Phase 5's `/status` route).
 
 ### Step 2: Heartbeat GM Session
 
