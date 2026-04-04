@@ -1,7 +1,7 @@
 ---
 title: "Dangerous Mode Environment Configuration: Host Hardening for Unrestricted AI Agents"
 date: 2026-03-31
-status: active
+status: parked
 tags: [security, environment, configuration, agents, dangerous-mode]
 related:
   - .lore/specs/infrastructure/daemon-application-boundary.md
