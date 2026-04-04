@@ -9,6 +9,7 @@ import CommissionLinkedArtifacts from "./CommissionLinkedArtifacts";
 import CommissionNotes from "./CommissionNotes";
 import Panel from "@/web/components/ui/Panel";
 import InlinePanel from "@/web/components/ui/InlinePanel";
+import CollapsibleSidebar from "@/web/components/ui/CollapsibleSidebar";
 import type { TimelineEntry } from "@/lib/commissions";
 import type { CommissionArtifact } from "./CommissionLinkedArtifacts";
 import styles from "./CommissionView.module.css";
@@ -258,9 +259,14 @@ export default function CommissionView({
 
         </div>
 
-        <div className={styles.sidebar}>
+        <CollapsibleSidebar
+          storageKey="sidebar-collapsed:commission"
+          label="Details"
+          width={280}
+          className={styles.desktopSidebar}
+        >
           {sidebarContent}
-        </div>
+        </CollapsibleSidebar>
       </div>
       <div className={styles.mobileSidebar}>
         <InlinePanel label="Details">
