@@ -1,7 +1,7 @@
 ---
 title: "Front-Page Active Meetings"
 date: 2026-04-03
-status: implemented 
+status: executed 
 tags: [ui, dashboard, meetings, web-ui, daemon]
 modules: [web/app/page, web/app/page.module.css, web/components/dashboard/ActiveMeetings, web/components/dashboard/ActiveMeetingCard, daemon/routes/meetings, lib/meetings]
 related:
