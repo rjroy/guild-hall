@@ -1,7 +1,7 @@
 ---
 title: Heartbeat Commission Dispatch
 date: 2026-04-03
-status: approved
+status: active
 tags: [commissions, heartbeat, scheduling, automation, haiku, simplification]
 modules: [daemon-heartbeat, manager-toolbox, commission-orchestrator, event-bus]
 related:

@@ -1,7 +1,8 @@
 ---
 title: Triggered Commission Creation UX
 date: 2026-03-21
-status: implemented
+status: superseded
+superseded_by: .lore/specs/heartbeat-commission-dispatch.md
 tags: [ui, commissions, triggers, form, client-component]
 modules: [web/components/commission/CommissionForm]
 related:

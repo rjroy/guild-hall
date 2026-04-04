@@ -2,7 +2,8 @@
 title: Triggered Commissions
 date: 2026-03-20
 revised: 2026-03-21
-status: implemented
+status: superseded
+superseded_by: .lore/specs/heartbeat-commission-dispatch.md
 tags: [commissions, event-router, automation, triggers, artifacts]
 modules: [event-router, commission-orchestrator, trigger-evaluator]
 related:
