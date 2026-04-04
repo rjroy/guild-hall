@@ -13,7 +13,10 @@ import { isNodeError } from "@/lib/types";
 
 // -- Template --
 
-const HEARTBEAT_HEADER = `# Heartbeat
+const HEARTBEAT_HEADER = `---
+status: active
+---
+# Heartbeat
 
 This file controls what the guild does autonomously. Every hour (configurable),
 a Guild Master session reads this file and decides which standing orders warrant
