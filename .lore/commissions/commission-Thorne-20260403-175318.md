@@ -1,7 +1,7 @@
 ---
 title: "Commission: Heartbeat P2 Review: Heartbeat Service Core"
 date: 2026-04-04
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Thorne
@@ -18,6 +18,11 @@ activity_timeline:
   - timestamp: 2026-04-04T00:53:18.073Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-04-04T00:59:31.177Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---

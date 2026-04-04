@@ -1,7 +1,7 @@
 ---
 title: "Commission: Heartbeat P6: Remove Scheduler, Trigger, and Schedule/Trigger UI Files"
 date: 2026-04-04
-status: pending
+status: blocked
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -20,6 +20,11 @@ activity_timeline:
   - timestamp: 2026-04-04T00:54:01.521Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-04-04T00:59:31.177Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---
