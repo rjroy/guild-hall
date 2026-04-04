@@ -261,7 +261,7 @@ describe("workspace scoping", () => {
       await readWorkerA({ scope: "worker" });
       await editWorkerA({
         scope: "worker",
-        section: "Notes",
+        section: "Note",
         operation: "upsert",
         content: "Worker A's private notes",
       });

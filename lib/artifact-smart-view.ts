@@ -2,6 +2,7 @@ import type { Artifact } from "@/lib/types";
 import {
   compareArtifactsByStatusAndTitle,
   statusToPriority,
+  artifactTypeSegment,
 } from "@/lib/types";
 import { capitalize } from "@/lib/artifact-grouping";
 
@@ -14,34 +15,13 @@ export const SMART_VIEW_FILTERS: { key: SmartViewFilter; label: string }[] = [
 ];
 
 /** Directories excluded from all smart views. These have dedicated tabs. */
-const EXCLUDED_DIRECTORIES = new Set(["meetings", "commissions"]);
-
-/** Maps first path segment to display label. REQ-SMARTVIEW-12. */
-const TYPE_LABELS: Record<string, string> = {
-  specs: "Spec",
-  plans: "Plan",
-  brainstorm: "Brainstorm",
-  issues: "Issue",
-  research: "Research",
-  retros: "Retro",
-  design: "Design",
-  reference: "Reference",
-  notes: "Notes",
-  tasks: "Task",
-  diagrams: "Diagram",
-};
+const EXCLUDED_DIRECTORIES = new Set(["Meeting", "Commission"]);
 
 /** Set of types which are generative investigation artifacts. */
-const GENERATIVE_INVESTIGATION_SEGMENTS = new Set(["brainstorm", "research", "issues"]);
+const GENERATIVE_INVESTIGATION_SEGMENTS = new Set(["Brainstorm", "Research", "Issue"]);
 
 /** Set of types which are work items. */
-const WORK_ITEM_SEGMENTS = new Set(["specs", "plans", "design"]);
-
-/** Returns the first path segment, or null for root-level files. */
-export function artifactTypeSegment(relativePath: string): string | null {
-  const slash = relativePath.indexOf("/");
-  return slash === -1 ? null : relativePath.slice(0, slash);
-}
+const WORK_ITEM_SEGMENTS = new Set(["Spec", "Plan", "Design"]);
 
 /** Returns true if the artifact is a generative investigation artifact. REQ-SMARTVIEW-14. */
 export function isGenerativeInvestigation(artifact: Artifact): boolean {
@@ -57,8 +37,7 @@ export function isWorkItem(artifact: Artifact): boolean {
 
 /** Human-readable type label from the first path segment. REQ-SMARTVIEW-12. */
 export function artifactTypeLabel(relativePath: string): string | null {
-  const segment = artifactTypeSegment(relativePath);
-  return segment ? (TYPE_LABELS[segment] ?? null) : null;
+  return artifactTypeSegment(relativePath);
 }
 
 /** Domain label from the second path segment, if present. REQ-SMARTVIEW-13. */

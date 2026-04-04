@@ -2950,6 +2950,12 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
 /* eslint-enable @typescript-eslint/require-await */
 
 const MANAGER_PKG = createManagerPackage();
+const COMPENDIUM_PKG: DiscoveredPackage = {
+  name: "guild-compendium",
+  path: "/packages/guild-compendium",
+  metadata: { type: "plugin" as const, name: "guild-compendium", description: "Guild Compendium plugin" },
+  pluginPath: "/packages/guild-compendium/plugin/.claude-plugin",
+};
 
 describe("manager worker integration", () => {
   test("meeting session identifies manager by package name and sets isManager flag", async () => {
@@ -2968,7 +2974,7 @@ describe("manager worker integration", () => {
     }
 
     const deps = makeDeps({
-      packages: [MANAGER_PKG, WORKER_PKG],
+      packages: [MANAGER_PKG, WORKER_PKG, COMPENDIUM_PKG],
       activateFn: captureActivateFn,
       commissionSession: makeMockCommissionSession(),
       eventBus: { emit() {}, subscribe() { return () => {}; } },
@@ -3013,7 +3019,7 @@ describe("manager worker integration", () => {
     config.projects[0].path = projectDir;
 
     const deps: MeetingSessionDeps = {
-      packages: [MANAGER_PKG, WORKER_PKG],
+      packages: [MANAGER_PKG, WORKER_PKG, COMPENDIUM_PKG],
       config,
       guildHallHome: ghHomeDir,
       queryFn: mock.queryFn,

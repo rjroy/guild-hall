@@ -37,7 +37,6 @@ import type { EventBus } from "@/daemon/lib/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import { hasActiveActivities } from "@/daemon/services/git-admin";
-import { isValidModel } from "@/lib/types";
 import type { AppConfig, ProjectConfig, DiscoveredPackage } from "@/lib/types";
 import { integrationWorktreePath, resolveCommissionBasePath } from "@/lib/paths";
 import { readCommissionMeta, scanCommissions } from "@/lib/commissions";

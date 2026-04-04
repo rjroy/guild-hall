@@ -58,6 +58,7 @@ export interface ArtifactMeta {
   date: string;
   status: string;
   tags: string[];
+  type?: string;
   modules?: string[];
   related?: string[];
   /** Frontmatter fields not covered by the typed properties above. */
@@ -124,7 +125,16 @@ export const ARTIFACT_STATUS_GROUP: Record<string, number> = {
   archived: 4,
   parked: 4,
 };
-export const UNKNOWN_STATUS_PRIORITY = 2;
+
+export enum ArtifactStatusGroup {
+  Active = 0,
+  InProgress = 1,
+  Blocked = 2,
+  Terminal = 3,
+  Inactive = 4,
+};
+
+export const UNKNOWN_STATUS_PRIORITY = ArtifactStatusGroup.Blocked;
 
 export type GemStatus = "pending" | "active" | "blocked" | "info" | "inactive";
 
@@ -335,6 +345,30 @@ export function formatStatus(status: string): string {
   return status
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Maps first path segment to display label. REQ-SMARTVIEW-12. */
+export const TYPE_LABELS: Record<string, string> = {
+  specs: "Spec",
+  plans: "Plan",
+  brainstorm: "Brainstorm",
+  issues: "Issue",
+  research: "Research",
+  retros: "Retro",
+  design: "Design",
+  reference: "Reference",
+  notes: "Note",
+  tasks: "Task",
+  diagrams: "Diagram",
+  meetings: "Meeting",
+  commissions: "Commission",
+};
+
+/** Returns the first path segment, or null for root-level files. */
+export function artifactTypeSegment(relativePath: string): string | null {
+  const slash = relativePath.indexOf("/");
+  const rawType = slash === -1 ? null : relativePath.slice(0, slash);
+  return (rawType && rawType in TYPE_LABELS) ? TYPE_LABELS[rawType] : rawType;
 }
 
 // -- Event router types (REQ-EVRT) --

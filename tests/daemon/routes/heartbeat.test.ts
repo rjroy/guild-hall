@@ -37,7 +37,7 @@ function makeMockHeartbeatService(opts?: {
   return {
     start: () => {},
     stop: () => {},
-    tickProject: async (projectName: string) => {
+    tickProject: async (projectName: string) => { // eslint-disable-line @typescript-eslint/require-await
       ticks.push(projectName);
       if (opts?.tickResult) return opts.tickResult;
       return { success: true };
@@ -54,7 +54,6 @@ function makeMockHeartbeatService(opts?: {
 function createTestApp(
   config: AppConfig,
   heartbeatService: HeartbeatService,
-  heartbeatFilePath?: string,
 ) {
   const deps: AppDeps = {
     health: {
@@ -88,7 +87,7 @@ describe("POST /heartbeat/:projectName/tick", () => {
     expect(res.status).toBe(200);
     const body = await res.json() as { triggered: boolean };
     expect(body.triggered).toBe(true);
-    expect((service as ReturnType<typeof makeMockHeartbeatService>).tickedProjects).toContain("test-project");
+    expect(service.tickedProjects).toContain("test-project");
   });
 
   test("returns error for nonexistent project", async () => {

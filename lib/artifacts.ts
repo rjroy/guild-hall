@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import matter from "gray-matter";
-import { isNodeError } from "@/lib/types";
+import { ArtifactStatusGroup, artifactTypeSegment, isNodeError, statusToPriority } from "@/lib/types";
 import type { Artifact, ArtifactMeta } from "@/lib/types";
 import { compareArtifactsByStatusAndTitle  } from "@/lib/types";
 
@@ -146,6 +146,7 @@ export async function scanArtifacts(lorePath: string): Promise<Artifact[]> {
           meta: {
             title,
             date: stat.mtime.toISOString().split("T")[0],
+            type: artifactTypeSegment(relPath) || undefined,
             status: "complete",
             tags: [],
           },
@@ -164,6 +165,10 @@ export async function scanArtifacts(lorePath: string): Promise<Artifact[]> {
 
         let meta: ArtifactMeta;
         let content: string;
+
+        // Normalize OS path to POSIX for the logical relativePath convention
+        const relPath = toPosixPath(path.relative(resolvedBase, filePath));
+
         try {
           const parsed = matter(raw);
           meta = parseMeta(parsed.data as Record<string, unknown>);
@@ -173,12 +178,12 @@ export async function scanArtifacts(lorePath: string): Promise<Artifact[]> {
           meta = { ...EMPTY_META };
           content = raw;
         }
+        meta.type = artifactTypeSegment(relPath) || undefined;  
 
         artifacts.push({
           meta,
           filePath,
-          // Normalize OS path to POSIX for the logical relativePath convention
-          relativePath: toPosixPath(path.relative(resolvedBase, filePath)),
+          relativePath: relPath,
           content,
           lastModified: stat.mtime,
           artifactType: "document",
@@ -218,6 +223,7 @@ export async function readArtifact(
     meta = { ...EMPTY_META };
     content = raw;
   }
+  meta.type = artifactTypeSegment(relativePath) || undefined;
 
   return {
     meta,
@@ -274,8 +280,10 @@ export async function recentArtifacts(
   const all = await scanArtifacts(lorePath);
   const filtered = all.filter(
     (a) =>
-      !a.relativePath.startsWith("commissions/") &&
-      !a.relativePath.startsWith("meetings/")
+      a.meta.type !== "Commission" &&
+      a.meta.type !== "Meeting" &&
+      a.relativePath !== "heartbeat.md" &&
+      statusToPriority(a.meta.status) < (ArtifactStatusGroup.Inactive as number)
   );
   filtered.sort(compareArtifactsByRecency);
   return filtered.slice(0, limit);
