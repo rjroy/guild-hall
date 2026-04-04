@@ -1,7 +1,7 @@
 ---
 title: "Compendium proposal: commission chaining"
 date: 2026-04-03
-status: open
+status: resolved
 tags: [compendium-proposal]
 ---
 
