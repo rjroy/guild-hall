@@ -613,6 +613,15 @@ export async function createProductionApp(options?: {
       : () => { createLog("outcome-triage").warn("SDK not available, triage skipped"); return Promise.resolve(); },
   });
 
+  // Heartbeat: event condensation subscriber feeds activity context to
+  // per-project heartbeat files. Phase 2 will add the tick loop here.
+  const { HeartbeatService } = await import("@/daemon/services/heartbeat/index");
+  const heartbeatService = new HeartbeatService({
+    eventBus,
+    guildHallHome,
+    log: createLog("heartbeat"),
+  });
+
   const startTime = Date.now();
 
   const { app, registry } = createApp({
@@ -665,6 +674,7 @@ export async function createProductionApp(options?: {
       triggerEvaluator.shutdown();
       scheduler.stop();
       briefingRefresh.stop();
+      heartbeatService.stop();
       cleanupNotifications();
       cleanupRouter();
       unsubscribeTriage();
