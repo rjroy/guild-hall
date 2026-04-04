@@ -1,7 +1,7 @@
 ---
 title: "Guild Campaigns: Artifact Design"
 date: 2026-03-24
-status: open
+status: parked
 author: Octavia
 tags: [brainstorm, campaigns, artifacts, guild-master, context-management]
 parent_brainstorm: guild-hall-future-vision.md
