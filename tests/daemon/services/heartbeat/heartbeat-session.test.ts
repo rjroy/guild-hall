@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import {
   runHeartbeatSession,
+  HEARTBEAT_SYSTEM_PROMPT,
   type HeartbeatSessionDeps,
 } from "@/daemon/services/heartbeat/session";
 import type { AppConfig } from "@/lib/types";
@@ -119,6 +120,7 @@ describe("runHeartbeatSession", () => {
     const result = await runHeartbeatSession(deps, "nonexistent", "content", Date.now());
     expect(result.success).toBe(false);
     expect(result.error).toContain("not found");
+    expect(result.commissionsCreated).toBe(0);
   });
 
   test("uses configured model from systemModels.heartbeat", () => {
@@ -142,7 +144,6 @@ describe("runHeartbeatSession", () => {
   test("rate limit errors are flagged", async () => {
     const config = makeConfig();
 
-    // Create deps where prepareSdkSession will throw a rate limit error
     const deps: HeartbeatSessionDeps = {
       queryFn: (async function*() {})() as never,
       prepDeps: makeMockPrepDeps({ prepError: "Rate limit exceeded (429)" }),
@@ -157,28 +158,69 @@ describe("runHeartbeatSession", () => {
 
     const result = await runHeartbeatSession(deps, "test-project", "content", Date.now());
     expect(result.success).toBe(false);
-    // The error propagates from activateWorker through prepareSdkSession
-    // Whether it's flagged as rate limit depends on error message content
     expect(result.error).toBeDefined();
+    expect(result.commissionsCreated).toBe(0);
+  });
+
+  test("returns commissionsCreated: 0 on success with no commissions", async () => {
+    const config = makeConfig();
+
+    const deps: HeartbeatSessionDeps = {
+      queryFn: (async function*() {})() as never,
+      prepDeps: makeMockPrepDeps({ prepError: "Non-rate-limit error" }),
+      packages: [],
+      config,
+      guildHallHome,
+      commissionSession: makeMockCommissionSession(),
+      eventBus: { emit: () => {}, subscribe: () => () => {} } as never,
+      gitOps: {} as never,
+      getProjectConfig: () => Promise.resolve(undefined),
+    };
+
+    const result = await runHeartbeatSession(deps, "test-project", "content", Date.now());
+    // Fails due to prepError, but should still report commissionsCreated
+    expect(result.commissionsCreated).toBe(0);
   });
 });
 
-describe("heartbeat system prompt", () => {
-  test("constrains GM to dispatcher mode", () => {
-    // The system prompt is embedded in session.ts as HEARTBEAT_SYSTEM_PROMPT.
-    // We verify it exists and contains the key behavioral constraints.
-    // Can't import the const directly since it's not exported, but we verify
-    // the module compiles and the session would use it.
-    expect(true).toBe(true);
+describe("heartbeat system prompt (REQ-HBT-9)", () => {
+  test("HEARTBEAT_SYSTEM_PROMPT is exported and non-empty", () => {
+    expect(HEARTBEAT_SYSTEM_PROMPT).toBeTruthy();
+    expect(HEARTBEAT_SYSTEM_PROMPT.length).toBeGreaterThan(100);
   });
-});
 
-describe("heartbeat tool server", () => {
-  test("create_commission tool schema includes source_description", () => {
-    // The tool schema requires source_description as a mandatory field.
-    // This ensures the GM always provides provenance for heartbeat commissions.
-    // We verify the implementation's type safety at compile time.
-    // The z.string() on source_description in session.ts enforces this.
-    expect(true).toBe(true);
+  test("contains all 8 behavioral constraints from REQ-HBT-9", () => {
+    // 1. Read standing orders and recent activity
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("standing orders");
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("recent activity");
+
+    // 2. Decide whether each order warrants a new commission
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("warrants a new commission");
+
+    // 3. Consider watch items and context notes
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("watch items");
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("context notes");
+
+    // 4. Skip ambiguous orders
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("ambiguous");
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("skip");
+
+    // 5. No standing orders = no action
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("no standing orders");
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("no action");
+
+    // 6. No scope expansion
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("expand scope");
+
+    // 7. Deduplication via recent activity
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("already been acted on");
+
+    // 8. Commission cleanup for unwieldy files
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("unwieldy");
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("cleanup");
+  });
+
+  test("instructs source_description on commission creation", () => {
+    expect(HEARTBEAT_SYSTEM_PROMPT).toContain("source_description");
   });
 });

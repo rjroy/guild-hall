@@ -9,6 +9,7 @@ import {
   hasContentBelowHeader,
   clearRecentActivity,
   appendToSection,
+  countStandingOrders,
 } from "@/daemon/services/heartbeat/heartbeat-file";
 
 let tmpDir: string;
@@ -317,5 +318,110 @@ describe("appendToSection (REQ-HBT-12)", () => {
     const watchIndex = result.indexOf("## Watch Items");
     expect(existingIndex).toBeLessThan(watchIndex);
     expect(newIndex).toBeLessThan(watchIndex);
+  });
+});
+
+describe("repairHeartbeatHeader edge case: file starts with ##", () => {
+  test("preserves section content when file starts with ## directly (F4 fix)", async () => {
+    // File has no header at all, starts directly with a section heading
+    const existing = `## Standing Orders
+- Do stuff
+
+## Watch Items
+- Important thing
+`;
+    await fs.writeFile(heartbeatPath(), existing, "utf-8");
+
+    await repairHeartbeatHeader(projectPath);
+
+    const content = await fs.readFile(heartbeatPath(), "utf-8");
+    expect(content).toContain("# Heartbeat");
+    expect(content).toContain("## Standing Orders");
+    expect(content).toContain("- Do stuff");
+    expect(content).toContain("## Watch Items");
+    expect(content).toContain("- Important thing");
+  });
+
+  test("preserves all sections when file starts with ## and has no header", async () => {
+    const existing = `## Standing Orders
+- First order
+- Second order
+
+## Context Notes
+- Note here
+`;
+    await fs.writeFile(heartbeatPath(), existing, "utf-8");
+
+    await repairHeartbeatHeader(projectPath);
+
+    const content = await fs.readFile(heartbeatPath(), "utf-8");
+    expect(content).toContain("# Heartbeat");
+    expect(content).toContain("- First order");
+    expect(content).toContain("- Second order");
+    expect(content).toContain("- Note here");
+  });
+});
+
+describe("countStandingOrders", () => {
+  test("counts list items under Standing Orders", () => {
+    const content = `# Heartbeat
+
+## Standing Orders
+- First order
+- Second order
+- Third order
+
+## Watch Items
+
+## Recent Activity
+`;
+    expect(countStandingOrders(content)).toBe(3);
+  });
+
+  test("returns 0 when section is empty", () => {
+    const content = `# Heartbeat
+
+## Standing Orders
+
+## Watch Items
+`;
+    expect(countStandingOrders(content)).toBe(0);
+  });
+
+  test("returns 0 when section is missing", () => {
+    const content = `# Heartbeat
+
+## Watch Items
+- Something
+`;
+    expect(countStandingOrders(content)).toBe(0);
+  });
+
+  test("does not count items from other sections", () => {
+    const content = `# Heartbeat
+
+## Standing Orders
+- Only this one
+
+## Watch Items
+- Not this
+- Nor this
+
+## Recent Activity
+- Also not this
+`;
+    expect(countStandingOrders(content)).toBe(1);
+  });
+
+  test("handles Standing Orders as last section", () => {
+    const content = `# Heartbeat
+
+## Watch Items
+
+## Standing Orders
+- Order one
+- Order two
+`;
+    expect(countStandingOrders(content)).toBe(2);
   });
 });

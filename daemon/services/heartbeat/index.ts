@@ -41,11 +41,19 @@ export interface HeartbeatServiceDeps {
   log?: Log;
 }
 
+/** Per-project last-tick state (in-memory, lost on restart). */
+export interface LastTickState {
+  timestamp: number;
+  commissionsCreated: number;
+}
+
 export interface HeartbeatService {
   start(): void;
   stop(): void;
   /** Manual tick for a single project. Used by the /heartbeat/:project/tick route. */
   tickProject(projectName: string): Promise<{ success: boolean; error?: string }>;
+  /** Returns last-tick state for a project, or undefined if never ticked. */
+  getLastTick(projectName: string): LastTickState | undefined;
 }
 
 // -- Service --
@@ -54,6 +62,7 @@ export function createHeartbeatService(deps: HeartbeatServiceDeps): HeartbeatSer
   let pendingTimer: ReturnType<typeof setTimeout> | null = null;
   let running = false;
   const log = deps.log ?? nullLog("heartbeat");
+  const lastTicks = new Map<string, LastTickState>();
   const intervalMs =
     (deps.config.heartbeatIntervalMinutes ?? 60) * 60_000;
   const backoffMs =
@@ -86,6 +95,12 @@ export function createHeartbeatService(deps: HeartbeatServiceDeps): HeartbeatSer
       content,
       Date.now(),
     );
+
+    // Track last-tick state regardless of success (in-memory, lost on restart)
+    lastTicks.set(projectName, {
+      timestamp: Date.now(),
+      commissionsCreated: result.commissionsCreated,
+    });
 
     if (result.success) {
       try {
@@ -171,5 +186,9 @@ export function createHeartbeatService(deps: HeartbeatServiceDeps): HeartbeatSer
     return tickSingleProject(projectName);
   }
 
-  return { start, stop, tickProject };
+  function getLastTick(projectName: string): LastTickState | undefined {
+    return lastTicks.get(projectName);
+  }
+
+  return { start, stop, tickProject, getLastTick };
 }

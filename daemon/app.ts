@@ -14,6 +14,7 @@ import { createArtifactRoutes, type ArtifactDeps } from "./routes/artifacts";
 import { createGitLoreRoutes, type GitLoreDeps } from "./routes/git-lore";
 import { createWorkspaceIssueRoutes, type IssueRouteDeps } from "./routes/workspace-issue";
 import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
+import { createHeartbeatRoutes, type HeartbeatRouteDeps } from "./routes/heartbeat";
 import { createHelpRoutes } from "./routes/help";
 import { createOperationsRegistry, type OperationsRegistry } from "@/daemon/lib/operations-registry";
 import type { AppConfig, DiscoveredPackage, RouteModule, OperationDefinition } from "@/lib/types";
@@ -43,6 +44,7 @@ export interface AppDeps {
   gitLore?: GitLoreDeps;
   workspaceIssue?: IssueRouteDeps;
   configRoutes?: ConfigRoutesDeps;
+  heartbeat?: HeartbeatRouteDeps;
   /** Route module from package-contributed operations. When provided, its operations
    *  enter the same registry as built-in operations and its routes are mounted. */
   packageOperationRouteModule?: RouteModule;
@@ -135,6 +137,10 @@ export function createApp(deps: AppDeps): { app: Hono; registry: OperationsRegis
 
   if (deps.configRoutes) {
     mount(createConfigRoutes(deps.configRoutes));
+  }
+
+  if (deps.heartbeat) {
+    mount(createHeartbeatRoutes(deps.heartbeat));
   }
 
   if (deps.packageOperationRouteModule) {
@@ -677,6 +683,11 @@ export async function createProductionApp(options?: {
       gitOps: git,
     },
     configRoutes: {
+      config,
+      guildHallHome,
+    },
+    heartbeat: {
+      heartbeatService,
       config,
       guildHallHome,
     },

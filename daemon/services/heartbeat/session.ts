@@ -64,7 +64,32 @@ export interface HeartbeatSessionResult {
   success: boolean;
   error?: string;
   isRateLimit?: boolean;
+  /** Number of commissions created during this session. */
+  commissionsCreated: number;
 }
+
+// -- System prompt (REQ-HBT-9) --
+
+/**
+ * Heartbeat dispatcher mode constraints. Overrides the standard GM prompt
+ * so the session evaluates standing orders rather than acting as an
+ * interactive assistant.
+ */
+export const HEARTBEAT_SYSTEM_PROMPT = `You are the Guild Master operating in heartbeat dispatcher mode. Your only job is to evaluate the standing orders in this heartbeat file and decide whether any of them warrant immediate action.
+
+Instructions:
+1. Read the standing orders and recent activity sections carefully.
+2. For each standing order, decide whether it warrants a new commission right now.
+3. Consider watch items and context notes when making decisions, but do not create commissions from watch items directly.
+4. If an order is ambiguous (the instruction itself is unclear or contradictory), skip it entirely. Do not guess at intent.
+5. If no standing orders exist, take no action.
+6. Do not propose architectural changes or expand scope beyond what the standing orders request.
+7. Check recent activity for evidence that an order has already been acted on. If a commission for the same order was created recently, skip it.
+8. If the heartbeat file has grown unwieldy (too many standing orders, redundant entries, watch items that have been resolved), commission a cleanup. The cleanup commission should consolidate, prune, and reorganize the file while preserving the user's intent.
+
+When creating a commission, always include a source_description that identifies which standing order triggered it. Be specific enough that the source can be traced back.
+
+Do not explain your reasoning. Just act: create commissions for orders that need action, skip the rest.`;
 
 // -- Rate limit detection --
 
@@ -96,8 +121,11 @@ export async function runHeartbeatSession(
 
   const project = deps.config.projects.find((p) => p.name === projectName);
   if (!project) {
-    return { success: false, error: `Project "${projectName}" not found in config` };
+    return { success: false, error: `Project "${projectName}" not found in config`, commissionsCreated: 0 };
   }
+
+  // Mutable counter incremented by create_commission tool handler
+  const counter = { commissionsCreated: 0 };
 
   const integrationPath = integrationWorktreePath(deps.guildHallHome, projectName);
   const model = deps.config.systemModels?.heartbeat ?? "haiku";
@@ -128,6 +156,7 @@ export async function runHeartbeatSession(
       deps.prepDeps.resolveToolSet,
       deps,
       projectName,
+      counter,
     ),
   };
 
@@ -135,25 +164,26 @@ export async function runHeartbeatSession(
     const prepResult = await prepareSdkSession(spec, wrappedPrepDeps);
     if (!prepResult.ok) {
       log.error(`Session prep failed for "${projectName}": ${prepResult.error}`);
-      return { success: false, error: prepResult.error };
+      return { success: false, error: prepResult.error, commissionsCreated: 0 };
     }
 
     const options = prepResult.result.options;
     options.maxTurns = 30;
+    options.systemPrompt = HEARTBEAT_SYSTEM_PROMPT;
     const generator = runSdkSession(deps.queryFn, heartbeatContent, options);
     await collectRunnerText(generator);
 
-    return { success: true };
+    return { success: true, commissionsCreated: counter.commissionsCreated };
   } catch (err: unknown) {
     if (isRateLimitError(err)) {
       const reason = errorMessage(err);
       log.warn(`Rate limit hit for "${projectName}": ${reason}`);
-      return { success: false, error: reason, isRateLimit: true };
+      return { success: false, error: reason, isRateLimit: true, commissionsCreated: counter.commissionsCreated };
     }
 
     const reason = prefixLocalModelError(errorMessage(err), undefined);
     log.error(`Heartbeat session failed for "${projectName}": ${reason}`);
-    return { success: false, error: reason };
+    return { success: false, error: reason, commissionsCreated: counter.commissionsCreated };
   }
 }
 
@@ -171,6 +201,7 @@ function makeHeartbeatResolveToolSet(
   original: SessionPrepDeps["resolveToolSet"],
   deps: HeartbeatSessionDeps,
   projectName: string,
+  counter: { commissionsCreated: number },
 ): SessionPrepDeps["resolveToolSet"] {
   return async (worker, packages, context) => {
     // Get the base tool set with system toolboxes stripped
@@ -181,7 +212,7 @@ function makeHeartbeatResolveToolSet(
     );
 
     // Build heartbeat coordination MCP server
-    const heartbeatServer = createHeartbeatToolServer(deps, projectName);
+    const heartbeatServer = createHeartbeatToolServer(deps, projectName, counter);
 
     // Replace MCP servers: keep only read-only base tools, add heartbeat server
     return {
@@ -201,6 +232,7 @@ function makeHeartbeatResolveToolSet(
 function createHeartbeatToolServer(
   deps: HeartbeatSessionDeps,
   projectName: string,
+  counter: { commissionsCreated: number },
 ): McpSdkServerConfigWithInstance {
   const log = deps.log ?? nullLog("heartbeat-tools");
 
@@ -247,6 +279,7 @@ function createHeartbeatToolServer(
               args.resourceOverrides,
               { source: { description: args.source_description } },
             );
+            counter.commissionsCreated++;
 
             const shouldDispatch = args.dispatch !== false;
             if (shouldDispatch) {

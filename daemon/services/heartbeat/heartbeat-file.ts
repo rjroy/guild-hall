@@ -81,15 +81,16 @@ export async function repairHeartbeatHeader(
   const filePath = heartbeatFilePath(projectPath);
   const content = existingContent ?? await fs.readFile(filePath, "utf-8");
 
-  const firstSectionIndex = content.indexOf("\n##");
-  if (firstSectionIndex === -1) {
+  // Match ## at a line start (handles files that begin with ## directly)
+  const sectionMatch = content.match(/^## /m);
+  if (!sectionMatch || sectionMatch.index === undefined) {
     // No sections at all: replace entire content with template
     await fs.writeFile(filePath, TEMPLATE_CONTENT, "utf-8");
     return;
   }
 
   // Keep everything from the first ## onward, prepend the template header
-  const sectionContent = content.slice(firstSectionIndex + 1); // +1 to skip the leading \n
+  const sectionContent = content.slice(sectionMatch.index);
   const repaired = HEARTBEAT_HEADER + sectionContent;
   await fs.writeFile(filePath, repaired, "utf-8");
 }
@@ -190,6 +191,27 @@ export async function appendToSection(
   }
 
   await fs.writeFile(filePath, content, "utf-8");
+}
+
+/**
+ * Counts the number of `- ` list items under the ## Standing Orders section.
+ * Returns 0 if the section is missing or empty.
+ */
+export function countStandingOrders(content: string): number {
+  const headingIndex = content.indexOf("## Standing Orders");
+  if (headingIndex === -1) return 0;
+
+  const afterHeading = headingIndex + "## Standing Orders".length;
+  const nextSectionIndex = content.indexOf("\n## ", afterHeading);
+  const sectionBody = nextSectionIndex !== -1
+    ? content.slice(afterHeading, nextSectionIndex)
+    : content.slice(afterHeading);
+
+  let count = 0;
+  for (const line of sectionBody.split("\n")) {
+    if (line.trimStart().startsWith("- ")) count++;
+  }
+  return count;
 }
 
 // -- Internal --
