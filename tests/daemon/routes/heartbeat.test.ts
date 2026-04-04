@@ -32,7 +32,7 @@ function makeConfig(): AppConfig {
 function makeMockHeartbeatService(opts?: {
   tickResult?: { success: boolean; error?: string };
   lastTick?: LastTickState;
-}): HeartbeatService {
+}) {
   const ticks: string[] = [];
   return {
     start: () => {},

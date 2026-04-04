@@ -72,10 +72,16 @@
   white-space: nowrap;
 }
 
-.viewProjectLink {
-  display: block;
+.projectActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   margin-left: calc(var(--space-sm) + 16px + var(--space-sm));
   margin-bottom: var(--space-xs);
+}
+
+.viewProjectLink {
+  display: block;
   padding: 2px var(--space-sm);
   font-size: 0.75rem;
   font-weight: 600;
@@ -90,6 +96,30 @@
 .viewProjectLink:hover {
   color: var(--color-parchment);
   background-color: rgba(184, 134, 11, 0.2);
+}
+
+.tickNowButton {
+  padding: 2px var(--space-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px solid var(--color-text-muted);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.tickNowButton:hover:not(:disabled) {
+  color: var(--color-text);
+  border-color: var(--color-text);
+}
+
+.tickNowButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .allProjectsItem .projectLink {
@@ -196,11 +226,18 @@
     display: none;
   }
 
-  .viewProjectLink {
+  .projectActions {
     margin-left: 0;
     margin-bottom: 0;
+  }
+
+  .viewProjectLink {
     font-size: 0.7rem;
     white-space: nowrap;
+  }
+
+  .tickNowButton {
+    font-size: 0.7rem;
   }
 
   .groupSection {
