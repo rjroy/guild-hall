@@ -1,7 +1,7 @@
 ---
 title: "Commission: Heartbeat P4: Worker add_heartbeat_entry Tool"
 date: 2026-04-04
-status: pending
+status: dispatched
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -18,6 +18,11 @@ activity_timeline:
   - timestamp: 2026-04-04T00:53:05.023Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-04-04T00:59:31.283Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
