@@ -478,6 +478,32 @@ export async function createProductionApp(options?: {
   });
   briefingRefresh.start();
 
+  // Heartbeat service: evaluates standing orders per project on a timer.
+  // Starts after briefing refresh (REQ-HBT-7). Uses post-completion scheduling.
+  const { createHeartbeatService } = await import(
+    "@/daemon/services/heartbeat/index"
+  );
+  const heartbeatService = createHeartbeatService({
+    sessionDeps: {
+      queryFn: queryFn!,
+      prepDeps,
+      packages: allPackages,
+      config,
+      guildHallHome,
+      commissionSession,
+      eventBus,
+      gitOps: git,
+      getProjectConfig: (name: string) =>
+        Promise.resolve(config.projects.find((p) => p.name === name)),
+      log: createLog("heartbeat-session"),
+    },
+    config,
+    eventBus,
+    guildHallHome,
+    log: createLog("heartbeat"),
+  });
+  heartbeatService.start();
+
   // -- Package operation loading --
   // Load operations contributed by packages and build the route module.
   // This happens after all sessions are constructed so that OperationFactoryDeps
@@ -613,15 +639,6 @@ export async function createProductionApp(options?: {
       : () => { createLog("outcome-triage").warn("SDK not available, triage skipped"); return Promise.resolve(); },
   });
 
-  // Heartbeat: event condensation subscriber feeds activity context to
-  // per-project heartbeat files. Phase 2 will add the tick loop here.
-  const { HeartbeatService } = await import("@/daemon/services/heartbeat/index");
-  const heartbeatService = new HeartbeatService({
-    eventBus,
-    guildHallHome,
-    log: createLog("heartbeat"),
-  });
-
   const startTime = Date.now();
 
   const { app, registry } = createApp({
@@ -671,10 +688,10 @@ export async function createProductionApp(options?: {
     app,
     registry,
     shutdown: () => {
+      heartbeatService.stop();
       triggerEvaluator.shutdown();
       scheduler.stop();
       briefingRefresh.stop();
-      heartbeatService.stop();
       cleanupNotifications();
       cleanupRouter();
       unsubscribeTriage();

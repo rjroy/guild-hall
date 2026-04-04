@@ -184,9 +184,7 @@ export async function appendToSection(
       // Empty section: add newline + entry after heading
       content = content.slice(0, afterHeading) + "\n" + entry + content.slice(afterHeading);
     } else {
-      // Has content: append entry at end of section content
-      const lastContentEnd = afterHeading + sectionContent.lastIndexOf("\n", sectionContent.trimEnd().length) + 1;
-      // Find where to insert: after the last non-empty line in the section
+      // Has content: append entry after the last non-empty line in the section
       content = content.slice(0, insertPoint) + "\n" + entry + content.slice(insertPoint);
     }
   }

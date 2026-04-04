@@ -175,7 +175,7 @@ describe("formatEventLine", () => {
 
 describe("registerCondensationSubscriber", () => {
   test("commission_status (completed) writes summary to Recent Activity", async () => {
-    const resolveProjectName = async () => PROJECT_NAME;
+    const resolveProjectName = () => Promise.resolve(PROJECT_NAME);
     const unsub = registerCondensationSubscriber({
       eventBus,
       guildHallHome,
@@ -198,7 +198,7 @@ describe("registerCondensationSubscriber", () => {
   });
 
   test("commission_result writes truncated summary", async () => {
-    const resolveProjectName = async () => PROJECT_NAME;
+    const resolveProjectName = () => Promise.resolve(PROJECT_NAME);
     const unsub = registerCondensationSubscriber({
       eventBus,
       guildHallHome,
@@ -241,7 +241,7 @@ describe("registerCondensationSubscriber", () => {
   });
 
   test("non-terminal commission_status does not write", async () => {
-    const resolveProjectName = async () => PROJECT_NAME;
+    const resolveProjectName = () => Promise.resolve(PROJECT_NAME);
     const unsub = registerCondensationSubscriber({
       eventBus,
       guildHallHome,
@@ -325,7 +325,7 @@ describe("registerCondensationSubscriber", () => {
   });
 
   test("timestamp format is HH:MM", async () => {
-    const resolveProjectName = async () => PROJECT_NAME;
+    const resolveProjectName = () => Promise.resolve(PROJECT_NAME);
     const unsub = registerCondensationSubscriber({
       eventBus,
       guildHallHome,
@@ -348,7 +348,7 @@ describe("registerCondensationSubscriber", () => {
   });
 
   test("concurrent events for same project don't corrupt file", async () => {
-    const resolveProjectName = async () => PROJECT_NAME;
+    const resolveProjectName = () => Promise.resolve(PROJECT_NAME);
     const unsub = registerCondensationSubscriber({
       eventBus,
       guildHallHome,
@@ -419,7 +419,7 @@ describe("registerCondensationSubscriber", () => {
   });
 
   test("unsubscribe stops further event processing", async () => {
-    const resolveProjectName = async () => PROJECT_NAME;
+    const resolveProjectName = () => Promise.resolve(PROJECT_NAME);
     const unsub = registerCondensationSubscriber({
       eventBus,
       guildHallHome,
