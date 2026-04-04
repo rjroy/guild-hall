@@ -1258,8 +1258,64 @@ describe("readTriggeredBy", () => {
 
 // -- Factory --
 
+describe("readSource (REQ-HBT-45)", () => {
+  test("reads source from artifact with source block", async () => {
+    const content = `---
+title: "Commission: Test"
+date: 2026-04-01
+status: pending
+tags: [commission]
+source:
+  description: "Heartbeat: dispatch review after implementation"
+worker: tester
+prompt: "Do the thing"
+dependencies: []
+linked_artifacts: []
+activity_timeline:
+  - timestamp: 2026-04-01T10:00:00.000Z
+    event: created
+    reason: "Commission created (Heartbeat: dispatch review after implementation)"
+current_progress: ""
+projectName: test-project
+---
+`;
+    await fs.writeFile(artifactPath, content, "utf-8");
+    const source = await ops.readSource(artifactPath);
+    expect(source).not.toBeNull();
+    expect(source!.description).toBe("Heartbeat: dispatch review after implementation");
+  });
+
+  test("returns null for artifact without source block", async () => {
+    const content = `---
+title: "Commission: Test"
+date: 2026-04-01
+status: pending
+tags: [commission]
+worker: tester
+prompt: "Do the thing"
+dependencies: []
+linked_artifacts: []
+activity_timeline:
+  - timestamp: 2026-04-01T10:00:00.000Z
+    event: created
+    reason: "Commission created"
+current_progress: ""
+projectName: test-project
+---
+`;
+    await fs.writeFile(artifactPath, content, "utf-8");
+    const source = await ops.readSource(artifactPath);
+    expect(source).toBeNull();
+  });
+
+  test("returns null for nonexistent artifact", async () => {
+    const source = await ops.readSource(path.join(tmpDir, "nonexistent.md"));
+    expect(source).toBeNull();
+  });
+});
+
 describe("createCommissionRecordOps", () => {
-  test("returns an object implementing all fourteen methods", () => {
+  test("returns an object implementing all fifteen methods", () => {
     const recordOps = createCommissionRecordOps();
     expect(typeof recordOps.readStatus).toBe("function");
     expect(typeof recordOps.readType).toBe("function");
@@ -1274,5 +1330,6 @@ describe("createCommissionRecordOps", () => {
     expect(typeof recordOps.readTriggerMetadata).toBe("function");
     expect(typeof recordOps.writeTriggerFields).toBe("function");
     expect(typeof recordOps.readTriggeredBy).toBe("function");
+    expect(typeof recordOps.readSource).toBe("function");
   });
 });

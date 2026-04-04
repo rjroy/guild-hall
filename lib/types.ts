@@ -36,6 +36,7 @@ export interface SystemModels {
   meetingNotes?: string;
   briefing?: string;
   guildMaster?: string;
+  heartbeat?: string;
 }
 
 export interface AppConfig {
@@ -46,6 +47,8 @@ export interface AppConfig {
   maxConcurrentCommissions?: number;
   briefingCacheTtlMinutes?: number;
   briefingRefreshIntervalMinutes?: number;
+  heartbeatIntervalMinutes?: number;
+  heartbeatBackoffMinutes?: number;
   channels?: Record<string, ChannelConfig>;
   notifications?: NotificationRule[];
 }

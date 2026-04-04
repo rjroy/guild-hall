@@ -2434,3 +2434,98 @@ describe("createCommission with type options", () => {
     expect(raw).not.toContain("source_schedule:");
   });
 });
+
+describe("createCommission with source provenance (REQ-HBT-21, REQ-HBT-22, REQ-HBT-24)", () => {
+  test("writes source block in YAML frontmatter when source option provided", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Heartbeat Review",
+      "test-worker",
+      "Review the implementation",
+      [],
+      undefined,
+      { source: { description: "Heartbeat: after implementation, dispatch review" } },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("source:");
+    expect(raw).toContain('  description: "Heartbeat: after implementation, dispatch review"');
+  });
+
+  test("timeline entry includes source description", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Heartbeat Review",
+      "test-worker",
+      "Review the implementation",
+      [],
+      undefined,
+      { source: { description: "standing order: review after build" } },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).toContain("Commission created (standing order: review after build)");
+  });
+
+  test("readSource roundtrip: create with source, read it back", async () => {
+    const { orchestrator } = buildDeps();
+    const recordOps = createCommissionRecordOps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Source Roundtrip",
+      "test-worker",
+      "Do something",
+      [],
+      undefined,
+      { source: { description: "test source description" } },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const source = await recordOps.readSource(artifactPath);
+    expect(source).not.toBeNull();
+    expect(source!.description).toBe("test source description");
+  });
+
+  test("no source block when source option not provided", async () => {
+    const { orchestrator } = buildDeps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "No Source",
+      "test-worker",
+      "Do the work",
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const raw = await fs.readFile(artifactPath, "utf-8");
+    expect(raw).not.toContain("source:");
+    expect(raw).toContain('reason: "Commission created"');
+  });
+});

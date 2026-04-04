@@ -22,6 +22,10 @@ import type { TriggerBlock, TriggeredBy } from "@/daemon/types";
 
 // -- Types --
 
+export interface CommissionSource {
+  description: string;
+}
+
 export interface ScheduleMetadata {
   cron: string;
   repeat: number | null;
@@ -79,6 +83,7 @@ export interface CommissionRecordOps {
     }>,
   ): Promise<void>;
   readTriggeredBy(artifactPath: string): Promise<TriggeredBy | null>;
+  readSource(artifactPath: string): Promise<CommissionSource | null>;
 }
 
 // -- Internal helpers --
@@ -440,6 +445,27 @@ function createRecordOps(): CommissionRecordOps {
         }
 
         return { source_id: sourceId, trigger_artifact: triggerArtifact, depth };
+      } catch {
+        return null;
+      }
+    },
+
+    async readSource(artifactPath: string): Promise<CommissionSource | null> {
+      try {
+        const raw = await fs.readFile(artifactPath, "utf-8");
+
+        if (!/^source:$/m.test(raw)) {
+          return null;
+        }
+
+        const parsed = matter(raw);
+        const source = parsed.data.source as Record<string, unknown> | undefined;
+        if (!source) return null;
+
+        const description = source.description;
+        if (typeof description !== "string") return null;
+
+        return { description };
       } catch {
         return null;
       }

@@ -55,6 +55,7 @@ const systemModelsSchema = z.object({
   meetingNotes: z.string().min(1).optional(),
   briefing: z.string().min(1).optional(),
   guildMaster: z.string().min(1).optional(),
+  heartbeat: z.string().min(1).optional(),
 }).optional();
 
 // -- Channel and notification schemas (REQ-EVRT) --
@@ -131,6 +132,8 @@ export const appConfigSchema = z.object({
   maxConcurrentCommissions: z.number().optional(),
   briefingCacheTtlMinutes: z.number().int().positive().optional(),
   briefingRefreshIntervalMinutes: z.number().int().positive().optional(),
+  heartbeatIntervalMinutes: z.number().int().min(5).optional(),
+  heartbeatBackoffMinutes: z.number().int().min(60).optional(),
   channels: z.record(channelNameSchema, channelSchema).optional(),
   notifications: z.array(notificationRuleSchema).optional(),
 }).superRefine((config, ctx) => {

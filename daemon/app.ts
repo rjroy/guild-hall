@@ -214,6 +214,18 @@ export async function createProductionApp(options?: {
     }
   }
 
+  // Ensure heartbeat.md exists for each project's integration worktree.
+  // Creates the file with template content if missing, repairs the header if present.
+  const { ensureHeartbeatFile } = await import("@/daemon/services/heartbeat/heartbeat-file");
+  for (const project of config.projects) {
+    const iPath = integrationWorktreePath(guildHallHome, project.name);
+    try {
+      await ensureHeartbeatFile(iPath);
+    } catch (err: unknown) {
+      log.warn(`Failed to ensure heartbeat file for "${project.name}":`, errorMessage(err));
+    }
+  }
+
   // Smart sync: fetch from origin, detect merged PRs (reset), or rebase
   // onto the default branch. Replaces the unconditional rebase from Phase 5.
   // Failures log a warning but don't crash the daemon.

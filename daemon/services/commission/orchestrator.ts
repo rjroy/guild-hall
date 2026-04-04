@@ -106,6 +106,7 @@ export interface CommissionSessionForRoutes {
         sourceId: string;
         depth: number;
       };
+      source?: { description: string };
     },
   ): Promise<{ commissionId: string }>;
   updateCommission(
@@ -1048,6 +1049,7 @@ export function createCommissionOrchestrator(
         sourceId: string;
         depth: number;
       };
+      source?: { description: string };
     },
   ): Promise<{ commissionId: string }> {
     const project = findProject(projectName);
@@ -1100,15 +1102,21 @@ export function createCommissionOrchestrator(
       ? `\ntriggered_by:\n  source_id: ${options.sourceTrigger.sourceId}\n  trigger_artifact: ${options.sourceTrigger.triggerArtifact}\n  depth: ${options.sourceTrigger.depth}`
       : "";
 
+    const sourceBlock = options?.source
+      ? `\nsource:\n  description: "${escapeYamlValue(options.source.description)}"`
+      : "";
+
     const timelineReason = options?.sourceTrigger
       ? `Commission created by trigger: ${options.sourceTrigger.triggerArtifact} (source: ${options.sourceTrigger.sourceId}, depth: ${options.sourceTrigger.depth})`
-      : "Commission created";
+      : options?.source
+        ? `Commission created (${options.source.description})`
+        : "Commission created";
 
     const content = `---
 title: "Commission: ${escapedTitle}"
 date: ${dateStr}
 status: pending
-type: ${commissionType}${sourceScheduleLine}${triggeredByBlock}
+type: ${commissionType}${sourceScheduleLine}${triggeredByBlock}${sourceBlock}
 tags: [commission]
 worker: ${workerMeta.identity.name}
 workerDisplayTitle: "${escapedDisplayTitle}"
