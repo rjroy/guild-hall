@@ -1,7 +1,7 @@
 ---
 title: "Plan: Heartbeat Commission Dispatch"
 date: 2026-04-03
-status: draft
+status: approved
 tags: [plan, commissions, heartbeat, scheduling, automation, haiku, simplification, removal]
 modules: [daemon-heartbeat, manager-toolbox, commission-orchestrator, event-bus, lib-config, lib-commissions, web-dashboard, web-commission]
 related:
