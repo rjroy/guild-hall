@@ -36,7 +36,7 @@ describe("worker scope isolation", () => {
     const edit = makeEditMemoryHandler(guildHallHome, "worker-a", "my-project", readScopes);
 
     await read({ scope: "worker" });
-    await edit({ scope: "worker", section: "Notes", operation: "upsert", content: "A's notes" });
+    await edit({ scope: "worker", section: "Note", operation: "upsert", content: "A's notes" });
 
     const filePath = path.join(guildHallHome, "memory", "workers", "worker-a.md");
     const content = await fs.readFile(filePath, "utf-8");

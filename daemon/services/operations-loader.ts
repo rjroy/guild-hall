@@ -121,10 +121,5 @@ function validateOperation(op: PackageOperation): string | undefined {
     return "non-streaming handler must not have definition.streaming defined";
   }
 
-  // scheduleId context is unsupported in this phase
-  if (op.definition.context?.scheduleId) {
-    return "scheduleId context is not supported in this phase";
-  }
-
   return undefined;
 }

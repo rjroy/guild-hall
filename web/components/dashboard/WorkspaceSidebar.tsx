@@ -10,6 +10,15 @@ import type { ProjectConfig } from "@/lib/types";
 import { groupProjects } from "./groupProjects";
 import styles from "./WorkspaceSidebar.module.css";
 
+/** Returns the Tick Now button label with optional standing order count. */
+export function tickNowLabel(count: number): string {
+  return count > 0 ? `Tick Now (${count})` : "Tick Now";
+}
+
+interface HeartbeatStatus {
+  standingOrderCount?: number;
+}
+
 interface WorkspaceSidebarProps {
   projects: ProjectConfig[];
   selectedProject?: string;
@@ -21,6 +30,8 @@ export default function WorkspaceSidebar({
 }: WorkspaceSidebarProps) {
   const [reversed, setReversed] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [tickingProjects, setTickingProjects] = useState<Set<string>>(new Set());
+  const [standingOrderCounts, setStandingOrderCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const initial: Record<string, boolean> = {};
@@ -31,6 +42,40 @@ export default function WorkspaceSidebar({
     }
     startTransition(() => setCollapsed(initial));
   }, [projects]);
+
+  useEffect(() => {
+    async function fetchCounts() {
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        projects.map(async (p) => {
+          try {
+            const res = await fetch(`/api/heartbeat/${encodeURIComponent(p.name)}/status`);
+            if (res.ok) {
+              const data = (await res.json()) as HeartbeatStatus;
+              counts[p.name] = data.standingOrderCount ?? 0;
+            }
+          } catch {
+            // Heartbeat service may not be running; silently skip
+          }
+        }),
+      );
+      setStandingOrderCounts(counts);
+    }
+    void fetchCounts();
+  }, [projects]);
+
+  async function tickProject(projectName: string) {
+    setTickingProjects((prev) => new Set(prev).add(projectName));
+    try {
+      await fetch(`/api/heartbeat/${encodeURIComponent(projectName)}/tick`, { method: "POST" });
+    } finally {
+      setTickingProjects((prev) => {
+        const next = new Set(prev);
+        next.delete(projectName);
+        return next;
+      });
+    }
+  }
 
   function toggleGroup(groupName: string) {
     setCollapsed((prev) => {
@@ -121,12 +166,23 @@ export default function WorkspaceSidebar({
                               )}
                             </div>
                           </Link>
-                          <Link
-                            href={`/projects/${encodeURIComponent(project.name)}`}
-                            className={styles.viewProjectLink}
-                          >
-                            View &rsaquo;
-                          </Link>
+                          <div className={styles.projectActions}>
+                            <Link
+                              href={`/projects/${encodeURIComponent(project.name)}`}
+                              className={styles.viewProjectLink}
+                            >
+                              View &rsaquo;
+                            </Link>
+                            <button
+                              type="button"
+                              className={styles.tickNowButton}
+                              onClick={() => void tickProject(project.name)}
+                              disabled={tickingProjects.has(project.name)}
+                              title="Run heartbeat tick for this project"
+                            >
+                              {tickNowLabel(standingOrderCounts[project.name] ?? 0)}
+                            </button>
+                          </div>
                         </li>
                       );
                     })}

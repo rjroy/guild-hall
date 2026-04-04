@@ -744,7 +744,7 @@ describe("channels and notifications", () => {
         hook: { type: "webhook", url: "https://example.com/hook" },
       },
       notifications: [
-        { match: { type: "schedule_spawned", projectName: "guild-hall" }, channel: "hook" },
+        { match: { type: "commission_status", projectName: "guild-hall" }, channel: "hook" },
       ],
     });
     expect(result.success).toBe(true);
@@ -780,7 +780,7 @@ notifications:
       type: commission_result
     channel: desktop
   - match:
-      type: schedule_spawned
+      type: commission_status
       projectName: guild-hall
     channel: ops-webhook
 `;
@@ -826,7 +826,6 @@ describe("SYSTEM_EVENT_TYPES sync", () => {
       "commission_dequeued",
       "meeting_started",
       "meeting_ended",
-      "schedule_spawned",
       "toolbox_replicate",
     ];
 
@@ -918,5 +917,134 @@ projects:
     await fs.writeFile(configPath(), yaml, "utf-8");
     const config = await readConfig(configPath());
     expect(config.projects[0].group).toBe("Ungrouped");
+  });
+});
+
+describe("heartbeat config (REQ-HBT-28, REQ-HBT-28a, REQ-HBT-29)", () => {
+  const baseConfig = { projects: [{ name: "p", path: "/p" }] };
+
+  test("heartbeatIntervalMinutes accepts valid value", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      heartbeatIntervalMinutes: 60,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.heartbeatIntervalMinutes).toBe(60);
+    }
+  });
+
+  test("heartbeatIntervalMinutes accepts minimum value of 5", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      heartbeatIntervalMinutes: 5,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("heartbeatIntervalMinutes rejects value below 5", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      heartbeatIntervalMinutes: 4,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("heartbeatIntervalMinutes rejects non-integer", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      heartbeatIntervalMinutes: 10.5,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("heartbeatIntervalMinutes defaults to undefined when omitted", () => {
+    const result = appConfigSchema.safeParse(baseConfig);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.heartbeatIntervalMinutes).toBeUndefined();
+    }
+  });
+
+  test("heartbeatBackoffMinutes accepts valid value", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      heartbeatBackoffMinutes: 300,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.heartbeatBackoffMinutes).toBe(300);
+    }
+  });
+
+  test("heartbeatBackoffMinutes accepts minimum value of 60", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      heartbeatBackoffMinutes: 60,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("heartbeatBackoffMinutes rejects value below 60", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      heartbeatBackoffMinutes: 59,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("heartbeatBackoffMinutes defaults to undefined when omitted", () => {
+    const result = appConfigSchema.safeParse(baseConfig);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.heartbeatBackoffMinutes).toBeUndefined();
+    }
+  });
+
+  test("systemModels.heartbeat accepts valid string", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      systemModels: { heartbeat: "haiku" },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.systemModels?.heartbeat).toBe("haiku");
+    }
+  });
+
+  test("systemModels.heartbeat rejects empty string", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      systemModels: { heartbeat: "" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("systemModels.heartbeat defaults to undefined when omitted", () => {
+    const result = appConfigSchema.safeParse({
+      ...baseConfig,
+      systemModels: { briefing: "sonnet" },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.systemModels?.heartbeat).toBeUndefined();
+    }
+  });
+
+  test("heartbeat config parses from YAML via readConfig", async () => {
+    const yamlContent = `
+projects:
+  - name: my-project
+    path: /home/user/my-project
+heartbeatIntervalMinutes: 30
+heartbeatBackoffMinutes: 120
+systemModels:
+  heartbeat: haiku
+`;
+    await fs.writeFile(configPath(), yamlContent, "utf-8");
+    const config = await readConfig(configPath());
+    expect(config.heartbeatIntervalMinutes).toBe(30);
+    expect(config.heartbeatBackoffMinutes).toBe(120);
+    expect(config.systemModels?.heartbeat).toBe("haiku");
   });
 });

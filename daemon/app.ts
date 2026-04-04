@@ -14,6 +14,7 @@ import { createArtifactRoutes, type ArtifactDeps } from "./routes/artifacts";
 import { createGitLoreRoutes, type GitLoreDeps } from "./routes/git-lore";
 import { createWorkspaceIssueRoutes, type IssueRouteDeps } from "./routes/workspace-issue";
 import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
+import { createHeartbeatRoutes, type HeartbeatRouteDeps } from "./routes/heartbeat";
 import { createHelpRoutes } from "./routes/help";
 import { createOperationsRegistry, type OperationsRegistry } from "@/daemon/lib/operations-registry";
 import type { AppConfig, DiscoveredPackage, RouteModule, OperationDefinition } from "@/lib/types";
@@ -43,6 +44,7 @@ export interface AppDeps {
   gitLore?: GitLoreDeps;
   workspaceIssue?: IssueRouteDeps;
   configRoutes?: ConfigRoutesDeps;
+  heartbeat?: HeartbeatRouteDeps;
   /** Route module from package-contributed operations. When provided, its operations
    *  enter the same registry as built-in operations and its routes are mounted. */
   packageOperationRouteModule?: RouteModule;
@@ -137,6 +139,10 @@ export function createApp(deps: AppDeps): { app: Hono; registry: OperationsRegis
     mount(createConfigRoutes(deps.configRoutes));
   }
 
+  if (deps.heartbeat) {
+    mount(createHeartbeatRoutes(deps.heartbeat));
+  }
+
   if (deps.packageOperationRouteModule) {
     mount(deps.packageOperationRouteModule);
   }
@@ -211,6 +217,18 @@ export async function createProductionApp(options?: {
       } catch (err: unknown) {
         log.warn(`Failed to recreate worktree for "${project.name}":`, errorMessage(err));
       }
+    }
+  }
+
+  // Ensure heartbeat.md exists for each project's integration worktree.
+  // Creates the file with template content if missing, repairs the header if present.
+  const { ensureHeartbeatFile } = await import("@/daemon/services/heartbeat/heartbeat-file");
+  for (const project of config.projects) {
+    const iPath = integrationWorktreePath(guildHallHome, project.name);
+    try {
+      await ensureHeartbeatFile(iPath);
+    } catch (err: unknown) {
+      log.warn(`Failed to ensure heartbeat file for "${project.name}":`, errorMessage(err));
     }
   }
 
@@ -346,14 +364,6 @@ export async function createProductionApp(options?: {
     activateWorker: activateWorkerFn,
   };
 
-  // Lazy ref for schedule lifecycle: set after the scheduler is constructed.
-  // The orchestrator's services bag captures this ref at dispatch time.
-  const scheduleLifecycleRef: { current: undefined | Awaited<ReturnType<typeof import("@/daemon/services/scheduler/schedule-lifecycle").createScheduleLifecycle>> } = { current: undefined };
-
-  // Lazy ref for trigger evaluator: set after the trigger evaluator is constructed.
-  // Same late-binding pattern as scheduleLifecycleRef.
-  const triggerEvaluatorRef: { current: undefined | import("@/daemon/services/trigger-evaluator").TriggerEvaluator } = { current: undefined };
-
   // Layer 5: Orchestrator (coordinates all layers, implements CommissionSessionForRoutes)
   const commissionSession = createCommissionOrchestrator({
     lifecycle,
@@ -367,8 +377,6 @@ export async function createProductionApp(options?: {
     guildHallHome,
     gitOps: git,
     createMeetingRequestFn,
-    scheduleLifecycleRef,
-    triggerEvaluatorRef,
     log: createLog("commission"),
   });
 
@@ -387,8 +395,6 @@ export async function createProductionApp(options?: {
     createMeetingRequestFn,
     workspace: workspaceOps,
     registry: meetingRegistry,
-    scheduleLifecycleRef,
-    triggerEvaluatorRef,
     recordOps,
     log: createLog("meeting"),
   });
@@ -405,38 +411,6 @@ export async function createProductionApp(options?: {
   // sessions are dead on daemon restart; they are transitioned to failed
   // with partial work committed.
   await commissionSession.recoverCommissions();
-
-  // -- Schedule lifecycle + scheduler service --
-  const { createScheduleLifecycle } = await import(
-    "@/daemon/services/scheduler/schedule-lifecycle"
-  );
-  const { SchedulerService } = await import(
-    "@/daemon/services/scheduler/index"
-  );
-
-  const scheduleLifecycle = createScheduleLifecycle({
-    recordOps,
-    emitEvent: (event) => eventBus.emit(event),
-  });
-  // Wire the lazy ref so the manager toolbox can access scheduleLifecycle
-  scheduleLifecycleRef.current = scheduleLifecycle;
-
-  const scheduler = new SchedulerService({
-    scheduleLifecycle,
-    recordOps,
-    commissionSession,
-    createMeetingRequestFn,
-    eventBus,
-    config,
-    guildHallHome,
-    log: createLog("scheduler"),
-  });
-
-  // Catch-up: reconcile any missed scheduled runs during downtime
-  await scheduler.catchUp();
-
-  // Start the 60-second tick
-  scheduler.start();
 
   // Briefing generator: uses the same SDK query function as meetings/notes
   // for single-turn project status summaries. Falls back to template when
@@ -465,6 +439,32 @@ export async function createProductionApp(options?: {
     log: createLog("briefing-refresh"),
   });
   briefingRefresh.start();
+
+  // Heartbeat service: evaluates standing orders per project on a timer.
+  // Starts after briefing refresh (REQ-HBT-7). Uses post-completion scheduling.
+  const { createHeartbeatService } = await import(
+    "@/daemon/services/heartbeat/index"
+  );
+  const heartbeatService = createHeartbeatService({
+    sessionDeps: {
+      queryFn: queryFn!,
+      prepDeps,
+      packages: allPackages,
+      config,
+      guildHallHome,
+      commissionSession,
+      eventBus,
+      gitOps: git,
+      getProjectConfig: (name: string) =>
+        Promise.resolve(config.projects.find((p) => p.name === name)),
+      log: createLog("heartbeat-session"),
+    },
+    config,
+    eventBus,
+    guildHallHome,
+    log: createLog("heartbeat"),
+  });
+  heartbeatService.start();
 
   // -- Package operation loading --
   // Load operations contributed by packages and build the route module.
@@ -571,21 +571,6 @@ export async function createProductionApp(options?: {
     log: createLog("notification-service"),
   });
 
-  // Trigger Evaluator: event-driven commission creation (REQ-TRIG-27).
-  // Positioned after Event Router and commission orchestrator since it
-  // needs both. Uses the same router subscription pattern as notifications.
-  const { createTriggerEvaluator } = await import("@/daemon/services/trigger-evaluator");
-  const triggerEvaluator = createTriggerEvaluator({
-    router: eventRouter,
-    recordOps,
-    commissionSession,
-    config,
-    guildHallHome,
-    log: createLog("trigger-evaluator"),
-  });
-  triggerEvaluatorRef.current = triggerEvaluator;
-  await triggerEvaluator.initialize();
-
   // Outcome Triage: after commission/meeting completion, a Haiku session
   // evaluates the outcome and writes noteworthy findings to project memory.
   const { createOutcomeTriage, createArtifactReader, createTriageSessionRunner } = await import(
@@ -642,6 +627,11 @@ export async function createProductionApp(options?: {
       config,
       guildHallHome,
     },
+    heartbeat: {
+      heartbeatService,
+      config,
+      guildHallHome,
+    },
     packageOperationRouteModule,
     createLog,
   });
@@ -650,8 +640,7 @@ export async function createProductionApp(options?: {
     app,
     registry,
     shutdown: () => {
-      triggerEvaluator.shutdown();
-      scheduler.stop();
+      heartbeatService.stop();
       briefingRefresh.stop();
       cleanupNotifications();
       cleanupRouter();

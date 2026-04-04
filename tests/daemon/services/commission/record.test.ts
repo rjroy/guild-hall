@@ -685,293 +685,6 @@ describe("frontmatter integrity", () => {
   });
 });
 
-// -- readType --
-
-describe("readType", () => {
-  test("returns 'one-shot' when type field is absent (backward compatibility)", async () => {
-    await writeArtifact();
-    const type = await ops.readType(artifactPath);
-    expect(type).toBe("one-shot");
-  });
-
-  test("returns 'one-shot' for artifacts with type: one-shot", async () => {
-    const content = `---
-title: "Commission: Test"
-date: 2026-03-09
-status: pending
-type: one-shot
-tags: [commission]
-worker: researcher
-current_progress: ""
-projectName: guild-hall
----
-`;
-    await fs.writeFile(artifactPath, content, "utf-8");
-    const type = await ops.readType(artifactPath);
-    expect(type).toBe("one-shot");
-  });
-
-  test("returns 'scheduled' for artifacts with type: scheduled", async () => {
-    const content = `---
-title: "Commission: Scheduled task"
-date: 2026-03-09
-status: pending
-type: scheduled
-source_schedule: schedule-nightly-20260309
-tags: [commission]
-worker: researcher
-current_progress: ""
-projectName: guild-hall
----
-`;
-    await fs.writeFile(artifactPath, content, "utf-8");
-    const type = await ops.readType(artifactPath);
-    expect(type).toBe("scheduled");
-  });
-
-  test("throws on nonexistent file", async () => {
-    const missing = path.join(tmpDir, "does-not-exist.md");
-    await expect(ops.readType(missing)).rejects.toThrow(/artifact not found/);
-  });
-});
-
-// -- readScheduleMetadata --
-
-/**
- * Writes a scheduled commission artifact for schedule-related tests.
- * Separate from the main writeArtifact helper because the frontmatter
- * structure differs significantly (includes schedule block, type field).
- */
-async function writeScheduleArtifact(
-  overrides?: Partial<{
-    cron: string;
-    repeat: string;
-    runs_completed: number;
-    last_run: string;
-    last_spawned_id: string;
-    status: string;
-    includeScheduleBlock: boolean;
-  }>,
-): Promise<string> {
-  const status = overrides?.status ?? "active";
-  const cron = overrides?.cron ?? "0 9 * * 1";
-  const repeat = overrides?.repeat ?? "null";
-  const runsCompleted = overrides?.runs_completed ?? 3;
-  const lastRun = overrides?.last_run ?? "2026-03-08T09:00:01.123Z";
-  const lastSpawnedId = overrides?.last_spawned_id ?? "commission-guild-hall-writer-20260308-090001";
-  const includeSchedule = overrides?.includeScheduleBlock ?? true;
-
-  const scheduleBlock = includeSchedule
-    ? `schedule:
-  cron: "${cron}"
-  repeat: ${repeat}
-  runs_completed: ${runsCompleted}
-  last_run: ${lastRun}
-  last_spawned_id: ${lastSpawnedId}
-`
-    : "";
-
-  const content = `---
-title: "Commission: Weekly maintenance"
-date: 2026-03-09
-status: ${status}
-type: scheduled
-tags: [commission, scheduled]
-worker: guild-hall-writer
-prompt: "Run tend skill"
-dependencies: []
-${scheduleBlock}activity_timeline:
-  - timestamp: 2026-03-01T09:00:00.000Z
-    event: created
-    reason: "Schedule created"
-current_progress: ""
-projectName: test-project
----
-`;
-
-  await fs.writeFile(artifactPath, content, "utf-8");
-  return content;
-}
-
-describe("readScheduleMetadata", () => {
-  test("correctly parses all schedule block fields", async () => {
-    await writeScheduleArtifact();
-
-    const meta = await ops.readScheduleMetadata(artifactPath);
-    expect(meta.cron).toBe("0 9 * * 1");
-    expect(meta.repeat).toBeNull();
-    expect(meta.runsCompleted).toBe(3);
-    expect(meta.lastRun).toBe("2026-03-08T09:00:01.123Z");
-    expect(meta.lastSpawnedId).toBe("commission-guild-hall-writer-20260308-090001");
-  });
-
-  test("handles repeat: null", async () => {
-    await writeScheduleArtifact({ repeat: "null" });
-
-    const meta = await ops.readScheduleMetadata(artifactPath);
-    expect(meta.repeat).toBeNull();
-  });
-
-  test("handles repeat: 5 (numeric)", async () => {
-    await writeScheduleArtifact({ repeat: "5" });
-
-    const meta = await ops.readScheduleMetadata(artifactPath);
-    expect(meta.repeat).toBe(5);
-  });
-
-  test("handles last_run: null", async () => {
-    await writeScheduleArtifact({ last_run: "null" });
-
-    const meta = await ops.readScheduleMetadata(artifactPath);
-    expect(meta.lastRun).toBeNull();
-  });
-
-  test("handles last_run with ISO date", async () => {
-    await writeScheduleArtifact({ last_run: "2026-03-09T12:00:00.000Z" });
-
-    const meta = await ops.readScheduleMetadata(artifactPath);
-    expect(meta.lastRun).toBe("2026-03-09T12:00:00.000Z");
-  });
-
-  test("handles last_spawned_id: null", async () => {
-    await writeScheduleArtifact({ last_spawned_id: "null" });
-
-    const meta = await ops.readScheduleMetadata(artifactPath);
-    expect(meta.lastSpawnedId).toBeNull();
-  });
-
-  test("throws when schedule block is missing", async () => {
-    await writeScheduleArtifact({ includeScheduleBlock: false });
-
-    await expect(ops.readScheduleMetadata(artifactPath)).rejects.toThrow(
-      /no schedule block found/,
-    );
-  });
-
-  test("throws on nonexistent file", async () => {
-    const missing = path.join(tmpDir, "does-not-exist.md");
-    await expect(ops.readScheduleMetadata(missing)).rejects.toThrow(/artifact not found/);
-  });
-});
-
-// -- writeScheduleFields --
-
-describe("writeScheduleFields", () => {
-  test("updates only runs_completed, leaves other fields intact", async () => {
-    await writeScheduleArtifact();
-    await ops.writeScheduleFields(artifactPath, { runsCompleted: 4 });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("  runs_completed: 4");
-    // Other schedule fields unchanged
-    expect(raw).toContain('  cron: "0 9 * * 1"');
-    expect(raw).toContain("  repeat: null");
-    expect(raw).toContain("  last_run: 2026-03-08T09:00:01.123Z");
-    expect(raw).toContain("  last_spawned_id: commission-guild-hall-writer-20260308-090001");
-    // Non-schedule fields unchanged
-    expect(raw).toContain("status: active");
-    expect(raw).toContain('title: "Commission: Weekly maintenance"');
-  });
-
-  test("updates last_run", async () => {
-    await writeScheduleArtifact();
-    await ops.writeScheduleFields(artifactPath, { lastRun: "2026-03-09T09:00:00.000Z" });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("  last_run: 2026-03-09T09:00:00.000Z");
-    // Previous value replaced
-    expect(raw).not.toContain("2026-03-08T09:00:01.123Z");
-  });
-
-  test("updates last_spawned_id", async () => {
-    await writeScheduleArtifact();
-    await ops.writeScheduleFields(artifactPath, {
-      lastSpawnedId: "commission-guild-hall-writer-20260309-090000",
-    });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("  last_spawned_id: commission-guild-hall-writer-20260309-090000");
-    expect(raw).not.toContain("commission-guild-hall-writer-20260308-090001");
-  });
-
-  test("updates cron expression", async () => {
-    await writeScheduleArtifact();
-    await ops.writeScheduleFields(artifactPath, { cron: "0 0 * * *" });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain('  cron: "0 0 * * *"');
-    expect(raw).not.toContain("0 9 * * 1");
-  });
-
-  test("sets repeat to null", async () => {
-    await writeScheduleArtifact({ repeat: "10" });
-    await ops.writeScheduleFields(artifactPath, { repeat: null });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("  repeat: null");
-    expect(raw).not.toContain("repeat: 10");
-  });
-
-  test("sets repeat to a number", async () => {
-    await writeScheduleArtifact({ repeat: "null" });
-    await ops.writeScheduleFields(artifactPath, { repeat: 5 });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("  repeat: 5");
-  });
-
-  test("updates multiple fields at once", async () => {
-    await writeScheduleArtifact();
-    await ops.writeScheduleFields(artifactPath, {
-      runsCompleted: 4,
-      lastRun: "2026-03-09T09:00:00.000Z",
-      lastSpawnedId: "commission-new-20260309-090000",
-    });
-
-    const meta = await ops.readScheduleMetadata(artifactPath);
-    expect(meta.runsCompleted).toBe(4);
-    expect(meta.lastRun).toBe("2026-03-09T09:00:00.000Z");
-    expect(meta.lastSpawnedId).toBe("commission-new-20260309-090000");
-    // Untouched fields
-    expect(meta.cron).toBe("0 9 * * 1");
-    expect(meta.repeat).toBeNull();
-  });
-
-  test("preserves non-schedule frontmatter and body", async () => {
-    await writeScheduleArtifact();
-    await ops.writeScheduleFields(artifactPath, { runsCompleted: 99 });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("type: scheduled");
-    expect(raw).toContain("worker: guild-hall-writer");
-    expect(raw).toContain("event: created");
-    expect(raw).toContain("projectName: test-project");
-  });
-
-  test("throws on nonexistent file", async () => {
-    const missing = path.join(tmpDir, "does-not-exist.md");
-    await expect(
-      ops.writeScheduleFields(missing, { runsCompleted: 1 }),
-    ).rejects.toThrow(/artifact not found/);
-  });
-});
-
-// -- Backward compatibility: readType without schedule block --
-
-describe("readType backward compatibility with schedule artifacts", () => {
-  test("readType works on artifacts without schedule block", async () => {
-    await writeArtifact();
-    const type = await ops.readType(artifactPath);
-    expect(type).toBe("one-shot");
-  });
-
-  test("readType returns scheduled for schedule artifacts", async () => {
-    await writeScheduleArtifact();
-    const type = await ops.readType(artifactPath);
-    expect(type).toBe("scheduled");
-  });
-});
-
 // -- readProgress --
 
 describe("readProgress", () => {
@@ -988,291 +701,75 @@ describe("readProgress", () => {
   });
 });
 
-// -- readTriggerMetadata --
+// -- Factory --
 
-/**
- * Writes a triggered commission artifact for trigger-related tests.
- */
-async function writeTriggerArtifact(
-  overrides?: Partial<{
-    status: string;
-    includeTriggerBlock: boolean;
-    approval: string;
-    maxDepth: number;
-    runs_completed: number;
-    last_triggered: string;
-    last_spawned_id: string;
-    matchType: string;
-    fields: string;
-  }>,
-): Promise<string> {
-  const status = overrides?.status ?? "active";
-  const matchType = overrides?.matchType ?? "commission_result";
-  const approval = overrides?.approval ?? "auto";
-  const maxDepth = overrides?.maxDepth ?? 3;
-  const runsCompleted = overrides?.runs_completed ?? 2;
-  const lastTriggered = overrides?.last_triggered ?? "2026-03-20T12:00:00.000Z";
-  const lastSpawnedId = overrides?.last_spawned_id ?? "commission-Thorne-20260320-120000";
-  const includeTrigger = overrides?.includeTriggerBlock ?? true;
-  const fieldsLine = overrides?.fields ?? `      status: completed`;
-
-  const triggerBlock = includeTrigger
-    ? `trigger:
-  match:
-    type: ${matchType}
-${fieldsLine ? `    fields:\n${fieldsLine}\n` : ""}  approval: ${approval}
-  maxDepth: ${maxDepth}
-  runs_completed: ${runsCompleted}
-  last_triggered: ${lastTriggered}
-  last_spawned_id: ${lastSpawnedId}
-`
-    : "";
-
-  const content = `---
-title: "Commission: Auto-review trigger"
-date: 2026-03-20
-status: ${status}
-type: triggered
-tags: [commission, triggered]
-worker: guild-hall-reviewer
-prompt: "Review the completed commission"
-dependencies: []
-${triggerBlock}activity_timeline:
-  - timestamp: 2026-03-20T10:00:00.000Z
-    event: created
-    reason: "Trigger created"
-current_progress: ""
-projectName: test-project
----
-`;
-
-  await fs.writeFile(artifactPath, content, "utf-8");
-  return content;
-}
-
-describe("readTriggerMetadata", () => {
-  test("correctly parses all trigger block fields including match with fields", async () => {
-    await writeTriggerArtifact();
-
-    const meta = await ops.readTriggerMetadata(artifactPath);
-    expect(meta.match.type).toBe("commission_result");
-    expect(meta.match.fields).toEqual({ status: "completed" });
-    expect(meta.approval).toBe("auto");
-    expect(meta.maxDepth).toBe(3);
-    expect(meta.runs_completed).toBe(2);
-    expect(meta.last_triggered).toBe("2026-03-20T12:00:00.000Z");
-    expect(meta.last_spawned_id).toBe("commission-Thorne-20260320-120000");
-  });
-
-  test("handles null last_triggered and last_spawned_id", async () => {
-    await writeTriggerArtifact({
-      last_triggered: "null",
-      last_spawned_id: "null",
-    });
-
-    const meta = await ops.readTriggerMetadata(artifactPath);
-    expect(meta.last_triggered).toBeNull();
-    expect(meta.last_spawned_id).toBeNull();
-  });
-
-  test("throws when no trigger block present", async () => {
-    await writeTriggerArtifact({ includeTriggerBlock: false });
-
-    await expect(ops.readTriggerMetadata(artifactPath)).rejects.toThrow(
-      /no trigger block found/,
-    );
-  });
-
-  test("throws on nonexistent file", async () => {
-    const missing = path.join(tmpDir, "does-not-exist.md");
-    await expect(ops.readTriggerMetadata(missing)).rejects.toThrow(/artifact not found/);
-  });
-
-  test("coerces gray-matter-parsed field values to strings", async () => {
-    // gray-matter coerces "true" to boolean and "123" to number in YAML.
-    // The fields Record<string, string> contract must survive this.
-    await writeTriggerArtifact({
-      fields: "      enabled: true\n      count: 123",
-    });
-
-    const meta = await ops.readTriggerMetadata(artifactPath);
-    expect(meta.match.fields).toEqual({ enabled: "true", count: "123" });
-    // Verify values are strings, not their coerced types
-    expect(typeof meta.match.fields!.enabled).toBe("string");
-    expect(typeof meta.match.fields!.count).toBe("string");
-  });
-});
-
-// -- writeTriggerFields --
-
-describe("writeTriggerFields", () => {
-  test("updates only runs_completed, leaves other fields intact", async () => {
-    await writeTriggerArtifact();
-    await ops.writeTriggerFields(artifactPath, { runs_completed: 5 });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("  runs_completed: 5");
-    expect(raw).toContain("  last_triggered: 2026-03-20T12:00:00.000Z");
-    expect(raw).toContain("  last_spawned_id: commission-Thorne-20260320-120000");
-  });
-
-  test("updates last_triggered", async () => {
-    await writeTriggerArtifact();
-    await ops.writeTriggerFields(artifactPath, { last_triggered: "2026-03-21T09:00:00.000Z" });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("  last_triggered: 2026-03-21T09:00:00.000Z");
-  });
-
-  test("updates last_spawned_id", async () => {
-    await writeTriggerArtifact();
-    await ops.writeTriggerFields(artifactPath, {
-      last_spawned_id: "commission-Dalton-20260321-150000",
-    });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("  last_spawned_id: commission-Dalton-20260321-150000");
-  });
-
-  test("sets last_triggered to null", async () => {
-    await writeTriggerArtifact();
-    await ops.writeTriggerFields(artifactPath, { last_triggered: null });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("  last_triggered: null");
-  });
-
-  test("updates multiple fields at once", async () => {
-    await writeTriggerArtifact();
-    await ops.writeTriggerFields(artifactPath, {
-      runs_completed: 10,
-      last_triggered: "2026-03-21T15:00:00.000Z",
-      last_spawned_id: "commission-Dalton-20260321-150000",
-    });
-
-    const meta = await ops.readTriggerMetadata(artifactPath);
-    expect(meta.runs_completed).toBe(10);
-    expect(meta.last_triggered).toBe("2026-03-21T15:00:00.000Z");
-    expect(meta.last_spawned_id).toBe("commission-Dalton-20260321-150000");
-  });
-
-  test("preserves non-trigger frontmatter and body", async () => {
-    await writeTriggerArtifact();
-    await ops.writeTriggerFields(artifactPath, { runs_completed: 99 });
-
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("type: triggered");
-    expect(raw).toContain("worker: guild-hall-reviewer");
-    expect(raw).toContain("activity_timeline:");
-  });
-
-  test("throws on nonexistent file", async () => {
-    const missing = path.join(tmpDir, "does-not-exist.md");
-    await expect(
-      ops.writeTriggerFields(missing, { runs_completed: 1 }),
-    ).rejects.toThrow(/artifact not found/);
-  });
-});
-
-// -- readTriggeredBy --
-
-/**
- * Writes a commission artifact with a triggered_by block.
- */
-async function writeTriggeredByArtifact(
-  overrides?: Partial<{
-    includeTriggeredBy: boolean;
-    source_id: string;
-    trigger_artifact: string;
-    depth: number;
-  }>,
-): Promise<string> {
-  const includeBlock = overrides?.includeTriggeredBy ?? true;
-  const sourceId = overrides?.source_id ?? "commission-Dalton-20260320-100000";
-  const triggerArtifact = overrides?.trigger_artifact ?? "commission-auto-review-trigger-20260301-000000";
-  const depth = overrides?.depth ?? 1;
-
-  const triggeredByBlock = includeBlock
-    ? `triggered_by:
-  source_id: ${sourceId}
-  trigger_artifact: ${triggerArtifact}
-  depth: ${depth}
-`
-    : "";
-
-  const content = `---
-title: "Commission: Auto review"
-date: 2026-03-20
+describe("readSource (REQ-HBT-45)", () => {
+  test("reads source from artifact with source block", async () => {
+    const content = `---
+title: "Commission: Test"
+date: 2026-04-01
 status: pending
-type: one-shot
-${triggeredByBlock}tags: [commission]
-worker: guild-hall-reviewer
-prompt: "Review the thing"
+tags: [commission]
+source:
+  description: "Heartbeat: dispatch review after implementation"
+worker: tester
+prompt: "Do the thing"
 dependencies: []
 linked_artifacts: []
 activity_timeline:
-  - timestamp: 2026-03-20T12:00:00.000Z
+  - timestamp: 2026-04-01T10:00:00.000Z
     event: created
-    reason: "Commission created by trigger"
+    reason: "Commission created (Heartbeat: dispatch review after implementation)"
 current_progress: ""
 projectName: test-project
 ---
 `;
-
-  await fs.writeFile(artifactPath, content, "utf-8");
-  return content;
-}
-
-describe("readTriggeredBy", () => {
-  test("returns the block when present", async () => {
-    await writeTriggeredByArtifact();
-
-    const result = await ops.readTriggeredBy(artifactPath);
-    expect(result).not.toBeNull();
-    expect(result!.source_id).toBe("commission-Dalton-20260320-100000");
-    expect(result!.trigger_artifact).toBe("commission-auto-review-trigger-20260301-000000");
-    expect(result!.depth).toBe(1);
+    await fs.writeFile(artifactPath, content, "utf-8");
+    const source = await ops.readSource(artifactPath);
+    expect(source).not.toBeNull();
+    expect(source!.description).toBe("Heartbeat: dispatch review after implementation");
   });
 
-  test("returns null when absent", async () => {
-    await writeTriggeredByArtifact({ includeTriggeredBy: false });
-
-    const result = await ops.readTriggeredBy(artifactPath);
-    expect(result).toBeNull();
+  test("returns null for artifact without source block", async () => {
+    const content = `---
+title: "Commission: Test"
+date: 2026-04-01
+status: pending
+tags: [commission]
+worker: tester
+prompt: "Do the thing"
+dependencies: []
+linked_artifacts: []
+activity_timeline:
+  - timestamp: 2026-04-01T10:00:00.000Z
+    event: created
+    reason: "Commission created"
+current_progress: ""
+projectName: test-project
+---
+`;
+    await fs.writeFile(artifactPath, content, "utf-8");
+    const source = await ops.readSource(artifactPath);
+    expect(source).toBeNull();
   });
 
-  test("returns null gracefully on nonexistent file", async () => {
-    const missing = path.join(tmpDir, "does-not-exist.md");
-    const result = await ops.readTriggeredBy(missing);
-    expect(result).toBeNull();
-  });
-
-  test("returns correct depth value", async () => {
-    await writeTriggeredByArtifact({ depth: 3 });
-
-    const result = await ops.readTriggeredBy(artifactPath);
-    expect(result).not.toBeNull();
-    expect(result!.depth).toBe(3);
+  test("returns null for nonexistent artifact", async () => {
+    const source = await ops.readSource(path.join(tmpDir, "nonexistent.md"));
+    expect(source).toBeNull();
   });
 });
 
-// -- Factory --
-
 describe("createCommissionRecordOps", () => {
-  test("returns an object implementing all fourteen methods", () => {
+  test("returns an object implementing all nine methods", () => {
     const recordOps = createCommissionRecordOps();
     expect(typeof recordOps.readStatus).toBe("function");
-    expect(typeof recordOps.readType).toBe("function");
     expect(typeof recordOps.writeStatus).toBe("function");
     expect(typeof recordOps.appendTimeline).toBe("function");
     expect(typeof recordOps.readDependencies).toBe("function");
     expect(typeof recordOps.updateProgress).toBe("function");
     expect(typeof recordOps.updateResult).toBe("function");
     expect(typeof recordOps.readProgress).toBe("function");
-    expect(typeof recordOps.readScheduleMetadata).toBe("function");
-    expect(typeof recordOps.writeScheduleFields).toBe("function");
-    expect(typeof recordOps.readTriggerMetadata).toBe("function");
-    expect(typeof recordOps.writeTriggerFields).toBe("function");
-    expect(typeof recordOps.readTriggeredBy).toBe("function");
+    expect(typeof recordOps.writeStatusAndTimeline).toBe("function");
+    expect(typeof recordOps.readSource).toBe("function");
   });
 });

@@ -126,6 +126,7 @@ export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
     model: (config?.systemModels?.guildMaster ?? "opus") as ModelName,
     systemToolboxes: ["manager", "git-readonly"],
     domainToolboxes: [],
+    domainPlugins: ["guild-compendium"],
     builtInTools: ["Read", "Glob", "Grep"],
     checkoutScope: "full",
     meetingScope: "project",

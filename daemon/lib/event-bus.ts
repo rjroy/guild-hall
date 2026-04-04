@@ -21,7 +21,6 @@ export type SystemEvent =
   | { type: "commission_dequeued"; commissionId: string; reason: string }
   | { type: "meeting_started"; meetingId: string; worker: string }
   | { type: "meeting_ended"; meetingId: string }
-  | { type: "schedule_spawned"; scheduleId: string; spawnedId: string; projectName: string; runNumber: number }
   | { type: "toolbox_replicate"; action: string; tool: string; model: string; files: string[]; cost: string; projectName: string; contextId: string };
 
 export interface EventBus {

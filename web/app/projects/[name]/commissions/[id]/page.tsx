@@ -11,8 +11,6 @@ import {
 } from "@/lib/types";
 import CommissionHeader from "@/web/components/commission/CommissionHeader";
 import CommissionView from "@/web/components/commission/CommissionView";
-import type { ScheduleInfo } from "@/web/components/commission/CommissionView";
-import type { TriggerInfoData } from "@/web/components/commission/TriggerInfo";
 import NeighborhoodGraph from "@/web/components/commission/NeighborhoodGraph";
 import type { CommissionArtifact } from "@/web/components/commission/CommissionLinkedArtifacts";
 import DaemonError from "@/web/components/ui/DaemonError";
@@ -32,23 +30,6 @@ interface CommissionDetail {
   commission: CommissionMeta;
   timeline: TimelineEntry[];
   rawContent: string;
-  scheduleInfo?: {
-    cron: string;
-    cronDescription: string;
-    repeat: number | null;
-    runsCompleted: number;
-    lastRun: string | null;
-    lastSpawnedId: string | null;
-    nextRun: string | null;
-  };
-  triggerInfo?: {
-    match: { type: string; projectName?: string; fields?: Record<string, string> };
-    approval: string;
-    maxDepth: number;
-    runsCompleted: number;
-    lastTriggered: string | null;
-    lastSpawnedId: string | null;
-  };
 }
 
 /**
@@ -81,13 +62,12 @@ export default async function CommissionPage({
   const encoded = encodeURIComponent(projectName);
 
   // Fetch commission detail, workers, config, graph, and all commissions in parallel
-  const [detailResult, workersResult, configResult, graphResult, allCommissionsResult, projectResult] =
+  const [detailResult, workersResult, configResult, graphResult, projectResult] =
     await Promise.all([
       fetchDaemon<CommissionDetail>(`/commission/request/commission/read?commissionId=${encodeURIComponent(id)}&projectName=${encoded}`),
       fetchDaemon<{ workers: WorkerInfo[] }>("/system/packages/worker/list"),
       fetchDaemon<AppConfig>("/system/config/application/read"),
       fetchDaemon<DependencyGraph>(`/commission/dependency/project/graph?projectName=${encoded}`),
-      fetchDaemon<{ commissions: CommissionMeta[] }>(`/commission/request/commission/list?projectName=${encoded}`),
       fetchDaemon<ProjectConfig>(`/system/config/project/read?name=${encoded}`),
     ]);
   const projectTitle = projectResult.ok ? projectDisplayTitle(projectResult.data) : projectName;
@@ -99,47 +79,8 @@ export default async function CommissionPage({
     return <DaemonError message={detailResult.error} />;
   }
 
-  const { commission, timeline, scheduleInfo: rawScheduleInfo, triggerInfo: rawTriggerInfo } = detailResult.data;
+  const { commission, timeline } = detailResult.data;
   const linkedArtifacts = buildLinkedArtifacts(commission.linked_artifacts, projectName);
-  const allCommissions = allCommissionsResult.ok
-    ? allCommissionsResult.data.commissions
-    : [];
-
-  // Build schedule info with recent runs from all commissions
-  let scheduleInfo: ScheduleInfo | undefined;
-  if (rawScheduleInfo) {
-    const spawned = allCommissions
-      .filter((c) => c.sourceSchedule === id)
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 10);
-
-    scheduleInfo = {
-      ...rawScheduleInfo,
-      recentRuns: spawned.map((c) => ({
-        commissionId: c.commissionId,
-        status: c.status,
-        date: c.date,
-      })),
-    };
-  }
-
-  // Build trigger info with recent spawns from all commissions
-  let triggerInfo: TriggerInfoData | undefined;
-  if (rawTriggerInfo) {
-    const spawned = allCommissions
-      .filter((c) => c.sourceTrigger === id)
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 10);
-
-    triggerInfo = {
-      ...rawTriggerInfo,
-      recentSpawns: spawned.map((c) => ({
-        commissionId: c.commissionId,
-        status: c.status,
-        date: c.date,
-      })),
-    };
-  }
 
   // Resolve effective model from worker packages and commission overrides
   const workers = workersResult.ok ? workersResult.data.workers : [];
@@ -179,7 +120,6 @@ export default async function CommissionPage({
         isModelOverride={isModelOverride}
         isLocalModel={isLocalModel}
         localModelBaseUrl={localModelBaseUrl}
-        commissionType={commission.type}
       />
       <NeighborhoodGraph
         graph={graph}
@@ -193,9 +133,6 @@ export default async function CommissionPage({
         initialStatus={commission.status}
         initialTimeline={timeline}
         initialArtifacts={linkedArtifacts}
-        commissionType={commission.type}
-        scheduleInfo={scheduleInfo}
-        triggerInfo={triggerInfo}
       />
     </div>
   );

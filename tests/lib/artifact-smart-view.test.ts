@@ -1,10 +1,9 @@
 import { describe, test, expect } from "bun:test";
 import type { Artifact } from "@/lib/types";
-import { statusToPriority } from "@/lib/types";
+import { artifactTypeSegment, statusToPriority } from "@/lib/types";
 import {
   filterSmartView,
   smartViewCounts,
-  artifactTypeSegment,
   artifactTypeLabel,
   artifactDomain,
 } from "@/lib/artifact-smart-view";
@@ -260,9 +259,9 @@ describe("badge counts match filtered item counts", () => {
 
 describe("path metadata extraction", () => {
   test("artifactTypeSegment", () => {
-    expect(artifactTypeSegment("specs/infrastructure/daemon.md")).toBe("specs");
-    expect(artifactTypeSegment("plans/ui/sorting.md")).toBe("plans");
-    expect(artifactTypeSegment("brainstorm/idea.md")).toBe("brainstorm");
+    expect(artifactTypeSegment("specs/infrastructure/daemon.md")).toBe("Spec");
+    expect(artifactTypeSegment("plans/ui/sorting.md")).toBe("Plan");
+    expect(artifactTypeSegment("brainstorm/idea.md")).toBe("Brainstorm");
     expect(artifactTypeSegment("README.md")).toBeNull();
   });
 

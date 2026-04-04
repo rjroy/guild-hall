@@ -11,14 +11,12 @@ import {
 
 /**
  * Creates a minimal GraphNode with sensible defaults.
- * Keeps test node construction concise after adding type/sourceSchedule fields.
+ * Keeps test node construction concise with sensible defaults.
  */
 function makeNode(overrides: Partial<import("@/lib/dependency-graph").GraphNode> & { id: string }): import("@/lib/dependency-graph").GraphNode {
   return {
     title: overrides.title ?? overrides.id.toUpperCase(),
     status: overrides.status ?? "pending",
-    type: overrides.type ?? "one-shot",
-    sourceSchedule: overrides.sourceSchedule ?? "",
     projectName: overrides.projectName ?? "p",
     ...overrides,
   };
@@ -32,9 +30,7 @@ function makeCommission(overrides: Partial<CommissionMeta> & { commissionId: str
   return {
     title: overrides.title ?? `Commission: ${overrides.commissionId}`,
     status: overrides.status ?? "pending",
-    type: overrides.type ?? "one-shot",
-    sourceSchedule: overrides.sourceSchedule ?? "",
-    sourceTrigger: overrides.sourceTrigger ?? "",
+    source: overrides.source ?? null,
     worker: overrides.worker ?? "researcher",
     workerDisplayTitle: overrides.workerDisplayTitle ?? "Researcher",
     prompt: overrides.prompt ?? "",
@@ -177,95 +173,6 @@ describe("buildDependencyGraph", () => {
     expect(graph.nodes[0].worker).toBeUndefined();
   });
 
-  test("preserves type and sourceSchedule fields on graph nodes", () => {
-    const commissions = [
-      makeCommission({
-        commissionId: "schedule-daily",
-        type: "scheduled",
-        sourceSchedule: "",
-      }),
-      makeCommission({
-        commissionId: "commission-spawned",
-        type: "one-shot",
-        sourceSchedule: "schedule-daily",
-      }),
-    ];
-
-    const graph = buildDependencyGraph(commissions);
-
-    const scheduleNode = graph.nodes.find((n) => n.id === "schedule-daily")!;
-    expect(scheduleNode.type).toBe("scheduled");
-    expect(scheduleNode.sourceSchedule).toBe("");
-
-    const spawnedNode = graph.nodes.find((n) => n.id === "commission-spawned")!;
-    expect(spawnedNode.type).toBe("one-shot");
-    expect(spawnedNode.sourceSchedule).toBe("schedule-daily");
-  });
-
-  test("creates edge from parent schedule to spawned commission via sourceSchedule", () => {
-    const commissions = [
-      makeCommission({
-        commissionId: "schedule-daily",
-        type: "scheduled",
-      }),
-      makeCommission({
-        commissionId: "commission-spawned-1",
-        sourceSchedule: "schedule-daily",
-      }),
-      makeCommission({
-        commissionId: "commission-spawned-2",
-        sourceSchedule: "schedule-daily",
-      }),
-    ];
-
-    const graph = buildDependencyGraph(commissions);
-
-    expect(graph.edges).toContainEqual({
-      from: "schedule-daily",
-      to: "commission-spawned-1",
-    });
-    expect(graph.edges).toContainEqual({
-      from: "schedule-daily",
-      to: "commission-spawned-2",
-    });
-  });
-
-  test("does not duplicate edges when sourceSchedule matches an existing dependency edge", () => {
-    const commissions = [
-      makeCommission({
-        commissionId: "schedule-daily",
-        type: "scheduled",
-      }),
-      makeCommission({
-        commissionId: "commission-spawned",
-        sourceSchedule: "schedule-daily",
-        // Also has an explicit dependency on the same commission
-        dependencies: ["commissions/schedule-daily.md"],
-      }),
-    ];
-
-    const graph = buildDependencyGraph(commissions);
-
-    // Should have exactly one edge, not two
-    const matchingEdges = graph.edges.filter(
-      (e) => e.from === "schedule-daily" && e.to === "commission-spawned",
-    );
-    expect(matchingEdges).toHaveLength(1);
-  });
-
-  test("ignores sourceSchedule when parent is not in the graph", () => {
-    const commissions = [
-      makeCommission({
-        commissionId: "commission-orphan",
-        sourceSchedule: "schedule-nonexistent",
-      }),
-    ];
-
-    const graph = buildDependencyGraph(commissions);
-
-    expect(graph.nodes).toHaveLength(1);
-    expect(graph.edges).toHaveLength(0);
-  });
 });
 
 // -- getNeighborhood --
@@ -395,25 +302,5 @@ describe("buildAdjacencyList", () => {
     expect(adj.size).toBe(0);
   });
 
-  test("schedule→spawned edges appear in the adjacency list", () => {
-    const commissions = [
-      makeCommission({
-        commissionId: "schedule-daily",
-        type: "scheduled",
-      }),
-      makeCommission({
-        commissionId: "spawned-1",
-        sourceSchedule: "schedule-daily",
-      }),
-      makeCommission({
-        commissionId: "spawned-2",
-        sourceSchedule: "schedule-daily",
-      }),
-    ];
-
-    const graph = buildDependencyGraph(commissions);
-    const adj = buildAdjacencyList(graph);
-    expect(adj.get("schedule-daily")!.sort()).toEqual(["spawned-1", "spawned-2"]);
-  });
 });
 

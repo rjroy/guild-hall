@@ -13,6 +13,7 @@ import { isNodeError } from "@/lib/types";
 import type { WorkerIdentity } from "@/lib/types";
 import { memoryScopeFile, memoryScopeDir, migrateIfNeeded } from "./memory-injector";
 import type { MemoryScope } from "./memory-injector";
+import { ensureHeartbeatFile, appendToSection } from "./heartbeat/heartbeat-file";
 import {
   deduplicateSections,
   parseMemorySections,
@@ -370,6 +371,23 @@ export function makeRecordDecisionHandler(
   };
 }
 
+export function makeAddHeartbeatEntryHandler(
+  guildHallHome: string,
+  projectName: string,
+) {
+  return async (args: {
+    prompt: string;
+    section: "Standing Orders" | "Watch Items" | "Context Notes";
+  }): Promise<ToolResult> => {
+    const projectPath = path.join(guildHallHome, "projects", projectName);
+    await ensureHeartbeatFile(projectPath);
+    await appendToSection(projectPath, args.section, `- ${args.prompt}`);
+    return {
+      content: [{ type: "text", text: `Entry added to "${args.section}" in heartbeat file.` }],
+    };
+  };
+}
+
 // -- MCP server factory --
 
 /**
@@ -392,6 +410,7 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
   const recordDecision = makeRecordDecisionHandler(deps.guildHallHome, deps.contextId, deps.contextType, deps.stateSubdir);
   const projectBriefing = makeProjectBriefingHandler(deps.getCachedBriefing, deps.projectName);
   const listGuildCapabilities = makeListGuildCapabilitiesHandler(deps.getWorkerIdentities);
+  const addHeartbeatEntry = makeAddHeartbeatEntryHandler(deps.guildHallHome, deps.projectName);
 
   return createSdkMcpServer({
     name: "guild-hall-base",
@@ -448,6 +467,15 @@ export function createBaseToolbox(deps: BaseToolboxDeps): McpSdkServerConfigWith
         "List all guild workers with their titles and capabilities. Use this to discover available workers. Returns names, titles, and descriptions. Read-only.",
         {},
         () => listGuildCapabilities(),
+      ),
+      tool(
+        "add_heartbeat_entry",
+        "Add an entry to the project heartbeat file. Use this to record standing orders, watch items, or context notes that the Guild Master should consider during autonomous heartbeat sessions. Writes to the integration worktree's .lore/heartbeat.md.",
+        {
+          prompt: z.string(),
+          section: z.enum(["Standing Orders", "Watch Items", "Context Notes"]),
+        },
+        (args) => addHeartbeatEntry(args),
       ),
     ],
   });

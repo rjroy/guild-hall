@@ -2,13 +2,14 @@ import { describe, test, expect } from "bun:test";
 import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
 
 describe("createContextTypeRegistry", () => {
-  test("returns a Map with 4 entries", () => {
+  test("returns a Map with 5 entries", () => {
     const registry = createContextTypeRegistry();
-    expect(registry.size).toBe(4);
+    expect(registry.size).toBe(5);
     expect(registry.has("meeting")).toBe(true);
     expect(registry.has("commission")).toBe(true);
     expect(registry.has("briefing")).toBe(true);
     expect(registry.has("subagent")).toBe(true);
+    expect(registry.has("heartbeat")).toBe(true);
   });
 
   test("meeting entry has toolboxFactory and stateSubdir 'meetings'", () => {
@@ -43,6 +44,14 @@ describe("createContextTypeRegistry", () => {
     expect(subagent.name).toBe("subagent");
     expect(subagent.toolboxFactory).toBeUndefined();
     expect(subagent.stateSubdir).toBe("subagents");
+  });
+
+  test("heartbeat entry has no toolboxFactory and stateSubdir 'heartbeats'", () => {
+    const registry = createContextTypeRegistry();
+    const heartbeat = registry.get("heartbeat")!;
+    expect(heartbeat.name).toBe("heartbeat");
+    expect(heartbeat.toolboxFactory).toBeUndefined();
+    expect(heartbeat.stateSubdir).toBe("heartbeats");
   });
 
   test("each call returns a fresh instance", () => {

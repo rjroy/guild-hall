@@ -1,7 +1,7 @@
 ---
 title: Front-page active meetings
 date: 2026-04-03
-status: approved
+status: implemented
 tags: [ux, ui, dashboard, meetings]
 modules: [web/app/page, web/components/dashboard/PendingAudiences, web/components/dashboard/ActiveMeetingCard, daemon/routes/meetings, lib/meetings]
 related:

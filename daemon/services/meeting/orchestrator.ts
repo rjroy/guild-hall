@@ -29,7 +29,6 @@ import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import { noopEventBus, type EventBus } from "@/daemon/lib/event-bus";
-import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import {
   MANAGER_PACKAGE_NAME,
@@ -165,20 +164,8 @@ export type MeetingSessionDeps = {
    */
   registry?: MeetingRegistry;
   /**
-   * Lazy ref for the schedule lifecycle. Set after the scheduler is
-   * constructed (after meetingSession is created). Read at session prep time
-   * so the value is always available by the time a meeting runs.
-   * Needed by the manager toolbox's create_scheduled_commission tool.
-   */
-  scheduleLifecycleRef?: { current: ScheduleLifecycle | undefined };
-  /**
-   * Lazy ref for the trigger evaluator. Same late-binding pattern as
-   * scheduleLifecycleRef. Needed by the manager toolbox's trigger tools.
-   */
-  triggerEvaluatorRef?: { current: import("@/daemon/services/trigger-evaluator").TriggerEvaluator | undefined };
-  /**
-   * Commission record operations. Needed by the manager toolbox's
-   * update_schedule tool to read commission artifact types.
+   * Commission record operations. Needed by the manager toolbox for
+   * reading commission source metadata.
    */
   recordOps?: CommissionRecordOps;
   /** Injectable logger. Defaults to nullLog("meeting"). */
@@ -508,8 +495,6 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
             gitOps: git,
             config: deps.config,
             packages: deps.packages,
-            scheduleLifecycle: deps.scheduleLifecycleRef?.current,
-            triggerEvaluator: deps.triggerEvaluatorRef?.current,
             recordOps: deps.recordOps,
           }
         : undefined,

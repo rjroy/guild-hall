@@ -18,23 +18,16 @@ import { replaceYamlField, appendLogEntry } from "@/daemon/lib/record-utils";
 import { escapeYamlValue } from "@/daemon/lib/toolbox-utils";
 import { spliceBody } from "@/lib/artifacts";
 import { isNodeError } from "@/lib/types";
-import type { TriggerBlock, TriggeredBy } from "@/daemon/types";
-
 // -- Types --
 
-export interface ScheduleMetadata {
-  cron: string;
-  repeat: number | null;
-  runsCompleted: number;
-  lastRun: string | null; // ISO 8601 or null
-  lastSpawnedId: string | null;
+export interface CommissionSource {
+  description: string;
 }
 
 // -- Interface --
 
 export interface CommissionRecordOps {
   readStatus(artifactPath: string): Promise<string>;
-  readType(artifactPath: string): Promise<string>;
   writeStatus(artifactPath: string, status: string): Promise<void>;
   appendTimeline(
     artifactPath: string,
@@ -58,27 +51,7 @@ export interface CommissionRecordOps {
     artifacts?: string[],
   ): Promise<void>;
   readProgress(artifactPath: string): Promise<string>;
-  readScheduleMetadata(artifactPath: string): Promise<ScheduleMetadata>;
-  writeScheduleFields(
-    artifactPath: string,
-    updates: Partial<{
-      runsCompleted: number;
-      lastRun: string;
-      lastSpawnedId: string;
-      cron: string;
-      repeat: number | null;
-    }>,
-  ): Promise<void>;
-  readTriggerMetadata(artifactPath: string): Promise<TriggerBlock>;
-  writeTriggerFields(
-    artifactPath: string,
-    updates: Partial<{
-      runs_completed: number;
-      last_triggered: string | null;
-      last_spawned_id: string | null;
-    }>,
-  ): Promise<void>;
-  readTriggeredBy(artifactPath: string): Promise<TriggeredBy | null>;
+  readSource(artifactPath: string): Promise<CommissionSource | null>;
 }
 
 // -- Internal helpers --
@@ -130,14 +103,6 @@ function createRecordOps(): CommissionRecordOps {
         throw new Error(`readStatus: no status field found in ${artifactPath}`);
       }
       return match[1];
-    },
-
-    async readType(artifactPath: string): Promise<string> {
-      const raw = await readArtifact(artifactPath, "readType");
-      const match = raw.match(/^type: (\S+)$/m);
-      // Default to "one-shot" for backward compatibility with artifacts
-      // created before the type field was introduced.
-      return match ? match[1] : "one-shot";
     },
 
     async writeStatus(artifactPath: string, status: string): Promise<void> {
@@ -260,186 +225,22 @@ function createRecordOps(): CommissionRecordOps {
       await fs.writeFile(artifactPath, raw, "utf-8");
     },
 
-    async readScheduleMetadata(artifactPath: string): Promise<ScheduleMetadata> {
-      const raw = await readArtifact(artifactPath, "readScheduleMetadata");
-
-      // Check for the schedule block
-      if (!/^schedule:$/m.test(raw)) {
-        throw new Error(`readScheduleMetadata: no schedule block found in ${artifactPath}`);
-      }
-
-      // Parse individual fields within the schedule block (2-space indented)
-      const cronMatch = raw.match(/^  cron: "(.+)"$/m);
-      if (!cronMatch) {
-        throw new Error(`readScheduleMetadata: no cron field in schedule block of ${artifactPath}`);
-      }
-      const cron = cronMatch[1];
-
-      const repeatMatch = raw.match(/^  repeat: (.+)$/m);
-      const repeatValue = repeatMatch ? repeatMatch[1].trim() : "null";
-      const repeat = repeatValue === "null" ? null : Number(repeatValue);
-
-      const runsMatch = raw.match(/^  runs_completed: (.+)$/m);
-      const runsCompleted = runsMatch ? Number(runsMatch[1].trim()) : 0;
-
-      const lastRunMatch = raw.match(/^  last_run: (.+)$/m);
-      const lastRunValue = lastRunMatch ? lastRunMatch[1].trim() : "null";
-      const lastRun = lastRunValue === "null" ? null : lastRunValue;
-
-      const lastSpawnedMatch = raw.match(/^  last_spawned_id: (.+)$/m);
-      const lastSpawnedValue = lastSpawnedMatch ? lastSpawnedMatch[1].trim() : "null";
-      const lastSpawnedId = lastSpawnedValue === "null" ? null : lastSpawnedValue;
-
-      return { cron, repeat, runsCompleted, lastRun, lastSpawnedId };
-    },
-
-    async writeScheduleFields(
-      artifactPath: string,
-      updates: Partial<{
-        runsCompleted: number;
-        lastRun: string;
-        lastSpawnedId: string;
-        cron: string;
-        repeat: number | null;
-      }>,
-    ): Promise<void> {
-      let raw = await readArtifact(artifactPath, "writeScheduleFields");
-
-      if (updates.runsCompleted !== undefined) {
-        raw = raw.replace(
-          /^  runs_completed: .+$/m,
-          `  runs_completed: ${updates.runsCompleted}`,
-        );
-      }
-
-      if (updates.lastRun !== undefined) {
-        raw = raw.replace(
-          /^  last_run: .+$/m,
-          `  last_run: ${updates.lastRun}`,
-        );
-      }
-
-      if (updates.lastSpawnedId !== undefined) {
-        raw = raw.replace(
-          /^  last_spawned_id: .+$/m,
-          `  last_spawned_id: ${updates.lastSpawnedId}`,
-        );
-      }
-
-      if (updates.cron !== undefined) {
-        raw = raw.replace(
-          /^  cron: ".+"$/m,
-          `  cron: "${updates.cron}"`,
-        );
-      }
-
-      if (updates.repeat !== undefined) {
-        raw = raw.replace(
-          /^  repeat: .+$/m,
-          `  repeat: ${updates.repeat}`,
-        );
-      }
-
-      await fs.writeFile(artifactPath, raw, "utf-8");
-    },
-
-    async readTriggerMetadata(artifactPath: string): Promise<TriggerBlock> {
-      const raw = await readArtifact(artifactPath, "readTriggerMetadata");
-
-      if (!/^trigger:$/m.test(raw)) {
-        throw new Error(`readTriggerMetadata: no trigger block found in ${artifactPath}`);
-      }
-
-      // Parse using gray-matter for the match sub-block
-      const parsed = matter(raw);
-      const trigger = parsed.data.trigger as Record<string, unknown> | undefined;
-      if (!trigger) {
-        throw new Error(`readTriggerMetadata: no trigger block found in ${artifactPath}`);
-      }
-
-      const rawMatch = trigger.match as Record<string, unknown>;
-      if (!rawMatch || !rawMatch.type) {
-        throw new Error(`readTriggerMetadata: no match rule in trigger block of ${artifactPath}`);
-      }
-
-      // gray-matter coerces YAML values (e.g. "true" -> boolean, "123" -> number).
-      // Coerce fields values back to strings so micromatch receives valid input.
-      const match: TriggerBlock["match"] = {
-        type: String(rawMatch.type as string) as TriggerBlock["match"]["type"],
-        projectName: rawMatch.projectName ? String(rawMatch.projectName as string) : undefined,
-        fields: rawMatch.fields && typeof rawMatch.fields === "object"
-          ? Object.fromEntries(Object.entries(rawMatch.fields as Record<string, unknown>).map(([k, v]) => [k, String(v as string)]))
-          : undefined,
-      };
-
-      return {
-        match,
-        approval: trigger.approval as TriggerBlock["approval"],
-        maxDepth: trigger.maxDepth as number | undefined,
-        runs_completed: (trigger.runs_completed as number) ?? 0,
-        last_triggered: trigger.last_triggered === null || trigger.last_triggered === undefined
-          ? null : trigger.last_triggered instanceof Date
-            ? trigger.last_triggered.toISOString() : String(trigger.last_triggered as string),
-        last_spawned_id: trigger.last_spawned_id === null || trigger.last_spawned_id === undefined
-          ? null : String(trigger.last_spawned_id as string),
-      };
-    },
-
-    async writeTriggerFields(
-      artifactPath: string,
-      updates: Partial<{
-        runs_completed: number;
-        last_triggered: string | null;
-        last_spawned_id: string | null;
-      }>,
-    ): Promise<void> {
-      let raw = await readArtifact(artifactPath, "writeTriggerFields");
-
-      if (updates.runs_completed !== undefined) {
-        raw = raw.replace(
-          /^  runs_completed: .+$/m,
-          `  runs_completed: ${updates.runs_completed}`,
-        );
-      }
-
-      if (updates.last_triggered !== undefined) {
-        raw = raw.replace(
-          /^  last_triggered: .+$/m,
-          `  last_triggered: ${updates.last_triggered ?? "null"}`,
-        );
-      }
-
-      if (updates.last_spawned_id !== undefined) {
-        raw = raw.replace(
-          /^  last_spawned_id: .+$/m,
-          `  last_spawned_id: ${updates.last_spawned_id ?? "null"}`,
-        );
-      }
-
-      await fs.writeFile(artifactPath, raw, "utf-8");
-    },
-
-    async readTriggeredBy(artifactPath: string): Promise<TriggeredBy | null> {
+    async readSource(artifactPath: string): Promise<CommissionSource | null> {
       try {
         const raw = await fs.readFile(artifactPath, "utf-8");
 
-        if (!/^triggered_by:$/m.test(raw)) {
+        if (!/^source:$/m.test(raw)) {
           return null;
         }
 
         const parsed = matter(raw);
-        const triggeredBy = parsed.data.triggered_by as Record<string, unknown> | undefined;
-        if (!triggeredBy) return null;
+        const source = parsed.data.source as Record<string, unknown> | undefined;
+        if (!source) return null;
 
-        const sourceId = triggeredBy.source_id;
-        const triggerArtifact = triggeredBy.trigger_artifact;
-        const depth = triggeredBy.depth;
+        const description = source.description;
+        if (typeof description !== "string") return null;
 
-        if (typeof sourceId !== "string" || typeof triggerArtifact !== "string" || typeof depth !== "number") {
-          return null;
-        }
-
-        return { source_id: sourceId, trigger_artifact: triggerArtifact, depth };
+        return { description };
       } catch {
         return null;
       }

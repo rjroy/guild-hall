@@ -340,13 +340,27 @@ describe("recentArtifacts", () => {
     await new Promise((r) => setTimeout(r, 50));
     await writeTestArtifact("b.md", "title: Beta\nstatus: draft\ndate: 2026-01-01", "Body");
     await new Promise((r) => setTimeout(r, 50));
-    await writeTestArtifact("c.md", "title: Gamma\nstatus: abandoned\ndate: 2026-03-01", "Body");
+    await writeTestArtifact("c.md", "title: Gamma\nstatus: complete\ndate: 2026-03-01", "Body");
 
     const recent = await recentArtifacts(tmpDir, 2);
     expect(recent).toHaveLength(2);
     // Newest mtime first, regardless of status or frontmatter date
     expect(recent[0].meta.title).toBe("Gamma");
     expect(recent[1].meta.title).toBe("Beta");
+  });
+
+  test("excludes inactive artifacts (abandoned, archived, parked)", async () => {
+    await writeTestArtifact("a.md", "title: Active\nstatus: draft", "Body");
+    await new Promise((r) => setTimeout(r, 50));
+    await writeTestArtifact("b.md", "title: Abandoned\nstatus: abandoned", "Body");
+    await new Promise((r) => setTimeout(r, 50));
+    await writeTestArtifact("c.md", "title: Archived\nstatus: archived", "Body");
+    await new Promise((r) => setTimeout(r, 50));
+    await writeTestArtifact("d.md", "title: Parked\nstatus: parked", "Body");
+
+    const recent = await recentArtifacts(tmpDir, 10);
+    expect(recent).toHaveLength(1);
+    expect(recent[0].meta.title).toBe("Active");
   });
 
   test("returns all when limit exceeds count", async () => {

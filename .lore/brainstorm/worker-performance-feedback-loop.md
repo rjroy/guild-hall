@@ -1,7 +1,7 @@
 ---
 title: "Worker Performance Feedback Loop"
 date: 2026-03-20
-status: open
+status: parked
 author: Celeste
 tags: [brainstorm, commissions, metrics, observability]
 parent: whats-missing-2026-03-20.md

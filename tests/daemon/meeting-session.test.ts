@@ -2942,10 +2942,6 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     async redispatchCommission() { return { status: "accepted" as const }; },
     async addUserNote() {},
     async checkDependencyTransitions() {},
-    async createScheduledCommission() { return { commissionId: "schedule-001" }; },
-    async updateScheduleStatus() { return { outcome: "executed", status: "paused" }; },
-    async createTriggeredCommission() { return { commissionId: "trigger-001" }; },
-    async updateTriggerStatus() { return { commissionId: "trigger-001", status: "active" }; },
     async recoverCommissions() { return 0; },
     getActiveCommissions() { return 0; },
     shutdown() {},
@@ -2954,6 +2950,12 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
 /* eslint-enable @typescript-eslint/require-await */
 
 const MANAGER_PKG = createManagerPackage();
+const COMPENDIUM_PKG: DiscoveredPackage = {
+  name: "guild-compendium",
+  path: "/packages/guild-compendium",
+  metadata: { type: "plugin" as const, name: "guild-compendium", description: "Guild Compendium plugin" },
+  pluginPath: "/packages/guild-compendium/plugin/.claude-plugin",
+};
 
 describe("manager worker integration", () => {
   test("meeting session identifies manager by package name and sets isManager flag", async () => {
@@ -2972,7 +2974,7 @@ describe("manager worker integration", () => {
     }
 
     const deps = makeDeps({
-      packages: [MANAGER_PKG, WORKER_PKG],
+      packages: [MANAGER_PKG, WORKER_PKG, COMPENDIUM_PKG],
       activateFn: captureActivateFn,
       commissionSession: makeMockCommissionSession(),
       eventBus: { emit() {}, subscribe() { return () => {}; } },
@@ -3017,7 +3019,7 @@ describe("manager worker integration", () => {
     config.projects[0].path = projectDir;
 
     const deps: MeetingSessionDeps = {
-      packages: [MANAGER_PKG, WORKER_PKG],
+      packages: [MANAGER_PKG, WORKER_PKG, COMPENDIUM_PKG],
       config,
       guildHallHome: ghHomeDir,
       queryFn: mock.queryFn,
@@ -3137,59 +3139,6 @@ describe("manager worker integration", () => {
     expect(mcpNames).not.toContain("guild-hall-manager");
   });
 
-  test("services bag accepts scheduleLifecycleRef and recordOps and wires them for manager meeting", async () => {
-    // Regression guard: verifies that the new optional fields accepted by
-    // createMeetingSession are properly wired into the services bag so that
-    // the manager toolbox tools (create_scheduled_commission, update_schedule)
-    // have access to them during a Guild Master meeting.
-    const activateCalls: Array<{ pkg: DiscoveredPackage; context: ActivationContext }> = [];
-    function captureActivateFn(
-      pkg: DiscoveredPackage,
-      context: ActivationContext,
-    ): Promise<ActivationResult> {
-      activateCalls.push({ pkg, context });
-      return Promise.resolve({
-        systemPrompt: "Manager prompt",
-        sessionContext: "",
-        tools: context.resolvedTools,
-      });
-    }
-
-    // scheduleLifecycleRef starts undefined (set after startup in production);
-    // by meeting time the scheduler has already been constructed.
-    const scheduleLifecycleRef: { current: undefined } = { current: undefined };
-
-    const deps = makeDeps({
-      packages: [MANAGER_PKG, WORKER_PKG],
-      activateFn: captureActivateFn,
-      commissionSession: makeMockCommissionSession(),
-      eventBus: { emit() {}, subscribe() { return () => {}; } },
-      scheduleLifecycleRef,
-      recordOps: undefined,
-    });
-
-    const session = createMeetingSession(deps);
-    const events = await collectEvents(
-      session.createMeeting("test-project", MANAGER_PACKAGE_NAME, "Coordinate work"),
-    );
-
-    // No errors — wiring the new deps should not break manager meeting creation
-    const errorEvents = events.filter((e) => e.type === "error");
-    expect(errorEvents).toHaveLength(0);
-
-    // Manager toolbox server should be present, confirming services (including
-    // packages) were wired correctly into the SessionPrepSpec
-    const managerCall = activateCalls.find((c) => c.pkg.name === MANAGER_PACKAGE_NAME);
-    expect(managerCall).toBeDefined();
-    const mcpNames = managerCall!.context.resolvedTools.mcpServers.map(
-      (s) => s.name,
-    );
-    expect(mcpNames).toContain("guild-hall-manager");
-    // packages were provided and wired, so no "Worker not found" errors
-    expect(errorEvents.filter(
-      (e) => e.type === "error" && e.reason.includes("not found"),
-    )).toHaveLength(0);
-  });
 });
 
 // -- createMeetingRequest --

@@ -91,6 +91,19 @@ export default function MetadataSidebar({
           </div>
         )}
 
+        {/* Type */}
+        {meta.type && meta.type.length > 0 && (
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Type</h3>
+            <div className={styles.badges}>
+              <span key={meta.type} className={styles.badge}>
+                {meta.type}
+              </span>
+            </div>
+          </div>
+        )}
+
+
         {/* Tags */}
         {meta.tags.length > 0 && (
           <div className={styles.section}>

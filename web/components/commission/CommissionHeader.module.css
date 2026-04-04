@@ -65,14 +65,6 @@
   margin: 0;
 }
 
-.scheduleLabel {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-  font-weight: 400;
-  font-style: italic;
-  align-self: center;
-}
-
 /* --- Metadata row --- */
 
 .meta {

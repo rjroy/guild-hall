@@ -526,90 +526,6 @@ describe("createCommission", () => {
     ).rejects.toThrow(/not found/);
   });
 
-  test("creates artifact with triggered_by block when sourceTrigger provided", async () => {
-    const { orchestrator } = buildDeps();
-
-    const result = await orchestrator.createCommission(
-      TEST_PROJECT,
-      "Review results",
-      "test-worker",
-      "Review the commission",
-      [],
-      undefined,
-      {
-        type: "one-shot",
-        sourceTrigger: {
-          triggerArtifact: "commission-auto-review-20260301-000000",
-          sourceId: "commission-Dalton-20260321-120000",
-          depth: 2,
-        },
-      },
-    );
-
-    const artifactPath = path.join(
-      integrationPath,
-      ".lore",
-      "commissions",
-      `${result.commissionId}.md`,
-    );
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("triggered_by:");
-    expect(raw).toContain("  source_id: commission-Dalton-20260321-120000");
-    expect(raw).toContain("  trigger_artifact: commission-auto-review-20260301-000000");
-    expect(raw).toContain("  depth: 2");
-  });
-
-  test("activity timeline mentions trigger when sourceTrigger provided", async () => {
-    const { orchestrator } = buildDeps();
-
-    const result = await orchestrator.createCommission(
-      TEST_PROJECT,
-      "Review results",
-      "test-worker",
-      "Review it",
-      [],
-      undefined,
-      {
-        sourceTrigger: {
-          triggerArtifact: "my-trigger",
-          sourceId: "source-commission",
-          depth: 1,
-        },
-      },
-    );
-
-    const artifactPath = path.join(
-      integrationPath,
-      ".lore",
-      "commissions",
-      `${result.commissionId}.md`,
-    );
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("Commission created by trigger: my-trigger");
-    expect(raw).toContain("source: source-commission");
-    expect(raw).toContain("depth: 1");
-  });
-
-  test("createCommission without sourceTrigger has no triggered_by block", async () => {
-    const { orchestrator } = buildDeps();
-
-    const result = await orchestrator.createCommission(
-      TEST_PROJECT,
-      "Regular commission",
-      "test-worker",
-      "Do work",
-    );
-
-    const artifactPath = path.join(
-      integrationPath,
-      ".lore",
-      "commissions",
-      `${result.commissionId}.md`,
-    );
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).not.toContain("triggered_by:");
-    expect(raw).toContain('reason: "Commission created"');
-  });
 });
 
 describe("dispatch flow", () => {
@@ -2339,41 +2255,18 @@ describe("updateCommission with model override", () => {
 
 });
 
-// -- Commission type and source_schedule tests --
-
-describe("createCommission with type options", () => {
-  test("writes type: one-shot when no options provided", async () => {
+describe("createCommission with source provenance (REQ-HBT-21, REQ-HBT-22, REQ-HBT-24)", () => {
+  test("writes source block in YAML frontmatter when source option provided", async () => {
     const { orchestrator } = buildDeps();
 
     const result = await orchestrator.createCommission(
       TEST_PROJECT,
-      "Default Type Commission",
+      "Heartbeat Review",
       "test-worker",
-      "Do the work",
-    );
-
-    const artifactPath = path.join(
-      integrationPath,
-      ".lore",
-      "commissions",
-      `${result.commissionId}.md`,
-    );
-    const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("type: one-shot");
-    expect(raw).not.toContain("source_schedule:");
-  });
-
-  test("writes type: scheduled when options.type is scheduled", async () => {
-    const { orchestrator } = buildDeps();
-
-    const result = await orchestrator.createCommission(
-      TEST_PROJECT,
-      "Scheduled Commission",
-      "test-worker",
-      "Do the work",
+      "Review the implementation",
       [],
       undefined,
-      { type: "scheduled" },
+      { source: { description: "Heartbeat: after implementation, dispatch review" } },
     );
 
     const artifactPath = path.join(
@@ -2383,20 +2276,21 @@ describe("createCommission with type options", () => {
       `${result.commissionId}.md`,
     );
     const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("type: scheduled");
+    expect(raw).toContain("source:");
+    expect(raw).toContain('  description: "Heartbeat: after implementation, dispatch review"');
   });
 
-  test("writes source_schedule when provided", async () => {
+  test("timeline entry includes source description", async () => {
     const { orchestrator } = buildDeps();
 
     const result = await orchestrator.createCommission(
       TEST_PROJECT,
-      "Scheduled with Source",
+      "Heartbeat Review",
       "test-worker",
-      "Do the work",
+      "Review the implementation",
       [],
       undefined,
-      { type: "scheduled", sourceSchedule: "schedule-nightly-20260309" },
+      { source: { description: "standing order: review after build" } },
     );
 
     const artifactPath = path.join(
@@ -2406,21 +2300,42 @@ describe("createCommission with type options", () => {
       `${result.commissionId}.md`,
     );
     const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("type: scheduled");
-    expect(raw).toContain("source_schedule: schedule-nightly-20260309");
+    expect(raw).toContain("Commission created (standing order: review after build)");
   });
 
-  test("does not write source_schedule when not provided", async () => {
+  test("readSource roundtrip: create with source, read it back", async () => {
+    const { orchestrator } = buildDeps();
+    const recordOps = createCommissionRecordOps();
+
+    const result = await orchestrator.createCommission(
+      TEST_PROJECT,
+      "Source Roundtrip",
+      "test-worker",
+      "Do something",
+      [],
+      undefined,
+      { source: { description: "test source description" } },
+    );
+
+    const artifactPath = path.join(
+      integrationPath,
+      ".lore",
+      "commissions",
+      `${result.commissionId}.md`,
+    );
+    const source = await recordOps.readSource(artifactPath);
+    expect(source).not.toBeNull();
+    expect(source!.description).toBe("test source description");
+  });
+
+  test("no source block when source option not provided", async () => {
     const { orchestrator } = buildDeps();
 
     const result = await orchestrator.createCommission(
       TEST_PROJECT,
-      "No Source Schedule",
+      "No Source",
       "test-worker",
       "Do the work",
-      [],
-      undefined,
-      { type: "one-shot" },
     );
 
     const artifactPath = path.join(
@@ -2430,7 +2345,7 @@ describe("createCommission with type options", () => {
       `${result.commissionId}.md`,
     );
     const raw = await fs.readFile(artifactPath, "utf-8");
-    expect(raw).toContain("type: one-shot");
-    expect(raw).not.toContain("source_schedule:");
+    expect(raw).not.toContain("source:");
+    expect(raw).toContain('reason: "Commission created"');
   });
 });

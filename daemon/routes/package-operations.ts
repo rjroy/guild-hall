@@ -129,12 +129,6 @@ async function validateOperationContext(
     ctx.meetingId = meetingId;
   }
 
-  if (context.scheduleId) {
-    // Startup validation in operations-loader.ts rejects operations declaring
-    // scheduleId context. This guard catches anything that bypasses that validation.
-    throw new Error("scheduleId context is not supported");
-  }
-
   return ctx;
 }
 

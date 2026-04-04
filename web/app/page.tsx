@@ -106,16 +106,14 @@ export default async function DashboardPage({
 
   return (
     <div className={styles.dashboard}>
-      <div className={styles.sidebar}>
+      <div className={styles.projects}>
         <WorkspaceSidebar
           projects={config.projects}
           selectedProject={selectedProject}
         />
       </div>
-      <div className={styles.briefing}>
+      <div className={styles.main}>
         <ManagerBriefing projectName={selectedProject} />
-      </div>
-      <div className={styles.depMap}>
         <InFlight
           commissions={selectedProject
             ? allCommissions.filter(c => c.projectName === selectedProject)
@@ -123,13 +121,7 @@ export default async function DashboardPage({
           selectedProject={selectedProject}
         />
       </div>
-      <div className={styles.recentArtifacts}>
-        <RecentArtifacts
-          artifacts={artifacts}
-          selectedProject={selectedProject}
-        />
-      </div>
-      <div className={styles.audiences}>
+      <div className={styles.sidebar}>
         <ActiveMeetings
           meetings={selectedProject
             ? allActiveMeetings.filter((m) => m.projectName === selectedProject)
@@ -139,6 +131,10 @@ export default async function DashboardPage({
         <PendingAudiences
           requests={selectedProject ? allRequests.filter((r) => r.projectName === selectedProject) : allRequests}
           workerPortraits={workerPortraits}
+        />
+        <RecentArtifacts
+          artifacts={artifacts}
+          selectedProject={selectedProject}
         />
       </div>
     </div>

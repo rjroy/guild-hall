@@ -20,12 +20,6 @@ export interface CommissionMeta {
   commissionId: string;
   title: string;
   status: string;
-  /** "one-shot" (default) or "scheduled". */
-  type: string;
-  /** For spawned commissions, the ID of the parent schedule. */
-  sourceSchedule: string;
-  /** For spawned commissions created by a trigger, the trigger artifact ID. */
-  sourceTrigger: string;
   worker: string;
   workerDisplayTitle: string;
   prompt: string;
@@ -38,6 +32,8 @@ export interface CommissionMeta {
   date: string;
   /** ISO timestamp most relevant for the commission's current status. */
   relevantDate: string;
+  /** Source information for commissions created by automated processes. */
+  source: { description: string } | null;
 }
 
 export interface TimelineEntry {
@@ -83,9 +79,6 @@ function parseCommissionData(
     commissionId,
     title: typeof data.title === "string" ? data.title : "",
     status,
-    type: typeof data.type === "string" ? data.type : "one-shot",
-    sourceSchedule: typeof data.source_schedule === "string" ? data.source_schedule : "",
-    sourceTrigger: extractSourceTrigger(data),
     worker: typeof data.worker === "string" ? data.worker : "",
     workerDisplayTitle: typeof data.workerDisplayTitle === "string"
       ? data.workerDisplayTitle
@@ -110,21 +103,22 @@ function parseCommissionData(
     projectName,
     date,
     relevantDate: extractRelevantDate(status, date, timeline),
+    source: extractSource(data),
   };
 }
 
 /**
- * Extracts the trigger artifact ID from the `triggered_by` frontmatter block.
+ * Extracts the source block from commission frontmatter.
  */
-function extractSourceTrigger(data: Record<string, unknown>): string {
-  const triggeredBy = data.triggered_by;
-  if (typeof triggeredBy === "object" && triggeredBy !== null) {
-    const tb = triggeredBy as Record<string, unknown>;
-    if (typeof tb.trigger_artifact === "string") {
-      return tb.trigger_artifact;
+function extractSource(data: Record<string, unknown>): { description: string } | null {
+  const source = data.source;
+  if (typeof source === "object" && source !== null) {
+    const s = source as Record<string, unknown>;
+    if (typeof s.description === "string") {
+      return { description: s.description };
     }
   }
-  return "";
+  return null;
 }
 
 // -- Public API --
@@ -158,9 +152,6 @@ export async function readCommissionMeta(
       commissionId,
       title: "",
       status: "",
-      type: "one-shot",
-      sourceSchedule: "",
-      sourceTrigger: "",
       worker: "",
       workerDisplayTitle: "",
       prompt: "",
@@ -172,6 +163,7 @@ export async function readCommissionMeta(
       projectName,
       date: "",
       relevantDate: "",
+      source: null,
     };
   }
 }
