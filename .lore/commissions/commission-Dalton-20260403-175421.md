@@ -1,7 +1,7 @@
 ---
 title: "Commission: Heartbeat P7: Shared Infrastructure Cleanup (Types, Services, Routes, Events)"
 date: 2026-04-04
-status: dispatched
+status: failed
 type: one-shot
 tags: [commission]
 worker: Dalton
@@ -33,6 +33,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-04-04T03:03:28.675Z
+    event: status_failed
+    reason: "Session error: Claude Code returned an error result: You've hit your limit · resets 10pm (America/Los_Angeles)"
 current_progress: ""
 projectName: guild-hall
 ---
