@@ -1,7 +1,7 @@
 ---
 title: Dangerous Allow Modes
 date: 2026-03-31
-status: draft
+status: parked
 tags: [security, sandbox, permissions, environment, tools, configuration]
 modules: [daemon/lib/agent-sdk/sdk-runner, daemon/services/toolbox-resolver, lib/paths]
 related:
