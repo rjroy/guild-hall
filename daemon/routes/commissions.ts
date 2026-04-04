@@ -6,12 +6,9 @@ import type { CommissionSessionForRoutes } from "../services/commission/orchestr
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
-import { SYSTEM_EVENT_TYPES } from "@/lib/types";
 import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveCommissionBasePath } from "@/lib/paths";
 import { scanCommissions, readCommissionMeta, parseActivityTimeline } from "@/lib/commissions";
-import { describeCron, nextOccurrence } from "@/lib/cron-utils";
-import matter from "gray-matter";
 
 export interface CommissionRoutesDeps {
   commissionSession: CommissionSessionForRoutes;
@@ -34,7 +31,6 @@ export interface CommissionRoutesDeps {
  * POST /commission/run/redispatch               - Re-dispatch failed/cancelled commission
  * POST /commission/run/abandon                  - Abandon a commission
  * POST /commission/request/commission/note      - User adds note
- * POST /commission/schedule/commission/update   - Update schedule status
  * GET  /commission/request/commission/list      - List commissions for a project
  * GET  /commission/request/commission/read      - Read commission detail
  */
@@ -51,12 +47,6 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       prompt?: string;
       dependencies?: string[];
       resourceOverrides?: { model?: string };
-      type?: string;
-      cron?: string;
-      repeat?: number;
-      match?: { type: string; projectName?: string; fields?: Record<string, string> };
-      approval?: "auto" | "confirm";
-      maxDepth?: number;
     };
     try {
       body = await c.req.json();
@@ -76,56 +66,17 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       );
     }
 
-    if (body.type === "scheduled" && !body.cron) {
-      return c.json(
-        { error: "Missing required field for scheduled commission: cron" },
-        400,
-      );
-    }
-
     try {
-      log.info(`POST /commission/request/commission/create project="${projectName}" worker="${workerName}" type="${body.type ?? "one-shot"}"`);
+      log.info(`POST /commission/request/commission/create project="${projectName}" worker="${workerName}"`);
 
-      let result: { commissionId: string };
-      if (body.type === "scheduled") {
-        result = await deps.commissionSession.createScheduledCommission({
-          projectName,
-          title,
-          workerName,
-          prompt,
-          cron: body.cron!,
-          repeat: body.repeat,
-          dependencies: body.dependencies,
-          resourceOverrides: body.resourceOverrides,
-        });
-      } else if (body.type === "triggered") {
-        if (!body.match) {
-          return c.json({ error: "Missing required field for triggered commission: match" }, 400);
-        }
-        if (!body.match.type || !SYSTEM_EVENT_TYPES.includes(body.match.type as never)) {
-          return c.json({ error: `Invalid match.type: "${body.match.type}". Valid types: ${SYSTEM_EVENT_TYPES.join(", ")}` }, 400);
-        }
-        result = await deps.commissionSession.createTriggeredCommission({
-          projectName,
-          title,
-          workerName,
-          prompt,
-          match: body.match,
-          approval: body.approval,
-          maxDepth: body.maxDepth,
-          dependencies: body.dependencies,
-          resourceOverrides: body.resourceOverrides,
-        });
-      } else {
-        result = await deps.commissionSession.createCommission(
-          projectName,
-          title,
-          workerName,
-          prompt,
-          body.dependencies,
-          body.resourceOverrides,
-        );
-      }
+      const result = await deps.commissionSession.createCommission(
+        projectName,
+        title,
+        workerName,
+        prompt,
+        body.dependencies,
+        body.resourceOverrides,
+      );
       return c.json(result, 201);
     } catch (err: unknown) {
       const message = errorMessage(err);
@@ -322,79 +273,6 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
     }
   });
 
-  // POST /commission/schedule/commission/update - Update schedule status (pause/resume/complete)
-  routes.post("/commission/schedule/commission/update", async (c) => {
-    let body: { commissionId?: string; status?: string };
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
-    }
-
-    if (!body.commissionId) {
-      return c.json({ error: "Missing required field: commissionId" }, 400);
-    }
-    const commissionId = asCommissionId(body.commissionId);
-
-    const { status } = body;
-    if (!status) {
-      return c.json({ error: "Missing required field: status" }, 400);
-    }
-
-    try {
-      log.info(`POST /commission/schedule/commission/update commissionId="${commissionId as string}" target="${status}"`);
-      const result = await deps.commissionSession.updateScheduleStatus(commissionId, status);
-      if (result.outcome === "skipped") {
-        return c.json({ error: result.reason }, 409);
-      }
-      return c.json({ status: result.status });
-    } catch (err: unknown) {
-      const message = errorMessage(err);
-      if (message.includes("Cannot transition") || message.includes("not a scheduled")) {
-        return c.json({ error: message }, 409);
-      }
-      if (message.includes("not found")) {
-        return c.json({ error: message }, 404);
-      }
-      return c.json({ error: message }, 500);
-    }
-  });
-
-  // POST /commission/trigger/commission/update - Update trigger status (pause/resume/complete)
-  routes.post("/commission/trigger/commission/update", async (c) => {
-    let body: { commissionId?: string; status?: string; projectName?: string };
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
-    }
-
-    if (!body.commissionId) {
-      return c.json({ error: "Missing required field: commissionId" }, 400);
-    }
-    const commissionId = asCommissionId(body.commissionId);
-
-    const { status, projectName } = body;
-    if (!status) {
-      return c.json({ error: "Missing required field: status" }, 400);
-    }
-
-    try {
-      log.info(`POST /commission/trigger/commission/update commissionId="${commissionId as string}" target="${status}"`);
-      const result = await deps.commissionSession.updateTriggerStatus(commissionId, status, projectName ?? "");
-      return c.json(result);
-    } catch (err: unknown) {
-      const message = errorMessage(err);
-      if (message.includes("Cannot transition") || message.includes("not a triggered")) {
-        return c.json({ error: message }, 409);
-      }
-      if (message.includes("not found")) {
-        return c.json({ error: message }, 404);
-      }
-      return c.json({ error: message }, 500);
-    }
-  });
-
   // POST /commission/request/commission/note - User adds note
   routes.post("/commission/request/commission/note", async (c) => {
     let body: { commissionId?: string; content?: string };
@@ -493,70 +371,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       const meta = await readCommissionMeta(filePath, projectName);
       const timeline = parseActivityTimeline(rawContent);
 
-      // Parse schedule info for scheduled commissions
-      let scheduleInfo: Record<string, unknown> | undefined;
-      if (meta.type === "scheduled") {
-        const parsed = matter(rawContent);
-        const sched = parsed.data.schedule as Record<string, unknown> | undefined;
-        if (sched && typeof sched === "object") {
-          const lastRun = sched.last_run;
-          let lastRunStr: string | null = null;
-          if (lastRun instanceof Date) {
-            lastRunStr = lastRun.toISOString();
-          } else if (typeof lastRun === "string" && lastRun) {
-            lastRunStr = lastRun;
-          }
-
-          const cronExpr = typeof sched.cron === "string" ? sched.cron : "";
-
-          let nextRunStr: string | null = null;
-          if (cronExpr) {
-            const referenceDate = lastRunStr ? new Date(lastRunStr) : new Date(0);
-            const nextDate = nextOccurrence(cronExpr, referenceDate);
-            if (nextDate) {
-              nextRunStr = nextDate.toISOString();
-            }
-          }
-
-          scheduleInfo = {
-            cron: cronExpr,
-            cronDescription: describeCron(cronExpr),
-            repeat: typeof sched.repeat === "number" ? sched.repeat : null,
-            runsCompleted: typeof sched.runs_completed === "number" ? sched.runs_completed : 0,
-            lastRun: lastRunStr,
-            lastSpawnedId: typeof sched.last_spawned_id === "string" ? sched.last_spawned_id : null,
-            nextRun: nextRunStr,
-          };
-        }
-      }
-
-      // Parse trigger info for triggered commissions
-      let triggerInfo: Record<string, unknown> | undefined;
-      if (meta.type === "triggered") {
-        const parsed = matter(rawContent);
-        const trigger = parsed.data.trigger as Record<string, unknown> | undefined;
-        if (trigger && typeof trigger === "object") {
-          const match = trigger.match as Record<string, unknown> | undefined;
-          const lastTriggered = trigger.last_triggered;
-          let lastTriggeredStr: string | null = null;
-          if (lastTriggered instanceof Date) {
-            lastTriggeredStr = lastTriggered.toISOString();
-          } else if (typeof lastTriggered === "string" && lastTriggered) {
-            lastTriggeredStr = lastTriggered;
-          }
-
-          triggerInfo = {
-            match: match ?? { type: "" },
-            approval: typeof trigger.approval === "string" ? trigger.approval : "confirm",
-            maxDepth: typeof trigger.maxDepth === "number" ? trigger.maxDepth : 3,
-            runsCompleted: typeof trigger.runs_completed === "number" ? trigger.runs_completed : 0,
-            lastTriggered: lastTriggeredStr,
-            lastSpawnedId: typeof trigger.last_spawned_id === "string" ? trigger.last_spawned_id : null,
-          };
-        }
-      }
-
-      return c.json({ commission: meta, timeline, rawContent, scheduleInfo, triggerInfo });
+      return c.json({ commission: meta, timeline, rawContent });
     } catch (err: unknown) {
       if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
         return c.json({ error: `Commission not found: ${commissionId}` }, 404);
@@ -699,39 +514,6 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
       ],
     },
     {
-      operationId: "commission.schedule.commission.update",
-      version: "1",
-      name: "update",
-      description: "Update schedule status (pause/resume/complete)",
-      invocation: { method: "POST", path: "/commission/schedule/commission/update" },
-      sideEffects: "Transitions schedule status, emits commission_status event",
-      context: { commissionId: true },
-
-      idempotent: true,
-      hierarchy: { root: "commission", feature: "schedule", object: "commission" },
-      parameters: [
-        { name: "commissionId", required: true, in: "body" as const },
-        { name: "status", required: true, in: "body" as const },
-      ],
-    },
-    {
-      operationId: "commission.trigger.commission.update",
-      version: "1",
-      name: "update",
-      description: "Update trigger status (pause/resume/complete)",
-      invocation: { method: "POST", path: "/commission/trigger/commission/update" },
-      sideEffects: "Transitions trigger status, manages event subscriptions",
-      context: { commissionId: true },
-
-      idempotent: true,
-      hierarchy: { root: "commission", feature: "trigger", object: "commission" },
-      parameters: [
-        { name: "commissionId", required: true, in: "body" as const },
-        { name: "status", required: true, in: "body" as const },
-        { name: "projectName", required: false, in: "body" as const },
-      ],
-    },
-    {
       operationId: "commission.dependency.project.check",
       version: "1",
       name: "check",
@@ -747,14 +529,10 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps): RouteModule 
   ];
 
   const descriptions: Record<string, string> = {
-    commission: "Commission requests, execution, scheduling, and dependencies",
+    commission: "Commission requests, execution, and dependencies",
     "commission.request": "Commission request lifecycle",
     "commission.request.commission": "Commission requests",
     "commission.run": "Commission execution control",
-    "commission.schedule": "Scheduled commission management",
-    "commission.schedule.commission": "Scheduled commission lifecycle",
-    "commission.trigger": "Triggered commission management",
-    "commission.trigger.commission": "Triggered commission lifecycle",
   };
 
   return { routes, operations, descriptions };

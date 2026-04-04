@@ -1,7 +1,7 @@
 /**
  * Manager toolbox: exclusive tools for the Guild Master worker.
  *
- * Provides thirteen tools for project coordination:
+ * Provides nine tools for project coordination:
  * - create_commission: create (and optionally dispatch) a new commission
  * - dispatch_commission: dispatch an existing pending commission
  * - cancel_commission: cancel an active or pending commission
@@ -10,19 +10,15 @@
  * - initiate_meeting: create a meeting request artifact
  * - add_commission_note: annotate a commission with a manager note
  * - sync_project: post-merge sync (detect merged PRs, reset claude branch)
- * - create_scheduled_commission: create a recurring scheduled commission
- * - update_schedule: update schedule config or transition schedule status
- * - create_triggered_commission: create an event-triggered commission (REQ-TRIG-25a)
- * - update_trigger: update trigger config or transition trigger status (REQ-TRIG-25b)
  * - check_commission_status: read commission detail or list all commissions
  *
- * Phase 7 (REQ-DAB-7): Tools that map to existing daemon routes call those
- * routes via the Unix socket instead of service methods directly. This makes
- * the manager toolbox a projection of the daemon's skill contract into the
- * agent session, using the same invocation path as CLI and web.
+ * Tools that map to existing daemon routes call those routes via the Unix
+ * socket instead of service methods directly. This makes the manager toolbox
+ * a projection of the daemon's skill contract into the agent session, using
+ * the same invocation path as CLI and web.
  *
- * Tools without matching daemon routes (create_pr, initiate_meeting,
- * update_schedule) remain internal per REQ-DAB-11.
+ * Tools without matching daemon routes (create_pr, initiate_meeting)
+ * remain internal per REQ-DAB-11.
  */
 
 import * as fs from "node:fs/promises";
@@ -35,8 +31,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod/v4";
-import { asCommissionId } from "@/daemon/types";
-import type { ToolResult, ScheduledCommissionStatus } from "@/daemon/types";
+import type { ToolResult } from "@/daemon/types";
 import { formatTimestamp, escapeYamlValue, errorMessage } from "@/daemon/lib/toolbox-utils";
 import type { EventBus } from "@/daemon/lib/event-bus";
 import { CLAUDE_BRANCH, type GitOps } from "@/daemon/lib/git";
@@ -47,21 +42,9 @@ import type { AppConfig, ProjectConfig, DiscoveredPackage } from "@/lib/types";
 import { integrationWorktreePath, resolveCommissionBasePath } from "@/lib/paths";
 import { readCommissionMeta, scanCommissions } from "@/lib/commissions";
 import type { CommissionMeta } from "@/lib/commissions";
-import matter from "gray-matter";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
-import { SYSTEM_EVENT_TYPES } from "@/lib/types";
-
-import { isValidCron, nextOccurrence } from "@/lib/cron-utils";
 import { daemonFetch, isDaemonError, discoverTransport, type TransportDescriptor } from "@/lib/daemon-client";
-
-// Stub: Phase 7 will restore proper types when scheduler/trigger modules are rebuilt.
-type ScheduleLifecycle = unknown;
-// Stub type for deleted trigger-evaluator module. Phase 7 removes all usages.
-type TriggerEvaluator = {
-  registerTrigger(artifactPath: string, projectName: string): Promise<void>;
-  unregisterTrigger(commissionId: string): void;
-};
 
 // -- Daemon route caller --
 
@@ -109,8 +92,6 @@ export interface ManagerToolboxDeps {
   config: AppConfig;
   getProjectConfig: (name: string) => Promise<ProjectConfig | undefined>;
   /** Internal deps for tools without daemon routes. */
-  scheduleLifecycle?: ScheduleLifecycle;
-  triggerEvaluator?: TriggerEvaluator;
   recordOps?: CommissionRecordOps;
   packages?: DiscoveredPackage[];
   /** Injectable logger. Defaults to nullLog("manager"). */
@@ -632,582 +613,6 @@ export function makeAbandonCommissionHandler(
   };
 }
 
-// -- Scheduled commission tools --
-
-export function makeCreateScheduledCommissionHandler(
-  deps: ManagerToolboxDeps,
-) {
-  const log = deps.log ?? nullLog("manager");
-  return async (args: {
-    title: string;
-    workerName: string;
-    prompt: string;
-    cron: string;
-    repeat?: number | null;
-    dependencies?: string[];
-    resourceOverrides?: { model?: string };
-  }): Promise<ToolResult> => {
-    try {
-      const result = await deps.callRoute(
-        "/commission/request/commission/create",
-        {
-          projectName: deps.projectName,
-          title: args.title,
-          workerName: args.workerName,
-          prompt: args.prompt,
-          type: "scheduled",
-          cron: args.cron,
-          repeat: args.repeat,
-          dependencies: args.dependencies,
-          resourceOverrides: args.resourceOverrides,
-        },
-      );
-
-      if (!result.ok) {
-        log.error(
-          `Failed to create scheduled commission "${args.title}":`,
-          result.error,
-        );
-        return routeError(result.error);
-      }
-
-      const { commissionId } = result.data as { commissionId: string };
-
-      log.info(
-        `Created scheduled commission "${args.title}" (id: ${commissionId})`,
-      );
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ commissionId, created: true, status: "active" }),
-          },
-        ],
-      };
-    } catch (err: unknown) {
-      log.error(
-        `Failed to create scheduled commission "${args.title}":`,
-        errorMessage(err),
-      );
-      return routeError(errorMessage(err));
-    }
-  };
-}
-
-/**
- * Valid status transitions for the update_schedule tool.
- * Maps (currentStatus, requestedStatus) to the lifecycle method to call.
- */
-const SCHEDULE_STATUS_ACTIONS: Record<
-  string,
-  Record<string, "pause" | "complete" | "resume" | "reactivate">
-> = {
-  active: {
-    paused: "pause",
-    completed: "complete",
-  },
-  paused: {
-    active: "resume",
-    completed: "complete",
-  },
-  failed: {
-    active: "reactivate",
-  },
-};
-
-// update_schedule remains internal: daemon route only covers status transitions,
-// not field updates (cron, repeat, prompt, resource overrides). REQ-DAB-11.
-export function makeUpdateScheduleHandler(
-  deps: ManagerToolboxDeps,
-) {
-  const log = deps.log ?? nullLog("manager");
-  return async (args: {
-    commissionId: string;
-    cron?: string;
-    repeat?: number | null;
-    prompt?: string;
-    status?: string;
-    resourceOverrides?: { model?: string };
-  }): Promise<ToolResult> => {
-    try {
-      const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
-      const artifactPath = path.join(
-        intPath,
-        ".lore",
-        "commissions",
-        `${args.commissionId}.md`,
-      );
-
-      // Validate it's a scheduled commission
-      const commissionType = await deps.recordOps!.readType(artifactPath);
-      if (commissionType !== "scheduled") {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Commission "${args.commissionId}" is type "${commissionType}", not "scheduled". Only scheduled commissions can be updated with this tool.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      const cid = asCommissionId(args.commissionId);
-      let currentStatus: string;
-
-      // Handle status transitions
-      if (args.status) {
-        currentStatus = await deps.recordOps!.readStatus(artifactPath);
-        const actions = SCHEDULE_STATUS_ACTIONS[currentStatus];
-        const action = actions?.[args.status];
-
-        if (!action) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Cannot transition from "${currentStatus}" to "${args.status}": not a valid schedule status transition`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        // Ensure the schedule is tracked before transitioning. After daemon
-        // restart, schedules are only tracked by the scheduler tick; the
-        // lifecycle has no in-memory state for them.
-        if (!deps.scheduleLifecycle!.isTracked(cid)) {
-          deps.scheduleLifecycle!.register(
-            cid,
-            deps.projectName,
-            currentStatus as ScheduledCommissionStatus,
-            artifactPath,
-          );
-        }
-
-        // Execute the lifecycle transition
-        const reason = `Schedule updated via manager toolbox`;
-        let result;
-        switch (action) {
-          case "pause":
-            result = await deps.scheduleLifecycle!.pause(cid);
-            break;
-          case "complete":
-            result = await deps.scheduleLifecycle!.complete(cid, reason);
-            break;
-          case "resume":
-            result = await deps.scheduleLifecycle!.resume(cid);
-            break;
-          case "reactivate":
-            result = await deps.scheduleLifecycle!.reactivate(cid);
-            break;
-        }
-
-        if (result.outcome === "skipped") {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Status transition skipped: ${result.reason}`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        currentStatus = args.status;
-      } else {
-        currentStatus = await deps.recordOps!.readStatus(artifactPath);
-      }
-
-      // Handle field updates (cron, repeat, prompt)
-      const scheduleUpdates: Partial<{
-        cron: string;
-        repeat: number | null;
-      }> = {};
-
-      if (args.cron !== undefined) {
-        if (!isValidCron(args.cron)) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Invalid cron expression: "${args.cron}". Must be a valid 5-field cron expression.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-        scheduleUpdates.cron = args.cron;
-      }
-
-      if (args.repeat !== undefined) {
-        scheduleUpdates.repeat = args.repeat;
-
-        // If repeat is set and lower than runs_completed, auto-complete
-        if (args.repeat !== null) {
-          const metadata = await deps.recordOps!.readScheduleMetadata(artifactPath);
-          if (args.repeat <= metadata.runsCompleted && currentStatus !== "completed") {
-            const reason = `Repeat limit (${args.repeat}) reached: ${metadata.runsCompleted} runs already completed`;
-            await deps.scheduleLifecycle!.complete(cid, reason);
-            currentStatus = "completed";
-          }
-        }
-      }
-
-      if (Object.keys(scheduleUpdates).length > 0) {
-        await deps.recordOps!.writeScheduleFields(artifactPath, scheduleUpdates);
-      }
-
-      // Handle prompt update via regex replacement on artifact
-      if (args.prompt !== undefined) {
-        const raw = await fs.readFile(artifactPath, "utf-8");
-        const escaped = escapeYamlValue(args.prompt);
-        const updated = raw.replace(
-          /^prompt: ".*"$/m,
-          `prompt: "${escaped}"`,
-        );
-        await fs.writeFile(artifactPath, updated, "utf-8");
-      }
-
-      // Handle resource overrides update
-      if (args.resourceOverrides) {
-        if (args.resourceOverrides.model && !isValidModel(args.resourceOverrides.model, deps.config)) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Invalid model name: "${args.resourceOverrides.model}". Valid built-in models: opus, sonnet, haiku. Local models must be defined in config.yaml.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        let raw = await fs.readFile(artifactPath, "utf-8");
-
-        // Check if resource_overrides block already exists
-        if (/^resource_overrides:$/m.test(raw)) {
-          if (args.resourceOverrides.model !== undefined) {
-            if (/^  model: .+$/m.test(raw)) {
-              raw = raw.replace(/^  model: .+$/m, `  model: ${args.resourceOverrides.model}`);
-            } else {
-              raw = raw.replace(/^resource_overrides:$/m, `resource_overrides:\n  model: ${args.resourceOverrides.model}`);
-            }
-          }
-        } else {
-          // Insert a new resource_overrides block before activity_timeline
-          if (args.resourceOverrides.model !== undefined) {
-            const block = `resource_overrides:\n  model: ${args.resourceOverrides.model}\n`;
-            raw = raw.replace(/^activity_timeline:$/m, `${block}activity_timeline:`);
-          }
-        }
-
-        await fs.writeFile(artifactPath, raw, "utf-8");
-      }
-
-      log.info(
-        `Updated schedule "${args.commissionId}" (status: ${currentStatus})`,
-      );
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ commissionId: args.commissionId, updated: true, status: currentStatus }),
-          },
-        ],
-      };
-    } catch (err: unknown) {
-      log.error(
-        `Failed to update schedule "${args.commissionId}":`,
-        errorMessage(err),
-      );
-      return routeError(errorMessage(err));
-    }
-  };
-}
-
-// -- Triggered commission tools --
-
-// Stub: Phase 7 will move this to a proper shared module.
-// Maps each ScheduledCommissionStatus to its valid transition targets.
-const TRIGGER_STATUS_TRANSITIONS: Record<string, string[]> = {
-  active: ["paused", "completed"],
-  paused: ["active", "completed"],
-  completed: [],
-  failed: ["active"],
-};
-export { TRIGGER_STATUS_TRANSITIONS };
-
-export function makeCreateTriggeredCommissionHandler(
-  deps: ManagerToolboxDeps,
-) {
-  const log = deps.log ?? nullLog("manager");
-  return async (args: {
-    title: string;
-    workerName: string;
-    prompt: string;
-    match: { type: string; projectName?: string; fields?: Record<string, string> };
-    approval?: "auto" | "confirm";
-    maxDepth?: number;
-    dependencies?: string[];
-  }): Promise<ToolResult> => {
-    try {
-      // Validate match.type against known event types
-      if (!SYSTEM_EVENT_TYPES.includes(args.match.type as never)) {
-        return {
-          content: [{
-            type: "text",
-            text: `Invalid match type: "${args.match.type}". Valid event types: ${SYSTEM_EVENT_TYPES.join(", ")}`,
-          }],
-          isError: true,
-        };
-      }
-
-      // Validate worker exists
-      if (deps.packages) {
-        const found = deps.packages.some((p) => {
-          if (!("identity" in p.metadata)) return false;
-          return (p.metadata as { identity: { name: string } }).identity.name === args.workerName;
-        });
-        if (!found) {
-          const available = deps.packages
-            .filter((p) => "identity" in p.metadata)
-            .map((p) => (p.metadata as { identity: { name: string } }).identity.name);
-          return {
-            content: [{
-              type: "text",
-              text: `Worker "${args.workerName}" not found. Available workers: ${available.join(", ")}`,
-            }],
-            isError: true,
-          };
-        }
-      }
-
-      const result = await deps.callRoute(
-        "/commission/request/commission/create",
-        {
-          projectName: deps.projectName,
-          title: args.title,
-          workerName: args.workerName,
-          prompt: args.prompt,
-          type: "triggered",
-          match: args.match,
-          approval: args.approval,
-          maxDepth: args.maxDepth,
-          dependencies: args.dependencies,
-        },
-      );
-
-      if (!result.ok) {
-        log.error(
-          `Failed to create triggered commission "${args.title}":`,
-          result.error,
-        );
-        return routeError(result.error);
-      }
-
-      const { commissionId } = result.data as { commissionId: string };
-
-      // Register the subscription immediately (REQ-TRIG-25d)
-      if (deps.triggerEvaluator) {
-        try {
-          const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
-          const artifactPath = path.join(intPath, ".lore", "commissions", `${commissionId}.md`);
-          await deps.triggerEvaluator.registerTrigger(artifactPath, deps.projectName);
-        } catch (err) {
-          // Artifact exists; subscription recovers on daemon restart via initialize()
-          log.error(`Failed to register trigger subscription for "${commissionId}":`, errorMessage(err));
-        }
-      }
-
-      log.info(
-        `Created triggered commission "${args.title}" (id: ${commissionId})`,
-      );
-
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({ commissionId, created: true, status: "active" }),
-        }],
-      };
-    } catch (err: unknown) {
-      log.error(
-        `Failed to create triggered commission "${args.title}":`,
-        errorMessage(err),
-      );
-      return routeError(errorMessage(err));
-    }
-  };
-}
-
-export function makeUpdateTriggerHandler(
-  deps: ManagerToolboxDeps,
-) {
-  const log = deps.log ?? nullLog("manager");
-  return async (args: {
-    commissionId: string;
-    status?: string;
-    match?: { type: string; projectName?: string; fields?: Record<string, string> };
-    approval?: "auto" | "confirm";
-    prompt?: string;
-  }): Promise<ToolResult> => {
-    try {
-      const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
-      const artifactPath = path.join(
-        intPath,
-        ".lore",
-        "commissions",
-        `${args.commissionId}.md`,
-      );
-
-      // Validate it's a triggered commission
-      const commissionType = await deps.recordOps!.readType(artifactPath);
-      if (commissionType !== "triggered") {
-        return {
-          content: [{
-            type: "text",
-            text: `Commission "${args.commissionId}" is type "${commissionType}", not "triggered". Only triggered commissions can be updated with this tool.`,
-          }],
-          isError: true,
-        };
-      }
-
-      let currentStatus = await deps.recordOps!.readStatus(artifactPath);
-      const hasFieldUpdates = args.match !== undefined || args.approval !== undefined || args.prompt !== undefined;
-
-      // Handle status transitions
-      if (args.status) {
-        const validTargets = TRIGGER_STATUS_TRANSITIONS[currentStatus];
-        if (!validTargets || !validTargets.includes(args.status)) {
-          return {
-            content: [{
-              type: "text",
-              text: `Cannot transition from "${currentStatus}" to "${args.status}": not a valid trigger status transition.`,
-            }],
-            isError: true,
-          };
-        }
-
-        if (args.status === "paused") {
-          // Remove subscription
-          deps.triggerEvaluator?.unregisterTrigger(args.commissionId);
-          await deps.recordOps!.writeStatusAndTimeline(
-            artifactPath, "paused", "status_change", "Trigger paused via manager toolbox",
-          );
-        } else if (args.status === "active") {
-          // Skip subscription registration here if field updates will replace it
-          if (!hasFieldUpdates) {
-            await deps.triggerEvaluator?.registerTrigger(artifactPath, deps.projectName);
-          }
-          await deps.recordOps!.writeStatusAndTimeline(
-            artifactPath, "active", "status_change", "Trigger resumed via manager toolbox",
-          );
-        } else if (args.status === "completed") {
-          // Only unregister if currently active (has a subscription)
-          if (currentStatus === "active") {
-            deps.triggerEvaluator?.unregisterTrigger(args.commissionId);
-          }
-          await deps.recordOps!.writeStatusAndTimeline(
-            artifactPath, "completed", "status_change", "Trigger completed via manager toolbox",
-          );
-        }
-
-        currentStatus = args.status;
-      }
-
-      // Handle field updates
-      if (hasFieldUpdates) {
-        // Validate match.type if provided
-        if (args.match && !SYSTEM_EVENT_TYPES.includes(args.match.type as never)) {
-          return {
-            content: [{
-              type: "text",
-              text: `Invalid match type: "${args.match.type}". Valid event types: ${SYSTEM_EVENT_TYPES.join(", ")}`,
-            }],
-            isError: true,
-          };
-        }
-
-        let raw = await fs.readFile(artifactPath, "utf-8");
-
-        // Update match block via regex
-        if (args.match) {
-          const newMatchBlock = serializeTriggerMatchBlock(args.match);
-          raw = raw.replace(
-            /^  match:\n(?:    .+\n)+/m,
-            newMatchBlock,
-          );
-        }
-
-        // Update approval
-        if (args.approval) {
-          raw = raw.replace(
-            /^  approval: .+$/m,
-            `  approval: ${args.approval}`,
-          );
-        }
-
-        // Update prompt
-        if (args.prompt !== undefined) {
-          const escaped = escapeYamlValue(args.prompt);
-          raw = raw.replace(
-            /^prompt: ".*"$/m,
-            `prompt: "${escaped}"`,
-          );
-        }
-
-        await fs.writeFile(artifactPath, raw, "utf-8");
-
-        // Subscription replacement: if active, unregister old and register new
-        if (currentStatus === "active" && deps.triggerEvaluator) {
-          deps.triggerEvaluator.unregisterTrigger(args.commissionId);
-          await deps.triggerEvaluator.registerTrigger(artifactPath, deps.projectName);
-        }
-      }
-
-      log.info(
-        `Updated trigger "${args.commissionId}" (status: ${currentStatus})`,
-      );
-
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({ commissionId: args.commissionId, updated: true, status: currentStatus }),
-        }],
-      };
-    } catch (err: unknown) {
-      log.error(
-        `Failed to update trigger "${args.commissionId}":`,
-        errorMessage(err),
-      );
-      return routeError(errorMessage(err));
-    }
-  };
-}
-
-/**
- * Serializes a match rule into YAML lines for the trigger block.
- * Isolated for testability (the regex replacement is the fragile part).
- */
-export function serializeTriggerMatchBlock(
-  match: { type: string; projectName?: string; fields?: Record<string, string> },
-): string {
-  const lines = [`  match:`, `    type: ${match.type}`];
-  if (match.projectName) {
-    lines.push(`    projectName: ${match.projectName}`);
-  }
-  if (match.fields && Object.keys(match.fields).length > 0) {
-    lines.push("    fields:");
-    for (const [key, value] of Object.entries(match.fields)) {
-      lines.push(`      ${key}: ${value}`);
-    }
-  }
-  return lines.join("\n") + "\n";
-}
-
 // -- Commission status tool --
 
 /**
@@ -1239,7 +644,6 @@ function projectForList(c: CommissionMeta) {
     title: c.title,
     status: c.status,
     worker: c.worker,
-    type: c.type,
     current_progress: truncate(c.current_progress, 200),
     result_summary: truncate(c.result_summary, 200),
   };
@@ -1279,43 +683,11 @@ export function makeCheckCommissionStatusHandler(
           title: meta.title,
           status: meta.status,
           worker: meta.worker,
-          type: meta.type,
           date: meta.date,
           current_progress: meta.current_progress,
           result_summary: meta.result_summary,
           linked_artifacts: meta.linked_artifacts,
         };
-
-        // REQ-CST-5: schedule metadata for scheduled commissions
-        if (meta.type === "scheduled") {
-          const raw = await fs.readFile(filePath, "utf-8");
-          const parsed = matter(raw);
-          const sched = parsed.data.schedule as Record<string, unknown> | undefined;
-          if (sched && typeof sched === "object") {
-            const lastRun = sched.last_run;
-            let lastRunStr: string | null = null;
-            if (lastRun instanceof Date) {
-              lastRunStr = lastRun.toISOString();
-            } else if (typeof lastRun === "string" && lastRun) {
-              lastRunStr = lastRun;
-            }
-
-            const cronExpr = typeof sched.cron === "string" ? sched.cron : "";
-            let nextRunStr: string | null = null;
-            if (cronExpr) {
-              const referenceDate = lastRunStr ? new Date(lastRunStr) : new Date(0);
-              const nextDate = nextOccurrence(cronExpr, referenceDate);
-              if (nextDate) nextRunStr = nextDate.toISOString();
-            }
-
-            result.schedule = {
-              cron: cronExpr,
-              runsCompleted: typeof sched.runs_completed === "number" ? sched.runs_completed : 0,
-              lastRun: lastRunStr,
-              nextRun: nextRunStr,
-            };
-          }
-        }
 
         return {
           content: [{ type: "text", text: JSON.stringify(result) }],
@@ -1375,10 +747,6 @@ export function createManagerToolbox(
   const createPr = makeCreatePrHandler(deps);
   const initiateMeeting = makeInitiateMeetingHandler(deps);
   const addCommissionNote = makeAddCommissionNoteHandler(deps);
-  const createScheduledCommission = makeCreateScheduledCommissionHandler(deps);
-  const updateSchedule = makeUpdateScheduleHandler(deps);
-  const createTriggeredCommission = makeCreateTriggeredCommissionHandler(deps);
-  const updateTrigger = makeUpdateTriggerHandler(deps);
   const checkCommissionStatus = makeCheckCommissionStatusHandler(deps);
 
   return createSdkMcpServer({
@@ -1454,71 +822,6 @@ export function createManagerToolbox(
         (args) => addCommissionNote(args),
       ),
       tool(
-        "create_scheduled_commission",
-        "Create a recurring scheduled commission that spawns one-shot commissions on a cron schedule. The schedule starts in 'active' status and the scheduler will dispatch commissions at each cron interval. [operationId: commission.request.commission.create]",
-        {
-          title: z.string().describe("Short title for the scheduled commission"),
-          workerName: z.string().describe("Name of the worker to assign each run to"),
-          prompt: z.string().describe("The work prompt for each spawned commission"),
-          cron: z.string().describe("5-field cron expression (e.g. '0 9 * * 1' for every Monday at 9am UTC)"),
-          repeat: z.number().nullable().optional().describe("Max number of runs (null for unlimited)"),
-          dependencies: z.array(z.string()).optional().describe("Commission IDs this depends on"),
-          resourceOverrides: z.object({
-            model: z.string().optional(),
-          }).optional().describe("Override the worker's default model for spawned commissions."),
-        },
-        (args) => createScheduledCommission(args),
-      ),
-      tool(
-        "update_schedule",
-        "Update a scheduled commission's configuration or status. Can change the cron expression, repeat limit, prompt, status (active/paused/completed), or resource overrides. Status transitions follow the schedule lifecycle state machine. [operationId: commission.schedule.commission.update]",
-        {
-          commissionId: z.string().describe("The scheduled commission ID to update"),
-          cron: z.string().optional().describe("New 5-field cron expression"),
-          repeat: z.number().nullable().optional().describe("New repeat limit (null for unlimited)"),
-          prompt: z.string().optional().describe("New work prompt"),
-          status: z.string().optional().describe("New status: 'active', 'paused', or 'completed'"),
-          resourceOverrides: z.object({
-            model: z.string().optional(),
-          }).optional().describe("Updated model override for spawned commissions."),
-        },
-        (args) => updateSchedule(args),
-      ),
-      tool(
-        "create_triggered_commission",
-        "Create an event-triggered commission that spawns one-shot commissions when matching events occur. The trigger starts in 'active' status and begins listening for events immediately. Use match to specify the event pattern. [internal: no daemon route]",
-        {
-          title: z.string().describe("Short title for the trigger"),
-          workerName: z.string().describe("Worker package name for spawned commissions"),
-          prompt: z.string().describe("Commission prompt (supports {{fieldName}} template variables from the matched event)"),
-          match: z.object({
-            type: z.string().describe("Event type to match (e.g. 'commission_status', 'commission_result', 'meeting_ended')"),
-            projectName: z.string().optional().describe("Exact project name to match (omit for all projects)"),
-            fields: z.record(z.string(), z.string()).optional().describe("Field patterns to match via glob (e.g. { status: 'completed', commissionId: 'commission-Dalton-*' })"),
-          }).describe("Event matching criteria"),
-          approval: z.enum(["auto", "confirm"]).optional().describe("Dispatch behavior for spawned commissions. 'auto' dispatches immediately, 'confirm' creates in pending for review. Defaults to 'confirm'."),
-          maxDepth: z.number().optional().describe("Maximum trigger chain depth before downgrading to confirm. Defaults to 3."),
-          dependencies: z.array(z.string()).optional().describe("Commission dependency IDs (each supports {{fieldName}} template variables)"),
-        },
-        (args) => createTriggeredCommission(args),
-      ),
-      tool(
-        "update_trigger",
-        "Update a triggered commission's configuration or status. Can change the match rule, approval mode, prompt, or status (active/paused/completed). Pausing removes the event subscription; resuming re-registers it. Field updates on active triggers replace the subscription. [internal: no daemon route]",
-        {
-          commissionId: z.string().describe("The triggered commission ID to update"),
-          status: z.string().optional().describe("New status: 'active', 'paused', or 'completed'"),
-          match: z.object({
-            type: z.string().describe("Event type to match"),
-            projectName: z.string().optional().describe("Exact project name to match"),
-            fields: z.record(z.string(), z.string()).optional().describe("Field patterns to match via glob"),
-          }).optional().describe("New event matching criteria"),
-          approval: z.enum(["auto", "confirm"]).optional().describe("New approval mode"),
-          prompt: z.string().optional().describe("New commission prompt"),
-        },
-        (args) => updateTrigger(args),
-      ),
-      tool(
         "check_commission_status",
         "Check the status of a specific commission by ID, or get a summary list of all commissions for the current project. [operationId: commission.request.commission.read, commission.request.commission.list]",
         {
@@ -1535,12 +838,12 @@ export function createManagerToolbox(
 /**
  * Plain ToolboxFactory: reads services from GuildHallToolboxDeps.services.
  *
- * The scheduleLifecycle, recordOps, and packages fields are provided by
- * the orchestrator's services bag (wired in createProductionApp).
+ * The recordOps and packages fields are provided by the orchestrator's
+ * services bag (wired in createProductionApp).
  *
- * Phase 7: callRoute uses daemonFetch over the daemon's Unix socket. Tools
- * that map to daemon routes call them through this function rather than
- * through deps.services.commissionSession directly.
+ * callRoute uses daemonFetch over the daemon's Unix socket. Tools that map
+ * to daemon routes call them through this function rather than through
+ * deps.services.commissionSession directly.
  */
 export const managerToolboxFactory: ToolboxFactory = (ctx) => {
   // The manager toolbox calls the daemon's own transport (same process).
@@ -1559,8 +862,6 @@ export const managerToolboxFactory: ToolboxFactory = (ctx) => {
       getProjectConfig: (name: string) =>
         Promise.resolve(ctx.config.projects.find((p) => p.name === name)),
       gitOps: ctx.services!.gitOps,
-      scheduleLifecycle: ctx.services?.scheduleLifecycle,
-      triggerEvaluator: ctx.services?.triggerEvaluator,
       recordOps: ctx.services?.recordOps,
       packages: ctx.services?.packages,
     }),

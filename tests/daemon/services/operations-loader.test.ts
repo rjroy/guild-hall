@@ -239,28 +239,6 @@ describe("loadPackageOperations", () => {
     expect(warnings[0]).toContain("non-streaming handler must not have definition.streaming");
   });
 
-  test("rejects operation with scheduleId context", async () => {
-    const pkg = makePackage("schedule-context");
-    const { logger, warnings } = silentLogger();
-
-    const skill = makeValidOperation({
-      definition: makeOperationDefinition({
-        context: { scheduleId: true },
-      }),
-    });
-
-    const importer = makeImporter({
-      [`${pkg.path}/index.ts`]: {
-        operationFactory: () => ({ operations: [skill] }),
-      },
-    });
-
-    const result = await loadPackageOperations([pkg], makeDeps(), logger, importer);
-    expect(result).toEqual([]);
-    expect(warnings.length).toBe(1);
-    expect(warnings[0]).toContain("scheduleId context is not supported");
-  });
-
   test("stamps sourcePackage from package name, overriding existing value", async () => {
     const pkg = makePackage("real-package-name");
     const { logger } = silentLogger();

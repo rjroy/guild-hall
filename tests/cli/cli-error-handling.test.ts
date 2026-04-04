@@ -245,10 +245,6 @@ function makeStubSession(overrides: Partial<CommissionSessionForRoutes> = {}): C
     checkDependencyTransitions: () => Promise.resolve(),
     recoverCommissions: () => Promise.resolve(0),
     getActiveCommissions: () => 0,
-    createScheduledCommission: () => Promise.resolve({ commissionId: "" }),
-    createTriggeredCommission: () => Promise.resolve({ commissionId: "" }),
-    updateScheduleStatus: () => Promise.resolve({ outcome: "executed" as const, status: "" }),
-    updateTriggerStatus: () => Promise.resolve({ commissionId: "", status: "" }),
     shutdown: () => {},
     ...overrides,
   } as CommissionSessionForRoutes;

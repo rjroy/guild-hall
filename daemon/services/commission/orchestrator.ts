@@ -33,7 +33,7 @@ import * as path from "node:path";
 import matter from "gray-matter";
 import type { Log } from "@/daemon/lib/log";
 import { nullLog } from "@/daemon/lib/log";
-import type { CommissionId, CommissionStatus, CommissionType } from "@/daemon/types";
+import type { CommissionId, CommissionStatus } from "@/daemon/types";
 import { asCommissionId } from "@/daemon/types";
 import type {
   AppConfig,
@@ -59,16 +59,8 @@ import {
 } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
 import type { EventBus } from "@/daemon/lib/event-bus";
-import { isValidCron } from "@/lib/cron-utils";
 import type { CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
 
-// Stub: Phase 7 will move this to a proper shared module.
-const TRIGGER_STATUS_TRANSITIONS: Record<string, string[]> = {
-  active: ["paused", "completed"],
-  paused: ["active", "completed"],
-  completed: [],
-  failed: ["active"],
-};
 import { replaceYamlField } from "@/daemon/lib/record-utils";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import type {
@@ -106,13 +98,6 @@ export interface CommissionSessionForRoutes {
     dependencies?: string[],
     resourceOverrides?: { model?: string },
     options?: {
-      type?: CommissionType;
-      sourceSchedule?: string;
-      sourceTrigger?: {
-        triggerArtifact: string;
-        sourceId: string;
-        depth: number;
-      };
       source?: { description: string };
     },
   ): Promise<{ commissionId: string }>;
@@ -133,36 +118,6 @@ export interface CommissionSessionForRoutes {
     commissionId: CommissionId,
   ): Promise<{ status: "accepted" | "queued" }>;
   addUserNote(commissionId: CommissionId, content: string): Promise<void>;
-  createScheduledCommission(params: {
-    projectName: string;
-    title: string;
-    workerName: string;
-    prompt: string;
-    cron: string;
-    repeat?: number | null;
-    dependencies?: string[];
-    resourceOverrides?: { model?: string };
-  }): Promise<{ commissionId: string }>;
-  createTriggeredCommission(params: {
-    projectName: string;
-    title: string;
-    workerName: string;
-    prompt: string;
-    match: { type: string; projectName?: string; fields?: Record<string, string> };
-    approval?: "auto" | "confirm";
-    maxDepth?: number;
-    dependencies?: string[];
-    resourceOverrides?: { model?: string };
-  }): Promise<{ commissionId: string }>;
-  updateScheduleStatus(
-    commissionId: CommissionId,
-    targetStatus: string,
-  ): Promise<{ outcome: string; status?: string; reason?: string }>;
-  updateTriggerStatus(
-    commissionId: CommissionId,
-    targetStatus: string,
-    projectName: string,
-  ): Promise<{ commissionId: string; status: string }>;
   checkDependencyTransitions(projectName: string): Promise<void>;
   recoverCommissions(): Promise<number>;
   getActiveCommissions(): number;
@@ -216,17 +171,6 @@ export interface CommissionOrchestratorDeps {
   managerPackageName?: string;
   /** Injectable logger. Defaults to nullLog("commission"). */
   log?: Log;
-  /**
-   * Lazy ref for the schedule lifecycle, set after the scheduler is
-   * constructed. The services bag captures this ref at dispatch time,
-   * breaking the circular ordering between orchestrator and scheduler.
-   */
-  scheduleLifecycleRef?: { current: unknown };
-  /**
-   * Lazy ref for the trigger evaluator, set after the trigger evaluator is
-   * constructed. Same late-binding pattern as scheduleLifecycleRef.
-   */
-  triggerEvaluatorRef?: { current: unknown };
 }
 
 // -- Factory --
@@ -1049,13 +993,6 @@ export function createCommissionOrchestrator(
     dependencies: string[] = [],
     resourceOverrides?: { model?: string },
     options?: {
-      type?: CommissionType;
-      sourceSchedule?: string;
-      sourceTrigger?: {
-        triggerArtifact: string;
-        sourceId: string;
-        depth: number;
-      };
       source?: { description: string };
     },
   ): Promise<{ commissionId: string }> {
@@ -1100,30 +1037,18 @@ export function createCommissionOrchestrator(
         ? `\nresource_overrides:\n  model: ${resourceOverrides.model}\n`
         : "";
 
-    const commissionType: CommissionType = options?.type ?? "one-shot";
-    const sourceScheduleLine = options?.sourceSchedule
-      ? `\nsource_schedule: ${options.sourceSchedule}`
-      : "";
-
-    const triggeredByBlock = options?.sourceTrigger
-      ? `\ntriggered_by:\n  source_id: ${options.sourceTrigger.sourceId}\n  trigger_artifact: ${options.sourceTrigger.triggerArtifact}\n  depth: ${options.sourceTrigger.depth}`
-      : "";
-
     const sourceBlock = options?.source
       ? `\nsource:\n  description: "${escapeYamlValue(options.source.description)}"`
       : "";
 
-    const timelineReason = options?.sourceTrigger
-      ? `Commission created by trigger: ${options.sourceTrigger.triggerArtifact} (source: ${options.sourceTrigger.sourceId}, depth: ${options.sourceTrigger.depth})`
-      : options?.source
-        ? `Commission created (${options.source.description})`
-        : "Commission created";
+    const timelineReason = options?.source
+      ? `Commission created (${options.source.description})`
+      : "Commission created";
 
     const content = `---
 title: "Commission: ${escapedTitle}"
 date: ${dateStr}
-status: pending
-type: ${commissionType}${sourceScheduleLine}${triggeredByBlock}${sourceBlock}
+status: pending${sourceBlock}
 tags: [commission]
 worker: ${workerMeta.identity.name}
 workerDisplayTitle: "${escapedDisplayTitle}"
@@ -1148,337 +1073,6 @@ projectName: ${projectName}
     );
 
     return { commissionId: commissionId as string };
-  }
-
-  async function createScheduledCommission(params: {
-    projectName: string;
-    title: string;
-    workerName: string;
-    prompt: string;
-    cron: string;
-    repeat?: number | null;
-    dependencies?: string[];
-    resourceOverrides?: { model?: string };
-  }): Promise<{ commissionId: string }> {
-    const { projectName, title, workerName, prompt, cron, dependencies = [] } = params;
-    const repeat = params.repeat ?? null;
-
-    const project = findProject(projectName);
-    if (!project) {
-      throw new Error(`Project "${projectName}" not found`);
-    }
-
-    if (!isValidCron(cron)) {
-      throw new Error(`Invalid cron expression: "${cron}"`);
-    }
-
-    const workerPkg = getWorkerByName(packages, workerName);
-    if (!workerPkg) {
-      throw new Error(`Worker "${workerName}" not found in discovered packages`);
-    }
-    const workerMeta = workerPkg.metadata as WorkerMetadata;
-
-    const commissionId = formatCommissionId(workerMeta.identity.name, new Date());
-    const iPath = integrationWorktreePathFn(guildHallHome, projectName);
-    const commissionsDir = path.join(iPath, ".lore", "commissions");
-    await fs.mkdir(commissionsDir, { recursive: true });
-
-    const now = new Date();
-    const dateStr = now.toISOString().split("T")[0];
-    const isoStr = now.toISOString();
-
-    const escapedTitle = escapeYamlValue(title);
-    const escapedPrompt = escapeYamlValue(prompt);
-    const escapedDisplayTitle = escapeYamlValue(workerMeta.identity.displayTitle);
-
-    const depsYaml = dependencies.length > 0
-      ? "\n" + dependencies.map((d) => `  - ${d}`).join("\n")
-      : " []";
-
-    const ro = params.resourceOverrides;
-    const resourceLines = ro?.model !== undefined
-      ? `resource_overrides:\n  model: ${ro.model}\n`
-      : "";
-
-    const content = `---
-title: "Commission: ${escapedTitle}"
-date: ${dateStr}
-status: active
-type: scheduled
-tags: [commission, scheduled]
-worker: ${workerMeta.identity.name}
-workerDisplayTitle: "${escapedDisplayTitle}"
-prompt: "${escapedPrompt}"
-dependencies:${depsYaml}
-linked_artifacts: []
-schedule:
-  cron: "${cron}"
-  repeat: ${repeat}
-  runs_completed: 0
-  last_run: null
-  last_spawned_id: null
-${resourceLines}activity_timeline:
-  - timestamp: ${isoStr}
-    event: created
-    reason: "Scheduled commission created"
-current_progress: ""
-projectName: ${projectName}
----
-`;
-
-    const artifactPath = commissionArtifactPath(iPath, commissionId);
-    await fs.writeFile(artifactPath, content, "utf-8");
-
-    // Commit to claude branch under project lock
-    await withProjectLock(projectName, async () => {
-      await gitOps.commitAll(iPath, `Add commission: ${commissionId as string}`);
-    });
-
-    // Register with schedule lifecycle if available
-    if (deps.scheduleLifecycleRef?.current) {
-      deps.scheduleLifecycleRef.current.register(
-        commissionId,
-        projectName,
-        "active",
-        artifactPath,
-      );
-    }
-
-    log.info(
-      `created scheduled commission "${commissionId as string}" for project "${projectName}" (worker: ${workerName})`,
-    );
-
-    return { commissionId: commissionId as string };
-  }
-
-  async function createTriggeredCommission(params: {
-    projectName: string;
-    title: string;
-    workerName: string;
-    prompt: string;
-    match: { type: string; projectName?: string; fields?: Record<string, string> };
-    approval?: "auto" | "confirm";
-    maxDepth?: number;
-    dependencies?: string[];
-    resourceOverrides?: { model?: string };
-  }): Promise<{ commissionId: string }> {
-    const { projectName, title, workerName, prompt, match, dependencies = [] } = params;
-    const approval = params.approval ?? "confirm";
-    const maxDepth = params.maxDepth ?? 3;
-
-    const project = findProject(projectName);
-    if (!project) {
-      throw new Error(`Project "${projectName}" not found`);
-    }
-
-    const workerPkg = getWorkerByName(packages, workerName);
-    if (!workerPkg) {
-      throw new Error(`Worker "${workerName}" not found in discovered packages`);
-    }
-    const workerMeta = workerPkg.metadata as WorkerMetadata;
-
-    const commissionId = formatCommissionId(workerMeta.identity.name, new Date());
-    const iPath = integrationWorktreePathFn(guildHallHome, projectName);
-    const commissionsDir = path.join(iPath, ".lore", "commissions");
-    await fs.mkdir(commissionsDir, { recursive: true });
-
-    const now = new Date();
-    const dateStr = now.toISOString().split("T")[0];
-    const isoStr = now.toISOString();
-
-    const escapedTitle = escapeYamlValue(title);
-    const escapedPrompt = escapeYamlValue(prompt);
-    const escapedDisplayTitle = escapeYamlValue(workerMeta.identity.displayTitle);
-
-    const depsYaml = dependencies.length > 0
-      ? "\n" + dependencies.map((d) => `  - ${d}`).join("\n")
-      : " []";
-
-    const ro = params.resourceOverrides;
-    const resourceLines = ro?.model !== undefined
-      ? `resource_overrides:\n  model: ${ro.model}\n`
-      : "";
-
-    // Build the trigger match YAML block
-    const matchLines = [`    type: ${match.type}`];
-    if (match.projectName) {
-      matchLines.push(`    projectName: ${match.projectName}`);
-    }
-    if (match.fields && Object.keys(match.fields).length > 0) {
-      matchLines.push("    fields:");
-      for (const [key, value] of Object.entries(match.fields)) {
-        matchLines.push(`      ${key}: ${value}`);
-      }
-    }
-
-    const content = `---
-title: "Commission: ${escapedTitle}"
-date: ${dateStr}
-status: active
-type: triggered
-tags: [commission, triggered]
-worker: ${workerMeta.identity.name}
-workerDisplayTitle: "${escapedDisplayTitle}"
-prompt: "${escapedPrompt}"
-dependencies:${depsYaml}
-linked_artifacts: []
-trigger:
-  match:
-${matchLines.join("\n")}
-  approval: ${approval}
-  maxDepth: ${maxDepth}
-  runs_completed: 0
-  last_triggered: null
-  last_spawned_id: null
-${resourceLines}activity_timeline:
-  - timestamp: ${isoStr}
-    event: created
-    reason: "Triggered commission created"
-current_progress: ""
-projectName: ${projectName}
----
-`;
-
-    const artifactPath = commissionArtifactPath(iPath, commissionId);
-    await fs.writeFile(artifactPath, content, "utf-8");
-
-    // Commit to claude branch under project lock
-    await withProjectLock(projectName, async () => {
-      await gitOps.commitAll(iPath, `Add commission: ${commissionId as string}`);
-    });
-
-    log.info(
-      `created triggered commission "${commissionId as string}" for project "${projectName}" (worker: ${workerName})`,
-    );
-
-    return { commissionId: commissionId as string };
-  }
-
-  /**
-   * Transition a scheduled commission's status (pause, resume, complete).
-   * Finds the schedule artifact, validates the transition, delegates
-   * to the schedule lifecycle.
-   */
-  async function updateScheduleStatus(
-    commissionId: CommissionId,
-    targetStatus: string,
-  ): Promise<{ outcome: string; status?: string; reason?: string }> {
-    const scheduleLifecycle = deps.scheduleLifecycleRef?.current;
-    if (!scheduleLifecycle) {
-      throw new Error("Schedule lifecycle not available");
-    }
-
-    const found = await findProjectForCommission(commissionId);
-    if (!found) {
-      throw new Error(`Commission "${commissionId as string}" not found in any project`);
-    }
-
-    const iPath = integrationWorktreePathFn(guildHallHome, found.projectName);
-    const artifactPath = commissionArtifactPath(iPath, commissionId);
-    const currentStatus = await recordOps.readStatus(artifactPath);
-    const commissionType = await recordOps.readType(artifactPath);
-
-    if (commissionType !== "scheduled") {
-      throw new Error(`Commission "${commissionId as string}" is not a scheduled commission`);
-    }
-
-    // Map (currentStatus, targetStatus) to lifecycle action
-    const transitionMap: Record<string, Record<string, "pause" | "complete" | "resume" | "reactivate">> = {
-      active: { paused: "pause", completed: "complete" },
-      paused: { active: "resume", completed: "complete" },
-      failed: { active: "reactivate" },
-    };
-
-    const action = transitionMap[currentStatus]?.[targetStatus];
-    if (!action) {
-      throw new Error(`Cannot transition from "${currentStatus}" to "${targetStatus}"`);
-    }
-
-    // Ensure tracked before transitioning
-    if (!scheduleLifecycle.isTracked(commissionId)) {
-      scheduleLifecycle.register(
-        commissionId,
-        found.projectName,
-        currentStatus as import("@/daemon/types").ScheduledCommissionStatus,
-        artifactPath,
-      );
-    }
-
-    const reason = "Schedule updated via API";
-    let result;
-    switch (action) {
-      case "pause":
-        result = await scheduleLifecycle.pause(commissionId);
-        break;
-      case "complete":
-        result = await scheduleLifecycle.complete(commissionId, reason);
-        break;
-      case "resume":
-        result = await scheduleLifecycle.resume(commissionId);
-        break;
-      case "reactivate":
-        result = await scheduleLifecycle.reactivate(commissionId);
-        break;
-    }
-
-    if (result.outcome === "executed") {
-      return { outcome: "executed", status: result.status };
-    }
-    return { outcome: "skipped", reason: result.reason };
-  }
-
-  /**
-   * Transition a triggered commission's status (pause, resume, complete).
-   * Manages trigger evaluator subscriptions alongside status writes.
-   */
-  async function updateTriggerStatus(
-    commissionId: CommissionId,
-    targetStatus: string,
-    projectName: string,
-  ): Promise<{ commissionId: string; status: string }> {
-    const triggerEvaluator = deps.triggerEvaluatorRef?.current;
-    if (!triggerEvaluator) {
-      throw new Error("Trigger evaluator not available");
-    }
-
-    const found = await findProjectForCommission(commissionId);
-    if (!found) {
-      throw new Error(`Commission "${commissionId as string}" not found in any project`);
-    }
-
-    const iPath = integrationWorktreePathFn(guildHallHome, found.projectName);
-    const artifactPath = commissionArtifactPath(iPath, commissionId);
-    const currentStatus = await recordOps.readStatus(artifactPath);
-    const commissionType = await recordOps.readType(artifactPath);
-
-    if (commissionType !== "triggered") {
-      throw new Error(`Commission "${commissionId as string}" is not a triggered commission`);
-    }
-
-    const validTargets = TRIGGER_STATUS_TRANSITIONS[currentStatus];
-    if (!validTargets || !validTargets.includes(targetStatus)) {
-      throw new Error(`Cannot transition trigger from "${currentStatus}" to "${targetStatus}"`);
-    }
-
-    // Execute the transition
-    if (targetStatus === "paused") {
-      triggerEvaluator.unregisterTrigger(commissionId as string);
-    } else if (targetStatus === "active") {
-      await triggerEvaluator.registerTrigger(artifactPath, projectName || found.projectName);
-    } else if (targetStatus === "completed") {
-      triggerEvaluator.unregisterTrigger(commissionId as string);
-    }
-
-    await recordOps.writeStatusAndTimeline(
-      artifactPath,
-      targetStatus,
-      `trigger_${targetStatus}`,
-      `Trigger ${targetStatus} via API`,
-    );
-
-    log.info(`trigger status updated: ${commissionId as string} -> ${targetStatus}`);
-
-    return { commissionId: commissionId as string, status: targetStatus };
   }
 
   async function updateCommission(
@@ -1760,18 +1354,15 @@ projectName: ${projectName}
     );
 
     // The services bag is passed to the toolbox resolver so the manager
-    // toolbox can access the commission session, git ops, and schedule deps.
+    // toolbox can access the commission session, git ops, and other deps.
     // Only populated when the worker is the manager (identified by
-    // managerPackageName). The scheduleLifecycleRef is set late by the caller
-    // (createProductionApp) after the scheduler is constructed.
+    // managerPackageName).
     const isManager = workerPkg?.name === managerPackageName;
     const services = isManager && selfRef.current
       ? {
           commissionSession: selfRef.current,
           gitOps: gitOps,
           config,
-          scheduleLifecycle: deps.scheduleLifecycleRef?.current,
-          triggerEvaluator: deps.triggerEvaluatorRef?.current,
           recordOps,
           packages,
         }
@@ -2112,10 +1703,6 @@ projectName: ${projectName}
 
   const result: CommissionSessionForRoutes = {
     createCommission,
-    createScheduledCommission,
-    createTriggeredCommission,
-    updateScheduleStatus,
-    updateTriggerStatus,
     updateCommission,
     dispatchCommission,
     cancelCommission,

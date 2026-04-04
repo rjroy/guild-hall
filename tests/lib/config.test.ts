@@ -744,7 +744,7 @@ describe("channels and notifications", () => {
         hook: { type: "webhook", url: "https://example.com/hook" },
       },
       notifications: [
-        { match: { type: "schedule_spawned", projectName: "guild-hall" }, channel: "hook" },
+        { match: { type: "commission_status", projectName: "guild-hall" }, channel: "hook" },
       ],
     });
     expect(result.success).toBe(true);
@@ -780,7 +780,7 @@ notifications:
       type: commission_result
     channel: desktop
   - match:
-      type: schedule_spawned
+      type: commission_status
       projectName: guild-hall
     channel: ops-webhook
 `;
@@ -826,7 +826,6 @@ describe("SYSTEM_EVENT_TYPES sync", () => {
       "commission_dequeued",
       "meeting_started",
       "meeting_ended",
-      "schedule_spawned",
       "toolbox_replicate",
     ];
 

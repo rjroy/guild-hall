@@ -13,10 +13,6 @@ interface CommissionGraphInput {
   commissionId: string;
   title: string;
   status: string;
-  /** "one-shot" (default) or "scheduled". */
-  type: string;
-  /** For spawned commissions, the ID of the parent schedule. */
-  sourceSchedule: string;
   worker: string;
   dependencies: string[];
   projectName: string;
@@ -28,10 +24,6 @@ export interface GraphNode {
   id: string;
   title: string;
   status: string;
-  /** "one-shot" (default) or "scheduled". */
-  type: string;
-  /** For spawned commissions, the ID of the parent schedule. */
-  sourceSchedule: string;
   worker?: string;
   projectName: string;
 }
@@ -89,8 +81,6 @@ export function buildDependencyGraph(commissions: CommissionGraphInput[]): Depen
       id: commission.commissionId,
       title: commission.title,
       status: commission.status,
-      type: commission.type || "one-shot",
-      sourceSchedule: commission.sourceSchedule || "",
       worker: commission.worker || undefined,
       projectName: commission.projectName,
     });
@@ -103,19 +93,6 @@ export function buildDependencyGraph(commissions: CommissionGraphInput[]): Depen
       const depId = extractCommissionId(dep);
       if (depId !== null && nodeMap.has(depId)) {
         edges.push({ from: depId, to: commission.commissionId });
-      }
-    }
-  }
-
-  // Build edges from sourceSchedule (spawned commission -> parent schedule)
-  for (const commission of commissions) {
-    if (commission.sourceSchedule && nodeMap.has(commission.sourceSchedule)) {
-      // Edge from parent schedule to spawned commission
-      const alreadyLinked = edges.some(
-        (e) => e.from === commission.sourceSchedule && e.to === commission.commissionId,
-      );
-      if (!alreadyLinked) {
-        edges.push({ from: commission.sourceSchedule, to: commission.commissionId });
       }
     }
   }

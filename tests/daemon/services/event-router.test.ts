@@ -41,9 +41,9 @@ describe("EventRouter subscription and matching", () => {
   test("rule with projectName matches when event carries the same projectName", async () => {
     const { eventBus, router, cleanup } = makeRouter();
     const calls: unknown[] = [];
-    router.subscribe({ type: "schedule_spawned", projectName: "guild-hall" }, () => { calls.push(1); });
+    router.subscribe({ type: "commission_status", projectName: "guild-hall" }, () => { calls.push(1); });
 
-    eventBus.emit({ type: "schedule_spawned", scheduleId: "s1", spawnedId: "c1", projectName: "guild-hall", runNumber: 1 });
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "active", projectName: "guild-hall" });
     await tick();
     expect(calls).toHaveLength(1);
     cleanup();
@@ -74,9 +74,9 @@ describe("EventRouter subscription and matching", () => {
   test("rule without projectName matches regardless of event projectName", async () => {
     const { eventBus, router, cleanup } = makeRouter();
     const calls: unknown[] = [];
-    router.subscribe({ type: "schedule_spawned" }, () => { calls.push(1); });
+    router.subscribe({ type: "commission_status" }, () => { calls.push(1); });
 
-    eventBus.emit({ type: "schedule_spawned", scheduleId: "s1", spawnedId: "c1", projectName: "guild-hall", runNumber: 1 });
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "active", projectName: "guild-hall" });
     await tick();
     expect(calls).toHaveLength(1);
     cleanup();
@@ -250,9 +250,9 @@ describe("EventRouter field matching", () => {
   test("string coercion for number field", async () => {
     const { eventBus, router, cleanup } = makeRouter();
     const calls: unknown[] = [];
-    router.subscribe({ type: "schedule_spawned", fields: { runNumber: "1" } }, () => { calls.push(1); });
+    router.subscribe({ type: "commission_status", fields: { status: "active" } }, () => { calls.push(1); });
 
-    eventBus.emit({ type: "schedule_spawned", scheduleId: "s1", spawnedId: "c1", projectName: "guild-hall", runNumber: 1 });
+    eventBus.emit({ type: "commission_status", commissionId: "c1", status: "active", projectName: "guild-hall" });
     await tick();
     expect(calls).toHaveLength(1);
     cleanup();

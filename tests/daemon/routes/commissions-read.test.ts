@@ -33,9 +33,6 @@ function makeConfig(projectName = "test-project"): AppConfig {
 function makeMockCommissionSession(): CommissionSessionForRoutes {
   return {
     createCommission: () => Promise.resolve({ commissionId: "test" }),
-    createScheduledCommission: () => Promise.resolve({ commissionId: "test" }),
-    createTriggeredCommission: () => Promise.resolve({ commissionId: "test" }),
-    updateTriggerStatus: () => Promise.resolve({ commissionId: "test", status: "paused" }),
     updateCommission: () => Promise.resolve(),
     dispatchCommission: () => Promise.resolve({ status: "accepted" as const }),
     cancelCommission: () => Promise.resolve(),
@@ -45,7 +42,6 @@ function makeMockCommissionSession(): CommissionSessionForRoutes {
     checkDependencyTransitions: () => Promise.resolve(),
     getActiveCommissions: () => 0,
     recoverCommissions: () => Promise.resolve(0),
-    updateScheduleStatus: () => Promise.resolve({ outcome: "ok" as const, status: "active" }),
     shutdown: () => {},
   } as CommissionSessionForRoutes;
 }
@@ -394,128 +390,4 @@ Result summary here.
     expect(typeof body.rawContent).toBe("string");
   });
 
-  test("returns triggerInfo for triggered commissions", async () => {
-    const commissionId = "commission-Trigger-20260321-120000";
-    await writeCommission(
-      commissionId,
-      `---
-title: "Trigger: Review on commit"
-status: active
-type: triggered
-worker: reviewer
-workerDisplayTitle: Reviewer
-prompt: Review new code
-date: 2026-03-21
-dependencies: []
-linked_artifacts: []
-resource_overrides: {}
-current_progress: ""
-trigger:
-  match:
-    type: commission_result
-    projectName: guild-hall
-    fields:
-      worker: "developer*"
-  approval: auto
-  maxDepth: 5
-  runs_completed: 3
-  last_triggered: 2026-03-21T10:00:00.000Z
-  last_spawned_id: commission-reviewer-20260321-100000
-activity_timeline:
-  - timestamp: 2026-03-21T08:00:00.000Z
-    event: created
-    reason: "User created trigger"
----
-`,
-    );
-
-    const app = makeTestApp();
-    const res = await app.request(
-      `/commission/request/commission/read?commissionId=${commissionId}&projectName=test-project`,
-    );
-    expect(res.status).toBe(200);
-    const body = await res.json();
-
-    expect(body.triggerInfo).toBeDefined();
-    expect(body.triggerInfo.match.type).toBe("commission_result");
-    expect(body.triggerInfo.match.projectName).toBe("guild-hall");
-    expect(body.triggerInfo.match.fields).toEqual({ worker: "developer*" });
-    expect(body.triggerInfo.approval).toBe("auto");
-    expect(body.triggerInfo.maxDepth).toBe(5);
-    expect(body.triggerInfo.runsCompleted).toBe(3);
-    expect(body.triggerInfo.lastTriggered).toBe("2026-03-21T10:00:00.000Z");
-    expect(body.triggerInfo.lastSpawnedId).toBe("commission-reviewer-20260321-100000");
-  });
-
-  test("omits triggerInfo for non-triggered commissions", async () => {
-    const commissionId = "commission-Worker-20260321-120001";
-    await writeCommission(
-      commissionId,
-      `---
-title: Regular Commission
-status: pending
-worker: Worker
-workerDisplayTitle: Test Worker
-prompt: Do something
-date: 2026-03-21
-dependencies: []
-linked_artifacts: []
-resource_overrides: {}
-current_progress: ""
-activity_timeline: []
----
-`,
-    );
-
-    const app = makeTestApp();
-    const res = await app.request(
-      `/commission/request/commission/read?commissionId=${commissionId}&projectName=test-project`,
-    );
-    expect(res.status).toBe(200);
-    const body = await res.json();
-
-    expect(body.triggerInfo).toBeUndefined();
-  });
-
-  test("triggerInfo uses defaults for missing optional fields", async () => {
-    const commissionId = "commission-Trigger-20260321-120002";
-    await writeCommission(
-      commissionId,
-      `---
-title: "Trigger: Minimal"
-status: active
-type: triggered
-worker: reviewer
-workerDisplayTitle: Reviewer
-prompt: Review code
-date: 2026-03-21
-dependencies: []
-linked_artifacts: []
-resource_overrides: {}
-current_progress: ""
-trigger:
-  match:
-    type: commission_result
-  runs_completed: 0
-  last_triggered: null
-  last_spawned_id: null
-activity_timeline: []
----
-`,
-    );
-
-    const app = makeTestApp();
-    const res = await app.request(
-      `/commission/request/commission/read?commissionId=${commissionId}&projectName=test-project`,
-    );
-    expect(res.status).toBe(200);
-    const body = await res.json();
-
-    expect(body.triggerInfo).toBeDefined();
-    expect(body.triggerInfo.approval).toBe("confirm");
-    expect(body.triggerInfo.maxDepth).toBe(3);
-    expect(body.triggerInfo.runsCompleted).toBe(0);
-    expect(body.triggerInfo.lastTriggered).toBeNull();
-    expect(body.triggerInfo.lastSpawnedId).toBeNull();
-  });
 });

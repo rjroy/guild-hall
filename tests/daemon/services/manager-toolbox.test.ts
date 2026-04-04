@@ -1048,7 +1048,6 @@ activity_timeline:
     expect(parsed.title).toBe("Write docs");
     expect(parsed.status).toBe("in_progress");
     expect(parsed.worker).toBe("writer");
-    expect(parsed.type).toBe("one-shot");
     expect(parsed.date).toBe("2026-03-01");
     expect(parsed.current_progress).toBe("Working on chapter 2");
     expect(parsed.linked_artifacts).toEqual(["docs/chapter1.md"]);
@@ -1067,72 +1066,6 @@ activity_timeline:
 
     const parsed = JSON.parse(result.content[0].text) as Record<string, unknown>;
     expect(parsed.result_summary).toBe("Task completed successfully with all deliverables.");
-  });
-
-  // -- REQ-CST-5: Scheduled commission metadata --
-
-  test("includes schedule metadata for scheduled commissions", async () => {
-    await writeCommission("commission-sched-20260301-120000", `
-title: "Weekly cleanup"
-status: active
-worker: steward
-type: scheduled
-date: 2026-03-01
-schedule:
-  cron: "0 9 * * 1"
-  runs_completed: 3
-  last_run: "2026-03-10T09:00:00.000Z"
-activity_timeline:
-  - timestamp: "2026-03-01T12:00:00.000Z"
-    event: created
-    reason: "created"
-`);
-
-    const deps = makeDeps();
-    const handler = makeCheckCommissionStatusHandler(deps);
-    const result = await handler({ commissionId: "commission-sched-20260301-120000" });
-
-    expect(result.isError).toBeUndefined();
-    const parsed = JSON.parse(result.content[0].text) as Record<string, unknown>;
-    expect(parsed.type).toBe("scheduled");
-
-    const schedule = parsed.schedule as Record<string, unknown>;
-    expect(schedule.cron).toBe("0 9 * * 1");
-    expect(schedule.runsCompleted).toBe(3);
-    expect(schedule.lastRun).toBe("2026-03-10T09:00:00.000Z");
-    expect(schedule.nextRun).toBeDefined();
-    // nextRun should be after lastRun
-    expect(new Date(schedule.nextRun as string).getTime()).toBeGreaterThan(
-      new Date("2026-03-10T09:00:00.000Z").getTime(),
-    );
-  });
-
-  test("schedule metadata handles null lastRun", async () => {
-    await writeCommission("commission-sched-20260301-130000", `
-title: "New schedule"
-status: active
-worker: steward
-type: scheduled
-date: 2026-03-01
-schedule:
-  cron: "0 0 * * *"
-  runs_completed: 0
-activity_timeline:
-  - timestamp: "2026-03-01T13:00:00.000Z"
-    event: created
-    reason: "created"
-`);
-
-    const deps = makeDeps();
-    const handler = makeCheckCommissionStatusHandler(deps);
-    const result = await handler({ commissionId: "commission-sched-20260301-130000" });
-
-    const parsed = JSON.parse(result.content[0].text) as Record<string, unknown>;
-    const schedule = parsed.schedule as Record<string, unknown>;
-    expect(schedule.lastRun).toBeNull();
-    expect(schedule.runsCompleted).toBe(0);
-    // nextRun should still be computed from epoch
-    expect(schedule.nextRun).toBeDefined();
   });
 
   // -- REQ-CST-11: Commission not found --
@@ -1219,7 +1152,6 @@ activity_timeline:
     expect(first.title).toBeDefined();
     expect(first.status).toBeDefined();
     expect(first.worker).toBeDefined();
-    expect(first.type).toBeDefined();
     // Fields omitted from list mode
     expect(first.date).toBeUndefined();
     expect(first.linked_artifacts).toBeUndefined();

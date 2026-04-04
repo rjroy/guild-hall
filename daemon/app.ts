@@ -364,16 +364,6 @@ export async function createProductionApp(options?: {
     activateWorker: activateWorkerFn,
   };
 
-  // Lazy ref for schedule lifecycle: set after the scheduler is constructed.
-  // The orchestrator's services bag captures this ref at dispatch time.
-  // Stub: Phase 7 will restore proper typing when scheduler module is rebuilt.
-  const scheduleLifecycleRef: { current: unknown } = { current: undefined };
-
-  // Lazy ref for trigger evaluator: set after the trigger evaluator is constructed.
-  // Same late-binding pattern as scheduleLifecycleRef.
-  // Stub: Phase 7 will restore proper typing when trigger-evaluator module is rebuilt.
-  const triggerEvaluatorRef: { current: unknown } = { current: undefined };
-
   // Layer 5: Orchestrator (coordinates all layers, implements CommissionSessionForRoutes)
   const commissionSession = createCommissionOrchestrator({
     lifecycle,
@@ -387,8 +377,6 @@ export async function createProductionApp(options?: {
     guildHallHome,
     gitOps: git,
     createMeetingRequestFn,
-    scheduleLifecycleRef,
-    triggerEvaluatorRef,
     log: createLog("commission"),
   });
 
@@ -407,8 +395,6 @@ export async function createProductionApp(options?: {
     createMeetingRequestFn,
     workspace: workspaceOps,
     registry: meetingRegistry,
-    scheduleLifecycleRef,
-    triggerEvaluatorRef,
     recordOps,
     log: createLog("meeting"),
   });
@@ -425,10 +411,6 @@ export async function createProductionApp(options?: {
   // sessions are dead on daemon restart; they are transitioned to failed
   // with partial work committed.
   await commissionSession.recoverCommissions();
-
-  // -- Schedule lifecycle + scheduler service --
-  // Stub: Phase 7 will rebuild the scheduler module. For now, no-op.
-  const scheduler = { stop() {} };
 
   // Briefing generator: uses the same SDK query function as meetings/notes
   // for single-turn project status summaries. Falls back to template when
@@ -589,10 +571,6 @@ export async function createProductionApp(options?: {
     log: createLog("notification-service"),
   });
 
-  // Trigger Evaluator: event-driven commission creation (REQ-TRIG-27).
-  // Stub: Phase 7 will rebuild the trigger-evaluator module. For now, no-op.
-  const triggerEvaluator = { shutdown() {} };
-
   // Outcome Triage: after commission/meeting completion, a Haiku session
   // evaluates the outcome and writes noteworthy findings to project memory.
   const { createOutcomeTriage, createArtifactReader, createTriageSessionRunner } = await import(
@@ -663,8 +641,6 @@ export async function createProductionApp(options?: {
     registry,
     shutdown: () => {
       heartbeatService.stop();
-      triggerEvaluator.shutdown();
-      scheduler.stop();
       briefingRefresh.stop();
       cleanupNotifications();
       cleanupRouter();

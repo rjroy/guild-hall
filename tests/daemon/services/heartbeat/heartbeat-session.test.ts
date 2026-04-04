@@ -86,12 +86,8 @@ function makeMockCommissionSession(): CommissionSessionForRoutes & {
     redispatchCommission: () => Promise.resolve({ status: "accepted" as const }),
     updateCommission: () => Promise.resolve(),
     addUserNote: () => Promise.resolve(),
-    createScheduledCommission: () => Promise.resolve({ commissionId: "test" }),
-    createTriggeredCommission: () => Promise.resolve({ commissionId: "test" }),
     getActiveCommissions: () => 0,
     checkDependencyTransitions: () => Promise.resolve(),
-    updateScheduleStatus: () => Promise.resolve({ outcome: "ok" }),
-    updateTriggerStatus: () => Promise.resolve({ commissionId: "test", status: "ok" }),
     recoverCommissions: () => Promise.resolve(0),
     shutdown: () => {},
   };

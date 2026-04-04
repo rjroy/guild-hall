@@ -354,7 +354,6 @@ export const SYSTEM_EVENT_TYPES = [
   "commission_dequeued",
   "meeting_started",
   "meeting_ended",
-  "schedule_spawned",
   "toolbox_replicate",
 ] as const;
 
@@ -432,7 +431,6 @@ export interface OperationContext {
   project?: boolean;
   commissionId?: boolean;
   meetingId?: boolean;
-  scheduleId?: boolean;
 }
 
 /** Declares a positional CLI parameter for an operation. */

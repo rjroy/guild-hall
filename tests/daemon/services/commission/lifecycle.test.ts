@@ -20,10 +20,6 @@ function createMockRecordOps(): CommissionRecordOps & {
       calls.push({ method: "readStatus", args: [_artifactPath] });
       return Promise.resolve("pending");
     },
-    readType(_artifactPath: string): Promise<string> {
-      calls.push({ method: "readType", args: [_artifactPath] });
-      return Promise.resolve("one-shot");
-    },
     writeStatus(artifactPath: string, status: string): Promise<void> {
       calls.push({ method: "writeStatus", args: [artifactPath, status] });
       return Promise.resolve();
@@ -63,49 +59,9 @@ function createMockRecordOps(): CommissionRecordOps & {
       calls.push({ method: "updateResult", args: [artifactPath, summary, artifacts] });
       return Promise.resolve();
     },
-    readScheduleMetadata(_artifactPath: string) {
-      calls.push({ method: "readScheduleMetadata", args: [_artifactPath] });
-      return Promise.resolve({
-        cron: "0 9 * * 1",
-        repeat: null,
-        runsCompleted: 0,
-        lastRun: null,
-        lastSpawnedId: null,
-      });
-    },
-    writeScheduleFields(
-      artifactPath: string,
-      updates: Partial<{
-        runsCompleted: number;
-        lastRun: string;
-        lastSpawnedId: string;
-        cron: string;
-        repeat: number | null;
-      }>,
-    ): Promise<void> {
-      calls.push({ method: "writeScheduleFields", args: [artifactPath, updates] });
-      return Promise.resolve();
-    },
     readProgress(_artifactPath: string): Promise<string> {
       calls.push({ method: "readProgress", args: [_artifactPath] });
       return Promise.resolve("");
-    },
-    readTriggerMetadata(_artifactPath: string) {
-      calls.push({ method: "readTriggerMetadata", args: [_artifactPath] });
-      return Promise.resolve({
-        match: { type: "commission_status" as const },
-        runs_completed: 0,
-        last_triggered: null,
-        last_spawned_id: null,
-      });
-    },
-    writeTriggerFields(artifactPath: string, updates: Partial<{ runs_completed: number; last_triggered: string | null; last_spawned_id: string | null }>) {
-      calls.push({ method: "writeTriggerFields", args: [artifactPath, updates] });
-      return Promise.resolve();
-    },
-    readTriggeredBy(_artifactPath: string) {
-      calls.push({ method: "readTriggeredBy", args: [_artifactPath] });
-      return Promise.resolve(null);
     },
     readSource(_artifactPath: string) {
       calls.push({ method: "readSource", args: [_artifactPath] });
