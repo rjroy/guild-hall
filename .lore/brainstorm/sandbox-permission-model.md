@@ -1,7 +1,7 @@
 ---
 title: "Sandbox permission model: from binary access to human-in-the-loop"
 date: 2026-03-27
-status: open
+status: parked
 tags: [sandbox, permissions, security, project-setup, package-management, architecture]
 modules: [sdk-runner, event-bus, daemon-services, commission-orchestrator]
 related:
