@@ -366,11 +366,13 @@ export async function createProductionApp(options?: {
 
   // Lazy ref for schedule lifecycle: set after the scheduler is constructed.
   // The orchestrator's services bag captures this ref at dispatch time.
-  const scheduleLifecycleRef: { current: undefined | Awaited<ReturnType<typeof import("@/daemon/services/scheduler/schedule-lifecycle").createScheduleLifecycle>> } = { current: undefined };
+  // Stub: Phase 7 will restore proper typing when scheduler module is rebuilt.
+  const scheduleLifecycleRef: { current: unknown } = { current: undefined };
 
   // Lazy ref for trigger evaluator: set after the trigger evaluator is constructed.
   // Same late-binding pattern as scheduleLifecycleRef.
-  const triggerEvaluatorRef: { current: undefined | import("@/daemon/services/trigger-evaluator").TriggerEvaluator } = { current: undefined };
+  // Stub: Phase 7 will restore proper typing when trigger-evaluator module is rebuilt.
+  const triggerEvaluatorRef: { current: unknown } = { current: undefined };
 
   // Layer 5: Orchestrator (coordinates all layers, implements CommissionSessionForRoutes)
   const commissionSession = createCommissionOrchestrator({
@@ -425,36 +427,8 @@ export async function createProductionApp(options?: {
   await commissionSession.recoverCommissions();
 
   // -- Schedule lifecycle + scheduler service --
-  const { createScheduleLifecycle } = await import(
-    "@/daemon/services/scheduler/schedule-lifecycle"
-  );
-  const { SchedulerService } = await import(
-    "@/daemon/services/scheduler/index"
-  );
-
-  const scheduleLifecycle = createScheduleLifecycle({
-    recordOps,
-    emitEvent: (event) => eventBus.emit(event),
-  });
-  // Wire the lazy ref so the manager toolbox can access scheduleLifecycle
-  scheduleLifecycleRef.current = scheduleLifecycle;
-
-  const scheduler = new SchedulerService({
-    scheduleLifecycle,
-    recordOps,
-    commissionSession,
-    createMeetingRequestFn,
-    eventBus,
-    config,
-    guildHallHome,
-    log: createLog("scheduler"),
-  });
-
-  // Catch-up: reconcile any missed scheduled runs during downtime
-  await scheduler.catchUp();
-
-  // Start the 60-second tick
-  scheduler.start();
+  // Stub: Phase 7 will rebuild the scheduler module. For now, no-op.
+  const scheduler = { stop() {} };
 
   // Briefing generator: uses the same SDK query function as meetings/notes
   // for single-turn project status summaries. Falls back to template when
@@ -616,19 +590,8 @@ export async function createProductionApp(options?: {
   });
 
   // Trigger Evaluator: event-driven commission creation (REQ-TRIG-27).
-  // Positioned after Event Router and commission orchestrator since it
-  // needs both. Uses the same router subscription pattern as notifications.
-  const { createTriggerEvaluator } = await import("@/daemon/services/trigger-evaluator");
-  const triggerEvaluator = createTriggerEvaluator({
-    router: eventRouter,
-    recordOps,
-    commissionSession,
-    config,
-    guildHallHome,
-    log: createLog("trigger-evaluator"),
-  });
-  triggerEvaluatorRef.current = triggerEvaluator;
-  await triggerEvaluator.initialize();
+  // Stub: Phase 7 will rebuild the trigger-evaluator module. For now, no-op.
+  const triggerEvaluator = { shutdown() {} };
 
   // Outcome Triage: after commission/meeting completion, a Haiku session
   // evaluates the outcome and writes noteworthy findings to project memory.

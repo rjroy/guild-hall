@@ -47,15 +47,21 @@ import type { AppConfig, ProjectConfig, DiscoveredPackage } from "@/lib/types";
 import { integrationWorktreePath, resolveCommissionBasePath } from "@/lib/paths";
 import { readCommissionMeta, scanCommissions } from "@/lib/commissions";
 import type { CommissionMeta } from "@/lib/commissions";
-import { nextOccurrence } from "@/daemon/services/scheduler/cron";
 import matter from "gray-matter";
 import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
-import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
-import type { TriggerEvaluator } from "@/daemon/services/trigger-evaluator";
-import { isValidCron } from "@/daemon/services/scheduler/cron";
 import { SYSTEM_EVENT_TYPES } from "@/lib/types";
+
+import { isValidCron, nextOccurrence } from "@/lib/cron-utils";
 import { daemonFetch, isDaemonError, discoverTransport, type TransportDescriptor } from "@/lib/daemon-client";
+
+// Stub: Phase 7 will restore proper types when scheduler/trigger modules are rebuilt.
+type ScheduleLifecycle = unknown;
+// Stub type for deleted trigger-evaluator module. Phase 7 removes all usages.
+type TriggerEvaluator = {
+  registerTrigger(artifactPath: string, projectName: string): Promise<void>;
+  unregisterTrigger(commissionId: string): void;
+};
 
 // -- Daemon route caller --
 
@@ -925,9 +931,14 @@ export function makeUpdateScheduleHandler(
 
 // -- Triggered commission tools --
 
-// Canonical definition lives in commission layer; imported here for local use and re-exported
-// for backward compatibility with existing test imports.
-import { TRIGGER_STATUS_TRANSITIONS } from "@/daemon/services/commission/trigger-lifecycle";
+// Stub: Phase 7 will move this to a proper shared module.
+// Maps each ScheduledCommissionStatus to its valid transition targets.
+const TRIGGER_STATUS_TRANSITIONS: Record<string, string[]> = {
+  active: ["paused", "completed"],
+  paused: ["active", "completed"],
+  completed: [],
+  failed: ["active"],
+};
 export { TRIGGER_STATUS_TRANSITIONS };
 
 export function makeCreateTriggeredCommissionHandler(

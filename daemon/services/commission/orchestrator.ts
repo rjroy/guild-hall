@@ -58,10 +58,17 @@ import {
   escapeYamlValue,
 } from "@/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/daemon/lib/project-lock";
-import { isValidCron } from "@/daemon/services/scheduler/cron";
-import { TRIGGER_STATUS_TRANSITIONS } from "@/daemon/services/commission/trigger-lifecycle";
 import type { EventBus } from "@/daemon/lib/event-bus";
+import { isValidCron } from "@/lib/cron-utils";
 import type { CommissionLifecycle } from "@/daemon/services/commission/lifecycle";
+
+// Stub: Phase 7 will move this to a proper shared module.
+const TRIGGER_STATUS_TRANSITIONS: Record<string, string[]> = {
+  active: ["paused", "completed"],
+  paused: ["active", "completed"],
+  completed: [],
+  failed: ["active"],
+};
 import { replaceYamlField } from "@/daemon/lib/record-utils";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import type {
@@ -214,12 +221,12 @@ export interface CommissionOrchestratorDeps {
    * constructed. The services bag captures this ref at dispatch time,
    * breaking the circular ordering between orchestrator and scheduler.
    */
-  scheduleLifecycleRef?: { current: import("@/daemon/services/scheduler/schedule-lifecycle").ScheduleLifecycle | undefined };
+  scheduleLifecycleRef?: { current: unknown };
   /**
    * Lazy ref for the trigger evaluator, set after the trigger evaluator is
    * constructed. Same late-binding pattern as scheduleLifecycleRef.
    */
-  triggerEvaluatorRef?: { current: import("@/daemon/services/trigger-evaluator").TriggerEvaluator | undefined };
+  triggerEvaluatorRef?: { current: unknown };
 }
 
 // -- Factory --

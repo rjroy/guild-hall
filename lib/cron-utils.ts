@@ -1,3 +1,27 @@
+import { Cron } from "croner";
+
+/** Validates a 5-field cron expression. Returns true if croner can parse it. */
+export function isValidCron(expr: string): boolean {
+  try {
+    // Croner constructor throws on invalid expressions.
+    new Cron(expr);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Returns the next occurrence after `after` for a cron expression, or null. */
+export function nextOccurrence(cronExpr: string, after: Date): Date | null {
+  try {
+    const cron = new Cron(cronExpr);
+    const next = cron.nextRun(after);
+    return next ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Maps common cron expressions to human-readable descriptions. */
 export function describeCron(cron: string): string {
   const common: Record<string, string> = {

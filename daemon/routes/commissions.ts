@@ -10,8 +10,7 @@ import { SYSTEM_EVENT_TYPES } from "@/lib/types";
 import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import { integrationWorktreePath, projectLorePath, resolveCommissionBasePath } from "@/lib/paths";
 import { scanCommissions, readCommissionMeta, parseActivityTimeline } from "@/lib/commissions";
-import { nextOccurrence } from "@/daemon/services/scheduler/cron";
-import { describeCron } from "@/lib/cron-utils";
+import { describeCron, nextOccurrence } from "@/lib/cron-utils";
 import matter from "gray-matter";
 
 export interface CommissionRoutesDeps {

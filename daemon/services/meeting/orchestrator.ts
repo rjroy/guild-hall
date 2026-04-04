@@ -29,7 +29,6 @@ import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
 import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
 import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
 import { noopEventBus, type EventBus } from "@/daemon/lib/event-bus";
-import type { ScheduleLifecycle } from "@/daemon/services/scheduler/schedule-lifecycle";
 import type { CommissionRecordOps } from "@/daemon/services/commission/record";
 import {
   MANAGER_PACKAGE_NAME,
@@ -170,12 +169,12 @@ export type MeetingSessionDeps = {
    * so the value is always available by the time a meeting runs.
    * Needed by the manager toolbox's create_scheduled_commission tool.
    */
-  scheduleLifecycleRef?: { current: ScheduleLifecycle | undefined };
+  scheduleLifecycleRef?: { current: unknown };
   /**
    * Lazy ref for the trigger evaluator. Same late-binding pattern as
    * scheduleLifecycleRef. Needed by the manager toolbox's trigger tools.
    */
-  triggerEvaluatorRef?: { current: import("@/daemon/services/trigger-evaluator").TriggerEvaluator | undefined };
+  triggerEvaluatorRef?: { current: unknown };
   /**
    * Commission record operations. Needed by the manager toolbox's
    * update_schedule tool to read commission artifact types.
