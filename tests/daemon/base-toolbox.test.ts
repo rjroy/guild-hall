@@ -10,6 +10,7 @@ import {
   makeRecordDecisionHandler,
   makeProjectBriefingHandler,
   makeListGuildCapabilitiesHandler,
+  makeAddHeartbeatEntryHandler,
 } from "@/daemon/services/base-toolbox";
 
 let tmpDir: string;
@@ -823,5 +824,103 @@ describe("list_guild_capabilities", () => {
     // Caller (Dalton) is not filtered out
     expect(text).toContain("Dalton (Guild Artificer)");
     expect(text).toContain("Voss (Guild Master)");
+  });
+});
+
+// -- add_heartbeat_entry (REQ-HBT-12, REQ-HBT-13) --
+
+describe("add_heartbeat_entry", () => {
+  const projectName = "test-project";
+
+  function heartbeatPath(): string {
+    return path.join(guildHallHome, "projects", projectName, ".lore", "heartbeat.md");
+  }
+
+  test("adds entry to Standing Orders as list item", async () => {
+    const handler = makeAddHeartbeatEntryHandler(guildHallHome, projectName);
+
+    const result = await handler({ prompt: "Review open issues daily", section: "Standing Orders" });
+
+    expect(result.isError).toBeUndefined();
+    const content = await fs.readFile(heartbeatPath(), "utf-8");
+    expect(content).toContain("## Standing Orders");
+    expect(content).toContain("- Review open issues daily");
+  });
+
+  test("adds entry to Watch Items as list item", async () => {
+    const handler = makeAddHeartbeatEntryHandler(guildHallHome, projectName);
+
+    await handler({ prompt: "Memory usage trending up", section: "Watch Items" });
+
+    const content = await fs.readFile(heartbeatPath(), "utf-8");
+    expect(content).toContain("## Watch Items");
+    expect(content).toContain("- Memory usage trending up");
+  });
+
+  test("adds entry to Context Notes as list item", async () => {
+    const handler = makeAddHeartbeatEntryHandler(guildHallHome, projectName);
+
+    await handler({ prompt: "Merge freeze until Friday", section: "Context Notes" });
+
+    const content = await fs.readFile(heartbeatPath(), "utf-8");
+    expect(content).toContain("## Context Notes");
+    expect(content).toContain("- Merge freeze until Friday");
+  });
+
+  test("creates heartbeat file if it does not exist", async () => {
+    const handler = makeAddHeartbeatEntryHandler(guildHallHome, projectName);
+
+    // File should not exist yet
+    const exists = await fs.access(heartbeatPath()).then(() => true, () => false);
+    expect(exists).toBe(false);
+
+    await handler({ prompt: "New order", section: "Standing Orders" });
+
+    const content = await fs.readFile(heartbeatPath(), "utf-8");
+    expect(content).toContain("# Heartbeat");
+    expect(content).toContain("- New order");
+  });
+
+  test("creates section if it doesn't exist", async () => {
+    // Set up a heartbeat file without the expected sections
+    const projectPath = path.join(guildHallHome, "projects", projectName);
+    await fs.mkdir(path.join(projectPath, ".lore"), { recursive: true });
+    await fs.writeFile(
+      heartbeatPath(),
+      "# Heartbeat\n\n## Standing Orders\n\n## Recent Activity\n",
+      "utf-8",
+    );
+
+    const handler = makeAddHeartbeatEntryHandler(guildHallHome, projectName);
+    await handler({ prompt: "Custom entry", section: "Watch Items" });
+
+    const content = await fs.readFile(heartbeatPath(), "utf-8");
+    expect(content).toContain("## Watch Items");
+    expect(content).toContain("- Custom entry");
+  });
+
+  test("writes to integration worktree path, not current directory", async () => {
+    const handler = makeAddHeartbeatEntryHandler(guildHallHome, projectName);
+    await handler({ prompt: "Check tests", section: "Standing Orders" });
+
+    // Entry must be in the integration worktree, not elsewhere
+    const expectedPath = path.join(guildHallHome, "projects", projectName, ".lore", "heartbeat.md");
+    const content = await fs.readFile(expectedPath, "utf-8");
+    expect(content).toContain("- Check tests");
+  });
+
+  test("tool is registered in createBaseToolbox", () => {
+    const server = createBaseToolbox({
+      contextId: "commission-001",
+      contextType: "commission",
+      workerName: "test-worker",
+      projectName,
+      guildHallHome,
+    });
+
+    const toolNames = Object.keys(
+      (server.instance as Record<string, unknown>)._registeredTools as Record<string, unknown>,
+    );
+    expect(toolNames).toContain("add_heartbeat_entry");
   });
 });

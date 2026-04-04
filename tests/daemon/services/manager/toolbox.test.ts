@@ -166,6 +166,10 @@ function createMockRecordOps(overrides?: {
       calls.push({ method: "readTriggeredBy", args: [_artifactPath] });
       return Promise.resolve(null);
     },
+    readSource(_artifactPath: string) {
+      calls.push({ method: "readSource", args: [_artifactPath] });
+      return Promise.resolve(null);
+    },
   };
 }
 

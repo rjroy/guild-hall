@@ -251,6 +251,10 @@ function createMockRecordOps(): MockRecordOps {
       calls.push({ method: "readTriggeredBy", args: [artifactPath] });
       return Promise.resolve(null);
     },
+    readSource(artifactPath: string) {
+      calls.push({ method: "readSource", args: [artifactPath] });
+      return Promise.resolve(null);
+    },
   };
 
   return ops;
