@@ -77,7 +77,7 @@ describe("createManagerPackage", () => {
   test("builtInTools includes read-only tools without Bash", () => {
     const pkg = createManagerPackage();
     const meta = pkg.metadata as WorkerMetadata;
-    expect(meta.builtInTools).toEqual(["Read", "Glob", "Grep"]);
+    expect(meta.builtInTools).toEqual(["Skill", "Read", "Glob", "Grep"]);
   });
 
   test("builtInTools does not contain Bash (REQ-WTB-4)", () => {

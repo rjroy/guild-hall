@@ -53,20 +53,20 @@ export default function ArtifactProvenance({
       condensedMaxHeight="48px"
       className={styles.artifact}
       condensedContent={(toggleButton) => (
+        <>
         <div className={styles.condensedRow}>
           <Breadcrumb segments={segments} />
-          <p className={styles.condensedPath}>{artifactPath}</p>
           <CopyPathButton path={`.lore/${artifactPath}`} />
           <div className={styles.condensedTrailing}>
             {toggleButton}
           </div>
         </div>
+        </>
       )}
       expandedContent={(toggleButton) => (
         <>
           <div className={styles.breadcrumbRow}>
             <Breadcrumb segments={segments} />
-            <p className={styles.artifactPath}>{artifactPath}</p>
             <CopyPathButton path={`.lore/${artifactPath}`} />
             {toggleButton}
           </div>

@@ -6,8 +6,10 @@ import {
   truncateTranscript,
   appendAssistantTurnSafe,
   appendCompactionMarker,
+  appendErrorSafe,
   createTranscript,
   readTranscript,
+  readTranscriptMessages,
   parseTranscriptMessages,
   TRANSCRIPT_MAX_CHARS,
 } from "@/daemon/services/meeting/transcript";
@@ -322,5 +324,113 @@ describe("truncateTranscript with Context Compacted headings", () => {
     expect(result).not.toContain("First message");
     expect(result).toContain("Context was compressed");
     expect(result).toContain("Response after compaction");
+  });
+});
+
+// -- appendErrorSafe (REQ-MEP-3) --
+
+describe("appendErrorSafe", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-error-test-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  test("writes error section and reads back as system message with Error: prefix", async () => {
+    const meetingId = "error-test-001";
+    await createTranscript(meetingId, "test-worker", "test-project", tmpDir);
+
+    await appendErrorSafe(meetingId, "Session expired", tmpDir);
+
+    const messages = await readTranscriptMessages(meetingId, tmpDir);
+    const errorMsg = messages.find((m) => m.role === "system" && m.content.startsWith("Error:"));
+    expect(errorMsg).toBeDefined();
+    expect(errorMsg!.content).toBe("Error: Session expired");
+    expect(errorMsg!.timestamp).toBeTruthy();
+  });
+
+  test("swallows write errors gracefully", async () => {
+    const bogusHome = path.join(tmpDir, "nonexistent", "deep", "path");
+    // Should not throw
+    await appendErrorSafe("some-meeting", "some error", bogusHome);
+  });
+});
+
+// -- parseTranscriptMessages with Error sections (REQ-MEP-5/6) --
+
+describe("parseTranscriptMessages with Error sections", () => {
+  test("recognizes Error headings as system role with Error: prefix", () => {
+    const raw = `---
+meetingId: test
+---
+
+## User (2026-04-05T10:00:00.000Z)
+
+Hello
+
+## Error (2026-04-05T10:01:00.000Z)
+
+Session expired
+
+## Assistant (2026-04-05T10:02:00.000Z)
+
+Recovered response.
+`;
+
+    const messages = parseTranscriptMessages(raw);
+    expect(messages).toHaveLength(3);
+    expect(messages[0].role).toBe("user");
+    expect(messages[1].role).toBe("system");
+    expect(messages[1].content).toBe("Error: Session expired");
+    expect(messages[1].timestamp).toBe("2026-04-05T10:01:00.000Z");
+    expect(messages[2].role).toBe("assistant");
+  });
+
+  test("error sections have no toolUses", () => {
+    const raw = `## Error (2026-04-05T10:01:00.000Z)
+
+Connection failed
+`;
+
+    const messages = parseTranscriptMessages(raw);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe("system");
+    expect(messages[0].content).toBe("Error: Connection failed");
+    expect(messages[0].toolUses).toBeUndefined();
+  });
+
+  test("compaction sections do not get Error: prefix", () => {
+    const raw = `## Context Compacted (2026-04-05T10:05:00.000Z)
+
+Context was compressed (auto, 95000 tokens before compaction).
+`;
+
+    const messages = parseTranscriptMessages(raw);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].content).not.toMatch(/^Error:/);
+    expect(messages[0].content).toContain("Context was compressed");
+  });
+});
+
+// -- truncateTranscript with Error sections (REQ-MEP-7) --
+
+describe("truncateTranscript with Error headings", () => {
+  test("preserves Error section boundaries", () => {
+    const turn1 = "## User (2026-01-01T00:00:00Z)\n\nFirst message that is fairly long\n";
+    const errorSection = "## Error (2026-01-01T00:01:00Z)\n\nSession expired\n";
+    const turn2 = "## Assistant (2026-01-01T00:02:00Z)\n\nResponse after error\n";
+    const transcript = turn1 + "\n" + errorSection + "\n" + turn2;
+
+    // Set limit so only the last two sections fit
+    const lastTwoLen = errorSection.length + turn2.length + 2;
+    const result = truncateTranscript(transcript, lastTwoLen);
+
+    expect(result).not.toContain("First message");
+    expect(result).toContain("Session expired");
+    expect(result).toContain("Response after error");
   });
 });

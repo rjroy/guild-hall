@@ -294,9 +294,10 @@ export function parseTranscriptToMessages(raw: string): TranscriptChatMessage[] 
   const messages: TranscriptChatMessage[] = [];
 
   // Split on ## headings that start a new turn.
-  const headingPattern = /^## (User|Assistant|Context Compacted) \(([^)]+)\)\s*$/gm;
+  const headingPattern = /^## (User|Assistant|Context Compacted|Error) \(([^)]+)\)\s*$/gm;
   const headings: Array<{
     role: "user" | "assistant" | "system";
+    headingType: string;
     index: number;
     length: number;
   }> = [];
@@ -304,9 +305,10 @@ export function parseTranscriptToMessages(raw: string): TranscriptChatMessage[] 
   let match: RegExpExecArray | null;
   while ((match = headingPattern.exec(raw)) !== null) {
     headings.push({
-      role: match[1] === "Context Compacted"
+      role: match[1] === "Context Compacted" || match[1] === "Error"
         ? ("system" as const)
         : (match[1].toLowerCase() as "user" | "assistant"),
+      headingType: match[1],
       index: match.index,
       length: match[0].length,
     });
@@ -324,7 +326,7 @@ export function parseTranscriptToMessages(raw: string): TranscriptChatMessage[] 
       messages.push({
         id: `transcript-${nextId++}`,
         role: "system",
-        content: body,
+        content: heading.headingType === "Error" ? `Error: ${body}` : body,
       });
     } else if (heading.role === "assistant") {
       const { text, toolUses } = parseAssistantBody(body);

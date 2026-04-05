@@ -1070,4 +1070,43 @@ Context was compressed (auto, 95000 tokens before compaction).
     expect(messages[0].role).toBe("system");
     expect(messages[0].toolUses).toBeUndefined();
   });
+
+  test("parses Error sections as system messages with Error: prefix (REQ-MEP-5/6)", () => {
+    const transcript = `## User (2026-04-05T10:00:00.000Z)
+
+Hello
+
+## Error (2026-04-05T10:01:00.000Z)
+
+Session expired
+
+## Assistant (2026-04-05T10:02:00.000Z)
+
+Recovered.
+`;
+
+    const messages = parseTranscriptToMessages(transcript);
+    expect(messages).toHaveLength(3);
+    expect(messages[0].role).toBe("user");
+    expect(messages[1].role).toBe("system");
+    expect(messages[1].content).toBe("Error: Session expired");
+    expect(messages[1].toolUses).toBeUndefined();
+    expect(messages[2].role).toBe("assistant");
+  });
+
+  test("Error: prefix distinguishes errors from compaction notices", () => {
+    const transcript = `## Context Compacted (2026-04-05T10:00:00.000Z)
+
+Context was compressed (auto, 50000 tokens before compaction).
+
+## Error (2026-04-05T10:01:00.000Z)
+
+Connection timeout
+`;
+
+    const messages = parseTranscriptToMessages(transcript);
+    expect(messages).toHaveLength(2);
+    expect(messages[0].content).not.toMatch(/^Error:/);
+    expect(messages[1].content).toBe("Error: Connection timeout");
+  });
 });

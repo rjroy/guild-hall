@@ -25,6 +25,7 @@ import {
   appendAssistantTurnSafe,
   appendCompactionMarkerSafe,
   appendCompactSummarySafe,
+  appendErrorSafe,
   type ToolUseEntry,
 } from "@/daemon/services/meeting/transcript";
 import type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
@@ -161,6 +162,9 @@ export async function* iterateSession(
       if (isSessionExpiryError(event.reason)) {
         hasExpiryError = true;
       }
+      // REQ-MEP-2/4: Persist error to transcript before yielding.
+      // All errors are persisted, including suppressed expiry errors.
+      await appendErrorSafe(meeting.meetingId as string, prefixed, deps.guildHallHome, deps.log);
       if (!suppressExpiryErrors || !isSessionExpiryError(event.reason)) {
         yield { type: "error", reason: prefixed };
       }

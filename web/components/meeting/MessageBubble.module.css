@@ -155,6 +155,27 @@
   white-space: pre-wrap;
 }
 
+/* --- Persisted error messages (REQ-MEP-8) --- */
+
+.errorMessage {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-sm) 0;
+  padding: var(--space-sm) var(--space-md);
+  background-color: rgba(224, 96, 96, 0.1);
+  border: 1px solid rgba(224, 96, 96, 0.3);
+  border-radius: 6px;
+  max-width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.errorText {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-error-light);
+}
+
 /* --- Tool uses section --- */
 
 .tools {

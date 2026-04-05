@@ -1,11 +1,11 @@
 ---
 name: consult-compendium
-description: Consult the guild's craft knowledge compendium for reference material relevant to the current task. Use when starting a code review, writing a spec, beginning implementation from a plan, writing a commission prompt, working with TypeScript patterns, generating images, designing visual assets, conducting strategic analysis, or entering any domain the compendium covers. Triggers include "check the compendium", "consult reference", "craft guidance", "reference entries".
+description: Consult the guild's craft knowledge compendium for reference material relevant to the current task. Use when starting a code review, writing a spec, writing a plan, making design decisions, conducting research, beginning implementation from a plan, writing a commission prompt, working with TypeScript patterns, generating images, designing visual assets, conducting strategic analysis, or entering any domain the compendium covers. Triggers include "check the compendium", "consult reference", "craft guidance", "reference entries".
 ---
 
 # Consult Compendium
 
-Load relevant craft knowledge from the guild's reference library before starting work in a covered domain. The compendium contains curated entries on topics like spec writing, code review practices, TypeScript patterns, implementation workflow, commission prompt craft, and other domains added over time.
+Load relevant craft knowledge from the guild's reference library before starting work in a covered domain. The compendium contains curated entries on topics like spec writing, planning, design decisions, research, code review practices, TypeScript patterns, implementation workflow, commission prompt craft, and other domains added over time.
 
 This skill is passive guidance. It does not change your posture, identity, or tool access. It points you at reference material and lets you proceed with that knowledge loaded.
 
@@ -27,6 +27,9 @@ Based on your current task, read the entry or entries that match the domain you'
 
 - Starting a code review? Read `code-review.md`.
 - Writing a spec or requirements? Read `spec-writing.md`.
+- Writing an implementation plan? Read `planning.md`.
+- Making technical design decisions? Read `design-decisions.md`.
+- Conducting research? Read `research.md`.
 - Beginning implementation from a plan? Read `implementation.md`.
 - Writing a commission prompt? Read `commission-prompts.md`.
 - Working with TypeScript? Read `typescript-practices.md`.
