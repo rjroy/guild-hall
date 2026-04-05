@@ -1,7 +1,7 @@
 ---
 title: "Tag View"
 date: 2026-04-05
-status: open
+status: resolved
 related:
   - .lore/specs/ui/artifact-tag-view.md
 ---
