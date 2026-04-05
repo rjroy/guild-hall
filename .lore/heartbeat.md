@@ -26,3 +26,9 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
+- 07:12 commission-Octavia-20260405-071039 result: Wrote spec at `.lore/specs/ui/artifact-tag-view.md` covering the Tag View feature for the artifact browser.
+
+**What I investigated:**
+- `ArtifactList.tsx`: view switcher uses ephemeral `viewMode` stat...
+
+- 07:12 commission-Octavia-20260405-071039 completed
