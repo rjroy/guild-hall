@@ -178,10 +178,16 @@
 
 /* Smart view filter bar */
 .filterBar {
+  background: var(--color-panel-bg);
   display: flex;
   gap: var(--space-sm);
   padding-top: var(--space-sm);
   flex-wrap: wrap;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  overflow-y: auto;
+  max-height: 150px;
+  border-radius: 10px;
 }
 
 .filterButton {
