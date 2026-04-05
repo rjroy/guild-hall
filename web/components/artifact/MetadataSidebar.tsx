@@ -91,12 +91,20 @@ export default function MetadataSidebar({
           </div>
         )}
 
+        {/* Path */}
+        {artifactPath && (
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Path</h3>
+            <p className={styles.value}>{artifactPath}</p>
+          </div>
+        )}
+
         {/* Type */}
         {meta.type && meta.type.length > 0 && (
           <div className={styles.section}>
             <h3 className={styles.sectionTitle}>Type</h3>
             <div className={styles.badges}>
-              <span key={meta.type} className={styles.badge}>
+              <span className={styles.badge}>
                 {meta.type}
               </span>
             </div>
