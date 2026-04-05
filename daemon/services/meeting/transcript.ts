@@ -165,7 +165,7 @@ export function truncateTranscript(transcript: string, maxChars = TRANSCRIPT_MAX
   if (transcript.length <= maxChars) return transcript;
 
   // Split on turn headings, keeping the delimiter with the following section
-  const turnPattern = /^(## (?:User|Assistant|Context Compacted) \([^)]+\))/m;
+  const turnPattern = /^(## (?:User|Assistant|Context Compacted|Error) \([^)]+\))/m;
   const parts = transcript.split(turnPattern);
 
   // parts alternates: [preamble, heading1, body1, heading2, body2, ...]
@@ -211,6 +211,39 @@ export async function appendAssistantTurnSafe(
   } catch (err: unknown) {
     const reason = errorMessage(err);
     log.warn(`Transcript append failed for meeting ${meetingId} (non-fatal): ${reason}`);
+  }
+}
+
+/**
+ * Appends an error section to the transcript.
+ * Follows the same heading convention as User/Assistant/Context Compacted.
+ */
+export async function appendError(
+  meetingId: string,
+  reason: string,
+  guildHallHome?: string,
+): Promise<void> {
+  validateMeetingId(meetingId);
+  const filePath = transcriptPath(meetingId, guildHallHome);
+  const timestamp = new Date().toISOString();
+  const section = `\n## Error (${timestamp})\n\n${reason}\n`;
+  await fs.appendFile(filePath, section, "utf-8");
+}
+
+/**
+ * Safe wrapper for appendError: swallows errors so transcript
+ * failures don't break the meeting flow.
+ */
+export async function appendErrorSafe(
+  meetingId: string,
+  reason: string,
+  guildHallHome: string,
+  log: Log = nullLog("transcript"),
+): Promise<void> {
+  try {
+    await appendError(meetingId, reason, guildHallHome);
+  } catch (err: unknown) {
+    log.warn(`Transcript error append failed for meeting ${meetingId} (non-fatal): ${errorMessage(err)}`);
   }
 }
 
@@ -324,9 +357,10 @@ export function parseTranscriptMessages(raw: string): TranscriptMessage[] {
 
   // Split on ## headings that start a new turn.
   // The regex captures: role and timestamp from the heading.
-  const headingPattern = /^## (User|Assistant|Context Compacted) \(([^)]+)\)\s*$/gm;
+  const headingPattern = /^## (User|Assistant|Context Compacted|Error) \(([^)]+)\)\s*$/gm;
   const headings: Array<{
     role: "user" | "assistant" | "system";
+    headingType: string;
     timestamp: string;
     index: number;
     length: number;
@@ -335,9 +369,10 @@ export function parseTranscriptMessages(raw: string): TranscriptMessage[] {
   let match: RegExpExecArray | null;
   while ((match = headingPattern.exec(raw)) !== null) {
     headings.push({
-      role: match[1] === "Context Compacted"
+      role: match[1] === "Context Compacted" || match[1] === "Error"
         ? ("system" as const)
         : (match[1].toLowerCase() as "user" | "assistant"),
+      headingType: match[1],
       timestamp: match[2],
       index: match.index,
       length: match[0].length,
@@ -353,7 +388,7 @@ export function parseTranscriptMessages(raw: string): TranscriptMessage[] {
     if (heading.role === "system") {
       messages.push({
         role: "system",
-        content: body,
+        content: heading.headingType === "Error" ? `Error: ${body}` : body,
         timestamp: heading.timestamp,
       });
     } else if (heading.role === "assistant") {

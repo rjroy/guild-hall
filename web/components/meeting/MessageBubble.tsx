@@ -19,8 +19,21 @@ export default function MessageBubble({
   workerName,
   workerPortraitUrl,
 }: MessageBubbleProps) {
-  // System messages render as centered info banners, not speech bubbles
+  // System messages render as centered info banners, not speech bubbles.
+  // Error messages (content prefixed with "Error:") get error styling (REQ-MEP-8).
+  // They render inline, not in the sticky error banner (REQ-MEP-9).
   if (message.role === "system") {
+    const isError = message.content.startsWith("Error:");
+
+    if (isError) {
+      const errorText = message.content.slice("Error:".length).trim();
+      return (
+        <div className={styles.errorMessage}>
+          <p className={styles.errorText}>{errorText}</p>
+        </div>
+      );
+    }
+
     const parts = message.content.split("\n\n");
     const firstLine = parts[0];
     const restOfContent = parts.slice(1).join("\n\n");

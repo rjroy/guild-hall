@@ -239,4 +239,81 @@ describe("iterateSession post-loop cleanup", () => {
     expect(transcript).not.toContain("> Summary:");
     expect(meeting.lastCompactSummary).toBeUndefined();
   });
+
+  test("iterateSession persists errors to transcript via appendErrorSafe (REQ-MEP-2/4)", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "session-loop-test-"));
+    const meetingsDir = path.join(tmpDir, "meetings");
+    await fs.mkdir(meetingsDir, { recursive: true });
+
+    const meetingId = asMeetingId("test-meeting-error-persist");
+    await fs.writeFile(
+      path.join(meetingsDir, `${meetingId}.md`),
+      "---\nmeeting: test\n---\n",
+      "utf-8",
+    );
+
+    const meeting: ActiveMeetingEntry = {
+      meetingId,
+      projectName: "test-project",
+      workerName: "test-worker",
+      packageName: "test-worker",
+      sdkSessionId: null,
+      worktreeDir: tmpDir,
+      branchName: "test-branch",
+      abortController: new AbortController(),
+      status: "open",
+      scope: "activity",
+    };
+
+    // queryFn that yields an init message then an error
+    // eslint-disable-next-line @typescript-eslint/require-await -- AsyncGenerator required by queryFn signature
+    async function* errorQuery(_params: {
+      prompt: string;
+      options: SdkQueryOptions;
+    }): AsyncGenerator<SDKMessage> {
+      yield makeInitMessage();
+      yield {
+        type: "result",
+        subtype: "error",
+        errors: ["Session expired"],
+        is_error: true,
+        duration_ms: 50,
+        duration_api_ms: 40,
+        num_turns: 0,
+        total_cost_usd: 0,
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+        modelUsage: {},
+        uuid: "00000000-0000-0000-0000-000000000003" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "sdk-session-test",
+      } as unknown as SDKMessage;
+    }
+
+    const deps: SessionLoopDeps = {
+      queryFn: errorQuery,
+      guildHallHome: tmpDir,
+      log: nullLog("test"),
+      prepDeps: {} as SessionLoopDeps["prepDeps"],
+    };
+
+    const events = await collectEvents(
+      iterateSession(deps, meeting, "test prompt", {}, false),
+    );
+
+    // Verify the error event was yielded
+    const errorEvents = events.filter((e) => e.type === "error");
+    expect(errorEvents.length).toBeGreaterThanOrEqual(1);
+
+    // Verify the error was persisted to transcript
+    const transcript = await fs.readFile(
+      path.join(meetingsDir, `${meetingId}.md`),
+      "utf-8",
+    );
+    expect(transcript).toContain("## Error (");
+    expect(transcript).toContain("Session expired");
+  });
 });
