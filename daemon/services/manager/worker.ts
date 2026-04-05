@@ -127,7 +127,7 @@ export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
     systemToolboxes: ["manager", "git-readonly"],
     domainToolboxes: [],
     domainPlugins: ["guild-compendium"],
-    builtInTools: ["Read", "Glob", "Grep"],
+    builtInTools: ["Skill", "Read", "Glob", "Grep"],
     checkoutScope: "full",
     meetingScope: "project",
   };
