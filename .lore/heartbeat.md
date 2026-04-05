@@ -26,10 +26,3 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 18:42 commission-Dalton-20260404-184133 result: Fixed Guild Master missing Skill tool in builtInTools array.
-
-**Changes made:**
-1. `daemon/services/manager/worker.ts` line 130: Added `"Skill"` to builtInTools array
-   - Before: `["Read", "Glob", "G...
-
-- 18:42 commission-Dalton-20260404-184133 completed
