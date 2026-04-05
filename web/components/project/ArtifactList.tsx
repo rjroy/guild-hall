@@ -17,6 +17,7 @@ import {
   SMART_VIEW_FILTERS,
 } from "@/lib/artifact-smart-view";
 import type { SmartViewFilter } from "@/lib/artifact-smart-view";
+import { computeTagIndex, filterByTag } from "@/lib/artifact-tag-view";
 import styles from "./ArtifactList.module.css";
 
 const INDENT_PX_PER_DEPTH = 24;
@@ -184,8 +185,9 @@ export default function ArtifactList({
   artifacts,
   projectName,
 }: ArtifactListProps) {
-  const [viewMode, setViewMode] = useState<"smart" | "tree">("smart");
+  const [viewMode, setViewMode] = useState<"smart" | "tree" | "tags">("smart");
   const [activeFilter, setActiveFilter] = useState<SmartViewFilter>("whats-next");
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   if (artifacts.length === 0) {
     return (
@@ -214,6 +216,12 @@ export default function ArtifactList({
           >
             Tree View
           </button>
+          <button
+            className={`${styles.subTab} ${viewMode === "tags" ? styles.subTabActive : ""}`}
+            onClick={() => setViewMode("tags")}
+          >
+            Tag View
+          </button>
         </div>
         {viewMode === "smart" && (
           <SmartViewFilterBar
@@ -228,6 +236,13 @@ export default function ArtifactList({
           artifacts={artifacts}
           activeFilter={activeFilter}
           encodedProjectName={encodedName}
+        />
+      ) : viewMode === "tags" ? (
+        <TagViewPanel
+          artifacts={artifacts}
+          encodedProjectName={encodedName}
+          selectedTag={selectedTag}
+          setSelectedTag={setSelectedTag}
         />
       ) : (
         <ArtifactTree tree={tree} encodedProjectName={encodedName} />
@@ -333,5 +348,127 @@ function SmartView({
         </Panel>
       )}
     </>
+  );
+}
+
+interface TagViewPanelProps {
+  artifacts: Artifact[];
+  encodedProjectName: string;
+  selectedTag: string | null;
+  setSelectedTag: (tag: string | null) => void;
+}
+
+function TagViewPanel({
+  artifacts,
+  encodedProjectName,
+  selectedTag,
+  setSelectedTag,
+}: TagViewPanelProps) {
+  const tagIndex = computeTagIndex(artifacts);
+
+  if (tagIndex.length === 0) {
+    return (
+      <Panel>
+        <EmptyState message="No shared tags found across artifacts." />
+      </Panel>
+    );
+  }
+
+  const handleTagClick = (tag: string) => {
+    setSelectedTag(selectedTag === tag ? null : tag);
+  };
+
+  return (
+    <>
+      <div className={styles.filterBar}>
+        {tagIndex.map(({ tag, count }) => (
+          <button
+            key={tag}
+            className={`${styles.filterButton} ${selectedTag === tag ? styles.filterButtonActive : ""}`}
+            onClick={() => handleTagClick(tag)}
+          >
+            {tag}
+            <span className={styles.filterBadge}>{count}</span>
+          </button>
+        ))}
+      </div>
+      {selectedTag === null ? (
+        <Panel>
+          <EmptyState message="Select a tag to browse matching artifacts." />
+        </Panel>
+      ) : (
+        <TagViewItems
+          artifacts={artifacts}
+          tag={selectedTag}
+          encodedProjectName={encodedProjectName}
+        />
+      )}
+    </>
+  );
+}
+
+interface TagViewItemsProps {
+  artifacts: Artifact[];
+  tag: string;
+  encodedProjectName: string;
+}
+
+function TagViewItems({ artifacts, tag, encodedProjectName }: TagViewItemsProps) {
+  const filtered = filterByTag(artifacts, tag);
+
+  if (filtered.length === 0) {
+    return (
+      <Panel>
+        <EmptyState message="No artifacts match this tag." />
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel size="lg">
+      <ul className={styles.smartList}>
+        {filtered.map((artifact) => {
+          const typeLabel = artifactTypeLabel(artifact.relativePath);
+          const domain = artifactDomain(artifact.relativePath);
+          return (
+            <li key={artifact.relativePath} className={styles.smartItem}>
+              <Link
+                href={`/projects/${encodedProjectName}/artifacts/${artifact.relativePath}`}
+                className={styles.smartLink}
+              >
+                <div className={styles.smartItemMain}>
+                  <span className={styles.smartTitle}>
+                    {displayTitle(artifact)}
+                  </span>
+                  <StatusBadge
+                    gem={statusToGem(artifact.meta.status)}
+                    label={artifact.meta.status}
+                    size="sm"
+                  />
+                </div>
+                <div className={styles.smartItemMeta}>
+                  {artifact.meta.date && (
+                    <span className={styles.metaDate}>{artifact.meta.date}</span>
+                  )}
+                  {typeLabel && (
+                    <span className={styles.metaLabel}>{typeLabel}</span>
+                  )}
+                  {domain && (
+                    <span className={styles.metaLabel}>{domain}</span>
+                  )}
+                  {artifact.meta.tags.length > 0 && (
+                    <>
+                      {artifact.meta.tags.map((t) => (
+                        <span key={t} className={styles.tag}>{t}</span>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </Panel>
   );
 }
