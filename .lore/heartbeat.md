@@ -32,3 +32,7 @@ Workers can also add entries to this file during their sessions.
 - `ArtifactList.tsx`: view switcher uses ephemeral `viewMode` stat...
 
 - 07:12 commission-Octavia-20260405-071039 completed
+- 07:13 commission-Octavia-20260405-070943 result: Wrote spec for meeting error persistence at `.lore/specs/meetings/meeting-error-persistence.md`.
+
+Investigation confirmed the gap: errors flow through SSE to the browser via `iterateSession` but are n...
+- 07:13 commission-Octavia-20260405-070943 completed
