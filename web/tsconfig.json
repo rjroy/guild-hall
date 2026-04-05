@@ -2,7 +2,6 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "plugins": [{ "name": "next" }],
-    "ignoreDeprecations": "6.0",
     "baseUrl": "..",
     "paths": { "@/*": ["./*"] }
     /* baseUrl is deprecated in TS 6.0 (microsoft/TypeScript#62207).
