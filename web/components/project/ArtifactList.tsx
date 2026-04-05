@@ -306,14 +306,23 @@ function SmartView({
                       />
                     </div>
                     <div className={styles.smartItemMeta}>
+                      {artifact.meta.date && (
+                        <span className={styles.metaDate}>{artifact.meta.date}</span>
+                      )}
                       {typeLabel && (
                         <span className={styles.metaLabel}>{typeLabel}</span>
                       )}
                       {domain && (
                         <span className={styles.metaLabel}>{domain}</span>
                       )}
-                      {artifact.meta.date && (
-                        <span className={styles.metaDate}>{artifact.meta.date}</span>
+                      {artifact.meta.tags.length > 0 && (
+                        <>
+                          {artifact.meta.tags.map((tag) => (
+                            <span key={tag} className={styles.tag}>
+                              {tag}
+                            </span>
+                          ))}
+                        </>
                       )}
                     </div>
                   </Link>

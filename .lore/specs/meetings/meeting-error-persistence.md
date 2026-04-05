@@ -1,7 +1,7 @@
 ---
 title: Meeting error persistence
 date: 2026-04-05
-status: draft
+status: approved
 tags: [meetings, error-handling, transcript, ux]
 modules: [session-loop, transcript, meetings-lib, chat-interface]
 related:
