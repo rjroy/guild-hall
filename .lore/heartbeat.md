@@ -26,10 +26,3 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 14:53 commission-Octavia-20260406-144948 result: Wrote the HTML mockup preview spec at `.lore/specs/ui/html-mockup-preview.md` (status: draft, req-prefix: MKP, 21 requirements).
-
-The spec covers all five areas from the commission brief:
-
-1. **Identi...
-
-- 14:54 commission-Octavia-20260406-144948 completed
