@@ -203,6 +203,7 @@
   font-size: 0.85rem;
   font-family: inherit;
   transition: all 0.2s;
+  margin: 0 0 0 var(--space-sm);
 }
 
 .filterButtonActive {
