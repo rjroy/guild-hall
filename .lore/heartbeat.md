@@ -36,3 +36,7 @@ File: `web/components/project/ArtifactList.tsx:97`
 `encodeURIComponent(encod...
 
 - 17:18 commission-Thorne-20260406-170527 completed
+- 17:30 commission-Dalton-20260406-170533 result: Fixed both defects from Thorne's review:
+
+1. **Double-encoding bug** (`ArtifactList.tsx:97`): Removed redundant `encodeURIComponent()` around `encodedProjectName`, which was already encoded at line 21...
+- 17:30 commission-Dalton-20260406-170533 completed
