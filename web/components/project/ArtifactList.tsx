@@ -45,6 +45,7 @@ function TreeNodeRow({
   if (node.artifact) {
     const gemStatus = statusToGem(node.artifact.meta.status);
     const isImage = node.artifact.artifactType === "image";
+    const isMockup = node.artifact.artifactType === "mockup";
     return (
       <li
         className={styles.item}
@@ -54,7 +55,9 @@ function TreeNodeRow({
           href={`/projects/${encodedProjectName}/artifacts/${node.artifact.relativePath}`}
           className={styles.link}
         >
-          {isImage ? (
+          {isMockup ? (
+            <span className={styles.mockupIcon} aria-hidden="true">{"\uD83D\uDDA5"}</span>
+          ) : isImage ? (
             <span className={styles.imageIcon} aria-hidden="true">{"\uD83D\uDDBC"}</span>
           ) : (
             /* Static decorative icon. next/image optimization not beneficial. */
@@ -84,6 +87,21 @@ function TreeNodeRow({
             </div>
           </div>
           <StatusBadge gem={gemStatus} label={node.artifact.meta.status} size="sm" />
+          {isMockup && (
+            <button
+              type="button"
+              className={styles.previewAction}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const url = `/api/artifacts/mockup?project=${encodeURIComponent(encodedProjectName)}&path=${encodeURIComponent(node.artifact!.relativePath)}`;
+                window.open(url, "_blank", "noopener,noreferrer");
+              }}
+              title="Open preview in new tab"
+            >
+              Preview
+            </button>
+          )}
         </Link>
       </li>
     );

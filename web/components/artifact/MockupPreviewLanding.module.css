@@ -1,0 +1,51 @@
+.landing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-xl) var(--space-lg);
+  min-height: 300px;
+  text-align: center;
+}
+
+.icon {
+  font-size: 3rem;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.filename {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-parchment);
+  margin: 0;
+  word-break: break-all;
+}
+
+.description {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  max-width: 400px;
+}
+
+.previewButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-brass);
+  border-radius: 4px;
+  color: var(--color-parchment);
+  font-size: 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.previewButton:hover {
+  background: var(--color-brass);
+  color: var(--color-bg);
+}

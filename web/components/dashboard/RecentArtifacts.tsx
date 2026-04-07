@@ -71,7 +71,9 @@ export default function RecentArtifacts({
                   href={artifactHref(artifact, artifact.projectName)}
                   className={styles.link}
                 >
-                  {artifact.artifactType === "image" ? (
+                  {artifact.artifactType === "mockup" ? (
+                    <span className={styles.mockupIcon} aria-hidden="true">{"\uD83D\uDDA5"}</span>
+                  ) : artifact.artifactType === "image" ? (
                     <span className={styles.imageIcon} aria-hidden="true">{"\uD83D\uDDBC"}</span>
                   ) : (
                     /* Static decorative icon. next/image optimization not beneficial. */
