@@ -26,20 +26,13 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 16:41 commission-Octavia-20260406-163631 result: Implementation plan written to `.lore/plans/ui/html-mockup-preview.md`.
+- 17:18 commission-Thorne-20260406-170527 result: ## Review: HTML Mockup Preview (Phases 1-4)
 
-The plan breaks the work into 5 phases with 16 steps:
+### Defects
 
-- **Phase 1** (Steps 1-4): Type foundation and scanner. Extends the `art...
+**1. Bug: Double-encoded project name in tree-view preview URL**
+File: `web/components/project/ArtifactList.tsx:97`
 
-- 16:41 commission-Octavia-20260406-163631 completed
-- 17:11 commission-Dalton-20260406-170501 result: Phases 1-3 of the HTML mockup preview plan implemented. All 3538 tests pass, typecheck and lint clean.
+`encodeURIComponent(encod...
 
-**Phase 1: Type Foundation and Scanner**
-- Extended `artifactType` union in `lib/types.ts:77` to...
-- 17:11 commission-Dalton-20260406-170501 completed
-- 17:14 commission-Dalton-20260406-170509 result: Phase 4 (UI Integration) of the HTML mockup preview plan implemented. All 3538 tests pass, typecheck and lint clean.
-
-**Step 9: Catch-all route branching**
-- Added `.html` check before the image check...
-- 17:14 commission-Dalton-20260406-170509 completed
+- 17:18 commission-Thorne-20260406-170527 completed
