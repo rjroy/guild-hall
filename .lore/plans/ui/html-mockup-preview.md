@@ -1,7 +1,7 @@
 ---
 title: "HTML Mockup Preview"
 date: 2026-04-06
-status: draft
+status: approved
 tags: [ui, artifacts, mockups, preview]
 modules: [lib/types, lib/artifacts, daemon/routes/artifacts, lib/daemon-client, "web/app/api/artifacts/mockup/route", "web/app/projects/[name]/artifacts/[...path]/page", web/components/project/ArtifactList, web/components/dashboard/RecentArtifacts]
 related:
