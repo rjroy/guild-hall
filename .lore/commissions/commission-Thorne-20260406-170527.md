@@ -1,7 +1,7 @@
 ---
 title: "Commission: HTML mockup preview: Phase 5 review"
 date: 2026-04-07
-status: blocked
+status: dispatched
 tags: [commission]
 worker: Thorne
 workerDisplayTitle: "Guild Warden"
@@ -19,6 +19,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-04-07T00:14:26.548Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-04-07T00:14:26.552Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
