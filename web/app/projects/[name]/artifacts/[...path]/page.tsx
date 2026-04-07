@@ -64,7 +64,11 @@ export default async function ArtifactPage({
       ? listResult.data.artifacts.find((a) => a.relativePath === relativePath)
       : undefined;
 
-    const mockupTitle = mockupArtifact?.meta.title
+    if (!mockupArtifact) {
+      notFound();
+    }
+
+    const mockupTitle = mockupArtifact.meta.title
       || relativePath.split("/").pop()?.replace(/\.html$/, "").replace(/[-_]/g, " ")
       || relativePath;
     const filename = relativePath.split("/").pop() ?? "";
@@ -88,7 +92,7 @@ export default async function ArtifactPage({
           sidebar={
             <MockupMetadataSidebar
               filename={filename}
-              lastModified={mockupArtifact?.lastModified}
+              lastModified={mockupArtifact.lastModified}
               projectName={projectName}
             />
           }

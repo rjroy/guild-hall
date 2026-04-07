@@ -94,7 +94,7 @@ function TreeNodeRow({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                const url = `/api/artifacts/mockup?project=${encodeURIComponent(encodedProjectName)}&path=${encodeURIComponent(node.artifact!.relativePath)}`;
+                const url = `/api/artifacts/mockup?project=${encodedProjectName}&path=${encodeURIComponent(node.artifact!.relativePath)}`;
                 window.open(url, "_blank", "noopener,noreferrer");
               }}
               title="Open preview in new tab"
