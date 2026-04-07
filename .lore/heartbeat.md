@@ -26,9 +26,17 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 09:25 commission-Dalton-20260405-092014 result: Implemented the Artifact Tag View feature across all 5 plan steps. All 13 REQs satisfied.
+- 17:18 commission-Thorne-20260406-170527 result: ## Review: HTML Mockup Preview (Phases 1-4)
 
-**Created:**
-- `lib/artifact-tag-view.ts` — `computeTagIndex()` (tag counting with >1 threshold, count-desc/a...
+### Defects
 
-- 09:26 commission-Dalton-20260405-092014 completed
+**1. Bug: Double-encoded project name in tree-view preview URL**
+File: `web/components/project/ArtifactList.tsx:97`
+
+`encodeURIComponent(encod...
+
+- 17:18 commission-Thorne-20260406-170527 completed
+- 17:30 commission-Dalton-20260406-170533 result: Fixed both defects from Thorne's review:
+
+1. **Double-encoding bug** (`ArtifactList.tsx:97`): Removed redundant `encodeURIComponent()` around `encodedProjectName`, which was already encoded at line 21...
+- 17:30 commission-Dalton-20260406-170533 completed

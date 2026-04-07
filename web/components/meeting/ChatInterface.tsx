@@ -222,6 +222,9 @@ export default function ChatInterface({
         // a complete assistant message at turn_end without stale closure values.
         let accumulatedText = "";
         let accumulatedTools: ToolUseEntry[] = [];
+        // When a tool completes between text blocks, prepend a line break
+        // so streamed text doesn't run together without spacing.
+        let needsLineBreakBeforeText = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -235,6 +238,10 @@ export default function ChatInterface({
             switch (event.type) {
               case "text_delta": {
                 const delta = event.text as string;
+                if (needsLineBreakBeforeText && accumulatedText.length > 0) {
+                  accumulatedText += "\n\n";
+                  needsLineBreakBeforeText = false;
+                }
                 accumulatedText += delta;
                 setStreamingContent(accumulatedText);
                 break;
@@ -282,6 +289,7 @@ export default function ChatInterface({
                   return t;
                 });
                 setStreamingTools(accumulatedTools);
+                needsLineBreakBeforeText = true;
 
                 // Notify parent when a link_artifact tool completes
                 if (toolName === "link_artifact" && onArtifactLinked) {

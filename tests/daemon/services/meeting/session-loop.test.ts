@@ -316,4 +316,187 @@ describe("iterateSession post-loop cleanup", () => {
     expect(transcript).toContain("## Error (");
     expect(transcript).toContain("Session expired");
   });
+
+  test("inserts line break between text blocks separated by tool use", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "session-loop-test-"));
+    const meetingsDir = path.join(tmpDir, "meetings");
+    await fs.mkdir(meetingsDir, { recursive: true });
+
+    const meetingId = asMeetingId("test-meeting-tool-linebreak");
+    await fs.writeFile(
+      path.join(meetingsDir, `${meetingId}.md`),
+      "---\nmeeting: test\n---\n",
+      "utf-8",
+    );
+
+    const meeting: ActiveMeetingEntry = {
+      meetingId,
+      projectName: "test-project",
+      workerName: "test-worker",
+      packageName: "test-worker",
+      sdkSessionId: null,
+      worktreeDir: tmpDir,
+      branchName: "test-branch",
+      abortController: new AbortController(),
+      status: "open",
+      scope: "activity",
+    };
+
+    // queryFn that simulates: text → tool_use → tool_result → text
+    // eslint-disable-next-line @typescript-eslint/require-await -- AsyncGenerator required by queryFn signature
+    async function* toolBetweenTextQuery(_params: {
+      prompt: string;
+      options: SdkQueryOptions;
+    }): AsyncGenerator<SDKMessage> {
+      yield makeInitMessage();
+      // First text block
+      yield {
+        type: "stream_event",
+        event: {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "text_delta", text: "Let me look that up." },
+        },
+      } as unknown as SDKMessage;
+      // Tool use start
+      yield {
+        type: "stream_event",
+        event: {
+          type: "content_block_start",
+          index: 1,
+          content_block: { type: "tool_use", id: "tool-1", name: "search", input: {} },
+        },
+      } as unknown as SDKMessage;
+      // Tool result (user message with tool_result block)
+      yield {
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: "Found 3 results",
+            },
+          ],
+        },
+      } as unknown as SDKMessage;
+      // Second text block (after tool)
+      yield {
+        type: "stream_event",
+        event: {
+          type: "content_block_delta",
+          index: 2,
+          delta: { type: "text_delta", text: "Okay I found what you mentioned." },
+        },
+      } as unknown as SDKMessage;
+      yield makeResultSuccess();
+    }
+
+    const deps: SessionLoopDeps = {
+      queryFn: toolBetweenTextQuery,
+      guildHallHome: tmpDir,
+      log: nullLog("test"),
+      prepDeps: {} as SessionLoopDeps["prepDeps"],
+    };
+
+    const events = await collectEvents(
+      iterateSession(deps, meeting, "test prompt", {}, false),
+    );
+
+    // The text_delta events should still stream individually
+    const textDeltas = events.filter((e) => e.type === "text_delta");
+    expect(textDeltas.length).toBe(2);
+
+    // The transcript should have a line break between the two text blocks
+    const transcript = await fs.readFile(
+      path.join(meetingsDir, `${meetingId}.md`),
+      "utf-8",
+    );
+    expect(transcript).toContain("Let me look that up.\n\nOkay I found what you mentioned.");
+    // Should NOT have them concatenated without spacing
+    expect(transcript).not.toContain("Let me look that up.Okay");
+  });
+
+  test("no spurious line break when tool use precedes first text", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "session-loop-test-"));
+    const meetingsDir = path.join(tmpDir, "meetings");
+    await fs.mkdir(meetingsDir, { recursive: true });
+
+    const meetingId = asMeetingId("test-meeting-tool-first");
+    await fs.writeFile(
+      path.join(meetingsDir, `${meetingId}.md`),
+      "---\nmeeting: test\n---\n",
+      "utf-8",
+    );
+
+    const meeting: ActiveMeetingEntry = {
+      meetingId,
+      projectName: "test-project",
+      workerName: "test-worker",
+      packageName: "test-worker",
+      sdkSessionId: null,
+      worktreeDir: tmpDir,
+      branchName: "test-branch",
+      abortController: new AbortController(),
+      status: "open",
+      scope: "activity",
+    };
+
+    // queryFn: tool_use → tool_result → text (no text before tool)
+    // eslint-disable-next-line @typescript-eslint/require-await -- AsyncGenerator required by queryFn signature
+    async function* toolFirstQuery(_params: {
+      prompt: string;
+      options: SdkQueryOptions;
+    }): AsyncGenerator<SDKMessage> {
+      yield makeInitMessage();
+      yield {
+        type: "stream_event",
+        event: {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", id: "tool-1", name: "search", input: {} },
+        },
+      } as unknown as SDKMessage;
+      yield {
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "tool-1", content: "result" },
+          ],
+        },
+      } as unknown as SDKMessage;
+      yield {
+        type: "stream_event",
+        event: {
+          type: "content_block_delta",
+          index: 1,
+          delta: { type: "text_delta", text: "Here are the results." },
+        },
+      } as unknown as SDKMessage;
+      yield makeResultSuccess();
+    }
+
+    const deps: SessionLoopDeps = {
+      queryFn: toolFirstQuery,
+      guildHallHome: tmpDir,
+      log: nullLog("test"),
+      prepDeps: {} as SessionLoopDeps["prepDeps"],
+    };
+
+    await collectEvents(
+      iterateSession(deps, meeting, "test prompt", {}, false),
+    );
+
+    const transcript = await fs.readFile(
+      path.join(meetingsDir, `${meetingId}.md`),
+      "utf-8",
+    );
+    // The text should appear without a spurious leading line break injected
+    // by the tool-completion flag. The assistant section header naturally
+    // produces "\n\n" before the text, but there should be no extra "\n\n\n\n".
+    expect(transcript).toContain("Here are the results.");
+    expect(transcript).not.toContain("\n\n\n\nHere are the results.");
+  });
 });

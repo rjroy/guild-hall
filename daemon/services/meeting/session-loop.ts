@@ -96,6 +96,10 @@ export async function* iterateSession(
   let pendingToolName: string | null = null;
   let lastError: string | null = null;
   let hasExpiryError = false;
+  // When a tool completes between text blocks, the next text_delta needs
+  // a line break so transcript text doesn't run together (e.g.
+  // "Let me look that up.Okay I found..." → "...up.\n\nOkay I found...").
+  let needsLineBreakBeforeText = false;
 
   for await (const event of runSdkSession(deps.queryFn, prompt, options, deps.log)) {
     // Capture session ID (guard against empty string from SDK init)
@@ -111,18 +115,26 @@ export async function* iterateSession(
 
     // Accumulate text from streaming deltas only (not complete messages)
     // to avoid the double-data problem documented in event-translator.ts.
-    if (event.type === "text_delta") textParts.push(event.text);
+    if (event.type === "text_delta") {
+      if (needsLineBreakBeforeText && textParts.length > 0) {
+        textParts.push("\n\n");
+        needsLineBreakBeforeText = false;
+      }
+      textParts.push(event.text);
+    }
 
     // Track tool_use name for pairing with its result
     if (event.type === "tool_use") pendingToolName = event.name;
 
-    // Pair tool_result with the most recent tool_use name
+    // Pair tool_result with the most recent tool_use name.
+    // Set the line-break flag so the next text block starts on a new line.
     if (event.type === "tool_result") {
       toolUses.push({
         toolName: pendingToolName ?? event.name,
         result: event.output,
       });
       pendingToolName = null;
+      needsLineBreakBeforeText = true;
     }
 
     // Map SdkRunnerEvent to GuildHallEvent and yield to SSE

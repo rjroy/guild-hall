@@ -11,6 +11,8 @@ import ArtifactDetailLayout from "@/web/components/artifact/ArtifactDetailLayout
 import MetadataSidebar from "@/web/components/artifact/MetadataSidebar";
 import ImageArtifactView from "@/web/components/artifact/ImageArtifactView";
 import ImageMetadataSidebar from "@/web/components/artifact/ImageMetadataSidebar";
+import MockupPreviewLanding from "@/web/components/artifact/MockupPreviewLanding";
+import MockupMetadataSidebar from "@/web/components/artifact/MockupMetadataSidebar";
 import DaemonError from "@/web/components/ui/DaemonError";
 import styles from "./page.module.css";
 
@@ -49,9 +51,55 @@ export default async function ArtifactPage({
   }
   const projectTitle = projectDisplayTitle(projectResult.data);
 
-  // Check if this is an image artifact
+  // Check artifact type by extension
   const ext = relativePath.split(".").pop()?.toLowerCase() ?? "";
+  const isHtml = ext === "html";
   const isImage = IMAGE_EXTENSIONS.has(ext);
+
+  if (isHtml) {
+    const listResult = await fetchDaemon<{ artifacts: Array<SerializedArtifact & { artifactType?: string }> }>(
+      `/workspace/artifact/document/list?projectName=${encoded}`,
+    );
+    const mockupArtifact = listResult.ok
+      ? listResult.data.artifacts.find((a) => a.relativePath === relativePath)
+      : undefined;
+
+    if (!mockupArtifact) {
+      notFound();
+    }
+
+    const mockupTitle = mockupArtifact.meta.title
+      || relativePath.split("/").pop()?.replace(/\.html$/, "").replace(/[-_]/g, " ")
+      || relativePath;
+    const filename = relativePath.split("/").pop() ?? "";
+    const previewUrl = `/api/artifacts/mockup?project=${encodeURIComponent(projectName)}&path=${encodeURIComponent(relativePath)}`;
+
+    return (
+      <div className={styles.artifactView}>
+        <ArtifactProvenance
+          projectName={projectName}
+          projectTitle={projectTitle}
+          artifactTitle={mockupTitle}
+          artifactPath={relativePath}
+        />
+        <ArtifactDetailLayout
+          main={
+            <MockupPreviewLanding
+              previewUrl={previewUrl}
+              filename={filename}
+            />
+          }
+          sidebar={
+            <MockupMetadataSidebar
+              filename={filename}
+              lastModified={mockupArtifact.lastModified}
+              projectName={projectName}
+            />
+          }
+        />
+      </div>
+    );
+  }
 
   if (isImage) {
     const metaResult = await fetchDaemon<ImageMetaResponse>(
