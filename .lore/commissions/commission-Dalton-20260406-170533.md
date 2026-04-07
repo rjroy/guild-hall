@@ -1,7 +1,7 @@
 ---
 title: "Commission: HTML mockup preview: Phase 5 fix review findings"
 date: 2026-04-07
-status: pending
+status: blocked
 tags: [commission]
 worker: Dalton
 workerDisplayTitle: "Guild Artificer"
@@ -14,6 +14,11 @@ activity_timeline:
   - timestamp: 2026-04-07T00:05:33.796Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-04-07T00:11:12.068Z
+    event: status_blocked
+    reason: "Dependencies not satisfied"
+    from: "pending"
+    to: "blocked"
 current_progress: ""
 projectName: guild-hall
 ---

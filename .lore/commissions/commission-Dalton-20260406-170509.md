@@ -1,7 +1,7 @@
 ---
 title: "Commission: HTML mockup preview: Phase 4 (UI integration)"
 date: 2026-04-07
-status: pending
+status: dispatched
 tags: [commission]
 worker: Dalton
 workerDisplayTitle: "Guild Artificer"
@@ -14,6 +14,11 @@ activity_timeline:
   - timestamp: 2026-04-07T00:05:09.377Z
     event: created
     reason: "Commission created"
+  - timestamp: 2026-04-07T00:11:12.070Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
