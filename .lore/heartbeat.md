@@ -38,3 +38,8 @@ The plan breaks the work into 5 phases with 16 steps:
 **Phase 1: Type Foundation and Scanner**
 - Extended `artifactType` union in `lib/types.ts:77` to...
 - 17:11 commission-Dalton-20260406-170501 completed
+- 17:14 commission-Dalton-20260406-170509 result: Phase 4 (UI Integration) of the HTML mockup preview plan implemented. All 3538 tests pass, typecheck and lint clean.
+
+**Step 9: Catch-all route branching**
+- Added `.html` check before the image check...
+- 17:14 commission-Dalton-20260406-170509 completed
