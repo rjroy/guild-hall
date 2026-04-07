@@ -243,6 +243,55 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
     }
   });
 
+  // GET /workspace/artifact/mockup/read - serve raw HTML for a mockup artifact
+  routes.get("/workspace/artifact/mockup/read", async (c) => {
+    const projectName = c.req.query("projectName");
+    if (!projectName) {
+      return c.json({ error: "Missing required query parameter: projectName" }, 400);
+    }
+
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
+      return c.json({ error: `Project not found: ${projectName}` }, 404);
+    }
+
+    const mockupPath = c.req.query("path");
+    if (!mockupPath) {
+      return c.json({ error: "Missing required query parameter: path" }, 400);
+    }
+
+    // Validate file extension (REQ-MKP-7)
+    const ext = nodePath.extname(mockupPath).toLowerCase();
+    if (ext !== ".html") {
+      return c.json({ error: `Unsupported mockup type: ${ext}` }, 415);
+    }
+
+    try {
+      // Mockups resolve from the integration worktree only (REQ-MKP-9)
+      const basePath = integrationWorktreePath(deps.guildHallHome, projectName);
+      const lorePath = projectLorePath(basePath);
+      const filePath = validatePath(lorePath, mockupPath);
+      const buffer = await fs.readFile(filePath);
+
+      return c.body(buffer, 200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "default-src 'self' 'unsafe-inline' data:; script-src 'unsafe-inline'; style-src 'unsafe-inline' data:; img-src 'self' data: blob:; connect-src 'none'; frame-ancestors 'none'",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "inline",
+        "Cache-Control": "no-cache",
+        "Content-Length": String(buffer.length),
+      });
+    } catch (err: unknown) {
+      if (isNotFound(err)) {
+        return c.json({ error: `Mockup not found: ${mockupPath}` }, 404);
+      }
+      if (isPathTraversal(err)) {
+        return c.json({ error: "Path traversal detected" }, 400);
+      }
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+  });
+
   // GET /workspace/artifact/image/meta - image metadata without file bytes
   routes.get("/workspace/artifact/image/meta", async (c) => {
     const projectName = c.req.query("projectName");
@@ -357,6 +406,21 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
       parameters: [{ name: "projectName", required: true, in: "query" as const }, { name: "path", required: true, in: "query" as const }],
     },
     {
+      operationId: "workspace.artifact.mockup.read",
+      version: "1",
+      name: "read",
+      description: "Serve raw HTML for a mockup artifact",
+      invocation: { method: "GET", path: "/workspace/artifact/mockup/read" },
+      sideEffects: "",
+      context: { project: true },
+      idempotent: true,
+      hierarchy: { root: "workspace", feature: "artifact", object: "mockup" },
+      parameters: [
+        { name: "projectName", required: true, in: "query" as const },
+        { name: "path", required: true, in: "query" as const },
+      ],
+    },
+    {
       operationId: "workspace.artifact.document.write",
       version: "1",
       name: "write",
@@ -376,6 +440,7 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
     "workspace.artifact": "Project artifact document management",
     "workspace.artifact.document": "Artifact documents",
     "workspace.artifact.image": "Artifact images",
+    "workspace.artifact.mockup": "HTML mockup artifacts",
   };
 
   return { routes, operations, descriptions };

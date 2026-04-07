@@ -779,6 +779,91 @@ describe("scanArtifacts with images", () => {
   });
 });
 
+describe("scanArtifacts with HTML mockups", () => {
+  async function writeHtmlFile(relativePath: string, content = "<html><body>Mock</body></html>"): Promise<void> {
+    const fullPath = path.join(tmpDir, relativePath);
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.writeFile(fullPath, content, "utf-8");
+  }
+
+  test("discovers HTML files with artifactType 'mockup'", async () => {
+    await writeHtmlFile("generated/dashboard.html");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0].artifactType).toBe("mockup");
+    expect(artifacts[0].relativePath).toBe("generated/dashboard.html");
+  });
+
+  test("generates synthetic metadata from filename", async () => {
+    await writeHtmlFile("generated/my-cool-mockup.html");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(1);
+
+    const mockup = artifacts[0];
+    expect(mockup.meta.title).toBe("My Cool Mockup");
+    expect(mockup.meta.status).toBe("complete");
+    expect(mockup.meta.tags).toEqual([]);
+    expect(mockup.meta.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  test("content is empty string for mockup artifacts", async () => {
+    await writeHtmlFile("generated/page.html", "<h1>Hello</h1>");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0].content).toBe("");
+    expect(artifacts[0].rawContent).toBeUndefined();
+  });
+
+  test("discovers mixed .md, image, and .html files in a single scan", async () => {
+    await writeTestArtifact("specs/design.md", "title: Design\nstatus: draft", "Content");
+    const imgPath = path.join(tmpDir, "generated/hero.png");
+    await fs.mkdir(path.dirname(imgPath), { recursive: true });
+    await fs.writeFile(imgPath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    await writeHtmlFile("generated/prototype.html");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(3);
+
+    const types = artifacts.map((a) => a.artifactType).sort();
+    expect(types).toEqual(["document", "image", "mockup"]);
+  });
+
+  test("discovers HTML files in nested directories", async () => {
+    await writeHtmlFile("specs/ui/mockups/login-page.html");
+    await writeHtmlFile("generated/prototypes/dashboard.html");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(2);
+    const paths = artifacts.map((a) => a.relativePath).sort();
+    expect(paths).toEqual([
+      "generated/prototypes/dashboard.html",
+      "specs/ui/mockups/login-page.html",
+    ]);
+  });
+
+  test("does not collect .htm or .xhtml extensions", async () => {
+    await writeHtmlFile("page.html");
+    const htmPath = path.join(tmpDir, "page.htm");
+    await fs.writeFile(htmPath, "<html></html>", "utf-8");
+    const xhtmlPath = path.join(tmpDir, "page.xhtml");
+    await fs.writeFile(xhtmlPath, "<html></html>", "utf-8");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0].relativePath).toBe("page.html");
+  });
+
+  test("title derivation replaces hyphens and underscores with spaces", async () => {
+    await writeHtmlFile("some_test-mockup.html");
+
+    const artifacts = await scanArtifacts(tmpDir);
+    expect(artifacts[0].meta.title).toBe("Some Test Mockup");
+  });
+});
+
 describe("IMAGE_MIME_TYPES", () => {
   // Import is tested indirectly through the daemon route tests,
   // but we verify the mapping is correct here for completeness.

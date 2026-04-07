@@ -156,6 +156,29 @@ export async function scanArtifacts(lorePath: string): Promise<Artifact[]> {
           lastModified: stat.mtime,
           artifactType: "image",
         });
+      } else if (ext === ".html") {
+        // Synthetic metadata for HTML mockup artifacts (REQ-MKP-4)
+        const stat = await fs.stat(filePath);
+        const relPath = toPosixPath(path.relative(resolvedBase, filePath));
+        const filename = path.basename(filePath, ext);
+        const title = filename
+          .replace(/[-_]/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+
+        artifacts.push({
+          meta: {
+            title,
+            date: stat.mtime.toISOString().split("T")[0],
+            type: artifactTypeSegment(relPath) || undefined,
+            status: "complete",
+            tags: [],
+          },
+          filePath,
+          relativePath: relPath,
+          content: "",
+          lastModified: stat.mtime,
+          artifactType: "mockup",
+        });
       } else {
         // Markdown artifact: parse frontmatter
         const [raw, stat] = await Promise.all([
@@ -338,7 +361,7 @@ async function collectArtifactFiles(dir: string): Promise<string[]> {
       results.push(...nested);
     } else if (entry.isFile()) {
       const ext = path.extname(entry.name).toLowerCase();
-      if (ext === ".md" || IMAGE_EXTENSIONS.has(ext)) {
+      if (ext === ".md" || ext === ".html" || IMAGE_EXTENSIONS.has(ext)) {
         results.push(fullPath);
       }
     }

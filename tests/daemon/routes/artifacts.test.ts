@@ -737,6 +737,132 @@ describe("GET /workspace/artifact/image/read", () => {
   });
 });
 
+// -- Tests: GET /workspace/artifact/mockup/read --
+
+async function writeTestMockup(
+  relativePath: string,
+  content = "<html><body><h1>Mock</h1></body></html>",
+): Promise<void> {
+  const fullPath = path.join(lorePath, relativePath);
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, content, "utf-8");
+}
+
+describe("GET /workspace/artifact/mockup/read", () => {
+  test("returns 400 when projectName is missing", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?path=test.html");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("projectName");
+  });
+
+  test("returns 400 when path is missing", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("path");
+  });
+
+  test("returns 404 for unknown project", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=nonexistent&path=test.html");
+    expect(res.status).toBe(404);
+  });
+
+  test("returns 415 for non-.html extension", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project&path=data.htm");
+    expect(res.status).toBe(415);
+    const body = await res.json();
+    expect(body.error).toContain("Unsupported");
+  });
+
+  test("returns 415 for .txt extension", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project&path=readme.txt");
+    expect(res.status).toBe(415);
+  });
+
+  test("returns 404 for non-existent file", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project&path=nonexistent.html");
+    expect(res.status).toBe(404);
+  });
+
+  test("rejects path traversal attempts", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project&path=../../../etc/passwd.html");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Path traversal");
+  });
+
+  test("serves HTML with correct Content-Type", async () => {
+    const htmlContent = "<!DOCTYPE html><html><body><h1>Dashboard</h1></body></html>";
+    await writeTestMockup("generated/dashboard.html", htmlContent);
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project&path=generated/dashboard.html");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(res.headers.get("content-length")).toBe(String(Buffer.byteLength(htmlContent)));
+
+    const body = await res.text();
+    expect(body).toBe(htmlContent);
+  });
+
+  test("response body matches file content exactly", async () => {
+    const htmlContent = "<html><head><style>body{color:red}</style></head><body><script>console.log('hi')</script></body></html>";
+    await writeTestMockup("generated/interactive.html", htmlContent);
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project&path=generated/interactive.html");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe(htmlContent);
+  });
+
+  test("CSP header contains connect-src none and frame-ancestors none", async () => {
+    await writeTestMockup("generated/page.html");
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project&path=generated/page.html");
+    expect(res.status).toBe(200);
+
+    const csp = res.headers.get("content-security-policy");
+    expect(csp).toContain("connect-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+  });
+
+  test("X-Content-Type-Options header is nosniff", async () => {
+    await writeTestMockup("generated/page.html");
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project&path=generated/page.html");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  test("Cache-Control header is no-cache", async () => {
+    await writeTestMockup("generated/page.html");
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project&path=generated/page.html");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-cache");
+  });
+
+  test("Content-Disposition header is inline", async () => {
+    await writeTestMockup("generated/page.html");
+
+    const app = makeTestApp();
+    const res = await app.request("/workspace/artifact/mockup/read?projectName=test-project&path=generated/page.html");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toBe("inline");
+  });
+});
+
 // -- Tests: GET /workspace/artifact/image/meta --
 
 describe("GET /workspace/artifact/image/meta", () => {
