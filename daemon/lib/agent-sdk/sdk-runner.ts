@@ -414,8 +414,12 @@ export async function prepareSdkSession(
   // 5a. Check for runner configuration in project settings
   const projectConfig = spec.config.projects.find(p => p.name === spec.projectName);
   const shouldYolo = (projectConfig?.runner?.shouldYolo) ?? false;
+  const removeSandbox = (projectConfig?.runner?.removeSandbox) ?? false;
   if (shouldYolo) {
     log.info("Project config enables YOLO mode for this session");
+  }
+  if (removeSandbox) {
+    log.info("Project config enables removing sandbox for this session");
   }
 
   // 5b. Resolve model to built-in or local definition (REQ-LOCAL-8)
@@ -481,17 +485,18 @@ export async function prepareSdkSession(
   // so we don't set allowedTools or builtInTools in that case.
   // The worker can still use tools, but the SDK won't block any of them.
   // This is dangerous but can be useful for debugging. Use with caution.
+  // It remains sandoboxed unless removeSandbox is also set.
 
   const options: SdkQueryOptions = {
     systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
     cwd: spec.workspaceDir,
     mcpServers,
     ...(shouldYolo ? {} : { allowedTools: activation.tools.allowedTools }),
-    ...(shouldYolo ? {} : { builtInTools: activation.tools.builtInTools }),
+    ...(shouldYolo ? {} : { tools: activation.tools.builtInTools }),
     ...(resolvedPlugins.length > 0 ? { plugins: resolvedPlugins } : {}),
     ...(finalModelId ? { model: finalModelId } : {}),
     ...(localEnv ? { env: localEnv } : {}),
-    ...(sandboxSettings && !shouldYolo ? { sandbox: sandboxSettings } : {}),
+    ...((sandboxSettings && !removeSandbox) ? { sandbox: sandboxSettings } : {}),
     ...(Object.keys(agents).length > 0 ? { agents } : {}),
     permissionMode: shouldYolo ? "bypassPermissions" : "dontAsk",
     settingSources: ["local", "project", "user"],

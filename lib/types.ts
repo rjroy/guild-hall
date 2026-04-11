@@ -4,6 +4,7 @@ import type { Hono } from "hono";
 
 export interface RunnerConfig {
   shouldYolo?: boolean;
+  removeSandbox?: boolean;
 }
 
 export interface ProjectConfig {

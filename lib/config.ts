@@ -9,7 +9,8 @@ import type { AppConfig, ProjectConfig } from "@/lib/types";
 // -- Zod schemas (exported so the CLI can reuse them) --
 
 export const runnerConfigSchema = z.object({
-  shouldYolo: z.boolean().optional()
+  shouldYolo: z.boolean().optional(),
+  removeSandbox: z.boolean().optional(),
 });
 
 export const projectConfigSchema = z.object({
