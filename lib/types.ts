@@ -2,6 +2,10 @@ import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-
 import type { ZodType } from "zod";
 import type { Hono } from "hono";
 
+export interface RunnerConfig {
+  shouldYolo?: boolean;
+}
+
 export interface ProjectConfig {
   name: string;
   title?: string;
@@ -13,6 +17,7 @@ export interface ProjectConfig {
   defaultBranch?: string;
   memoryLimit?: number;
   group?: string;
+  runner?: RunnerConfig;
 }
 
 export function projectDisplayTitle(project: ProjectConfig): string {
