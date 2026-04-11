@@ -411,7 +411,18 @@ export async function prepareSdkSession(
   // 5. Build SDK query options
   const resolvedModelName = spec.resourceOverrides?.model ?? activation.model;
 
-  // 5a. Resolve model to built-in or local definition (REQ-LOCAL-8)
+  // 5a. Check for runner configuration in project settings
+  const projectConfig = spec.config.projects.find(p => p.name === spec.projectName);
+  const shouldYolo = (projectConfig?.runner?.shouldYolo) ?? false;
+  const removeSandbox = (projectConfig?.runner?.removeSandbox) ?? false;
+  if (shouldYolo) {
+    log.info("Project config enables YOLO mode for this session");
+  }
+  if (removeSandbox) {
+    log.info("Project config enables removing sandbox for this session");
+  }
+
+  // 5b. Resolve model to built-in or local definition (REQ-LOCAL-8)
   let resolvedModelResult;
   if (resolvedModelName) {
     try {
@@ -421,7 +432,7 @@ export async function prepareSdkSession(
     }
   }
 
-  // 5b. For local models: reachability check then env injection (REQ-LOCAL-13)
+  // 5c. For local models: reachability check then env injection (REQ-LOCAL-13)
   if (resolvedModelResult?.type === "local") {
     const { definition } = resolvedModelResult;
     const doCheck = deps.checkReachability ?? defaultCheckReachability;
@@ -434,7 +445,7 @@ export async function prepareSdkSession(
     }
   }
 
-  // 5c. Determine final model ID and env (REQ-LOCAL-11, REQ-LOCAL-12)
+  // 5d. Determine final model ID and env (REQ-LOCAL-11, REQ-LOCAL-12)
   const finalModelId = resolvedModelResult?.type === "local"
     ? resolvedModelResult.definition.modelId
     : resolvedModelName;
@@ -448,7 +459,7 @@ export async function prepareSdkSession(
       }
     : undefined;
 
-  // 5d. Inject sandbox settings for Bash-capable workers (REQ-SBX-2)
+  // 5e. Inject sandbox settings for Bash-capable workers (REQ-SBX-2)
   const hasBash = activation.tools.builtInTools.includes("Bash");
   const sandboxSettings = hasBash
     ? {
@@ -470,18 +481,24 @@ export async function prepareSdkSession(
   log.info(`builtInTools: ${activation.tools.builtInTools.join(", ")}`);
   log.info(`CWD: ${spec.workspaceDir}`);
 
+  // shouldYolo bypasses all permission checks, 
+  // so we don't set allowedTools or builtInTools in that case.
+  // The worker can still use tools, but the SDK won't block any of them.
+  // This is dangerous but can be useful for debugging. Use with caution.
+  // It remains sandoboxed unless removeSandbox is also set.
+
   const options: SdkQueryOptions = {
     systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt },
     cwd: spec.workspaceDir,
     mcpServers,
-    allowedTools: activation.tools.allowedTools,
-    tools: activation.tools.builtInTools,
+    ...(shouldYolo ? {} : { allowedTools: activation.tools.allowedTools }),
+    ...(shouldYolo ? {} : { tools: activation.tools.builtInTools }),
     ...(resolvedPlugins.length > 0 ? { plugins: resolvedPlugins } : {}),
     ...(finalModelId ? { model: finalModelId } : {}),
     ...(localEnv ? { env: localEnv } : {}),
-    ...(sandboxSettings ? { sandbox: sandboxSettings } : {}),
+    ...((sandboxSettings && !removeSandbox) ? { sandbox: sandboxSettings } : {}),
     ...(Object.keys(agents).length > 0 ? { agents } : {}),
-    permissionMode: "dontAsk",
+    permissionMode: shouldYolo ? "bypassPermissions" : "dontAsk",
     settingSources: ["local", "project", "user"],
     abortController: spec.abortController,
     ...(spec.resume ? { resume: spec.resume } : {}),

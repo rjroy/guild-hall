@@ -8,6 +8,11 @@ import type { AppConfig, ProjectConfig } from "@/lib/types";
 
 // -- Zod schemas (exported so the CLI can reuse them) --
 
+export const runnerConfigSchema = z.object({
+  shouldYolo: z.boolean().optional(),
+  removeSandbox: z.boolean().optional(),
+});
+
 export const projectConfigSchema = z.object({
   name: z.string(),
   title: z.string().optional(),
@@ -19,6 +24,7 @@ export const projectConfigSchema = z.object({
   defaultBranch: z.string().optional(),
   memoryLimit: z.number().optional(),
   group: z.string().optional(),
+  runner: runnerConfigSchema.optional(),
 });
 
 const modelAuthSchema = z.object({
