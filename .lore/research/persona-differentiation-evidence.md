@@ -1,7 +1,7 @@
 ---
 title: Persona Differentiation in Multi-Agent LLM Systems — Evidence Base
 date: 2026-03-23
-status: active
+status: resolved
 tags: [research, persona, multi-agent, role-prompting, behavioral-constraints, worker-design]
 ---
 
