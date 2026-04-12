@@ -1,6 +1,6 @@
 ---
 name: consult-compendium
-description: Consult the guild's craft knowledge compendium for reference material relevant to the current task. Use when starting a code review, writing a spec, writing a plan, making design decisions, conducting research, beginning implementation from a plan, writing a commission prompt, working with TypeScript patterns, generating images, designing visual assets, conducting strategic analysis, or entering any domain the compendium covers. Triggers include "check the compendium", "consult reference", "craft guidance", "reference entries".
+description: Consult the guild's craft knowledge compendium for reference material relevant to the current task. Use when starting a code review, writing a spec, writing a plan, making design decisions, conducting research, beginning implementation from a plan, writing a commission prompt, working with TypeScript patterns, generating images, designing visual assets, conducting strategic analysis, setting up a new project's architecture, designing a CSS color system, building with the Claude Agent SDK, or entering any domain the compendium covers. Triggers include "check the compendium", "consult reference", "craft guidance", "reference entries".
 ---
 
 # Consult Compendium
@@ -16,24 +16,34 @@ This skill is passive guidance. It does not change your posture, identity, or to
 Use Glob to list the entries in the `reference/` directory relative to this skill:
 
 ```
-Glob: packages/guild-compendium/plugin/skills/consult-compendium/reference/*.md
+Glob: packages/guild-compendium/plugin/skills/consult-compendium/reference/**/*.md
 ```
 
 If the directory is empty or contains no `.md` files, proceed with your task without reference material. The compendium may not have entries for every domain yet.
+
+Reference files are organized into subdirectories:
+
+- **`workflow/`** — Task-type guidance (how to do code review, planning, research, etc.)
+- **`craft/`** — Domain knowledge and reusable patterns (TypeScript, architecture, color systems, Claude Agent SDK)
+- **`commissions/`** — Commission-specific craft (prompts, chaining)
 
 ### 2. Read Relevant Entries
 
 Based on your current task, read the entry or entries that match the domain you're working in. You don't need to read every entry. Pick the ones that are relevant:
 
-- Starting a code review? Read `code-review.md`.
-- Writing a spec or requirements? Read `spec-writing.md`.
-- Writing an implementation plan? Read `planning.md`.
-- Making technical design decisions? Read `design-decisions.md`.
-- Conducting research? Read `research.md`.
-- Beginning implementation from a plan? Read `implementation.md`.
-- Writing a commission prompt? Read `commission-prompts.md`.
-- Working with TypeScript? Read `typescript-practices.md`.
-- Working in another domain? Check filenames for a match.
+- Starting a code review? Read `workflow/code-review.md`.
+- Writing a spec or requirements? Read `workflow/spec-writing.md`.
+- Writing an implementation plan? Read `workflow/planning.md`.
+- Making technical design decisions? Read `workflow/design-decisions.md`.
+- Conducting research? Read `workflow/research.md`.
+- Beginning implementation from a plan? Read `workflow/implementation.md`.
+- Writing a commission prompt? Read `commissions/commission-prompts.md`.
+- Chaining commissions? Read `commissions/commission-chaining.md`.
+- Working with TypeScript? Read `craft/typescript-practices.md`.
+- Setting up a new project or defining its architecture? Read `craft/daemon-first-architecture.md`.
+- Designing a color system, adding CSS color tokens, or auditing existing colors? Read `craft/color-system-principles.md`.
+- Building with the Claude Agent SDK, defining custom tools, or configuring MCP servers? Read `craft/claude-agent-sdk.md`.
+- Working in another domain? Browse the subdirectories for a match.
 
 Use the Read tool on each relevant file.
 
