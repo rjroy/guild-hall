@@ -26,3 +26,8 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
+- 07:26 commission-Octavia-20260412-072432 result: Validated all four items in the scheduler-removal-residue issue against the current codebase. All four are confirmed still present at their original locations:
+
+1. **Dead type stubs** (`toolbox-utils....
+
+- 07:26 commission-Octavia-20260412-072432 completed

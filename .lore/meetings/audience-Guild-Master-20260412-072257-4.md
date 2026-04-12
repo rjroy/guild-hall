@@ -1,5 +1,5 @@
 ---
-title: "Audience with Guild Master"
+title: "Validate scheduler removal residue issue"
 date: 2026-04-12
 status: open
 tags: [meeting]
@@ -12,4 +12,7 @@ meeting_log:
   - timestamp: 2026-04-12T14:22:57.598Z
     event: opened
     reason: "User started audience"
+  - timestamp: 2026-04-12T14:24:36.758Z
+    event: renamed
+    reason: "Renamed to: Validate scheduler removal residue issue"
 ---
