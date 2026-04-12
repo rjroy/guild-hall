@@ -26,19 +26,8 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 07:26 commission-Octavia-20260412-072432 result: Validated all four items in the scheduler-removal-residue issue against the current codebase. All four are confirmed still present at their original locations:
+- 08:14 commission-Octavia-20260412-080457 result: Spec written at `.lore/specs/infrastructure/read-only-verification-tools.md` (draft status, req-prefix VFY, 21 requirements across 7 decisions).
 
-1. **Dead type stubs** (`toolbox-utils....
+The spec defines four MCP tools (`run_tests`, `run_typ...
 
-- 07:26 commission-Octavia-20260412-072432 completed
-- 07:31 commission-Dalton-20260412-072844 result: Scheduler removal residue cleaned. All five steps complete.
-
-**Changes made:**
-1. `daemon/lib/toolbox-utils.ts`: Removed `scheduleLifecycle?: unknown` and `triggerEvaluator?: unknown` from `GuildHallT...
-- 07:32 commission-Dalton-20260412-072844 completed
-- 07:41 commission-Dalton-20260412-073611 result: Removed the one-shot gate from `submit_result`. Multiple calls now each overwrite the previous result, append their own timeline entry, and fire the callback/event.
-
-**Files modified:**
-
-- `daemon/ser...
-- 07:41 commission-Dalton-20260412-073611 completed
+- 08:14 commission-Octavia-20260412-080457 completed
