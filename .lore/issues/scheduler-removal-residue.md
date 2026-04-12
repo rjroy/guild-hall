@@ -1,7 +1,7 @@
 ---
 title: "Scheduler/Trigger Removal Residue"
 date: 2026-04-05
-status: open
+status: resolved
 tags: [cleanup, heartbeat, dead-code]
 validated: 2026-04-12
 ---
