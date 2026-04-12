@@ -1,7 +1,7 @@
 ---
 title: "Guild Hall Future Vision"
 date: 2026-03-21
-status: open
+status: parked
 author: Celeste
 tags: [brainstorm, vision, future, campaigns, compendium, autonomy, lenses, health]
 vision_status: "approved (v2, 2026-03-17)"
