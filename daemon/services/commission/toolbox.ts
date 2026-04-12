@@ -3,7 +3,7 @@
  *
  * Provides two tools that operate on the current commission's artifact:
  * - report_progress: update current progress and log a progress report
- * - submit_result: record the final result (one-shot, cannot be called twice)
+ * - submit_result: record the result (can be called multiple times; last call wins)
  *
  * Uses callbacks to notify the caller (session runner or orchestrator) of
  * tool invocations. File writes for durability happen within each handler;
@@ -35,13 +35,6 @@ import type { GuildHallToolboxDeps, ToolboxFactory } from "@/daemon/services/too
 export type SessionCallbacks = {
   onProgress: (summary: string) => void;
   onResult: (summary: string, artifacts?: string[]) => void;
-};
-
-/**
- * Session-scoped state tracking whether a result has been submitted.
- */
-export type SessionState = {
-  resultSubmitted: boolean;
 };
 
 type CommissionToolboxDeps = Pick<GuildHallToolboxDeps,
@@ -103,7 +96,6 @@ export function makeReportProgressHandler(
 export function makeSubmitResultHandler(
   deps: CommissionToolboxDeps,
   callbacks: SessionCallbacks,
-  sessionState: SessionState = { resultSubmitted: false },
   resources?: ToolboxResources,
 ) {
   const cid = asCommissionId(deps.contextId);
@@ -113,26 +105,12 @@ export function makeSubmitResultHandler(
     summary: string;
     artifacts?: string[];
   }): Promise<ToolResult> => {
-    if (sessionState.resultSubmitted) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Result already submitted. submit_result can only be called once per commission.",
-          },
-        ],
-        isError: true,
-      };
-    }
-
     try {
       const writePath = await writePathPromise;
       const artifactPath = commissionArtifactPath(writePath, cid);
       await recordOps.updateResult(artifactPath, args.summary, args.artifacts);
       await recordOps.appendTimeline(artifactPath, "result_submitted", args.summary);
     } catch (err: unknown) {
-      // File write failed (e.g. ENOENT). Don't set the flag so
-      // the model can retry after the path issue is resolved.
       return {
         content: [
           {
@@ -144,8 +122,6 @@ export function makeSubmitResultHandler(
       };
     }
 
-    // Only mark as submitted after successful file write
-    sessionState.resultSubmitted = true;
     callbacks.onResult(args.summary, args.artifacts);
 
     return {
@@ -171,10 +147,9 @@ export function createCommissionToolboxWithCallbacks(
   callbacks: SessionCallbacks,
 ): McpSdkServerConfigWithInstance {
   const resources = createToolboxResources(deps);
-  const sessionState: SessionState = { resultSubmitted: false };
 
   const reportProgress = makeReportProgressHandler(deps, callbacks, resources);
-  const submitResult = makeSubmitResultHandler(deps, callbacks, sessionState, resources);
+  const submitResult = makeSubmitResultHandler(deps, callbacks, resources);
   return createSdkMcpServer({
     name: "guild-hall-commission",
     version: "0.1.0",
@@ -189,7 +164,7 @@ export function createCommissionToolboxWithCallbacks(
       ),
       tool(
         "submit_result",
-        "Submit the final result of the commission. This can only be called once. Records the result summary, optionally links artifacts, and logs the submission in the timeline.",
+        "Submit the result of the commission. Records the result summary, optionally links artifacts, and logs the submission in the timeline. Can be called multiple times; each call overwrites the previous result.",
         {
           summary: z.string(),
           artifacts: z.array(z.string()).optional(),

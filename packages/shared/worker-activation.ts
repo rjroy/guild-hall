@@ -81,7 +81,7 @@ function buildSessionContext(context: ActivationContext): string {
         "## Commission protocol",
         "",
         "- Use report_progress to log what you're doing as you work. This keeps the user informed.",
-        "- When finished, you MUST call submit_result with a summary of what you accomplished and any artifact paths you created or modified.",
+        "- Call submit_result when you have a result. You can call it again if you refine the result later; the last submission is the final one.",
         "- If you encounter gaps in the requirements, state your interpretation and proceed. You are expected to be self-sufficient.",
         "- The commission is not considered complete unless you call submit_result. Just responding with text is not enough.",
       ].join("\n"),
