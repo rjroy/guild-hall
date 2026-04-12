@@ -26,8 +26,3 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 08:14 commission-Octavia-20260412-080457 result: Spec written at `.lore/specs/infrastructure/read-only-verification-tools.md` (draft status, req-prefix VFY, 21 requirements across 7 decisions).
-
-The spec defines four MCP tools (`run_tests`, `run_typ...
-
-- 08:14 commission-Octavia-20260412-080457 completed
