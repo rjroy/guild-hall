@@ -1,7 +1,7 @@
 ---
 title: Personal Assistant AI Landscape
 date: 2026-03-09
-status: active
+status: resolved
 tags: [personal-assistant, ai-agent, openclaw, tools, operations, memory, proactivity, orchestration, security]
 related:
   - .lore/brainstorm/personal-assistant-worker.md

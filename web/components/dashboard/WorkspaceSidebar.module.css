@@ -99,8 +99,8 @@
 }
 
 .tickNowButton {
-  padding: 2px var(--space-sm);
-  font-size: 0.75rem;
+  padding: 1px var(--space-xs);
+  font-size: 0.65rem;
   font-weight: 600;
   font-family: inherit;
   color: var(--color-text-muted);
@@ -237,7 +237,7 @@
   }
 
   .tickNowButton {
-    font-size: 0.7rem;
+    font-size: 0.6rem;
   }
 
   .groupSection {

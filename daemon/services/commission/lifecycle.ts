@@ -38,7 +38,6 @@ type TrackedCommission = {
   projectName: string;
   status: CommissionStatus;
   artifactPath: string;
-  resultSignalReceived: boolean;
   lock: Promise<void>;
 };
 
@@ -100,7 +99,6 @@ export class CommissionLifecycle {
       projectName,
       status: initialStatus,
       artifactPath,
-      resultSignalReceived: false,
       lock: Promise.resolve(),
     });
   }
@@ -126,7 +124,6 @@ export class CommissionLifecycle {
       projectName,
       status,
       artifactPath,
-      resultSignalReceived: false,
       lock: Promise.resolve(),
     });
   }
@@ -183,7 +180,6 @@ export class CommissionLifecycle {
       }
 
       entry.artifactPath = artifactPath;
-      entry.resultSignalReceived = false;
       await this.recordOps.writeStatusAndTimeline(
         entry.artifactPath,
         "in_progress",
@@ -254,19 +250,10 @@ export class CommissionLifecycle {
           reason: `Cannot submit result: current state is "${entry.status}", expected "in_progress"`,
         };
       }
-      if (entry.resultSignalReceived) {
-        return {
-          outcome: "skipped" as const,
-          reason: `Result already submitted for commission "${id}"`,
-        };
-      }
-
-      entry.resultSignalReceived = true;
       await this.recordOps.updateResult(entry.artifactPath, summary, artifacts);
 
       // No deferredEvent: the toolbox already emitted commission_result
-      // to the EventBus. The resultSignalReceived guard above prevented
-      // an infinite loop, but the re-emission was still redundant.
+      // to the EventBus. Re-emitting would be redundant.
       return { outcome: "executed" as const, status: entry.status };
     });
   }

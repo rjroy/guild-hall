@@ -202,15 +202,15 @@ notifications:
     channel: ops-webhook
 ```
 
-Schedule-scoped by ID pattern:
+Commission-scoped by worker pattern:
 
 ```yaml
 notifications:
   - match:
-      type: schedule_spawned
+      type: commission_status
       projectName: guild-hall
       fields:
-        scheduleId: "nightly-*"
+        workerName: "Dalton"
     channel: desktop
 ```
 
@@ -230,7 +230,7 @@ These examples also work for triggered commission rules (once that spec is imple
 
 ## Coercion Behavior
 
-Event fields are not all strings. The `runNumber` field on `schedule_spawned` is a number. The `artifacts` field on `commission_result` is an array. The `String()` coercion handles these cases:
+Event fields are not all strings. The `artifacts` field on `commission_result` is an array. The `String()` coercion handles these cases:
 
 | Event field value | `String()` result | Matches pattern |
 |-------------------|-------------------|-----------------|

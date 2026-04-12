@@ -131,7 +131,7 @@ Add a new `describe("EventRouter field matching", ...)` block. The existing `mak
 | 3 | Missing field skip | `fields: { workerName: "Dalton" }` | `commission_status` without `workerName` | No match, no error | EVFM-2, EVFM-5 |
 | 4 | Multiple fields AND | `fields: { status: "completed", commissionId: "c1" }` | Both match | Match | EVFM-2 |
 | 5 | Multiple fields AND (partial) | `fields: { status: "completed", commissionId: "c1" }` | Status matches, commissionId doesn't | No match | EVFM-2 |
-| 6 | String coercion (number) | `fields: { runNumber: "1" }` | `schedule_spawned` with `runNumber: 1` (number) | Match | EVFM-2 |
+| 6 | String coercion (number) | `fields: { someCount: "42" }` | any event with `someCount: 42` (number) | Match | EVFM-2 |
 | 7 | Empty fields object | `fields: {}` | Any matching event | Match (same as no fields) | EVFM-4 |
 | 8 | Combined with projectName | `projectName: "guild-hall", fields: { status: "completed" }` | `commission_status` with both | Match only when both hold | EVFM-3, EVFM-13 |
 | 9 | Wildcard match | `fields: { commissionId: "commission-Dalton-*" }` | `commissionId: "commission-Dalton-20260321-143000"` | Match | EVFM-9 |

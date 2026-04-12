@@ -524,31 +524,17 @@ describe("signal state validation", () => {
   });
 });
 
-// -- resultSubmitted duplicate rejection --
+// -- resultSubmitted multiple calls --
 
-describe("resultSubmitted duplicate rejection", () => {
-  test("second resultSubmitted is rejected", async () => {
+describe("resultSubmitted multiple calls", () => {
+  test("second resultSubmitted succeeds and overwrites", async () => {
     lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
 
     const first = await lifecycle.resultSubmitted(TEST_ID, "First result");
     expect(first.outcome).toBe("executed");
 
     const second = await lifecycle.resultSubmitted(TEST_ID, "Second result");
-    expect(second.outcome).toBe("skipped");
-    if (second.outcome === "skipped") {
-      expect(second.reason).toContain("already submitted");
-    }
-  });
-
-  test("resultSignalReceived flag does not carry over after forget + register", () => {
-    lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
-    // Simulate result submission without async (just set the flag directly
-    // via the public method to verify the flag is fresh on re-register)
-    lifecycle.forget(TEST_ID);
-    lifecycle.register(TEST_ID, TEST_PROJECT, "in_progress", TEST_ARTIFACT);
-
-    // The flag should be fresh
-    expect(lifecycle.isTracked(TEST_ID)).toBe(true);
+    expect(second.outcome).toBe("executed");
   });
 });
 
@@ -730,9 +716,7 @@ describe("full lifecycle", () => {
   });
 
   test("redispatch cycle: result can be submitted after fail + redispatch", async () => {
-    // Verifies that resultSignalReceived is reset when re-entering in_progress.
-    // Without the reset, the second resultSubmitted would be rejected because
-    // the flag was still true from the first execution.
+    // Verifies that resultSubmitted works across execution cycles.
     await lifecycle.create(TEST_ID, TEST_PROJECT, TEST_ARTIFACT, "pending");
 
     // First execution cycle
@@ -751,7 +735,7 @@ describe("full lifecycle", () => {
     await lifecycle.executionStarted(TEST_ID, "/tmp/wt2/c.md");
     expect(lifecycle.getStatus(TEST_ID)).toBe("in_progress");
 
-    // This must succeed: resultSignalReceived was reset by executionStarted
+    // This must succeed: commission is in_progress again
     const r2 = await lifecycle.resultSubmitted(TEST_ID, "Second result");
     expect(r2.outcome).toBe("executed");
   });

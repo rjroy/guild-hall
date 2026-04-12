@@ -238,19 +238,54 @@ describe("submit_result", () => {
     expect(linked).toContain("notes/findings.md");
   });
 
-  test("second call returns error text", async () => {
+  test("second call succeeds and overwrites the result", async () => {
+    await writeCommissionArtifact();
+
+    const results: Array<{ summary: string; artifacts?: string[] }> = [];
+    const callbacks = makeCallbacks({
+      onResult: (summary, artifacts) => results.push({ summary, artifacts }),
+    });
+    const handler = makeSubmitResultHandler(makeDeps(), callbacks);
+
+    const first = await handler({ summary: "Done" });
+    expect(first.isError).toBeUndefined();
+
+    const second = await handler({ summary: "Done again" });
+    expect(second.isError).toBeUndefined();
+    expect(second.content[0].text).toBe("Result submitted: Done again");
+
+    // Both calls invoke the callback
+    expect(results).toHaveLength(2);
+    expect(results[1].summary).toBe("Done again");
+
+    // The artifact body reflects the last result
+    const raw = await fs.readFile(artifactPath(), "utf-8");
+    const parsed = matter(raw);
+    expect(parsed.content.trim()).toBe("Done again");
+  });
+
+  test("multiple calls each append a timeline entry", async () => {
     await writeCommissionArtifact();
 
     const handler = makeSubmitResultHandler(makeDeps(), makeCallbacks());
 
-    // First call succeeds
-    const first = await handler({ summary: "Done" });
-    expect(first.isError).toBeUndefined();
+    await handler({ summary: "First pass" });
+    await handler({ summary: "Second pass" });
+    await handler({ summary: "Final pass" });
 
-    // Second call returns error
-    const second = await handler({ summary: "Done again" });
-    expect(second.isError).toBe(true);
-    expect(second.content[0].text).toContain("already submitted");
+    const timeline = await readTimeline();
+    const resultEntries = timeline.filter(
+      (e) => e.event === "result_submitted",
+    );
+    expect(resultEntries).toHaveLength(3);
+    expect(resultEntries[0].reason).toBe("First pass");
+    expect(resultEntries[1].reason).toBe("Second pass");
+    expect(resultEntries[2].reason).toBe("Final pass");
+
+    // The artifact body reflects the last submission
+    const raw = await fs.readFile(artifactPath(), "utf-8");
+    const parsed = matter(raw);
+    expect(parsed.content.trim()).toBe("Final pass");
   });
 
   test("works without artifacts parameter", async () => {
@@ -358,7 +393,7 @@ describe("commissionToolboxFactory", () => {
     }
   });
 
-  test("second submit_result does not emit event", async () => {
+  test("second submit_result emits event with updated summary", async () => {
     await writeCommissionArtifact();
 
     const deps = makeDeps();
@@ -377,8 +412,9 @@ describe("commissionToolboxFactory", () => {
     await handler({ summary: "Second" });
 
     const resultEvents = emittedEvents.filter((e) => e.type === "commission_result");
-    expect(resultEvents).toHaveLength(1);
+    expect(resultEvents).toHaveLength(2);
     expect(resultEvents[0].type === "commission_result" && resultEvents[0].summary).toBe("First");
+    expect(resultEvents[1].type === "commission_result" && resultEvents[1].summary).toBe("Second");
   });
 
   test("returns valid MCP server config", () => {
@@ -390,9 +426,9 @@ describe("commissionToolboxFactory", () => {
   });
 });
 
-// -- Per-closure resultSubmitted flag --
+// -- Per-closure server isolation --
 
-describe("per-closure resultSubmitted flag", () => {
+describe("per-closure server isolation", () => {
   test("each createCommissionToolboxWithCallbacks() call gets its own server", () => {
     const toolbox1 = createCommissionToolboxWithCallbacks(makeDeps(), makeCallbacks());
     const toolbox2 = createCommissionToolboxWithCallbacks(makeDeps(), makeCallbacks());
@@ -406,22 +442,19 @@ describe("per-closure resultSubmitted flag", () => {
     expect(toolbox1.instance).not.toBe(toolbox2.instance);
   });
 
-  test("separate handler instances have independent resultSubmitted flags", async () => {
+  test("separate handler instances both accept multiple submissions", async () => {
     await writeCommissionArtifact();
 
     const handler1 = makeSubmitResultHandler(makeDeps(), makeCallbacks());
     const handler2 = makeSubmitResultHandler(makeDeps(), makeCallbacks());
 
-    // First handler submits successfully
-    const result1 = await handler1({ summary: "Handler 1 result" });
+    const result1 = await handler1({ summary: "Handler 1 first" });
     expect(result1.isError).toBeUndefined();
 
-    // First handler can't submit again
-    const result1Again = await handler1({ summary: "Handler 1 again" });
-    expect(result1Again.isError).toBe(true);
+    const result1Again = await handler1({ summary: "Handler 1 second" });
+    expect(result1Again.isError).toBeUndefined();
 
-    // Second handler is independent and can still submit
-    const result2 = await handler2({ summary: "Handler 2 result" });
+    const result2 = await handler2({ summary: "Handler 2 first" });
     expect(result2.isError).toBeUndefined();
   });
 });

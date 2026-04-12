@@ -21,15 +21,13 @@ import {
  * Services needed by the manager toolbox. Separated from GuildHallToolboxDeps
  * because only the manager worker needs them; other toolboxes don't.
  *
- * scheduleLifecycle, recordOps, and packages are optional because they're
- * needed only for scheduled commission tools.
+ * recordOps and packages are optional because not all toolbox contexts
+ * need artifact persistence or package enumeration.
  */
 export interface GuildHallToolServices {
   commissionSession: CommissionSessionForRoutes;
   gitOps: GitOps;
   config: AppConfig;
-  scheduleLifecycle?: unknown;
-  triggerEvaluator?: unknown;
   recordOps?: CommissionRecordOps;
   packages?: DiscoveredPackage[];
 }

@@ -1,7 +1,7 @@
 ---
 title: Guild Master cannot discover worker domain plugin skills
 date: 2026-03-27
-status: open
+status: parked
 tags: [gap, capability-discovery, guild-master, domain-plugins, delegation]
 modules: [daemon-services-manager, daemon-services-manager-context]
 related: [.lore/specs/workers/worker-domain-plugins.md, .lore/specs/workers/guild-hall-workers.md]
