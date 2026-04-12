@@ -112,11 +112,9 @@ describe("CommissionHeader type contract", () => {
       isModelOverride: true,
       isLocalModel: false,
       localModelBaseUrl: undefined,
-      commissionType: "scheduled",
     };
     expect(props.model).toBe("opus");
     expect(props.isModelOverride).toBe(true);
-    expect(props.commissionType).toBe("scheduled");
   });
 
   test("module is importable", async () => {

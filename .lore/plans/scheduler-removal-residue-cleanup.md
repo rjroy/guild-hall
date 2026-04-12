@@ -1,7 +1,7 @@
 ---
 title: "Plan: Scheduler Removal Residue Cleanup"
 date: 2026-04-12
-status: draft
+status: executed
 tags: [cleanup, heartbeat, dead-code]
 related:
   - .lore/issues/scheduler-removal-residue.md

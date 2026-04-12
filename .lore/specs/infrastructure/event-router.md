@@ -69,12 +69,11 @@ The architecture supports additional consumers without changing the router. Trig
 
 ### Event Provenance
 
-- REQ-EVRT-7: Of the 13 `SystemEvent` variants (as of this spec's revision), three carry `projectName`:
+- REQ-EVRT-7: Of the 10 `SystemEvent` variants (as of this spec's revision), two carry `projectName`:
   - `commission_status`: `projectName` is optional (may be undefined).
-  - `schedule_spawned`: `projectName` is required.
   - `toolbox_replicate`: `projectName` is required.
 
-  The remaining 10 event types do not carry `projectName`.
+  The remaining 8 event types do not carry `projectName`.
 
 - REQ-EVRT-8: The router does not resolve `projectName` from other identifiers. If a rule matches on `projectName` and the event doesn't carry it, the rule silently skips. No lookup against commission or meeting state. This keeps the router stateless and decoupled from activity services.
 

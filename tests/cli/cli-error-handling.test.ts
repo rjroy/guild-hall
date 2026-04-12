@@ -105,8 +105,8 @@ describe("CLI error handling: missing positional args (REQ-CLI-COM-15a)", () => 
 
   test("optional params do not need values", () => {
     const op = makeOperation({
-      operationId: "commission.trigger.commission.update",
-      invocation: { method: "POST", path: "/commission/trigger/commission/update" },
+      operationId: "commission.request.commission.update",
+      invocation: { method: "POST", path: "/commission/request/commission/update" },
       parameters: [
         { name: "commissionId", required: true, in: "body" },
         { name: "status", required: true, in: "body" },
@@ -120,8 +120,8 @@ describe("CLI error handling: missing positional args (REQ-CLI-COM-15a)", () => 
 
   test("usage line shows optional params in brackets", () => {
     const op = makeOperation({
-      operationId: "commission.trigger.commission.update",
-      invocation: { method: "POST", path: "/commission/trigger/commission/update" },
+      operationId: "commission.request.commission.update",
+      invocation: { method: "POST", path: "/commission/request/commission/update" },
       parameters: [
         { name: "commissionId", required: true, in: "body" },
         { name: "status", required: true, in: "body" },
