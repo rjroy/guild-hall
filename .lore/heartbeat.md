@@ -31,3 +31,8 @@ Workers can also add entries to this file during their sessions.
 1. **Dead type stubs** (`toolbox-utils....
 
 - 07:26 commission-Octavia-20260412-072432 completed
+- 07:31 commission-Dalton-20260412-072844 result: Scheduler removal residue cleaned. All five steps complete.
+
+**Changes made:**
+1. `daemon/lib/toolbox-utils.ts`: Removed `scheduleLifecycle?: unknown` and `triggerEvaluator?: unknown` from `GuildHallT...
+- 07:32 commission-Dalton-20260412-072844 completed
