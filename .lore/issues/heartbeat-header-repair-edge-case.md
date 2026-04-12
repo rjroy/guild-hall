@@ -1,7 +1,7 @@
 ---
 title: "repairHeartbeatHeader Edge Case"
 date: 2026-04-05
-status: open
+status: invalid
 tags: [bug, heartbeat]
 ---
 
