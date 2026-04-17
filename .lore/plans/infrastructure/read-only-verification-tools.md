@@ -1,7 +1,7 @@
 ---
 title: "Plan: Read-Only Verification Tools"
 date: 2026-04-16
-status: proposed
+status: approved
 tags: [toolbox, verification, mcp-tools, worker-boundaries, plan]
 modules:
   - daemon/services/verification-toolbox
