@@ -81,7 +81,7 @@ describe("replicate toolbox factory", () => {
       delete process.env.REPLICATE_API_TOKEN;
       const factory = await loadFactory();
       const { server } = factory(makeDeps());
-      const instance = server.instance as McpServerInstance;
+      const instance = server.instance as unknown as McpServerInstance;
 
       for (const name of TOOL_NAMES) {
         expect(instance._registeredTools[name]).toBeDefined();
@@ -92,7 +92,7 @@ describe("replicate toolbox factory", () => {
       delete process.env.REPLICATE_API_TOKEN;
       const factory = await loadFactory();
       const { server } = factory(makeDeps());
-      const instance = server.instance as McpServerInstance;
+      const instance = server.instance as unknown as McpServerInstance;
 
       for (const name of TOOL_NAMES) {
         const registeredTool = instance._registeredTools[name];
@@ -106,7 +106,7 @@ describe("replicate toolbox factory", () => {
       process.env.REPLICATE_API_TOKEN = "";
       const factory = await loadFactory();
       const { server } = factory(makeDeps());
-      const instance = server.instance as McpServerInstance;
+      const instance = server.instance as unknown as McpServerInstance;
 
       const registeredTool = instance._registeredTools["generate_image"];
       const result = await instance.executeToolHandler(registeredTool, {}, {});
@@ -134,7 +134,7 @@ describe("replicate toolbox factory", () => {
       process.env.REPLICATE_API_TOKEN = "test-token-123";
       const factory = await loadFactory();
       const { server } = factory(makeDeps());
-      const instance = server.instance as McpServerInstance;
+      const instance = server.instance as unknown as McpServerInstance;
 
       for (const name of TOOL_NAMES) {
         expect(instance._registeredTools[name]).toBeDefined();

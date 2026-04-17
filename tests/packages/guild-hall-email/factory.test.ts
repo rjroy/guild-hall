@@ -277,7 +277,7 @@ describe("unconfigured tool behavior", () => {
     const result = factory(makeDeps());
 
     // Access the registered tool and invoke its handler through the MCP server instance
-    const instance = result.server.instance as McpServerInstance;
+    const instance = result.server.instance as unknown as McpServerInstance;
     const registeredTool = instance._registeredTools["list_mailboxes"];
     expect(registeredTool).toBeDefined();
 

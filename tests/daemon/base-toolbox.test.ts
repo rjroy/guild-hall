@@ -757,7 +757,7 @@ describe("project_briefing", () => {
     });
 
     const toolNames = Object.keys(
-      (server.instance as Record<string, unknown>)._registeredTools as Record<string, unknown>,
+      (server.instance as unknown as Record<string, unknown>)._registeredTools as Record<string, unknown>,
     );
     expect(toolNames).toContain("project_briefing");
   });
@@ -808,7 +808,7 @@ describe("list_guild_capabilities", () => {
     });
 
     const toolNames = Object.keys(
-      (server.instance as Record<string, unknown>)._registeredTools as Record<string, unknown>,
+      (server.instance as unknown as Record<string, unknown>)._registeredTools as Record<string, unknown>,
     );
     expect(toolNames).toContain("list_guild_capabilities");
   });
@@ -919,7 +919,7 @@ describe("add_heartbeat_entry", () => {
     });
 
     const toolNames = Object.keys(
-      (server.instance as Record<string, unknown>)._registeredTools as Record<string, unknown>,
+      (server.instance as unknown as Record<string, unknown>)._registeredTools as Record<string, unknown>,
     );
     expect(toolNames).toContain("add_heartbeat_entry");
   });

@@ -37,6 +37,8 @@ An agent with shell access can discover what the daemon offers, invoke operation
 
 **When you make a thing, make a CLI. When you make a CLI, make it for agents.**
 
+The daemon provides the primitives. For how an LLM agent composes them into features, see `agent-native-layer.md`.
+
 ## Route/Service Split with DI Factories
 
 Every route file is a factory: `createXRoutes(deps) → RouteModule`. Each factory receives only the slice of dependencies it needs. Production wiring lives in one place, which builds real deps and passes them down.
