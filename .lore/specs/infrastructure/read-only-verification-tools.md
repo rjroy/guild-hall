@@ -1,9 +1,9 @@
 ---
 title: Read-Only Verification Tools
 date: 2026-04-12
-status: draft
+status: approved
 tags: [toolbox, verification, mcp-tools, worker-boundaries, infrastructure]
-modules: [daemon/services/verification-toolbox, daemon/lib/project-checks]
+modules: [daemon/services/verification-toolbox, daemon/lib/project-checks, daemon/routes/admin, daemon/app, daemon/routes/workspace-issue]
 related:
   - .lore/specs/workers/worker-tool-boundaries.md
   - .lore/specs/infrastructure/token-efficient-git-tools.md
@@ -22,12 +22,16 @@ The tools are `run_tests`, `run_typecheck`, `run_lint`, and `run_build`. Each ru
 
 The motivating case is Thorne (the reviewer), who needs to validate findings against actual test/lint/build output but should not have Bash access because Bash gives write capability. This toolbox enforces the boundary structurally: the worker can observe verification results but cannot execute arbitrary commands.
 
+Because the motivating worker cannot create the config file itself, the spec also specifies how the file comes to exist: project registration writes an empty template automatically, registration files an accompanying issue as the persistent record of the unpopulated gap, and the daemon reconciles the same state on startup for projects registered before this spec landed. Without that bootstrap loop the tools ship dead on arrival.
+
 ## Entry Points
 
 - Worker packages declare `systemToolboxes: ["verification"]` to opt in
 - `.lore/guild-hall-config.yaml` in the project repo defines the check commands
 - `daemon/services/toolbox-resolver.ts` registers the factory in `SYSTEM_TOOLBOX_REGISTRY`
 - Commission and meeting sessions provide `workingDirectory` through `GuildHallToolboxDeps`
+- `daemon/routes/admin.ts` registration handler writes the template config and files the bootstrap issue on project registration
+- `daemon/app.ts` `createProductionApp()` reconciles registered projects on startup, writing missing templates and filing missing issues
 
 ## Decision 1: System Toolbox, Not Domain Package
 
@@ -190,6 +194,30 @@ The config file is read from the worktree that the session is operating in. For 
   - Config changes during a session take effect on the next tool invocation.
   - No config caching in the toolbox. The file is small; the read cost is negligible.
 
+## Decision 8: Automatic Bootstrap and Gap Record
+
+### Motivation
+
+The tools are useless without a config file, but the motivating worker (Thorne) has no Write capability and cannot create one. Leaving the file's creation to the user means every registered project has to remember a manual step that the system could do for it, and the "not configured" message in REQ-VFY-14 lands in worker output where it may or may not be noticed. Two constraints shape the solve. First, projects are sometimes registered before any code exists (empty repos, new scaffolds), so the template must tolerate empty values indefinitely. Second, projects registered before this spec lands must also reach the configured state without user intervention.
+
+### Decision
+
+Project registration writes the template automatically and files a tracking issue on the same transaction. Empty string values behave identically to missing keys, letting the template ship inert and letting projects legitimately mark a check as "not applicable." The daemon performs the same reconciliation on startup for projects registered before this spec landed.
+
+The issue is the gap's persistent record. It lives in `.lore/issues/` under the usual issue conventions and remains open until a human or worker populates the commands and closes it.
+
+### Requirements
+
+- REQ-VFY-22: When a project is registered through the daemon's register endpoint, the daemon writes `.lore/guild-hall-config.yaml` to the project's integration worktree root if the file does not already exist. The template contains a `checks` section with all four keys (`test`, `typecheck`, `lint`, `build`) present and set to empty strings, plus a leading comment block explaining the file's purpose and linking to this spec. If the file already exists, it is not overwritten.
+
+- REQ-VFY-23: When registration writes the template (file did not previously exist), the daemon also files an issue in the project's `.lore/issues/` directory using the existing issue-creation flow. The issue title is "Populate verification check commands." The body names the four supported keys, explains that each should be set to the shell command for that check or left empty if the project does not have one, and references this spec. The issue's status follows existing issue conventions and remains open until explicitly closed.
+
+- REQ-VFY-24: A check value of empty string is treated identically to a missing key. The tool returns the REQ-VFY-14 informational message with no modification. This lets the template ship with all four keys present but inert, and lets projects legitimately record a check as "not applicable" by leaving it empty.
+
+- REQ-VFY-25: On daemon startup, `createProductionApp()` reconciles registered projects before binding the server. For each project in `~/.guild-hall/config.yaml` whose integration worktree does not contain `.lore/guild-hall-config.yaml`, the daemon writes the template (REQ-VFY-22) and files the issue (REQ-VFY-23). Projects whose worktree cannot be reached (missing directory, permission error, git operation failure) are skipped with a log entry at warn level; reconciliation failure on one project must not prevent the daemon from starting or reconciling the rest.
+
+- REQ-VFY-26: Both the registration-time write (REQ-VFY-22) and the startup reconciliation (REQ-VFY-25) commit the new config file and issue to the project's integration branch (`claude`) so that subsequent activity worktrees branched from `claude` inherit the files. The commit message is `"chore: bootstrap verification config"`. If the commit fails (e.g., detached worktree state), the write is rolled back and the failure is logged; the daemon does not leave uncommitted files on the integration branch.
+
 ## Implementation Structure
 
 ### New files
@@ -201,6 +229,8 @@ The config file is read from the worktree that the session is operating in. For 
 ### Modified files
 
 - `daemon/services/toolbox-resolver.ts`: Import `verificationToolboxFactory`, add to `SYSTEM_TOOLBOX_REGISTRY`.
+- `daemon/routes/admin.ts`: Extend the register handler at `POST /system/config/project/register` to write the template config file and file the bootstrap issue after the integration worktree is created but before the success response is returned. Reuse the issue-creation logic from `daemon/routes/workspace-issue.ts` (extract a shared helper if needed).
+- `daemon/app.ts`: Extend `createProductionApp()` to perform startup reconciliation per REQ-VFY-25. The reconciliation step iterates `config.projects`, checks each integration worktree for the config file, writes the template + files the issue where missing, and commits to the `claude` branch. Failures are logged and do not block daemon startup.
 
 ### Worker package changes (not part of this spec's implementation)
 
@@ -228,6 +258,13 @@ The config file is read from the worktree that the session is operating in. For 
 - [ ] Worker with `systemToolboxes: ["verification"]` gets the tools in their resolved tool set
 - [ ] Command execution uses `cleanGitEnv()` to strip git environment variables
 - [ ] Command execution uses session's `workingDirectory` as cwd
+- [ ] Project registration writes template `.lore/guild-hall-config.yaml` with four empty check keys when file is absent
+- [ ] Project registration files "Populate verification check commands" issue to `.lore/issues/` when the template was just written
+- [ ] Registration does not overwrite an existing config file or re-file a duplicate issue
+- [ ] Empty-string check value behaves identically to a missing key (returns REQ-VFY-14 informational message)
+- [ ] Daemon startup reconciliation writes template + files issue for pre-existing registered projects missing the config
+- [ ] Reconciliation failure on one project logs a warning and does not block daemon startup or other projects
+- [ ] Template write and issue creation are committed to the `claude` integration branch with message `chore: bootstrap verification config`
 
 ## AI Validation
 
@@ -238,4 +275,6 @@ The config file is read from the worktree that the session is operating in. For 
 - Code review by fresh-context sub-agent
 
 **Custom:**
-- Manual verification: create `.lore/guild-hall-config.yaml` in a test project, dispatch a commission to a worker with the verification toolbox, confirm tools return real command output
+- Manual verification: register a fresh test project and confirm `.lore/guild-hall-config.yaml` and the "Populate verification check commands" issue both appear, committed to the `claude` branch
+- Manual verification: populate a check command in the template, dispatch a commission to a worker with the verification toolbox, confirm the tool returns real command output
+- Manual verification: delete `.lore/guild-hall-config.yaml` from a registered project's integration worktree, restart the daemon, and confirm reconciliation writes the template and files the issue
