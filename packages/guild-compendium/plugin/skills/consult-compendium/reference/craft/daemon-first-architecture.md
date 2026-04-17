@@ -1,7 +1,7 @@
 ---
 title: Daemon-First Architecture
 domain: architecture
-last_updated: 2026-04-04
+last_updated: 2026-04-16
 source: "reference extraction (shelf-judge, 2026-04-04)"
 ---
 
@@ -25,11 +25,19 @@ The daemon typically runs on a Unix socket (for local-only apps) or TCP (for net
 
 ### Why CLI Matters
 
-The CLI isn't a convenience interface. It's what makes the daemon usable by other agents.
+The CLI is an agent interface that humans can also use. Not the reverse.
 
-An agent with shell access can discover what the daemon offers, invoke operations, and read results without a custom client library. If the daemon exposes an operations registry with runtime discovery, agents learn the surface the same way humans do.
+An agent with shell access can discover what the daemon offers, invoke operations, and read results without a custom client library or source code. The CLI is how agents control the daemon. If an operation exists in the web UI but not the CLI, agents can't do it.
 
-**When you make a thing, make a CLI.**
+**Full parity.** Every daemon operation gets a CLI command. The CLI is not a curated subset of "useful" commands. If a human can do it through the web interface, an agent must be able to do it through the CLI. Abridged CLIs defeat the purpose.
+
+**No interactive prompts.** All parameters are expressed as flags and positional arguments. An agent cannot navigate menus, confirmations, or wizard flows. If a command needs input, it takes it as arguments.
+
+**Machine-first output.** Default output is structured (JSON). Human-friendly formatting (tables, colors, prose) is opt-in via a `--format` flag or similar. An agent that has to parse pretty-printed tables is fragile. An agent that reads JSON is robust.
+
+**When you make a thing, make a CLI. When you make a CLI, make it for agents.**
+
+The daemon provides the primitives. For how an LLM agent composes them into features, see `agent-native-layer.md`.
 
 ## Route/Service Split with DI Factories
 
@@ -47,9 +55,9 @@ The runner owns configuration, error handling, retry logic, and observability. C
 
 This isn't abstraction for its own sake. When service calls scatter across the codebase, every caller reinvents error handling and configuration. One entry point means one place to fix, observe, and evolve.
 
-## Operations Registry and CLI Discovery
+## Operations Registry and Progressive Discovery
 
-Routes can export operation metadata with hierarchy information. A registry builds a navigation tree from these exports.
+Routes export operation metadata with hierarchy information. A registry builds a navigation tree from these exports.
 
 ```
 mycli help                    → Full tree
@@ -58,6 +66,18 @@ mycli project status get      → Operation details
 ```
 
 The CLI binary contains no operation catalog. The daemon is the source of truth. Progressive discovery means the CLI stays thin and always reflects the daemon's current capabilities.
+
+### The Discovery Contract
+
+Each `help` level functions like a SKILL.md: just enough to know what to do next, with a path to drill deeper. An agent should never need to read source code or memorize the full command tree.
+
+**Top-level help** lists all command groups with a one-line purpose for each. An agent reads this once to orient.
+
+**Group-level help** (`<cli> <group> help`) lists all commands in the group, their purpose, and required arguments. An agent reads this when it knows the domain but not the operation.
+
+**Command-level help** (`<cli> <group> <command> help`) shows the full contract for one operation: all flags and arguments (with types and defaults), the output shape (JSON schema or example), and error codes. An agent reads this when it's ready to act.
+
+Each level must be machine-parseable. Prose descriptions are fine alongside structured data, but the structured data must be present. A help command that returns only prose is incomplete.
 
 ## SSE Streaming
 

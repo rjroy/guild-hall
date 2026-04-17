@@ -20,11 +20,11 @@
     "guild-hall": "bun run cli/index.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.81",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.112",
     "gray-matter": "^4.0.3",
     "hono": "^4.12.1",
     "micromatch": "^4.0.8",
-    "next": "16.2.0",
+    "next": "^16.2.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
