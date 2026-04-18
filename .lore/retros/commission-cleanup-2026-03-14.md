@@ -2,8 +2,16 @@
 title: Commission batch cleanup (2026-03-11 to 2026-03-14)
 date: 2026-03-14
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, commissions, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved.** The single actionable item (CHANGELOG gap) closed at the 1.1.0 release cut. Remaining sections (Infrastructure Issues, Lessons) are historical observations, not actionable items.
+
+Tags follow the same legend used in other validated retros: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -15,17 +23,16 @@ The spec → plan → implement (Dalton) → test (Sable) → review (Thorne) pa
 
 ## Loose Threads
 
-### CHANGELOG has no post-1.0.0 entries
+### CHANGELOG has no post-1.0.0 entries **[RESOLVED]**
 
-`CHANGELOG.md` has a single `[1.0.0] - 2026-03-08` entry. PRs #101 through #110 are not documented. Missing entries include:
+All five PRs called out are now documented under `[1.1.0] - 2026-03-20`:
+- #105 — Sandboxed execution environments (Phase 1 and Phase 2)
+- #106 — Worker `canUseToolRules` declarations
+- #108 — Daemon Application Boundary migration
+- #109 — Package skill handler system / CLI progressive discovery
+- #110 — Injectable daemon logger
 
-- Sandboxed execution and canUseTool callback system (#105)
-- Worker Bash access declarations and canUseToolRules (#106)
-- Daemon Application Boundary migration (#108)
-- CLI progressive discovery / package skill handler (#109)
-- Injectable daemon logger (#110)
-
-The CHANGELOG follows [Common Changelog](https://common-changelog.org/) format per CLAUDE.md. An `[Unreleased]` section should be added covering these PRs.
+CHANGELOG also now carries an active `[Unreleased]` section. Confirms the project memory note that CHANGELOG is a release-time activity, not continuous — the gap closed at the 1.1.0 cut.
 
 ## Infrastructure Issues
 

@@ -2,8 +2,16 @@
 title: "Meeting batch cleanup (Apr 5-17)"
 date: 2026-04-18
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, meetings, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**Loose thread filed as issue.** The mockup metadata sidebar spec/implementation mismatch was filed as `.lore/issues/mockup-sidebar-spec-implementation-mismatch.md` with the same Option A/B framing used for `meeting-layout-spec-implementation-mismatch.md`. Two spec-drift issues now follow the same pattern; if a third appears, the gap is a process problem (implementation commissions need an explicit spec-alignment step when they knowingly deviate), not a per-feature problem.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -11,7 +19,7 @@ Five closed meetings across two workers (Guild Master 3, Octavia 2), spanning Ap
 
 ## Untracked Decisions
 
-**Mockup metadata sidebar ships without file size.** The April 6 Guild Master meeting notes record this as "deferred to keep scope tight... documented as a known gap for future work." But the spec (`.lore/specs/ui/html-mockup-preview.md:80`) still requires "filename, file size, last modified date" in the sidebar, and the implementation (`web/components/artifact/MockupMetadataSidebar.tsx`) omits size. No issue was filed. Spec and code are out of sync with no tracking record. Either file an issue to add size (requires extending `collectArtifactFiles()` to include stat output) or amend the spec to reflect what actually shipped.
+**Mockup metadata sidebar ships without file size.** **[OPEN — issue filed]** Filed 2026-04-18 as `.lore/issues/mockup-sidebar-spec-implementation-mismatch.md`. Spec at `.lore/specs/ui/html-mockup-preview.md:80` requires "filename, file size, last modified date." Implementation at `web/components/artifact/MockupMetadataSidebar.tsx` ships filename, format, last modified, project — no file size. Issue documents Option A (amend spec, recommended) and Option B (add file size + stat plumbing).
 
 ## Patterns
 

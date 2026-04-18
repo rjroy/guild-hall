@@ -2,8 +2,16 @@
 title: "Meeting batch cleanup (2026-03-14 to 2026-03-18)"
 date: 2026-03-18
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, meetings, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved.** Each "Untracked Decision" was either a behavioral convention that took hold in practice (CHANGELOG cadence, dependency-driven dispatch, review-finding discipline, memory-scope split) or a structural decision that has since shipped (memory single-file redesign carries the worker/project scope split). The auto-deploy mechanism remains an alternative under the parent `package-distribution-model` issue, which is correctly `status: parked`.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -11,17 +19,23 @@ tags: [retro, meetings, cleanup]
 
 ## Untracked Decisions
 
-**Read-path route tests should mock the record layer.** During the test duplication audit (GM 20260314-150108-1), the team agreed that read-path route tests should follow the write-path pattern: mock the record layer rather than exercising actual filesystem parsing. This eliminates duplication between route tests and service tests without removing coverage. Not tracked in any spec or issue.
+**Read-path route tests should mock the record layer.** **[RESOLVED — convention]**
+Adopted in practice. Read-path route tests follow the established pattern of mocking the record layer (e.g. `tests/daemon/routes/commissions-read.test.ts` is a separate file from the write-path `commissions.test.ts`). No spec encoding needed; the test layout enforces the convention.
 
-**CHANGELOG updates are release-time, not continuous.** Feedback recorded in GM 20260316-074532 progress notes. CHANGELOG should be updated at release boundaries, not as work happens. This prevents the CHANGELOG from becoming a noisy commit-by-commit log.
+**CHANGELOG updates are release-time, not continuous.** **[RESOLVED — convention]**
+Confirmed by the 2026-03-14 retro validation: the CHANGELOG gap closed at the 1.1.0 release cut (2026-03-20), with an active `[Unreleased]` section maintained continuously. Project memory carries this rule.
 
-**Use commission dependencies for automatic chaining instead of manual dispatch sequencing.** Feedback from GM 20260317-222526 progress notes. When dispatching multi-step commission chains, the Guild Master should use the dependency field rather than manually sequencing dispatches. The system supports this natively.
+**Use commission dependencies for automatic chaining instead of manual dispatch sequencing.** **[RESOLVED — Guild Master practice]**
+Behavioral expectation that has carried forward. The dependency field is the dispatch idiom; manual sequencing is the deprecated path.
 
-**Don't downgrade review findings from "incorrect" to "not blocking."** From the email refactor review discussion (GM 20260317-222526). Thorne's job is to flag accurately. Leadership's job is to decide what merits action. "Correct matters. But also don't over-engineer fixes beyond what's warranted." Partially overlaps with the existing lessons-learned rule about "pre-existing" findings, but adds the leadership/worker responsibility split.
+**Don't downgrade review findings from "incorrect" to "not blocking."** **[RESOLVED — review discipline]**
+Encoded in Thorne's posture (`packages/guild-hall-reviewer/posture.md:29`): "Present all findings with their actual impact. Do not silently triage into 'worth fixing' vs 'not worth mentioning.' The reader decides what to act on." The leadership/worker responsibility split is implicit in the same posture.
 
-**Worker memory is for operational notes; project status lives in project scope only.** From the documentation cleanup session (GM 20260315-103434-3). Memory organization decision to prevent drift between project and worker scopes. Project status consolidated to project memory; worker memory reserved for things specific to that worker's operation. The memory redesign implemented this structurally, but the principle itself isn't stated in any spec.
+**Worker memory is for operational notes; project status lives in project scope only.** **[RESOLVED — structural]**
+The memory single-file redesign (`.lore/specs/infrastructure/memory-single-file-redesign.md`, `status: implemented`) implements the scope split structurally. Three scopes — global, project, worker — each backed by separate files. Workers cannot accidentally write project status to worker scope because the scope is an explicit parameter on `edit_memory`.
 
-**Auto-deploy mechanism for worker packages.** From the vision discussion (GM 20260317-140506-2). When rejecting the idea of self-modifying worker packages, the team identified auto-deploy on PR merge as the correct alternative. systemd timer was suggested. Related to the package-distribution-model issue but the specific deployment mechanism isn't tracked there.
+**Auto-deploy mechanism for worker packages.** **[RESOLVED — folded into parked issue]**
+The auto-deploy direction (e.g. systemd timer on PR merge) is one of the candidates under `.lore/issues/package-distribution-model.md`, which is `status: parked`. The parent issue tracks the broader question of repo-vs-installed package locations; auto-deploy is an implementation choice within that. Not separately trackable until the parent issue unparks.
 
 ## Patterns
 

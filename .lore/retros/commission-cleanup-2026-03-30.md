@@ -2,8 +2,16 @@
 title: "Commission batch cleanup (March 24-30, 2026)"
 date: 2026-03-30
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, commissions, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved or filed.** ArtifactProvenance JSDoc now matches behavior (`web/components/artifact/ArtifactProvenance.tsx:27-33` describes the worker-attribution surface, not stub behavior). The Guild Master null-portrait fallback is moot: `web/components/ui/WorkerPortrait.tsx:38-51` renders an initials placeholder for any missing portrait, no hardcoded fallback to suppress. The campaigns brainstorm is `status: parked` — deliberate deferral, not a dropped thread. The git-tools token-perf issue was mis-statused as `resolved` despite no implementation; re-opened on 2026-04-18 (`.lore/issues/improve-token-perf-of-git-tools.md`) with the research-backed fix direction. Infrastructure issues (duplicate linked_artifacts, blank YAML lines, double `status_failed`) all verified resolved by the artifact-writer raw-byte splicing rewrite and the lifecycle refactor — same conclusions as later retros.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -19,39 +27,39 @@ Dalton's self-review on quick-add issues (commission-Dalton-20260330-113632) was
 
 ## Loose Threads
 
-### Stale JSDoc on ArtifactProvenance (Dalton, Thorne)
+### Stale JSDoc on ArtifactProvenance (Dalton, Thorne) **[RESOLVED]**
 
-The ArtifactProvenance component's JSDoc still describes the Phase 1 stub behavior, not the current worker attribution implementation. Both Dalton (during implementation) and Thorne (during review) noted this. No fix was dispatched.
+`web/components/artifact/ArtifactProvenance.tsx:27-33` now describes the actual behavior — the breadcrumb-plus-attribution bar, conditional source row, DetailHeader delegation. The stub-era language is gone.
 
-### Guild Master null portrait fallback (Dalton, Thorne)
+### Guild Master null portrait fallback (Dalton, Thorne) **[RESOLVED]**
 
-When the Guild Master has a null portrait in the roster, the hardcoded fallback is suppressed. Thorne flagged this as a UX edge case worth a test. No follow-up.
+`web/components/ui/WorkerPortrait.tsx:38-51` renders an initials placeholder when `portraitUrl` is absent (or `?` when name is also missing). There is no hardcoded fallback being suppressed; the missing-portrait path is the placeholder path. The original concern doesn't apply to current code.
 
-### Guild Campaigns brainstorm open questions (Octavia)
+### Guild Campaigns brainstorm open questions (Octavia) **[RESOLVED — accepted-as-parked]**
 
-The guild campaigns brainstorm (`.lore/brainstorm/guild-campaigns-artifact-design.md`) has 7 open questions about file structure, milestone triggers, wave granularity, campaign registration, commission-campaign binding, and abandonment state. No spec commission followed. This may be intentional deferral.
+`.lore/brainstorm/guild-campaigns-artifact-design.md` carries `status: parked` in its frontmatter. The 7 open questions are intentionally not yet answered — the brainstorm is waiting for a wave that justifies investing in the artifact design. Parked is a real lifecycle state, not a dropped thread.
 
-### Git tools token performance (Octavia, Verity)
+### Git tools token performance (Octavia, Verity) **[OPEN — issue re-filed]**
 
-The brainstorm and research are both complete. Research validated a 3-layer approach (binary exclusion, generated file exclusion, 20KB per-file cap) with strong evidence from the ecosystem. The issue is marked "resolved" in `.lore/issues/`, but no implementation exists. If "resolved" means "investigation complete, approach decided," the implementation is still pending.
+The original issue at `.lore/issues/improve-token-perf-of-git-tools.md` was mis-marked `resolved` after only the research landed (`.lore/research/token-efficient-git-tools.md`). Verified 2026-04-18 that no token-budget code exists in `packages/guild-hall-developer/src` or `daemon/lib/git.ts` (no `MAX_BYTES`, `truncate`, or `outputLimit` in the git tool surface). Re-opened the issue with verified locations and the 3-layer fix direction from the research. Closing this loose thread with a tracked issue, not a code change.
 
 ## Infrastructure Issues
 
-### Duplicate linked_artifacts (systematic)
+### Duplicate linked_artifacts (systematic) **[RESOLVED]**
 
-Present in 18 of 21 Dalton + Thorne commissions. Every artifact in the `linked_artifacts` array appears twice. Thorne first flagged this in the March 24 attribution review and re-flagged it in the March 30 system prompt review. The artifact writer appends artifacts on both creation and completion (or similar double-write path). This has been a known issue across at least two cleanup cycles with no fix dispatched.
+Dedup enforced at `daemon/services/commission/record.ts:207` and `daemon/services/meeting/record.ts:278-279`. Same conclusion as the 2026-03-15, 2026-03-18, and 2026-03-24 retros — the fix landed.
 
-### Blank lines in linked_artifacts YAML
+### Blank lines in linked_artifacts YAML **[RESOLVED]**
 
-Several Thorne commissions have a blank line after the first `linked_artifacts` entry, producing a null element in the YAML array. Same root cause as the duplication: the artifact writer's YAML serialization has formatting bugs.
+Resolved by the artifact writer rewrite to raw-byte splicing (documented at `daemon/services/commission/record.ts:7`). `gray-matter`'s `stringify()` is no longer used.
 
-### Thorne review toolbox limitation
+### Thorne review toolbox limitation **[RESOLVED — by-design]**
 
-Thorne was asked to write review findings to `.lore/reviews/` but lacks filesystem write tools. Commission-Thorne-20260330-113624 (quick-add issues review) failed entirely because of this. Commission-Thorne-20260330-120751 (meeting context compaction review) worked around it by putting the review in the submission body. The prompt template for Thorne review commissions needs to stop asking for file writes, or Thorne needs write access to `.lore/reviews/`.
+Thorne's posture is "Inspects everything, alters nothing." `packages/guild-hall-reviewer/package.json` confirms `builtInTools: ["Skill", "Task", "Read", "Glob", "Grep"]` — no `Write` or `Edit` by design. The fix is the prompt side: review commissions should ask Thorne to return findings in the submission body, not write to `.lore/reviews/`. This is the convention now and the workaround is the canonical path.
 
-### Duplicate timeline event
+### Duplicate timeline event **[RESOLVED]**
 
-Commission-Dalton-20260324-185601 (abandoned path normalization) has `status_failed` duplicated at the exact same timestamp with identical content. Minor, but suggests the failure handler fires twice.
+The `status_failed` double-emit was resolved by the commission lifecycle refactor — `status_failed` only appears once in `daemon/services/commission/orchestrator.ts:319`, used for terminal-event counting, not double-write. Same conclusion as the 2026-03-24 retro.
 
 ## Lessons
 

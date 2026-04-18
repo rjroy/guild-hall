@@ -2,8 +2,16 @@
 title: Commission batch cleanup (2026-03-18 to 2026-03-19)
 date: 2026-03-20
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, commissions, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved.** Meetings list preview shipped and is in production use. Context type registry and event router both shipped (`status: implemented`). Sandbox commit failures remain an environmental limit documented across multiple retros — not a per-batch issue.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -21,17 +29,22 @@ tags: [retro, commissions, cleanup]
 
 ## Loose Threads
 
-**Meetings list preview shipped without a review commission.** Dalton's implementation (commission-Dalton-20260319-222921) completed the spec, but no Thorne review was dispatched. The code is straightforward (UI-only, 9 unit tests), so the risk is low, but it breaks the pattern established by the other feature chains.
+**Meetings list preview shipped without a review commission.** **[RESOLVED — historical]**
+The implementation is in production. No defects surfaced after-the-fact. The pattern-break observation stands as a lesson without a residual action.
 
-**Context type registry spec approved but no plan.** The spec (`.lore/specs/infrastructure/context-type-registry.md`) was approved during this batch. It needs a planning commission before implementation can begin.
+**Context type registry spec approved but no plan.** **[RESOLVED]**
+Plan exists at `.lore/plans/infrastructure/context-type-registry.md` and the spec is `status: implemented`.
 
-**Event router plan approved but no implementation commissions.** The spec and plan are both approved (`.lore/specs/infrastructure/event-router.md`, `.lore/plans/infrastructure/event-router.md`). Ready for implementation dispatch.
+**Event router plan approved but no implementation commissions.** **[RESOLVED]**
+Spec is `status: implemented` (revised 2026-03-21). Implementation landed.
 
 ## Infrastructure Issues
 
-**Sandbox commit failures.** Five Dalton commissions (meeting layer phases 2-3, meetings list preview, and two others) could not commit due to pre-commit hook failures inside the Claude Code sandbox. Tests hardcoding `/tmp` paths and socket creation are blocked by sandbox write restrictions. Changes were staged and verified correct but left uncommitted. Phase 1 committed successfully, likely because the daemon process ran outside sandbox restrictions. This is a known systemic issue tracked since the commission batch cleanup of 2026-03-18.
+**Sandbox commit failures.** **[RESOLVED — environmental]**
+Recurring observation across the 2026-03-15, 2026-03-18, and this retro. Environmental limit of the SDK sandbox + worker tool boundaries; out-of-sandbox commit handling is the established workaround. Not a per-batch action item.
 
-**One abandoned commission correctly handled.** Commission-Octavia-20260319-213656 was abandoned (lost linked dependency). The same work was immediately re-dispatched as commission-Octavia-20260319-213941, which completed successfully. The abandoned artifact shows clean state transitions (pending → blocked → cancelled → abandoned).
+**One abandoned commission correctly handled.** **[RESOLVED — observation]**
+Commission-Octavia-20260319-213656 was abandoned (lost linked dependency). Re-dispatched as commission-Octavia-20260319-213941, completed successfully. Clean state transitions (pending → blocked → cancelled → abandoned). No system bug.
 
 ## Lessons
 

@@ -2,8 +2,16 @@
 title: "Commission batch cleanup (Apr 6-17)"
 date: 2026-04-18
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, commissions, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**No actionable loose threads.** "None from this batch" stands — read-only verification tools spec/plan are pending implementation, not a dropped thread. The two infrastructure observations are in their right state: the missing Thorne review on `submit_result` is a process pattern (the lesson section already encodes the rule); duplicate `linked_artifacts` was observed in three commissions during this cleanup, but dedup logic exists at `daemon/services/commission/record.ts:207` and `daemon/lib/toolbox-utils.ts:124-159`. The recurrence implies a write path or race that bypasses the dedup; the retro author elected not to file per-commission tracking, and that judgment stands. If a focused diagnosis becomes worthwhile, the next dups should be captured before cleanup wipes the evidence.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 

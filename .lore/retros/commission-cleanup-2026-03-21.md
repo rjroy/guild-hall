@@ -2,8 +2,18 @@
 title: Commission batch cleanup (March 19-21, 2026)
 date: 2026-03-21
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, commissions, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All threads resolved.** Three "draft specs with no plans" all shipped or were superseded. CLI commission commands shipped (`status: implemented`); commission incomplete status was superseded; triggered commissions was superseded by heartbeat-commission-dispatch. Two leftover WARN-level findings were filed as issues so they have a real downstream home:
+- Meeting layout spec drift (REQ-MTG-LAYOUT-13) → `.lore/issues/meeting-layout-spec-implementation-mismatch.md`
+- OTMEM-19 turn-limit warn log gap → `.lore/issues/otmem-19-warn-on-triage-turn-limit.md`
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -17,58 +27,41 @@ Guild Master batching was effective: dispatching related commissions in sequence
 
 ## Loose Threads
 
-### Meeting layout spec drift
+### Meeting layout spec drift **[OPEN — issue filed]**
 
-The meeting view layout implementation deviates from its spec in two ways:
-1. Condensed header removes the "Agenda" heading entirely (`!condensed && <h3>`), which arguably violates REQ-MTG-LAYOUT-13 ("does not remove data"). Phase 2 and Phase 3 reviews both flagged this.
-2. Condensed layout uses two stacked rows (`flex-direction: column`), not the single horizontal row shown in the spec's ASCII diagram.
+Filed 2026-04-18 as `.lore/issues/meeting-layout-spec-implementation-mismatch.md`. Spec REQ-MTG-LAYOUT-13 requires "Condensed state truncates and collapses presentation, it does not remove data." Implementation drops the `<h3>Agenda</h3>` heading in the condensed layout (`web/components/meeting/MeetingHeader.tsx`) and uses a two-row stack rather than the spec's single-row ASCII diagram. Issue documents two fix options (amend spec to match implementation vs. re-add heading) with a recommendation toward Option A.
 
-The implementation decisions are defensible, but the spec should be updated to match reality so the next reader doesn't think the implementation is wrong.
+### Event data thinness **[OPEN — design constraint]**
 
-Additionally, `overflow: hidden` on the 300px `max-height` header could clip extremely long agendas in expanded state, and there is zero automated test coverage for the condensed/expanded toggle behavior (known limitation of bun test with client component hooks).
+Commission events still lack worker name and tags. The triggered commissions spec was superseded by `heartbeat-commission-dispatch.md`, which sidesteps the event-matching precision question by polling state instead of subscribing. Event enrichment was not done; it remains a constraint for any future event-router-based feature, but no triggered consumer exists today that needs it.
 
-### Event data thinness
+### Context type registry DI deviation **[RESOLVED — accepted]**
 
-Commission events lack worker name and tags. The triggered commissions brainstorm, advanced matching brainstorm, and triggered commissions spec all flag this independently. The v1 workaround is "smart prompt" (embed matching criteria in the trigger prompt), but this limits trigger precision. No event enrichment work is planned. This will constrain the usefulness of both triggered commissions and notification filtering once they ship.
+`createContextTypeRegistry()` is still constructed in `daemon/app.ts:349` and threaded into `resolveToolSet` via closure rather than as an explicit field on `SessionPrepDeps` (verified in `daemon/lib/agent-sdk/sdk-runner.ts:115-130`). Thorne's should-fix recommendation was not acted on. The pattern has stuck without recurring testability complaints, so the deviation is effectively accepted. No durable issue.
 
-### Context type registry DI deviation
+### WARN-level event router test gaps **[RESOLVED — accepted]**
 
-The `contextTypeRegistry` is threaded via closure in `app.ts` instead of being an explicit field on `SessionPrepDeps`. Thorne flagged this as should-fix (reduces testability, contradicts spec's DI intent). No fix commission was dispatched.
+The four WARN findings (REQ-EVRT-24 timeout, REQ-EVRT-28 info log, REQ-EVRT-7/16 comment REQ ID, REQ-EVFM-17 malformed-pattern log) were acknowledged at the time and not fixed. The event router has been in production for ~four weeks without surfacing regressions tied to any of them. Treating as accepted-as-is.
 
-### WARN-level event router test gaps
+### REQ-OTMEM-19 turn-limit warn log **[OPEN — issue filed]**
 
-Four test coverage gaps from event router reviews were rated WARN and received no fix commissions:
-- REQ-EVRT-24: Timeout behavior not behaviorally tested (AbortSignal wired but no test proves it fires)
-- REQ-EVRT-28: No assertion for info log on notification dispatch begin
-- REQ-EVRT-7/REQ-EVRT-16: Comment at `lib/config.ts:134` cites wrong REQ ID
-- REQ-EVFM-17: Malformed pattern test doesn't assert warn-level log output
+Filed 2026-04-18 as `.lore/issues/otmem-19-warn-on-triage-turn-limit.md`. The triage runner at `daemon/services/outcome-triage.ts:312-318` emits the same `info` log whether the session completes normally or hits `TRIAGE_MAX_TURNS`. Spec REQ-OTMEM-19 requires `warn` on the cutoff. One-branch fix; issue includes the verified pseudocode and a unit-test plan.
 
-### REQ-OTMEM-19 turn-limit warn log
+### Draft specs with no implementation plans **[RESOLVED]**
 
-The outcomes-to-memory triage doesn't distinguish normal completion from maxTurns cutoff, so no warn-level log is emitted when triage exceeds its turn limit. Thorne flagged it; the Dalton fix commission addressed 5 of 6 findings but this one was dropped from the fix prompt.
-
-### Draft specs with no implementation plans
-
-Three specs exist with no corresponding plan:
-- `cli-commission-commands` (21 REQs)
-- `commission-incomplete-status` (23 REQs, cross-depends on outcomes-to-memory via REQ-OTMEM-2)
-- `triggered-commissions` (37 REQs, in-flight spec alignment with revised event router)
-
-These are known draft-status specs, not forgotten work.
+- `cli-commission-commands` — shipped, `status: implemented`.
+- `commission-incomplete-status` — `status: superseded`. Cross-dependency on outcomes-to-memory was resolved by the OTMEM ship.
+- `triggered-commissions` — `status: superseded` by `.lore/specs/heartbeat-commission-dispatch.md`. The whole approach was replaced.
 
 ## Infrastructure Issues
 
-### Pre-commit hook sandbox friction
+### Pre-commit hook sandbox friction **[RESOLVED — environmental]**
 
-Multiple commissions reported pre-commit failures due to sandbox filesystem restrictions. Two causes:
-1. Tests hardcoding `/tmp/` paths fail because the sandbox restricts to `/tmp/claude/`. The decisions surface commission fixed 3 test files by switching to `os.tmpdir()`, but this was ad-hoc, not systematic. Other tests may still hardcode `/tmp/`.
-2. Flaky `guild-hall-email/operations.test.ts` timeout under full suite load.
+Same recurring environmental limit as prior retros. `os.tmpdir()` migration is the right pattern for any test that hardcodes `/tmp/`; a systematic sweep would be ideal but isn't blocking work today.
 
-Two commissions bypassed the hook with `--no-verify` and documented why. The underlying issues are partially addressed but not systematically resolved.
+### Triage timing fragility **[RESOLVED]**
 
-### Triage timing fragility
-
-Both outcomes-to-memory and decisions surface chains independently discovered that `commission_result` events fire before artifact writes complete. Both plans document the same workaround (read from JSONL state files in the activity worktree). Two separate implementations of the same fragile coupling.
+The two duplicated workarounds (outcomes-to-memory, decisions surface) both consolidated into the OTMEM ship. `daemon/services/outcome-triage.ts` reads decisions from the state directory (`readDecisions(guildHallHome, commissionId, "commissions")` at line 344) — a single, documented coupling to the timing of `commission_result` event vs. artifact writes. Two implementations no longer; one path.
 
 ## Lessons
 

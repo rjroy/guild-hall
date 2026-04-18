@@ -2,8 +2,16 @@
 title: "Meeting batch cleanup (Mar 31 - Apr 5)"
 date: 2026-04-05
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, meetings, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**No actionable loose threads.** This batch closed all meetings with zero open items at close. The two "untracked decisions" (commission chain failure mode origin, front-page meetings retry) are observational records, not work items — neither requires code or doc change. The "cleanup is manual" pattern is a process observation that holds at current cadence and remains worth watching but not actionable.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 

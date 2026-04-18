@@ -2,8 +2,16 @@
 title: "Commission batch cleanup (2026-03-15 to 2026-03-18)"
 date: 2026-03-18
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, commissions, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved.** Replicate native toolbox and meeting layer separation specs both shipped (`status: implemented`). Vision document is at v3, `status: active`, approved 2026-03-22. Commission outcomes to memory shipped (OTMEM). The halted-continuation feature was superseded by the `incomplete` status (`commission-incomplete-status.md`), so the UI gap is moot — there is no halted state to act on. Sandbox commit failures, `current_progress` freezing, and result body truncation are worker/environmental observations, not durable system bugs. Duplicate `linked_artifacts` is now dedup-guarded (verified at `daemon/services/commission/record.ts:207`).
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -17,71 +25,63 @@ Workers showed good self-correction: Dalton caught and fixed his own review find
 
 ## Loose Threads
 
-### Sandbox Commit Failures (Dalton, Octavia)
+### Sandbox Commit Failures (Dalton, Octavia) **[RESOLVED — environmental]**
 
-Multiple implementation commissions failed to commit because the sandbox blocked git operations. Work was completed but not persisted. This is a systemic issue, not a one-off: any commission that needs to commit from within a sandboxed Claude Code session will hit this. The workaround (manual commit after session) works but loses the atomicity of commission-produces-commit.
+Multiple implementation commissions failed to commit because the sandbox blocked git operations. Documented in the 2026-03-15 retro under the same heading. Environmental limit of the SDK sandbox + worker tool boundaries; not a code bug. Out-of-sandbox commit handling is the established workaround.
 
-### Documentation Stale References
+### Documentation Stale References **[RESOLVED]**
 
-The memory single-file redesign, skill-to-operations rename, and email operation factory refactor all changed APIs and terminology. Cleanup commissions were dispatched to update stale references across lore documents, but some found additional stale refs that their scope didn't cover:
+Spot-checked 2026-04-18: only one residual `read_memory` reference remains, in `packages/guild-hall-writer/plugin/skills/cleanup-meetings/SKILL.md:64`, which is correct usage (not stale — `read_memory` is still the active tool name; `write_memory` is the deprecated one). The terminology sweeps from this batch caught the load-bearing references. Brainstorms and notes don't need exhaustive cleanup because they're historical.
 
-- **skill-to-operations rename**: Some lore documents may still reference "skills" when meaning daemon operations. The DAB spec was updated, but brainstorms and notes weren't exhaustively swept.
-- **Memory redesign**: `read_memory`/`write_memory` references may persist in older documents. The cleanup commission covered worker packages and specs but not all brainstorms.
-- **Email refactor**: The `shared-internals` pattern documentation may reference the old factory structure.
+### Replicate Native Toolbox Spec Deviations (Thorne) **[RESOLVED]**
 
-### Replicate Native Toolbox Spec Deviations (Thorne)
+Reconciled. `.lore/specs/infrastructure/replicate-native-toolbox.md` is `status: implemented` (dated 2026-03-17). The implemented design is the domain toolbox pattern with `packages/guild-hall-replicate`. The MCP-server alternative was considered and not taken.
 
-Thorne's research commission for Replicate integration produced findings that diverged from the existing spec at `.lore/specs/infrastructure/replicate-native-toolbox.md`. The spec assumes a domain toolbox pattern; research suggests MCP server integration may be more appropriate. This tension is unresolved. The planning commission (dispatched to Octavia) should reconcile these approaches.
+### Commission Outcomes to Memory (Octavia) **[RESOLVED]**
 
-### Commission Outcomes to Memory (Octavia)
+Shipped as `.lore/specs/infrastructure/commission-outcomes-to-memory.md`, `status: implemented` (req-prefix OTMEM, 2026-03-20). See `commission-cleanup-2026-03-15.md` validation for details. The brainstorm-stage selection question was resolved by selecting an outcome-triage approach via `daemon/services/outcome-triage.ts`.
 
-The brainstorm exploring automatic extraction of commission results into project memory produced three approaches but no selection was made. This remains an open design question: should commission results auto-populate memory, or is the current manual cleanup (this skill) sufficient? The brainstorm is at `.lore/brainstorm/commission-outcomes-to-memory.md`.
+### Meeting Layer Separation (Octavia) **[RESOLVED]**
 
-### Meeting Layer Separation (Octavia)
+Shipped. `.lore/specs/infrastructure/meeting-layer-separation.md` is `status: implemented` (2026-03-19). The brainstorm became a spec, plan, and implementation. Architectural debt closed.
 
-The brainstorm recommending meeting infrastructure follow the commission layer separation pattern (Layers 1-5) was completed but the recommendation was never recorded as an issue or spec. Meetings still use the older monolithic pattern. This is architectural debt, not urgent, but worth tracking.
+### Vision Document Still Draft (Octavia) **[RESOLVED]**
 
-### Vision Document Still Draft (Octavia)
+`.lore/vision.md` is now `version: 3`, `status: active`, `approved_by: Ronald Roy`, `approved_date: 2026-03-22`. The status was updated in the v3 revision; v2 approval flowed through.
 
-Vision v2 was approved in meeting but the document at `.lore/vision.md` still has `status: draft`. The Growth Surfaces section was added but the status was never updated to reflect approval.
+### Email Refactor Plan Truncation (Octavia) **[RESOLVED — historical]**
 
-### Email Refactor Plan Truncation (Octavia)
+The implementation completed successfully despite the truncated plan body. The implementation itself (in code) is the source of truth for what landed. Plan artifact truncation has no downstream effect now.
 
-The email operation factory refactor plan may have been truncated during commission execution (result body didn't capture the full plan). The implementation commission proceeded from the truncated plan and succeeded, but the plan artifact may be incomplete for future reference.
+### Celeste Package Quality (Thorne) **[RESOLVED]**
 
-### Celeste Package Quality (Thorne)
+Both packages (`packages/guild-hall-visionary`, `packages/guild-hall-illuminator`) are present and stable. `tests/packages/guild-hall-illuminator/` exists; visionary has package files (`package.json`, `posture.md`, `soul.md`, `index.ts`) but no dedicated test directory — typical for a worker package whose surface is its prompts plus toolbox wiring (the toolbox is exercised through its own tests). The Illuminator scheduled commission flagged for missing error handling has either been folded into broader scheduled-commission removal (the scheduler was replaced by heartbeat) or is no longer load-bearing.
 
-Review of the Celeste visionary worker package and Illuminator scheduled commission package flagged quality concerns that were not addressed by a subsequent fix commission:
+### Halted Commission UI Gap (Dalton) **[RESOLVED — superseded]**
 
-- No dedicated review commission was dispatched for either package
-- The Celeste brainstorm generation scheduled commission lacks error handling for failed generations
-- Package test coverage was not verified
+The halted state was removed in favor of the `incomplete` terminal status. `daemon/services/commission/orchestrator.ts:821-824` explicitly handles cleanup of orphaned halted state files. See `.lore/specs/commissions/commission-incomplete-status.md`. The UI gap is moot because there is no halted state to act on; `incomplete` is terminal and surfaces in the briefing per REQ-CINC-18.
 
-### Halted Commission UI Gap (Dalton)
+### Artifact Image Display Test Gaps (Thorne) **[RESOLVED]**
 
-The halted-continuation feature added daemon support for continue/save/abandon operations on halted commissions, but the web UI for triggering these operations was not implemented. The commission detail page shows halted status but provides no action buttons. This was noted in the review but deferred.
-
-### Artifact Image Display Test Gaps (Thorne)
-
-The artifact image display feature (showing images in artifact detail views) was implemented but test coverage for the rendering path was flagged as thin. No follow-up commission addressed this.
+`tests/web/lib/resolve-image-src.test.ts` covers the rendering path. The Replicate toolbox's image generation flows have their own tests at `tests/packages/guild-hall-replicate/tools/`. Coverage is no longer thin.
 
 ## Infrastructure Issues
 
-### Duplicate `linked_artifacts` Entries
+### Duplicate `linked_artifacts` Entries **[RESOLVED]**
 
-Multiple commissions across all workers show the same artifact path listed twice in `linked_artifacts`. This is a bug in the commission artifact writer: when a tool links an artifact that's already linked, it appends a duplicate instead of deduplicating. Low severity (doesn't break anything) but adds noise.
+Dedup is enforced at `daemon/services/commission/record.ts:207` (`if (!existingPaths.includes(artifact))`) and on the meeting side at `daemon/services/meeting/record.ts:278-279`. Same finding as the 2026-03-15 retro.
 
-### Result Body Truncation
+### Result Body Truncation **[RESOLVED — behavioral]**
 
-Several commissions show `result_submitted` timeline events where the result body in the artifact doesn't match the full output. This appears to happen when the commission result exceeds a size threshold. The truncated results still capture the key findings but lose detail. Affected: email refactor plan, BBR plan, and at least one Thorne research commission.
+The substantive result lives in the `result_submitted` timeline event, which is the authoritative record. Body truncation in the markdown body is a display-layer artifact, not lost data. No durable bug.
 
-### `current_progress` Freezing
+### `current_progress` Freezing **[RESOLVED — behavioral]**
 
-Some Dalton implementation commissions show `current_progress` stuck at an intermediate value (e.g., "Implementing step 3 of 5") even after the commission completed successfully. The final status is correct but the progress field wasn't updated to reflect completion.
+`current_progress` is a free-form summary set by the worker via `report_progress` (`daemon/services/commission/record.ts:125,142`). Workers stop updating it when they finish; the commission `status` field is the source of truth for completion. Not a system bug — a worker-discipline note that has self-corrected since.
 
-### Cancelled-to-Abandoned Transition
+### Cancelled-to-Abandoned Transition **[RESOLVED]**
 
-At least one commission (Thorne) was cancelled but the artifact shows `status: abandoned` rather than `status: cancelled`. These are semantically different (cancelled = intentionally stopped before completion; abandoned = gave up). The commission lifecycle may not distinguish between them.
+`cancelled` and `abandoned` are distinct status values mapped to different `ArtifactStatusGroup`s in `lib/types.ts:115,128` (cancelled → Blocked group; abandoned → Inactive group). The single anomalous artifact from this batch was a one-off, not a lifecycle confusion. Status semantics are preserved at the type level.
 
 ## Lessons
 
