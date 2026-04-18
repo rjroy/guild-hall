@@ -2,8 +2,19 @@
 title: Commission batch cleanup (2026-03-08 to 2026-03-10)
 date: 2026-03-10
 status: complete
+validated: 2026-04-18
 tags: [retro, commissions, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+Loose threads below have been re-checked against current code. Each item is tagged with its current status:
+- **[RESOLVED]** — fix confirmed in code as of 2026-04-18
+- **[ABANDONED]** — work was dropped or scope was killed (e.g. scheduled commissions)
+- **[OPEN]** — still present; see linked issue or current location
+- **[DIVERGED]** — outcome differs from how the retro framed it; explanation inline
+
+Use the tags before treating any item here as actionable. The "Lessons" section at the bottom has been kept as historical observation.
 
 ## Context
 
@@ -23,81 +34,77 @@ tags: [retro, commissions, cleanup]
 
 ### Critical - Bugs
 
-**CSS gem colors are mathematically inverted** (from Octavia's commission-Octavia-20260309-153126)
-All commission status gems show the wrong color. `--gem-active: hue-rotate(100deg)` produces 340° (red) instead of green; `--gem-blocked: hue-rotate(-140deg)` produces 100° (yellow-green) instead of red. Two statuses also missing mappings: `sleeping` and `abandoned`. Proposed fix: `hue-rotate(-120deg)` for active (green), `hue-rotate(120deg)` for blocked (red), `hue-rotate(-195deg)` for pending (amber). Requires visual verification against gem sprite after applying.
+**CSS gem colors are mathematically inverted** **[RESOLVED]** (from Octavia's commission-Octavia-20260309-153126)
+All commission status gems showed the wrong color. Current values in `web/app/globals.css:70-72` are `--gem-active: hue-rotate(-100deg)`, `--gem-pending: hue-rotate(-140deg)`, `--gem-blocked: hue-rotate(120deg)`. The retro's proposed exact values were not used, but the inversion was addressed.
 
-**Model name regex rejects hyphens** (from Octavia's commission-Octavia-20260309-194600)
-`updateCommission` uses `/\w+/` for model name validation. Local model names like `mistral-local` contain hyphens that `\w` doesn't match, silently failing or corrupting model updates. Fix: update regex to accept hyphens in `daemon/` model validation code.
+**Model name regex rejects hyphens** **[RESOLVED]** (from Octavia's commission-Octavia-20260309-194600)
+The `/\w+/` model name regex is no longer present in `daemon/`. Validation was refactored during the model-selection work; hyphenated local model names now pass.
 
-**Worker display title still hardcoded to name** (tracked in `.lore/issues/worker-display-title-hardcoded-to-name.md`)
-`propose_followup` writes `workerDisplayTitle: "${deps.workerName}"` instead of actual display title. Dalton's portrait fix from Mar 8 didn't extend to `propose_followup`. Issue is tracked; no implementation commissioned yet.
+**Worker display title still hardcoded to name** **[OPEN]** (tracked in `.lore/issues/worker-display-title-hardcoded-to-name.md`)
+The issue was prematurely marked resolved and archived in March. Verified 2026-04-18: bug is still live at `daemon/services/meeting/toolbox.ts:135` (`propose_followup`) and `daemon/services/manager/toolbox.ts:406` (`initiate_meeting`). The claimed "display-time resolution" fix never landed in `web/lib/resolve-attribution.ts`, which still reads `extras.workerDisplayTitle` directly. Issue re-opened with verified detail and two fix options.
 
 ### Critical - Security
 
-**SDK tool availability enforcement not implemented** (from Octavia's commissions 174455/175908)
-Workers without Bash in their `builtInTools` can still access Bash through user permission settings because the SDK runner sets `allowedTools` (permission layer) but never sets `tools` (availability layer). All non-Bash workers (Manager, Reviewer, Octavia, Verity) have unauthorized tool access. Spec complete (REQ-TAE-1-12), plan complete (5 steps), no implementation commissioned yet. No blocker dependencies.
+**SDK tool availability enforcement not implemented** **[RESOLVED]** (from Octavia's commissions 174455/175908)
+Spec at `.lore/specs/workers/tool-availability-enforcement.md` is now `status: implemented`. Workers without Bash in their `builtInTools` no longer have unauthorized tool access via permission settings.
 
 ### High - Ready for Implementation
 
-**Scheduled commissions infrastructure** (Octavia commissions 102827/194249/194422)
-Fully spec'd (REQ-SCOM-1-28), detailed 11-step plan complete. Only blocker is cron library selection, flagged as a deliberate research exit point. This is a prerequisite for the Steward worker's morning digest and general automation capabilities.
+**Scheduled commissions infrastructure** **[ABANDONED]** (Octavia commissions 102827/194249/194422)
+Spec moved to `.lore/specs/_abandoned/guild-hall-scheduled-commissions.md`. The scheduler/trigger system was built and later removed in favor of the heartbeat implementation. Residue tracked in `.lore/issues/scheduler-removal-residue.md` (resolved 2026-04-12).
 
-**Local model support** (Octavia commissions 151657/194600/005914)
-Spec complete (REQ-LOCAL-1-30), 11-step plan complete, Thorne's validation feedback incorporated. Two validation gaps remain before implementation:
-- Mid-session error message is not prefixed with model name/URL (hard to diagnose which model failed)
-- Manager posture guidance omits note about local model configuration
+**Local model support** **[RESOLVED]** (Octavia commissions 151657/194600/005914)
+Spec at `.lore/specs/infrastructure/local-model-support.md` is `status: implemented`.
 
-Builds on model-selection infrastructure (already shipped).
+**System model defaults configuration** **[RESOLVED]** (Octavia commissions 005353/011525)
+Spec at `.lore/specs/infrastructure/system-model-defaults.md` is `status: implemented`.
 
-**System model defaults configuration** (Octavia commissions 005353/011525)
-Spec complete (10 reqs), plan complete (6 steps). Makes hardcoded models configurable (memory compaction, meeting notes, briefing, Guild Master). Depends on local model support foundation for `resolveModel` infrastructure.
+**Steward Worker MVP** **[RESOLVED]** (Octavia commissions 010800/011935)
+Spec at `.lore/specs/workers/guild-hall-steward-worker.md` is `status: implemented`. Scheduled-commission dependency obviated by the heartbeat redirection.
 
-**Steward Worker MVP** (Octavia commissions 010800/011935)
-MVP spec complete (REQ-STW-1-20 per Thorne's validation), 7-step plan across 3 commissions. Deliberately deferred: scheduled commissions (not built), calendar toolbox, email send. MVP scope is manual-only tasks using existing mail reader toolbox (inbox triage, meeting prep, email research).
-
-**Scheduled commissions test gaps** (from Thorne's commission-Thorne-20260309-183403)
-Three coverage gaps with regression risk: no tests for the schedule-status route, `previous_run_outcome` field population, or `escalation_created` extra fields. These were deferred from the review round and not picked up in subsequent commissions.
+**Scheduled commissions test gaps** **[ABANDONED]** (from Thorne's commission-Thorne-20260309-183403)
+Moot — scheduler removed.
 
 ### Medium - Design Ready
 
-**Meeting rename capability** (Octavia commissions 005914/011717)
-Spec complete (REQ-MREN-1-18), plan complete (7 steps). Small feature: updates the title field only, not filename or meeting-id. Commission when UI work is next.
+**Meeting rename capability** **[RESOLVED]** (Octavia commissions 005914/011717)
+Implemented; `mcp__guild-hall-meeting__rename_meeting` is live in the meeting toolbox.
 
-**Status text visibility** (Octavia commission 011207)
-Plan complete (11 steps, new StatusBadge component). GemIndicator alone doesn't distinguish statuses (green covers completed/approved/implemented/shipped). Affects 5 list components.
+**Status text visibility** **[RESOLVED]** (Octavia commission 011207)
+StatusBadge built at `web/components/ui/StatusBadge.tsx` and used in 9 components (ArtifactList, MeetingList, DependencyMap, RecentArtifacts, NeighborhoodGraph, CommissionFilterPanel, CommissionList, etc.).
 
-**Dashboard hydration mismatch** (Octavia commission 200037, tracked in `.lore/issues/hydration-error-dashboard.md`)
-Plan complete with diagnosis steps and 4 fix strategies. Root cause likely `ManagerBriefing.formatRelativeTime()` using `Date.now()`. Same locale-sensitive formatting pattern found in CommissionList, CommissionScheduleInfo, CommissionTimeline.
+**Dashboard hydration mismatch** **[DIVERGED]** (Octavia commission 200037)
+Issue archived 2026-03-14 as `wontfix` — investigation found no deterministic mismatch source in any dashboard component. Mitigations applied: `suppressHydrationWarning` on the `ManagerBriefing` timestamp, `formatRelativeTime` made testable via DI with full unit coverage, defensive comment on `RecentArtifacts`. Suspected residual cause is Turbopack dev-mode CSS Module hash inconsistency. The retro framed this as "ready for fix"; reality was "couldn't reproduce, papered over." Archived at `.lore/_archive/issues/hydration-error-dashboard.md`.
 
 **Sandbox execution feasibility** (Octavia commission 135434)
-6-dimension brainstorm complete. Phase 1 (SDK sandbox for Bash workers) is low-effort with no breaking changes. Phase 4 (container isolation) is a heavy lift. 8 open questions remain. Agent SDK sandbox only covers Bash; Read/Write/Edit/Glob/Grep tools need separate `canUseTool` enforcement.
+Status unchanged in this validation pass — brainstorm artifact remains; no spec or plan picked up. Not re-verified against current code.
 
 ### Medium - Untracked Gaps
 
-**Commission routes missing model in type annotation** (from Thorne's commission-Thorne-20260308-231935)
-`resourceOverrides` type in commission routes is missing the `model` field. It works by accident because TypeScript isn't enforcing it, but this will silently break if the type is ever used for validation.
+**Commission routes missing model in type annotation** **[RESOLVED]** (from Thorne's commission-Thorne-20260308-231935)
+`daemon/routes/commissions.ts:49,116` now declares `resourceOverrides?: { model?: string }` on both create and update bodies.
 
 **Duplicate mailContext block in worker-activation.ts** (from Thorne reviews, pre-existing)
-Mail reader instructions are duplicated in worker-activation.ts. No functional impact but creates drift risk when instructions need updating.
+Not re-verified in this validation pass. Mail reader scope has shifted since 2026-03-10.
 
 ### Low - Deferred with Direction
 
-**Fallback model strategy** (tracked in `.lore/issues/fallback-model-strategy.md`)
-5 possible directions sketched without commitment. No handling for model unavailability, API capacity failures, or local server failures. User decision required on direction.
+**Fallback model strategy** (originally tracked in `.lore/issues/fallback-model-strategy.md`)
+Issue file no longer present in `.lore/issues/` or `.lore/_archive/issues/` as of 2026-04-18. Status unknown — either resolved silently or dropped during a cleanup. Re-file if model unavailability handling is still missing in practice.
 
 **Copy path button** (Octavia commission 151956)
-Plan complete (4 trivial steps). Low-friction quick win when UI bandwidth allows.
+Not re-verified. Check `web/components/` for a path-copy affordance before re-commissioning.
 
 **Old artifacts with workerPortraitUrl** (from Dalton's commissions)
-Seven pre-existing artifacts still have stale `workerPortraitUrl` in frontmatter. Field is ignored at display time. Optional batch migration.
+`workerPortraitUrl` still appears in 20 files (mostly tests, components, and brainstorm artifacts). Field is ignored at display time per `web/lib/resolve-attribution.ts` (resolves portrait from roster lookup, not frontmatter). Migration remains optional cosmetic cleanup.
 
 ## Infrastructure Issues
 
-**Committed Playwright log artifact** (from Thorne's commission-Thorne-20260308-184127)
-`.playwright-mcp/console-2026-03-08T04-00-05-487Z.log` was committed to the repository. The `.playwright-mcp/` directory is not in `.gitignore`. These logs will grow unboundedly as MCP sessions accumulate.
+**Committed Playwright log artifact** **[RESOLVED]** (from Thorne's commission-Thorne-20260308-184127)
+`.playwright-mcp/` is in `.gitignore`. Confirmed 2026-04-18.
 
 **Pre-existing test instability** (from Thorne reviews)
-Two pre-existing failures not introduced by these commissions: one timing-dependent race in the commission orchestrator (concurrent completion/cancellation), one unhandled rejection from the mail toolbox factory background connect. Neither caused commission failures but both represent latent risk.
+Not re-verified. Test suite has grown from ~2,500 to ~3,673 since this retro; check current `bun test` output if pursuing.
 
 ## Lessons
 

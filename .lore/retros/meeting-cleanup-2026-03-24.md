@@ -2,8 +2,16 @@
 title: "Meeting batch cleanup (March 21-24, 2026)"
 date: 2026-03-24
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, meetings, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved or accepted.** The cross-project plan example landed in vibe-garden's `shared/frontmatter-schema.md` (a plan example with `status: draft` is present at line 193-202). The canUseTool/RTK interaction was superseded by the worker-tool-boundaries removal of `canUseToolRules`; only the SDK's `canUseTool` parameter remains in `daemon/lib/agent-sdk/sdk-runner.ts:85`. The InlinePanel discoverability observation was not actioned and code is unchanged at `web/components/ui/InlinePanel.tsx`; treating as accepted-as-is until a real complaint arrives.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -13,19 +21,17 @@ The batch covers a dense delivery cycle: triggered commissions (3-phase implemen
 
 ## Untracked Decisions
 
-### Draft plan status fix (cross-project)
+### Draft plan status fix (cross-project) **[RESOLVED]**
 
-Workers creating implementation plans default to `status: active` instead of `status: draft`. Root cause: `shared/frontmatter-schema.md` in the vibe-garden/lore-development project includes examples for specs, designs, research, brainstorms, and retros but omits a plan example. Workers infer behavior from adjacent types.
+Plan example landed in `shared/frontmatter-schema.md` (vibe-garden/lore-development) at lines 193-202, showing `status: draft` on creation with the documented progression to `approved` then `executed`. The cross-project fix shipped.
 
-Fix: add a plan example to `shared/frontmatter-schema.md` showing `status: draft` on creation, `approved` on acceptance, `executed` after implementation. This fix lives in vibe-garden, not guild-hall.
+### InlinePanel discoverability on mobile **[UNVERIFIED — accepted-as-is]**
 
-### InlinePanel discoverability on mobile
+`web/components/ui/InlinePanel.tsx` is unchanged: collapsible panel renders a brass handle, collapsed by default. No usability commission was filed and no user complaint has surfaced in the four weeks since. Treating as accepted-as-is; if discoverability becomes a real problem, file a UI issue with the specific viewport and context.
 
-The collapsible sidebar panel (InlinePanel.tsx) collapses below main content on mobile. The brass "Details" handle sits at the bottom of the page, requiring scrolling to discover. Guild Master noted this during the meeting but no usability follow-up was recorded. Functional but potentially confusing for first-time users.
+### canUseTool callback + RTK hook interaction **[RESOLVED — superseded]**
 
-### canUseTool callback + RTK hook interaction
-
-During permission testing (meeting-20260322-083802), the canUseTool callback infrastructure was found to not consistently intercept tool calls. Dalton implemented a toolbox-resolver fix (gated tool exclusion), but a secondary interaction between RTK hooks and canUseTool callback evaluation order was observed and left uninvestigated. The broader canUseToolRules removal (worker-tool-boundaries spec) may render this moot.
+The worker-tool-boundaries spec removed `canUseToolRules` entirely. The only remaining `canUseTool` reference is the SDK's own callback parameter at `daemon/lib/agent-sdk/sdk-runner.ts:85`, which is the unmodified SDK contract. The toolbox-resolver-vs-RTK ordering question is moot: there is no rule layer to interact with anymore.
 
 ## Patterns
 

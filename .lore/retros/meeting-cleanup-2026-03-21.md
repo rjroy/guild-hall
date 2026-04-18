@@ -2,8 +2,16 @@
 title: Meeting batch cleanup (2026-03-20 to 2026-03-21)
 date: 2026-03-21
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, meetings, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved.** Triggered commissions spec was superseded by `heartbeat-commission-dispatch.md`, so the event-router blocking dependency is moot. The triage-as-direct-EventBus-subscriber distinction holds in current code (`daemon/services/outcome-triage.ts:326` — `eventBus.subscribe(...)`, not via the router). The fresh-context plan-prep preference is a documented process habit, not actionable.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 

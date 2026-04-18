@@ -2,8 +2,16 @@
 title: "Meeting batch cleanup (March 30 - April 3, 2026)"
 date: 2026-04-03
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, meetings, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved.** The "cleanup session loose threads (March 30)" follow-up gap was closed by this validation pass: each item in `.lore/retros/meeting-cleanup-2026-03-30.md` now carries an explicit tag (cross-project plan fix RESOLVED, p4-adapter scoped optimization OPEN-accepted-as-is, whitelist `.gitignore` ABANDONED, meeting notes loss historical). No new issues emerge from this batch.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -15,9 +23,9 @@ Decisions from these meetings landed well in artifacts. The heartbeat brainstorm
 
 One item with unclear resolution:
 
-### Cleanup session loose threads (March 30)
+### Cleanup session loose threads (March 30) **[RESOLVED]**
 
-The cleanup session (audience-Octavia-20260330-130157-4) identified 7 categories of loose threads from the previous meeting batch. The retro was written (`.lore/retros/meeting-cleanup-2026-03-30.md`), but the action items from that session (file issues for loose threads, determine which plans to commission, resolve P4/Windows deferred questions) have no visible follow-up. Some may have been intentionally deprioritized, but the resolution isn't recorded.
+Closed via the 2026-04-18 validation pass on `.lore/retros/meeting-cleanup-2026-03-30.md`. Each thread now carries an explicit resolution tag and a code-anchored verification line. The "no visible follow-up" gap was a process gap, not a code gap, and is closed by this retro carrying its own validation record.
 
 ## Patterns
 

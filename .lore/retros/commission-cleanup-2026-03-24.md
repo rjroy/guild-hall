@@ -2,8 +2,16 @@
 title: "Commission batch cleanup (March 21-24, 2026)"
 date: 2026-03-24
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, commissions, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved.** The Guild Master context-injection gap was fixed (`activateManager()` now renders both `meetingContext` and `commissionContext`). The triggered-commissions chain was superseded by `heartbeat-commission-dispatch.md`, taking with it the route-level `match.type` validation gap, gray-matter type coercion on trigger fields, last_triggered timestamp inconsistency, and the unused `COMMISSION_SOURCE_EVENTS` constant. Halted continuation dead code is gone (no references in `cli/`). Posture negative constraints are present across all five worker postures. The artifact writer's raw-byte splicing approach (documented at `daemon/services/commission/record.ts:7`) addresses the YAML formatting and dedup issues. Verity's research findings on persona drift and context compaction landed in `.lore/research/` — not a bug, a research artifact.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -17,67 +25,67 @@ Octavia/Thorne pairing on spec-then-review produced tight specs with most findin
 
 ## Loose Threads
 
-### Guild Master system prompt context injection (Sable)
+### Guild Master system prompt context injection (Sable) **[RESOLVED]**
 
-`activateManager()` in `daemon/services/manager/worker.ts` doesn't render `meetingContext` or `commissionContext` into the Guild Master's system prompt. Sable diagnosed the meeting agenda bug and identified this gap, but no fix commission was dispatched. The Guild Master can't see meeting-specific or commission-specific context that other workers receive through session preparation. This explains why the Guild Master sometimes lacks awareness of the activity it's coordinating.
+Fixed. `daemon/services/manager/worker.ts:219-239` renders both `context.meetingContext` (agenda) and `context.commissionContext` (prompt + dependencies) into the assembled system prompt. The Guild Master now sees activity-specific context.
 
-### Residual halted continuation dead code (Thorne)
+### Residual halted continuation dead code (Thorne) **[RESOLVED]**
 
-Five references to the old halted-continuation approach (continue/save/abandon UI paths in the CLI formatter and route handlers) remain in the codebase after the spec was superseded. These are dead code paths that will never trigger but add confusion for future readers. The spec was moved to `_abandoned/` during this session's tend sweep, but the code wasn't cleaned up.
+Halted-continuation references are gone from `cli/` and active daemon code. The orchestrator only retains a recovery-time cleanup path (`daemon/services/commission/orchestrator.ts:821-824`) for orphaned halted state files left from before the supersession. The `_abandoned/` spec moved cleanly with no live consumers.
 
-### Route-level match.type validation gap (Thorne)
+### Route-level match.type validation gap (Thorne) **[RESOLVED — superseded]**
 
-The event router's route handlers don't validate `match.type` at the route boundary. Invalid type values pass through to the matching layer, which handles them gracefully, but the error surfaces deep in the stack instead of at the API surface. Thorne flagged this as a WARN-level finding.
+The triggered-commissions design that needed route-level `match.type` validation was superseded by `heartbeat-commission-dispatch.md`. There is no event-router route surface that needs this validation in current code.
 
-### Gray-matter type coercion on trigger fields (Thorne)
+### Gray-matter type coercion on trigger fields (Thorne) **[RESOLVED — superseded]**
 
-gray-matter silently coerces YAML trigger field values (numbers, booleans) to JavaScript types. A trigger pattern like `threshold: 100` becomes a number, not a string, which causes type mismatches in the matching layer. This is a latent bug for any trigger configuration that uses non-string values.
+Same supersession. No trigger fields exist as YAML-driven configuration anymore; heartbeat dispatch evaluates against artifact state directly.
 
-### Last_triggered timestamp inconsistency (Thorne)
+### Last_triggered timestamp inconsistency (Thorne) **[RESOLVED — superseded]**
 
-The `last_triggered` field on scheduled commissions uses a different timestamp format than `activity_timeline` entries. `last_triggered` is ISO 8601, timeline entries use epoch milliseconds. No functional bug yet, but creates confusion when debugging schedule behavior.
+`last_triggered` is gone with the scheduler/trigger removal. Heartbeat does not record per-trigger timestamps in the same way.
 
-### Unused COMMISSION_SOURCE_EVENTS constant (Thorne)
+### Unused COMMISSION_SOURCE_EVENTS constant (Thorne) **[RESOLVED]**
 
-A constant `COMMISSION_SOURCE_EVENTS` was defined during the event router work but never referenced. Dead code.
+No references in current `daemon/` code. Cleaned up with the event router refactor.
 
-### Artifact viewer CSS breakpoint gap (Thorne)
+### Artifact viewer CSS breakpoint gap (Thorne) **[UNVERIFIED]**
 
-The artifact detail view has a CSS media query gap between 768px and 1024px where the layout doesn't cleanly transition between mobile and desktop. Content overflows its container in that range.
+`web/components/artifact/ArtifactContent.module.css:340` and `ImageArtifactView.module.css:41` define only a single `@media (max-width: 480px)` breakpoint. `ArtifactDetailLayout.tsx:13-14` switches sidebar layout at 768px. Whether content overflows in the 768px-1024px range depends on the specific artifact + viewport mix and is hard to verify without browser testing. If the original symptom recurs, file a bug with screenshots; otherwise leave as-is. Not blocking.
 
-### SDK context compaction signals (Verity)
+### SDK context compaction signals (Verity) **[RESOLVED — partial]**
 
-Research into the Claude Agent SDK found that context compaction events are emitted by the SDK but currently dropped by the event translator. When the SDK compacts context mid-session, workers lose accumulated context without any visibility into what was lost. This matters for long commission sessions where context compaction is likely.
+Compaction handling is wired into the meeting transcript (`daemon/services/meeting/transcript.ts:251-309` — both pre-compaction marker and late-arriving summary append). For meetings, compaction is no longer silently dropped. Commission sessions don't carry the same transcript surface, so compaction is implicit there; if it ever causes a felt problem, the meeting transcript code is the model to extend.
 
-### Persona drift after 8-12 turns (Verity)
+### Persona drift after 8-12 turns (Verity) **[RESOLVED — research artifact]**
 
-Research into long-session behavior found that worker persona (posture, voice, domain knowledge) degrades after approximately 8-12 turns in a session. The posture is injected once at session start and diluted by accumulated conversation context. No mitigation mechanism exists. This is a known limitation of the single-injection approach.
+Research finding lives in `.lore/research/` (carried over from the compendium batch). Not a bug — a known limitation of single-injection posture. No mitigation has been built; if persona drift becomes user-visible, the existing research is the starting point.
 
-### Posture negative constraints gap (Verity)
+### Posture negative constraints gap (Verity) **[RESOLVED]**
 
-Research found that most posture files define what workers should do but not what they should avoid. Negative constraints ("never modify source code", "don't propose narrow replacement tools") are effective guardrails when present but aren't systematically included. Verity recommended an audit of all posture files to add explicit negative constraints.
+Verified 2026-04-18: all five worker postures (`packages/guild-hall-illuminator`, `guild-hall-researcher`, `guild-hall-reviewer`, `guild-hall-visionary`, `guild-hall-writer`) carry explicit negative constraints ("must not", "never", "do not"). The worker-tool-boundaries spec implementation pushed this systematically.
 
-### 429 handler scope issue (Thorne)
+### 429 handler scope issue (Thorne) **[RESOLVED — observed]**
 
-The SDK runner's rate limit (429) retry handler catches errors at the session level rather than the individual tool call level. A 429 on one tool call retries the entire turn, which can cause duplicate side effects from tool calls that already succeeded in that turn.
+The SDK rate-limit handling is now logging-only (`daemon/lib/agent-sdk/sdk-logging.ts:25,44` recognizes `rate_limit_event` from the SDK's stream). The SDK itself owns retry semantics; the daemon doesn't wrap retries at the session level anymore. The original concern (session-level retry causing duplicate side effects) does not apply to the current architecture.
 
 ## Infrastructure Issues
 
-### Duplicate linked_artifacts entries
+### Duplicate linked_artifacts entries **[RESOLVED]**
 
-7 of 17 Thorne commissions had duplicate entries in their `linked_artifacts` arrays. The commission artifact writer appends to the array on each link operation without deduplication. Not a functional bug (consumers tolerate duplicates) but adds noise to artifact inspection.
+Dedup enforced at `daemon/services/commission/record.ts:207` and `daemon/services/meeting/record.ts:278-279`. Same finding as 2026-03-15 and 2026-03-18 retros.
 
-### Blank lines in YAML frontmatter arrays
+### Blank lines in YAML frontmatter arrays **[RESOLVED]**
 
-Several commission artifacts have blank lines inside YAML array values (tags, linked_artifacts), which gray-matter parses but which violate YAML spec expectations. Caused by the artifact writer's newline handling when appending to arrays.
+The artifact writer documents at `daemon/services/commission/record.ts:7` that it explicitly avoids `gray-matter`'s `stringify()` because of formatting damage. Raw-byte splicing through `appendLogEntry` and `replaceYamlField` (from `daemon/lib/record-utils`) preserves YAML cleanly.
 
-### Duplicate timeline events
+### Duplicate timeline events **[RESOLVED]**
 
-Some commission artifacts have duplicate `status_completed` events in their activity_timeline. The commission orchestrator can emit the completion event twice when the SDK session ends and the artifact finalizer both write status.
+The `status_completed` event name no longer exists in `daemon/`. The completion lifecycle was refactored; the old double-emit path is gone.
 
-### Double status_failed in recovery path
+### Double status_failed in recovery path **[RESOLVED]**
 
-When a commission fails and the recovery path also fails, two `status_failed` events are recorded. The second overwrites the first's diagnostic information in some code paths, losing the original failure reason.
+`status_failed` only appears once in `daemon/services/commission/` (`orchestrator.ts:319`, used to count terminal events for recovery — read-only). The double-emit recovery path was rewritten as part of the recovery refactor.
 
 ## Lessons
 

@@ -2,8 +2,16 @@
 title: Commission batch cleanup (2026-03-14 to 2026-03-15)
 date: 2026-03-15
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, commissions, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved.** CHANGELOG gap closed at 1.1.0; commission outcomes to memory shipped (`commission-outcomes-to-memory.md` `status: implemented`); briefing enrichment is achieved transitively (outcomes flow to memory, briefings consume memory); duplicate `linked_artifacts` is guarded by dedup in both commission and meeting record paths. Pre-commit sandbox failures and thin result bodies were environmental/behavioral observations from this batch, not durable bugs.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -21,25 +29,28 @@ Sable's two typecheck/lint fix commissions (after implementation batches by Dalt
 
 ## Loose Threads
 
-### CHANGELOG gap persists
+### CHANGELOG gap persists **[RESOLVED]**
 
-First flagged in the 2026-03-14 cleanup retro. The Unreleased section now has two entries (commission status tool, commit .lore from web) but PRs #101-#110 remain undocumented. New work from this batch (artifact request meeting, commission list filtering, graph-to-tree-list, dashboard selection model, tool use input fix) is also not in the CHANGELOG.
+Closed at the 1.1.0 release cut on 2026-03-20. All PRs through #110 are documented in `CHANGELOG.md` under `[1.1.0] - 2026-03-20`, plus an active `[Unreleased]` section. See `commission-cleanup-2026-03-14.md` validation for the full PR list.
 
-### Commission outcomes not auto-extracted to project memory
+### Commission outcomes not auto-extracted to project memory **[RESOLVED]**
 
-Thorne's triage of `agent-memory-systems.md` identified two unimplemented recommendations: (1) auto-extract commission outcomes to project memory via `submit_result`, and (2) enrich briefings with commission outcome data. Neither has a spec, plan, or issue tracking it. Currently, commission outcomes are preserved only in commission artifacts and retros, which get cleaned up.
+Shipped. `.lore/specs/infrastructure/commission-outcomes-to-memory.md` is `status: implemented` (req-prefix OTMEM, dated 2026-03-20). Commission and meeting outcomes route through `daemon/services/outcome-triage.ts` into project memory sections. The implementation also covers meetings (a scope expansion from the original recommendation, which was commission-only).
 
-### Briefing enrichment from commission outcomes
+### Briefing enrichment from commission outcomes **[RESOLVED — transitively]**
 
-Related to the above. Project briefings are generated from the integration worktree state but don't incorporate recent commission results. A freshly completed commission's findings aren't visible in the next briefing unless they were committed to code or lore.
+Resolved by the same `commission-outcomes-to-memory.md` work. The original ask was for briefings to incorporate recent commission results directly. The implemented design routes outcomes through project memory instead, and briefings already consume memory (see `daemon/services/briefing-generator.ts`). The result is the same — recent commission findings are visible in the next briefing — without coupling the briefing generator to commission state.
 
 ## Infrastructure Issues
 
-**Pre-commit hook failures in sandbox.** Three Dalton commissions (141822, 150737, 163729) and one Octavia commission (085633) reported pre-commit hooks failing due to sandbox constraints (socket binding blocked, /tmp not writable, TMPDIR mismatch). Changes were staged but required out-of-sandbox commits. This is a known environmental limitation, not a code bug.
+**Pre-commit hook failures in sandbox.** **[RESOLVED — environmental]**
+Three Dalton commissions (141822, 150737, 163729) and one Octavia commission (085633) reported pre-commit hooks failing due to sandbox constraints (socket binding blocked, /tmp not writable, TMPDIR mismatch). Changes were staged but required out-of-sandbox commits. This is a known environmental limitation with the SDK sandbox and worker tool boundaries; not a code bug.
 
-**Duplicate linked_artifacts entries.** Commission Octavia-20260314-220135 had duplicate entries in its `linked_artifacts` frontmatter. This is a daemon-side artifact management issue where the same link gets appended multiple times.
+**Duplicate linked_artifacts entries.** **[RESOLVED]**
+Dedup is enforced. `daemon/services/commission/record.ts:207` checks `if (!existingPaths.includes(artifact))` before appending; `daemon/services/meeting/record.ts:278-279` documents the same dedup behavior on the `addLinkedArtifact` path. Whatever produced the duplicate in commission Octavia-20260314-220135 has not recurred.
 
-**Thin result bodies.** Several Octavia commissions (214959, 220135) had bodies containing only lore-search summaries rather than the actual result. The substantive result lives in the `result_submitted` timeline event. This creates a discrepancy between the body and what the commission actually produced.
+**Thin result bodies.** **[RESOLVED — behavioral observation]**
+Several Octavia commissions (214959, 220135) had bodies containing only lore-search summaries rather than the actual result. The substantive result lived in the `result_submitted` timeline event. This was a worker-behavior pattern at the time, not a system bug — the timeline event is the authoritative result record either way. Octavia's posture and `submit_result` discipline have evolved since; no recurring concern.
 
 ## Lessons
 

@@ -2,8 +2,16 @@
 title: "Commission batch cleanup (March 30 - April 3, 2026)"
 date: 2026-04-03
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, commissions, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved or filed.** The raw-color-values issue already exists at `.lore/issues/raw-color-values-in-css-modules.md` and was enriched 2026-04-18 with verified counts (196 violations across 35 `.module.css` files) and a two-step fix direction (tokenize, then lint). The `splitDiffByFile` quoted-path gap was verified at `daemon/services/git-readonly-toolbox.ts:130-155` (regex `^diff --git a\/.+ b\/(.+)$` does not handle `"a/path with space"` form); accepted-as-is per its LOW severity tag and the absence of any spaced paths in this repo. Rate-limit abandonment is addressed by the heartbeat dispatch design (REQ-HBT-6a). Duplicate linked_artifacts is RESOLVED (dedup at `daemon/services/commission/record.ts:207`) — same conclusion as later retros.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -21,23 +29,23 @@ Haiku-model commissions (`resource_overrides.model: haiku`) handled small, well-
 
 ## Loose Threads
 
-### Raw color values in CSS (systemic)
+### Raw color values in CSS (systemic) **[OPEN — issue tracked]**
 
-Thorne flagged a hardcoded `rgba(184, 134, 11, 0.3)` in the collapsible sidebar review (commission-Thorne-20260330-220817). This is not sidebar-specific; it's a project-wide pattern where raw color values appear instead of `var(--color-*)` design tokens. CLAUDE.md already prohibits this ("No raw color values in CSS Modules"), but enforcement is manual. A sweep across all `.module.css` files would catch existing violations.
+Tracked at `.lore/issues/raw-color-values-in-css-modules.md`. Verified count 2026-04-18: 196 raw color values across 35 `.module.css` files. Issue updated with the two-step fix direction (tokenize, then add a stylelint rule so new violations can't land). The lint is the durable answer; per-component fixes don't scale.
 
-### Token-efficient git tools: quoted-path handling (LOW)
+### Token-efficient git tools: quoted-path handling (LOW) **[OPEN — accepted-as-is]**
 
-Thorne flagged across phases 3 and 4 that `splitDiffByFile` does not handle git's quoted-path format (paths with spaces or special chars are wrapped in quotes by git). Unlikely to surface in practice since repo file paths rarely contain special characters, but would produce incorrect per-file splitting if they did.
+Verified at `daemon/services/git-readonly-toolbox.ts:130-155`: `splitDiffByFile`'s regex `/^diff --git a\/.+ b\/(.+)$/gm` doesn't handle git's `"a/path with space" "b/path with space"` quoted-path form. The bug is real but has not been observed in this repo (no tracked paths contain spaces or special characters). Treating as accepted-as-is until a real diff trips it; if it does, the fix is one regex update plus a quoted-path unquote helper.
 
 ## Infrastructure Issues
 
-### Rate limit abandonment and retry
+### Rate limit abandonment and retry **[RESOLVED — by design]**
 
-Two commissions (Dalton 101534, 101544) were abandoned immediately due to API rate limits ("hit your limit"). The retry commissions (120935, 120947) succeeded. The commission system handled this gracefully since the abandoned commissions did no work, but the artifact trail is messy: four commissions for two phases of work. The heartbeat spec (REQ-HBT-6a) addresses this with rate-limit-specific backoff and loop abort, which would prevent future waste.
+Heartbeat dispatch (`.lore/specs/infrastructure/heartbeat-commission-dispatch.md` REQ-HBT-6a) defines rate-limit-specific backoff and loop abort. The historical artifact trail is preserved as-is; future waste of the same shape is gated by the heartbeat path.
 
-### Duplicate linked_artifacts persists
+### Duplicate linked_artifacts persists **[RESOLVED]**
 
-Previous retro noted 18/21 commissions had duplicate `linked_artifacts` entries. This batch continues the pattern. The artifact writer still doubles entries. Tracked in project memory under "Untracked Gaps" but no fix has been dispatched.
+Dedup enforced at `daemon/services/commission/record.ts:207`. The artifact writer no longer doubles entries. Same conclusion as the 2026-03-15, 2026-03-18, 2026-03-24, and 2026-03-30 retros.
 
 ## Lessons
 

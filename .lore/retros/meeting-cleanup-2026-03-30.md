@@ -2,8 +2,16 @@
 title: "Meeting batch cleanup (March 23-30, 2026)"
 date: 2026-03-30
 status: complete
+validated: 2026-04-18
+threads_resolved: true
 tags: [retro, meetings, cleanup]
 ---
+
+## Validation Note (2026-04-18)
+
+**All loose threads resolved or accepted.** The cross-project plan-status fix landed in vibe-garden's `shared/frontmatter-schema.md` (same as the 2026-03-24 meeting retro). The p4-adapter `init.ts` "scoped attrib" optimization was not implemented — `p4-adapter/init.ts:182` still runs `attrib -R /S workspaceDir/*.*` recursively. Treating as accepted-as-is until the 20-minute init is felt as a real blocker. The whitelist `.gitignore`-as-general-feature question was not pursued and remains a P4-only construct in `.lore/specs/infrastructure/p4-adapter.md` REQ-P4A-5/6/7/8/11. The lost meeting notes from `audience-Guild-Master-20260324-190629` are gone — historical, not actionable.
+
+Tags follow the legend: [RESOLVED] / [ABANDONED] / [OPEN] / [DIVERGED] / [UNVERIFIED] / [REJECTED].
 
 ## Context
 
@@ -11,20 +19,20 @@ tags: [retro, meetings, cleanup]
 
 ## Untracked Decisions
 
-### Draft-plan-status bug (vibe-garden/lore-development)
+### Draft-plan-status bug (vibe-garden/lore-development) **[RESOLVED]**
 
-`frontmatter-schema.md` in the lore-development project lacks a plan example, causing workers to infer `active` instead of `draft` for new plans. Identified during the Dalton commission audit (Meeting 1). Fix is in a different project, so no guild-hall commission or issue applies.
+Plan example present in vibe-garden's `shared/frontmatter-schema.md:193-202` with `status: draft` on creation. Cross-project fix shipped.
 
-### p4-adapter init.ts scoped optimization
+### p4-adapter init.ts scoped optimization **[OPEN — accepted-as-is]**
 
-During the ProjFS/lazy worktree discussion (Meeting 6), a quick win was identified: `p4-adapter init.ts` should scope `attrib` and `git add` to in-scope files only, reducing a 20-minute init on EOS SDK workspace. Mentioned in the ProjFS lazy worktree brainstorm but not tracked as actionable work.
+Verified 2026-04-18: `p4-adapter/init.ts:182` still uses `attrib -R /S workspaceDir/*.*` recursively. The scoped optimization (only-tracked-files attrib/git add) was not implemented. The 20-minute init concern from the ProjFS brainstorm has not surfaced as a real complaint in the four weeks since p4-adapter shipped. If init duration becomes a felt blocker on a real workspace, file an issue with measured timings and the spec REQ would gain an in-scope clause. Until then, leave it.
 
-### Whitelist .gitignore as general feature
+### Whitelist .gitignore as general feature **[ABANDONED]**
 
-During the P4 brainstorm review (Meeting 4), the question was raised whether the whitelist `.gitignore` model (deny-all with explicit allows) should be a general Guild Hall feature beyond the P4 adapter. Not tracked anywhere.
+The whitelist model lives only in the P4 adapter (`.lore/specs/infrastructure/p4-adapter.md` REQ-P4A-5/6/7/8/11). The "should this generalize?" question was raised once and not pursued. Not abandoned by decision — abandoned by silence. If a second use case appears, revisit; for now it stays P4-specific.
 
 ## Infrastructure Issues
 
-### Meeting notes generation failure
+### Meeting notes generation failure **[RESOLVED — historical]**
 
-Meeting audience-Guild-Master-20260324-190629 (closed) has no recoverable content. Notes say "Not logged in - Please run /login." The 30-minute session about Windows path normalization commission dispatch is a total loss. The work itself was tracked through commissions (the path normalization commission completed successfully), but the meeting conversation is gone.
+One-off auth state at session start; cannot be reconstructed and the work itself shipped through the path normalization commission. Nothing to do.
