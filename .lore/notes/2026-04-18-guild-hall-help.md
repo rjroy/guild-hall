@@ -1,3 +1,6 @@
+---
+status: active
+---
 # Guild Hall API — Complete Command Reference
 
 49 leaf operations across 7 top-level groups.
