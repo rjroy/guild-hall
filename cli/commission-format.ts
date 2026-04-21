@@ -3,44 +3,40 @@ import type { CliOperation } from "./resolve";
 type ResponseFormatter = (data: unknown) => string;
 
 const COMMISSION_FORMATTERS: Record<string, ResponseFormatter> = {
-  "/commission/request/commission/list": formatCommissionList,
-  "/commission/request/commission/read": formatCommissionDetail,
+  "commission.request.commission.list": formatCommissionList,
+  "commission.request.commission.read": formatCommissionDetail,
 };
 
-const COMMISSION_ACTION_PATHS = new Set([
-  "/commission/run/dispatch",
-  "/commission/run/cancel",
-  "/commission/run/abandon",
-  "/commission/run/redispatch",
-  "/commission/run/continue",
-  "/commission/run/save",
+const COMMISSION_ACTION_OPERATIONS = new Set([
+  "commission.run.dispatch",
+  "commission.run.cancel",
+  "commission.run.abandon",
+  "commission.run.redispatch",
 ]);
 
 const ACTION_VERBS: Record<string, string> = {
-  "/commission/run/dispatch": "Dispatched",
-  "/commission/run/cancel": "Cancelled",
-  "/commission/run/abandon": "Abandoned",
-  "/commission/run/redispatch": "Redispatched",
-  "/commission/run/continue": "Continued",
-  "/commission/run/save": "Saved",
+  "commission.run.dispatch": "Dispatched",
+  "commission.run.cancel": "Cancelled",
+  "commission.run.abandon": "Abandoned",
+  "commission.run.redispatch": "Redispatched",
 };
 
 /**
- * Returns a custom formatter for the given operation path, or undefined
+ * Returns a custom formatter for the given operationId, or undefined
  * if no custom formatter is registered.
  */
 export function getCommissionFormatter(
-  path: string,
+  operationId: string,
 ): ResponseFormatter | undefined {
-  return COMMISSION_FORMATTERS[path];
+  return COMMISSION_FORMATTERS[operationId];
 }
 
 /**
- * Returns true if the operation path is a commission action that should
+ * Returns true if the operationId is a commission action that should
  * use the confirmation formatter.
  */
-export function isCommissionAction(path: string): boolean {
-  return COMMISSION_ACTION_PATHS.has(path);
+export function isCommissionAction(operationId: string): boolean {
+  return COMMISSION_ACTION_OPERATIONS.has(operationId);
 }
 
 /**
@@ -51,14 +47,14 @@ export function isCommissionAction(path: string): boolean {
  */
 export function formatActionConfirmation(
   data: unknown,
-  skill: CliOperation,
+  op: CliOperation,
   positionalArgs: string[],
 ): string {
-  const verb = ACTION_VERBS[skill.invocation.path] ?? "Done";
+  const verb = ACTION_VERBS[op.operationId] ?? "Done";
 
   const responseId =
-    skill.invocation.path === "/commission/run/dispatch" ||
-    skill.invocation.path === "/commission/run/redispatch"
+    op.operationId === "commission.run.dispatch" ||
+    op.operationId === "commission.run.redispatch"
       ? (data as { commissionId?: string })?.commissionId
       : undefined;
 

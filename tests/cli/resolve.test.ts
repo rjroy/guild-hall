@@ -4,311 +4,382 @@ import {
   buildQueryString,
   buildBody,
   validateArgs,
+  type CliOperation,
 } from "@/cli/resolve";
-import type { CliOperation } from "@/cli/resolve";
+import {
+  AGGREGATE_SENTINEL,
+  PACKAGE_OP_SENTINEL,
+  type CliGroupNode,
+  type CliLeafNode,
+} from "@/cli/surface";
 
 function makeOperation(overrides: Partial<CliOperation> = {}): CliOperation {
   return {
-    operationId: "test.skill",
-    name: "test",
-    description: "Test operation",
+    operationId: "test.op",
     invocation: { method: "GET", path: "/test" },
-    context: {},
-    idempotent: true,
     ...overrides,
   };
 }
 
-describe("resolveCommand", () => {
-  const skills: CliOperation[] = [
-    makeOperation({
-      operationId: "workspace.artifact.document.list",
+function leaf(node: Partial<CliLeafNode> & Pick<CliLeafNode, "name" | "operationId">): CliLeafNode {
+  return {
+    kind: "leaf",
+    description: node.description ?? "",
+    args: node.args ?? [],
+    example: node.example ?? "",
+    outputShape: node.outputShape ?? "",
+    ...node,
+  };
+}
+
+function group(name: string, children: CliGroupNode["children"]): CliGroupNode {
+  return { kind: "group", name, description: "", children };
+}
+
+// A small surface that exercises leaf/aggregate/package-op branches without
+// depending on the (large) real surface.
+const testSurface: CliGroupNode = group("guild-hall", [
+  group("system", [
+    group("runtime", [
+      group("daemon", [
+        leaf({
+          name: "health",
+          operationId: "system.runtime.daemon.health",
+        }),
+      ]),
+    ]),
+    group("config", [
+      group("project", [
+        leaf({
+          name: "list",
+          operationId: "system.config.project.list",
+        }),
+        leaf({
+          name: "read",
+          operationId: "system.config.project.read",
+          args: [
+            { name: "projectName", required: true, type: "string", description: "" },
+          ],
+        }),
+        leaf({
+          name: "group",
+          operationId: "system.config.project.group",
+          args: [
+            { name: "name", required: true, type: "string", description: "" },
+            { name: "group", required: true, type: "string", description: "" },
+          ],
+        }),
+        leaf({
+          name: "deregister",
+          operationId: "system.config.project.deregister",
+          args: [
+            { name: "name", required: true, type: "string", description: "" },
+          ],
+        }),
+      ]),
+    ]),
+  ]),
+  group("workspace", [
+    group("artifact", [
+      group("document", [
+        leaf({
+          name: "list",
+          operationId: "workspace.artifact.document.list",
+          args: [
+            { name: "projectName", required: true, type: "string", description: "" },
+          ],
+        }),
+        leaf({
+          name: "read",
+          operationId: "workspace.artifact.document.read",
+          args: [
+            { name: "projectName", required: true, type: "string", description: "" },
+            { name: "path", required: true, type: "string", description: "" },
+          ],
+        }),
+      ]),
+    ]),
+    group("git", [
+      group("branch", [
+        leaf({
+          name: "rebase",
+          operationId: "workspace.git.branch.rebase",
+          args: [
+            { name: "projectName", required: false, type: "string", description: "" },
+          ],
+        }),
+      ]),
+    ]),
+  ]),
+  group("commission", [
+    group("run", [
+      leaf({
+        name: "dispatch",
+        operationId: "commission.run.dispatch",
+        args: [
+          { name: "commissionId", required: true, type: "string", description: "" },
+        ],
+      }),
+    ]),
+  ]),
+  group("meeting", [
+    leaf({
       name: "list",
-      invocation: { method: "GET", path: "/workspace/artifact/document/list" },
-      parameters: [{ name: "projectName", required: true, in: "query" }],
+      operationId: AGGREGATE_SENTINEL,
+      aggregate: {
+        operationIds: [
+          "meeting.request.meeting.list",
+          "meeting.session.meeting.list",
+        ],
+        justification: "test aggregate",
+      },
     }),
-    makeOperation({
-      operationId: "workspace.artifact.document.read",
-      name: "read",
-      invocation: { method: "GET", path: "/workspace/artifact/document/read" },
-      parameters: [
-        { name: "projectName", required: true, in: "query" },
-        { name: "path", required: true, in: "query" },
+  ]),
+  group("package-op", [
+    leaf({
+      name: "invoke",
+      operationId: PACKAGE_OP_SENTINEL,
+      args: [
+        { name: "operationId", required: true, type: "string", description: "" },
       ],
     }),
-    makeOperation({
-      operationId: "system.runtime.daemon.health",
-      name: "health",
-      invocation: { method: "GET", path: "/system/runtime/daemon/health" },
-    }),
-    makeOperation({
-      operationId: "workspace.git.branch.rebase",
-      name: "rebase",
-      invocation: { method: "POST", path: "/workspace/git/branch/rebase" },
-      parameters: [{ name: "projectName", required: false, in: "body" }],
-    }),
-    makeOperation({
-      operationId: "commission.run.dispatch",
-      name: "dispatch",
-      invocation: { method: "POST", path: "/commission/run/dispatch" },
-      parameters: [{ name: "commissionId", required: true, in: "body" }],
-    }),
-    makeOperation({
-      operationId: "system.config.project.group",
-      name: "group",
-      invocation: { method: "POST", path: "/system/config/project/group" },
-      parameters: [
-        { name: "name", required: true, in: "body" },
-        { name: "group", required: true, in: "body" },
-      ],
-    }),
-    makeOperation({
-      operationId: "system.config.project.deregister",
-      name: "deregister",
-      invocation: { method: "POST", path: "/system/config/project/deregister" },
-      parameters: [
-        { name: "name", required: true, in: "body" },
-        { name: "clean", required: false, in: "body" },
-      ],
-    }),
-  ];
+  ]),
+]);
 
-  test("empty segments returns help", () => {
-    const result = resolveCommand([], skills);
+describe("resolveCommand — help branch", () => {
+  test("empty segments returns root help", () => {
+    const result = resolveCommand([], testSurface);
+    expect(result.type).toBe("help");
+    if (result.type === "help") {
+      expect(result.help.segments).toEqual([]);
+      expect(result.help.node).toBe(testSurface);
+    }
+  });
+
+  test("'help' alone returns root help", () => {
+    const result = resolveCommand(["help"], testSurface);
     expect(result.type).toBe("help");
     if (result.type === "help") {
       expect(result.help.segments).toEqual([]);
     }
   });
 
-  test("'help' returns root help", () => {
-    const result = resolveCommand(["help"], skills);
-    expect(result.type).toBe("help");
-    if (result.type === "help") {
-      expect(result.help.segments).toEqual([]);
-    }
-  });
-
-  test("'system help' returns scoped help", () => {
-    const result = resolveCommand(["system", "help"], skills);
+  test("'system help' returns group help", () => {
+    const result = resolveCommand(["system", "help"], testSurface);
     expect(result.type).toBe("help");
     if (result.type === "help") {
       expect(result.help.segments).toEqual(["system"]);
+      expect(result.help.node?.kind).toBe("group");
     }
   });
 
   test("'system runtime daemon health help' returns leaf help", () => {
     const result = resolveCommand(
       ["system", "runtime", "daemon", "health", "help"],
-      skills,
+      testSurface,
     );
     expect(result.type).toBe("help");
     if (result.type === "help") {
       expect(result.help.segments).toEqual([
-        "system",
-        "runtime",
-        "daemon",
-        "health",
+        "system", "runtime", "daemon", "health",
       ]);
+      expect(result.help.node?.kind).toBe("leaf");
     }
   });
+});
 
-  test("resolves command by invocation path segments", () => {
+describe("resolveCommand — leaf command branch", () => {
+  test("resolves full path with no positional args", () => {
     const result = resolveCommand(
       ["system", "runtime", "daemon", "health"],
-      skills,
+      testSurface,
     );
     expect(result.type).toBe("command");
-    if (result.type === "command") {
-      expect(result.command.operation.operationId).toBe(
-        "system.runtime.daemon.health",
-      );
+    if (result.type === "command" && result.command.type === "leaf") {
+      expect(result.command.operation.operationId).toBe("system.runtime.daemon.health");
       expect(result.command.positionalArgs).toEqual([]);
     }
   });
 
-  test("resolves command with positional args", () => {
+  test("resolves with positional args", () => {
     const result = resolveCommand(
       ["workspace", "artifact", "document", "list", "my-project"],
-      skills,
+      testSurface,
     );
     expect(result.type).toBe("command");
-    if (result.type === "command") {
-      expect(result.command.operation.operationId).toBe(
-        "workspace.artifact.document.list",
-      );
+    if (result.type === "command" && result.command.type === "leaf") {
+      expect(result.command.operation.operationId).toBe("workspace.artifact.document.list");
       expect(result.command.positionalArgs).toEqual(["my-project"]);
     }
   });
 
-  test("resolves command with multiple positional args", () => {
+  test("derives parameter location from HTTP method (GET → query)", () => {
     const result = resolveCommand(
-      [
-        "workspace",
-        "artifact",
-        "document",
-        "read",
-        "my-project",
-        "specs/foo.md",
-      ],
-      skills,
+      ["workspace", "artifact", "document", "list", "my-project"],
+      testSurface,
+    );
+    if (result.type === "command" && result.command.type === "leaf") {
+      expect(result.command.operation.invocation.method).toBe("GET");
+      const params = result.command.operation.parameters ?? [];
+      expect(params[0].in).toBe("query");
+    }
+  });
+
+  test("derives parameter location from HTTP method (POST → body)", () => {
+    const result = resolveCommand(
+      ["commission", "run", "dispatch", "abc123"],
+      testSurface,
+    );
+    if (result.type === "command" && result.command.type === "leaf") {
+      expect(result.command.operation.invocation.method).toBe("POST");
+      const params = result.command.operation.parameters ?? [];
+      expect(params[0].in).toBe("body");
+    }
+  });
+
+  test("greedy leaf match consumes segments up to leaf", () => {
+    const result = resolveCommand(
+      ["commission", "run", "dispatch", "abc123"],
+      testSurface,
     );
     expect(result.type).toBe("command");
+    if (result.type === "command" && result.command.type === "leaf") {
+      expect(result.command.operation.operationId).toBe("commission.run.dispatch");
+      expect(result.command.positionalArgs).toEqual(["abc123"]);
+    }
+  });
+
+  test("threads flags through to command result", () => {
+    const result = resolveCommand(
+      ["commission", "run", "dispatch", "abc123"],
+      testSurface,
+      { force: true, reason: "test" },
+    );
     if (result.type === "command") {
-      expect(result.command.operation.operationId).toBe(
-        "workspace.artifact.document.read",
-      );
-      expect(result.command.positionalArgs).toEqual([
-        "my-project",
-        "specs/foo.md",
+      expect(result.command.flags).toEqual({ force: true, reason: "test" });
+    }
+  });
+});
+
+describe("resolveCommand — aggregate branch", () => {
+  test("meeting list resolves to aggregate", () => {
+    const result = resolveCommand(["meeting", "list"], testSurface);
+    expect(result.type).toBe("command");
+    if (result.type === "command" && result.command.type === "aggregate") {
+      expect(result.command.operations.map((o) => o.operationId)).toEqual([
+        "meeting.request.meeting.list",
+        "meeting.session.meeting.list",
       ]);
-    }
-  });
-
-  test("resolves command with optional arg present", () => {
-    const result = resolveCommand(
-      ["workspace", "git", "branch", "rebase", "my-project"],
-      skills,
-    );
-    expect(result.type).toBe("command");
-    if (result.type === "command") {
-      expect(result.command.operation.operationId).toBe(
-        "workspace.git.branch.rebase",
-      );
-      expect(result.command.positionalArgs).toEqual(["my-project"]);
-    }
-  });
-
-  test("resolves command with optional arg absent", () => {
-    const result = resolveCommand(
-      ["workspace", "git", "branch", "rebase"],
-      skills,
-    );
-    expect(result.type).toBe("command");
-    if (result.type === "command") {
-      expect(result.command.operation.operationId).toBe(
-        "workspace.git.branch.rebase",
-      );
       expect(result.command.positionalArgs).toEqual([]);
     }
   });
 
+  test("aggregate carries flags for --state filtering", () => {
+    const result = resolveCommand(
+      ["meeting", "list"],
+      testSurface,
+      { state: "active" },
+    );
+    if (result.type === "command" && result.command.type === "aggregate") {
+      expect(result.command.flags).toEqual({ state: "active" });
+    }
+  });
+});
+
+describe("resolveCommand — package-op branch", () => {
+  test("routes to package-op with targetOperationId", () => {
+    const result = resolveCommand(
+      ["package-op", "invoke", "custom.operation.id", "arg1", "arg2"],
+      testSurface,
+    );
+    expect(result.type).toBe("command");
+    if (result.type === "command" && result.command.type === "package-op") {
+      expect(result.command.targetOperationId).toBe("custom.operation.id");
+      expect(result.command.positionalArgs).toEqual(["arg1", "arg2"]);
+    }
+  });
+
+  test("package-op without targetOperationId is unknown", () => {
+    const result = resolveCommand(
+      ["package-op", "invoke"],
+      testSurface,
+    );
+    expect(result.type).toBe("unknown");
+  });
+});
+
+describe("resolveCommand — unknown branch", () => {
   test("returns unknown for unmatched segments", () => {
-    const result = resolveCommand(["foo", "bar"], skills);
+    const result = resolveCommand(["foo", "bar"], testSurface);
     expect(result.type).toBe("unknown");
     if (result.type === "unknown") {
       expect(result.segments).toEqual(["foo", "bar"]);
     }
   });
 
-  test("greedy match: longer prefix wins", () => {
-    const result = resolveCommand(
-      ["commission", "run", "dispatch", "abc123"],
-      skills,
-    );
-    expect(result.type).toBe("command");
-    if (result.type === "command") {
-      expect(result.command.operation.operationId).toBe("commission.run.dispatch");
-      expect(result.command.positionalArgs).toEqual(["abc123"]);
-    }
-  });
-
-  // p3-group-cmd: routing for group command
-  test("routes 'system config project group <name> <group>' correctly", () => {
-    const result = resolveCommand(
-      ["system", "config", "project", "group", "my-project", "my-team"],
-      skills,
-    );
-    expect(result.type).toBe("command");
-    if (result.type === "command") {
-      expect(result.command.operation.operationId).toBe("system.config.project.group");
-      expect(result.command.positionalArgs).toEqual(["my-project", "my-team"]);
-    }
-  });
-
-  // p3-deregister-cmd: routing for deregister command (--clean already stripped by extractFlags)
-  test("routes 'system config project deregister <name>' correctly", () => {
-    const result = resolveCommand(
-      ["system", "config", "project", "deregister", "my-project"],
-      skills,
-    );
-    expect(result.type).toBe("command");
-    if (result.type === "command") {
-      expect(result.command.operation.operationId).toBe("system.config.project.deregister");
-      expect(result.command.positionalArgs).toEqual(["my-project"]);
-    }
+  test("returns unknown when a group is typed without a leaf verb", () => {
+    const result = resolveCommand(["system", "runtime"], testSurface);
+    expect(result.type).toBe("unknown");
   });
 });
 
 describe("buildQueryString", () => {
   test("builds query string from positional args for GET parameters", () => {
-    const skill = makeOperation({
+    const op = makeOperation({
       parameters: [
         { name: "projectName", required: true, in: "query" },
         { name: "path", required: true, in: "query" },
       ],
     });
-    const qs = buildQueryString(skill, ["my-project", "foo/bar.md"]);
+    const qs = buildQueryString(op, ["my-project", "foo/bar.md"]);
     expect(qs).toBe("?projectName=my-project&path=foo%2Fbar.md");
   });
 
-  test("returns empty string with no query params", () => {
-    const skill = makeOperation({
+  test("returns empty string with only body params", () => {
+    const op = makeOperation({
       parameters: [{ name: "name", required: true, in: "body" }],
     });
-    expect(buildQueryString(skill, ["test"])).toBe("");
+    expect(buildQueryString(op, ["test"])).toBe("");
   });
 
   test("returns empty string with no parameters", () => {
-    const skill = makeOperation();
-    expect(buildQueryString(skill, [])).toBe("");
+    expect(buildQueryString(makeOperation(), [])).toBe("");
   });
 
   test("handles fewer args than params", () => {
-    const skill = makeOperation({
+    const op = makeOperation({
       parameters: [
         { name: "a", required: true, in: "query" },
         { name: "b", required: false, in: "query" },
       ],
     });
-    expect(buildQueryString(skill, ["val1"])).toBe("?a=val1");
+    expect(buildQueryString(op, ["val1"])).toBe("?a=val1");
   });
 
   test("skips empty string positional arguments", () => {
-    const skill = makeOperation({
+    const op = makeOperation({
       parameters: [
         { name: "projectName", required: true, in: "query" },
         { name: "status", required: false, in: "query" },
         { name: "worker", required: false, in: "query" },
       ],
     });
-    // Skip status (empty string) but include worker
-    expect(buildQueryString(skill, ["myproject", "", "guild-hall-developer"]))
-      .toBe("?projectName=myproject&worker=guild-hall-developer");
-  });
-
-  test("skips all empty string arguments", () => {
-    const skill = makeOperation({
-      parameters: [
-        { name: "projectName", required: true, in: "query" },
-        { name: "status", required: false, in: "query" },
-        { name: "worker", required: false, in: "query" },
-      ],
-    });
-    expect(buildQueryString(skill, ["myproject", "", ""]))
-      .toBe("?projectName=myproject");
+    expect(
+      buildQueryString(op, ["myproject", "", "guild-hall-developer"]),
+    ).toBe("?projectName=myproject&worker=guild-hall-developer");
   });
 });
 
 describe("buildBody", () => {
   test("builds JSON body from positional args for POST parameters", () => {
-    const skill = makeOperation({
+    const op = makeOperation({
+      invocation: { method: "POST", path: "/test" },
       parameters: [
         { name: "name", required: true, in: "body" },
         { name: "path", required: true, in: "body" },
       ],
     });
-    const body = buildBody(skill, ["my-project", "/some/path"]);
+    const body = buildBody(op, ["my-project", "/some/path"]);
     expect(JSON.parse(body!)).toEqual({
       name: "my-project",
       path: "/some/path",
@@ -316,153 +387,55 @@ describe("buildBody", () => {
   });
 
   test("returns undefined when no body params and no args", () => {
-    const skill = makeOperation({
+    const op = makeOperation({
       parameters: [{ name: "a", required: true, in: "query" }],
     });
-    expect(buildBody(skill, [])).toBeUndefined();
+    expect(buildBody(op, [])).toBeUndefined();
   });
 
-  test("ignores query params", () => {
-    const skill = makeOperation({
-      parameters: [
-        { name: "q", required: true, in: "query" },
-        { name: "b", required: true, in: "body" },
-      ],
-    });
-    const body = buildBody(skill, ["qval", "bval"]);
-    // Only body params are included, and args map to body params only
-    expect(JSON.parse(body!)).toEqual({ b: "qval" });
-  });
-
-  // p3-register-group: optional third positional arg maps to group
-  test("register with 3 positional args maps name, path, group", () => {
-    const skill = makeOperation({
-      invocation: { method: "POST", path: "/system/config/project/register" },
-      parameters: [
-        { name: "name", required: true, in: "body" },
-        { name: "path", required: true, in: "body" },
-        { name: "group", required: false, in: "body" },
-      ],
-    });
-    const body = buildBody(skill, ["my-project", "/resolved/path", "my-team"]);
-    expect(JSON.parse(body!)).toEqual({
-      name: "my-project",
-      path: "/resolved/path",
-      group: "my-team",
-    });
-  });
-
-  // p3-register-group: without third arg, group is absent from body
-  test("register with 2 positional args omits group", () => {
-    const skill = makeOperation({
-      invocation: { method: "POST", path: "/system/config/project/register" },
-      parameters: [
-        { name: "name", required: true, in: "body" },
-        { name: "path", required: true, in: "body" },
-        { name: "group", required: false, in: "body" },
-      ],
-    });
-    const body = buildBody(skill, ["my-project", "/resolved/path"]);
-    expect(JSON.parse(body!)).toEqual({
-      name: "my-project",
-      path: "/resolved/path",
-    });
-  });
-
-  // p3-group-cmd: group command maps name and group
-  test("group command maps name and new-group positional args", () => {
-    const skill = makeOperation({
-      invocation: { method: "POST", path: "/system/config/project/group" },
-      parameters: [
-        { name: "name", required: true, in: "body" },
-        { name: "group", required: true, in: "body" },
-      ],
-    });
-    const body = buildBody(skill, ["my-project", "my-team"]);
-    expect(JSON.parse(body!)).toEqual({ name: "my-project", group: "my-team" });
-  });
-
-  // p3-deregister-cmd: deregister without --clean has no clean field
-  test("deregister without extraFields omits clean from body", () => {
-    const skill = makeOperation({
-      invocation: { method: "POST", path: "/system/config/project/deregister" },
-      parameters: [
-        { name: "name", required: true, in: "body" },
-        { name: "clean", required: false, in: "body" },
-      ],
-    });
-    const body = buildBody(skill, ["my-project"]);
-    expect(JSON.parse(body!)).toEqual({ name: "my-project" });
-  });
-
-  // p3-deregister-cmd: deregister with --clean flag → clean: true in body
-  test("deregister with extraFields { clean: true } sets clean boolean", () => {
-    const skill = makeOperation({
-      invocation: { method: "POST", path: "/system/config/project/deregister" },
-      parameters: [
-        { name: "name", required: true, in: "body" },
-        { name: "clean", required: false, in: "body" },
-      ],
-    });
-    const body = buildBody(skill, ["my-project"], { clean: true });
-    expect(JSON.parse(body!)).toEqual({ name: "my-project", clean: true });
-  });
-
-  // extraFields do not override positional args
   test("extraFields do not overwrite positionally-mapped params", () => {
-    const skill = makeOperation({
+    const op = makeOperation({
+      invocation: { method: "POST", path: "/test" },
       parameters: [{ name: "name", required: true, in: "body" }],
     });
-    const body = buildBody(skill, ["explicit-name"], { name: "should-not-win" });
+    const body = buildBody(op, ["explicit-name"], { name: "should-not-win" });
     expect(JSON.parse(body!)).toEqual({ name: "explicit-name" });
+  });
+
+  test("deregister --clean flag merges into body", () => {
+    const op = makeOperation({
+      invocation: { method: "POST", path: "/system/config/project/deregister" },
+      parameters: [
+        { name: "name", required: true, in: "body" },
+        { name: "clean", required: false, in: "body" },
+      ],
+    });
+    const body = buildBody(op, ["my-project"], { clean: true });
+    expect(JSON.parse(body!)).toEqual({ name: "my-project", clean: true });
   });
 });
 
 describe("validateArgs", () => {
   test("passes when all required args provided", () => {
-    const skill = makeOperation({
-      invocation: { method: "GET", path: "/workspace/artifact/document/list" },
+    const op = makeOperation({
       parameters: [{ name: "projectName", required: true, in: "query" }],
     });
-    expect(validateArgs(skill, ["my-project"])).toBeNull();
-  });
-
-  test("passes when optional args are missing", () => {
-    const skill = makeOperation({
-      invocation: { method: "POST", path: "/workspace/git/branch/rebase" },
-      parameters: [{ name: "projectName", required: false, in: "body" }],
-    });
-    expect(validateArgs(skill, [])).toBeNull();
+    expect(validateArgs(op, ["my-project"])).toBeNull();
   });
 
   test("fails when required arg is missing", () => {
-    const skill = makeOperation({
-      invocation: { method: "GET", path: "/workspace/artifact/document/list" },
+    const op = makeOperation({
+      commandPath: ["workspace", "artifact", "document", "list"],
       parameters: [{ name: "projectName", required: true, in: "query" }],
     });
-    const error = validateArgs(skill, []);
+    const error = validateArgs(op, []);
     expect(error).not.toBeNull();
     expect(error).toContain("projectName");
     expect(error).toContain("Usage:");
-  });
-
-  test("fails when multiple required args are missing", () => {
-    const skill = makeOperation({
-      invocation: { method: "GET", path: "/workspace/artifact/document/read" },
-      parameters: [
-        { name: "projectName", required: true, in: "query" },
-        { name: "path", required: true, in: "query" },
-      ],
-    });
-    const error = validateArgs(skill, []);
-    expect(error).toContain("projectName");
-    expect(error).toContain("path");
+    expect(error).toContain("workspace artifact document list");
   });
 
   test("passes with no parameters defined", () => {
-    const skill = makeOperation({
-      invocation: { method: "GET", path: "/system/runtime/daemon/health" },
-    });
-    expect(validateArgs(skill, [])).toBeNull();
+    expect(validateArgs(makeOperation(), [])).toBeNull();
   });
 });

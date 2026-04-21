@@ -1,4 +1,5 @@
-import type { CliOperation } from "./resolve";
+import { CLI_SURFACE, type CliGroupNode } from "./surface";
+import { leafNodes, pathForNode } from "./surface-utils";
 
 export interface FormatOptions {
   /** Force JSON output regardless of TTY detection. */
@@ -104,99 +105,21 @@ function formatKeyValue(obj: Record<string, unknown>): string {
   return lines.join("\n");
 }
 
-/** Shape returned by the daemon's /help hierarchy endpoints. */
-export interface HelpNode {
-  name: string;
-  description: string;
-  kind: string;
-  children?: Array<{ name: string; description: string; kind: string; path: string }>;
-}
-
 /**
- * Formats the daemon's help tree response for terminal display.
- * The daemon owns the hierarchy; this just renders it.
- */
-export function formatHelpTree(
-  data: HelpNode,
-  prefix: string[],
-): string {
-  const lines: string[] = [];
-  const title = prefix.length > 0 ? `guild-hall ${prefix.join(" ")}` : "Guild Hall CLI";
-  lines.push(title);
-  lines.push(data.description);
-  lines.push("");
-
-  if (data.children && data.children.length > 0) {
-    lines.push("Commands:");
-    const maxName = Math.max(...data.children.map((c) => c.name.length));
-    for (const child of data.children) {
-      lines.push(`  ${child.name.padEnd(maxName + 2)}${child.description}`);
-    }
-
-    // Add migrate-content at root level
-    if (prefix.length === 0) {
-      const pad = Math.max(maxName, "migrate-content".length);
-      lines.push(`  ${"migrate-content".padEnd(pad + 2)}Migrate result_summary from frontmatter to body`);
-    }
-
-    lines.push("");
-    const prefixStr = prefix.length > 0 ? prefix.join(" ") + " " : "";
-    lines.push(`Run 'guild-hall ${prefixStr}<command> help' for more information.`);
-  }
-
-  return lines.join("\n");
-}
-
-/**
- * Formats an operation's metadata for terminal display (leaf help).
- */
-export function formatOperationHelp(skill: CliOperation): string {
-  const lines: string[] = [];
-  const cmdSegments = skill.invocation.path.split("/").filter(Boolean).join(" ");
-
-  lines.push(`guild-hall ${cmdSegments}`);
-  lines.push(skill.description);
-  lines.push("");
-  lines.push(`  Method:  ${skill.invocation.method}`);
-  lines.push(`  Path:    ${skill.invocation.path}`);
-
-  if (skill.streaming) {
-    lines.push(`  Stream:  yes (${skill.streaming.eventTypes.join(", ")})`);
-  }
-
-  if (skill.parameters && skill.parameters.length > 0) {
-    lines.push("");
-    lines.push("Parameters:");
-    for (const param of skill.parameters) {
-      const req = param.required ? "(required)" : "(optional)";
-      lines.push(`  ${param.name}  ${req}`);
-    }
-  }
-
-  const usage = (skill.parameters ?? [])
-    .map((p) => (p.required ? `<${p.name}>` : `[${p.name}]`))
-    .join(" ");
-  if (usage) {
-    lines.push("");
-    lines.push(`Usage: guild-hall ${cmdSegments} ${usage}`);
-  }
-
-  return lines.join("\n");
-}
-
-/**
- * Suggests a close match from available operation invocation paths.
+ * Suggests a close match from the CLI surface when the user's segments don't
+ * resolve to any leaf. Uses Levenshtein distance over full command paths.
  */
 export function suggestCommand(
   segments: string[],
-  skills: CliOperation[],
+  surface: CliGroupNode = CLI_SURFACE,
 ): string | null {
   const input = segments.join(" ");
   let bestMatch: string | null = null;
   let bestScore = Infinity;
 
-  for (const skill of skills) {
-    const candidate = skill.invocation.path.split("/").filter(Boolean).join(" ");
+  for (const leaf of leafNodes(surface)) {
+    const candidatePath = pathForNode(leaf, surface) ?? [];
+    const candidate = candidatePath.join(" ");
     const distance = levenshtein(input, candidate);
     if (distance < bestScore && distance <= 3) {
       bestScore = distance;
@@ -234,27 +157,39 @@ function levenshtein(a: string, b: string): number {
 
 /**
  * Extracts --json and --tty flags from argv, returning cleaned segments,
- * the format options, and any additional boolean flags (e.g. --clean → { clean: true }).
+ * the format options, and any additional flags. Supports both bare boolean
+ * flags (`--clean`) and `--name=value` / `--name value` string flags.
  */
 export function extractFlags(argv: string[]): {
   segments: string[];
   options: FormatOptions;
-  flags: Record<string, boolean>;
+  flags: Record<string, string | boolean>;
 } {
   const options: FormatOptions = { json: false, tty: false };
-  const flags: Record<string, boolean> = {};
+  const flags: Record<string, string | boolean> = {};
   const segments: string[] = [];
 
-  for (const arg of argv) {
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
     if (arg === "--json") {
       options.json = true;
-    } else if (arg === "--tty") {
-      options.tty = true;
-    } else if (arg.startsWith("--")) {
-      flags[arg.slice(2)] = true;
-    } else {
-      segments.push(arg);
+      continue;
     }
+    if (arg === "--tty") {
+      options.tty = true;
+      continue;
+    }
+    if (arg.startsWith("--")) {
+      const body = arg.slice(2);
+      const eqIdx = body.indexOf("=");
+      if (eqIdx >= 0) {
+        flags[body.slice(0, eqIdx)] = body.slice(eqIdx + 1);
+      } else {
+        flags[body] = true;
+      }
+      continue;
+    }
+    segments.push(arg);
   }
 
   return { segments, options, flags };

@@ -6,11 +6,7 @@ import type { CliOperation } from "@/cli/resolve";
 function makeOperation(overrides: Partial<CliOperation> = {}): CliOperation {
   return {
     operationId: "test.op",
-    name: "test",
-    description: "Test",
     invocation: { method: "POST", path: "/test" },
-    context: {},
-    idempotent: true,
     ...overrides,
   };
 }

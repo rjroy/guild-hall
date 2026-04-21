@@ -2,24 +2,39 @@ import { describe, test, expect } from "bun:test";
 import {
   shouldOutputJson,
   formatResponse,
-  formatHelpTree,
-  formatOperationHelp,
   suggestCommand,
   extractFlags,
 } from "@/cli/format";
-import type { CliOperation } from "@/cli/resolve";
+import type { CliGroupNode, CliLeafNode } from "@/cli/surface";
 
-function makeOperation(overrides: Partial<CliOperation> = {}): CliOperation {
+function leaf(name: string, operationId: string): CliLeafNode {
   return {
-    operationId: "test.skill",
-    name: "test",
-    description: "Test operation",
-    invocation: { method: "GET", path: "/test" },
-    context: {},
-    idempotent: true,
-    ...overrides,
+    kind: "leaf",
+    name,
+    description: "",
+    operationId,
+    args: [],
+    example: "",
+    outputShape: "",
   };
 }
+
+function group(name: string, children: CliGroupNode["children"]): CliGroupNode {
+  return { kind: "group", name, description: "", children };
+}
+
+const testSurface: CliGroupNode = group("guild-hall", [
+  group("system", [
+    group("runtime", [
+      group("daemon", [leaf("health", "system.runtime.daemon.health")]),
+    ]),
+  ]),
+  group("workspace", [
+    group("git", [
+      group("branch", [leaf("rebase", "workspace.git.branch.rebase")]),
+    ]),
+  ]),
+]);
 
 describe("shouldOutputJson", () => {
   test("--json forces JSON", () => {
@@ -40,7 +55,7 @@ describe("formatResponse", () => {
     const data = { foo: "bar", count: 42 };
     const output = formatResponse(data, true);
     expect(JSON.parse(output)).toEqual(data);
-    expect(output).toContain("\n"); // pretty-printed
+    expect(output).toContain("\n");
   });
 
   test("formats string data as-is", () => {
@@ -79,124 +94,15 @@ describe("formatResponse", () => {
   });
 });
 
-describe("formatHelpTree", () => {
-  test("formats root help with children", () => {
-    const data = {
-      name: "Guild Hall API",
-      description: "Guild Hall daemon REST API",
-      kind: "root",
-      children: [
-        { name: "system", description: "System operations", kind: "root", path: "/system" },
-        { name: "commission", description: "Commission operations", kind: "root", path: "/commission" },
-      ],
-    };
-    const output = formatHelpTree(data, []);
-    expect(output).toContain("Guild Hall CLI");
-    expect(output).toContain("Commands:");
-    expect(output).toContain("system");
-    expect(output).toContain("commission");
-    expect(output).toContain("guild-hall <command> help");
-    // Root level includes migrate-content
-    expect(output).toContain("migrate-content");
-  });
-
-  test("formats scoped help with prefix", () => {
-    const data = {
-      name: "commission",
-      description: "Commission operations",
-      kind: "root",
-      children: [
-        { name: "run", description: "Run operations", kind: "feature", path: "/commission/run" },
-        { name: "request", description: "Request operations", kind: "feature", path: "/commission/request" },
-      ],
-    };
-    const output = formatHelpTree(data, ["commission"]);
-    expect(output).toContain("guild-hall commission");
-    expect(output).toContain("run");
-    expect(output).toContain("request");
-    // Scoped help does not include migrate-content
-    expect(output).not.toContain("migrate-content");
-  });
-
-  test("formats help without children", () => {
-    const data = {
-      name: "health",
-      description: "Check daemon health",
-      kind: "operation",
-    };
-    const output = formatHelpTree(data, ["system", "runtime", "daemon", "health"]);
-    expect(output).toContain("guild-hall system runtime daemon health");
-    expect(output).toContain("Check daemon health");
-    expect(output).not.toContain("Commands:");
-  });
-});
-
-describe("formatOperationHelp", () => {
-  test("formats skill with parameters", () => {
-    const skill = makeOperation({
-      operationId: "workspace.artifact.document.list",
-      name: "list",
-      description: "List artifacts for a project",
-      invocation: { method: "GET", path: "/workspace/artifact/document/list" },
-      parameters: [{ name: "projectName", required: true, in: "query" }],
-    });
-
-    const output = formatOperationHelp(skill);
-    expect(output).toContain("guild-hall workspace artifact document list");
-    expect(output).toContain("List artifacts for a project");
-    expect(output).toContain("GET");
-    expect(output).toContain("Parameters:");
-    expect(output).toContain("projectName");
-    expect(output).toContain("(required)");
-    expect(output).toContain("Usage:");
-  });
-
-  test("formats streaming skill", () => {
-    const skill = makeOperation({
-      name: "send",
-      description: "Send a message",
-      invocation: { method: "POST", path: "/meeting/session/message/send" },
-      streaming: { eventTypes: ["meeting_message", "meeting_status"] },
-      parameters: [{ name: "meetingId", required: true, in: "body" }],
-    });
-
-    const output = formatOperationHelp(skill);
-    expect(output).toContain("Stream:");
-    expect(output).toContain("meeting_message");
-  });
-
-  test("formats skill without parameters", () => {
-    const skill = makeOperation({
-      name: "health",
-      description: "Check health",
-      invocation: { method: "GET", path: "/system/runtime/daemon/health" },
-    });
-
-    const output = formatOperationHelp(skill);
-    expect(output).not.toContain("Parameters:");
-    expect(output).not.toContain("Usage:");
-  });
-});
-
 describe("suggestCommand", () => {
-  const skills: CliOperation[] = [
-    makeOperation({ invocation: { method: "GET", path: "/system/runtime/daemon/health" } }),
-    makeOperation({ invocation: { method: "POST", path: "/workspace/git/branch/rebase" } }),
-    makeOperation({ invocation: { method: "GET", path: "/system/config/application/validate" } }),
-  ];
-
-  test("suggests close match", () => {
-    // "rebase" is close to "workspace git branch rebase" but not within distance 3
-    // "validate" paths are too long for short input
-    // This tests the mechanism works with short paths
-    const shortSkills = [
-      makeOperation({ invocation: { method: "GET", path: "/health" } }),
-    ];
-    expect(suggestCommand(["helth"], shortSkills)).toBe("health");
+  test("suggests close match from surface", () => {
+    expect(suggestCommand(["system", "runtime", "daemon", "healt"], testSurface)).toBe(
+      "system runtime daemon health",
+    );
   });
 
   test("returns null for no close match", () => {
-    expect(suggestCommand(["xyzzy"], skills)).toBeNull();
+    expect(suggestCommand(["xyzzy"], testSurface)).toBeNull();
   });
 });
 
@@ -219,12 +125,8 @@ describe("extractFlags", () => {
     expect(options.tty).toBe(true);
   });
 
-  test("extracts both flags", () => {
-    const { segments, options } = extractFlags([
-      "--json",
-      "--tty",
-      "system",
-    ]);
+  test("extracts both --json and --tty", () => {
+    const { segments, options } = extractFlags(["--json", "--tty", "system"]);
     expect(segments).toEqual(["system"]);
     expect(options.json).toBe(true);
     expect(options.tty).toBe(true);
@@ -237,7 +139,6 @@ describe("extractFlags", () => {
     expect(options.tty).toBe(false);
   });
 
-  // p3-deregister-cmd: --clean becomes a boolean flag, not a positional arg
   test("--clean is captured as a boolean flag and removed from segments", () => {
     const { segments, options, flags } = extractFlags([
       "system", "config", "project", "deregister", "my-project", "--clean",
@@ -251,6 +152,14 @@ describe("extractFlags", () => {
     const { segments, flags } = extractFlags(["some", "--dry-run", "command"]);
     expect(segments).toEqual(["some", "command"]);
     expect(flags).toEqual({ "dry-run": true });
+  });
+
+  test("--name=value form yields a string flag", () => {
+    const { segments, flags } = extractFlags([
+      "meeting", "list", "--state=active",
+    ]);
+    expect(segments).toEqual(["meeting", "list"]);
+    expect(flags).toEqual({ state: "active" });
   });
 
   test("no flags returns empty flags record", () => {

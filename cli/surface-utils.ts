@@ -188,3 +188,68 @@ export function operationIdsFor(leaf: CliLeafNode): string[] {
   }
   return [leaf.operationId];
 }
+
+/**
+ * Verbs that map to idempotent GET operations. Anything else is POST.
+ * Keeping this table in one place lets surface.ts stay data-only while the
+ * CLI derives invocation info from each leaf's operationId.
+ */
+const GET_VERBS = new Set([
+  "list",
+  "read",
+  "status",
+  "meta",
+  "health",
+  "check",
+  "graph",
+  "validate",
+]);
+
+/**
+ * Operations that return SSE streams. Keyed by operationId.
+ * Mirrors the `streaming` fields on daemon OperationDefinition entries — kept
+ * here so the CLI can dispatch streaming calls without a runtime catalog
+ * fetch (REQ-CLI-AGENT-26).
+ */
+const STREAMING_OPERATIONS: Record<string, { eventTypes: string[] }> = {
+  "meeting.request.meeting.create": { eventTypes: ["meeting_message", "meeting_status"] },
+  "meeting.request.meeting.accept": { eventTypes: ["meeting_message", "meeting_status"] },
+  "meeting.session.message.send": { eventTypes: ["meeting_message", "meeting_status"] },
+  "system.events.stream.subscribe": {
+    eventTypes: ["commission_status", "meeting_status", "meeting_message"],
+  },
+};
+
+/**
+ * Method overrides for operations where the verb heuristic is wrong.
+ * Most operations follow the convention (list/read → GET, create/dispatch → POST);
+ * this table is the documented exception set.
+ */
+const METHOD_OVERRIDES: Record<string, "GET" | "POST"> = {};
+
+export interface OperationInvocation {
+  method: "GET" | "POST";
+  path: string;
+  streaming?: { eventTypes: string[] };
+}
+
+/**
+ * Resolve `{ method, path, streaming? }` for a concrete daemon operationId.
+ * Path is derived by dot→slash substitution; method defaults to GET for
+ * read-shaped verbs and POST otherwise; streaming is looked up in the table.
+ *
+ * Throws if called with an aggregate or package-op sentinel — those leaves
+ * must be unwrapped to a concrete operationId first.
+ */
+export function invocationForOperation(operationId: string): OperationInvocation {
+  if (operationId === AGGREGATE_SENTINEL || operationId === PACKAGE_OP_SENTINEL) {
+    throw new Error(
+      `invocationForOperation called with sentinel '${operationId}'. Resolve the target operationId first.`,
+    );
+  }
+  const verb = operationId.split(".").pop() ?? "";
+  const method = METHOD_OVERRIDES[operationId] ?? (GET_VERBS.has(verb) ? "GET" : "POST");
+  const path = "/" + operationId.split(".").join("/");
+  const streaming = STREAMING_OPERATIONS[operationId];
+  return streaming ? { method, path, streaming } : { method, path };
+}

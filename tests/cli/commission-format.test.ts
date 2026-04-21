@@ -11,123 +11,108 @@ import type { CliOperation } from "@/cli/resolve";
 function makeOperation(overrides: Partial<CliOperation> = {}): CliOperation {
   return {
     operationId: "test.op",
-    name: "test",
-    description: "Test",
     invocation: { method: "POST", path: "/test" },
-    context: {},
-    idempotent: false,
     ...overrides,
   };
 }
 
 describe("getCommissionFormatter", () => {
-  test("returns formatter for list path", () => {
-    const formatter = getCommissionFormatter("/commission/request/commission/list");
+  test("returns formatter for commission.request.commission.list", () => {
+    const formatter = getCommissionFormatter("commission.request.commission.list");
     expect(formatter).toBeDefined();
   });
 
-  test("returns formatter for read path", () => {
-    const formatter = getCommissionFormatter("/commission/request/commission/read");
+  test("returns formatter for commission.request.commission.read", () => {
+    const formatter = getCommissionFormatter("commission.request.commission.read");
     expect(formatter).toBeDefined();
   });
 
-  test("returns undefined for unregistered path", () => {
-    expect(getCommissionFormatter("/some/other/path")).toBeUndefined();
+  test("returns undefined for unregistered operationId", () => {
+    expect(getCommissionFormatter("some.other.op")).toBeUndefined();
+  });
+
+  test("does not accept path-style keys", () => {
+    // Path-style keys are the old contract; they must not match anymore.
+    expect(getCommissionFormatter("/commission/request/commission/list")).toBeUndefined();
+    expect(getCommissionFormatter("/commission/request/commission/read")).toBeUndefined();
   });
 });
 
 describe("isCommissionAction", () => {
-  test("returns true for action paths", () => {
-    expect(isCommissionAction("/commission/run/dispatch")).toBe(true);
-    expect(isCommissionAction("/commission/run/cancel")).toBe(true);
-    expect(isCommissionAction("/commission/run/abandon")).toBe(true);
-    expect(isCommissionAction("/commission/run/redispatch")).toBe(true);
-    expect(isCommissionAction("/commission/run/continue")).toBe(true);
-    expect(isCommissionAction("/commission/run/save")).toBe(true);
+  test("returns true for dispatch/cancel/abandon/redispatch", () => {
+    expect(isCommissionAction("commission.run.dispatch")).toBe(true);
+    expect(isCommissionAction("commission.run.cancel")).toBe(true);
+    expect(isCommissionAction("commission.run.abandon")).toBe(true);
+    expect(isCommissionAction("commission.run.redispatch")).toBe(true);
   });
 
-  test("returns false for non-action paths", () => {
-    expect(isCommissionAction("/commission/request/commission/list")).toBe(false);
-    expect(isCommissionAction("/other/path")).toBe(false);
+  test("returns false for removed continue/save operations", () => {
+    expect(isCommissionAction("commission.run.continue")).toBe(false);
+    expect(isCommissionAction("commission.run.save")).toBe(false);
+  });
+
+  test("returns false for non-action operationIds", () => {
+    expect(isCommissionAction("commission.request.commission.list")).toBe(false);
+    expect(isCommissionAction("other.op")).toBe(false);
   });
 });
 
 describe("formatActionConfirmation", () => {
   test("dispatch uses response body commissionId", () => {
-    const skill = makeOperation({
+    const op = makeOperation({
+      operationId: "commission.run.dispatch",
       invocation: { method: "POST", path: "/commission/run/dispatch" },
     });
     const result = formatActionConfirmation(
       { commissionId: "commission-Dalton-123" },
-      skill,
+      op,
       [],
     );
     expect(result).toBe("Dispatched: commission-Dalton-123");
   });
 
   test("redispatch uses response body commissionId", () => {
-    const skill = makeOperation({
+    const op = makeOperation({
+      operationId: "commission.run.redispatch",
       invocation: { method: "POST", path: "/commission/run/redispatch" },
     });
     const result = formatActionConfirmation(
       { commissionId: "commission-Thorne-456" },
-      skill,
+      op,
       [],
     );
     expect(result).toBe("Redispatched: commission-Thorne-456");
   });
 
   test("cancel uses positional arg for commissionId", () => {
-    const skill = makeOperation({
+    const op = makeOperation({
+      operationId: "commission.run.cancel",
       invocation: { method: "POST", path: "/commission/run/cancel" },
     });
     const result = formatActionConfirmation(
       { status: "ok" },
-      skill,
+      op,
       ["commission-Dalton-123"],
     );
     expect(result).toBe("Cancelled: commission-Dalton-123");
   });
 
   test("abandon uses positional arg for commissionId", () => {
-    const skill = makeOperation({
+    const op = makeOperation({
+      operationId: "commission.run.abandon",
       invocation: { method: "POST", path: "/commission/run/abandon" },
     });
     const result = formatActionConfirmation(
       { status: "ok" },
-      skill,
+      op,
       ["commission-Dalton-123", "not needed"],
     );
     expect(result).toBe("Abandoned: commission-Dalton-123");
   });
-
-  test("continue uses positional arg for commissionId", () => {
-    const skill = makeOperation({
-      invocation: { method: "POST", path: "/commission/run/continue" },
-    });
-    const result = formatActionConfirmation(
-      { status: "ok" },
-      skill,
-      ["commission-Octavia-789"],
-    );
-    expect(result).toBe("Continued: commission-Octavia-789");
-  });
-
-  test("save uses positional arg for commissionId", () => {
-    const skill = makeOperation({
-      invocation: { method: "POST", path: "/commission/run/save" },
-    });
-    const result = formatActionConfirmation(
-      { status: "ok" },
-      skill,
-      ["commission-Octavia-789"],
-    );
-    expect(result).toBe("Saved: commission-Octavia-789");
-  });
 });
 
 describe("formatCommissionList", () => {
-  test("formats commissions as a table", () => {
+  test("formats commissions as a table (snapshot-style shape check)", () => {
     const data = {
       commissions: [
         {
@@ -150,16 +135,12 @@ describe("formatCommissionList", () => {
     const output = formatCommissionList(data);
     const lines = output.split("\n");
 
-    // Header line
     expect(lines[0]).toContain("ID");
     expect(lines[0]).toContain("STATUS");
     expect(lines[0]).toContain("WORKER");
     expect(lines[0]).toContain("TITLE");
-
-    // Separator line
     expect(lines[1]).toMatch(/^-+/);
 
-    // Data rows
     expect(lines[2]).toContain("commission-Dalton-20260320-200023");
     expect(lines[2]).toContain("in_progress");
     expect(lines[2]).toContain("Developer");
@@ -239,7 +220,6 @@ describe("formatCommissionDetail", () => {
     const timelineSection = output.slice(timelineIdx);
     const lines = timelineSection.split("\n").slice(1);
 
-    // Most recent first
     expect(lines[0]).toContain("status_in_progress");
     expect(lines[1]).toContain("status_dispatched");
     expect(lines[2]).toContain("status_pending");
@@ -256,7 +236,6 @@ describe("formatCommissionDetail", () => {
     const timelineIdx = output.indexOf("Timeline:");
     const timelineLines = output.slice(timelineIdx).split("\n").slice(1).filter(Boolean);
     expect(timelineLines.length).toBe(5);
-    // Most recent (index 9) should be first
     expect(timelineLines[0]).toContain("event_9");
   });
 

@@ -1,26 +1,60 @@
 import type { OperationParameter } from "@/lib/types";
+import {
+  AGGREGATE_SENTINEL,
+  CLI_SURFACE,
+  PACKAGE_OP_SENTINEL,
+  type CliGroupNode,
+  type CliLeafNode,
+  type CliNode,
+} from "./surface";
 
-/** Operation metadata as returned by GET /help/operations. */
+/**
+ * A thin operation descriptor the invocation helpers (`buildQueryString`,
+ * `buildBody`, `validateArgs`) operate on. It is the minimum slice of a daemon
+ * OperationDefinition the CLI needs at call time — a CLI surface leaf's
+ * invocation info plus its parameter list (derived from `leaf.args`).
+ */
 export interface CliOperation {
   operationId: string;
-  name: string;
-  description: string;
   invocation: { method: "GET" | "POST"; path: string };
-  context: Record<string, boolean>;
   streaming?: { eventTypes: string[] };
-  idempotent: boolean;
   parameters?: OperationParameter[];
+  /** Optional — present on leaves resolved from the surface, used only for
+   *  error messages. */
+  commandPath?: string[];
 }
 
-export interface ResolvedCommand {
+export interface LeafCommand {
+  type: "leaf";
+  leaf: CliLeafNode;
   operation: CliOperation;
-  /** Positional argument values, in parameter order. */
   positionalArgs: string[];
+  flags: Record<string, string | boolean>;
 }
+
+export interface AggregateCommand {
+  type: "aggregate";
+  leaf: CliLeafNode;
+  operations: CliOperation[];
+  positionalArgs: string[];
+  flags: Record<string, string | boolean>;
+}
+
+export interface PackageOpCommand {
+  type: "package-op";
+  leaf: CliLeafNode;
+  targetOperationId: string;
+  positionalArgs: string[];
+  flags: Record<string, string | boolean>;
+}
+
+export type ResolvedCommand = LeafCommand | AggregateCommand | PackageOpCommand;
 
 export interface HelpRequest {
-  /** Segments the user typed before "help" (or empty for root help). */
+  /** Segments that identify the help target (empty = root). */
   segments: string[];
+  /** The surface node the segments resolved to, if any. */
+  node?: CliNode;
 }
 
 export type ResolveResult =
@@ -28,75 +62,158 @@ export type ResolveResult =
   | { type: "help"; help: HelpRequest }
   | { type: "unknown"; segments: string[] };
 
-/**
- * Returns the path segments for a skill's invocation path.
- * "/workspace/artifact/document/list" → ["workspace", "artifact", "document", "list"]
- */
-function pathSegments(skill: CliOperation): string[] {
-  return skill.invocation.path.split("/").filter(Boolean);
+import { invocationForOperation } from "./surface-utils";
+
+function argsToParameters(
+  args: CliLeafNode["args"],
+  method: "GET" | "POST",
+): OperationParameter[] {
+  const location: "query" | "body" = method === "GET" ? "query" : "body";
+  return args.map((a) => ({ name: a.name, required: a.required, in: location }));
+}
+
+function operationForOperationId(
+  operationId: string,
+  args: CliLeafNode["args"],
+  commandPath: string[],
+): CliOperation {
+  const inv = invocationForOperation(operationId);
+  return {
+    operationId,
+    invocation: { method: inv.method, path: inv.path },
+    streaming: inv.streaming,
+    parameters: argsToParameters(args, inv.method),
+    commandPath,
+  };
 }
 
 /**
- * Resolves CLI argv segments against the flat skill list.
+ * Walk `segments` through the CLI surface. Returns the reached node plus any
+ * remaining segments (consumed as positional args when the node is a leaf).
+ */
+function walkSurface(
+  segments: string[],
+  surface: CliGroupNode,
+): { node: CliNode; consumed: string[]; remaining: string[] } | null {
+  let node: CliNode = surface;
+  const consumed: string[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (node.kind === "leaf") {
+      return { node, consumed, remaining: segments.slice(i) };
+    }
+    const next: CliNode | undefined = node.children.find((c) => c.name === seg);
+    if (!next) return null;
+    node = next;
+    consumed.push(seg);
+  }
+  return { node, consumed, remaining: [] };
+}
+
+/**
+ * Resolves CLI argv segments against the CLI surface tree.
  *
- * The CLI uses the same hierarchy as the daemon API. Argv segments map
- * directly to invocation path segments. For example:
- *   guild-hall workspace artifact document list guild-hall
- * resolves to the skill at /workspace/artifact/document/list with
- * positional arg "guild-hall".
+ * The CLI surface is CLI-owned (REQ-CLI-AGENT-1). Segments descend into the
+ * tree until they hit a leaf; any remaining segments become positional args.
+ * Aggregate and package-op leaves return dedicated result branches for the
+ * dispatcher in `index.ts`.
  *
- * Resolution algorithm:
- * 1. If no segments or last segment is "help", return a help request.
- * 2. Try progressively longer prefixes of argv against skill invocation paths.
- *    The longest match wins (greedy). Remaining segments are positional args.
- * 3. If no match, return unknown.
+ * Help is detected in two ways:
+ * 1. Empty segments or `help` as the final segment → help request.
+ * 2. Intermediate groups accessed without a concrete verb → implicit group help
+ *    is NOT produced here; the dispatcher renders group help only when the
+ *    user asks for it explicitly via `<group> help`.
  */
 export function resolveCommand(
   segments: string[],
-  skills: CliOperation[],
+  surface: CliGroupNode = CLI_SURFACE,
+  flags: Record<string, string | boolean> = {},
 ): ResolveResult {
   if (segments.length === 0) {
-    return { type: "help", help: { segments: [] } };
+    return { type: "help", help: { segments: [], node: surface } };
   }
 
-  // Help at any level
   if (segments[segments.length - 1] === "help") {
-    return { type: "help", help: { segments: segments.slice(0, -1) } };
+    const helpSegments = segments.slice(0, -1);
+    const walked = walkSurface(helpSegments, surface);
+    return {
+      type: "help",
+      help: {
+        segments: helpSegments,
+        node: walked && walked.remaining.length === 0 ? walked.node : undefined,
+      },
+    };
   }
 
-  // Build a map from invocation path to skill for matching
-  const pathMap = new Map<string, CliOperation>();
-  for (const skill of skills) {
-    const segs = pathSegments(skill);
-    pathMap.set(segs.join(" "), skill);
+  const walked = walkSurface(segments, surface);
+  if (!walked) {
+    return { type: "unknown", segments };
   }
 
-  // Greedy: try longest prefix first
-  for (let len = segments.length; len > 0; len--) {
-    const prefix = segments.slice(0, len).join(" ");
-    const operation = pathMap.get(prefix);
-    if (operation) {
-      return {
-        type: "command",
-        command: {
-          operation,
-          positionalArgs: segments.slice(len),
-        },
-      };
+  const { node, consumed, remaining } = walked;
+
+  // If we exhausted segments but landed on a group, user typed an incomplete
+  // command. Treat as unknown so the caller can suggest the nearest leaf.
+  if (node.kind === "group") {
+    return { type: "unknown", segments };
+  }
+
+  const leaf = node;
+  const commandPath = consumed;
+
+  if (leaf.operationId === AGGREGATE_SENTINEL) {
+    const ids = leaf.aggregate?.operationIds ?? [];
+    const operations = ids.map((id) => operationForOperationId(id, leaf.args, commandPath));
+    return {
+      type: "command",
+      command: {
+        type: "aggregate",
+        leaf,
+        operations,
+        positionalArgs: remaining,
+        flags,
+      },
+    };
+  }
+
+  if (leaf.operationId === PACKAGE_OP_SENTINEL) {
+    const targetOperationId = remaining[0];
+    if (!targetOperationId) {
+      return { type: "unknown", segments };
     }
+    return {
+      type: "command",
+      command: {
+        type: "package-op",
+        leaf,
+        targetOperationId,
+        positionalArgs: remaining.slice(1),
+        flags,
+      },
+    };
   }
 
-  return { type: "unknown", segments };
+  const operation = operationForOperationId(leaf.operationId, leaf.args, commandPath);
+  return {
+    type: "command",
+    command: {
+      type: "leaf",
+      leaf,
+      operation,
+      positionalArgs: remaining,
+      flags,
+    },
+  };
 }
 
 /**
  * Builds a query string from positional args mapped to GET parameters.
  */
 export function buildQueryString(
-  skill: CliOperation,
+  op: CliOperation,
   positionalArgs: string[],
 ): string {
-  const params = (skill.parameters ?? []).filter((p) => p.in === "query");
+  const params = (op.parameters ?? []).filter((p) => p.in === "query");
   const pairs: string[] = [];
 
   for (let i = 0; i < params.length && i < positionalArgs.length; i++) {
@@ -112,14 +229,21 @@ export function buildQueryString(
 /**
  * Builds a JSON body from positional args mapped to POST parameters.
  * Optional extraFields are merged in (e.g. boolean flags like --clean → { clean: true }).
+ * Positional args always take precedence over extraFields.
  */
 export function buildBody(
-  skill: CliOperation,
+  op: CliOperation,
   positionalArgs: string[],
   extraFields?: Record<string, unknown>,
 ): string | undefined {
-  const params = (skill.parameters ?? []).filter((p) => p.in === "body");
-  if (params.length === 0 && positionalArgs.length === 0 && (!extraFields || Object.keys(extraFields).length === 0)) return undefined;
+  const params = (op.parameters ?? []).filter((p) => p.in === "body");
+  if (
+    params.length === 0 &&
+    positionalArgs.length === 0 &&
+    (!extraFields || Object.keys(extraFields).length === 0)
+  ) {
+    return undefined;
+  }
 
   const body: Record<string, unknown> = {};
   for (let i = 0; i < params.length && i < positionalArgs.length; i++) {
@@ -142,16 +266,18 @@ export function buildBody(
  * Returns an error message if validation fails, or null if valid.
  */
 export function validateArgs(
-  skill: CliOperation,
+  op: CliOperation,
   positionalArgs: string[],
 ): string | null {
-  const params = skill.parameters ?? [];
+  const params = op.parameters ?? [];
   const required = params.filter((p) => p.required);
 
   if (positionalArgs.length < required.length) {
     const missing = required.slice(positionalArgs.length);
     const usage = params.map((p) => (p.required ? `<${p.name}>` : `[${p.name}]`)).join(" ");
-    const cmdSegments = skill.invocation.path.split("/").filter(Boolean).join(" ");
+    const cmdSegments = (op.commandPath ?? op.invocation.path.split("/").filter(Boolean)).join(
+      " ",
+    );
     return `Missing required argument: ${missing.map((p) => p.name).join(", ")}\nUsage: guild-hall ${cmdSegments} ${usage}`;
   }
 
