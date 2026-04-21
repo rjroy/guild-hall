@@ -32,3 +32,7 @@ Workers can also add entries to this file during their sessions.
 Overall posture: Gate 2 is substantively met. The architectural work — formatter registry rekeyed by operati...
 
 - 08:48 commission-Thorne-20260421-084120 completed
+- 09:12 commission-Dalton-20260421-085202 result: All Major and Minor findings from Thorne's Gate 2 review are fixed. Verification: typecheck, lint, bun test (3607 pass, 0 fail, 12 snapshots), and build all green.
+
+- 09:12 commission-Dalton-20260421-085202 completed
+## M-1: Project-list fan-out for `m...
