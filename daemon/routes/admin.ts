@@ -40,6 +40,7 @@ export interface AdminDeps {
  * POST /system/config/application/reload   - Reload configuration from disk
  * POST /system/config/project/register     - Register a new project
  * GET  /system/config/application/validate - Validate configuration and project paths
+ * GET  /system/config/project/list         - List all registered projects
  * POST /workspace/git/branch/rebase        - Rebase claude branch onto default branch
  * POST /workspace/git/integration/sync     - Smart sync: fetch, detect merged PRs, rebase
  */
@@ -292,6 +293,21 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
     }
   });
 
+  // -- GET /system/config/project/list --
+  // Returns all registered projects with their path, group, and status.
+  // Status is "registered" for every project present in config (the in-memory
+  // config is the source of truth). Path validity is reported separately by
+  // /system/config/application/validate.
+  routes.get("/system/config/project/list", (c) => {
+    const projects = deps.config.projects.map((p) => ({
+      name: p.name,
+      path: p.path,
+      group: p.group,
+      status: "registered" as const,
+    }));
+    return c.json({ projects });
+  });
+
   // -- GET /system/config/application/validate --
   // Validates config and project paths. Returns issues found.
   routes.get("/system/config/application/validate", async (c) => {
@@ -421,6 +437,17 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
         { name: "path", required: true, in: "body" as const },
         { name: "group", required: false, in: "body" as const },
       ],
+    },
+    {
+      operationId: "system.config.project.list",
+      version: "1",
+      name: "list",
+      description: "List all registered projects with name, path, group, and status",
+      invocation: { method: "GET", path: "/system/config/project/list" },
+      sideEffects: "",
+      context: {},
+      idempotent: true,
+      hierarchy: { root: "system", feature: "config", object: "project" },
     },
     {
       operationId: "system.config.application.validate",

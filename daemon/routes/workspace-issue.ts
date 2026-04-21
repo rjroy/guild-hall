@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import matter from "gray-matter";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
@@ -110,6 +111,96 @@ export function createWorkspaceIssueRoutes(deps: IssueRouteDeps): RouteModule {
     return c.json({ path: relativePath, slug }, 201);
   });
 
+  // GET /workspace/issue/list?projectName=X[&status=Y]
+  // Lists issue frontmatter rows from .lore/issues/ in the integration worktree.
+  // Returns an empty array if the directory does not exist.
+  routes.get("/workspace/issue/list", async (c) => {
+    const projectName = c.req.query("projectName");
+    if (!projectName) {
+      return c.json({ error: "projectName is required" }, 400);
+    }
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+
+    const statusFilter = c.req.query("status");
+    const worktreePath = integrationWorktreePath(deps.guildHallHome, projectName);
+    const issuesDir = nodePath.join(worktreePath, ".lore", "issues");
+
+    let entries: string[];
+    try {
+      entries = await fs.readdir(issuesDir);
+    } catch (err: unknown) {
+      if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+        return c.json({ issues: [] });
+      }
+      log.error("issue list failed:", errorMessage(err));
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+
+    const issues: Array<{ slug: string; title: string; status: string; date: string }> = [];
+    for (const entry of entries) {
+      if (!entry.endsWith(".md")) continue;
+      const slug = entry.slice(0, -3);
+      try {
+        const raw = await fs.readFile(nodePath.join(issuesDir, entry), "utf-8");
+        const parsed = matter(raw);
+        const data = parsed.data as Record<string, unknown>;
+        const title = typeof data.title === "string" ? data.title : slug;
+        const status = typeof data.status === "string" ? data.status : "open";
+        const date = typeof data.date === "string" ? data.date : "";
+        if (statusFilter && status !== statusFilter) continue;
+        issues.push({ slug, title, status, date });
+      } catch (err: unknown) {
+        log.warn(`issue list: skipping unreadable "${entry}":`, errorMessage(err));
+      }
+    }
+
+    return c.json({ issues });
+  });
+
+  // GET /workspace/issue/read?projectName=X&slug=Y
+  // Reads a single issue's frontmatter and body. 404 when slug not found.
+  routes.get("/workspace/issue/read", async (c) => {
+    const projectName = c.req.query("projectName");
+    if (!projectName) {
+      return c.json({ error: "projectName is required" }, 400);
+    }
+    const project = deps.config.projects.find((p) => p.name === projectName);
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+
+    const slug = c.req.query("slug");
+    if (!slug) {
+      return c.json({ error: "slug is required" }, 400);
+    }
+
+    const worktreePath = integrationWorktreePath(deps.guildHallHome, projectName);
+    const filePath = nodePath.join(worktreePath, ".lore", "issues", `${slug}.md`);
+
+    let raw: string;
+    try {
+      raw = await fs.readFile(filePath, "utf-8");
+    } catch (err: unknown) {
+      if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+        return c.json({ error: `Issue not found: ${slug}` }, 404);
+      }
+      log.error("issue read failed:", errorMessage(err));
+      return c.json({ error: errorMessage(err) }, 500);
+    }
+
+    const parsed = matter(raw);
+    const data = parsed.data as Record<string, unknown>;
+    const title = typeof data.title === "string" ? data.title : slug;
+    const status = typeof data.status === "string" ? data.status : "open";
+    const date = typeof data.date === "string" ? data.date : "";
+    const body = parsed.content.replace(/^\n+/, "");
+
+    return c.json({ slug, title, status, date, body });
+  });
+
   const operations: OperationDefinition[] = [
     {
       operationId: "workspace.issue.create",
@@ -125,6 +216,36 @@ export function createWorkspaceIssueRoutes(deps: IssueRouteDeps): RouteModule {
         { name: "projectName", required: true, in: "body" as const },
         { name: "title", required: true, in: "body" as const },
         { name: "body", required: false, in: "body" as const },
+      ],
+    },
+    {
+      operationId: "workspace.issue.list",
+      version: "1",
+      name: "list",
+      description: "List issues in .lore/issues/ for a project, optionally filtered by status",
+      invocation: { method: "GET", path: "/workspace/issue/list" },
+      sideEffects: "",
+      context: { project: true },
+      idempotent: true,
+      hierarchy: { root: "workspace", feature: "issue", object: "list" },
+      parameters: [
+        { name: "projectName", required: true, in: "query" as const },
+        { name: "status", required: false, in: "query" as const },
+      ],
+    },
+    {
+      operationId: "workspace.issue.read",
+      version: "1",
+      name: "read",
+      description: "Read a single issue's frontmatter and body from .lore/issues/",
+      invocation: { method: "GET", path: "/workspace/issue/read" },
+      sideEffects: "",
+      context: { project: true },
+      idempotent: true,
+      hierarchy: { root: "workspace", feature: "issue", object: "read" },
+      parameters: [
+        { name: "projectName", required: true, in: "query" as const },
+        { name: "slug", required: true, in: "query" as const },
       ],
     },
   ];

@@ -829,3 +829,56 @@ describe("POST /system/config/project/deregister", () => {
     expect(config.projects).toHaveLength(0);
   });
 });
+
+describe("GET /system/config/project/list", () => {
+  test("returns empty array when no projects are registered", async () => {
+    const deps = makeAdminDeps();
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/list");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ projects: [] });
+  });
+
+  test("returns all registered projects with name, path, group, and status", async () => {
+    const config: AppConfig = {
+      projects: [
+        { name: "alpha", path: "/tmp/alpha" },
+        { name: "beta", path: "/tmp/beta", group: "team-x" },
+      ],
+    };
+    const deps = makeAdminDeps({ config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/list");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.projects).toHaveLength(2);
+    expect(body.projects[0]).toEqual({
+      name: "alpha",
+      path: "/tmp/alpha",
+      group: undefined,
+      status: "registered",
+    });
+    expect(body.projects[1]).toEqual({
+      name: "beta",
+      path: "/tmp/beta",
+      group: "team-x",
+      status: "registered",
+    });
+  });
+
+  test("response wraps projects in an object", async () => {
+    const config: AppConfig = {
+      projects: [{ name: "p", path: "/tmp/p" }],
+    };
+    const deps = makeAdminDeps({ config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/list");
+    const body = await res.json();
+    expect(body).toHaveProperty("projects");
+    expect(Array.isArray(body.projects)).toBe(true);
+  });
+});

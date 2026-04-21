@@ -43,6 +43,7 @@ export interface MeetingRoutesDeps {
  * POST /meeting/request/meeting/defer       - Defer a meeting request
  * GET  /meeting/request/meeting/list        - List meeting requests for a project
  * GET  /meeting/request/meeting/read        - Read meeting detail
+ * GET  /meeting/session/meeting/list        - List every currently-active meeting session
  */
 export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
   const log = deps.log ?? nullLog("meetings");
@@ -439,6 +440,21 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
     }
   });
 
+  // GET /meeting/session/meeting/list - List every currently-active meeting session.
+  // Cross-project: caller filters client-side. The aggregated `meeting list` CLI
+  // command unions this with `meeting.request.meeting.list`.
+  routes.get("/meeting/session/meeting/list", (c) => {
+    const entries = deps.meetingSession.listAllActiveMeetings();
+    const sessions = entries.map((entry) => ({
+      meetingId: entry.meetingId as string,
+      projectName: entry.projectName,
+      workerName: entry.workerName,
+      startedAt: parseStartedAtFromMeetingId(entry.meetingId as string),
+      status: entry.status,
+    }));
+    return c.json({ sessions });
+  });
+
   const operations: OperationDefinition[] = [
     {
       operationId: "meeting.request.meeting.create",
@@ -563,6 +579,17 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       hierarchy: { root: "meeting", feature: "session", object: "meeting" },
       parameters: [{ name: "meetingId", required: true, in: "body" as const }],
     },
+    {
+      operationId: "meeting.session.meeting.list",
+      version: "1",
+      name: "list",
+      description: "List every currently-active meeting session across all projects",
+      invocation: { method: "GET", path: "/meeting/session/meeting/list" },
+      sideEffects: "",
+      context: {},
+      idempotent: true,
+      hierarchy: { root: "meeting", feature: "session", object: "meeting" },
+    },
   ];
 
   const descriptions: Record<string, string> = {
@@ -576,6 +603,22 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
   };
 
   return { routes, operations, descriptions };
+}
+
+/**
+ * Parses the ISO timestamp embedded in a meeting ID, e.g.
+ * `audience-Worker-20260313-120500[-N]` → `"2026-03-13T12:05:00.000Z"`.
+ * Returns the original ID's date portion as a fallback if the format does
+ * not match. The session list route uses this to surface a startedAt without
+ * adding a field to ActiveMeetingEntry.
+ */
+function parseStartedAtFromMeetingId(meetingId: string): string {
+  const match = meetingId.match(/-(\d{8})-(\d{6})(?:-\d+)?$/);
+  if (!match) return "";
+  const [, ymd, hms] = match;
+  const iso = `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}T${hms.slice(0, 2)}:${hms.slice(2, 4)}:${hms.slice(4, 6)}.000Z`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString();
 }
 
 /**

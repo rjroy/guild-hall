@@ -1,7 +1,8 @@
 import { describe, test, expect } from "bun:test";
 import { createApp } from "@/daemon/app";
 import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";
-import type { GuildHallEvent, MeetingId } from "@/daemon/types";
+import type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
+import { asMeetingId, type GuildHallEvent, type MeetingId } from "@/daemon/types";
 
 // -- Mock meeting session --
 
@@ -54,6 +55,7 @@ function makeMockMeetingSession(
     getActiveMeetings: () => 0,
     createMeetingRequest: () => Promise.resolve(),
     getOpenMeetingsForProject: () => [],
+    listAllActiveMeetings: () => [],
     ...overrides,
   };
 }
@@ -833,5 +835,95 @@ describe("POST /meeting/request/meeting/defer", () => {
     expect(receivedCalls[0].meetingId).toBe("my-request-88");
     expect(receivedCalls[0].projectName).toBe("my-project");
     expect(receivedCalls[0].deferredUntil).toBe("2026-04-01");
+  });
+});
+
+describe("GET /meeting/session/meeting/list", () => {
+  function makeEntry(overrides: Partial<ActiveMeetingEntry> = {}): ActiveMeetingEntry {
+    return {
+      meetingId: asMeetingId("audience-Worker-20260313-120500"),
+      projectName: "test-project",
+      workerName: "Worker",
+      packageName: "worker-pkg",
+      sdkSessionId: null,
+      worktreeDir: "/tmp/wt",
+      branchName: "claude/meetings/test",
+      abortController: new AbortController(),
+      status: "open",
+      scope: "activity",
+      ...overrides,
+    };
+  }
+
+  test("returns empty sessions array when no meetings are active", async () => {
+    const app = makeTestApp({ listAllActiveMeetings: () => [] });
+    const res = await app.request("/meeting/session/meeting/list");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ sessions: [] });
+  });
+
+  test("returns rows with meetingId, projectName, workerName, startedAt, status", async () => {
+    const entry = makeEntry();
+    const app = makeTestApp({ listAllActiveMeetings: () => [entry] });
+
+    const res = await app.request("/meeting/session/meeting/list");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.sessions).toHaveLength(1);
+    expect(body.sessions[0]).toEqual({
+      meetingId: "audience-Worker-20260313-120500",
+      projectName: "test-project",
+      workerName: "Worker",
+      startedAt: "2026-03-13T12:05:00.000Z",
+      status: "open",
+    });
+  });
+
+  test("includes one row per project when sessions span multiple projects", async () => {
+    const entries = [
+      makeEntry({
+        meetingId: asMeetingId("audience-A-20260313-120500"),
+        projectName: "project-a",
+        workerName: "WorkerA",
+      }),
+      makeEntry({
+        meetingId: asMeetingId("audience-B-20260313-130500"),
+        projectName: "project-b",
+        workerName: "WorkerB",
+      }),
+    ];
+    const app = makeTestApp({ listAllActiveMeetings: () => entries });
+
+    const res = await app.request("/meeting/session/meeting/list");
+    const body = (await res.json()) as {
+      sessions: Array<{ projectName: string }>;
+    };
+    expect(body.sessions).toHaveLength(2);
+    const projects = body.sessions.map((s) => s.projectName);
+    expect(projects).toContain("project-a");
+    expect(projects).toContain("project-b");
+  });
+
+  test("parses startedAt from meetingId with sequence suffix", async () => {
+    const entry = makeEntry({
+      meetingId: asMeetingId("audience-Worker-20260313-120500-2"),
+    });
+    const app = makeTestApp({ listAllActiveMeetings: () => [entry] });
+
+    const res = await app.request("/meeting/session/meeting/list");
+    const body = await res.json();
+    expect(body.sessions[0].startedAt).toBe("2026-03-13T12:05:00.000Z");
+  });
+
+  test("returns empty startedAt when meetingId does not match expected format", async () => {
+    const entry = makeEntry({
+      meetingId: asMeetingId("malformed-id"),
+    });
+    const app = makeTestApp({ listAllActiveMeetings: () => [entry] });
+
+    const res = await app.request("/meeting/session/meeting/list");
+    const body = await res.json();
+    expect(body.sessions[0].startedAt).toBe("");
   });
 });
