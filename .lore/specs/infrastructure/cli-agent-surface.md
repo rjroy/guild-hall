@@ -31,7 +31,7 @@ This spec defines what the CLI surface should be:
 - Fundamental operations present on every listable noun (`list`, `read`).
 - Skill-buildable: a Claude session using the CLI via the Bash tool must be able to construct a complete skill definition for itself from `help` output alone.
 
-The `cliPath` presentation hint currently declared on `OperationDefinition` is removed. The CLI owns the mapping between its agent-first surface and the daemon's domain-centric operation IDs.
+The `OperationDefinition` type declares no `cliPath` or equivalent CLI presentation hint. The CLI owns the mapping between its agent-first surface and the daemon's domain-centric operation IDs.
 
 This spec does not change the daemon's grammar, route paths, operation IDs, worker eligibility rules, or custom CLI output formatting already defined in [cli-commission-commands](.lore/specs/commissions/cli-commission-commands.md). It does add four new daemon leaf operations required to make the agent-first surface complete.
 
@@ -49,11 +49,13 @@ This spec does not change the daemon's grammar, route paths, operation IDs, work
 
 - REQ-CLI-AGENT-1: The CLI owns the agent-first command surface. Its groupings, path shape, verb names, and help text are defined within the CLI package, not in daemon operation metadata or package operation declarations.
 
-- REQ-CLI-AGENT-2: The `cliPath` field is removed from `OperationDefinition`. Daemon and package operation definitions declare only the capability-level identity (`operationId`, parameters, eligibility, etc.). They do not declare how the CLI presents them.
+- REQ-CLI-AGENT-2: The `OperationDefinition` type declares no `cliPath` or equivalent CLI presentation hint. Daemon and package operation definitions declare only the capability-level identity (`operationId`, parameters, eligibility, etc.). They do not declare how the CLI presents them. A compile-time assertion guards against the field being added.
 
 - REQ-CLI-AGENT-3: The CLI remains a thin daemon client. Every CLI leaf command resolves to exactly one daemon REST call. Commands that require composing multiple daemon calls (aggregation) are called out explicitly and are the exception, not the rule.
 
-- REQ-CLI-AGENT-4: The daemon's capability catalog remains domain-centric. This spec does not restructure the `<toolbox>/<feature>/<object>/<operation>` grammar, rename operation IDs, change REST route paths, or modify worker `canUseToolRules` patterns. Changes to the daemon's organizational choices (phase-as-object slots, for example) are out of scope and may be addressed in a follow-up spec.
+- REQ-CLI-AGENT-4: The daemon's capability catalog remains domain-centric. This spec does not restructure the `<toolbox>/<feature>/<object>/<operation>` grammar, rename operation IDs, change the REST paths of capability operations, or modify worker `canUseToolRules` patterns. Help-surface routes are a separate concern, addressed in REQ-CLI-AGENT-26. Changes to the daemon's organizational choices (phase-as-object slots, for example) are out of scope and may be addressed in a follow-up spec.
+
+- REQ-CLI-AGENT-26: The daemon's REST-based help surface is removed in its entirety as part of this spec's scope. This includes the tree-walk routes (`GET /help`, `GET /:root/help`, `GET /:root/:feature/help`, `GET /:root/:feature/:object/help`, `GET /:root/:feature/:object/:operation/help`) and the flat catalog endpoint (`GET /help/operations`). The CLI no longer reads help information from the daemon; all help output derives from the CLI-owned surface. Validation that every surface `operationId` is registered uses in-process access to the `OperationsRegistry` via the factory DI seam (`createProductionApp` and equivalent test factories), not a REST catalog call. If a REST-based help or catalog surface is needed later for other clients, it is rebuilt from the ground up as a separate spec.
 
 ### Task-Oriented Top Level
 
@@ -135,7 +137,7 @@ This spec does not change the daemon's grammar, route paths, operation IDs, work
 
 ## Success Criteria
 
-- [ ] `cliPath` is removed from `OperationDefinition` and from every daemon/package operation declaration
+- [ ] `OperationDefinition` declares no `cliPath` or equivalent CLI presentation hint, guarded by a compile-time assertion
 - [ ] The CLI surface is defined in a single location inside the CLI package, independent of daemon operation metadata
 - [ ] Every path in the CLI surface has `help` that returns a non-empty response
 - [ ] No CLI path segment repeats its parent segment
@@ -150,8 +152,8 @@ This spec does not change the daemon's grammar, route paths, operation IDs, work
 - [ ] A skill-builder tool walking the `help --json` tree produces a structured skill representation covering every leaf with the fields required by REQ-CLI-AGENT-20, requiring no additional sources
 - [ ] Commission formatters are keyed by operation ID, not by CLI path; existing commission formatting behavior from cli-commission-commands is preserved
 - [ ] Commission operations remain invocable with the behavior defined in [cli-commission-commands](.lore/specs/commissions/cli-commission-commands.md); their CLI paths are updated to the new surface (exact paths are a planning decision)
-- [ ] Package-contributed operations are either (a) mapped into the noun-centric CLI surface, (b) accessible through a documented fallback route, or (c) explicitly excluded from CLI discovery with the exclusion documented in the CLI mapping. The plan chooses and documents which.
 - [ ] Worker `canUseToolRules` patterns continue to match operation IDs, unchanged by this spec
+- [ ] The daemon's `/help` tree routes and `/help/operations` endpoint are removed; the CLI issues no help-related requests to the daemon
 
 ## AI Validation
 
@@ -165,11 +167,13 @@ This spec does not change the daemon's grammar, route paths, operation IDs, work
 
 - **Skill-build round-trip test.** A test consumer walks the `help --json` tree and emits a structured skill representation. Verify the representation covers every leaf and includes sufficient information to invoke each one. The test does not require a live Claude session; it verifies the structural sufficiency of the emitted skill.
 
-- **CLI mapping ↔ operation catalog consistency.** Verify that every path in the CLI surface resolves to a valid `operationId` present in the daemon's `GET /help/operations` response, and that every operation with `readOnly` or eligibility flags has those flags reflected correctly in the CLI layer (since the CLI cannot invent new access semantics).
+- **CLI mapping ↔ operation catalog consistency.** Verify that every path in the CLI surface resolves to a valid `operationId` registered in the daemon's in-process `OperationsRegistry`, and that every operation with `readOnly` or eligibility flags has those flags reflected correctly in the CLI layer (since the CLI cannot invent new access semantics). The check runs in-process against the registry obtained through the factory DI seam (`createProductionApp` and equivalent test factories); no REST catalog endpoint is consulted.
+
+- **Daemon help surface removal test.** Verify that `GET /help`, `GET /help/operations`, and the tree-walk help routes return 404 (the routes are unregistered). Guards against re-introduction.
 
 - **Daemon leaf presence tests.** Verify that `system.config.project.list`, `meeting.session.meeting.list`, `workspace.issue.list`, and `workspace.issue.read` are registered in the `OperationsRegistry` and return valid responses for typical inputs.
 
-- **No-cliPath test.** A lint-style test verifies that no `OperationDefinition` in the codebase declares a `cliPath` field (field has been removed from the type).
+- **No-cliPath test.** A compile-time assertion on the `OperationDefinition` type confirms that `cliPath` is not a key on the type. A lint-style test confirms no daemon or package operation declaration carries a `cliPath` property.
 
 - **Formatter-keying test.** A test verifies the formatter registry is indexed by operation ID. Lookups by CLI path return nothing; lookups by operation ID return the formatter. Applied to existing commission formatters to confirm the refactor per REQ-CLI-AGENT-25.
 
@@ -180,15 +184,15 @@ This spec does not change the daemon's grammar, route paths, operation IDs, work
 - The daemon's domain-centric grammar (`<toolbox>/<feature>/<object>/<operation>`) is locked by REQ-DAB-5 and is not modified by this spec.
 - Worker `canUseToolRules` glob patterns operate on operation IDs, which are unchanged. This spec does not require updating any worker package's tool-rules configuration.
 - The CLI remains a thin daemon client. The default is one CLI leaf → one daemon call. Aggregating operations (one CLI command calling multiple daemon endpoints) is discouraged and requires explicit justification at the leaf level. This spec introduces exactly one acknowledged aggregation: `meeting list` (see REQ-CLI-AGENT-10a). Future aggregation commands require the same acknowledgment.
-- Package-contributed operations (per [cli-progressive-discovery](.lore/specs/infrastructure/cli-progressive-discovery.md) REQ-CLI-PD-1) need a mechanism to appear in the CLI's noun-centric surface. The policy for this is deferred to a follow-up spec (see Exit Points). Until that spec lands, package operations may be reachable through a fallback hierarchy-path route or an explicit opt-in declaration — the choice is a planning decision.
-- Backwards compatibility with the current CLI paths is not required. The CLI surface is an agent-facing discovery tool and is expected to change as the surface design settles. A transition window with deprecation messages is permitted but not mandated; the choice is a planning decision.
+- Package-contributed operations (per [cli-progressive-discovery](.lore/specs/infrastructure/cli-progressive-discovery.md) REQ-CLI-PD-1) need a mechanism to appear in the CLI's noun-centric surface. The permanent policy is deferred to a follow-up spec (see Exit Points: `[STUB: cli-package-operation-mapping]`). Until that spec lands, the plan chooses one of: (a) mapping package operations into the noun-centric surface by hand, (b) a documented fallback route that exposes any unmapped operation, or (c) explicit exclusion of package operations from CLI discovery with the exclusion documented in the CLI mapping. The plan records and justifies the choice.
+- Backwards compatibility with the current CLI paths is not required. This spec mandates a one-shot cutover: no aliases, no deprecation window, no transitional paths. The CLI is agent-facing and navigated through `help`; muscle memory is not a real constraint and aliases add maintenance cost without user benefit.
 - Custom output formatters defined in [cli-commission-commands](.lore/specs/commissions/cli-commission-commands.md) are preserved. This spec does not re-specify commission-specific formatting; it only adjusts where those formatters are keyed (to operation ID, per REQ-CLI-AGENT-25).
 
 ## Context
 
 **Why this is now a spec.** The verbose-path problem was named in [cli-commission-commands](.lore/specs/commissions/cli-commission-commands.md) on 2026-03-20 and explicitly deferred ("structural consequence of the hierarchy design and outside the scope of this spec"). The deferral stayed deferred. The 2026-04-18 walkthrough of `guild-hall help` output exposed how broad the problem is: duplicated segments across 7 of the 49 leaves, phase-as-object slots across all of commission and meeting, and missing fundamental leaves that make the CLI unusable for routine tasks (no way to list projects, no way to list active meetings). The issue at `.lore/issues/add-cli-command-to-list-active-meetings-for-direct-messaging.md` is a concrete instance of the leaf-gap class.
 
-**Why CLI-owned mapping.** The `cliPath` field on `OperationDefinition` was introduced by the [CLI rewrite plan](.lore/plans/infrastructure/cli-rewrite-thin-daemon-client.md) on 2026-03-14 as a bridge between user-typed words and daemon hierarchy. The field asked the daemon to declare how the CLI presents each capability. That is the daemon defining the UX. When the daemon and the CLI have fundamentally different organizing principles (domain-centric vs. noun-centric), the presentation hint belongs with the consumer, not the publisher. Moving the mapping into the CLI restores the separation of concerns and allows the two surfaces to diverge cleanly without the daemon carrying CLI-specific metadata.
+**Why CLI-owned mapping.** The [CLI rewrite plan](.lore/plans/infrastructure/cli-rewrite-thin-daemon-client.md) on 2026-03-14 proposed a `cliPath` field on `SkillDefinition` (the predecessor of `OperationDefinition`) as a bridge between user-typed words and daemon hierarchy. The field would have asked the daemon to declare how the CLI presents each capability — the daemon defining the UX. The proposal never shipped: when the CLI was wired to the daemon, the current thin-client fetched help from the daemon's tree directly and resolution worked off daemon path segments, so no presentation hint field was added. This spec takes the remaining step by design, not by removal: when the daemon and the CLI have fundamentally different organizing principles (domain-centric vs. noun-centric), the presentation hint belongs with the consumer. The mapping lives in the CLI, and `OperationDefinition` stays free of CLI-specific metadata.
 
 **Why daemon leaf gaps are in scope.** The agent-first surface is incomplete if `project list` resolves to nothing because no daemon operation exists. Declaring the target surface and then filing separate issues for each missing daemon leaf leaves the surface in a broken state for an unbounded period. Four new daemon operations are a proportional inclusion in this spec's scope. Larger daemon-grammar restructuring (phase labels, for example) is out of scope and deferred.
 
