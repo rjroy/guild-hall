@@ -23,7 +23,7 @@ related:
 
 ## Changelog
 
-- **2026-04-20 (v2):** Reworked against revised spec. Coverage of REQ-CLI-AGENT-26 added (daemon `/help` surface removal is now in scope). Spec gaps G1/G3/G4 dropped — the spec text resolves them directly. G6 (package-op fallback) rescoped because the REST catalog the fallback relied on is being removed. Phase 3 expanded to remove `daemon/routes/help.ts` and the mount in `daemon/app.ts`; Phase 4 no longer depends on a REST catalog endpoint; Phase 5's CLI↔catalog consistency check runs in-process through the factory DI seam.
+- **2026-04-20 (v2):** Reworked against revised spec. Coverage of REQ-CLI-AGENT-26 added (daemon `/help` surface removal is now in scope). Phase 3 expanded to remove `daemon/routes/help.ts` and the mount in `daemon/app.ts`; Phase 4 no longer depends on a REST catalog endpoint; Phase 5's CLI↔catalog consistency check runs in-process through the factory DI seam. Package-op fallback narrowed: no runtime catalog listing; invokes any registered daemon operation by ID.
 - **2026-04-19 (v1):** Initial plan following spec review round 1.
 
 ## Spec Reference
@@ -67,18 +67,6 @@ This plan does not subsume `.lore/specs/commissions/cli-commission-commands.md` 
 
 All 27 requirements covered.
 
-## Spec Gaps Surfaced During Planning
-
-These are open questions or planning-time decisions that do not flow directly from spec wording. Each is a narrow call-out for Octavia/Thorne to confirm during review, not a request to rewrite the spec.
-
-**G2. Top-level group set is a planning decision but the spec does not enumerate a minimum set.** REQ-CLI-AGENT-7 defers the specific groups to planning. Phase 2 below proposes a concrete set (§Top-Level Layout). If Octavia or a reviewer prefer a different set (e.g., collapsing `worker`/`model`/`package` under `system`), the surface data is the only place to change it — no route changes cascade.
-
-**G5. Dead-code formatter paths.** `cli/commission-format.ts` registers formatters for `/commission/run/continue` and `/commission/run/save` — operations that do not exist in the current daemon (tracked in project memory as residual halted-continuation dead code). The Phase 4 formatter refactor deletes these entries. No spec change needed.
-
-**G6. Package-op fallback under REQ-CLI-AGENT-26.** `[STUB: cli-package-operation-mapping]` in the spec's exit points defers permanent package-operation discovery. The v1 plan proposed a `package-op` fallback leaf that listed unclaimed `operationId`s from `GET /help/operations`. REQ-CLI-AGENT-26 removes that endpoint, so the fallback cannot enumerate at runtime. Phase 2 now implements a narrower fallback: a single `package-op <operationId> [args...]` leaf that invokes any registered daemon operation by ID without listing the catalog in help. Help for the fallback explains it is transitional and skill-builders will only see it as a generic opaque leaf. If listing is needed before the follow-up spec lands, an in-process `OperationsRegistry` walk in the CLI test harness can generate a static doc — but that is a workaround, not a runtime feature. Called out here for reviewer confirmation.
-
-**G7. Commission schedule/trigger operations absent.** `cli-commission-commands.md` references `commission.schedule.commission.update` and `commission.trigger.commission.update`; neither exists in the current daemon (verified in `daemon/routes/commissions.ts`). Out of scope for this plan — the CLI surface intentionally omits `commission schedule` and `commission trigger` sub-groups until those operations materialize. If they land later, adding them is a localised surface change.
-
 ## Codebase Context
 
 ### Current CLI resolution
@@ -102,7 +90,7 @@ REQ-CLI-AGENT-26 removes all six. Phase 3 deletes the file, the import in `daemo
 
 ### Current formatter registry
 
-`cli/commission-format.ts:5-8` keys formatters by invocation path string (`"/commission/request/commission/list"`). REQ-CLI-AGENT-25 supersedes this: key by `operationId` (`"commission.request.commission.list"`). The lookup site is `cli/index.ts:199-208`. Changing the map key and the lookup call (`getCommissionFormatter(skill.operationId)`) is the mechanical part. `isCommissionAction` and `ACTION_VERBS` follow the same rewrite. Dead entries (G5) are deleted at this step.
+`cli/commission-format.ts:5-8` keys formatters by invocation path string (`"/commission/request/commission/list"`). REQ-CLI-AGENT-25 supersedes this: key by `operationId` (`"commission.request.commission.list"`). The lookup site is `cli/index.ts:199-208`. Changing the map key and the lookup call (`getCommissionFormatter(skill.operationId)`) is the mechanical part. `isCommissionAction` and `ACTION_VERBS` follow the same rewrite. Dead entries for `/commission/run/continue` and `/commission/run/save` are deleted at this step.
 
 ### Existing operation ID coverage
 
@@ -183,7 +171,7 @@ Sub-noun `deps` holds `{check, graph}`.
 - `artifact image read <project> <path>` → `workspace.artifact.image.read`
 - `artifact mockup read <project> <path>` → `workspace.artifact.mockup.read`
 
-Note on the `save` verb: the spec requires verb consistency (REQ-CLI-AGENT-6). `save` is acceptable as a distinct lifecycle verb for "persist new content" if applied consistently across the surface. Alternative: keep the CLI verb as the same word used on the operation ID for parity. Phase 2 picks one and applies it uniformly; if Octavia/Thorne prefer the parity option, the change is a one-line edit to `cli/surface.ts`.
+The `save` verb is the lifecycle verb for "persist new content," applied uniformly across the surface to satisfy verb consistency (REQ-CLI-AGENT-6).
 
 **briefing**
 - `briefing read <project>` → `coordination.review.briefing.read`
@@ -193,7 +181,7 @@ Note on the `save` verb: the spec requires verb consistency (REQ-CLI-AGENT-6). `
 - `model list` → `system.models.catalog.list`
 - `event subscribe` → `system.events.stream.subscribe` (streaming)
 
-Alternative considered (G2): collapse these under `system`. Keeping them top-level because each is a distinct noun and the verb set grows cleanly as new enumerations arrive (`model read`, `worker read`, etc.).
+Each is a distinct noun kept at top level; verb sets grow cleanly as new enumerations arrive (`model read`, `worker read`, etc.).
 
 **config**
 - `config read` → `system.config.application.read`
@@ -211,7 +199,7 @@ Sub-noun `lore` holds `{commit, status}` — the lore operations form a coherent
 **system**
 - `system health` → `system.runtime.daemon.health`
 
-**package-op (fallback, G6 — transitional)**
+**package-op (transitional fallback)**
 - `package-op <operationId> [args...]` — invokes any registered daemon operation by ID. Help at this group is a static description: "Transitional fallback for package-contributed operations not yet mapped into the noun-centric surface. Pass the daemon `operationId` as the first argument; remaining arguments forward to the daemon call." No runtime listing (the REST catalog is removed by REQ-CLI-AGENT-26). A Phase 5 in-process test confirms every registry entry is either claimed by the noun-centric map or reachable via `package-op`.
 
 ### Structural checks this layout passes
@@ -316,7 +304,7 @@ Six phases. Two review gates, plus a final review.
 
 3. **Compile-time `cliPath` assertion** (REQ-CLI-AGENT-2). Simplest form: `type _NoCliPath = 'cliPath' extends keyof OperationDefinition ? never : true;` in a test file. No code change required on the type itself — the field is already absent.
 
-4. **Package-op fallback** (G6): `CLI_SURFACE.children` includes a `package-op` group with a single leaf using the `__package_op__` sentinel. Help output is a static description; no catalog enumeration.
+4. **Package-op fallback:** `CLI_SURFACE.children` includes a `package-op` group with a single leaf using the `__package_op__` sentinel. Help output is a static description; no catalog enumeration.
 
 **Tests** (new file `tests/cli/surface.test.ts`):
 
@@ -343,7 +331,7 @@ Six phases. Two review gates, plus a final review.
 - `cli/surface.ts`, `cli/surface-utils.ts`, and `tests/cli/surface.test.ts`.
 - Verifies: operation metadata complete; schemas correct; structural invariants in the test actually exercise every case; no regressions in existing route tests.
 - Verifies: compile-time `cliPath` assertion is present and meaningful (REQ-CLI-AGENT-2).
-- Verifies: `package-op` fallback does not list the catalog at runtime (G6; aligns with REQ-CLI-AGENT-26).
+- Verifies: `package-op` fallback does not list the catalog at runtime (aligns with REQ-CLI-AGENT-26).
 
 Fix commission dispatched to Dalton if findings land. No Phase 3+ work begins until the gate is clean.
 
@@ -425,7 +413,7 @@ Fix commission dispatched to Dalton if findings land. No Phase 3+ work begins un
 3. **Refactor `cli/commission-format.ts`**:
    - Key `COMMISSION_FORMATTERS` and `COMMISSION_ACTION_PATHS` / `ACTION_VERBS` maps by `operationId`.
    - Rename `getCommissionFormatter(path)` → `getCommissionFormatter(operationId)`.
-   - Delete stale entries for `/commission/run/continue` and `/commission/run/save` (G5).
+   - Delete stale entries for `/commission/run/continue` and `/commission/run/save` (residual halted-continuation dead code).
    - Preserve all existing formatting behaviour (columns, truncation, timeline rendering) — only keys change.
 
 4. **Dependency injection in `main()`**:
@@ -454,7 +442,7 @@ Fix commission dispatched to Dalton if findings land. No Phase 3+ work begins un
 - Resolver correctness against the full surface.
 - Aggregation merge logic.
 - Formatter registry refactor preserved existing commission formatting behaviour.
-- Dead-code removal of continue/save entries (G5).
+- Dead-code removal of `/commission/run/continue` and `/commission/run/save` formatter entries.
 - Daemon help surface fully removed (`daemon/routes/help.ts` deleted, app wiring cleaned, no dangling imports).
 - CLI issues no requests to removed help endpoints.
 
@@ -483,7 +471,7 @@ Fix commission to Dalton if findings land. No Phase 5 until gate is clean.
    - **No-cliPath test:** compile-time assertion `'cliPath' extends keyof OperationDefinition ? never : true` (also sanity-checked at runtime via a type guard). Lint-style scan across daemon and package operation declarations asserts no `cliPath` key is present.
    - **Formatter-keying test:** formatter registry indexed by operationId; path lookup returns nothing.
    - **Meeting list aggregation test:** from Phase 4 — promoted to the AI-validation set.
-   - **Package-op coverage (G6):** assert every `operationId` in the in-process registry is either claimed by a noun-centric surface leaf or reachable via `package-op`. No operation is unreachable.
+   - **Package-op coverage:** assert every `operationId` in the in-process registry is either claimed by a noun-centric surface leaf or reachable via `package-op`. No operation is unreachable.
 
 **Acceptance:** All structural tests green. Coverage ≥ 90% on new CLI mapping and formatter code (existing project standard).
 
@@ -497,7 +485,6 @@ Fix commission to Dalton if findings land. No Phase 5 until gate is clean.
 
 - Every spec REQ traceable to a test.
 - Success Criteria in the spec all green, including the REQ-CLI-AGENT-26 bullet ("daemon's `/help` tree routes and `/help/operations` endpoint are removed").
-- Spec gaps G2, G5, G6, G7 resolved inline or documented as deferred.
 - No unaccounted-for `cliPath` references anywhere in code.
 - No residual references to `daemon/routes/help.ts` or its exported `createHelpRoutes`.
 - `cli-commission-commands` behaviour intact.
@@ -549,14 +536,6 @@ Sizing notes:
 - C7 is solo — Phase 5's harness is self-contained and benefits from a fresh pass, including the 404 guard for the removed daemon routes.
 - Review commissions (C2, C5, C8) are Thorne-only, no Bash needed — reviews read code and confirm test coverage without running tests. Test/typecheck/lint/build runs stay with Dalton inside C1/C4/C7.
 - C9 is Octavia-only, documentation work.
-
-## Out of Scope
-
-- Daemon grammar cleanup (phase-as-object slots like `commission.request.commission.*`). Spec Exit Points flag this as a follow-up under `[STUB: daemon-capability-grammar-cleanup]`.
-- Package operation discovery policy (Exit Points: `[STUB: cli-package-operation-mapping]`). Phase 2 provides the transitional `package-op` fallback (without runtime catalog listing); permanent policy is a separate spec.
-- Schedule/trigger commission operations — they don't exist in the current daemon (G7).
-- Worker `canUseToolRules` regeneration — unchanged by this spec (spec Constraints).
-- Rebuild of a REST-based help or catalog surface for non-CLI consumers — deferred per REQ-CLI-AGENT-26; if needed later, rebuilt from the ground up as a separate spec.
 
 ## Rollback Plan
 
