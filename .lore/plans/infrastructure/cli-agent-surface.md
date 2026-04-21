@@ -1,7 +1,7 @@
 ---
 title: "Plan: CLI Agent-First Surface"
 date: 2026-04-20
-status: draft
+status: approved
 tags: [cli, daemon, progressive-discovery, agent-first, operations, ux, plan]
 modules:
   - cli
