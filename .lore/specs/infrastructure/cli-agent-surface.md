@@ -1,7 +1,7 @@
 ---
 title: CLI agent-first surface
 date: 2026-04-19
-status: draft
+status: approved
 tags: [cli, daemon, progressive-discovery, agent-first, operations, ux]
 modules: [cli, daemon, packages]
 related:
