@@ -3,6 +3,7 @@ import {
   CLI_SURFACE,
   PHASE_LABELS,
   AGGREGATE_SENTINEL,
+  LOCAL_COMMAND_SENTINEL,
   PACKAGE_OP_SENTINEL,
   type CliGroupNode,
   type CliLeafNode,
@@ -182,7 +183,8 @@ describe("CLI_SURFACE operation ID coverage", () => {
     for (const leaf of leafNodes()) {
       if (
         leaf.operationId === AGGREGATE_SENTINEL ||
-        leaf.operationId === PACKAGE_OP_SENTINEL
+        leaf.operationId === PACKAGE_OP_SENTINEL ||
+        leaf.operationId === LOCAL_COMMAND_SENTINEL
       ) {
         continue;
       }

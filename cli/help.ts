@@ -9,6 +9,8 @@
 
 import {
   CLI_SURFACE,
+  LOCAL_COMMAND_SENTINEL,
+  PACKAGE_OP_SENTINEL,
   type CliGroupNode,
   type CliLeafNode,
   type CliNode,
@@ -42,15 +44,15 @@ function commandForPath(path: string[]): string {
 
 /**
  * Root help — the entry page users see when they type `guild-hall help`
- * with no scope. Includes a top-level example and surfaces the built-in
- * `migrate-content` command (REQ-CLI-AGENT-14).
+ * with no scope. All top-level entries (groups and local leaves such as
+ * `migrate-content`) are derived from the surface tree — the renderer
+ * never injects entries outside of `CLI_SURFACE.children` (REQ-CLI-AGENT-14).
  */
 export function renderRootHelp(surface: CliGroupNode = CLI_SURFACE): RenderedHelp {
   const children = surface.children.map((c) => describeChild(c, []));
-  const maxNameWidth = Math.max(
-    ...children.map((c) => c.name.length),
-    "migrate-content".length,
-  );
+  const maxNameWidth = children.length > 0
+    ? Math.max(...children.map((c) => c.name.length))
+    : 0;
 
   const lines: string[] = [];
   lines.push("Guild Hall CLI");
@@ -60,9 +62,6 @@ export function renderRootHelp(surface: CliGroupNode = CLI_SURFACE): RenderedHel
   for (const child of children) {
     lines.push(`  ${pad(child.name, maxNameWidth + 2)}${child.description}`);
   }
-  lines.push(
-    `  ${pad("migrate-content", maxNameWidth + 2)}Migrate result_summary from frontmatter to body`,
-  );
   lines.push("");
   lines.push("Run 'guild-hall <command> help' for more information.");
   lines.push("");
@@ -144,8 +143,12 @@ export function renderLeafHelp(
     if (inv.streaming) {
       lines.push(`  Stream:  yes (${inv.streaming.eventTypes.join(", ")})`);
     }
-  } else {
+  } else if (node.operationId === LOCAL_COMMAND_SENTINEL) {
+    lines.push("  (local-only command — runs in-process without calling the daemon)");
+  } else if (node.operationId === PACKAGE_OP_SENTINEL) {
     lines.push("  (package-op fallback — forwards to the target operationId)");
+  } else {
+    lines.push("  (no invocation metadata)");
   }
 
   const args = node.args ?? [];

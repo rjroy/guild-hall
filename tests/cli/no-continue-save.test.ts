@@ -10,7 +10,7 @@ function collectOperationIds(node: CliNode): string[] {
   return node.children.flatMap(collectOperationIds);
 }
 
-describe("REQ-CLI-AGENT-17: commission continue/save are fully removed", () => {
+describe("REQ-CLI-AGENT-25: commission continue/save are fully removed", () => {
   test("getCommissionFormatter returns undefined for commission.run.continue", () => {
     expect(getCommissionFormatter("commission.run.continue")).toBeUndefined();
   });

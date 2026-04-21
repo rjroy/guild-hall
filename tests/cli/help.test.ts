@@ -5,6 +5,7 @@ import {
   renderLeafHelp,
   renderHelp,
 } from "@/cli/help";
+import { runCli, type CliDeps } from "@/cli/index";
 import { CLI_SURFACE, type CliGroupNode, type CliLeafNode } from "@/cli/surface";
 import { findNodeByPath } from "@/cli/surface-utils";
 
@@ -154,36 +155,121 @@ describe("renderHelp dispatch", () => {
   });
 });
 
-describe("help rendering is pure (no daemon fetches)", () => {
-  test("render functions do not touch a fake daemonFetch", () => {
-    // renderRootHelp/renderGroupHelp/renderLeafHelp are pure functions that
-    // take a node and return text+json. They never call daemonFetch. This
-    // test exercises all three against the live surface with a spy that
-    // must not fire to catch any regression in Phase 3's "zero daemon help"
-    // guarantee.
-    let fetchCount = 0;
-    // The render helpers take no fetcher — if any of them ever started
-    // calling one, it would have to be on the module. We simulate by
-    // creating a spy and never passing it; if we later refactor such that
-    // help needs a fetcher, this test is the place it should show up.
-    const noopFetch = (): never => {
-      fetchCount += 1;
-      throw new Error("help rendering fetched the daemon");
+describe("CLI help path issues zero daemon requests (REQ-CLI-AGENT-26)", () => {
+  // Plan Gate 2 required: "CLI issues zero requests to removed help endpoints
+  // (test asserts this)". The deeper guarantee is that no help invocation of
+  // runCli reaches the daemon at all — help is rendered entirely from the
+  // in-process CLI_SURFACE. These tests wire a throwing spy as `daemonFetch`
+  // and assert runCli returns without ever calling it.
+
+  function throwingDeps(): { deps: CliDeps; fetchCount: { n: number } } {
+    const fetchCount = { n: 0 };
+    const deps: CliDeps = {
+      daemonFetch: () => {
+        fetchCount.n += 1;
+        throw new Error("help path must not reach the daemon");
+      },
+      streamOperation: () => {
+        throw new Error("help path must not stream");
+      },
     };
+    return { deps, fetchCount };
+  }
 
-    renderRootHelp(CLI_SURFACE);
-    const commission = findNodeByPath(["commission"]);
-    if (commission && commission.kind === "group") {
-      renderGroupHelp(commission, ["commission"]);
-    }
-    const health = findNodeByPath(["system", "health"]);
-    if (health && health.kind === "leaf") {
-      renderLeafHelp(health, ["system", "health"]);
-    }
+  function captureStdout(): { logs: string[]; restore: () => void } {
+    const logs: string[] = [];
+    const orig = console.log.bind(console);
+    console.log = (msg: string) => logs.push(msg);
+    return { logs, restore: () => { console.log = orig; } };
+  }
 
-    expect(fetchCount).toBe(0);
-    // Use noopFetch to keep the function referenced (otherwise TS whines).
-    expect(typeof noopFetch).toBe("function");
+  // Tests capture stdout which makes isTTY false, so runCli defaults to JSON.
+  // We pass --tty to force text rendering so we can assert on the human form.
+
+  test("root: runCli(['help','--tty']) renders without calling daemonFetch", async () => {
+    const { deps, fetchCount } = throwingDeps();
+    const { logs, restore } = captureStdout();
+    try {
+      await runCli(["help", "--tty"], deps);
+    } finally {
+      restore();
+    }
+    expect(fetchCount.n).toBe(0);
+    expect(logs.join("\n")).toContain("Guild Hall CLI");
+  });
+
+  test("empty argv with --tty renders root help without calling daemonFetch", async () => {
+    const { deps, fetchCount } = throwingDeps();
+    const { logs, restore } = captureStdout();
+    try {
+      await runCli(["--tty"], deps);
+    } finally {
+      restore();
+    }
+    expect(fetchCount.n).toBe(0);
+    expect(logs.join("\n")).toContain("Guild Hall CLI");
+  });
+
+  test("group: runCli(['commission','help','--tty']) renders without calling daemonFetch", async () => {
+    const { deps, fetchCount } = throwingDeps();
+    const { logs, restore } = captureStdout();
+    try {
+      await runCli(["commission", "help", "--tty"], deps);
+    } finally {
+      restore();
+    }
+    expect(fetchCount.n).toBe(0);
+    expect(logs.join("\n")).toContain("guild-hall commission");
+  });
+
+  test("leaf: runCli(['commission','list','help','--tty']) renders without calling daemonFetch", async () => {
+    const { deps, fetchCount } = throwingDeps();
+    const { logs, restore } = captureStdout();
+    try {
+      await runCli(["commission", "list", "help", "--tty"], deps);
+    } finally {
+      restore();
+    }
+    expect(fetchCount.n).toBe(0);
+    expect(logs.join("\n")).toContain("Example:");
+  });
+
+  test("nested group: runCli(['artifact','image','help','--tty']) renders without calling daemonFetch", async () => {
+    const { deps, fetchCount } = throwingDeps();
+    const { logs, restore } = captureStdout();
+    try {
+      await runCli(["artifact", "image", "help", "--tty"], deps);
+    } finally {
+      restore();
+    }
+    expect(fetchCount.n).toBe(0);
+    expect(logs.join("\n")).toContain("guild-hall artifact image");
+  });
+
+  test("local-only leaf: runCli(['migrate-content','help','--tty']) renders without calling daemonFetch", async () => {
+    const { deps, fetchCount } = throwingDeps();
+    const { logs, restore } = captureStdout();
+    try {
+      await runCli(["migrate-content", "help", "--tty"], deps);
+    } finally {
+      restore();
+    }
+    expect(fetchCount.n).toBe(0);
+    expect(logs.join("\n")).toContain("migrate-content");
+  });
+
+  test("group: JSON mode (no --tty) emits group JSON without calling daemonFetch", async () => {
+    const { deps, fetchCount } = throwingDeps();
+    const { logs, restore } = captureStdout();
+    try {
+      await runCli(["commission", "help"], deps);
+    } finally {
+      restore();
+    }
+    expect(fetchCount.n).toBe(0);
+    const parsed = JSON.parse(logs[0]) as { kind: string; path: string };
+    expect(parsed.kind).toBe("group");
+    expect(parsed.path).toBe("/commission");
   });
 });
 

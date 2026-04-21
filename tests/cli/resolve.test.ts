@@ -8,10 +8,13 @@ import {
 } from "@/cli/resolve";
 import {
   AGGREGATE_SENTINEL,
+  CLI_SURFACE,
+  LOCAL_COMMAND_SENTINEL,
   PACKAGE_OP_SENTINEL,
   type CliGroupNode,
   type CliLeafNode,
 } from "@/cli/surface";
+import { leafNodes, pathForNode } from "@/cli/surface-utils";
 
 function makeOperation(overrides: Partial<CliOperation> = {}): CliOperation {
   return {
@@ -412,6 +415,70 @@ describe("buildBody", () => {
     });
     const body = buildBody(op, ["my-project"], { clean: true });
     expect(JSON.parse(body!)).toEqual({ name: "my-project", clean: true });
+  });
+});
+
+describe("resolveCommand — real CLI_SURFACE reachability (REQ-CLI-AGENT-3)", () => {
+  // m-5: every leaf in the real CLI_SURFACE must be reachable via its
+  // pathForNode. This catches misparented nodes, operationId typos, and
+  // broken subtree wiring that a synthetic test surface cannot catch.
+  test("every leaf resolves to a 'command' result (never 'unknown')", () => {
+    const leaves = leafNodes(CLI_SURFACE);
+    expect(leaves.length).toBeGreaterThan(0);
+
+    const failures: Array<{ leaf: string; reason: string }> = [];
+    for (const leaf of leaves) {
+      const path = pathForNode(leaf, CLI_SURFACE);
+      if (!path) {
+        failures.push({ leaf: leaf.name, reason: "no pathForNode" });
+        continue;
+      }
+      // Package-op requires a target operationId positional; feed a dummy so
+      // resolution lands on the package-op branch instead of 'unknown'.
+      const segments =
+        leaf.operationId === PACKAGE_OP_SENTINEL
+          ? [...path, "some.target.op"]
+          : path;
+      const result = resolveCommand(segments, CLI_SURFACE);
+      if (result.type !== "command") {
+        failures.push({
+          leaf: path.join(" "),
+          reason: `expected 'command', got '${result.type}'`,
+        });
+        continue;
+      }
+      if (leaf.operationId === AGGREGATE_SENTINEL) {
+        expect(result.command.type).toBe("aggregate");
+      } else if (leaf.operationId === PACKAGE_OP_SENTINEL) {
+        expect(result.command.type).toBe("package-op");
+      } else if (leaf.operationId === LOCAL_COMMAND_SENTINEL) {
+        expect(result.command.type).toBe("local");
+      } else {
+        expect(result.command.type).toBe("leaf");
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+
+  test("every leaf's help path resolves to a 'help' result with the leaf node", () => {
+    const leaves = leafNodes(CLI_SURFACE);
+    const failures: Array<{ leaf: string; reason: string }> = [];
+    for (const leaf of leaves) {
+      const path = pathForNode(leaf, CLI_SURFACE);
+      if (!path) continue;
+      const result = resolveCommand([...path, "help"], CLI_SURFACE);
+      if (result.type !== "help") {
+        failures.push({ leaf: path.join(" "), reason: `got '${result.type}'` });
+        continue;
+      }
+      if (result.help.node?.kind !== "leaf") {
+        failures.push({
+          leaf: path.join(" "),
+          reason: "help.node is not the leaf",
+        });
+      }
+    }
+    expect(failures).toEqual([]);
   });
 });
 

@@ -1,12 +1,23 @@
-import type { OperationParameter } from "@/lib/types";
+import type { OperationDefinition, OperationParameter } from "@/lib/types";
 import {
   AGGREGATE_SENTINEL,
   CLI_SURFACE,
+  LOCAL_COMMAND_SENTINEL,
   PACKAGE_OP_SENTINEL,
   type CliGroupNode,
   type CliLeafNode,
   type CliNode,
 } from "./surface";
+
+/**
+ * Minimal view of the daemon operations registry the CLI consults when
+ * resolving a concrete operationId into parameters. Optional — only wired in
+ * tests or when the daemon and CLI share a process. Declared here (rather
+ * than in `./index.ts`) to keep the single `buildCliOperation` helper cycle-free.
+ */
+export interface OperationsRegistryView {
+  get(operationId: string): OperationDefinition | undefined;
+}
 
 /**
  * A thin operation descriptor the invocation helpers (`buildQueryString`,
@@ -48,7 +59,18 @@ export interface PackageOpCommand {
   flags: Record<string, string | boolean>;
 }
 
-export type ResolvedCommand = LeafCommand | AggregateCommand | PackageOpCommand;
+export interface LocalCommand {
+  type: "local";
+  leaf: CliLeafNode;
+  positionalArgs: string[];
+  flags: Record<string, string | boolean>;
+}
+
+export type ResolvedCommand =
+  | LeafCommand
+  | AggregateCommand
+  | PackageOpCommand
+  | LocalCommand;
 
 export interface HelpRequest {
   /** Segments that identify the help target (empty = root). */
@@ -72,18 +94,52 @@ function argsToParameters(
   return args.map((a) => ({ name: a.name, required: a.required, in: location }));
 }
 
-function operationForOperationId(
+export interface BuildCliOperationOptions {
+  /** Surface leaf args used to derive parameter names when no registry match. */
+  args?: CliLeafNode["args"];
+  /** Human-readable command path, used only in validation error messages. */
+  commandPath?: string[];
+  /** Optional in-process registry view; when a match is found its parameters win. */
+  registry?: OperationsRegistryView;
+}
+
+/**
+ * Single source of truth for turning an `operationId` into a `CliOperation`.
+ *
+ * Preference order for parameter metadata:
+ *   1. A registry entry (authoritative, matches the daemon contract).
+ *   2. Surface leaf args (when the caller knows the CLI argument shape).
+ *   3. Nothing — leave `parameters` undefined and let the caller synthesise
+ *      positional parameters (used by the package-op fallback).
+ *
+ * Throws for sentinel operationIds — sentinels must be unwrapped first.
+ */
+export function buildCliOperation(
   operationId: string,
-  args: CliLeafNode["args"],
-  commandPath: string[],
+  opts: BuildCliOperationOptions = {},
 ): CliOperation {
+  const fromRegistry = opts.registry?.get(operationId);
+  if (fromRegistry) {
+    return {
+      operationId,
+      invocation: {
+        method: fromRegistry.invocation.method,
+        path: fromRegistry.invocation.path,
+      },
+      streaming: fromRegistry.streaming,
+      parameters: fromRegistry.parameters,
+      commandPath: opts.commandPath,
+    };
+  }
   const inv = invocationForOperation(operationId);
   return {
     operationId,
     invocation: { method: inv.method, path: inv.path },
     streaming: inv.streaming,
-    parameters: argsToParameters(args, inv.method),
-    commandPath,
+    parameters: opts.args
+      ? argsToParameters(opts.args, inv.method)
+      : undefined,
+    commandPath: opts.commandPath,
   };
 }
 
@@ -163,7 +219,9 @@ export function resolveCommand(
 
   if (leaf.operationId === AGGREGATE_SENTINEL) {
     const ids = leaf.aggregate?.operationIds ?? [];
-    const operations = ids.map((id) => operationForOperationId(id, leaf.args, commandPath));
+    const operations = ids.map((id) =>
+      buildCliOperation(id, { args: leaf.args, commandPath }),
+    );
     return {
       type: "command",
       command: {
@@ -193,7 +251,22 @@ export function resolveCommand(
     };
   }
 
-  const operation = operationForOperationId(leaf.operationId, leaf.args, commandPath);
+  if (leaf.operationId === LOCAL_COMMAND_SENTINEL) {
+    return {
+      type: "command",
+      command: {
+        type: "local",
+        leaf,
+        positionalArgs: remaining,
+        flags,
+      },
+    };
+  }
+
+  const operation = buildCliOperation(leaf.operationId, {
+    args: leaf.args,
+    commandPath,
+  });
   return {
     type: "command",
     command: {

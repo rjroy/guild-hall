@@ -1,4 +1,4 @@
-import { describe, test, expect } from "bun:test";
+import { afterAll, beforeAll, describe, test, expect } from "bun:test";
 import {
   getCommissionFormatter,
   isCommissionAction,
@@ -272,5 +272,183 @@ describe("formatCommissionDetail", () => {
     expect(output).toContain("Approval: auto");
     expect(output).toContain("Runs:     2");
     expect(output).toContain("Last:     2026-03-20T15:00:00.000Z");
+  });
+});
+
+describe("M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25)", () => {
+  // Shape-based tests confirm fields are present; snapshots catch silent
+  // drift in column widths, ordering, truncation, and spacing. Terminal
+  // width is pinned so list layout is deterministic across environments.
+  const originalColumns = process.stdout.columns;
+  beforeAll(() => {
+    Object.defineProperty(process.stdout, "columns", {
+      value: 100,
+      configurable: true,
+    });
+  });
+  afterAll(() => {
+    Object.defineProperty(process.stdout, "columns", {
+      value: originalColumns,
+      configurable: true,
+    });
+  });
+
+  const baseDetail = {
+    commission: {
+      commissionId: "commission-Dalton-20260320-200023",
+      title: "Fix login validation bug",
+      status: "in_progress",
+      type: "one-shot",
+      date: "2026-03-20",
+      worker: "guild-hall-developer",
+      workerDisplayTitle: "Developer",
+      current_progress: "Implementing the login validation changes. Tests passing.",
+      result_summary: "",
+    },
+    timeline: [
+      { timestamp: "2026-03-20 20:00:23", event: "status_pending", reason: "Commission created" },
+      { timestamp: "2026-03-20 20:01:00", event: "status_dispatched", reason: "Commission dispatched" },
+      { timestamp: "2026-03-20 20:15:32", event: "status_in_progress", reason: "Dispatched to worker" },
+    ],
+    rawContent: "",
+  };
+
+  test("formatCommissionList — populated", () => {
+    const output = formatCommissionList({
+      commissions: [
+        {
+          commissionId: "commission-Dalton-20260320-200023",
+          status: "in_progress",
+          workerDisplayTitle: "Developer",
+          title: "Fix login validation bug",
+          worker: "guild-hall-developer",
+        },
+        {
+          commissionId: "commission-Octavia-20260320-201208",
+          status: "halted",
+          workerDisplayTitle: "Chronicler",
+          title: "Write CLI commission spec",
+          worker: "guild-hall-writer",
+        },
+      ],
+    });
+    expect(output).toMatchSnapshot();
+  });
+
+  test("formatCommissionList — empty", () => {
+    expect(formatCommissionList({ commissions: [] })).toMatchSnapshot();
+  });
+
+  test("formatCommissionDetail — with progress, without result", () => {
+    expect(formatCommissionDetail(baseDetail)).toMatchSnapshot();
+  });
+
+  test("formatCommissionDetail — without progress, without result", () => {
+    expect(
+      formatCommissionDetail({
+        ...baseDetail,
+        commission: { ...baseDetail.commission, current_progress: "" },
+      }),
+    ).toMatchSnapshot();
+  });
+
+  test("formatCommissionDetail — with result", () => {
+    expect(
+      formatCommissionDetail({
+        ...baseDetail,
+        commission: {
+          ...baseDetail.commission,
+          result_summary: "All tests pass. Deployed to staging.",
+        },
+      }),
+    ).toMatchSnapshot();
+  });
+
+  test("formatCommissionDetail — with schedule info", () => {
+    expect(
+      formatCommissionDetail({
+        ...baseDetail,
+        scheduleInfo: {
+          cron: "0 9 * * 1",
+          cronDescription: "Every Monday at 9:00 AM",
+          repeat: null,
+          runsCompleted: 3,
+          lastRun: "2026-03-17T09:00:00.000Z",
+          nextRun: "2026-03-24T09:00:00.000Z",
+        },
+      }),
+    ).toMatchSnapshot();
+  });
+
+  test("formatCommissionDetail — with trigger info", () => {
+    expect(
+      formatCommissionDetail({
+        ...baseDetail,
+        triggerInfo: {
+          match: { type: "commission_result" },
+          approval: "auto",
+          runsCompleted: 2,
+          lastTriggered: "2026-03-20T15:00:00.000Z",
+        },
+      }),
+    ).toMatchSnapshot();
+  });
+
+  test("formatCommissionDetail — timeline truncation at 5 entries", () => {
+    const manyEntries = Array.from({ length: 10 }, (_, i) => ({
+      timestamp: `2026-03-20 20:${String(i).padStart(2, "0")}:00`,
+      event: `event_${i}`,
+      reason: `Reason ${i}`,
+    }));
+    expect(
+      formatCommissionDetail({ ...baseDetail, timeline: manyEntries }),
+    ).toMatchSnapshot();
+  });
+
+  function actionOp(operationId: string, path: string): CliOperation {
+    return {
+      operationId,
+      invocation: { method: "POST", path },
+    };
+  }
+
+  test("formatActionConfirmation — dispatch", () => {
+    expect(
+      formatActionConfirmation(
+        { commissionId: "commission-Dalton-20260320-200023" },
+        actionOp("commission.run.dispatch", "/commission/run/dispatch"),
+        [],
+      ),
+    ).toMatchSnapshot();
+  });
+
+  test("formatActionConfirmation — redispatch", () => {
+    expect(
+      formatActionConfirmation(
+        { commissionId: "commission-Thorne-20260320-200025" },
+        actionOp("commission.run.redispatch", "/commission/run/redispatch"),
+        [],
+      ),
+    ).toMatchSnapshot();
+  });
+
+  test("formatActionConfirmation — cancel", () => {
+    expect(
+      formatActionConfirmation(
+        { status: "ok" },
+        actionOp("commission.run.cancel", "/commission/run/cancel"),
+        ["commission-Dalton-20260320-200023"],
+      ),
+    ).toMatchSnapshot();
+  });
+
+  test("formatActionConfirmation — abandon", () => {
+    expect(
+      formatActionConfirmation(
+        { status: "ok" },
+        actionOp("commission.run.abandon", "/commission/run/abandon"),
+        ["commission-Dalton-20260320-200023", "Scope changed"],
+      ),
+    ).toMatchSnapshot();
   });
 });

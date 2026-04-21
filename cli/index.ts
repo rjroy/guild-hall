@@ -5,16 +5,19 @@ import {
   isDaemonError,
 } from "@/lib/daemon-client";
 import type { DaemonError } from "@/lib/daemon-client";
-import type { OperationDefinition, OperationParameter } from "@/lib/types";
+import type { OperationParameter } from "@/lib/types";
 import { migrateContentToBody } from "./migrate-content-to-body";
 import {
   buildBody,
+  buildCliOperation,
   buildQueryString,
   resolveCommand,
   validateArgs,
   type AggregateCommand,
   type CliOperation,
   type LeafCommand,
+  type LocalCommand,
+  type OperationsRegistryView,
   type PackageOpCommand,
 } from "./resolve";
 import {
@@ -26,22 +29,14 @@ import {
 import { renderHelp } from "./help";
 import { streamOperation as realStreamOperation } from "./stream";
 import { CLI_SURFACE, type CliGroupNode } from "./surface";
-import { findNodeByPath, invocationForOperation } from "./surface-utils";
+import { findNodeByPath } from "./surface-utils";
 import {
   formatActionConfirmation,
   getCommissionFormatter,
   isCommissionAction,
 } from "./commission-format";
 
-/**
- * Minimal view of the daemon operations registry the CLI needs in-process
- * (optional — only set in tests or when the daemon runs in the same process).
- * In production the CLI has no registry and falls back to inference via
- * `invocationForOperation()`.
- */
-export interface OperationsRegistryView {
-  get(operationId: string): OperationDefinition | undefined;
-}
+export type { OperationsRegistryView } from "./resolve";
 
 export interface CliDeps {
   daemonFetch: (
@@ -60,35 +55,6 @@ async function defaultReadStdin(): Promise<string> {
     chunks.push(chunk as Buffer);
   }
   return Buffer.concat(chunks).toString("utf-8");
-}
-
-/**
- * Resolve a CliOperation for a concrete operationId. Uses the registry when
- * available for accurate parameter metadata; otherwise infers method/path
- * from the operationId.
- */
-function operationFor(
-  operationId: string,
-  registry: OperationsRegistryView | undefined,
-): CliOperation {
-  const fromRegistry = registry?.get(operationId);
-  if (fromRegistry) {
-    return {
-      operationId,
-      invocation: {
-        method: fromRegistry.invocation.method,
-        path: fromRegistry.invocation.path,
-      },
-      streaming: fromRegistry.streaming,
-      parameters: fromRegistry.parameters,
-    };
-  }
-  const inv = invocationForOperation(operationId);
-  return {
-    operationId,
-    invocation: { method: inv.method, path: inv.path },
-    streaming: inv.streaming,
-  };
 }
 
 /**
@@ -273,6 +239,30 @@ function formatAggregateMeetingList(rows: AggregateMeeting[]): string {
   return formatResponse(display, false);
 }
 
+/**
+ * Fetch JSON from the daemon or exit 1 with a diagnostic. The aggregate
+ * dispatcher issues several requests in sequence, so the repeated error
+ * unwrap lives here rather than inline.
+ */
+async function fetchJsonOrExit(
+  deps: CliDeps,
+  requestPath: string,
+  method: "GET" | "POST",
+): Promise<Record<string, unknown>> {
+  const res = await deps.daemonFetch(requestPath, { method });
+  if (isDaemonError(res)) {
+    console.error(`Failed to reach daemon: ${res.message}`);
+    process.exit(1);
+  }
+  const body = (await res.json()) as Record<string, unknown>;
+  if (!res.ok) {
+    const errObj = body as { error?: string };
+    console.error(errObj.error ?? `Request failed (HTTP ${res.status})`);
+    process.exit(1);
+  }
+  return body;
+}
+
 async function dispatchAggregate(
   command: AggregateCommand,
   flags: Record<string, string | boolean>,
@@ -280,12 +270,13 @@ async function dispatchAggregate(
   deps: CliDeps,
 ): Promise<void> {
   // Only the meeting list aggregate exists today (REQ-CLI-AGENT-10a).
-  const opIds = command.operations.map((o) => o.operationId).sort();
-  const isMeetingList =
-    opIds.includes("meeting.request.meeting.list") &&
-    opIds.includes("meeting.session.meeting.list");
+  // m-2: look up each constituent by operationId so the dispatcher uses the
+  // resolved invocation.path — never a hardcoded literal.
+  const byId = new Map(command.operations.map((o) => [o.operationId, o]));
+  const requestedOp = byId.get("meeting.request.meeting.list");
+  const sessionOp = byId.get("meeting.session.meeting.list");
 
-  if (!isMeetingList) {
+  if (!requestedOp || !sessionOp) {
     console.error(
       `Unsupported aggregate: ${command.operations.map((o) => o.operationId).join(", ")}`,
     );
@@ -303,62 +294,51 @@ async function dispatchAggregate(
   const projectName =
     typeof projectNameFlag === "string" ? projectNameFlag : undefined;
 
+  const includeRequested = stateFilter === "all" || stateFilter === "requested";
+  const includeActive = stateFilter === "all" || stateFilter === "active";
+
   const requested: Array<Record<string, unknown>> = [];
   const active: Array<Record<string, unknown>> = [];
 
-  // Fan out. `meeting.request.meeting.list` requires projectName; skip when
-  // the caller has not supplied one.
-  if (
-    (stateFilter === "all" || stateFilter === "requested") &&
-    projectName !== undefined
-  ) {
-    const query = `?projectName=${encodeURIComponent(projectName)}`;
-    const res = await deps.daemonFetch(
-      `/meeting/request/meeting/list${query}`,
-      { method: "GET" },
-    );
-    if (isDaemonError(res)) {
-      console.error(`Failed to reach daemon: ${res.message}`);
-      process.exit(1);
-    }
-    if (!res.ok) {
-      const err = (await res.json()) as { error?: string };
-      console.error(
-        err.error ?? `Request failed (HTTP ${res.status})`,
+  // M-1: `meeting.request.meeting.list` is scoped to a single project. When
+  // the caller omits `--projectName` we fan out across every registered
+  // project so the agent-level view ("meeting list [--state requested|active|all]")
+  // is project-agnostic as the plan intends.
+  if (includeRequested) {
+    let projectNames: string[];
+    if (projectName !== undefined) {
+      projectNames = [projectName];
+    } else {
+      const listBody = await fetchJsonOrExit(
+        deps,
+        "/system/config/project/list",
+        "GET",
       );
-      process.exit(1);
+      const projects = Array.isArray(listBody.projects)
+        ? (listBody.projects as Array<Record<string, unknown>>)
+        : [];
+      projectNames = projects
+        .map((p) => (typeof p.name === "string" ? p.name : ""))
+        .filter((n) => n.length > 0);
     }
-    const body = (await res.json()) as {
-      meetings?: Array<Record<string, unknown>>;
-    };
-    if (Array.isArray(body.meetings)) {
-      for (const m of body.meetings) {
-        requested.push(m);
+
+    for (const pn of projectNames) {
+      const requestPath = `${requestedOp.invocation.path}?projectName=${encodeURIComponent(pn)}`;
+      const body = await fetchJsonOrExit(deps, requestPath, "GET");
+      const meetings = body.meetings;
+      if (Array.isArray(meetings)) {
+        for (const m of meetings as Array<Record<string, unknown>>) {
+          requested.push(m);
+        }
       }
     }
   }
 
-  if (stateFilter === "all" || stateFilter === "active") {
-    const res = await deps.daemonFetch(
-      "/meeting/session/meeting/list",
-      { method: "GET" },
-    );
-    if (isDaemonError(res)) {
-      console.error(`Failed to reach daemon: ${res.message}`);
-      process.exit(1);
-    }
-    if (!res.ok) {
-      const err = (await res.json()) as { error?: string };
-      console.error(
-        err.error ?? `Request failed (HTTP ${res.status})`,
-      );
-      process.exit(1);
-    }
-    const body = (await res.json()) as {
-      sessions?: Array<Record<string, unknown>>;
-    };
-    if (Array.isArray(body.sessions)) {
-      for (const s of body.sessions) {
+  if (includeActive) {
+    const body = await fetchJsonOrExit(deps, sessionOp.invocation.path, "GET");
+    const sessions = body.sessions;
+    if (Array.isArray(sessions)) {
+      for (const s of sessions as Array<Record<string, unknown>>) {
         active.push(s);
       }
     }
@@ -383,7 +363,9 @@ async function dispatchPackageOp(
 
   let operation: CliOperation;
   try {
-    operation = operationFor(targetOperationId, deps.operationsRegistry);
+    operation = buildCliOperation(targetOperationId, {
+      registry: deps.operationsRegistry,
+    });
   } catch (err: unknown) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
@@ -444,17 +426,30 @@ async function dispatchPackageOp(
   console.log(formatResponse(data, jsonMode));
 }
 
+/**
+ * Dispatch a LOCAL_COMMAND_SENTINEL leaf. Local commands run entirely
+ * in-process and never touch the daemon; they're routed by leaf name so
+ * additions to `CLI_SURFACE` pick up dispatch automatically.
+ */
+async function dispatchLocal(
+  command: LocalCommand,
+  flags: Record<string, string | boolean>,
+): Promise<void> {
+  switch (command.leaf.name) {
+    case "migrate-content": {
+      const apply = flags.apply === true;
+      const exitCode = await migrateContentToBody(apply);
+      process.exit(exitCode);
+    }
+  }
+  console.error(`Unknown local command: ${command.leaf.name}`);
+  process.exit(1);
+}
+
 export async function runCli(argv: string[], deps: CliDeps): Promise<void> {
   const { segments, options, flags } = extractFlags(argv);
   const jsonMode = shouldOutputJson(options);
   const surface = deps.surface ?? CLI_SURFACE;
-
-  // Local-only command that doesn't touch the daemon.
-  if (segments[0] === "migrate-content") {
-    const applyFlag = argv.includes("--apply");
-    const exitCode = await migrateContentToBody(applyFlag);
-    process.exit(exitCode);
-  }
 
   const resolved = resolveCommand(segments, surface, flags);
 
@@ -493,6 +488,10 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<void> {
       }
       if (cmd.type === "package-op") {
         await dispatchPackageOp(cmd, flags, jsonMode, deps);
+        return;
+      }
+      if (cmd.type === "local") {
+        await dispatchLocal(cmd, flags);
         return;
       }
     }

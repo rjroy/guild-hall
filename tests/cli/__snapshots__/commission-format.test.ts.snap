@@ -1,0 +1,113 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatCommissionList — populated 1`] = `
+"ID                                  STATUS       WORKER      TITLE
+----------------------------------  -----------  ----------  -------------------------
+commission-Dalton-20260320-200023   in_progress  Developer   Fix login validation bug
+commission-Octavia-20260320-201208  halted       Chronicler  Write CLI commission spec"
+`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatCommissionList — empty 1`] = `"(no commissions)"`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatCommissionDetail — with progress, without result 1`] = `
+"commission-Dalton-20260320-200023
+Status:   in_progress
+Worker:   Developer (guild-hall-developer)
+Created:  2026-03-20
+
+Progress: Implementing the login validation changes. Tests passing.
+
+Timeline:
+  [2026-03-20 20:15:32] status_in_progress: Dispatched to worker
+  [2026-03-20 20:01:00] status_dispatched: Commission dispatched
+  [2026-03-20 20:00:23] status_pending: Commission created"
+`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatCommissionDetail — without progress, without result 1`] = `
+"commission-Dalton-20260320-200023
+Status:   in_progress
+Worker:   Developer (guild-hall-developer)
+Created:  2026-03-20
+
+Timeline:
+  [2026-03-20 20:15:32] status_in_progress: Dispatched to worker
+  [2026-03-20 20:01:00] status_dispatched: Commission dispatched
+  [2026-03-20 20:00:23] status_pending: Commission created"
+`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatCommissionDetail — with result 1`] = `
+"commission-Dalton-20260320-200023
+Status:   in_progress
+Worker:   Developer (guild-hall-developer)
+Created:  2026-03-20
+
+Progress: Implementing the login validation changes. Tests passing.
+
+Result:   All tests pass. Deployed to staging.
+
+Timeline:
+  [2026-03-20 20:15:32] status_in_progress: Dispatched to worker
+  [2026-03-20 20:01:00] status_dispatched: Commission dispatched
+  [2026-03-20 20:00:23] status_pending: Commission created"
+`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatCommissionDetail — with schedule info 1`] = `
+"commission-Dalton-20260320-200023
+Status:   in_progress
+Worker:   Developer (guild-hall-developer)
+Created:  2026-03-20
+
+Schedule: Every Monday at 9:00 AM
+Runs:     3
+Next run: 2026-03-24T09:00:00.000Z
+
+Progress: Implementing the login validation changes. Tests passing.
+
+Timeline:
+  [2026-03-20 20:15:32] status_in_progress: Dispatched to worker
+  [2026-03-20 20:01:00] status_dispatched: Commission dispatched
+  [2026-03-20 20:00:23] status_pending: Commission created"
+`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatCommissionDetail — with trigger info 1`] = `
+"commission-Dalton-20260320-200023
+Status:   in_progress
+Worker:   Developer (guild-hall-developer)
+Created:  2026-03-20
+
+Trigger:  {"type":"commission_result"}
+Approval: auto
+Runs:     2
+Last:     2026-03-20T15:00:00.000Z
+
+Progress: Implementing the login validation changes. Tests passing.
+
+Timeline:
+  [2026-03-20 20:15:32] status_in_progress: Dispatched to worker
+  [2026-03-20 20:01:00] status_dispatched: Commission dispatched
+  [2026-03-20 20:00:23] status_pending: Commission created"
+`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatCommissionDetail — timeline truncation at 5 entries 1`] = `
+"commission-Dalton-20260320-200023
+Status:   in_progress
+Worker:   Developer (guild-hall-developer)
+Created:  2026-03-20
+
+Progress: Implementing the login validation changes. Tests passing.
+
+Timeline:
+  [2026-03-20 20:09:00] event_9: Reason 9
+  [2026-03-20 20:08:00] event_8: Reason 8
+  [2026-03-20 20:07:00] event_7: Reason 7
+  [2026-03-20 20:06:00] event_6: Reason 6
+  [2026-03-20 20:05:00] event_5: Reason 5"
+`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatActionConfirmation — dispatch 1`] = `"Dispatched: commission-Dalton-20260320-200023"`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatActionConfirmation — redispatch 1`] = `"Redispatched: commission-Thorne-20260320-200025"`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatActionConfirmation — cancel 1`] = `"Cancelled: commission-Dalton-20260320-200023"`;
+
+exports[`M-3 snapshot coverage for commission UX (REQ-CLI-AGENT-25) formatActionConfirmation — abandon 1`] = `"Abandoned: commission-Dalton-20260320-200023"`;

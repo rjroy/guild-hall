@@ -185,6 +185,133 @@ describe("runCli — meeting list aggregate end-to-end", () => {
     expect(calls[0]).toContain("/meeting/request/meeting/list?projectName=guild-hall");
   });
 
+  test("M-1: --state=requested without --projectName fans out across all registered projects", async () => {
+    const { deps, calls } = makeDeps([
+      {
+        path: "/system/config/project/list",
+        response: jsonResponse({
+          projects: [
+            { name: "alpha", path: "/tmp/alpha" },
+            { name: "beta", path: "/tmp/beta" },
+          ],
+        }),
+      },
+      {
+        path: "/meeting/request/meeting/list",
+        response: jsonResponse({
+          meetings: [
+            {
+              meetingId: "audience-Octavia-20260321-100000",
+              projectName: "alpha",
+              worker: "Octavia",
+              date: "2026-03-21",
+              status: "requested",
+            },
+          ],
+        }),
+      },
+      {
+        path: "/meeting/request/meeting/list",
+        response: jsonResponse({
+          meetings: [
+            {
+              meetingId: "audience-Thorne-20260322-100000",
+              projectName: "beta",
+              worker: "Thorne",
+              date: "2026-03-22",
+              status: "requested",
+            },
+          ],
+        }),
+      },
+    ]);
+
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (msg: string) => logs.push(msg);
+    try {
+      await runCli(
+        ["meeting", "list", "--state=requested", "--json"],
+        deps,
+      );
+    } finally {
+      console.log = origLog;
+    }
+
+    // Expect: project list, then one request-list call per project.
+    expect(calls).toHaveLength(3);
+    expect(calls[0]).toBe("/system/config/project/list");
+    expect(calls[1]).toBe(
+      "/meeting/request/meeting/list?projectName=alpha",
+    );
+    expect(calls[2]).toBe(
+      "/meeting/request/meeting/list?projectName=beta",
+    );
+    const parsed = JSON.parse(logs[0]) as {
+      meetings: Array<{ meetingId: string; projectName: string }>;
+    };
+    expect(parsed.meetings.map((m) => m.meetingId).sort()).toEqual([
+      "audience-Octavia-20260321-100000",
+      "audience-Thorne-20260322-100000",
+    ]);
+  });
+
+  test("M-1: --state=active without --projectName does NOT fetch project list", async () => {
+    // Active-only doesn't need per-project fan-out — the session list is
+    // already project-agnostic.
+    const { deps, calls } = makeDeps([
+      {
+        path: "/meeting/session/meeting/list",
+        response: jsonResponse({ sessions: [] }),
+      },
+    ]);
+
+    const origLog = console.log;
+    console.log = () => {};
+    try {
+      await runCli(["meeting", "list", "--state=active", "--json"], deps);
+    } finally {
+      console.log = origLog;
+    }
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toBe("/meeting/session/meeting/list");
+  });
+
+  test("M-1: --state=all without --projectName fans out via project list + session list", async () => {
+    const { deps, calls } = makeDeps([
+      {
+        path: "/system/config/project/list",
+        response: jsonResponse({
+          projects: [{ name: "only", path: "/tmp/only" }],
+        }),
+      },
+      {
+        path: "/meeting/request/meeting/list",
+        response: jsonResponse({ meetings: [] }),
+      },
+      {
+        path: "/meeting/session/meeting/list",
+        response: jsonResponse({ sessions: [] }),
+      },
+    ]);
+
+    const origLog = console.log;
+    console.log = () => {};
+    try {
+      await runCli(["meeting", "list", "--json"], deps);
+    } finally {
+      console.log = origLog;
+    }
+
+    expect(calls).toHaveLength(3);
+    expect(calls[0]).toBe("/system/config/project/list");
+    expect(calls[1]).toBe(
+      "/meeting/request/meeting/list?projectName=only",
+    );
+    expect(calls[2]).toBe("/meeting/session/meeting/list");
+  });
+
   test("--state=all with --projectName fans out to both", async () => {
     const { deps, calls } = makeDeps([
       {

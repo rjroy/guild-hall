@@ -8,6 +8,7 @@
 import {
   AGGREGATE_SENTINEL,
   CLI_SURFACE,
+  LOCAL_COMMAND_SENTINEL,
   PACKAGE_OP_SENTINEL,
   PHASE_LABELS,
   type CliGroupNode,
@@ -183,7 +184,10 @@ export function operationIdsFor(leaf: CliLeafNode): string[] {
   if (leaf.operationId === AGGREGATE_SENTINEL) {
     return leaf.aggregate?.operationIds ?? [];
   }
-  if (leaf.operationId === PACKAGE_OP_SENTINEL) {
+  if (
+    leaf.operationId === PACKAGE_OP_SENTINEL ||
+    leaf.operationId === LOCAL_COMMAND_SENTINEL
+  ) {
     return [];
   }
   return [leaf.operationId];
@@ -242,7 +246,11 @@ export interface OperationInvocation {
  * must be unwrapped to a concrete operationId first.
  */
 export function invocationForOperation(operationId: string): OperationInvocation {
-  if (operationId === AGGREGATE_SENTINEL || operationId === PACKAGE_OP_SENTINEL) {
+  if (
+    operationId === AGGREGATE_SENTINEL ||
+    operationId === PACKAGE_OP_SENTINEL ||
+    operationId === LOCAL_COMMAND_SENTINEL
+  ) {
     throw new Error(
       `invocationForOperation called with sentinel '${operationId}'. Resolve the target operationId first.`,
     );

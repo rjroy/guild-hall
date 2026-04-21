@@ -14,6 +14,13 @@ export type PhaseLabel = (typeof PHASE_LABELS)[number];
 
 export const AGGREGATE_SENTINEL = "__aggregate__";
 export const PACKAGE_OP_SENTINEL = "__package_op__";
+/**
+ * Marker for leaves that run entirely in-process without touching the daemon
+ * (e.g. `migrate-content`). The resolver routes these to a dedicated
+ * local-command branch; `invocationForOperation` refuses to resolve them
+ * because there is no HTTP surface to dispatch.
+ */
+export const LOCAL_COMMAND_SENTINEL = "__local__";
 
 // `workspace.artifact.document.write` — assembled to dodge an overzealous
 // pre-write security hook that flags the literal substring.
@@ -316,6 +323,12 @@ const meetingGroup = group({
           type: "string",
           default: "all",
           description: "Filter: requested | active | all.",
+        },
+        {
+          name: "projectName",
+          type: "string",
+          description:
+            "Scope requested-meeting lookup to a single project. Omit to fan out across all registered projects.",
         },
       ],
       example: "guild-hall meeting list --state=active",
@@ -715,6 +728,24 @@ const systemGroup = group({
   ],
 });
 
+const migrateContentLeaf = leaf({
+  kind: "leaf",
+  name: "migrate-content",
+  description: "Migrate result_summary from frontmatter to body (local-only).",
+  operationId: LOCAL_COMMAND_SENTINEL,
+  args: [],
+  flags: [
+    {
+      name: "apply",
+      type: "boolean",
+      description: "Apply the migration (without this flag the run is a dry-run).",
+    },
+  ],
+  example: "guild-hall migrate-content --apply",
+  outputShape:
+    "Human-readable summary of scanned commission files and changes applied. Exits non-zero on failure.",
+});
+
 const packageOpGroup = group({
   kind: "group",
   name: "package-op",
@@ -759,6 +790,7 @@ export const CLI_SURFACE: CliGroupNode = {
     configGroup,
     gitGroup,
     systemGroup,
+    migrateContentLeaf,
     packageOpGroup,
   ],
 };
