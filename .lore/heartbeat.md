@@ -26,3 +26,11 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
+- 06:43 commission-Dalton-20260421-063646 result: Done. All three Gate 1 findings (M-1, m-2, m-3) fixed. Tests pass, types check, lint clean, build green.
+
+- 06:43 commission-Dalton-20260421-063646 completed
+## Files Changed
+
+**daemon/routes/admin.ts**
+- Added `zod` import.
+- Exported `projectListRequ...
