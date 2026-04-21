@@ -26,14 +26,3 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 22:21 commission-Dalton-20260420-215633 result: Phases 1 and 2 of the CLI Agent-First Surface plan are complete. Committed as `f8058a1c`.
-
-**Phase 1 — four new daemon leaves (REQ-CLI-AGENT-22, 22a, 23):**
-- `system.config.project.list` in `daemon/r...
-
-- 22:21 commission-Dalton-20260420-215633 completed
-- 22:27 commission-Thorne-20260420-215649 result: 
-# Review Gate 1: Phases 1 + 2 of CLI Agent-First Surface
-
-Reviewed against `.lore/plans/infrastructure/cli-agent-surface.md` (Phases 1–2) and `.lore/specs/infrastructure/cli-agent-surface.md` (REQ-CL...
-- 22:27 commission-Thorne-20260420-215649 completed
