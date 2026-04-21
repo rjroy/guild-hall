@@ -2,7 +2,15 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createApp } from "@/daemon/app";
-import { slugify, resolveSlug, type IssueRouteDeps } from "@/daemon/routes/workspace-issue";
+import {
+  slugify,
+  resolveSlug,
+  issueListRequestSchema,
+  issueListResponseSchema,
+  issueReadRequestSchema,
+  issueReadResponseSchema,
+  type IssueRouteDeps,
+} from "@/daemon/routes/workspace-issue";
 import type { GitOps } from "@/daemon/lib/git";
 import type { AppConfig } from "@/lib/types";
 
@@ -351,6 +359,34 @@ describe("GET /workspace/issue/list", () => {
     expect(data.issues).toHaveLength(1);
     expect(data.issues[0].slug).toBe("real-issue");
   });
+
+  test("response validates against issueListResponseSchema", async () => {
+    await writeIssue("sch-issue", { title: "Sch", date: "2026-05-05", status: "open" });
+
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/list?projectName=${TEST_PROJECT}`);
+    const body = await res.json();
+    const parsed = issueListResponseSchema.safeParse(body);
+    expect(parsed.success).toBe(true);
+  });
+
+  test("issueListRequestSchema rejects missing projectName", () => {
+    const parsed = issueListRequestSchema.safeParse({ status: "open" });
+    expect(parsed.success).toBe(false);
+  });
+
+  test("issueListRequestSchema accepts required projectName with optional status", () => {
+    expect(
+      issueListRequestSchema.safeParse({ projectName: "p" }).success,
+    ).toBe(true);
+    expect(
+      issueListRequestSchema.safeParse({ projectName: "p", status: "open" }).success,
+    ).toBe(true);
+    // Empty projectName violates the min(1) constraint.
+    expect(
+      issueListRequestSchema.safeParse({ projectName: "" }).success,
+    ).toBe(false);
+  });
 });
 
 // -- Route tests: GET /workspace/issue/read --
@@ -421,5 +457,31 @@ describe("GET /workspace/issue/read", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { body: string };
     expect(data.body).toBe("");
+  });
+
+  test("response validates against issueReadResponseSchema", async () => {
+    await writeIssue(
+      "sch-read",
+      { title: "Sch Read", date: "2026-06-06", status: "closed" },
+      "body line",
+    );
+
+    const app = makeTestApp();
+    const res = await app.request(
+      `/workspace/issue/read?projectName=${TEST_PROJECT}&slug=sch-read`,
+    );
+    const body = await res.json();
+    const parsed = issueReadResponseSchema.safeParse(body);
+    expect(parsed.success).toBe(true);
+  });
+
+  test("issueReadRequestSchema rejects missing slug or projectName", () => {
+    expect(
+      issueReadRequestSchema.safeParse({ projectName: "p" }).success,
+    ).toBe(false);
+    expect(issueReadRequestSchema.safeParse({ slug: "s" }).success).toBe(false);
+    expect(
+      issueReadRequestSchema.safeParse({ projectName: "p", slug: "s" }).success,
+    ).toBe(true);
   });
 });

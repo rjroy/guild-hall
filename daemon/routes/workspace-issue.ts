@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import matter from "gray-matter";
+import { z } from "zod";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
@@ -15,6 +16,38 @@ export interface IssueRouteDeps {
   gitOps: GitOps;
   log?: Log;
 }
+
+// Schemas for workspace.issue.list and workspace.issue.read (Phase 1 metadata).
+// Requests are modeled as flat objects over query params.
+
+export const issueListRequestSchema = z.object({
+  projectName: z.string().min(1),
+  status: z.string().optional(),
+});
+
+const issueRowSchema = z.object({
+  slug: z.string(),
+  title: z.string(),
+  status: z.string(),
+  date: z.string(),
+});
+
+export const issueListResponseSchema = z.object({
+  issues: z.array(issueRowSchema),
+});
+
+export const issueReadRequestSchema = z.object({
+  projectName: z.string().min(1),
+  slug: z.string().min(1),
+});
+
+export const issueReadResponseSchema = z.object({
+  slug: z.string(),
+  title: z.string(),
+  status: z.string(),
+  date: z.string(),
+  body: z.string(),
+});
 
 /**
  * Converts a title to a URL-safe slug: lowercase, non-alphanumeric runs
@@ -218,15 +251,21 @@ export function createWorkspaceIssueRoutes(deps: IssueRouteDeps): RouteModule {
         { name: "body", required: false, in: "body" as const },
       ],
     },
+    // Three-segment hierarchy exception: REQ-CLI-AGENT-22a permits using the
+    // verb (`list`/`read`) as the `object` segment for workspace.issue.* ops,
+    // matching the precedent set by workspace.issue.create.
     {
       operationId: "workspace.issue.list",
       version: "1",
       name: "list",
       description: "List issues in .lore/issues/ for a project, optionally filtered by status",
       invocation: { method: "GET", path: "/workspace/issue/list" },
+      requestSchema: issueListRequestSchema,
+      responseSchema: issueListResponseSchema,
       sideEffects: "",
       context: { project: true },
       idempotent: true,
+      // REQ-CLI-AGENT-22a: verb-as-object is the three-segment exception.
       hierarchy: { root: "workspace", feature: "issue", object: "list" },
       parameters: [
         { name: "projectName", required: true, in: "query" as const },
@@ -239,9 +278,12 @@ export function createWorkspaceIssueRoutes(deps: IssueRouteDeps): RouteModule {
       name: "read",
       description: "Read a single issue's frontmatter and body from .lore/issues/",
       invocation: { method: "GET", path: "/workspace/issue/read" },
+      requestSchema: issueReadRequestSchema,
+      responseSchema: issueReadResponseSchema,
       sideEffects: "",
       context: { project: true },
       idempotent: true,
+      // REQ-CLI-AGENT-22a: verb-as-object is the three-segment exception.
       hierarchy: { root: "workspace", feature: "issue", object: "read" },
       parameters: [
         { name: "projectName", required: true, in: "query" as const },

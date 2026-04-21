@@ -1,5 +1,9 @@
 import { describe, test, expect } from "bun:test";
 import { createApp } from "@/daemon/app";
+import {
+  activeMeetingListRequestSchema,
+  activeMeetingListResponseSchema,
+} from "@/daemon/routes/meetings";
 import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";
 import type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
 import { asMeetingId, type GuildHallEvent, type MeetingId } from "@/daemon/types";
@@ -925,5 +929,25 @@ describe("GET /meeting/session/meeting/list", () => {
     const res = await app.request("/meeting/session/meeting/list");
     const body = await res.json();
     expect(body.sessions[0].startedAt).toBe("");
+  });
+
+  test("response validates against activeMeetingListResponseSchema", async () => {
+    const entry = makeEntry();
+    const app = makeTestApp({ listAllActiveMeetings: () => [entry] });
+
+    const res = await app.request("/meeting/session/meeting/list");
+    const body = await res.json();
+    const parsed = activeMeetingListResponseSchema.safeParse(body);
+    expect(parsed.success).toBe(true);
+  });
+
+  test("activeMeetingListRequestSchema accepts empty body and rejects non-object", () => {
+    expect(activeMeetingListRequestSchema.safeParse({}).success).toBe(true);
+    expect(activeMeetingListRequestSchema.safeParse(123).success).toBe(false);
+  });
+
+  test("activeMeetingListResponseSchema rejects missing required fields", () => {
+    const bad = { sessions: [{ meetingId: "m1", projectName: "p" }] };
+    expect(activeMeetingListResponseSchema.safeParse(bad).success).toBe(false);
   });
 });

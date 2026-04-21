@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Hono } from "hono";
+import { z } from "zod";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
 import type { Log } from "@/daemon/lib/log";
@@ -14,6 +15,20 @@ import {
   rebaseAll,
   syncAll,
 } from "@/daemon/services/git-admin";
+
+// Schemas for system.config.project.list (REQ-CLI-AGENT-22, Phase 1 metadata).
+export const projectListRequestSchema = z.object({});
+
+export const projectListResponseSchema = z.object({
+  projects: z.array(
+    z.object({
+      name: z.string(),
+      path: z.string(),
+      group: z.string().optional(),
+      status: z.literal("registered"),
+    }),
+  ),
+});
 
 export interface AdminDeps {
   config: AppConfig;
@@ -444,10 +459,13 @@ export function createAdminRoutes(deps: AdminDeps): RouteModule {
       name: "list",
       description: "List all registered projects with name, path, group, and status",
       invocation: { method: "GET", path: "/system/config/project/list" },
+      requestSchema: projectListRequestSchema,
+      responseSchema: projectListResponseSchema,
       sideEffects: "",
       context: {},
       idempotent: true,
       hierarchy: { root: "system", feature: "config", object: "project" },
+      parameters: [],
     },
     {
       operationId: "system.config.application.validate",

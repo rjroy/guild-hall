@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
+import { z } from "zod";
 import { asMeetingId } from "@/daemon/types";
 import { errorMessage } from "@/daemon/lib/toolbox-utils";
 import { nullLog } from "@/daemon/lib/log";
@@ -20,6 +21,21 @@ import {
 } from "@/lib/meetings";
 import type { MeetingMeta } from "@/lib/meetings";
 import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";
+
+// Schemas for meeting.session.meeting.list (REQ-CLI-AGENT-22, Phase 1 metadata).
+export const activeMeetingListRequestSchema = z.object({});
+
+export const activeMeetingListResponseSchema = z.object({
+  sessions: z.array(
+    z.object({
+      meetingId: z.string(),
+      projectName: z.string(),
+      workerName: z.string(),
+      startedAt: z.string(),
+      status: z.string(),
+    }),
+  ),
+});
 
 export interface MeetingRoutesDeps {
   meetingSession: MeetingSessionForRoutes;
@@ -585,10 +601,13 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       name: "list",
       description: "List every currently-active meeting session across all projects",
       invocation: { method: "GET", path: "/meeting/session/meeting/list" },
+      requestSchema: activeMeetingListRequestSchema,
+      responseSchema: activeMeetingListResponseSchema,
       sideEffects: "",
       context: {},
       idempotent: true,
       hierarchy: { root: "meeting", feature: "session", object: "meeting" },
+      parameters: [],
     },
   ];
 
