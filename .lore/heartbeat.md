@@ -26,3 +26,9 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
+- 08:48 commission-Thorne-20260421-084120 result: 
+# Gate 2 Review — commission-Dalton-20260421-063833 (CLI Agent-First Surface, Phases 3+4)
+
+Overall posture: Gate 2 is substantively met. The architectural work — formatter registry rekeyed by operati...
+
+- 08:48 commission-Thorne-20260421-084120 completed
