@@ -26,3 +26,8 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
+- 15:56 commission-Dalton-20260421-085232 result: Phase 5 complete. Delivered two test files:
+
+**tests/cli/skill-build.test.ts** (5 tests) — REQ-CLI-AGENT-20 skill-builder harness. Walks the CLI tree via `guild-hall <path> help --json` only (no sourc...
+
+- 15:56 commission-Dalton-20260421-085232 completed
