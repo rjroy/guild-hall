@@ -1,7 +1,7 @@
 ---
 title: "Commission: C7 — Validation Harness (Phase 5)"
 date: 2026-04-21
-status: dispatched
+status: failed
 tags: [commission]
 worker: Dalton
 workerDisplayTitle: "Guild Artificer"
@@ -29,6 +29,9 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-04-21T16:22:03.662Z
+    event: status_failed
+    reason: "Session error: Claude Code returned an error result: You've hit your limit · resets 1pm (America/Los_Angeles)"
 current_progress: ""
 projectName: guild-hall
 ---
