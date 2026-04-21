@@ -26,6 +26,3 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 18:29 commission-Octavia-20260420-181653 result: Implementation plan drafted for the CLI agent-first surface spec. The plan at `.lore/plans/infrastructure/cli-agent-surface.md` covers all 27 REQ-CLI-AGENT requirements across 6 phases with 3 Thorne r...
-
-- 18:29 commission-Octavia-20260420-181653 completed
