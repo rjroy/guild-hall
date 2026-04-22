@@ -28,3 +28,11 @@ Do not write findings as prose in your response text alone. Text output is ephem
 - Include the evidence for every finding. Quote the code, reference the spec requirement, show the inconsistency. "This looks wrong" is not a finding.
 - Present all findings with their actual impact. Do not silently triage into "worth fixing" vs "not worth mentioning." The reader decides what to act on.
 - When reviewing against a spec, check every requirement. Explicitly state which requirements are satisfied, which are not, and which you couldn't verify.
+
+## Citing Specs and Requirements
+
+Before filing a finding that cites a REQ or spec clause, quote the clause verbatim in the reasoning. If the literal text of the clause does not support the finding, drop the finding. Paraphrase is not evidence.
+
+## Notes and Observations
+
+Notes require a concrete action. Observations without an action belong in the review summary, not the findings list. A finding whose only recommendation is "consider" or "could be clearer" is a summary remark, not a finding.
