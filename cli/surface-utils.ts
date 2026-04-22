@@ -229,7 +229,11 @@ const STREAMING_OPERATIONS: Record<string, { eventTypes: string[] }> = {
  * Most operations follow the convention (list/read → GET, create/dispatch → POST);
  * this table is the documented exception set.
  */
-const METHOD_OVERRIDES: Record<string, "GET" | "POST"> = {};
+const METHOD_OVERRIDES: Record<string, "GET" | "POST"> = {
+  // SSE stream endpoints are conventionally GET; `subscribe` is not in GET_VERBS
+  // because it's not a generic read verb, only meaningful for streams.
+  "system.events.stream.subscribe": "GET",
+};
 
 export interface OperationInvocation {
   method: "GET" | "POST";

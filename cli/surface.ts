@@ -22,9 +22,7 @@ export const PACKAGE_OP_SENTINEL = "__package_op__";
  */
 export const LOCAL_COMMAND_SENTINEL = "__local__";
 
-// `workspace.artifact.document.write` — assembled to dodge an overzealous
-// pre-write security hook that flags the literal substring.
-const ARTIFACT_DOCUMENT_WRITE_OP = ["workspace", "artifact", "document", "write"].join(".");
+const ARTIFACT_DOCUMENT_WRITE_OP = "workspace.artifact.document.write";
 
 export type CliArgType = "string";
 export type CliFlagType = "string" | "boolean";

@@ -38,6 +38,7 @@ import {
 } from "@/cli/surface";
 import {
   assertPathRules,
+  invocationForOperation,
   leafNodes,
   operationIdsFor,
   pathForNode,
@@ -559,5 +560,17 @@ describe("surface-level coverage of Phase 1 operation IDs", () => {
     for (const opId of phase1Ops) {
       expect(handle.registry.get(opId)).toBeDefined();
     }
+  });
+});
+
+describe("invocationForOperation — method inference", () => {
+  test("SSE stream subscribe resolves to GET (not POST by verb heuristic)", () => {
+    // `subscribe` is not in GET_VERBS; without a METHOD_OVERRIDES entry the
+    // heuristic would fall through to POST. SSE streams are conventionally
+    // GET — pin the behavior so future stream ops get the same treatment via
+    // an explicit override rather than silently defaulting to POST.
+    const inv = invocationForOperation("system.events.stream.subscribe");
+    expect(inv.method).toBe("GET");
+    expect(inv.path).toBe("/system/events/stream/subscribe");
   });
 });
