@@ -31,3 +31,10 @@ Workers can also add entries to this file during their sessions.
 **Root cause identified.** The blocker was the `document_write_xss` rule in `security-guidance` plugin (`~/.claude/plugins/.../hooks/security_...
 
 - 06:14 commission-Dalton-20260422-060917 completed
+- 06:18 commission-Octavia-20260422-060944 result: Phase 6 back-propagation complete for `.lore/specs/infrastructure/cli-agent-surface.md`.
+
+- 06:18 commission-Octavia-20260422-060944 completed
+## Changes
+
+**Frontmatter**
+- `status: approved` → `status: implemented` (matches convention used across other...
