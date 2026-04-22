@@ -26,3 +26,8 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
+- 06:14 commission-Dalton-20260422-060917 result: ## MIN-1 — ARTIFACT_DOCUMENT_WRITE_OP workaround removed
+
+**Root cause identified.** The blocker was the `document_write_xss` rule in `security-guidance` plugin (`~/.claude/plugins/.../hooks/security_...
+
+- 06:14 commission-Dalton-20260422-060917 completed
