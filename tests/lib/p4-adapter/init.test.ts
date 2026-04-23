@@ -9,10 +9,10 @@ import {
 } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import type { P4Runner, P4Result } from "../p4";
-import type { CommandRunner } from "../init";
-import { init } from "../init";
-import { readState } from "../state";
+import type { P4Runner, P4Result } from "@/lib/p4-adapter/p4";
+import type { CommandRunner } from "@/lib/p4-adapter/init";
+import { init } from "@/lib/p4-adapter/init";
+import { readState } from "@/lib/p4-adapter/state";
 
 const OK: P4Result = { stdout: "", stderr: "", exitCode: 0 };
 

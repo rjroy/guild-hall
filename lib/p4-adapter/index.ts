@@ -3,7 +3,7 @@ import { shelve } from "./shelve";
 import type { GitRunner } from "./shelve";
 import { init } from "./init";
 
-const USAGE = `Usage: bun run p4-adapter/index.ts <command>
+const USAGE = `Usage: bun run lib/p4-adapter/index.ts <command>
 
 Commands:
   init [workspace-dir]              Create a disposable git repo from the current P4 workspace state
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
     const description = descParts.join(" ");
     if (!description) {
       console.error("Error: shelve requires a changelist description.");
-      console.error("\nHint: bun run p4-adapter/index.ts shelve \"My changelist description\"");
+      console.error("\nHint: bun run lib/p4-adapter/index.ts shelve \"My changelist description\"");
       process.exit(1);
     }
 
@@ -97,7 +97,7 @@ async function main(): Promise<void> {
       console.log(`  Deleted:  ${result.deleted} file${result.deleted !== 1 ? "s" : ""}`);
       console.log();
       console.log(`Create a Swarm review: p4 shelve -c ${result.changelist} (already shelved)`);
-      console.log("Next cycle: p4 sync && p4-adapter init");
+      console.log("Next cycle: p4 sync && bun run lib/p4-adapter/index.ts init");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(message);

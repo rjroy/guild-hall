@@ -2,8 +2,8 @@ import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { resolveP4Env, createP4Runner } from "../p4";
-import type { P4Runner } from "../p4";
+import { resolveP4Env, createP4Runner } from "@/lib/p4-adapter/p4";
+import type { P4Runner } from "@/lib/p4-adapter/p4";
 
 describe("resolveP4Env", () => {
   let tempDir: string;
@@ -93,7 +93,7 @@ describe("P4Runner safety (REQ-P4A-36)", () => {
   test("module does not export a submit function", async () => {
     // The module's public API: P4Result, P4Runner, resolveP4Env, createP4Runner.
     // There must be no 'submit', 'p4Submit', or similar export.
-    const p4Module = await import("../p4");
+    const p4Module = await import("@/lib/p4-adapter/p4");
     const exportedNames = Object.keys(p4Module);
 
     const submitRelated = exportedNames.filter(

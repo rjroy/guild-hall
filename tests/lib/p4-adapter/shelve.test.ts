@@ -2,9 +2,9 @@ import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtempSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { writeState, type AdapterState } from "../state";
-import { shelve, type GitRunner } from "../shelve";
-import type { P4Runner, P4Result } from "../p4";
+import { writeState, type AdapterState } from "@/lib/p4-adapter/state";
+import { shelve, type GitRunner } from "@/lib/p4-adapter/shelve";
+import type { P4Runner, P4Result } from "@/lib/p4-adapter/p4";
 
 function createTempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "p4-shelve-test-"));

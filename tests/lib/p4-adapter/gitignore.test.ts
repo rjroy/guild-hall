@@ -7,8 +7,8 @@ import {
   validateParentChains,
   ensureP4Exclusions,
   ensureP4Ignore,
-} from "../gitignore";
-import { readState, writeState, type AdapterState } from "../state";
+} from "@/lib/p4-adapter/gitignore";
+import { readState, writeState, type AdapterState } from "@/lib/p4-adapter/state";
 
 function makeTempDir(): string {
   return mkdtempSync(join(tmpdir(), "p4-adapter-test-"));
