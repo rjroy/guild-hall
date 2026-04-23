@@ -97,6 +97,14 @@ export class MeetingRegistry {
   }
 
   /**
+   * List every active entry across all projects. Used by routes that need a
+   * cross-project view (e.g., agent-first CLI surface).
+   */
+  listAllActive(): ActiveMeetingEntry[] {
+    return Array.from(this.entries.values());
+  }
+
+  /**
    * Attempt to acquire the close guard for a meeting. Returns true if
    * acquired (no close was already in progress), false if a close is
    * already underway for this ID.

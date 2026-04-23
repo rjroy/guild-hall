@@ -205,6 +205,8 @@ export interface MeetingSessionForRoutes {
   interruptTurn(meetingId: MeetingId): void;
   getActiveMeetings(): number;
   getOpenMeetingsForProject(projectName: string): ActiveMeetingEntry[];
+  /** Returns every active meeting entry across all projects. */
+  listAllActiveMeetings(): ActiveMeetingEntry[];
 }
 
 // -- Factory --
@@ -1423,6 +1425,10 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
     return registry.listForProject(projectName);
   }
 
+  function listAllActiveMeetingsPublic(): ActiveMeetingEntry[] {
+    return registry.listAllActive();
+  }
+
   /**
    * Creates a meeting request artifact (status: "requested") on the integration
    * worktree without starting a session or creating a git branch/worktree.
@@ -1472,5 +1478,6 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
     interruptTurn,
     getActiveMeetings,
     getOpenMeetingsForProject: getOpenMeetingsForProjectPublic,
+    listAllActiveMeetings: listAllActiveMeetingsPublic,
   };
 }

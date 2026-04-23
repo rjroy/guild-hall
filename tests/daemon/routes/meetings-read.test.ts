@@ -43,6 +43,7 @@ function makeMockMeetingSession(): MeetingSessionForRoutes {
     getActiveMeetings: () => 0,
     createMeetingRequest: async () => {},
     getOpenMeetingsForProject: () => [],
+    listAllActiveMeetings: () => [],
   };
 }
 

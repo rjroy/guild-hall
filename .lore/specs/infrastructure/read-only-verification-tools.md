@@ -1,7 +1,7 @@
 ---
 title: Read-Only Verification Tools
 date: 2026-04-12
-status: approved
+status: parked
 tags: [toolbox, verification, mcp-tools, worker-boundaries, infrastructure]
 modules: [daemon/services/verification-toolbox, daemon/lib/project-checks, daemon/routes/admin, daemon/app, daemon/routes/workspace-issue]
 related:

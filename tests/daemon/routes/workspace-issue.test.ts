@@ -2,7 +2,15 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createApp } from "@/daemon/app";
-import { slugify, resolveSlug, type IssueRouteDeps } from "@/daemon/routes/workspace-issue";
+import {
+  slugify,
+  resolveSlug,
+  issueListRequestSchema,
+  issueListResponseSchema,
+  issueReadRequestSchema,
+  issueReadResponseSchema,
+  type IssueRouteDeps,
+} from "@/daemon/routes/workspace-issue";
 import type { GitOps } from "@/daemon/lib/git";
 import type { AppConfig } from "@/lib/types";
 
@@ -274,5 +282,206 @@ describe("POST /workspace/issue/create", () => {
     await postIssue(app, { projectName: TEST_PROJECT, title: "Commit Path Test" });
     expect(capturedPath).toBe(path.join(tmpDir, "projects", TEST_PROJECT));
     expect(capturedMessage).toBe("Add issue: commit-path-test");
+  });
+});
+
+// -- Route tests: GET /workspace/issue/list --
+
+async function writeIssue(slug: string, frontmatter: Record<string, string>, body = ""): Promise<void> {
+  const issuesDir = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "issues");
+  await fs.mkdir(issuesDir, { recursive: true });
+  const fmLines = Object.entries(frontmatter).map(([k, v]) => `${k}: "${v}"`).join("\n");
+  const content = `---\n${fmLines}\n---${body ? `\n\n${body}` : ""}`;
+  await fs.writeFile(path.join(issuesDir, `${slug}.md`), content, "utf-8");
+}
+
+describe("GET /workspace/issue/list", () => {
+  test("returns 400 when projectName is missing", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/issue/list");
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { error: string };
+    expect(data.error).toBe("projectName is required");
+  });
+
+  test("returns 404 for unknown project", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/issue/list?projectName=nonexistent");
+    expect(res.status).toBe(404);
+    const data = (await res.json()) as { error: string };
+    expect(data.error).toBe("Project not found");
+  });
+
+  test("returns empty array when .lore/issues/ does not exist", async () => {
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/list?projectName=${TEST_PROJECT}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { issues: unknown[] };
+    expect(data.issues).toEqual([]);
+  });
+
+  test("returns frontmatter rows for each issue", async () => {
+    await writeIssue("first-bug", { title: "First Bug", date: "2026-01-15", status: "open" });
+    await writeIssue("second-bug", { title: "Second Bug", date: "2026-02-20", status: "closed" });
+
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/list?projectName=${TEST_PROJECT}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      issues: Array<{ slug: string; title: string; status: string; date: string }>;
+    };
+    expect(data.issues).toHaveLength(2);
+    const slugs = data.issues.map((i) => i.slug).sort();
+    expect(slugs).toEqual(["first-bug", "second-bug"]);
+  });
+
+  test("filters by status when ?status= is provided", async () => {
+    await writeIssue("open-1", { title: "Open 1", date: "2026-01-01", status: "open" });
+    await writeIssue("open-2", { title: "Open 2", date: "2026-01-02", status: "open" });
+    await writeIssue("closed-1", { title: "Closed 1", date: "2026-01-03", status: "closed" });
+
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/list?projectName=${TEST_PROJECT}&status=closed`);
+    const data = (await res.json()) as { issues: Array<{ slug: string; status: string }> };
+    expect(data.issues).toHaveLength(1);
+    expect(data.issues[0].slug).toBe("closed-1");
+    expect(data.issues[0].status).toBe("closed");
+  });
+
+  test("ignores non-.md files in the issues directory", async () => {
+    await writeIssue("real-issue", { title: "Real", date: "2026-01-01", status: "open" });
+    const issuesDir = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "issues");
+    await fs.writeFile(path.join(issuesDir, "stray.txt"), "not an issue", "utf-8");
+
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/list?projectName=${TEST_PROJECT}`);
+    const data = (await res.json()) as { issues: Array<{ slug: string }> };
+    expect(data.issues).toHaveLength(1);
+    expect(data.issues[0].slug).toBe("real-issue");
+  });
+
+  test("response validates against issueListResponseSchema", async () => {
+    await writeIssue("sch-issue", { title: "Sch", date: "2026-05-05", status: "open" });
+
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/list?projectName=${TEST_PROJECT}`);
+    const body = await res.json();
+    const parsed = issueListResponseSchema.safeParse(body);
+    expect(parsed.success).toBe(true);
+  });
+
+  test("issueListRequestSchema rejects missing projectName", () => {
+    const parsed = issueListRequestSchema.safeParse({ status: "open" });
+    expect(parsed.success).toBe(false);
+  });
+
+  test("issueListRequestSchema accepts required projectName with optional status", () => {
+    expect(
+      issueListRequestSchema.safeParse({ projectName: "p" }).success,
+    ).toBe(true);
+    expect(
+      issueListRequestSchema.safeParse({ projectName: "p", status: "open" }).success,
+    ).toBe(true);
+    // Empty projectName violates the min(1) constraint.
+    expect(
+      issueListRequestSchema.safeParse({ projectName: "" }).success,
+    ).toBe(false);
+  });
+});
+
+// -- Route tests: GET /workspace/issue/read --
+
+describe("GET /workspace/issue/read", () => {
+  test("returns 400 when projectName is missing", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/issue/read?slug=foo");
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { error: string };
+    expect(data.error).toBe("projectName is required");
+  });
+
+  test("returns 404 for unknown project", async () => {
+    const app = makeTestApp();
+    const res = await app.request("/workspace/issue/read?projectName=nonexistent&slug=foo");
+    expect(res.status).toBe(404);
+    const data = (await res.json()) as { error: string };
+    expect(data.error).toBe("Project not found");
+  });
+
+  test("returns 400 when slug is missing", async () => {
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/read?projectName=${TEST_PROJECT}`);
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { error: string };
+    expect(data.error).toBe("slug is required");
+  });
+
+  test("returns 404 when slug is not found", async () => {
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/read?projectName=${TEST_PROJECT}&slug=missing`);
+    expect(res.status).toBe(404);
+    const data = (await res.json()) as { error: string };
+    expect(data.error).toBe("Issue not found: missing");
+  });
+
+  test("returns frontmatter and body for an existing issue", async () => {
+    await writeIssue(
+      "bug-report",
+      { title: "Bug Report", date: "2026-03-10", status: "open" },
+      "Steps to reproduce:\n1. Click the button\n2. Watch it crash",
+    );
+
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/read?projectName=${TEST_PROJECT}&slug=bug-report`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      slug: string;
+      title: string;
+      status: string;
+      date: string;
+      body: string;
+    };
+    expect(data.slug).toBe("bug-report");
+    expect(data.title).toBe("Bug Report");
+    expect(data.status).toBe("open");
+    expect(data.date).toBe("2026-03-10");
+    expect(data.body).toContain("Steps to reproduce:");
+    expect(data.body).toContain("Click the button");
+  });
+
+  test("returns empty body for an issue with no body section", async () => {
+    await writeIssue("no-body", { title: "No Body", date: "2026-03-10", status: "open" });
+
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/read?projectName=${TEST_PROJECT}&slug=no-body`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { body: string };
+    expect(data.body).toBe("");
+  });
+
+  test("response validates against issueReadResponseSchema", async () => {
+    await writeIssue(
+      "sch-read",
+      { title: "Sch Read", date: "2026-06-06", status: "closed" },
+      "body line",
+    );
+
+    const app = makeTestApp();
+    const res = await app.request(
+      `/workspace/issue/read?projectName=${TEST_PROJECT}&slug=sch-read`,
+    );
+    const body = await res.json();
+    const parsed = issueReadResponseSchema.safeParse(body);
+    expect(parsed.success).toBe(true);
+  });
+
+  test("issueReadRequestSchema rejects missing slug or projectName", () => {
+    expect(
+      issueReadRequestSchema.safeParse({ projectName: "p" }).success,
+    ).toBe(false);
+    expect(issueReadRequestSchema.safeParse({ slug: "s" }).success).toBe(false);
+    expect(
+      issueReadRequestSchema.safeParse({ projectName: "p", slug: "s" }).success,
+    ).toBe(true);
   });
 });

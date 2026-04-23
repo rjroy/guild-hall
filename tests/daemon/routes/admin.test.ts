@@ -3,7 +3,11 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { createApp } from "@/daemon/app";
-import type { AdminDeps } from "@/daemon/routes/admin";
+import {
+  projectListRequestSchema,
+  projectListResponseSchema,
+  type AdminDeps,
+} from "@/daemon/routes/admin";
 import type { AppConfig } from "@/lib/types";
 import { writeConfig } from "@/lib/config";
 
@@ -827,5 +831,92 @@ describe("POST /system/config/project/deregister", () => {
     expect(body.deregistered).toBe(true);
     // Config removal is authoritative regardless of cleanup
     expect(config.projects).toHaveLength(0);
+  });
+});
+
+describe("GET /system/config/project/list", () => {
+  test("returns empty array when no projects are registered", async () => {
+    const deps = makeAdminDeps();
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/list");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ projects: [] });
+  });
+
+  test("returns all registered projects with name, path, group, and status", async () => {
+    const config: AppConfig = {
+      projects: [
+        { name: "alpha", path: "/tmp/alpha" },
+        { name: "beta", path: "/tmp/beta", group: "team-x" },
+      ],
+    };
+    const deps = makeAdminDeps({ config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/list");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.projects).toHaveLength(2);
+    expect(body.projects[0]).toEqual({
+      name: "alpha",
+      path: "/tmp/alpha",
+      group: undefined,
+      status: "registered",
+    });
+    expect(body.projects[1]).toEqual({
+      name: "beta",
+      path: "/tmp/beta",
+      group: "team-x",
+      status: "registered",
+    });
+  });
+
+  test("response wraps projects in an object", async () => {
+    const config: AppConfig = {
+      projects: [{ name: "p", path: "/tmp/p" }],
+    };
+    const deps = makeAdminDeps({ config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/list");
+    const body = await res.json();
+    expect(body).toHaveProperty("projects");
+    expect(Array.isArray(body.projects)).toBe(true);
+  });
+
+  test("response validates against projectListResponseSchema", async () => {
+    const config: AppConfig = {
+      projects: [
+        { name: "alpha", path: "/tmp/alpha" },
+        { name: "beta", path: "/tmp/beta", group: "team-x" },
+      ],
+    };
+    const deps = makeAdminDeps({ config });
+    const app = makeTestApp(deps);
+
+    const res = await app.request("/system/config/project/list");
+    const body = await res.json();
+    const parsed = projectListResponseSchema.safeParse(body);
+    expect(parsed.success).toBe(true);
+  });
+
+  test("projectListRequestSchema accepts empty body and rejects extra fields with strict()", () => {
+    // requestSchema is z.object({}) — no-arg op. Empty object parses.
+    expect(projectListRequestSchema.safeParse({}).success).toBe(true);
+    // A malformed non-object input is rejected.
+    expect(projectListRequestSchema.safeParse("not-an-object").success).toBe(false);
+  });
+
+  test("projectListResponseSchema rejects malformed rows", () => {
+    // Missing required `status` field.
+    const bad = { projects: [{ name: "a", path: "/tmp/a" }] };
+    expect(projectListResponseSchema.safeParse(bad).success).toBe(false);
+    // `status` must be "registered".
+    const wrongStatus = {
+      projects: [{ name: "a", path: "/tmp/a", status: "orphaned" }],
+    };
+    expect(projectListResponseSchema.safeParse(wrongStatus).success).toBe(false);
   });
 });

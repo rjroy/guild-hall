@@ -227,31 +227,10 @@ describe("createApp with packageOperationRouteModule", () => {
     expect(toolsNode!.description).toBe("Tool management operations");
   });
 
-  test("help endpoint includes package operations in tree", async () => {
-    const skill = makeOperation({
-      operationId: "pkg.feature.op",
-      name: "op",
-      description: "Package operation",
-      invocation: { method: "GET", path: "/pkg/feature/op" },
-      hierarchy: { root: "pkg", feature: "feature" },
-      sourcePackage: "test-pkg",
-    });
-
-    const routeModule = makePackageOperationRouteModule([skill]);
-
-    const { app } = createApp({
-      health: makeHealthDeps(),
-      packageOperationRouteModule: routeModule,
-    });
-
-    const res = await app.request("/help");
-    expect(res.status).toBe(200);
-
-    const body = (await res.json()) as { children: Array<{ name: string; kind: string }> };
-    const pkgRoot = body.children.find(
-      (c) => c.name === "pkg",
-    );
-    expect(pkgRoot).toBeDefined();
-    expect(pkgRoot!.kind).toBe("root");
-  });
+  // REQ-CLI-AGENT-26: the daemon no longer exposes a /help surface.
+  // Help is rendered entirely from the CLI-owned surface tree. Package
+  // operations reach the CLI through `package-op invoke` (tested in
+  // tests/cli/package-op.test.ts) and through the registry, not via a
+  // daemon help endpoint. The registry integration tests above are the
+  // replacement for the removed `/help`-based verification.
 });

@@ -15,7 +15,6 @@ import { createGitLoreRoutes, type GitLoreDeps } from "./routes/git-lore";
 import { createWorkspaceIssueRoutes, type IssueRouteDeps } from "./routes/workspace-issue";
 import { createConfigRoutes, type ConfigRoutesDeps } from "./routes/config";
 import { createHeartbeatRoutes, type HeartbeatRouteDeps } from "./routes/heartbeat";
-import { createHelpRoutes } from "./routes/help";
 import { createOperationsRegistry, type OperationsRegistry } from "@/daemon/lib/operations-registry";
 import type { AppConfig, DiscoveredPackage, RouteModule, OperationDefinition } from "@/lib/types";
 import { createPackageOperationRoutes, type PackageOperationRouteDeps } from "@/daemon/routes/package-operations";
@@ -147,11 +146,10 @@ export function createApp(deps: AppDeps): { app: Hono; registry: OperationsRegis
     mount(deps.packageOperationRouteModule);
   }
 
-  // Build the operations registry from all collected operations
+  // Build the operations registry from all collected operations. The daemon
+  // no longer exposes a /help surface (REQ-CLI-AGENT-26); the CLI renders
+  // help from its own surface tree.
   const registry = createOperationsRegistry(allOperations, allDescriptions);
-
-  // Mount help routes last so they can query the registry
-  app.route("/", createHelpRoutes(registry));
 
   return { app, registry };
 }
