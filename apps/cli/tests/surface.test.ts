@@ -8,14 +8,14 @@ import {
   type CliGroupNode,
   type CliLeafNode,
   type CliNode,
-} from "@/cli/surface";
+} from "@/apps/cli/surface";
 import {
   findNodeByPath,
   leafNodes,
   pathForNode,
   assertPathRules,
   operationIdsFor,
-} from "@/cli/surface-utils";
+} from "@/apps/cli/surface-utils";
 import type { OperationDefinition } from "@/lib/types";
 
 /**

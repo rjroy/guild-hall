@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import os from "node:os";
-import { validateArgs } from "@/cli/resolve";
-import type { CliOperation } from "@/cli/resolve";
+import { validateArgs } from "@/apps/cli/resolve";
+import type { CliOperation } from "@/apps/cli/resolve";
 
 function makeOperation(overrides: Partial<CliOperation> = {}): CliOperation {
   return {

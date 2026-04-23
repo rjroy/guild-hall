@@ -5,8 +5,8 @@ import {
   formatActionConfirmation,
   formatCommissionList,
   formatCommissionDetail,
-} from "@/cli/commission-format";
-import type { CliOperation } from "@/cli/resolve";
+} from "@/apps/cli/commission-format";
+import type { CliOperation } from "@/apps/cli/resolve";
 
 function makeOperation(overrides: Partial<CliOperation> = {}): CliOperation {
   return {

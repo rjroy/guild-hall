@@ -2,8 +2,8 @@ import { describe, test, expect } from "bun:test";
 import {
   getCommissionFormatter,
   isCommissionAction,
-} from "@/cli/commission-format";
-import { CLI_SURFACE, type CliNode } from "@/cli/surface";
+} from "@/apps/cli/commission-format";
+import { CLI_SURFACE, type CliNode } from "@/apps/cli/surface";
 
 function collectOperationIds(node: CliNode): string[] {
   if (node.kind === "leaf") return [node.operationId];

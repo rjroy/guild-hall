@@ -5,7 +5,7 @@ import {
   buildBody,
   validateArgs,
   type CliOperation,
-} from "@/cli/resolve";
+} from "@/apps/cli/resolve";
 import {
   AGGREGATE_SENTINEL,
   CLI_SURFACE,
@@ -13,8 +13,8 @@ import {
   PACKAGE_OP_SENTINEL,
   type CliGroupNode,
   type CliLeafNode,
-} from "@/cli/surface";
-import { leafNodes, pathForNode } from "@/cli/surface-utils";
+} from "@/apps/cli/surface";
+import { leafNodes, pathForNode } from "@/apps/cli/surface-utils";
 
 function makeOperation(overrides: Partial<CliOperation> = {}): CliOperation {
   return {

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { mergeMeetingAggregate, runCli, type CliDeps } from "@/cli/index";
+import { mergeMeetingAggregate, runCli, type CliDeps } from "@/apps/cli/index";
 import type { DaemonError } from "@/lib/daemon-client";
 
 describe("mergeMeetingAggregate", () => {

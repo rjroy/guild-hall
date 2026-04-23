@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
-import { migrateContentToBody } from "@/cli/migrate-content-to-body";
+import { migrateContentToBody } from "@/apps/cli/migrate-content-to-body";
 import { writeConfig } from "@/lib/config";
 import { getConfigPath } from "@/lib/paths";
 import type { AppConfig } from "@/lib/types";

@@ -7,7 +7,7 @@
  * project locks) and are consumed by daemon routes and the manager toolbox.
  *
  * Phase 4 of the Daemon Application Boundary migration extracted this code
- * so the daemon no longer imports from @/cli/.
+ * so the daemon no longer imports from @/apps/cli/.
  */
 
 import * as fs from "node:fs/promises";

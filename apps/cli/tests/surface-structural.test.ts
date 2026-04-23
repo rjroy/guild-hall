@@ -35,19 +35,19 @@ import {
   LOCAL_COMMAND_SENTINEL,
   PACKAGE_OP_SENTINEL,
   type CliNode,
-} from "@/cli/surface";
+} from "@/apps/cli/surface";
 import {
   assertPathRules,
   invocationForOperation,
   leafNodes,
   operationIdsFor,
   pathForNode,
-} from "@/cli/surface-utils";
-import { runCli, type CliDeps } from "@/cli/index";
+} from "@/apps/cli/surface-utils";
+import { runCli, type CliDeps } from "@/apps/cli/index";
 import {
   getCommissionFormatter,
   isCommissionAction,
-} from "@/cli/commission-format";
+} from "@/apps/cli/commission-format";
 
 // --- Compile-time guard: OperationDefinition has no `cliPath` key ---
 // Phase 2 removed cliPath from the OperationDefinition surface. If anyone

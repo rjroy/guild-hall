@@ -4,8 +4,8 @@ import {
   formatResponse,
   suggestCommand,
   extractFlags,
-} from "@/cli/format";
-import type { CliGroupNode, CliLeafNode } from "@/cli/surface";
+} from "@/apps/cli/format";
+import type { CliGroupNode, CliLeafNode } from "@/apps/cli/surface";
 
 function leaf(name: string, operationId: string): CliLeafNode {
   return {

@@ -40,4 +40,4 @@ If you are new to Guild Hall, start with [`getting-started.md`](./getting-starte
 - Artifact route: [`web/app/projects/[name]/artifacts/[...path]/page.tsx`](../../web/app/projects/[name]/artifacts/[...path]/page.tsx)
 - Meeting route: [`web/app/projects/[name]/meetings/[id]/page.tsx`](../../web/app/projects/[name]/meetings/[id]/page.tsx)
 - Commission route: [`web/app/projects/[name]/commissions/[id]/page.tsx`](../../web/app/projects/[name]/commissions/[id]/page.tsx)
-- CLI entrypoint: [`cli/index.ts`](../../cli/index.ts)
+- CLI entrypoint: [`apps/cli/index.ts`](../../apps/cli/index.ts)

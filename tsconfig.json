@@ -24,7 +24,7 @@
   "include": [
     "lib/**/*.ts",
     "daemon/**/*.ts",
-    "cli/**/*.ts",
+    "apps/cli/**/*.ts",
     "tests/**/*.ts",
     "tests/**/*.tsx",
     "packages/**/*.ts",

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { runCli, type CliDeps, type OperationsRegistryView } from "@/cli/index";
+import { runCli, type CliDeps, type OperationsRegistryView } from "@/apps/cli/index";
 import type { DaemonError } from "@/lib/daemon-client";
 import type { OperationDefinition } from "@/lib/types";
 

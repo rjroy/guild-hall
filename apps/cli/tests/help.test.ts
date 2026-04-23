@@ -4,10 +4,10 @@ import {
   renderGroupHelp,
   renderLeafHelp,
   renderHelp,
-} from "@/cli/help";
-import { runCli, type CliDeps } from "@/cli/index";
-import { CLI_SURFACE, type CliGroupNode, type CliLeafNode } from "@/cli/surface";
-import { findNodeByPath } from "@/cli/surface-utils";
+} from "@/apps/cli/help";
+import { runCli, type CliDeps } from "@/apps/cli/index";
+import { CLI_SURFACE, type CliGroupNode, type CliLeafNode } from "@/apps/cli/surface";
+import { findNodeByPath } from "@/apps/cli/surface-utils";
 
 function leaf(node: Partial<CliLeafNode> & Pick<CliLeafNode, "name" | "operationId">): CliLeafNode {
   return {

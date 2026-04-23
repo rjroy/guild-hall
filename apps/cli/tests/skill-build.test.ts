@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
-import { runCli, type CliDeps } from "@/cli/index";
-import { CLI_SURFACE, type CliGroupNode, type CliNode } from "@/cli/surface";
-import { leafNodes, pathForNode } from "@/cli/surface-utils";
+import { runCli, type CliDeps } from "@/apps/cli/index";
+import { CLI_SURFACE, type CliGroupNode, type CliNode } from "@/apps/cli/surface";
+import { leafNodes, pathForNode } from "@/apps/cli/surface-utils";
 
 /**
  * REQ-CLI-AGENT-20: Skill-builder harness.
