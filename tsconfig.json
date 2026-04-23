@@ -22,8 +22,6 @@
     "lib/**/*.ts",
     "apps/daemon/**/*.ts",
     "apps/cli/**/*.ts",
-    "tests/**/*.ts",
-    "tests/**/*.tsx",
     "packages/**/*.ts",
     "packages/**/*.tsx",
     "scripts/**/*.ts",

@@ -230,7 +230,7 @@ describe("createApp with packageOperationRouteModule", () => {
   // REQ-CLI-AGENT-26: the daemon no longer exposes a /help surface.
   // Help is rendered entirely from the CLI-owned surface tree. Package
   // operations reach the CLI through `package-op invoke` (tested in
-  // tests/cli/package-op.test.ts) and through the registry, not via a
+  // apps/cli/tests/package-op.test.ts) and through the registry, not via a
   // daemon help endpoint. The registry integration tests above are the
   // replacement for the removed `/help`-based verification.
 });

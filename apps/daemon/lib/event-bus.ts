@@ -10,7 +10,7 @@ import type { Log } from "@/apps/daemon/lib/log";
 import { nullLog } from "@/apps/daemon/lib/log";
 
 // When adding a new variant here, also update SYSTEM_EVENT_TYPES in lib/types.ts.
-// A sync test in tests/lib/config.test.ts will fail if the two lists diverge.
+// A sync test in lib/tests/config.test.ts will fail if the two lists diverge.
 export type SystemEvent =
   | { type: "commission_status"; commissionId: string; status: string; oldStatus?: string; projectName?: string; reason?: string }
   | { type: "commission_progress"; commissionId: string; summary: string }

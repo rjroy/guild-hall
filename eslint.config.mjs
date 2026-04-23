@@ -34,10 +34,14 @@ const eslintConfig = defineConfig([
   // directly or use expect().rejects.
   {
     files: [
-      "tests/**/*.ts",
-      "tests/**/*.tsx",
       "apps/*/tests/**/*.ts",
       "apps/*/tests/**/*.tsx",
+      "lib/tests/**/*.ts",
+      "lib/tests/**/*.tsx",
+      "packages/*/tests/**/*.ts",
+      "packages/*/tests/**/*.tsx",
+      "packages/tests/**/*.ts",
+      "packages/tests/**/*.tsx",
     ],
     rules: {
       "@typescript-eslint/await-thenable": "off",

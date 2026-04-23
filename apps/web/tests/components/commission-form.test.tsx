@@ -8,7 +8,7 @@ import { describe, test, expect } from "bun:test";
  * We test their type contracts and module exports here.
  *
  * CommissionList filter logic (pure functions) is tested in
- * tests/components/commission-list.test.tsx.
+ * apps/web/tests/components/commission-list.test.tsx.
  */
 
 // -- CommissionForm type contract tests --
@@ -82,7 +82,7 @@ describe("CreateCommissionButton type contract", () => {
 // -- CommissionList type contract tests --
 // CommissionList is now a client component with useState (converted for status
 // filtering). It cannot be called directly outside a React render context.
-// Filter logic (pure functions) is tested in tests/components/commission-list.test.tsx.
+// Filter logic (pure functions) is tested in apps/web/tests/components/commission-list.test.tsx.
 
 describe("CommissionList", () => {
   test("module exports default", async () => {

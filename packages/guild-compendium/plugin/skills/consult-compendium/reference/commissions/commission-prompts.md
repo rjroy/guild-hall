@@ -39,7 +39,7 @@ Different work types have different failure modes. Match the prompt structure to
 
 **Missing integration context.** The prompt describes what to build but not where it connects. Implementation prompts must name the entry points, callers, and consumers for new code.
 
-**Assumed conventions.** The prompt assumes the worker knows the project's patterns without stating them. Point to an existing example: "Follow the test pattern in `tests/daemon/toolbox-resolver.test.ts`."
+**Assumed conventions.** The prompt assumes the worker knows the project's patterns without stating them. Point to an existing example: "Follow the test pattern in `apps/daemon/tests/toolbox-resolver.test.ts`."
 
 **Prompt as hope.** The prompt uses instructions where it needs mechanisms. "Produce a structured report" is a hope. "Write your findings to `.lore/research/topic.md`" is a mechanism. File paths and tool requirements are reliable; formatting instructions are not.
 
