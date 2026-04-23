@@ -12,7 +12,7 @@ node_modules
 /coverage
 
 # next.js
-/web/.next/
+/apps/web/.next/
 /out/
 
 # production

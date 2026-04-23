@@ -25,7 +25,7 @@ const eslintConfig = defineConfig([
       },
     },
     settings: {
-      next: { rootDir: "web" },
+      next: { rootDir: "apps/web" },
     },
   },
   // Test files: suppress false positives from bun's assertion types and
@@ -49,10 +49,10 @@ const eslintConfig = defineConfig([
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
-    "web/.next/**",
+    "apps/web/.next/**",
     "out/**",
     "build/**",
-    "web/next-env.d.ts",
+    "apps/web/next-env.d.ts",
   ]),
 ]);
 

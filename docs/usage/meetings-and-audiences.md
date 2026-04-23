@@ -56,7 +56,7 @@ If the work is better described as a standalone task with a durable lifecycle, u
 
 ## Code references
 
-- Pending audience card actions: [`web/components/dashboard/MeetingRequestCard.tsx`](../../web/components/dashboard/MeetingRequestCard.tsx)
-- Meeting route: [`web/app/projects/[name]/meetings/[id]/page.tsx`](../../web/app/projects/[name]/meetings/[id]/page.tsx)
-- Meeting view composition: [`web/components/meeting/MeetingView.tsx`](../../web/components/meeting/MeetingView.tsx)
-- Project hub route: [`web/app/projects/[name]/page.tsx`](../../web/app/projects/[name]/page.tsx)
+- Pending audience card actions: [`apps/web/components/dashboard/MeetingRequestCard.tsx`](../../apps/web/components/dashboard/MeetingRequestCard.tsx)
+- Meeting route: [`apps/web/app/projects/[name]/meetings/[id]/page.tsx`](../../apps/web/app/projects/[name]/meetings/[id]/page.tsx)
+- Meeting view composition: [`apps/web/components/meeting/MeetingView.tsx`](../../apps/web/components/meeting/MeetingView.tsx)
+- Project hub route: [`apps/web/app/projects/[name]/page.tsx`](../../apps/web/app/projects/[name]/page.tsx)
