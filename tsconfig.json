@@ -18,6 +18,9 @@
     },
     "types": ["bun-types"]
   },
+  // Temporary: web/ is excluded below, but tests transitively reference .module.css.
+  // Remove when Phase 4 of repository-layout refactor drops `exclude: ["web"]`.
+  "files": ["web/css-modules.d.ts"],
   "include": [
     "lib/**/*.ts",
     "daemon/**/*.ts",
@@ -27,7 +30,6 @@
     "packages/**/*.ts",
     "packages/**/*.tsx",
     "scripts/**/*.ts",
-    "types/**/*.d.ts",
     "**/*.mts"
   ],
   "exclude": ["node_modules", "web"]
