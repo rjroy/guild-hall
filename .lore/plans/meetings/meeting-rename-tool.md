@@ -30,41 +30,41 @@ Requirements addressed by step:
 
 ## Codebase Context
 
-**Meeting toolbox** (`daemon/services/meeting/toolbox.ts`): Three handler factories exist. `makeSummarizeProgressHandler` at lines 163–181 is the direct structural template: it calls `resolveWritePath()` then delegates to a record function. The rename handler follows the same shape.
+**Meeting toolbox** (`apps/daemon/services/meeting/toolbox.ts`): Three handler factories exist. `makeSummarizeProgressHandler` at lines 163–181 is the direct structural template: it calls `resolveWritePath()` then delegates to a record function. The rename handler follows the same shape.
 
-**`MeetingToolboxDeps`** (`daemon/services/meeting/toolbox.ts:31–36`): `guildHallHome`, `projectName`, `contextId`, `workerName`. No `eventBus` field. REQ-MRN-18 explicitly forbids adding one; do not modify this interface.
+**`MeetingToolboxDeps`** (`apps/daemon/services/meeting/toolbox.ts:31–36`): `guildHallHome`, `projectName`, `contextId`, `workerName`. No `eventBus` field. REQ-MRN-18 explicitly forbids adding one; do not modify this interface.
 
 **Single-write requirement**: `appendMeetingLog()` (`record.ts:83–97`) does its own read-write cycle. Calling it after a separate `replaceYamlField` write produces two writes. The spec's AI Validation test requires both changes land in one write. Follow the `closeArtifact()` precedent (`record.ts:186–221`): add a new `renameMeetingArtifact()` function to `record.ts` that combines the read, field update, log append, and single write. The handler calls it; it does not call `appendMeetingLog()` separately.
 
-**`replaceYamlField()`** (`daemon/lib/record-utils.ts:24–34`): Takes the raw replacement value — it does not quote it. The `title` field is written as a double-quoted YAML string at creation time (`title: "Audience with..."`). Pass the full quoted-and-escaped value: `"${escapeYamlValue(newTitle)}"` (the surrounding double-quote characters are literal, forming the YAML quoted string). This matches the creation format and what YAML parsers expect.
+**`replaceYamlField()`** (`apps/daemon/lib/record-utils.ts:24–34`): Takes the raw replacement value — it does not quote it. The `title` field is written as a double-quoted YAML string at creation time (`title: "Audience with..."`). Pass the full quoted-and-escaped value: `"${escapeYamlValue(newTitle)}"` (the surrounding double-quote characters are literal, forming the YAML quoted string). This matches the creation format and what YAML parsers expect.
 
-**`readYamlField()`** (`daemon/lib/record-utils.ts:41–53`): Strips surrounding quotes but does not unescape sequences. For no-op detection, compare `readYamlField(raw, "title")` against the trimmed user input. This works for ordinary titles. For titles containing double quotes or backslashes, the stored form has escape sequences that `readYamlField` returns verbatim, while the user passes the unescaped form — the no-op check will miss it and write unnecessarily. Acceptable for v1; note the edge case in the open questions.
+**`readYamlField()`** (`apps/daemon/lib/record-utils.ts:41–53`): Strips surrounding quotes but does not unescape sequences. For no-op detection, compare `readYamlField(raw, "title")` against the trimmed user input. This works for ordinary titles. For titles containing double quotes or backslashes, the stored form has escape sequences that `readYamlField` returns verbatim, while the user passes the unescaped form — the no-op check will miss it and write unnecessarily. Acceptable for v1; note the edge case in the open questions.
 
-**`escapeYamlValue()`** (`daemon/lib/toolbox-utils.ts:83–88`): Handles backslashes, double quotes, and newlines. Already imported by `record.ts`. The handler validates and rejects newlines before calling into the record layer, so `escapeYamlValue` in the record function handles only the quoting/backslash cases.
+**`escapeYamlValue()`** (`apps/daemon/lib/toolbox-utils.ts:83–88`): Handles backslashes, double quotes, and newlines. Already imported by `record.ts`. The handler validates and rejects newlines before calling into the record layer, so `escapeYamlValue` in the record function handles only the quoting/backslash cases.
 
 **Newline validation ordering** (REQ-MRN-6): Trim first, then check for `\n` and `\r`. After trim, leading/trailing newlines are gone; any remaining newlines are internal. The validator rejects these. Do not use `escapeYamlValue` as a substitute for rejection — the spec rejects them outright.
 
 **Meeting artifact title format** (`record.ts:128–129`): Written as `title: "Audience with ${workerDisplayTitle}"`. After rename: `title: "My new title"`. The `replaceYamlField` call must produce `title: "<escaped value>"`.
 
-**`appendLogEntry()`** (`daemon/lib/record-utils.ts:69–86`): When called without a `marker`, inserts before the closing `---`. Meeting artifacts use this form (no `current_progress` marker). Build the entry string the same way `appendMeetingLog` does (`record.ts:93`): `  - timestamp: ${iso}\n    event: renamed\n    reason: "${escapeYamlValue(reason)}"`.
+**`appendLogEntry()`** (`apps/daemon/lib/record-utils.ts:69–86`): When called without a `marker`, inserts before the closing `---`. Meeting artifacts use this form (no `current_progress` marker). Build the entry string the same way `appendMeetingLog` does (`record.ts:93`): `  - timestamp: ${iso}\n    event: renamed\n    reason: "${escapeYamlValue(reason)}"`.
 
-**Imports in record.ts**: `readYamlField`, `replaceYamlField`, `appendLogEntry` are already imported from `daemon/lib/record-utils`. `escapeYamlValue` is already imported from `daemon/lib/toolbox-utils`. No new imports needed in `record.ts`.
+**Imports in record.ts**: `readYamlField`, `replaceYamlField`, `appendLogEntry` are already imported from `apps/daemon/lib/record-utils`. `escapeYamlValue` is already imported from `apps/daemon/lib/toolbox-utils`. No new imports needed in `record.ts`.
 
-**Imports in toolbox.ts**: `renameMeetingArtifact` must be added to the import from `@/daemon/services/meeting/record`. No other new imports.
+**Imports in toolbox.ts**: `renameMeetingArtifact` must be added to the import from `@/apps/daemon/services/meeting/record`. No other new imports.
 
-**UI — no changes required** (`web/components/project/MeetingList.tsx:34–38`): `meetingTitle()` reads `meeting.meta.title` with a filename fallback. The rename lands in frontmatter and is visible on next page load (REQ-MRN-16). Dashboard's `PendingAudiences` shows requested meetings only; open and requested are mutually exclusive states, so a rename during an open meeting does not affect PendingAudiences content. No UI files touch.
+**UI — no changes required** (`apps/web/components/project/MeetingList.tsx:34–38`): `meetingTitle()` reads `meeting.meta.title` with a filename fallback. The rename lands in frontmatter and is visible on next page load (REQ-MRN-16). Dashboard's `PendingAudiences` shows requested meetings only; open and requested are mutually exclusive states, so a rename during an open meeting does not affect PendingAudiences content. No UI files touch.
 
-**Existing test structure** (`tests/daemon/meeting-toolbox.test.ts`): `writeMeetingArtifact()` at lines 65–101, `makeDeps()` at lines 29–37, `derivedWorktreePath()` at lines 21–23, `derivedIntegrationPath()` at lines 27–28 — all reusable as-is. The rename test suite follows the same `describe`/`test` pattern. `makeRenameMeetingHandler` must be added to the import from `@/daemon/services/meeting/toolbox`.
+**Existing test structure** (`apps/daemon/tests/meeting-toolbox.test.ts`): `writeMeetingArtifact()` at lines 65–101, `makeDeps()` at lines 29–37, `derivedWorktreePath()` at lines 21–23, `derivedIntegrationPath()` at lines 27–28 — all reusable as-is. The rename test suite follows the same `describe`/`test` pattern. `makeRenameMeetingHandler` must be added to the import from `@/apps/daemon/services/meeting/toolbox`.
 
 ## Implementation Steps
 
 ### Step 1: Implement rename_meeting
 
 **Delegate to: Dalton**
-**Files**: `daemon/services/meeting/record.ts`, `daemon/services/meeting/toolbox.ts`
+**Files**: `apps/daemon/services/meeting/record.ts`, `apps/daemon/services/meeting/toolbox.ts`
 **Addresses**: REQ-MRN-1 through MRN-18
 
-**Part A: `renameMeetingArtifact()` in `daemon/services/meeting/record.ts`**
+**Part A: `renameMeetingArtifact()` in `apps/daemon/services/meeting/record.ts`**
 
 Add after `updateArtifactStatus()` (around line 73):
 
@@ -106,7 +106,7 @@ export async function renameMeetingArtifact(
 
 No new imports needed — all utilities are already imported in `record.ts`.
 
-**Part B: `makeRenameMeetingHandler()` in `daemon/services/meeting/toolbox.ts`**
+**Part B: `makeRenameMeetingHandler()` in `apps/daemon/services/meeting/toolbox.ts`**
 
 Add after `makeSummarizeProgressHandler` (around line 181). Import `renameMeetingArtifact` from the record module.
 
@@ -190,10 +190,10 @@ tool(
 
 **Delegate to: Sable**
 **Depends on: Step 1**
-**Files**: `tests/daemon/meeting-toolbox.test.ts`
+**Files**: `apps/daemon/tests/meeting-toolbox.test.ts`
 **Addresses**: All REQs (test validation per spec AI Validation section)
 
-Add `makeRenameMeetingHandler` to the existing import from `@/daemon/services/meeting/toolbox`. Add a new `describe("rename_meeting", ...)` block. Reuse `writeMeetingArtifact()`, `makeDeps()`, `derivedWorktreePath()`, and `derivedIntegrationPath()` directly — no changes to those helpers.
+Add `makeRenameMeetingHandler` to the existing import from `@/apps/daemon/services/meeting/toolbox`. Add a new `describe("rename_meeting", ...)` block. Reuse `writeMeetingArtifact()`, `makeDeps()`, `derivedWorktreePath()`, and `derivedIntegrationPath()` directly — no changes to those helpers.
 
 **Required test cases** (from spec AI Validation):
 
@@ -221,7 +221,7 @@ Add `makeRenameMeetingHandler` to the existing import from `@/daemon/services/me
 
 12. **Escaping — double quotes and backslashes**: Call handler with `title: 'My "doc" \\ spec'`. Assert no error. Read artifact raw content. Assert the `title:` line contains valid quoted YAML (double quotes escaped as `\"`). Assert that no unescaped double quote appears in the `title:` line that would break YAML parsing.
 
-13. **Toolbox integration**: Call `createMeetingToolbox(makeDeps())`. Access the MCP server's tool list. Assert `rename_meeting` is present. Assert its input schema has exactly one property: `title` of type `string`. (Sable: check how other tests in `tests/daemon/` inspect MCP server tool lists; match that pattern.)
+13. **Toolbox integration**: Call `createMeetingToolbox(makeDeps())`. Access the MCP server's tool list. Assert `rename_meeting` is present. Assert its input schema has exactly one property: `title` of type `string`. (Sable: check how other tests in `apps/daemon/tests/` inspect MCP server tool lists; match that pattern.)
 
 **Note on no-op test specifics**: The `writeMeetingArtifact` helper writes `title: "Audience with Test Worker"`. After `readYamlField`, the current title is `Audience with Test Worker` (quotes stripped). Pass this exact string as the new title to trigger the no-op path. For the assertion that the artifact is unchanged, read the raw file content and confirm no new `renamed` event appears.
 
@@ -234,9 +234,9 @@ Add `makeRenameMeetingHandler` to the existing import from `@/daemon/services/me
 
 Launch a sub-agent with no implementation context. It reads:
 - `.lore/specs/meetings/meeting-rename.md`
-- `daemon/services/meeting/record.ts`
-- `daemon/services/meeting/toolbox.ts`
-- `tests/daemon/meeting-toolbox.test.ts`
+- `apps/daemon/services/meeting/record.ts`
+- `apps/daemon/services/meeting/toolbox.ts`
+- `apps/daemon/tests/meeting-toolbox.test.ts`
 
 Review all 12 success criteria checkboxes from the spec. Specifically check:
 
@@ -261,4 +261,4 @@ Steps 1 and 2 are sequential. Step 3 runs after both complete.
 
 - **No-op detection for special-char titles**: `readYamlField()` strips quotes but does not unescape sequences (`\"` stays as `\"`). For a title previously set to `My "thing"` (stored as `My \"thing\"`), the no-op check compares `My \"thing\"` against the user input `My "thing"` and fails to detect the match. The rename writes again unnecessarily but produces no visible error or incorrect state. Acceptable for v1.
 
-- **Toolbox integration test pattern**: The existing test file exercises handler factories directly, not `createMeetingToolbox()`. Sable should check `tests/daemon/` for any commission toolbox tests that inspect MCP server tool lists and match that pattern. If none exist, inspect the return value of `createMeetingToolbox()` — it's a `McpSdkServerConfigWithInstance`; check what properties are available for introspection.
+- **Toolbox integration test pattern**: The existing test file exercises handler factories directly, not `createMeetingToolbox()`. Sable should check `apps/daemon/tests/` for any commission toolbox tests that inspect MCP server tool lists and match that pattern. If none exist, inspect the return value of `createMeetingToolbox()` — it's a `McpSdkServerConfigWithInstance`; check what properties are available for introspection.

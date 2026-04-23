@@ -3,7 +3,7 @@ title: Outcome triage doesn't warn when session hits turn limit (REQ-OTMEM-19)
 date: 2026-04-18
 status: open
 tags: [bug, observability, commissions, memory, outcome-triage]
-modules: [daemon/services/outcome-triage]
+modules: [apps/daemon/services/outcome-triage]
 related:
   - .lore/specs/infrastructure/commission-outcomes-to-memory.md
   - .lore/retros/commission-cleanup-2026-03-21.md
@@ -29,7 +29,7 @@ Originally flagged as a Thorne WARN-level finding during the OTMEM implementatio
 **Spec — REQ-OTMEM-15:** `.lore/specs/infrastructure/commission-outcomes-to-memory.md:167`
 > "The triage session enforces a turn limit (e.g., 10 turns) to prevent runaway tool-use loops. If the limit is reached, the session stops."
 
-**Implementation — runs the loop:** `daemon/services/outcome-triage.ts:300-318`
+**Implementation — runs the loop:** `apps/daemon/services/outcome-triage.ts:300-318`
 ```ts
 return async (systemPrompt, userMessage, tools) => {
   const generator = queryFn({

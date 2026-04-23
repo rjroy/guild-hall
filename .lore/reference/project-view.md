@@ -29,9 +29,9 @@ The project view is the per-project detail page. It has two layers: a tabbed ove
 
 | Entry | Type | Handler |
 |-------|------|---------|
-| `/projects/[name]` | Page | `web/app/projects/[name]/page.tsx` (server component) |
-| `/projects/[name]/artifacts/[...path]` | Page | `web/app/projects/[name]/artifacts/[...path]/page.tsx` (server component) |
-| `PUT /api/artifacts` | Next.js API | `web/app/api/artifacts/route.ts` (not a proxy, does real work) |
+| `/projects/[name]` | Page | `apps/web/app/projects/[name]/page.tsx` (server component) |
+| `/projects/[name]/artifacts/[...path]` | Page | `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` (server component) |
+| `PUT /api/artifacts` | Next.js API | `apps/web/app/api/artifacts/route.ts` (not a proxy, does real work) |
 
 ## Implementation
 
@@ -39,23 +39,23 @@ The project view is the per-project detail page. It has two layers: a tabbed ove
 
 | File | Role |
 |------|------|
-| `web/app/projects/[name]/page.tsx` | Server component: reads config, scans artifacts/commissions/meetings from integration + active worktrees, deduplicates meetings, composes tabbed layout. Query params: `?tab=`, `?newCommission=true`, `?dep=`. |
-| `web/app/projects/[name]/page.module.css` | Layout styles for project view and tab content. |
-| `web/app/projects/[name]/artifacts/[...path]/page.tsx` | Server component: reads single artifact, finds associated commissions via `linked_artifacts`, detects open meeting artifacts for banner. Composes ArtifactProvenance, ArtifactContent, MetadataSidebar. |
-| `web/app/projects/[name]/artifacts/[...path]/page.module.css` | Two-column layout for artifact viewer (main + sidebar). |
-| `web/app/api/artifacts/route.ts` | PUT endpoint: writes artifact body via `writeArtifactContent()` (preserves frontmatter), auto-commits to `claude` branch via `git.commitAll()`, triggers `POST /commissions/check-dependencies` on daemon. Non-fatal error handling for both commit and dependency check. |
-| `web/components/project/ProjectHeader.tsx` | Server component: breadcrumb (Guild Hall > Project: name), heading, description, repo link, StartAudienceButton. |
-| `web/components/project/ProjectTabs.tsx` | Server component: three tab links (Commissions, Artifacts, Meetings) with `?tab=` param and gem status indicators. |
-| `web/components/project/ArtifactList.tsx` | Client component: builds hierarchical tree via `buildArtifactTree()`, collapsible directories with chevron toggles, scroll icons, gem indicators, tags. Uses `TreeNodeRow` as module-level component to avoid re-creation on re-render. |
-| `web/components/project/MeetingList.tsx` | Server component: status-aware rendering. `meetingStatusToGem()` maps meeting status to gem type. `meetingHref()` routes open meetings to live view, requested to dashboard, others to artifact viewer. |
-| `web/components/project/StartAudienceButton.tsx` | Client component: "Start Audience" button that opens WorkerPicker modal. Disabled when daemon is offline (reads from DaemonContext). |
-| `web/components/ui/WorkerPicker.tsx` | Client component: portal-rendered modal dialog. Fetches workers from `/api/workers` on mount. Worker selection + agenda textarea + "Start Audience" submit. On submit: POST /api/meetings, consume SSE first turn via `consumeFirstTurnSSE`, store messages in sessionStorage, navigate to meeting view. Handles daemon offline and error states. |
-| `web/components/commission/CreateCommissionButton.tsx` | Client component: toggles CommissionForm inline. Supports `defaultOpen` and `initialDependencies` props for deep-linking from artifact viewer. |
-| `web/components/commission/CommissionForm.tsx` | Client component: full commission creation form (see [commissions](./commissions.md)). |
-| `web/components/artifact/ArtifactBreadcrumb.tsx` | Server component: breadcrumb navigation (Guild Hall > Project: name > Artifact: title). |
-| `web/components/artifact/ArtifactProvenance.tsx` | Server component: combines breadcrumb with a stubbed provenance line (worker source tracking planned but not yet implemented). |
-| `web/components/artifact/ArtifactContent.tsx` | Client component: view/edit toggle. View mode renders markdown via react-markdown + remark-gfm. Edit mode shows textarea with save/cancel toolbar. Saves via `PUT /api/artifacts`, refreshes page on success. |
-| `web/components/artifact/MetadataSidebar.tsx` | Server component: displays artifact metadata (status with gem, date, tags, modules, project link, associated commissions, related artifacts). Includes "Create Commission from Artifact" link that navigates to the commissions tab with `?newCommission=true&dep=<path>`. Exports `relatedToHref()` and `createCommissionHref()` helpers. |
+| `apps/web/app/projects/[name]/page.tsx` | Server component: reads config, scans artifacts/commissions/meetings from integration + active worktrees, deduplicates meetings, composes tabbed layout. Query params: `?tab=`, `?newCommission=true`, `?dep=`. |
+| `apps/web/app/projects/[name]/page.module.css` | Layout styles for project view and tab content. |
+| `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` | Server component: reads single artifact, finds associated commissions via `linked_artifacts`, detects open meeting artifacts for banner. Composes ArtifactProvenance, ArtifactContent, MetadataSidebar. |
+| `apps/web/app/projects/[name]/artifacts/[...path]/page.module.css` | Two-column layout for artifact viewer (main + sidebar). |
+| `apps/web/app/api/artifacts/route.ts` | PUT endpoint: writes artifact body via `writeArtifactContent()` (preserves frontmatter), auto-commits to `claude` branch via `git.commitAll()`, triggers `POST /commissions/check-dependencies` on daemon. Non-fatal error handling for both commit and dependency check. |
+| `apps/web/components/project/ProjectHeader.tsx` | Server component: breadcrumb (Guild Hall > Project: name), heading, description, repo link, StartAudienceButton. |
+| `apps/web/components/project/ProjectTabs.tsx` | Server component: three tab links (Commissions, Artifacts, Meetings) with `?tab=` param and gem status indicators. |
+| `apps/web/components/project/ArtifactList.tsx` | Client component: builds hierarchical tree via `buildArtifactTree()`, collapsible directories with chevron toggles, scroll icons, gem indicators, tags. Uses `TreeNodeRow` as module-level component to avoid re-creation on re-render. |
+| `apps/web/components/project/MeetingList.tsx` | Server component: status-aware rendering. `meetingStatusToGem()` maps meeting status to gem type. `meetingHref()` routes open meetings to live view, requested to dashboard, others to artifact viewer. |
+| `apps/web/components/project/StartAudienceButton.tsx` | Client component: "Start Audience" button that opens WorkerPicker modal. Disabled when daemon is offline (reads from DaemonContext). |
+| `apps/web/components/ui/WorkerPicker.tsx` | Client component: portal-rendered modal dialog. Fetches workers from `/api/workers` on mount. Worker selection + agenda textarea + "Start Audience" submit. On submit: POST /api/meetings, consume SSE first turn via `consumeFirstTurnSSE`, store messages in sessionStorage, navigate to meeting view. Handles daemon offline and error states. |
+| `apps/web/components/commission/CreateCommissionButton.tsx` | Client component: toggles CommissionForm inline. Supports `defaultOpen` and `initialDependencies` props for deep-linking from artifact viewer. |
+| `apps/web/components/commission/CommissionForm.tsx` | Client component: full commission creation form (see [commissions](./commissions.md)). |
+| `apps/web/components/artifact/ArtifactBreadcrumb.tsx` | Server component: breadcrumb navigation (Guild Hall > Project: name > Artifact: title). |
+| `apps/web/components/artifact/ArtifactProvenance.tsx` | Server component: combines breadcrumb with a stubbed provenance line (worker source tracking planned but not yet implemented). |
+| `apps/web/components/artifact/ArtifactContent.tsx` | Client component: view/edit toggle. View mode renders markdown via react-markdown + remark-gfm. Edit mode shows textarea with save/cancel toolbar. Saves via `PUT /api/artifacts`, refreshes page on success. |
+| `apps/web/components/artifact/MetadataSidebar.tsx` | Server component: displays artifact metadata (status with gem, date, tags, modules, project link, associated commissions, related artifacts). Includes "Create Commission from Artifact" link that navigates to the commissions tab with `?newCommission=true&dep=<path>`. Exports `relatedToHref()` and `createCommissionHref()` helpers. |
 | `lib/artifact-grouping.ts` | Tree construction: `buildArtifactTree()` builds a hierarchical `TreeNode[]` from flat artifact list. `groupKey()`, `capitalize()`, `displayTitle()` helpers. `groupArtifacts()` for flat grouping (used elsewhere). Depth-0 directories default to expanded. Root-level files grouped under synthetic "root" node. |
 | `lib/artifacts.ts` | `scanArtifacts`, `readArtifact`, `recentArtifacts`, `writeArtifactContent` with `spliceBody` for frontmatter preservation (see [dashboard](./dashboard.md)). |
 | `lib/meetings.ts` | `getActiveMeetingWorktrees` scans `~/.guild-hall/worktrees/<project>/` for meeting-pattern directories (see [meetings](./meetings.md)). |

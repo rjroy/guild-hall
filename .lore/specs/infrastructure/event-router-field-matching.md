@@ -46,7 +46,7 @@ Field values are glob patterns evaluated by `micromatch.isMatch()`. Plain string
   }
   ```
 
-  The interface is defined in `daemon/services/event-router.ts`. This is an additive change. Existing rules without `fields` continue to work unchanged.
+  The interface is defined in `apps/daemon/services/event-router.ts`. This is an additive change. Existing rules without `fields` continue to work unchanged.
 
 - REQ-EVFM-2: When a rule specifies `fields`, the `matches()` function iterates over each entry. For each key-value pair `(key, pattern)`:
   1. If the event object does not have the key as a top-level property, the rule does not match (skip, not error).
@@ -65,7 +65,7 @@ Field values are glob patterns evaluated by `micromatch.isMatch()`. Plain string
 
 - REQ-EVFM-6: micromatch is called without the `{ dot: true }` option. Event field values are plain strings (status codes, identifiers, summaries), not file paths. The `dot` option controls whether `*` matches strings starting with `.`, which is file-path semantics. For event fields, the default behavior (no special treatment of dots) is correct.
 
-  This differs from the existing micromatch usage in `daemon/lib/agent-sdk/sdk-runner.ts` (line 292), which uses `{ dot: true }` because it matches file paths and shell commands. The difference is intentional.
+  This differs from the existing micromatch usage in `apps/daemon/lib/agent-sdk/sdk-runner.ts` (line 292), which uses `{ dot: true }` because it matches file paths and shell commands. The difference is intentional.
 
 - REQ-EVFM-7: No options object is passed to `micromatch.isMatch()`. The call is `micromatch.isMatch(value, pattern)` with two arguments only. Default micromatch behavior applies for all settings.
 
@@ -146,13 +146,13 @@ These are not features the implementation builds. They are consequences of using
 
 ### No Changes Required
 
-- REQ-EVFM-19: The notification service (`daemon/services/notification-service.ts`) requires no changes. It passes `rule.match` through to `router.subscribe()` untouched. The new `fields` property flows through the existing code path.
+- REQ-EVFM-19: The notification service (`apps/daemon/services/notification-service.ts`) requires no changes. It passes `rule.match` through to `router.subscribe()` untouched. The new `fields` property flows through the existing code path.
 
-- REQ-EVFM-20: The EventBus (`daemon/lib/event-bus.ts`) and all event emit sites require no changes. The `fields` matching reads whatever properties events already carry. No event enrichment is part of this spec.
+- REQ-EVFM-20: The EventBus (`apps/daemon/lib/event-bus.ts`) and all event emit sites require no changes. The `fields` matching reads whatever properties events already carry. No event enrichment is part of this spec.
 
 - REQ-EVFM-21: The `EventRouter` interface (the `subscribe` method signature) does not change. It already accepts `EventMatchRule`, which gains the optional `fields` property.
 
-- REQ-EVFM-22: The only file that gains a new import is `daemon/services/event-router.ts` (`micromatch`). The matching logic change is in the `fields` loop within `matches()`.
+- REQ-EVFM-22: The only file that gains a new import is `apps/daemon/services/event-router.ts` (`micromatch`). The matching logic change is in the `fields` loop within `matches()`.
 
 ## Config Examples
 
@@ -266,8 +266,8 @@ Matching against coerced arrays or objects is technically possible but not a rec
 
 ## Success Criteria
 
-- [ ] `EventMatchRule` in `daemon/services/event-router.ts` includes `fields?: Record<string, string>`
-- [ ] `micromatch` is imported in `daemon/services/event-router.ts`
+- [ ] `EventMatchRule` in `apps/daemon/services/event-router.ts` includes `fields?: Record<string, string>`
+- [ ] `micromatch` is imported in `apps/daemon/services/event-router.ts`
 - [ ] `matches()` evaluates `fields` entries using `micromatch.isMatch()` after `type` and `projectName` checks
 - [ ] No options object is passed to `micromatch.isMatch()` (no `{ dot: true }`)
 - [ ] Missing event fields cause skip (no match), not error
@@ -295,16 +295,16 @@ Matching against coerced arrays or objects is technically possible but not a rec
 - Run `bun test` and confirm all tests pass before declaring work complete.
 
 **Structural checks:**
-- Confirm `EventMatchRule` in `daemon/services/event-router.ts` has `fields?: Record<string, string>`.
-- Confirm `daemon/services/event-router.ts` imports `micromatch`.
+- Confirm `EventMatchRule` in `apps/daemon/services/event-router.ts` has `fields?: Record<string, string>`.
+- Confirm `apps/daemon/services/event-router.ts` imports `micromatch`.
 - Confirm the `fields` loop in `matches()` calls `micromatch.isMatch(String(eventRecord[key]), pattern)` without a third argument.
 - Confirm the `fields` loop wraps `micromatch.isMatch()` in a try/catch that logs at `warn` level and returns `false` on error.
 - Confirm `type` matching still uses `rule.type !== event.type` (exact, not micromatch).
 - Confirm `projectName` matching still uses `===` comparison (exact, not micromatch).
 - Confirm `notificationRuleSchema` in `lib/config.ts` includes `fields: z.record(z.string(), z.string()).optional()` inside the `match` object.
 - Confirm `NotificationRule` in `lib/types.ts` includes `fields?: Record<string, string>` on the `match` property.
-- Confirm no changes to `daemon/services/notification-service.ts`, `daemon/lib/event-bus.ts`, or any event emit sites.
-- Confirm no options object (especially not `{ dot: true }`) is passed to `micromatch.isMatch()`. Compare with `daemon/lib/agent-sdk/sdk-runner.ts:292` which intentionally uses `{ dot: true }` for file paths. The difference is deliberate.
+- Confirm no changes to `apps/daemon/services/notification-service.ts`, `apps/daemon/lib/event-bus.ts`, or any event emit sites.
+- Confirm no options object (especially not `{ dot: true }`) is passed to `micromatch.isMatch()`. Compare with `apps/daemon/lib/agent-sdk/sdk-runner.ts:292` which intentionally uses `{ dot: true }` for file paths. The difference is deliberate.
 
 **Behavioral checks:**
 - Test that `fields: { status: "completed" }` matches `status: "completed"` (exact match).

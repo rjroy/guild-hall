@@ -3,7 +3,7 @@ title: Improve Token Performance of Git Tools
 date: 2026-03-29
 status: open
 tags: [bug, performance, tooling, git]
-modules: [packages/guild-hall-developer, daemon/lib/git]
+modules: [packages/guild-hall-developer, apps/daemon/lib/git]
 related:
   - .lore/research/token-efficient-git-tools.md
   - .lore/retros/commission-cleanup-2026-03-30.md
@@ -21,7 +21,7 @@ Originally filed 2026-03-29. Verity's research validated a 3-layer approach (bin
 
 **Research:** `.lore/research/token-efficient-git-tools.md` exists and documents the recommended 3-layer approach with ecosystem evidence.
 
-**Implementation:** No matching limits in `packages/guild-hall-developer/src` or `daemon/lib/git.ts`. Grep for `MAX_BYTES`, `maxBytes`, `truncate`, `outputLimit` returns nothing in the git tool surface.
+**Implementation:** No matching limits in `packages/guild-hall-developer/src` or `apps/daemon/lib/git.ts`. Grep for `MAX_BYTES`, `maxBytes`, `truncate`, `outputLimit` returns nothing in the git tool surface.
 
 The mismatch — closed issue, no code — is what made it look fixed.
 

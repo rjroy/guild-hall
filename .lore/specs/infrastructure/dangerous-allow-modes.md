@@ -3,7 +3,7 @@ title: Dangerous Allow Modes
 date: 2026-03-31
 status: parked
 tags: [security, sandbox, permissions, environment, tools, configuration]
-modules: [daemon/lib/agent-sdk/sdk-runner, daemon/services/toolbox-resolver, lib/paths]
+modules: [apps/daemon/lib/agent-sdk/sdk-runner, apps/daemon/services/toolbox-resolver, lib/paths]
 related:
   - .lore/specs/infrastructure/sandboxed-execution.md
   - .lore/specs/workers/tool-availability-enforcement.md
@@ -56,11 +56,11 @@ With both disabled, every worker has every tool and no OS-level constraints. The
 
 ### Session creation
 
-`daemon/lib/agent-sdk/sdk-runner.ts` function `prepareSdkSession()` (line 271). This is where sandbox settings are computed (lines 451-462) and where `SdkQueryOptions` is assembled (lines 473-488). Both environment variable checks go here.
+`apps/daemon/lib/agent-sdk/sdk-runner.ts` function `prepareSdkSession()` (line 271). This is where sandbox settings are computed (lines 451-462) and where `SdkQueryOptions` is assembled (lines 473-488). Both environment variable checks go here.
 
 ### Tool resolution
 
-`daemon/services/toolbox-resolver.ts` function `resolveToolSet()` (line 62). This is where `allowedTools` and `builtInTools` are assembled from the worker's declarations (lines 148-157). The tool restriction bypass goes here.
+`apps/daemon/services/toolbox-resolver.ts` function `resolveToolSet()` (line 62). This is where `allowedTools` and `builtInTools` are assembled from the worker's declarations (lines 148-157). The tool restriction bypass goes here.
 
 ### Environment variable convention
 
@@ -100,7 +100,7 @@ With both disabled, every worker has every tool and no OS-level constraints. The
 
 **REQ-DANGER-12.** When `ENABLE_DANGEROUSLY_TOOLS` is active, the tool override must be logged at `warn` level with the worker name and original declared tools (so the operator can see what was overridden). `resolveToolSet()` does not currently have a logger; the implementer may add `console.warn` at the resolver level or defer the logging to `prepareSdkSession()` where the injectable logger is already available. Example: `ENABLE_DANGEROUSLY_TOOLS is set. Worker "Thorne" upgraded from [Skill, Task, Read, Glob, Grep] to all built-in tools.`
 
-**REQ-DANGER-13.** The bubblewrap prerequisite check in `daemon/app.ts` (lines 246-271) must not warn about missing bubblewrap when `ENABLE_DANGEROUSLY_ALLOW` is set. The sandbox is intentionally disabled; a missing sandbox runtime is not a problem.
+**REQ-DANGER-13.** The bubblewrap prerequisite check in `apps/daemon/app.ts` (lines 246-271) must not warn about missing bubblewrap when `ENABLE_DANGEROUSLY_ALLOW` is set. The sandbox is intentionally disabled; a missing sandbox runtime is not a problem.
 
 ### Startup banner
 
@@ -176,7 +176,7 @@ return { mcpServers, allowedTools, builtInTools: worker.builtInTools };
 
 When `ENABLE_DANGEROUSLY_TOOLS` grants Bash to a worker that didn't have it, and `ENABLE_DANGEROUSLY_ALLOW` is not set, the sandbox computation in `prepareSdkSession()` will detect Bash in `builtInTools` and apply sandbox settings normally. This is correct: the worker gets Bash, but sandboxed. Only when both flags are set does the worker get unsandboxed Bash.
 
-### Startup banner (`daemon/index.ts` or `daemon/app.ts`)
+### Startup banner (`apps/daemon/index.ts` or `apps/daemon/app.ts`)
 
 Add a check at daemon startup (after config loading but before route registration):
 

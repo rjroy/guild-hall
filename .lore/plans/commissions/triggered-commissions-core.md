@@ -42,33 +42,33 @@ Requirements addressed (Phase 1, daemon-side infrastructure):
 
 ## Codebase Context
 
-**Commission orchestrator** (`daemon/services/commission/orchestrator.ts`): Layer 5. Implements `CommissionSessionForRoutes` with `createCommission()` at line 1268. Already accepts `options?: { type?: CommissionType; sourceSchedule?: string }`. The `createScheduledCommission()` method at line 1366 is a separate function for schedule artifacts. Triggered commissions reuse `createCommission()` because spawned commissions are one-shot, not triggered.
+**Commission orchestrator** (`apps/daemon/services/commission/orchestrator.ts`): Layer 5. Implements `CommissionSessionForRoutes` with `createCommission()` at line 1268. Already accepts `options?: { type?: CommissionType; sourceSchedule?: string }`. The `createScheduledCommission()` method at line 1366 is a separate function for schedule artifacts. Triggered commissions reuse `createCommission()` because spawned commissions are one-shot, not triggered.
 
-**Event Router** (`daemon/services/event-router.ts`): Generic filtered subscription layer. `subscribe(rule, handler)` returns an unsubscribe function. The router evaluates `EventMatchRule` (type, projectName, fields with micromatch glob patterns) and calls handlers for matches. Handlers run fire-and-forget; errors are caught and logged.
+**Event Router** (`apps/daemon/services/event-router.ts`): Generic filtered subscription layer. `subscribe(rule, handler)` returns an unsubscribe function. The router evaluates `EventMatchRule` (type, projectName, fields with micromatch glob patterns) and calls handlers for matches. Handlers run fire-and-forget; errors are caught and logged.
 
-**Notification Service** (`daemon/services/notification-service.ts`): First Event Router consumer. Pattern to follow: receives router as a dep, iterates rules, calls `router.subscribe()` per rule, holds unsubscribe callbacks, returns a cleanup function. Fire-and-forget async wrapper for dispatch. This is the template for the trigger evaluator.
+**Notification Service** (`apps/daemon/services/notification-service.ts`): First Event Router consumer. Pattern to follow: receives router as a dep, iterates rules, calls `router.subscribe()` per rule, holds unsubscribe callbacks, returns a cleanup function. Fire-and-forget async wrapper for dispatch. This is the template for the trigger evaluator.
 
-**Scheduler** (`daemon/services/scheduler/index.ts`): Class-based service with `start()/stop()`. Scans `.lore/commissions/` for `type: scheduled`, `status: active`. Processes per-schedule with error isolation. Uses `CommissionSessionForRoutes` to spawn one-shot commissions. Reads/writes schedule metadata via `CommissionRecordOps`. This plan's trigger evaluator follows a different activation model (event-driven, not timer-driven) but shares the scan-on-startup pattern.
+**Scheduler** (`apps/daemon/services/scheduler/index.ts`): Class-based service with `start()/stop()`. Scans `.lore/commissions/` for `type: scheduled`, `status: active`. Processes per-schedule with error isolation. Uses `CommissionSessionForRoutes` to spawn one-shot commissions. Reads/writes schedule metadata via `CommissionRecordOps`. This plan's trigger evaluator follows a different activation model (event-driven, not timer-driven) but shares the scan-on-startup pattern.
 
-**Production wiring** (`daemon/app.ts`): `createProductionApp()` assembles all services. Event Router is created from EventBus. Notification service and scheduler are wired after the commission orchestrator. The trigger evaluator slots in after the Event Router, same position as the notification service.
+**Production wiring** (`apps/daemon/app.ts`): `createProductionApp()` assembles all services. Event Router is created from EventBus. Notification service and scheduler are wired after the commission orchestrator. The trigger evaluator slots in after the Event Router, same position as the notification service.
 
-**Type system** (`daemon/types.ts`): `CommissionType = "one-shot" | "scheduled"`. Needs `"triggered"` added. `SYSTEM_EVENT_TYPES` in `lib/types.ts` lists all event type strings.
+**Type system** (`apps/daemon/types.ts`): `CommissionType = "one-shot" | "scheduled"`. Needs `"triggered"` added. `SYSTEM_EVENT_TYPES` in `lib/types.ts` lists all event type strings.
 
-**Commission record ops** (`daemon/services/commission/record.ts`): Layer 1 YAML I/O. `readScheduleMetadata()`, `writeScheduleFields()`, `appendTimeline()`, `writeStatusAndTimeline()` exist for scheduled commissions. The trigger evaluator needs similar read/write for the `trigger` block.
+**Commission record ops** (`apps/daemon/services/commission/record.ts`): Layer 1 YAML I/O. `readScheduleMetadata()`, `writeScheduleFields()`, `appendTimeline()`, `writeStatusAndTimeline()` exist for scheduled commissions. The trigger evaluator needs similar read/write for the `trigger` block.
 
 ## Implementation Steps
 
 ### Step 1: Type definitions
 
-**Files**: `daemon/types.ts`, `lib/types.ts`
+**Files**: `apps/daemon/types.ts`, `lib/types.ts`
 **Addresses**: REQ-TRIG-1, REQ-TRIG-36, REQ-TRIG-37
 
 Extend the type system with trigger-specific types.
 
-In `daemon/types.ts`:
+In `apps/daemon/types.ts`:
 - Extend `CommissionType` to `"one-shot" | "scheduled" | "triggered"`.
 - Add `TriggeredBy` interface: `{ source_id: string; trigger_artifact: string; depth: number }`.
-- Add `TriggerBlock` interface: `{ match: EventMatchRule; approval?: "auto" | "confirm"; maxDepth?: number; runs_completed: number; last_triggered: string | null; last_spawned_id: string | null }`. Import `EventMatchRule` from `daemon/services/event-router.ts`.
+- Add `TriggerBlock` interface: `{ match: EventMatchRule; approval?: "auto" | "confirm"; maxDepth?: number; runs_completed: number; last_triggered: string | null; last_spawned_id: string | null }`. Import `EventMatchRule` from `apps/daemon/services/event-router.ts`.
 
 No new event types needed. Trigger firings produce `commission_status` events from the spawned commissions through the existing commission lifecycle.
 
@@ -76,7 +76,7 @@ Tests: Type-level only. Verify the existing `CommissionType` tests still pass wi
 
 ### Step 2: Commission creation with trigger provenance
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-TRIG-33, REQ-TRIG-34, REQ-TRIG-35
 
 Extend `createCommission()` to support trigger provenance, following the same pattern as `sourceSchedule`.
@@ -109,7 +109,7 @@ Tests:
 
 ### Step 3: Trigger record operations
 
-**Files**: `daemon/services/commission/record.ts`
+**Files**: `apps/daemon/services/commission/record.ts`
 **Addresses**: REQ-TRIG-2, REQ-TRIG-25, REQ-TRIG-26
 
 Extend Layer 1 with trigger-aware read/write methods, following the same pattern as `readScheduleMetadata()`/`writeScheduleFields()`.
@@ -129,7 +129,7 @@ Tests:
 
 ### Step 4: Template variable expansion
 
-**Files**: `daemon/services/trigger-evaluator.ts` (new, utility function)
+**Files**: `apps/daemon/services/trigger-evaluator.ts` (new, utility function)
 **Addresses**: REQ-TRIG-10, REQ-TRIG-11, REQ-TRIG-12
 
 Create the template expansion utility. This is a pure function, easy to test in isolation before the full evaluator exists.
@@ -156,7 +156,7 @@ Tests:
 
 ### Step 5: Trigger evaluator service
 
-**Files**: `daemon/services/trigger-evaluator.ts` (new)
+**Files**: `apps/daemon/services/trigger-evaluator.ts` (new)
 **Addresses**: REQ-TRIG-27, REQ-TRIG-28, REQ-TRIG-29, REQ-TRIG-30, REQ-TRIG-31, REQ-TRIG-32, REQ-TRIG-4, REQ-TRIG-5, REQ-TRIG-6, REQ-TRIG-7, REQ-TRIG-8, REQ-TRIG-9, REQ-TRIG-13, REQ-TRIG-14, REQ-TRIG-15, REQ-TRIG-16, REQ-TRIG-17, REQ-TRIG-18, REQ-TRIG-19, REQ-TRIG-20, REQ-TRIG-21, REQ-TRIG-22, REQ-TRIG-23, REQ-TRIG-24, REQ-TRIG-25, REQ-TRIG-26
 
 This is the core new service. It follows the notification service pattern (receives router, registers subscriptions, fire-and-forget handlers) but adds trigger-specific logic.
@@ -297,7 +297,7 @@ Tests (this step has the most test surface):
 
 ### Step 6: Production wiring
 
-**Files**: `daemon/app.ts`
+**Files**: `apps/daemon/app.ts`
 **Addresses**: REQ-TRIG-27 (created during startup)
 
 Wire the trigger evaluator in `createProductionApp()`.
@@ -306,7 +306,7 @@ Position: after the Event Router is created and after the commission orchestrato
 
 ```typescript
 const { createTriggerEvaluator } = await import(
-  "@/daemon/services/trigger-evaluator"
+  "@/apps/daemon/services/trigger-evaluator"
 );
 const triggerEvaluator = createTriggerEvaluator({
   router,
@@ -358,7 +358,7 @@ Recommended implementation sequence:
 
 ## Dependencies
 
-- **Event Router** (`daemon/services/event-router.ts`): Must exist with `subscribe()` API. Already implemented.
+- **Event Router** (`apps/daemon/services/event-router.ts`): Must exist with `subscribe()` API. Already implemented.
 - **Event Router field matching**: Must support `fields` with micromatch globs. Already implemented.
 - **Commission orchestrator**: Must support `createCommission()` and `dispatchCommission()`. Already implemented. Step 2 extends the options parameter.
 - **Commission record ops**: Must support reading `type` field. Already implemented. Step 3 extends with trigger-specific methods.

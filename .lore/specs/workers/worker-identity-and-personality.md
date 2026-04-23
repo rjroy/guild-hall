@@ -38,18 +38,18 @@ Worker identity currently spans three layers, grounded in the following code.
 3. Injected memory (lines 15-17)
 4. Activity context: meeting agenda or commission prompt (lines 19-47)
 
-The prompt is then appended to the Claude Code preset at `daemon/lib/agent-sdk/sdk-runner.ts:265` via `{ type: "preset", preset: "claude_code", append: activation.systemPrompt }`. The worker's entire assembled prompt comes after the SDK's built-in system prompt.
+The prompt is then appended to the Claude Code preset at `apps/daemon/lib/agent-sdk/sdk-runner.ts:265` via `{ type: "preset", preset: "claude_code", append: activation.systemPrompt }`. The worker's entire assembled prompt comes after the SDK's built-in system prompt.
 
 **Identity flow through the system:**
 
 - **Discovery** (`lib/packages.ts:80-190`): Reads `package.json`, validates `guildHall` metadata via Zod, loads `posture.md`. Produces `DiscoveredPackage` objects.
-- **REST API** (`daemon/routes/workers.ts:26-44`): Serves `name`, `displayName`, `displayTitle`, `description`, `portraitUrl` to the UI. No posture or personality content reaches the browser.
-- **Session preparation** (`daemon/lib/agent-sdk/sdk-runner.ts:179-281`): Constructs `ActivationContext` at lines 237-249 with `identity` and `posture` from `WorkerMetadata`, then calls the worker's `activate()` function.
-- **Commission artifacts** (`daemon/services/commission/orchestrator.ts:988-1006`): Writes `worker` (identity.name) and `workerDisplayTitle` into commission frontmatter for display.
-- **Meeting artifacts** (`daemon/services/meeting/record.ts:106-149`): Writes `worker` and `workerDisplayTitle` into meeting frontmatter for identification. Portrait is NOT stored in artifacts; it is resolved at display time from the worker's identity metadata via the discovered packages, using the `worker` field as the lookup key. This avoids requiring every artifact creation path to carry the portrait and keeps worker identity metadata in a single source of truth (`package.json`).
-- **UI rendering** (`web/components/ui/WorkerPicker.tsx`, `WorkerPortrait.tsx`): Displays portrait, name, title, description. No personality content shown.
+- **REST API** (`apps/daemon/routes/workers.ts:26-44`): Serves `name`, `displayName`, `displayTitle`, `description`, `portraitUrl` to the UI. No posture or personality content reaches the browser.
+- **Session preparation** (`apps/daemon/lib/agent-sdk/sdk-runner.ts:179-281`): Constructs `ActivationContext` at lines 237-249 with `identity` and `posture` from `WorkerMetadata`, then calls the worker's `activate()` function.
+- **Commission artifacts** (`apps/daemon/services/commission/orchestrator.ts:988-1006`): Writes `worker` (identity.name) and `workerDisplayTitle` into commission frontmatter for display.
+- **Meeting artifacts** (`apps/daemon/services/meeting/record.ts:106-149`): Writes `worker` and `workerDisplayTitle` into meeting frontmatter for identification. Portrait is NOT stored in artifacts; it is resolved at display time from the worker's identity metadata via the discovered packages, using the `worker` field as the lookup key. This avoids requiring every artifact creation path to carry the portrait and keeps worker identity metadata in a single source of truth (`package.json`).
+- **UI rendering** (`apps/web/components/ui/WorkerPicker.tsx`, `WorkerPortrait.tsx`): Displays portrait, name, title, description. No personality content shown.
 
-**Manager divergence.** The built-in manager (`daemon/services/manager/worker.ts`) defines posture as an inline string constant `MANAGER_POSTURE` (lines 16-31) starting with "Vibe: Authoritative but measured..." Its activation function `activateManager()` (lines 104-124) is a completely separate code path from `activateWorkerWithSharedPattern` and does not include identity metadata in the system prompt at all. It assembles: posture, injected memory, manager context.
+**Manager divergence.** The built-in manager (`apps/daemon/services/manager/worker.ts`) defines posture as an inline string constant `MANAGER_POSTURE` (lines 16-31) starting with "Vibe: Authoritative but measured..." Its activation function `activateManager()` (lines 104-124) is a completely separate code path from `activateWorkerWithSharedPattern` and does not include identity metadata in the system prompt at all. It assembles: posture, injected memory, manager context.
 
 **The gap.** Workers sound like competent Claude instances with different instructions. The personality layer is a one-line Vibe and a display title. Nothing connects these to voice, attitude, or communication style. The research (`.lore/research/soul-md-personality-techniques.md`) quantifies the split: current posture is roughly 5% personality, 95% operational rules.
 
@@ -167,13 +167,13 @@ The Vibe line currently lives at the top of each posture.md. Under this spec, it
 
   This changes the current order in `buildSystemPrompt()` (`packages/shared/worker-activation.ts:3-50`), which puts posture first (line 4), then identity (lines 6-13), then memory, then context. The new order reverses posture and identity, and prepends soul.
 
-  Note that the assembled prompt is appended to the Claude Code preset (`daemon/lib/agent-sdk/sdk-runner.ts:265`), so the SDK's built-in instructions precede all worker personality content. This is by design: the preset provides baseline tool behavior, and the worker's soul shapes character on top of it.
+  Note that the assembled prompt is appended to the Claude Code preset (`apps/daemon/lib/agent-sdk/sdk-runner.ts:265`), so the SDK's built-in instructions precede all worker personality content. This is by design: the preset provides baseline tool behavior, and the worker's soul shapes character on top of it.
 
-- REQ-WID-14: The shared activation function (`activateWorkerWithSharedPattern` in `packages/shared/worker-activation.ts:52-64`) MUST be updated to accept soul content from the activation context and include it in prompt assembly per the order in REQ-WID-13. The `ActivationContext` type (`lib/types.ts:113-136`) gains an optional `soul` field. The session preparation code (`daemon/lib/agent-sdk/sdk-runner.ts:237-249`) MUST pass `workerMeta.soul` into the `ActivationContext` it constructs, alongside the existing `identity` and `posture` fields.
+- REQ-WID-14: The shared activation function (`activateWorkerWithSharedPattern` in `packages/shared/worker-activation.ts:52-64`) MUST be updated to accept soul content from the activation context and include it in prompt assembly per the order in REQ-WID-13. The `ActivationContext` type (`lib/types.ts:113-136`) gains an optional `soul` field. The session preparation code (`apps/daemon/lib/agent-sdk/sdk-runner.ts:237-249`) MUST pass `workerMeta.soul` into the `ActivationContext` it constructs, alongside the existing `identity` and `posture` fields.
 
-- REQ-WID-15: The built-in manager worker SHOULD adopt the same personality structure. The manager's soul content can be defined as an inline string constant (matching its current posture pattern at `daemon/services/manager/worker.ts:16-31`) rather than a filesystem file, since the manager package is built into the daemon.
+- REQ-WID-15: The built-in manager worker SHOULD adopt the same personality structure. The manager's soul content can be defined as an inline string constant (matching its current posture pattern at `apps/daemon/services/manager/worker.ts:16-31`) rather than a filesystem file, since the manager package is built into the daemon.
 
-  This requires more than adding a constant. The manager's activation function `activateManager()` (`daemon/services/manager/worker.ts:104-124`) is a separate code path from `activateWorkerWithSharedPattern`. It currently assembles: posture, injected memory, manager context. It does not include identity metadata at all. To adopt the soul/posture separation:
+  This requires more than adding a constant. The manager's activation function `activateManager()` (`apps/daemon/services/manager/worker.ts:104-124`) is a separate code path from `activateWorkerWithSharedPattern`. It currently assembles: posture, injected memory, manager context. It does not include identity metadata at all. To adopt the soul/posture separation:
 
   1. Split `MANAGER_POSTURE` into `MANAGER_SOUL` (character: authoritative, measured, runs the hall with quiet command) and `MANAGER_POSTURE` (operational: defer to user on scope changes, present status and recommend actions).
   2. Update `activateManager()` to follow the same assembly order: soul, identity metadata, posture, memory, manager context.
@@ -194,9 +194,9 @@ The Vibe line currently lives at the top of each posture.md. Under this spec, it
 | Worker package file changes | Need to write actual soul.md content for roster workers | Worker roster packages in `packages/` |
 | Type updates | Need to update `ActivationContext`, `WorkerMetadata` interfaces and Zod schema | `lib/types.ts`, `lib/packages.ts` |
 | Discovery function update | Need to load soul.md alongside posture.md | `lib/packages.ts:161-178` |
-| Session preparation update | Need to pass soul from WorkerMetadata into ActivationContext | `daemon/lib/agent-sdk/sdk-runner.ts:237-249` |
+| Session preparation update | Need to pass soul from WorkerMetadata into ActivationContext | `apps/daemon/lib/agent-sdk/sdk-runner.ts:237-249` |
 | Prompt assembly update | Need to implement new assembly order | `packages/shared/worker-activation.ts:3-50` |
-| Manager worker update | Need to split posture into soul + posture, update activateManager() | `daemon/services/manager/worker.ts` |
+| Manager worker update | Need to split posture into soul + posture, update activateManager() | `apps/daemon/services/manager/worker.ts` |
 
 ## Success Criteria
 
@@ -232,7 +232,7 @@ The Vibe line currently lives at the top of each posture.md. Under this spec, it
 - Soul content is authored by the package developer, not generated or templated. Each worker's personality should be handcrafted to match its role and aesthetic.
 - This spec defines structure, not content. Writing the actual soul.md files for each roster worker is a separate task.
 - The worker's assembled system prompt runs after the Claude Code preset (`sdk-runner.ts:265`). Soul content should be written with the awareness that Claude Code's own instructions precede it. Personality framing that contradicts the preset's tone guidance may produce inconsistent results. In practice, the preset is operationally focused and does not define character, so this is unlikely to conflict.
-- Soul content does not surface in the UI. Identity metadata (name, displayTitle, description, portraitPath) continues to serve all presentation needs via the REST API (`daemon/routes/workers.ts:26-44`). Soul is exclusively a system prompt concern, invisible to the user in the browser.
+- Soul content does not surface in the UI. Identity metadata (name, displayTitle, description, portraitPath) continues to serve all presentation needs via the REST API (`apps/daemon/routes/workers.ts:26-44`). Soul is exclusively a system prompt concern, invisible to the user in the browser.
 
 ## Context
 
@@ -249,11 +249,11 @@ The Vibe line currently lives at the top of each posture.md. Under this spec, it
   - `lib/types.ts:113-136`: `ActivationContext` interface (identity + posture, no soul field)
   - `packages/shared/worker-activation.ts:3-50`: `buildSystemPrompt()`, current assembly order
   - `packages/shared/worker-activation.ts:52-64`: `activateWorkerWithSharedPattern()`
-  - `daemon/lib/agent-sdk/sdk-runner.ts:179-281`: `prepareSdkSession()`, constructs ActivationContext at lines 237-249
-  - `daemon/lib/agent-sdk/sdk-runner.ts:265`: Claude Code preset with appended system prompt
-  - `daemon/services/manager/worker.ts:16-31`: `MANAGER_POSTURE` inline constant
-  - `daemon/services/manager/worker.ts:38-64`: `createManagerPackage()` with identity metadata
-  - `daemon/services/manager/worker.ts:104-124`: `activateManager()`, separate from shared pattern
-  - `daemon/routes/workers.ts:26-44`: REST API serving identity to UI (no personality content)
-  - `web/components/ui/WorkerPicker.tsx`: UI rendering of worker selection (name, title, description, portrait)
-  - `web/components/ui/WorkerPortrait.tsx`: Portrait component with frame, initials fallback
+  - `apps/daemon/lib/agent-sdk/sdk-runner.ts:179-281`: `prepareSdkSession()`, constructs ActivationContext at lines 237-249
+  - `apps/daemon/lib/agent-sdk/sdk-runner.ts:265`: Claude Code preset with appended system prompt
+  - `apps/daemon/services/manager/worker.ts:16-31`: `MANAGER_POSTURE` inline constant
+  - `apps/daemon/services/manager/worker.ts:38-64`: `createManagerPackage()` with identity metadata
+  - `apps/daemon/services/manager/worker.ts:104-124`: `activateManager()`, separate from shared pattern
+  - `apps/daemon/routes/workers.ts:26-44`: REST API serving identity to UI (no personality content)
+  - `apps/web/components/ui/WorkerPicker.tsx`: UI rendering of worker selection (name, title, description, portrait)
+  - `apps/web/components/ui/WorkerPortrait.tsx`: Portrait component with frame, initials fallback

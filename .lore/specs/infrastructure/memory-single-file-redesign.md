@@ -3,7 +3,7 @@ title: "Memory System Redesign: Single File Per Scope"
 date: 2026-03-17
 status: implemented
 tags: [memory, architecture, toolbox, agent-ux, file-structure]
-modules: [daemon/services/memory-injector, daemon/services/memory-compaction, daemon/services/base-toolbox]
+modules: [apps/daemon/services/memory-injector, apps/daemon/services/memory-compaction, apps/daemon/services/base-toolbox]
 related:
   - .lore/brainstorm/memory-single-file-redesign.md
   - .lore/brainstorm/commission-outcomes-to-memory.md

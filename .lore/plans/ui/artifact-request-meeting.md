@@ -18,35 +18,35 @@ Add a "Request Meeting" link to the artifact sidebar alongside the existing "Cre
 
 ## Codebase Context
 
-**`MetadataSidebar.tsx`** (`web/components/artifact/MetadataSidebar.tsx`):
+**`MetadataSidebar.tsx`** (`apps/web/components/artifact/MetadataSidebar.tsx`):
 The "Create Commission from Artifact" link at lines 141-148 currently lives inside the Associated Commissions section div. It needs to move to a new Actions section rendered below Associated Commissions. `createCommissionHref()` at lines 40-47 is the template for `requestMeetingHref()` — same encoding pattern, different query params. The `.createCommissionLink` CSS class in `MetadataSidebar.module.css:93-113` defines the brass button appearance; rename it to `.actionLink` and apply it to both links.
 
-**`web/app/projects/[name]/page.tsx`**:
+**`apps/web/app/projects/[name]/page.tsx`**:
 `searchParams` is typed at line 19 as `{ tab?: string; newCommission?: string; dep?: string }`. The meetings tab at lines 78-80 renders only `<MeetingList>` with no creation affordance. The commissions tab at lines 59-67 shows the target pattern: an actions wrapper div containing `CreateCommissionButton`, then the list. The meetings tab needs the same structure.
 
-**`POST /api/meetings` route** (`web/app/api/meetings/route.ts`):
-Already exists. Accepts `{ projectName, workerName, prompt }`, proxies to the daemon's `POST /meeting/request/meeting/create`, and returns SSE. The first event emitted is `{ type: "session", meetingId: string, sessionId: string, worker: string }` — verified at `daemon/services/meeting/orchestrator.ts:550-556`. Navigate on this event; no need to wait for `turn_end`.
+**`POST /api/meetings` route** (`apps/web/app/api/meetings/route.ts`):
+Already exists. Accepts `{ projectName, workerName, prompt }`, proxies to the daemon's `POST /meeting/request/meeting/create`, and returns SSE. The first event emitted is `{ type: "session", meetingId: string, sessionId: string, worker: string }` — verified at `apps/daemon/services/meeting/orchestrator.ts:550-556`. Navigate on this event; no need to wait for `turn_end`.
 
 **Live meeting route**: `/projects/[name]/meetings/[id]/page.tsx` is the target after creation. URL shape: `/projects/${encodeURIComponent(projectName)}/meetings/${meetingId}`.
 
-**`CreateCommissionButton.tsx`** (`web/components/commission/CreateCommissionButton.tsx`):
+**`CreateCommissionButton.tsx`** (`apps/web/components/commission/CreateCommissionButton.tsx`):
 The toggle pattern: `useState(defaultOpen)` controls whether the button or the form is shown. On success, calls `router.refresh()`. For meetings, the success path is navigation to the meeting view instead of a refresh.
 
-**`CommissionForm.tsx`** (`web/components/commission/CommissionForm.tsx`):
+**`CommissionForm.tsx`** (`apps/web/components/commission/CommissionForm.tsx`):
 The meeting form is simpler: no title field, no dependencies field, no type toggle, no resource overrides, no worker fetch (user types the worker name). `CreateMeetingButton.tsx` is self-contained — the form is inlined, no separate Form component needed.
 
-**Existing tests** (`tests/components/metadata-sidebar.test.ts`):
+**Existing tests** (`apps/web/tests/components/metadata-sidebar.test.ts`):
 Line 294-310 finds links by `newCommission=true` in the href. This test survives the move of the commission link to Actions (it searches by href content, not section). New tests cover `requestMeetingHref` output and the Actions section visibility guard.
 
-Client component constraint (`tests/components/commission-form.test.tsx` comment): `useState`, `useRouter`, `useEffect`, and `fetch` make client components un-callable outside a React render context in bun test. `CreateMeetingButton` is a client component; tests verify type contracts and module exports only.
+Client component constraint (`apps/web/tests/components/commission-form.test.tsx` comment): `useState`, `useRouter`, `useEffect`, and `fetch` make client components un-callable outside a React render context in bun test. `CreateMeetingButton` is a client component; tests verify type contracts and module exports only.
 
 ## Implementation Steps
 
 ### Step 1: Refactor `MetadataSidebar`
 
 **Modified files:**
-- `web/components/artifact/MetadataSidebar.tsx`
-- `web/components/artifact/MetadataSidebar.module.css`
+- `apps/web/components/artifact/MetadataSidebar.tsx`
+- `apps/web/components/artifact/MetadataSidebar.module.css`
 
 #### 1a. Add `requestMeetingHref`
 
@@ -130,8 +130,8 @@ Delete `.createCommissionLink` and `.createCommissionLink:hover`. The class is o
 ### Step 2: Create `CreateMeetingButton`
 
 **New files:**
-- `web/components/meeting/CreateMeetingButton.tsx`
-- `web/components/meeting/CreateMeetingButton.module.css`
+- `apps/web/components/meeting/CreateMeetingButton.tsx`
+- `apps/web/components/meeting/CreateMeetingButton.module.css`
 
 #### 2a. Component
 
@@ -311,7 +311,7 @@ The `.artifactContext` is a read-only display: monospace, muted color, small fon
 
 ### Step 3: Update the project page
 
-**Modified file:** `web/app/projects/[name]/page.tsx`
+**Modified file:** `apps/web/app/projects/[name]/page.tsx`
 
 #### 3a. Extend `searchParams` type
 
@@ -328,7 +328,7 @@ const { tab = "artifacts", newCommission, dep, newMeeting, artifact } = await se
 #### 3b. Add import
 
 ```ts
-import CreateMeetingButton from "@/web/components/meeting/CreateMeetingButton";
+import CreateMeetingButton from "@/apps/web/components/meeting/CreateMeetingButton";
 ```
 
 #### 3c. Update the meetings tab
@@ -352,11 +352,11 @@ Replace the bare `MeetingList` at lines 78-80 with a structure mirroring the com
 
 #### 3d. Add CSS classes
 
-Add `.meetingTab` and `.meetingActions` to `web/app/projects/[name]/page.module.css`, mirroring `.commissionTab` and `.commissionActions`. Check the existing class shapes before writing — use the same layout approach.
+Add `.meetingTab` and `.meetingActions` to `apps/web/app/projects/[name]/page.module.css`, mirroring `.commissionTab` and `.commissionActions`. Check the existing class shapes before writing — use the same layout approach.
 
 ### Step 4: Tests
 
-**Modified file:** `tests/components/metadata-sidebar.test.ts`
+**Modified file:** `apps/web/tests/components/metadata-sidebar.test.ts`
 
 Add to the existing `describe("MetadataSidebar associated commissions", ...)` block:
 
@@ -373,22 +373,22 @@ Add to the existing `describe("MetadataSidebar associated commissions", ...)` bl
 3. **Commission link is no longer inside Associated Commissions**:
    - This is already covered implicitly — the existing test at line 294 still passes because it searches by href, not by section. No structural assertion needs updating unless you want to explicitly verify the section separation. That's optional for this plan.
 
-**New file:** `tests/components/create-meeting-button.test.ts`
+**New file:** `apps/web/tests/components/create-meeting-button.test.ts`
 
 `CreateMeetingButton` is a client component with hooks; it cannot be called outside a React render context in bun test. The test file verifies:
 
 1. The module exports a default export that is a function (type contract check via `typeof`).
 2. The module exports from the expected path without import errors.
 
-This is the same scope as the `CommissionForm`/`CreateCommissionButton` coverage noted in `tests/components/commission-form.test.tsx:6-16`. Do not attempt to render the component or test the SSE parsing here.
+This is the same scope as the `CommissionForm`/`CreateCommissionButton` coverage noted in `apps/web/tests/components/commission-form.test.tsx:6-16`. Do not attempt to render the component or test the SSE parsing here.
 
 ## Validation
 
 1. **TypeScript**: `bun run typecheck` must pass. All new props (`initialArtifact`, `newMeeting`, `artifact`) flow through without `any`. The `event` variable parsed from SSE JSON is typed explicitly; no implicit `unknown` access.
 
 2. **Tests**: `bun test` must pass. Specifically:
-   - `tests/components/metadata-sidebar.test.ts` — all existing tests still pass; new `requestMeetingHref` and Actions section tests pass
-   - `tests/components/create-meeting-button.test.ts` — module export test passes
+   - `apps/web/tests/components/metadata-sidebar.test.ts` — all existing tests still pass; new `requestMeetingHref` and Actions section tests pass
+   - `apps/web/tests/components/create-meeting-button.test.ts` — module export test passes
 
 3. **Build**: `bun run build` must pass. The CSS rename (`.createCommissionLink` → `.actionLink`) must not leave a dangling reference in `MetadataSidebar.tsx`.
 
@@ -431,7 +431,7 @@ This is the same scope as the `CommissionForm`/`CreateCommissionButton` coverage
 |------|-------|---------------|
 | Step 1 | `MetadataSidebar.tsx`, `MetadataSidebar.module.css` | Commission link removed from Associated Commissions; Actions section renders only when `artifactPath` present; CSS has no dangling references |
 | Step 2 | `CreateMeetingButton.tsx`, `CreateMeetingButton.module.css` | SSE parse loop handles `session`, `error`, and stream-end correctly; prompt initializes from `initialArtifact`; cancel collapses form without navigation |
-| Step 3 | `web/app/projects/[name]/page.tsx`, `page.module.css` | `searchParams` type extended; `CreateMeetingButton` rendered with correct props on meetings tab only; meetings tab layout mirrors commissions tab |
-| Step 4 | `tests/components/metadata-sidebar.test.ts`, `tests/components/create-meeting-button.test.ts` | `requestMeetingHref` tests cover encoding; Actions section guard tested; `CreateMeetingButton` module export verified |
+| Step 3 | `apps/web/app/projects/[name]/page.tsx`, `page.module.css` | `searchParams` type extended; `CreateMeetingButton` rendered with correct props on meetings tab only; meetings tab layout mirrors commissions tab |
+| Step 4 | `apps/web/tests/components/metadata-sidebar.test.ts`, `apps/web/tests/components/create-meeting-button.test.ts` | `requestMeetingHref` tests cover encoding; Actions section guard tested; `CreateMeetingButton` module export verified |
 
 After Step 2, use a sub-agent with fresh context to verify the SSE parse loop specifically: confirm it handles partial chunks correctly (buffer accumulation), handles a `done` stream without a `session` event (the fallback error path), and doesn't leak if `router.push` is called and the component unmounts mid-read.

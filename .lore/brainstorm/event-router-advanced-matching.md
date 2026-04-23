@@ -18,7 +18,7 @@ The event router matches on two things: `type` (exact) and `projectName` (exact,
 
 ### What the Router Matches On
 
-`EventMatchRule` in `daemon/services/event-router.ts`:
+`EventMatchRule` in `apps/daemon/services/event-router.ts`:
 
 ```typescript
 interface EventMatchRule {
@@ -33,7 +33,7 @@ The `matches()` function (line 80) checks:
 
 ### What Events Carry
 
-11 `SystemEvent` variants in `daemon/lib/event-bus.ts`:
+11 `SystemEvent` variants in `apps/daemon/lib/event-bus.ts`:
 
 | Event Type | Fields Beyond `type` | Has `projectName`? |
 |------------|---------------------|-------------------|
@@ -53,7 +53,7 @@ The imbalance is striking: most commission events don't carry `projectName`, and
 
 ### How Consumers Register
 
-The notification service (`daemon/services/notification-service.ts`) iterates over `notifications` from config, calls `router.subscribe(rule.match, handler)` for each. The router's `subscribe` method stores `{ rule, handler }` pairs. When an event arrives, the router iterates all subscriptions and calls handlers for matches.
+The notification service (`apps/daemon/services/notification-service.ts`) iterates over `notifications` from config, calls `router.subscribe(rule.match, handler)` for each. The router's `subscribe` method stores `{ rule, handler }` pairs. When an event arrives, the router iterates all subscriptions and calls handlers for matches.
 
 The router is a generic matching layer. It doesn't know about channels, notifications, or commissions. Consumers register handlers; the router calls them when rules match.
 
@@ -190,7 +190,7 @@ match:
 
 **Matching logic:** For each key in `fields`, coerce the event value to string, then `micromatch.isMatch(eventValue, pattern)`.
 
-**Pros:** Backward compatible with exact match (patterns without wildcards match literally). Reuses micromatch, which is already a dependency for `canUseToolRules` (`daemon/lib/agent-sdk/sdk-runner.ts:292`). Enables worker-scoping by commissionId pattern (`commission-Dalton-*`) even without worker name on events.
+**Pros:** Backward compatible with exact match (patterns without wildcards match literally). Reuses micromatch, which is already a dependency for `canUseToolRules` (`apps/daemon/lib/agent-sdk/sdk-runner.ts:292`). Enables worker-scoping by commissionId pattern (`commission-Dalton-*`) even without worker name on events.
 
 **Cons:** Glob semantics can surprise. `*` doesn't match `/` in micromatch by default (path separator behavior). A user writing `commissionId: "*Dalton*"` gets different behavior than they might expect if the ID contains path-like segments. For event field values (which are plain strings, not paths) this is rarely an issue, but the discrepancy with "normal" glob expectations deserves documentation.
 
@@ -397,7 +397,7 @@ notifications:
 
 **Why second, not first:** Exact match is sufficient for the highest-priority scenarios (status filtering). Glob adds power for worker-scoping by commissionId pattern, but that's secondary. Shipping exact match first validates the `fields` extension works before adding pattern complexity.
 
-**Implementation note:** micromatch is already imported in `daemon/lib/agent-sdk/sdk-runner.ts`. Adding it to `daemon/services/event-router.ts` is a one-line import. Use `micromatch.isMatch(value, pattern)` without `{ dot: true }` since event field values aren't file paths.
+**Implementation note:** micromatch is already imported in `apps/daemon/lib/agent-sdk/sdk-runner.ts`. Adding it to `apps/daemon/services/event-router.ts` is a one-line import. Use `micromatch.isMatch(value, pattern)` without `{ dot: true }` since event field values aren't file paths.
 
 **Brace expansion** (`{completed,failed}`) gives us OR within a single field value, eliminating the main reason users would want compound rules.
 
@@ -416,7 +416,7 @@ notifications:
 
 The matching system is only as useful as the data it matches against. The biggest gap isn't matching capability; it's **what the events carry**. Two enrichments would dramatically increase matching power:
 
-1. **Worker name on commission events.** Add optional `workerName: string` to `commission_status` and `commission_result`. Emit sites: `daemon/services/commission/lifecycle.ts` and `daemon/services/commission/toolbox.ts`. This enables `fields: { workerName: "guild-hall-developer" }` without commissionId pattern hacks.
+1. **Worker name on commission events.** Add optional `workerName: string` to `commission_status` and `commission_result`. Emit sites: `apps/daemon/services/commission/lifecycle.ts` and `apps/daemon/services/commission/toolbox.ts`. This enables `fields: { workerName: "guild-hall-developer" }` without commissionId pattern hacks.
 
 2. **`projectName` on `commission_result`.** Currently absent. Adding it enables project-scoped result notifications without cross-referencing commission state.
 
@@ -438,7 +438,7 @@ The two approaches are functionally equivalent. Keep `projectName` as a named fi
 
 For Phase 1 (generic fields, exact match), the changes are:
 
-**`daemon/services/event-router.ts`:** Extend `EventMatchRule` and `matches()`:
+**`apps/daemon/services/event-router.ts`:** Extend `EventMatchRule` and `matches()`:
 
 ```typescript
 export interface EventMatchRule {
@@ -480,7 +480,7 @@ export interface NotificationRule {
 
 **`lib/config.ts`:** Extend the notification match schema with an optional `fields` record of string values.
 
-**No changes to:** `daemon/services/notification-service.ts`, `daemon/lib/event-bus.ts`, or any emit sites. The notification service already passes `rule.match` through to `router.subscribe()`. The new `fields` field flows through untouched.
+**No changes to:** `apps/daemon/services/notification-service.ts`, `apps/daemon/lib/event-bus.ts`, or any emit sites. The notification service already passes `rule.match` through to `router.subscribe()`. The new `fields` field flows through untouched.
 
 For Phase 2 (glob patterns), the only change is in `matches()`:
 

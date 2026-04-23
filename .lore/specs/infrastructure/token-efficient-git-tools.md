@@ -3,7 +3,7 @@ title: Token-Efficient Git Tools
 date: 2026-03-30
 status: implemented 
 tags: [git, tokens, toolbox, mcp-tools, performance]
-modules: [daemon/services/git-readonly-toolbox]
+modules: [apps/daemon/services/git-readonly-toolbox]
 related:
   - .lore/brainstorm/improve-token-perf-git-tools.md
   - .lore/research/token-efficient-git-tools.md
@@ -16,7 +16,7 @@ req-prefix: TEG
 
 ## Overview
 
-A `git_show` call returned 122MB of output during a worker session. The git-readonly toolbox (`daemon/services/git-readonly-toolbox.ts`) provides five MCP tools to workers without Bash access: `git_status`, `git_log`, `git_diff`, `git_show`, and `git_branch`. Two of these tools (`git_show` and `git_diff`) return raw diff output with no size limits, no binary filtering, and no noise exclusion.
+A `git_show` call returned 122MB of output during a worker session. The git-readonly toolbox (`apps/daemon/services/git-readonly-toolbox.ts`) provides five MCP tools to workers without Bash access: `git_status`, `git_log`, `git_diff`, `git_show`, and `git_branch`. Two of these tools (`git_show` and `git_diff`) return raw diff output with no size limits, no binary filtering, and no noise exclusion.
 
 This spec adds three layers of output protection to the diff-producing tools, plus a structural change to `git_show` that makes the safe path the default. The changes are grounded in industry research (`.lore/research/token-efficient-git-tools.md`) and a brainstorm that evaluated six approaches (`.lore/brainstorm/improve-token-perf-git-tools.md`).
 
@@ -26,7 +26,7 @@ The three layers work together: binary exclusion catches compiled and media file
 
 ## Entry Points
 
-- `daemon/services/git-readonly-toolbox.ts` is the sole implementation file. All five tools are defined in `createGitReadonlyTools()`.
+- `apps/daemon/services/git-readonly-toolbox.ts` is the sole implementation file. All five tools are defined in `createGitReadonlyTools()`.
 - The `git_show` tool (lines 201-231) runs `git diff-tree --root -p <ref>` with no output filtering.
 - The `git_diff` tool (lines 180-199) runs `git diff` with no output filtering.
 - Worker-tool-boundaries spec (`.lore/specs/workers/worker-tool-boundaries.md`) defined the toolbox in REQ-WTB-1 through REQ-WTB-3.

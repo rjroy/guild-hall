@@ -274,7 +274,7 @@ Being honest about the tradeoffs:
 
 **Can the sandbox commit failures be fixed?** The sandbox would provide real isolation for Bash-capable workers. If those issues are architectural (daemon process model incompatible with sandboxing), the narrow-tools approach becomes more urgent. If they're implementation bugs, fixing the sandbox may be the better path.
 
-**Where does the guild-hall-query toolbox live?** The toolbox-resolver discovers toolboxes from packages. A new `guild-hall-query` toolbox would need its own package, or it could live in `daemon/services/base-toolbox.ts` as part of the base toolbox that all workers get. The base toolbox already provides memory and artifact tools — workspace query tools might belong there.
+**Where does the guild-hall-query toolbox live?** The toolbox-resolver discovers toolboxes from packages. A new `guild-hall-query` toolbox would need its own package, or it could live in `apps/daemon/services/base-toolbox.ts` as part of the base toolbox that all workers get. The base toolbox already provides memory and artifact tools — workspace query tools might belong there.
 
 **What happens to skills that use Bash?** Some lore-development skills and other plugins may invoke Bash directly. If we remove Bash from workers, those skills break silently. An audit of all skill files for Bash invocations is needed before removal.
 

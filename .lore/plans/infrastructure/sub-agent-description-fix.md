@@ -3,7 +3,7 @@ title: "Sub-agent description fix: guidance property replaces lookup table"
 date: 2026-03-21
 status: executed
 tags: [workers, sub-agents, fix, identity, packages]
-modules: [lib/types, lib/packages, packages/shared/sub-agent-description, daemon/lib/agent-sdk/sdk-runner]
+modules: [lib/types, lib/packages, packages/shared/sub-agent-description, apps/daemon/lib/agent-sdk/sdk-runner]
 related:
   - .lore/specs/infrastructure/worker-sub-agents.md
   - .lore/plans/infrastructure/worker-sub-agents.md
@@ -121,7 +121,7 @@ export function buildSubAgentDescription(identity: WorkerIdentity): string {
 
 ### Step 5: Update the call site in `sdk-runner.ts`
 
-**File:** `daemon/lib/agent-sdk/sdk-runner.ts`
+**File:** `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 
 The call at approximately line 460 currently passes both identity and posture:
 
@@ -139,7 +139,7 @@ No other changes to `sdk-runner.ts`.
 
 ### Step 6: Update tests in `sub-agent-description.test.ts`
 
-**File:** `tests/packages/shared/sub-agent-description.test.ts`
+**File:** `packages/shared/tests/sub-agent-description.test.ts`
 
 The test file needs these changes:
 
@@ -161,7 +161,7 @@ The test file needs these changes:
 
 ### Step 7: Update sdk-runner tests
 
-**File:** `tests/daemon/services/sdk-runner.test.ts`
+**File:** `apps/daemon/tests/services/sdk-runner.test.ts`
 
 The mock worker metadata objects construct `WorkerIdentity` without `guidance`. This is fine for testing the fallback path. Add one test case with a mock worker that has `guidance` set, and verify the generated `AgentDefinition.description` contains the guidance text rather than the fallback prefix.
 
@@ -169,9 +169,9 @@ The sdk-runner tests don't call `buildSubAgentDescription` directly (they exerci
 
 ## Verification
 
-1. `bun test tests/packages/shared/sub-agent-description.test.ts` passes with all updated tests.
-2. `bun test tests/daemon/services/sdk-runner.test.ts` passes, including the new guidance-based test.
-3. `bun test tests/lib/packages.test.ts` passes (schema validation accepts `guidance` field).
+1. `bun test packages/shared/tests/sub-agent-description.test.ts` passes with all updated tests.
+2. `bun test apps/daemon/tests/services/sdk-runner.test.ts` passes, including the new guidance-based test.
+3. `bun test lib/tests/packages.test.ts` passes (schema validation accepts `guidance` field).
 4. `bun test` (full suite) passes.
 5. `bun run typecheck` passes.
 

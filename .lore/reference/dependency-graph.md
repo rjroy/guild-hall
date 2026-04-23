@@ -32,10 +32,10 @@ No direct entry points. The dependency graph viewer is a pure computation librar
 | File | Role |
 |------|------|
 | `lib/dependency-graph.ts` | Pure computation: `buildDependencyGraph()` (constructs `DependencyGraph` from `CommissionMeta[]`), `getNeighborhood()` (extracts 1-hop subgraph), `layoutGraph()` (Sugiyama-style layer assignment + barycentric ordering + coordinate assignment). Types: `GraphNode`, `GraphEdge`, `DependencyGraph`, `LayoutNode`, `LayoutResult`. Helper: `extractCommissionId()` filters deps to commission-to-commission references only. |
-| `web/components/dashboard/CommissionGraph.tsx` | Client component: SVG rendering of a laid-out graph. Calls `layoutGraph()`, draws edges with arrowhead markers, draws status-colored rect nodes with labels, supports `compact` mode and `focalNodeId` highlighting. Uses `useId()` for unique SVG marker IDs. |
-| `web/components/dashboard/DependencyMap.tsx` | Server component: decides between graph and flat list. Calls `buildDependencyGraph()`, renders `CommissionGraph` when edges exist, otherwise renders sorted commission cards. Exports `commissionHref()` used by `CommissionGraph` for navigation. |
-| `web/components/commission/NeighborhoodGraph.tsx` | Client component: thin wrapper that calls `getNeighborhood()` to extract the 1-hop subgraph, then renders `CommissionGraph` with `compact` and `focalNodeId` props. Returns null if the commission is isolated (single node, no edges). |
-| `web/components/commission/NeighborhoodGraph.module.css` | Styles for the neighborhood graph wrapper. |
+| `apps/web/components/dashboard/CommissionGraph.tsx` | Client component: SVG rendering of a laid-out graph. Calls `layoutGraph()`, draws edges with arrowhead markers, draws status-colored rect nodes with labels, supports `compact` mode and `focalNodeId` highlighting. Uses `useId()` for unique SVG marker IDs. |
+| `apps/web/components/dashboard/DependencyMap.tsx` | Server component: decides between graph and flat list. Calls `buildDependencyGraph()`, renders `CommissionGraph` when edges exist, otherwise renders sorted commission cards. Exports `commissionHref()` used by `CommissionGraph` for navigation. |
+| `apps/web/components/commission/NeighborhoodGraph.tsx` | Client component: thin wrapper that calls `getNeighborhood()` to extract the 1-hop subgraph, then renders `CommissionGraph` with `compact` and `focalNodeId` props. Returns null if the commission is isolated (single node, no edges). |
+| `apps/web/components/commission/NeighborhoodGraph.module.css` | Styles for the neighborhood graph wrapper. |
 
 ### Data
 

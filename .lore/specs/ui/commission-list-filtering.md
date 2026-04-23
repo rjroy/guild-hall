@@ -3,7 +3,7 @@ title: Commission list filtering by status
 date: 2026-03-14
 status: implemented
 tags: [ux, commissions, filtering, ui, client-component]
-modules: [web/components/commission/CommissionList]
+modules: [apps/web/components/commission/CommissionList]
 related:
   - .lore/brainstorm/commission-list-filtering.md
   - .lore/issues/commission-list-no-filtering.md
@@ -22,13 +22,13 @@ The filter lives entirely in the client. `CommissionMeta[]` is already passed as
 
 ## Entry Points
 
-One surface: the Commissions tab on the project page (`/projects/[name]`), rendered by `web/components/commission/CommissionList.tsx`. The filter panel appears at the top of this component, above the commission list.
+One surface: the Commissions tab on the project page (`/projects/[name]`), rendered by `apps/web/components/commission/CommissionList.tsx`. The filter panel appears at the top of this component, above the commission list.
 
 ## Requirements
 
 ### Component conversion
 
-- REQ-CFILTER-1: `CommissionList` becomes a client component. Add `"use client"` at the top of `web/components/commission/CommissionList.tsx`.
+- REQ-CFILTER-1: `CommissionList` becomes a client component. Add `"use client"` at the top of `apps/web/components/commission/CommissionList.tsx`.
 
   **Rationale:** Checkbox state (`Set<string>`) requires `useState`. The component currently receives `CommissionMeta[]` as props from the server-side project page; that boundary is unchanged. The server page continues to pass the full unsorted list; the client component handles filtering and renders the result.
 

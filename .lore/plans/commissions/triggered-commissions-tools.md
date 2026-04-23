@@ -35,17 +35,17 @@ Requirements addressed (Phase 2, Guild Master toolbox tools):
 
 This plan assumes the Phase 1 core architecture plan (`.lore/plans/commissions/triggered-commissions-core.md`) is complete. Specifically:
 
-- `CommissionType` includes `"triggered"` in `daemon/types.ts`
-- `TriggerBlock` and `TriggeredBy` type definitions exist in `daemon/types.ts`
+- `CommissionType` includes `"triggered"` in `apps/daemon/types.ts`
+- `TriggerBlock` and `TriggeredBy` type definitions exist in `apps/daemon/types.ts`
 - `createCommission()` supports `sourceTrigger` in options (REQ-TRIG-33)
 - `CommissionRecordOps` has `readTriggerMetadata()`, `writeTriggerFields()`, `readTriggeredBy()`
-- `createTriggerEvaluator()` exists in `daemon/services/trigger-evaluator.ts` with `registerTrigger(artifactPath, projectName)` and `unregisterTrigger(commissionId)` methods
+- `createTriggerEvaluator()` exists in `apps/daemon/services/trigger-evaluator.ts` with `registerTrigger(artifactPath, projectName)` and `unregisterTrigger(commissionId)` methods
 - The trigger evaluator is wired in `createProductionApp()` and accessible via a lazy ref
 - `SYSTEM_EVENT_TYPES` in `lib/types.ts` lists all valid event type strings
 
 ## Codebase Context
 
-**Manager toolbox** (`daemon/services/manager/toolbox.ts`): Thirteen tools registered via `createSdkMcpServer()`. Each tool is a `make*Handler(deps: ManagerToolboxDeps)` factory returning `(args) => Promise<ToolResult>`. Tool schemas use Zod inline in the `tool()` call. The factory takes `ManagerToolboxDeps` which provides `callRoute`, `guildHallHome`, `projectName`, `eventBus`, `config`, `scheduleLifecycle`, `recordOps`, `packages`, and `log`.
+**Manager toolbox** (`apps/daemon/services/manager/toolbox.ts`): Thirteen tools registered via `createSdkMcpServer()`. Each tool is a `make*Handler(deps: ManagerToolboxDeps)` factory returning `(args) => Promise<ToolResult>`. Tool schemas use Zod inline in the `tool()` call. The factory takes `ManagerToolboxDeps` which provides `callRoute`, `guildHallHome`, `projectName`, `eventBus`, `config`, `scheduleLifecycle`, `recordOps`, `packages`, and `log`.
 
 **`makeCreateScheduledCommissionHandler`** (line 730): The pattern for `create_triggered_commission`. Delegates to the daemon route `/commission/request/commission/create` via `deps.callRoute`, passing `type: "scheduled"` and schedule-specific fields. Returns `{ commissionId, created: true, status: "active" }`.
 
@@ -55,7 +55,7 @@ This plan assumes the Phase 1 core architecture plan (`.lore/plans/commissions/t
 
 **`managerToolboxFactory`** (line 1396): Factory that wires `ManagerToolboxDeps` from `GuildHallToolboxDeps.services`. Reads `scheduleLifecycle` from `ctx.services`. Will read `triggerEvaluator` from the same bag.
 
-**Daemon route for commission creation** (`daemon/routes/commissions.ts`): The `/commission/request/commission/create` route already handles `type: "scheduled"` with schedule-specific fields. For triggered commissions, the route needs to handle `type: "triggered"` with trigger-specific fields (`match`, `approval`, `maxDepth`).
+**Daemon route for commission creation** (`apps/daemon/routes/commissions.ts`): The `/commission/request/commission/create` route already handles `type: "scheduled"` with schedule-specific fields. For triggered commissions, the route needs to handle `type: "triggered"` with trigger-specific fields (`match`, `approval`, `maxDepth`).
 
 **`SYSTEM_EVENT_TYPES`** (`lib/types.ts:352`): The full list of event types, used for validating `match.type` in the create tool.
 
@@ -63,7 +63,7 @@ This plan assumes the Phase 1 core architecture plan (`.lore/plans/commissions/t
 
 ### Step 1: Extend ManagerToolboxDeps with trigger evaluator
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 **Addresses**: REQ-TRIG-25c
 
 Add the trigger evaluator as an optional dependency on `ManagerToolboxDeps`, following the `scheduleLifecycle` pattern.
@@ -73,7 +73,7 @@ Add the trigger evaluator as an optional dependency on `ManagerToolboxDeps`, fol
 triggerEvaluator?: TriggerEvaluator;
 ```
 
-Import the `TriggerEvaluator` type from `daemon/services/trigger-evaluator.ts`.
+Import the `TriggerEvaluator` type from `apps/daemon/services/trigger-evaluator.ts`.
 
 In `managerToolboxFactory` (line 1396), pass `triggerEvaluator` from `ctx.services`:
 
@@ -81,9 +81,9 @@ In `managerToolboxFactory` (line 1396), pass `triggerEvaluator` from `ctx.servic
 triggerEvaluator: ctx.services?.triggerEvaluator,
 ```
 
-This requires adding `triggerEvaluator` to the services bag that `createProductionApp()` populates. The Phase 1 plan already wires the trigger evaluator in `daemon/app.ts` via a lazy ref. The ref needs to be threaded into the services bag that `GuildHallToolboxDeps` carries.
+This requires adding `triggerEvaluator` to the services bag that `createProductionApp()` populates. The Phase 1 plan already wires the trigger evaluator in `apps/daemon/app.ts` via a lazy ref. The ref needs to be threaded into the services bag that `GuildHallToolboxDeps` carries.
 
-Update the services type definition (in `daemon/services/toolbox-types.ts` or wherever the services bag is typed) to include `triggerEvaluator?: TriggerEvaluator`. This follows the same pattern used for `scheduleLifecycle`.
+Update the services type definition (in `apps/daemon/services/toolbox-types.ts` or wherever the services bag is typed) to include `triggerEvaluator?: TriggerEvaluator`. This follows the same pattern used for `scheduleLifecycle`.
 
 Tests:
 - `createManagerToolbox` accepts deps with `triggerEvaluator` present.
@@ -91,7 +91,7 @@ Tests:
 
 ### Step 2: Extend commission creation route for triggered type
 
-**Files**: `daemon/routes/commissions.ts`, `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/routes/commissions.ts`, `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-TRIG-25a (artifact creation path)
 
 The daemon route `/commission/request/commission/create` already handles `type: "scheduled"` with cron/repeat fields. Extend it to handle `type: "triggered"` with trigger-specific fields.
@@ -122,7 +122,7 @@ Tests:
 
 ### Step 3: create_triggered_commission handler
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 **Addresses**: REQ-TRIG-25a, REQ-TRIG-25d
 
 Create `makeCreateTriggeredCommissionHandler(deps: ManagerToolboxDeps)`. This follows the `makeCreateScheduledCommissionHandler` pattern: delegate to the daemon route for artifact creation, then notify the trigger evaluator for subscription registration.
@@ -188,7 +188,7 @@ Tests:
 
 ### Step 4: update_trigger handler
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 **Addresses**: REQ-TRIG-25b, REQ-TRIG-25d
 
 Create `makeUpdateTriggerHandler(deps: ManagerToolboxDeps)`. This follows the `makeUpdateScheduleHandler` pattern: operate directly on the artifact and manage trigger evaluator subscriptions.
@@ -288,7 +288,7 @@ Tests:
 
 ### Step 5: Register tools in the MCP server
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 **Addresses**: REQ-TRIG-25a, REQ-TRIG-25b
 
 In `createManagerToolbox()`, instantiate the two new handlers and register them as tools. This follows the existing pattern: create handler at the top, register via `tool()` in the tools array.
@@ -347,22 +347,22 @@ Tests:
 
 ### Step 6: Wire trigger evaluator into the services bag
 
-**Files**: `daemon/app.ts`, `daemon/services/toolbox-types.ts` (or wherever the services bag type lives), `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/app.ts`, `apps/daemon/services/toolbox-types.ts` (or wherever the services bag type lives), `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-TRIG-25c
 
 The Phase 1 plan (Step 6) creates the trigger evaluator in `createProductionApp()` and stores it in a lazy ref (`triggerEvaluatorRef`). This step threads that ref through to the manager toolbox so the tool handlers can call `registerTrigger`/`unregisterTrigger`.
 
-**The services bag is assembled inline in the orchestrator, not in `daemon/app.ts`.** The `scheduleLifecycle` wiring demonstrates the actual path: `createProductionApp()` passes a `scheduleLifecycleRef` into the commission orchestrator's deps at construction time. The orchestrator then dereferences it in two inline services bag construction sites (lines 1847-1856 and 2108-2117 in `daemon/services/commission/orchestrator.ts`) when building the `GuildHallToolServices` for toolbox resolution. The trigger evaluator must follow this same pattern.
+**The services bag is assembled inline in the orchestrator, not in `apps/daemon/app.ts`.** The `scheduleLifecycle` wiring demonstrates the actual path: `createProductionApp()` passes a `scheduleLifecycleRef` into the commission orchestrator's deps at construction time. The orchestrator then dereferences it in two inline services bag construction sites (lines 1847-1856 and 2108-2117 in `apps/daemon/services/commission/orchestrator.ts`) when building the `GuildHallToolServices` for toolbox resolution. The trigger evaluator must follow this same pattern.
 
 Changes required:
 
-1. **Services bag type** (in `daemon/services/toolbox-types.ts` or equivalent): Add `triggerEvaluator?: TriggerEvaluator` to `GuildHallToolServices`.
+1. **Services bag type** (in `apps/daemon/services/toolbox-types.ts` or equivalent): Add `triggerEvaluator?: TriggerEvaluator` to `GuildHallToolServices`.
 
-2. **Orchestrator deps interface** (`daemon/services/commission/orchestrator.ts`): Add `triggerEvaluatorRef?: { current: TriggerEvaluator | undefined }` alongside the existing `scheduleLifecycleRef`.
+2. **Orchestrator deps interface** (`apps/daemon/services/commission/orchestrator.ts`): Add `triggerEvaluatorRef?: { current: TriggerEvaluator | undefined }` alongside the existing `scheduleLifecycleRef`.
 
 3. **Orchestrator inline services bags** (two sites in the orchestrator, around lines 1847-1856 and 2108-2117): Add `triggerEvaluator: deps.triggerEvaluatorRef?.current` to both services bag constructions, parallel to the `scheduleLifecycle: deps.scheduleLifecycleRef?.current` line.
 
-4. **`createProductionApp()`** (`daemon/app.ts`): Pass the `triggerEvaluatorRef` (already created in Phase 1's Step 6) into the orchestrator's deps alongside `scheduleLifecycleRef`.
+4. **`createProductionApp()`** (`apps/daemon/app.ts`): Pass the `triggerEvaluatorRef` (already created in Phase 1's Step 6) into the orchestrator's deps alongside `scheduleLifecycleRef`.
 
 The full wiring path:
 
@@ -385,7 +385,7 @@ Steps 3 and 4 depend on Steps 1 and 2 (they use the extended deps and route).
 
 Step 5 depends on Steps 3 and 4 (it registers the handlers as tools).
 
-Step 6 depends on Step 1 (it wires the dep) but can run in parallel with Steps 3-5 since it modifies `daemon/app.ts` and the services bag type, not the toolbox file.
+Step 6 depends on Step 1 (it wires the dep) but can run in parallel with Steps 3-5 since it modifies `apps/daemon/app.ts` and the services bag type, not the toolbox file.
 
 Recommended sequence:
 

@@ -23,10 +23,10 @@ The CLI is a set of short-lived bun scripts for managing Guild Hall's project re
 
 | Entry | Type | Handler |
 |-------|------|---------|
-| `guild-hall register <name> <path>` | CLI | `cli/index.ts` -> `cli/register.ts:register()` |
-| `guild-hall rebase [name]` | CLI | `cli/index.ts` -> `cli/rebase.ts:rebase()` |
-| `guild-hall sync [name]` | CLI | `cli/index.ts` -> `cli/rebase.ts:sync()` |
-| `guild-hall validate` | CLI | `cli/index.ts` -> `cli/validate.ts:validate()` |
+| `guild-hall register <name> <path>` | CLI | `apps/cli/index.ts` -> `apps/cli/register.ts:register()` |
+| `guild-hall rebase [name]` | CLI | `apps/cli/index.ts` -> `apps/cli/rebase.ts:rebase()` |
+| `guild-hall sync [name]` | CLI | `apps/cli/index.ts` -> `apps/cli/rebase.ts:sync()` |
+| `guild-hall validate` | CLI | `apps/cli/index.ts` -> `apps/cli/validate.ts:validate()` |
 
 All commands are invoked via `bun run guild-hall <command>`.
 
@@ -36,12 +36,12 @@ All commands are invoked via `bun run guild-hall <command>`.
 
 | File | Role |
 |------|------|
-| `cli/index.ts` | Entry point: `#!/usr/bin/env bun`, switch/case routing for register/rebase/sync/validate/help commands, top-level error catch with `process.exit(1)`. |
-| `cli/register.ts` | `register(name, projectPath, homeOverride?, gitOps?)`: validates path, rejects duplicates, detects default branch, creates `claude/main` branch, creates integration worktree and activity worktree root, writes config. Git setup runs before config write so failures leave config untouched. |
-| `cli/rebase.ts` | Contains `hasActiveActivities()` (scans commission + meeting state files), `rebaseProject()` (single project rebase with active-activity guard), `rebase()` (CLI entry, one or all), `syncProject()` (smart sync under project lock), `sync()` (CLI entry, one or all), `readPrMarker()`, `removePrMarker()`. Exports `SyncResult` type with five variants: reset, rebase, merge, skip, noop. |
-| `cli/validate.ts` | `validate(homeOverride?)`: reads config (Zod validation via `readConfig()`), checks each project path for existence + `.git/` + `.lore/`, reports all issues, returns exit code 0 (valid) or 1 (issues). |
-| `daemon/lib/git.ts` | `CLAUDE_BRANCH = "claude/main"`, `cleanGitEnv()` (strips `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`), `runGit()` (buffer-drain pattern via `Response.text()`), `GitOps` interface (28 methods), `createGitOps()` implementation, `finalizeActivity()` (shared squash-merge flow for commissions and meetings), `resolveSquashMerge()` (auto-resolves `.lore/` conflicts with `--theirs`, aborts on non-`.lore/` conflicts). |
-| `daemon/lib/project-lock.ts` | `withProjectLock()`: per-project cooperative mutex using a `Map<string, Promise>` chain. Serializes git operations on the same project, allows different projects to run concurrently. Error-resilient: rejections don't block queued operations. |
+| `apps/cli/index.ts` | Entry point: `#!/usr/bin/env bun`, switch/case routing for register/rebase/sync/validate/help commands, top-level error catch with `process.exit(1)`. |
+| `apps/cli/register.ts` | `register(name, projectPath, homeOverride?, gitOps?)`: validates path, rejects duplicates, detects default branch, creates `claude/main` branch, creates integration worktree and activity worktree root, writes config. Git setup runs before config write so failures leave config untouched. |
+| `apps/cli/rebase.ts` | Contains `hasActiveActivities()` (scans commission + meeting state files), `rebaseProject()` (single project rebase with active-activity guard), `rebase()` (CLI entry, one or all), `syncProject()` (smart sync under project lock), `sync()` (CLI entry, one or all), `readPrMarker()`, `removePrMarker()`. Exports `SyncResult` type with five variants: reset, rebase, merge, skip, noop. |
+| `apps/cli/validate.ts` | `validate(homeOverride?)`: reads config (Zod validation via `readConfig()`), checks each project path for existence + `.git/` + `.lore/`, reports all issues, returns exit code 0 (valid) or 1 (issues). |
+| `apps/daemon/lib/git.ts` | `CLAUDE_BRANCH = "claude/main"`, `cleanGitEnv()` (strips `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`), `runGit()` (buffer-drain pattern via `Response.text()`), `GitOps` interface (28 methods), `createGitOps()` implementation, `finalizeActivity()` (shared squash-merge flow for commissions and meetings), `resolveSquashMerge()` (auto-resolves `.lore/` conflicts with `--theirs`, aborts on non-`.lore/` conflicts). |
+| `apps/daemon/lib/project-lock.ts` | `withProjectLock()`: per-project cooperative mutex using a `Map<string, Promise>` chain. Serializes git operations on the same project, allows different projects to run concurrently. Error-resilient: rejections don't block queued operations. |
 | `lib/config.ts` | `readConfig()` (YAML parse + Zod validation, returns `{projects:[]}` if file missing), `writeConfig()` (YAML serialize + write, creates parent dir), `getProject()` (convenience lookup). Exports `projectConfigSchema` and `appConfigSchema` Zod schemas. |
 | `lib/paths.ts` | Path resolution functions: `getGuildHallHome()` (3 strategies: homeOverride, `GUILD_HALL_HOME` env, `~/.guild-hall/`), `getConfigPath()`, `integrationWorktreePath()`, `activityWorktreeRoot()`, `commissionWorktreePath()`, `meetingWorktreePath()`, `commissionBranchName()`, `meetingBranchName()`, `briefingCachePath()`, `resolveCommissionBasePath()`, `resolveMeetingBasePath()`. |
 
@@ -68,9 +68,9 @@ The sync command handles the lifecycle: after a PR from `claude/main` is merged 
 
 - Uses: `lib/config.ts` (config read/write)
 - Uses: `lib/paths.ts` (path resolution)
-- Uses: `daemon/lib/git.ts` (`GitOps` interface, `CLAUDE_BRANCH`)
-- Uses: `daemon/lib/project-lock.ts` (`withProjectLock` for sync serialization)
-- Uses: `daemon/services/manager-toolbox.ts` (`PrMarker` type import)
+- Uses: `apps/daemon/lib/git.ts` (`GitOps` interface, `CLAUDE_BRANCH`)
+- Uses: `apps/daemon/lib/project-lock.ts` (`withProjectLock` for sync serialization)
+- Uses: `apps/daemon/services/manager-toolbox.ts` (`PrMarker` type import)
 - Used by: [workers-toolbox](./workers-toolbox.md) (manager toolbox's `sync_project` delegates to `syncProject()`)
 - Used by: Daemon startup (may invoke sync on boot)
 

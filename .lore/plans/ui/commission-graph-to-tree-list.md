@@ -3,7 +3,7 @@ title: Commission graph to tree list
 date: 2026-03-15
 status: executed
 tags: [ui, commissions, visualization, dashboard, dependency-graph, tree-list, css, deletion]
-modules: [web/components/dashboard/DependencyMap, web/components/commission/NeighborhoodGraph, lib/dependency-graph, web/app/projects]
+modules: [apps/web/components/dashboard/DependencyMap, apps/web/components/commission/NeighborhoodGraph, lib/dependency-graph, apps/web/app/projects]
 related:
   - .lore/specs/ui/commission-graph-to-tree-list.md
   - .lore/brainstorm/commission-graph-to-tree-list.md
@@ -52,17 +52,17 @@ Requirements addressed:
 
 **Graph data layer** (`lib/dependency-graph.ts`, 513 lines): Contains both graph data structures (interfaces, `buildDependencyGraph`, `getNeighborhood`, `extractCommissionId`) and the Sugiyama layout algorithm (`assignLayers`, `orderNodesInLayers`, `layoutGraph`, layout types/constants). The data structures stay; the layout algorithm is deleted. The file will shrink from 513 lines to roughly 196.
 
-**Dashboard entry point** (`web/components/dashboard/DependencyMap.tsx`, 90 lines): Server component. Lines 39-45 branch on `graph.edges.length > 0` to render `CommissionGraph` (SVG) or the flat card list. The flat card list (lines 47-89) is the foundation for the tree list. Imports `CommissionGraph` on line 5.
+**Dashboard entry point** (`apps/web/components/dashboard/DependencyMap.tsx`, 90 lines): Server component. Lines 39-45 branch on `graph.edges.length > 0` to render `CommissionGraph` (SVG) or the flat card list. The flat card list (lines 47-89) is the foundation for the tree list. Imports `CommissionGraph` on line 5.
 
-**SVG renderer** (`web/components/dashboard/CommissionGraph.tsx`, 247 lines): Client component. Imports `layoutGraph` and `LayoutNode` from `lib/dependency-graph`. Consumed by `DependencyMap.tsx`, `NeighborhoodGraph.tsx`, and `web/app/projects/[name]/page.tsx`. Entirely deleted.
+**SVG renderer** (`apps/web/components/dashboard/CommissionGraph.tsx`, 247 lines): Client component. Imports `layoutGraph` and `LayoutNode` from `lib/dependency-graph`. Consumed by `DependencyMap.tsx`, `NeighborhoodGraph.tsx`, and `apps/web/app/projects/[name]/page.tsx`. Entirely deleted.
 
-**Neighborhood graph** (`web/components/commission/NeighborhoodGraph.tsx`, 44 lines): Client component. Renders `CommissionGraph` in compact mode with `focalNodeId`. Consumed by commission detail page (`web/app/projects/[name]/commissions/[id]/page.tsx`, line 13, rendered at line 152). Replaced with a server component rendering upstream/downstream text lists.
+**Neighborhood graph** (`apps/web/components/commission/NeighborhoodGraph.tsx`, 44 lines): Client component. Renders `CommissionGraph` in compact mode with `focalNodeId`. Consumed by commission detail page (`apps/web/app/projects/[name]/commissions/[id]/page.tsx`, line 13, rendered at line 152). Replaced with a server component rendering upstream/downstream text lists.
 
-**Project page** (`web/app/projects/[name]/page.tsx`): Imports `CommissionGraph` (line 9), renders it in compact mode on the Commissions tab (lines 84-89). This import and usage are removed; `CommissionList` already handles the commission display on this page.
+**Project page** (`apps/web/app/projects/[name]/page.tsx`): Imports `CommissionGraph` (line 9), renders it in compact mode on the Commissions tab (lines 84-89). This import and usage are removed; `CommissionList` already handles the commission display on this page.
 
 **Existing tests**:
-- `tests/lib/dependency-graph.test.ts`: Tests for `buildDependencyGraph` (8 tests), `getNeighborhood` (3 tests), `layoutGraph` (8 tests). The `layoutGraph` describe block (lines 341-595) is deleted. The `makeNode` helper and graph test data helpers are shared across all blocks and must be preserved.
-- `tests/components/dashboard-commissions.test.ts`: Imports `layoutGraph` (line 5), uses it in the `NeighborhoodGraph data flow` test at line 335. The `layoutGraph` import and the test that calls it must be updated. Tests for `commissionHref`, `sortCommissions`, `statusToGem`, and the graph vs. flat list decision logic are kept (the decision logic tests validate `buildDependencyGraph` and `getNeighborhood`, not `layoutGraph`, except the last test in the `NeighborhoodGraph data flow` block).
+- `lib/tests/dependency-graph.test.ts`: Tests for `buildDependencyGraph` (8 tests), `getNeighborhood` (3 tests), `layoutGraph` (8 tests). The `layoutGraph` describe block (lines 341-595) is deleted. The `makeNode` helper and graph test data helpers are shared across all blocks and must be preserved.
+- `apps/web/tests/components/dashboard-commissions.test.ts`: Imports `layoutGraph` (line 5), uses it in the `NeighborhoodGraph data flow` test at line 335. The `layoutGraph` import and the test that calls it must be updated. Tests for `commissionHref`, `sortCommissions`, `statusToGem`, and the graph vs. flat list decision logic are kept (the decision logic tests validate `buildDependencyGraph` and `getNeighborhood`, not `layoutGraph`, except the last test in the `NeighborhoodGraph data flow` block).
 
 **CSS modules**:
 - `DependencyMap.module.css` (75 lines): Existing card styles (`.list`, `.card`, `.link`, `.info`, `.title`, `.worker`, `.progress`, `.scheduledCard`, `.scheduledBadge`). Tree connector styles are added here.
@@ -85,24 +85,24 @@ Requirements addressed:
 
 ### Step 1: Add `buildAdjacencyList()` to `lib/dependency-graph.ts`
 
-**Files**: `lib/dependency-graph.ts`, `tests/lib/dependency-graph.test.ts`
+**Files**: `lib/dependency-graph.ts`, `lib/tests/dependency-graph.test.ts`
 **Addresses**: REQ-CTREE-19, REQ-CTREE-20
 
 This step adds new code only. Layout export deletion is deferred to Step 6 because `CommissionGraph.tsx` still imports `layoutGraph` and `LayoutNode` at this point.
 
 Add `buildAdjacencyList(graph: DependencyGraph): Map<string, string[]>` as a new exported function. It iterates the edge list once, building a map from parent ID to array of child IDs (edges where `edge.from` equals the parent). This is O(n) from the edge list.
 
-Add a new `describe("buildAdjacencyList", ...)` block in `tests/lib/dependency-graph.test.ts` with tests for:
+Add a new `describe("buildAdjacencyList", ...)` block in `lib/tests/dependency-graph.test.ts` with tests for:
 - Single-parent chain: A→B→C produces `{A: [B], B: [C]}`
 - Diamond: A→B, A→C, B→D, C→D produces `{A: [B, C], B: [D], C: [D]}`
 - Isolated nodes: no edges, returns empty map (or map with no entries)
 - Schedule→spawned edges appear in the adjacency list
 
-**Verification**: `bun test tests/lib/dependency-graph.test.ts` passes. All existing tests unchanged and green. `bun run typecheck` passes.
+**Verification**: `bun test lib/tests/dependency-graph.test.ts` passes. All existing tests unchanged and green. `bun run typecheck` passes.
 
 ### Step 2: Rewrite `DependencyMap.tsx` as a tree list
 
-**Files**: `web/components/dashboard/DependencyMap.tsx`
+**Files**: `apps/web/components/dashboard/DependencyMap.tsx`
 **Addresses**: REQ-CTREE-1, REQ-CTREE-2, REQ-CTREE-3, REQ-CTREE-4, REQ-CTREE-8, REQ-CTREE-9, REQ-CTREE-15, REQ-CTREE-16, REQ-CTREE-21, REQ-CTREE-26
 
 Remove the `CommissionGraph` import and the `graph.edges.length > 0` branch (lines 5, 39-45). The component always renders the card list.
@@ -126,9 +126,9 @@ Card rendering remains the same pattern (gem, title with Recurring badge, worker
 
 **Edge case: children of multi-parent root nodes.** A multi-parent node renders at root level (depth 0). If that node has single-parent children, those children indent at depth 1 under it. The visual hierarchy is correct: the multi-parent node is a root, its children are one level deep. The depth counter resets at each root node.
 
-Extract tree construction into a testable utility function (e.g., `buildTreeList()` in a new file `web/components/dashboard/build-tree-list.ts`, or co-located in `DependencyMap.tsx` and re-exported for testing). The function takes `CommissionMeta[]` and `DependencyGraph` and returns a flat array of `{ commission: CommissionMeta, depth: number, awaits?: string[] }`.
+Extract tree construction into a testable utility function (e.g., `buildTreeList()` in a new file `apps/web/components/dashboard/build-tree-list.ts`, or co-located in `DependencyMap.tsx` and re-exported for testing). The function takes `CommissionMeta[]` and `DependencyGraph` and returns a flat array of `{ commission: CommissionMeta, depth: number, awaits?: string[] }`.
 
-**Tree construction tests** go in `tests/components/dashboard-commissions.test.ts` alongside the existing `DependencyMap` data flow tests. Add tests for:
+**Tree construction tests** go in `apps/web/tests/components/dashboard-commissions.test.ts` alongside the existing `DependencyMap` data flow tests. Add tests for:
 - Tree with single-parent chain: items at correct depths
 - Diamond dependency: multi-parent node at root with correct "Awaits:" list
 - Isolated nodes: all at depth 0, no "Awaits:" annotations
@@ -137,11 +137,11 @@ Extract tree construction into a testable utility function (e.g., `buildTreeList
 
 **No CSS connector lines in this step.** Connector lines are added in Step 3 after the structure is verified. This step validates tree construction and rendering correctness without visual polish.
 
-**Verification**: `bun run typecheck` passes. `bun run build` passes (critical: confirms no client/server boundary violations). `bun test tests/components/dashboard-commissions.test.ts` passes with new tree construction tests. Manual check: dashboard renders commissions in tree structure with correct indentation depths.
+**Verification**: `bun run typecheck` passes. `bun run build` passes (critical: confirms no client/server boundary violations). `bun test apps/web/tests/components/dashboard-commissions.test.ts` passes with new tree construction tests. Manual check: dashboard renders commissions in tree structure with correct indentation depths.
 
 ### Step 3: Add CSS connector lines and tree styling
 
-**Files**: `web/components/dashboard/DependencyMap.module.css`, `web/components/dashboard/DependencyMap.tsx` (minor: add CSS class names to tree items)
+**Files**: `apps/web/components/dashboard/DependencyMap.module.css`, `apps/web/components/dashboard/DependencyMap.tsx` (minor: add CSS class names to tree items)
 **Addresses**: REQ-CTREE-5, REQ-CTREE-6, REQ-CTREE-7, REQ-CTREE-23, REQ-CTREE-24
 
 Add CSS classes to `DependencyMap.module.css`:
@@ -163,7 +163,7 @@ Update `DependencyMap.tsx` to apply the CSS classes:
 
 ### Step 4: Replace `NeighborhoodGraph` with upstream/downstream text list
 
-**Files**: `web/components/commission/NeighborhoodGraph.tsx`, `web/components/commission/NeighborhoodGraph.module.css`, `web/app/projects/[name]/commissions/[id]/page.tsx`
+**Files**: `apps/web/components/commission/NeighborhoodGraph.tsx`, `apps/web/components/commission/NeighborhoodGraph.module.css`, `apps/web/app/projects/[name]/commissions/[id]/page.tsx`
 **Addresses**: REQ-CTREE-10, REQ-CTREE-11, REQ-CTREE-12, REQ-CTREE-13, REQ-CTREE-14, REQ-CTREE-27
 
 Rewrite `NeighborhoodGraph.tsx` as a server component (remove `"use client"` directive). Remove the `CommissionGraph` import. The component now:
@@ -183,13 +183,13 @@ Update `NeighborhoodGraph.module.css` with styles for the upstream/downstream li
 - `.neighborItem`: item with gem + linked title + status text
 - Reuse `.wrapper` and `.heading` from the current styles where they fit
 
-The commission detail page (`web/app/projects/[name]/commissions/[id]/page.tsx`) continues to import `NeighborhoodGraph` and pass the same props. Since the component name and props are unchanged, the detail page needs no modification beyond confirming the import still works. The `"use client"` removal means the component is now a server component rendered inside the detail page's server component tree, which is fine.
+The commission detail page (`apps/web/app/projects/[name]/commissions/[id]/page.tsx`) continues to import `NeighborhoodGraph` and pass the same props. Since the component name and props are unchanged, the detail page needs no modification beyond confirming the import still works. The `"use client"` removal means the component is now a server component rendered inside the detail page's server component tree, which is fine.
 
 **Verification**: `bun run typecheck` and `bun run build` pass. Manual check: commission detail page shows "Depends on" and "Blocks" sections with linked items. Isolated commissions show no Dependencies section.
 
 ### Step 5: Remove `CommissionGraph` from project page
 
-**Files**: `web/app/projects/[name]/page.tsx`
+**Files**: `apps/web/app/projects/[name]/page.tsx`
 **Addresses**: REQ-CTREE-28
 
 Remove the `CommissionGraph` import (line 9) and the conditional render block (lines 84-89):
@@ -210,13 +210,13 @@ The `graphResult` fetch (`/commission/dependency/project/graph`) and `commission
 ### Step 6: Delete files and prune layout exports
 
 **Files deleted**:
-- `web/components/dashboard/CommissionGraph.tsx`
-- `web/components/dashboard/CommissionGraph.module.css`
+- `apps/web/components/dashboard/CommissionGraph.tsx`
+- `apps/web/components/dashboard/CommissionGraph.module.css`
 
 **Files modified**:
 - `lib/dependency-graph.ts`: Delete `assignLayers()` (lines 207-355), `orderNodesInLayers()` (lines 364-427), `layoutGraph()` (lines 442-513), `LayoutNode` interface (lines 51-55), `LayoutResult` interface (lines 57-62), `LayoutOptions` interface (lines 64-69), and layout constants `DEFAULT_NODE_WIDTH`, `DEFAULT_NODE_HEIGHT`, `DEFAULT_HORIZONTAL_GAP`, `DEFAULT_VERTICAL_GAP` (lines 73-76)
-- `tests/lib/dependency-graph.test.ts`: Remove `layoutGraph` from the import (line 6), delete the entire `describe("layoutGraph", ...)` block (lines 341-595, 8 tests). Keep the `makeNode` helper and all `buildDependencyGraph`/`getNeighborhood`/`buildAdjacencyList` tests.
-- `tests/components/dashboard-commissions.test.ts`: Remove `layoutGraph` from the import (line 5), remove the last test in `NeighborhoodGraph data flow` block (`layout produces valid compact dimensions for neighborhood graph`, lines 324-351) since it calls `layoutGraph`. Update the file-level comment (lines 8-18) to remove references to SVG graph decision logic. Keep all other tests.
+- `lib/tests/dependency-graph.test.ts`: Remove `layoutGraph` from the import (line 6), delete the entire `describe("layoutGraph", ...)` block (lines 341-595, 8 tests). Keep the `makeNode` helper and all `buildDependencyGraph`/`getNeighborhood`/`buildAdjacencyList` tests.
+- `apps/web/tests/components/dashboard-commissions.test.ts`: Remove `layoutGraph` from the import (line 5), remove the last test in `NeighborhoodGraph data flow` block (`layout produces valid compact dimensions for neighborhood graph`, lines 324-351) since it calls `layoutGraph`. Update the file-level comment (lines 8-18) to remove references to SVG graph decision logic. Keep all other tests.
 
 **Addresses**: REQ-CTREE-17, REQ-CTREE-18
 

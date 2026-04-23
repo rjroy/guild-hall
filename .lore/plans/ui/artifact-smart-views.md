@@ -20,30 +20,30 @@ Replace the artifact tree as the default landing in the artifacts tab with a sma
 
 **Starting point:**
 
-`web/app/projects/[name]/page.tsx:60-70` renders the artifacts tab. It passes `Artifact[]` to `ArtifactList`, which builds a tree and renders it. `ArtifactList` is already a client component (`"use client"` at line 1) because it manages expand/collapse state.
+`apps/web/app/projects/[name]/page.tsx:60-70` renders the artifacts tab. It passes `Artifact[]` to `ArtifactList`, which builds a tree and renders it. `ArtifactList` is already a client component (`"use client"` at line 1) because it manages expand/collapse state.
 
 `lib/types.ts:81-116`: `ARTIFACT_STATUS_GROUP` defines five status groups. `approved` is currently in Group 1 (in progress/green). `statusToGem()` at line 316 derives gem colors from this map. `statusToPriority()` at line 307 is used by `compareArtifactsByStatusAndTitle()` at line 409 for sorting.
 
 `lib/artifact-grouping.ts`: `buildArtifactTree()` builds the tree structure. `displayTitle()` at line 26 derives display names. `groupKey()` at line 8 extracts the first path segment.
 
-`web/components/commission/CommissionFilterPanel.tsx` and `web/components/commission/commission-filter.ts` established the filter-with-counts pattern. Smart view filters follow a similar visual approach but use single-select (radio-like) instead of multi-select checkboxes.
+`apps/web/components/commission/CommissionFilterPanel.tsx` and `apps/web/components/commission/commission-filter.ts` established the filter-with-counts pattern. Smart view filters follow a similar visual approach but use single-select (radio-like) instead of multi-select checkboxes.
 
-`web/components/ui/StatusBadge.tsx` renders `GemIndicator` + `formatStatus()`. Already used in `ArtifactList` for tree leaf items.
+`apps/web/components/ui/StatusBadge.tsx` renders `GemIndicator` + `formatStatus()`. Already used in `ArtifactList` for tree leaf items.
 
 **What changes:**
 
 - `lib/types.ts` — move `approved` from Group 1 to Group 0 in `ARTIFACT_STATUS_GROUP`
-- `web/components/project/ArtifactList.tsx` — wrap existing tree in a sub-tab container, add smart view as default
-- `web/components/project/ArtifactList.module.css` — new styles for sub-tabs, smart view items, and filter buttons
+- `apps/web/components/project/ArtifactList.tsx` — wrap existing tree in a sub-tab container, add smart view as default
+- `apps/web/components/project/ArtifactList.module.css` — new styles for sub-tabs, smart view items, and filter buttons
 - `lib/artifact-smart-view.ts` — new file; pure filter/mapping functions for smart views
-- `tests/lib/artifact-smart-view.test.ts` — new file; unit tests for the filter logic
-- `tests/lib/types.test.ts` — add test for `approved` gem mapping change
+- `lib/tests/artifact-smart-view.test.ts` — new file; unit tests for the filter logic
+- `lib/tests/types.test.ts` — add test for `approved` gem mapping change
 - `.lore/specs/ui/artifact-sorting.md` — update REQ-SORT-4 status group table per REQ-SMARTVIEW-19
 
 **What does not change:**
 
 - `lib/artifact-grouping.ts` — tree building and sorting logic untouched
-- `web/app/projects/[name]/page.tsx` — continues to pass `Artifact[]` to `ArtifactList`; server boundary unaffected
+- `apps/web/app/projects/[name]/page.tsx` — continues to pass `Artifact[]` to `ArtifactList`; server boundary unaffected
 - Daemon, API routes, and all other components
 - Tree view behavior (display, expand/collapse, sorting)
 
@@ -70,7 +70,7 @@ After this change:
 - `statusToPriority("approved")` returns `0` instead of `1`, so approved artifacts sort earlier
 - All surfaces (tree view, dashboard, commission linked artifacts) reflect the change automatically
 
-**Test update (same step):** Update `tests/lib/types.test.ts` to reflect the gem change. Two assertions need updating:
+**Test update (same step):** Update `lib/tests/types.test.ts` to reflect the gem change. Two assertions need updating:
 - Line 8: change `["approved", "active"]` to `["approved", "pending"]` in the `statusToGem` test cases
 - Line 61: change `expect(statusToGem("  approved  ")).toBe("active")` to `.toBe("pending")` in the whitespace trim test
 
@@ -270,7 +270,7 @@ The four-pass approach (one for candidates, then one per filter for counts) is s
 
 ### Step 4: Unit tests for filter logic
 
-**Files:** `tests/lib/artifact-smart-view.test.ts` (new)
+**Files:** `lib/tests/artifact-smart-view.test.ts` (new)
 **REQ IDs:** AI Validation (all custom items)
 **Risk:** None. New test file.
 
@@ -297,7 +297,7 @@ function makeArtifact(relativePath: string, status: string, date = "2026-01-01")
 
 **Test cases:**
 
-1. **`approved` in Group 0:** After the gem correction, `statusToPriority("approved")` returns `0`. (This tests the Step 1 change. Goes in `tests/lib/types.test.ts`.)
+1. **`approved` in Group 0:** After the gem correction, `statusToPriority("approved")` returns `0`. (This tests the Step 1 change. Goes in `lib/tests/types.test.ts`.)
 
 2. **"What's Next" includes Group 0 and Group 2:**
    - `specs/foo.md` with status `draft` (Group 0) → included
@@ -350,7 +350,7 @@ function makeArtifact(relativePath: string, status: string, date = "2026-01-01")
 
 ### Step 5: Smart view UI in ArtifactList
 
-**Files:** `web/components/project/ArtifactList.tsx`, `web/components/project/ArtifactList.module.css`
+**Files:** `apps/web/components/project/ArtifactList.tsx`, `apps/web/components/project/ArtifactList.module.css`
 **REQ IDs:** REQ-SMARTVIEW-1, REQ-SMARTVIEW-2, REQ-SMARTVIEW-3, REQ-SMARTVIEW-5, REQ-SMARTVIEW-9, REQ-SMARTVIEW-11, REQ-SMARTVIEW-14, REQ-SMARTVIEW-15
 **Risk:** Medium. Restructuring the component, but the existing tree behavior is preserved by isolating it in a sub-component.
 
@@ -504,12 +504,12 @@ The existing tree styles (`.list`, `.item`, `.link`, etc.) are unchanged.
 **Files:** None (verification)
 **Risk:** None.
 
-1. Run `bun test tests/lib/artifact-smart-view.test.ts` to confirm new unit tests pass.
-2. Run `bun test tests/lib/types.test.ts` to confirm the gem mapping change doesn't break existing tests.
+1. Run `bun test lib/tests/artifact-smart-view.test.ts` to confirm new unit tests pass.
+2. Run `bun test lib/tests/types.test.ts` to confirm the gem mapping change doesn't break existing tests.
 3. Run `bun test` (full suite) to confirm no regressions.
 4. Run `bun run typecheck` to catch any type errors.
 
-The `approved` gem change in `tests/lib/types.test.ts` was handled in Step 1.
+The `approved` gem change in `lib/tests/types.test.ts` was handled in Step 1.
 
 ### Step 7: Code review
 

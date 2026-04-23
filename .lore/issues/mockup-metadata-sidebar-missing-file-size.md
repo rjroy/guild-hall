@@ -7,7 +7,7 @@ tags: [bug, spec-divergence, ui, mockup]
 
 ## Problem
 
-REQ-MKP-14 (`.lore/specs/ui/html-mockup-preview.md:80`) requires the mockup detail view's metadata sidebar to show **filename, file size, and last modified date**. The implementation at `web/components/artifact/MockupMetadataSidebar.tsx` omits file size and substitutes a "Format: HTML Mockup" field instead.
+REQ-MKP-14 (`.lore/specs/ui/html-mockup-preview.md:80`) requires the mockup detail view's metadata sidebar to show **filename, file size, and last modified date**. The implementation at `apps/web/components/artifact/MockupMetadataSidebar.tsx` omits file size and substitutes a "Format: HTML Mockup" field instead.
 
 This is a spec-to-code divergence that has gone unrecorded since Phase 4 shipped. The April 6 Guild Master meeting notes acknowledged the deferral ("artifact scan result does not include file size... documented as a known gap for future work") but the spec was never amended and no issue was filed.
 
@@ -24,8 +24,8 @@ Two small options, roughly equal cost:
 **Option A (preferred): extend `Artifact` with size.**
 1. Add `size: number` (bytes) to the `Artifact` interface in `lib/types.ts`.
 2. In each of the four `fs.stat()` call sites in `lib/artifacts.ts`, include `size: stat.size` in the returned object.
-3. Update `scanArtifacts` tests in `tests/lib/artifacts.test.ts` to assert the field.
-4. Pass `size` through to `MockupMetadataSidebar` from the catch-all route at `web/app/projects/[name]/artifacts/[...path]/page.tsx`.
+3. Update `scanArtifacts` tests in `lib/tests/artifacts.test.ts` to assert the field.
+4. Pass `size` through to `MockupMetadataSidebar` from the catch-all route at `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`.
 5. Render with a small human-readable formatter (`1.2 KB`, `340 B`). Keep the existing "Format" field; the spec doesn't forbid it, but drop the size substitution.
 
 **Option B: dedicated size lookup in the mockup page only.**
@@ -40,5 +40,5 @@ Small. Estimated 15-30 minutes of work plus a review gate. The change touches th
 - Spec: `.lore/specs/ui/html-mockup-preview.md:80` (REQ-MKP-14)
 - Scanner: `lib/artifacts.ts:137,161,184,234` (four stat call sites)
 - Type: `lib/types.ts:74-84`
-- Sidebar: `web/components/artifact/MockupMetadataSidebar.tsx`
+- Sidebar: `apps/web/components/artifact/MockupMetadataSidebar.tsx`
 - Origin: April 6 Guild Master meeting notes (deferred during Phase 4 implementation)

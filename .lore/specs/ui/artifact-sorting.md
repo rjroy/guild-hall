@@ -24,7 +24,7 @@ Commit `95e423d` introduced `compareArtifacts()` in `lib/artifacts.ts:92-117`. T
 
 The problem: `compareArtifacts()` uses a three-bucket status model (`draft`, `open`, `closed`) that doesn't match the actual status values in the codebase. Real artifact frontmatter uses statuses like `implemented`, `active`, `approved`, `current`, `complete`, `pending`, `requested`, `superseded`, `outdated`, `failed`, `cancelled`, `abandoned`, `declined` (documented in `lib/types.ts:152-172` via `statusToGem()`). The three-bucket model maps most real statuses to the fallback priority (3, below `closed`), which means a `draft` spec and an `implemented` spec sort identically except by date. This defeats the purpose of status-based sorting for general artifact browsing.
 
-The commission sorting (`lib/commissions.ts:237-267`, `sortCommissions()`) does not have this problem. It uses a four-group model (idle, active, failed, completed) with status values that match actual commission frontmatter. The meeting sort in the project page (`web/app/projects/[name]/page.tsx:54-60`) similarly uses `open` vs other, which matches real meeting statuses.
+The commission sorting (`lib/commissions.ts:237-267`, `sortCommissions()`) does not have this problem. It uses a four-group model (idle, active, failed, completed) with status values that match actual commission frontmatter. The meeting sort in the project page (`apps/web/app/projects/[name]/page.tsx:54-60`) similarly uses `open` vs other, which matches real meeting statuses.
 
 The artifact sort is the one that needs fixing. Commission and meeting sorts are working correctly for their surfaces.
 
@@ -34,9 +34,9 @@ Seven surfaces display ordered lists. Each is described below with its data sour
 
 ### Surface 1: Dashboard "Recent Scrolls"
 
-**Location:** `web/app/page.tsx:33` calls `recentArtifacts(lorePath, 10)`, which calls `scanArtifacts()` (applies `compareArtifacts()`) and slices the first 10.
+**Location:** `apps/web/app/page.tsx:33` calls `recentArtifacts(lorePath, 10)`, which calls `scanArtifacts()` (applies `compareArtifacts()`) and slices the first 10.
 
-**Component:** `web/components/dashboard/RecentArtifacts.tsx` renders the list as-is, no re-sorting.
+**Component:** `apps/web/components/dashboard/RecentArtifacts.tsx` renders the list as-is, no re-sorting.
 
 **Data type:** `Artifact` (`lib/types.ts:31-38`)
 
@@ -48,9 +48,9 @@ Seven surfaces display ordered lists. Each is described below with its data sour
 
 ### Surface 2: Project Artifacts Tab (Tree View)
 
-**Location:** `web/app/projects/[name]/page.tsx:35` calls `scanArtifacts(lorePath)`, passes the full sorted array to `ArtifactList`.
+**Location:** `apps/web/app/projects/[name]/page.tsx:35` calls `scanArtifacts(lorePath)`, passes the full sorted array to `ArtifactList`.
 
-**Component:** `web/components/project/ArtifactList.tsx` calls `buildArtifactTree(artifacts)` from `lib/artifact-grouping.ts:161`, which inserts artifacts into a tree structure preserving their input order within each directory. `sortTreeLevel()` at line 141 sorts directory nodes alphabetically. Leaf nodes within a directory retain the order they were inserted, which is the order from `scanArtifacts()`.
+**Component:** `apps/web/components/project/ArtifactList.tsx` calls `buildArtifactTree(artifacts)` from `lib/artifact-grouping.ts:161`, which inserts artifacts into a tree structure preserving their input order within each directory. `sortTreeLevel()` at line 141 sorts directory nodes alphabetically. Leaf nodes within a directory retain the order they were inserted, which is the order from `scanArtifacts()`.
 
 **Data type:** `Artifact` passed through to `TreeNode` (leaf nodes carry `artifact` reference).
 
@@ -62,9 +62,9 @@ Seven surfaces display ordered lists. Each is described below with its data sour
 
 ### Surface 3: Project Commissions Tab
 
-**Location:** `web/app/projects/[name]/page.tsx:62` calls `scanCommissions(lorePath, projectName)`, which returns pre-sorted results.
+**Location:** `apps/web/app/projects/[name]/page.tsx:62` calls `scanCommissions(lorePath, projectName)`, which returns pre-sorted results.
 
-**Component:** `web/components/commission/CommissionList.tsx` renders the list as-is.
+**Component:** `apps/web/components/commission/CommissionList.tsx` renders the list as-is.
 
 **Data type:** `CommissionMeta` (`lib/commissions.ts:19-35`)
 
@@ -76,9 +76,9 @@ Seven surfaces display ordered lists. Each is described below with its data sour
 
 ### Surface 4: Project Meetings Tab
 
-**Location:** `web/app/projects/[name]/page.tsx:38-60` scans meetings from both the integration worktree (closed/merged) and active meeting worktrees (open meetings), deduplicates, then sorts inline.
+**Location:** `apps/web/app/projects/[name]/page.tsx:38-60` scans meetings from both the integration worktree (closed/merged) and active meeting worktrees (open meetings), deduplicates, then sorts inline.
 
-**Component:** `web/components/project/MeetingList.tsx` renders the list as-is.
+**Component:** `apps/web/components/project/MeetingList.tsx` renders the list as-is.
 
 **Data type:** `Artifact` (meetings are scanned via `scanArtifacts()` on the `meetings/` subdirectory, not via `scanMeetings()` which returns `MeetingMeta`).
 
@@ -90,9 +90,9 @@ Seven surfaces display ordered lists. Each is described below with its data sour
 
 ### Surface 5: Dashboard Pending Audiences
 
-**Location:** `web/app/page.tsx:44-66` calls `scanMeetingRequests()` for each project, merges, then sorts inline.
+**Location:** `apps/web/app/page.tsx:44-66` calls `scanMeetingRequests()` for each project, merges, then sorts inline.
 
-**Component:** `web/components/dashboard/PendingAudiences.tsx` renders the list as-is.
+**Component:** `apps/web/components/dashboard/PendingAudiences.tsx` renders the list as-is.
 
 **Data type:** `MeetingMeta` (`lib/meetings.ts:19-32`)
 
@@ -104,9 +104,9 @@ Seven surfaces display ordered lists. Each is described below with its data sour
 
 ### Surface 6: Dashboard Dependency Map
 
-**Location:** `web/app/page.tsx:36-42` calls `scanCommissions()` per project, passes flat array to `DependencyMap`.
+**Location:** `apps/web/app/page.tsx:36-42` calls `scanCommissions()` per project, passes flat array to `DependencyMap`.
 
-**Component:** `web/components/dashboard/DependencyMap.tsx:38-44` has its own `sortCommissions()` that sorts by a status priority (running > pending > other) then date desc. This sort is used for the flat card fallback when no graph edges exist.
+**Component:** `apps/web/components/dashboard/DependencyMap.tsx:38-44` has its own `sortCommissions()` that sorts by a status priority (running > pending > other) then date desc. This sort is used for the flat card fallback when no graph edges exist.
 
 **Data type:** `CommissionMeta`
 
@@ -118,9 +118,9 @@ Seven surfaces display ordered lists. Each is described below with its data sour
 
 ### Surface 7: Commission Linked Artifacts
 
-**Location:** `web/app/projects/[name]/commissions/[id]/page.tsx:22-49` resolves `linked_artifacts` paths from commission frontmatter into `CommissionArtifact` objects.
+**Location:** `apps/web/app/projects/[name]/commissions/[id]/page.tsx:22-49` resolves `linked_artifacts` paths from commission frontmatter into `CommissionArtifact` objects.
 
-**Component:** `web/components/commission/CommissionLinkedArtifacts.tsx` renders the list as-is.
+**Component:** `apps/web/components/commission/CommissionLinkedArtifacts.tsx` renders the list as-is.
 
 **Data type:** `CommissionArtifact` (local interface: `path`, `title`, `href`)
 
@@ -158,7 +158,7 @@ The following table lists every field that could serve as a sort key, where it c
 
 - REQ-SORT-2: All sort functions are pure, exported, and independently testable. Sort logic lives in `lib/` modules, not inline in page components or rendering code.
 
-  **Rationale:** The current codebase has sorting split between `lib/artifacts.ts`, `lib/commissions.ts`, inline sorts in `web/app/page.tsx:53-66` and `web/app/projects/[name]/page.tsx:54-60`, and a duplicated `sortCommissions()` in `web/components/dashboard/DependencyMap.tsx:38-44`. This makes behavior hard to verify and easy to break.
+  **Rationale:** The current codebase has sorting split between `lib/artifacts.ts`, `lib/commissions.ts`, inline sorts in `apps/web/app/page.tsx:53-66` and `apps/web/app/projects/[name]/page.tsx:54-60`, and a duplicated `sortCommissions()` in `apps/web/components/dashboard/DependencyMap.tsx:38-44`. This makes behavior hard to verify and easy to break.
 
 - REQ-SORT-3: Missing fields (empty string, undefined, null) sort after present fields. An artifact with no date sorts below one with a date when date is the sort axis. An artifact with no status sorts below one with a recognized status.
 
@@ -192,7 +192,7 @@ The following table lists every field that could serve as a sort key, where it c
 
 ### Commission Sort (Surfaces 3 and 6)
 
-- REQ-SORT-8: Consolidate commission sorting into a single `sortCommissions()` export in `lib/commissions.ts`. Remove the duplicate `sortCommissions()` in `web/components/dashboard/DependencyMap.tsx:38-44`. The `DependencyMap` component should import from `lib/commissions.ts`.
+- REQ-SORT-8: Consolidate commission sorting into a single `sortCommissions()` export in `lib/commissions.ts`. Remove the duplicate `sortCommissions()` in `apps/web/components/dashboard/DependencyMap.tsx:38-44`. The `DependencyMap` component should import from `lib/commissions.ts`.
 
   **Rationale:** Two functions named `sortCommissions()` with different logic is a maintenance hazard. The `DependencyMap` version uses a simpler three-bucket model; `lib/commissions.ts` uses a four-bucket model with directional date sorting. The `lib/` version is more correct.
 
@@ -200,9 +200,9 @@ The following table lists every field that could serve as a sort key, where it c
 
 ### Meeting Sort (Surfaces 4 and 5)
 
-- REQ-SORT-10: Extract the inline meeting sort from `web/app/projects/[name]/page.tsx:54-60` into a named, exported function in `lib/meetings.ts`. The sort logic (open first, then date descending) is correct for the Meetings tab and should not change.
+- REQ-SORT-10: Extract the inline meeting sort from `apps/web/app/projects/[name]/page.tsx:54-60` into a named, exported function in `lib/meetings.ts`. The sort logic (open first, then date descending) is correct for the Meetings tab and should not change.
 
-- REQ-SORT-11: Extract the inline meeting request sort from `web/app/page.tsx:53-66` into a named, exported function in `lib/meetings.ts`. The sort logic (non-deferred first, deferred by `deferred_until` ascending, then date descending) is correct for the Pending Audiences surface and should not change.
+- REQ-SORT-11: Extract the inline meeting request sort from `apps/web/app/page.tsx:53-66` into a named, exported function in `lib/meetings.ts`. The sort logic (non-deferred first, deferred by `deferred_until` ascending, then date descending) is correct for the Pending Audiences surface and should not change.
 
 ### Commission Linked Artifacts (Surface 7)
 
@@ -214,7 +214,7 @@ The following table lists every field that could serve as a sort key, where it c
 
 - REQ-SORT-14: When `meta.date` is an empty string, the artifact sorts after artifacts with dates when date is the active sort axis. When `lastModified` is used (Surface 1), all artifacts have a valid `lastModified` (it comes from `fs.stat()`, not frontmatter), so this case does not arise for the dashboard feed.
 
-- REQ-SORT-15: When `meta.title` is an empty string, display title falls back to the filename stem (existing behavior in `lib/artifact-grouping.ts:25-32` and `web/components/dashboard/RecentArtifacts.tsx:19-26`). Sorting should use the same fallback: sort by display title, not raw `meta.title`. This means the sort function needs access to the display title derivation or uses `relativePath` as a tiebreaker (which is equivalent since filenames are unique within a directory).
+- REQ-SORT-15: When `meta.title` is an empty string, display title falls back to the filename stem (existing behavior in `lib/artifact-grouping.ts:25-32` and `apps/web/components/dashboard/RecentArtifacts.tsx:19-26`). Sorting should use the same fallback: sort by display title, not raw `meta.title`. This means the sort function needs access to the display title derivation or uses `relativePath` as a tiebreaker (which is equivalent since filenames are unique within a directory).
 
 - REQ-SORT-16: Mixed artifact types in a single list (e.g. specs, plans, retros, meetings in the project artifacts tab) sort uniformly by the same rules. The tree view handles type separation through directory structure. Within a single directory, all artifacts follow the same sort regardless of their "type" (which is implicit in the directory, not a frontmatter field).
 
@@ -225,10 +225,10 @@ The following table lists every field that could serve as a sort key, where it c
 | `lib/artifacts.ts` | `compareArtifacts()` update, new `compareArtifactsByRecency()` | REQ-SORT-4, REQ-SORT-5, REQ-SORT-7 |
 | `lib/artifact-grouping.ts` | `sortTreeLevel()` leaf sort behavior | REQ-SORT-6 |
 | `lib/meetings.ts` | New `sortMeetings()` and `sortMeetingRequests()` exports | REQ-SORT-10, REQ-SORT-11 |
-| `web/app/page.tsx` | Replace inline sort with `sortMeetingRequests()` call | REQ-SORT-11 |
-| `web/app/projects/[name]/page.tsx` | Replace inline sort with `sortMeetings()` call, update `recentArtifacts` usage | REQ-SORT-10 |
-| `web/components/dashboard/DependencyMap.tsx` | Remove duplicate `sortCommissions()`, import from `lib/commissions.ts` | REQ-SORT-8 |
-| `tests/lib/artifacts.test.ts` | Update tests for new status vocabulary, add recency sort tests | REQ-SORT-4, REQ-SORT-5 |
+| `apps/web/app/page.tsx` | Replace inline sort with `sortMeetingRequests()` call | REQ-SORT-11 |
+| `apps/web/app/projects/[name]/page.tsx` | Replace inline sort with `sortMeetings()` call, update `recentArtifacts` usage | REQ-SORT-10 |
+| `apps/web/components/dashboard/DependencyMap.tsx` | Remove duplicate `sortCommissions()`, import from `lib/commissions.ts` | REQ-SORT-8 |
+| `lib/tests/artifacts.test.ts` | Update tests for new status vocabulary, add recency sort tests | REQ-SORT-4, REQ-SORT-5 |
 
 ## Success Criteria
 

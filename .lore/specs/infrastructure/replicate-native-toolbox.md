@@ -8,7 +8,7 @@ related:
   - .lore/brainstorm/replicate-native-toolbox.md
   - .lore/research/replicate-image-generation-integration.md
   - packages/guild-hall-email/index.ts
-  - daemon/services/toolbox-types.ts
+  - apps/daemon/services/toolbox-types.ts
 req-prefix: RPL
 ---
 
@@ -36,7 +36,7 @@ The toolbox talks to Replicate's REST API directly in TypeScript. No MCP server 
 
 ### Package Structure
 
-- REQ-RPL-1: The package lives at `packages/guild-hall-replicate/` and follows the `guild-hall-email` pattern: `package.json` with `guildHall.type: "toolbox"`, `index.ts` exporting a `toolboxFactory` conforming to the `ToolboxFactory` type from `daemon/services/toolbox-types.ts`.
+- REQ-RPL-1: The package lives at `packages/guild-hall-replicate/` and follows the `guild-hall-email` pattern: `package.json` with `guildHall.type: "toolbox"`, `index.ts` exporting a `toolboxFactory` conforming to the `ToolboxFactory` type from `apps/daemon/services/toolbox-types.ts`.
 
 - REQ-RPL-2: The `package.json` declares:
   ```json
@@ -51,7 +51,7 @@ The toolbox talks to Replicate's REST API directly in TypeScript. No MCP server 
   }
   ```
 
-- REQ-RPL-3: Workers opt in by adding `"guild-hall-replicate"` to their `domainToolboxes` array in `package.json`. The toolbox resolver loads it through the standard `loadDomainToolbox` path at `daemon/services/toolbox-resolver.ts:148`.
+- REQ-RPL-3: Workers opt in by adding `"guild-hall-replicate"` to their `domainToolboxes` array in `package.json`. The toolbox resolver loads it through the standard `loadDomainToolbox` path at `apps/daemon/services/toolbox-resolver.ts:148`.
 
 ### Authentication and Two-State Factory
 
@@ -255,7 +255,7 @@ The toolbox talks to Replicate's REST API directly in TypeScript. No MCP server 
 
 ### Output Handling
 
-- REQ-RPL-17: Generated files are saved to `{worktree}/.lore/generated/`. The worktree path is derived from `deps.guildHallHome`, `deps.projectName`, and `deps.contextId` (all three are needed to construct the full worktree path, matching the pattern in `daemon/lib/toolbox-utils.ts`). The tool creates the directory if it doesn't exist.
+- REQ-RPL-17: Generated files are saved to `{worktree}/.lore/generated/`. The worktree path is derived from `deps.guildHallHome`, `deps.projectName`, and `deps.contextId` (all three are needed to construct the full worktree path, matching the pattern in `apps/daemon/lib/toolbox-utils.ts`). The tool creates the directory if it doesn't exist.
 
 - REQ-RPL-18: Output filenames follow the convention `{tool}-{timestamp}-{hash}.{ext}` where:
   - `tool` is the tool name (e.g. `generate_image`, `edit_image`)
@@ -305,7 +305,7 @@ The toolbox talks to Replicate's REST API directly in TypeScript. No MCP server 
 
 - REQ-RPL-27: The toolbox emits an event after each successful generation (image created, image edited, background removed, image upscaled). The event carries the tool name, model used, output file path(s), and cost estimate. `check_prediction` and `cancel_prediction` do not emit events; event emission happens only through the four generation tools.
 
-- REQ-RPL-28: The `deps.eventBus` is received from `GuildHallToolboxDeps` and used for event emission. The `SystemEvent` discriminated union in `daemon/lib/event-bus.ts` must be extended with a new variant for toolbox events. At minimum, add a `toolbox_replicate` event type carrying `{ action: string; tool: string; model: string; files: string[]; cost: string }` alongside the standard `projectName` and `contextId` fields.
+- REQ-RPL-28: The `deps.eventBus` is received from `GuildHallToolboxDeps` and used for event emission. The `SystemEvent` discriminated union in `apps/daemon/lib/event-bus.ts` must be extended with a new variant for toolbox events. At minimum, add a `toolbox_replicate` event type carrying `{ action: string; tool: string; model: string; files: string[]; cost: string }` alongside the standard `projectName` and `contextId` fields.
 
 ### Cost Tracking
 

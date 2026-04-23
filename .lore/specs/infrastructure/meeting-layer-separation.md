@@ -3,7 +3,7 @@ title: "Meeting Layer Separation"
 date: 2026-03-19
 status: implemented
 tags: [architecture, meetings, refactor, layer-separation, orchestrator]
-modules: [daemon/services/meeting/orchestrator, daemon/routes/meetings, daemon/services/briefing-generator, daemon/services/meeting/notes-generator]
+modules: [apps/daemon/services/meeting/orchestrator, apps/daemon/routes/meetings, apps/daemon/services/briefing-generator, apps/daemon/services/meeting/notes-generator]
 related:
   - .lore/brainstorm/meeting-layer-separation.md
   - .lore/retros/unified-sdk-runner.md
@@ -15,7 +15,7 @@ req-prefix: MTGL
 
 ## Overview
 
-The meeting orchestrator (`daemon/services/meeting/orchestrator.ts`, 1,552 lines) exceeds the project's 800-line investigation threshold. Unlike the commission service, meetings don't have five distinct concerns that justify five layers. The state machine is trivial (4 states, 3 transitions), the workspace and SDK runner layers are already shared, and record ops are already extracted.
+The meeting orchestrator (`apps/daemon/services/meeting/orchestrator.ts`, 1,552 lines) exceeds the project's 800-line investigation threshold. Unlike the commission service, meetings don't have five distinct concerns that justify five layers. The state machine is trivial (4 states, 3 transitions), the workspace and SDK runner layers are already shared, and record ops are already extracted.
 
 This spec defines three targeted extractions recommended by the brainstorm (`.lore/brainstorm/meeting-layer-separation.md`, Section 5), each scoped to minimize blast radius while resolving real coupling issues.
 
@@ -23,7 +23,7 @@ This spec defines three targeted extractions recommended by the brainstorm (`.lo
 
 - Orchestrator exceeds 800-line heuristic at 1,552 lines
 - `createMeetingSession` returns an anonymous object literal with no explicit interface, unlike the commission pattern where `CommissionSessionForRoutes` lives in the orchestrator module (commission/orchestrator.ts:95-142)
-- A `MeetingSessionForRoutes` interface exists in `daemon/routes/meetings.ts:26-47` but is incomplete: it omits `createMeetingRequest` and `getOpenMeetingsForProject`, which the orchestrator returns and `daemon/app.ts` uses
+- A `MeetingSessionForRoutes` interface exists in `apps/daemon/routes/meetings.ts:26-47` but is incomplete: it omits `createMeetingRequest` and `getOpenMeetingsForProject`, which the orchestrator returns and `apps/daemon/app.ts` uses
 - The `QueryOptions` re-export alias (orchestrator.ts:99) is marked with a TODO for removal, and has three consumers that should import from the canonical source
 
 ## Constraints
@@ -43,7 +43,7 @@ From brainstorm Section 4 (risk assessment):
 
 Move the public API interface to the orchestrator module and have the factory function explicitly return it. This makes the orchestrator's contract discoverable and prevents accidental method changes during future refactoring.
 
-- REQ-MTGL-1: Define a `MeetingSessionForRoutes` interface in `daemon/services/meeting/orchestrator.ts` that includes every method the orchestrator's factory currently returns:
+- REQ-MTGL-1: Define a `MeetingSessionForRoutes` interface in `apps/daemon/services/meeting/orchestrator.ts` that includes every method the orchestrator's factory currently returns:
   - `acceptMeetingRequest`
   - `createMeeting`
   - `createMeetingRequest`
@@ -58,37 +58,37 @@ Move the public API interface to the orchestrator module and have the factory fu
 
 - REQ-MTGL-2: The `createMeetingSession` function's return type must be explicitly annotated as `MeetingSessionForRoutes`. The anonymous object literal currently at orchestrator.ts:1539-1551 must satisfy this type.
 
-- REQ-MTGL-3: Remove the duplicate `MeetingSessionForRoutes` interface from `daemon/routes/meetings.ts`. Update `daemon/routes/meetings.ts` and its `MeetingRoutesDeps` type to import `MeetingSessionForRoutes` from `daemon/services/meeting/orchestrator`.
+- REQ-MTGL-3: Remove the duplicate `MeetingSessionForRoutes` interface from `apps/daemon/routes/meetings.ts`. Update `apps/daemon/routes/meetings.ts` and its `MeetingRoutesDeps` type to import `MeetingSessionForRoutes` from `apps/daemon/services/meeting/orchestrator`.
 
-- REQ-MTGL-4: Update all consumers that import `MeetingSessionForRoutes` from `daemon/routes/meetings` to import from `daemon/services/meeting/orchestrator`. Known consumers:
-  - `daemon/app.ts`
-  - `tests/daemon/routes/meetings.test.ts`
-  - `tests/daemon/routes/meetings-read.test.ts`
+- REQ-MTGL-4: Update all consumers that import `MeetingSessionForRoutes` from `apps/daemon/routes/meetings` to import from `apps/daemon/services/meeting/orchestrator`. Known consumers:
+  - `apps/daemon/app.ts`
+  - `apps/daemon/tests/routes/meetings.test.ts`
+  - `apps/daemon/tests/routes/meetings-read.test.ts`
 
 - REQ-MTGL-5: The interface must use the same method signatures as the current return object. No parameter or return type changes.
 
-- REQ-MTGL-6: Export `MeetingSessionForRoutes` so it's available to `daemon/app.ts` for the `AppDeps` type and to the commission orchestrator's `deps` typing. This formalizes the cross-boundary contract identified in brainstorm Open Question 2.
+- REQ-MTGL-6: Export `MeetingSessionForRoutes` so it's available to `apps/daemon/app.ts` for the `AppDeps` type and to the commission orchestrator's `deps` typing. This formalizes the cross-boundary contract identified in brainstorm Open Question 2.
 
 ### Phase 2: Remove Re-exports
 
 Clean up the backward-compatibility aliases that create coupling between the meeting orchestrator and internal SDK runner types.
 
-- REQ-MTGL-7: Remove the `QueryOptions` type alias re-export from `daemon/services/meeting/orchestrator.ts` (currently at line 99: `export type { SdkQueryOptions as QueryOptions }`).
+- REQ-MTGL-7: Remove the `QueryOptions` type alias re-export from `apps/daemon/services/meeting/orchestrator.ts` (currently at line 99: `export type { SdkQueryOptions as QueryOptions }`).
 
-- REQ-MTGL-8: Update all consumers to import `SdkQueryOptions` from the canonical source `@/daemon/lib/agent-sdk/sdk-runner`. Known consumers:
-  - `daemon/services/meeting/notes-generator.ts` (line 18)
-  - `daemon/services/briefing-generator.ts` (line 24)
-  - `tests/daemon/notes-generator.test.ts` (line 10)
+- REQ-MTGL-8: Update all consumers to import `SdkQueryOptions` from the canonical source `@/apps/daemon/lib/agent-sdk/sdk-runner`. Known consumers:
+  - `apps/daemon/services/meeting/notes-generator.ts` (line 18)
+  - `apps/daemon/services/briefing-generator.ts` (line 24)
+  - `apps/daemon/tests/notes-generator.test.ts` (line 10)
 
 - REQ-MTGL-9: The type name at import sites changes from `QueryOptions` to `SdkQueryOptions`. All usage sites must be updated to use the canonical name. No runtime behavior change.
 
-- REQ-MTGL-10: Remove the `ActiveMeetingEntry` re-export from `daemon/services/meeting/orchestrator.ts` (currently at line 98). Verify no consumers import it from the orchestrator (current check shows zero consumers; they already import from `@/daemon/services/meeting/registry`).
+- REQ-MTGL-10: Remove the `ActiveMeetingEntry` re-export from `apps/daemon/services/meeting/orchestrator.ts` (currently at line 98). Verify no consumers import it from the orchestrator (current check shows zero consumers; they already import from `@/apps/daemon/services/meeting/registry`).
 
 ### Phase 3: Extract Session Loop
 
-Extract `iterateSession` and `startSession` into `daemon/services/meeting/session-loop.ts`. These two functions (~120 lines combined) have the cleanest behavioral boundary: they take a meeting entry and SDK config, yield guild hall events, and handle transcript accumulation.
+Extract `iterateSession` and `startSession` into `apps/daemon/services/meeting/session-loop.ts`. These two functions (~120 lines combined) have the cleanest behavioral boundary: they take a meeting entry and SDK config, yield guild hall events, and handle transcript accumulation.
 
-- REQ-MTGL-11: Create `daemon/services/meeting/session-loop.ts` containing the `iterateSession` and `startSession` functions currently at orchestrator.ts:493-582.
+- REQ-MTGL-11: Create `apps/daemon/services/meeting/session-loop.ts` containing the `iterateSession` and `startSession` functions currently at orchestrator.ts:493-582.
 
 - REQ-MTGL-12: Convert closure-captured variables to explicit function parameters. The extracted functions currently capture from the factory closure:
   - `deps.queryFn` (the SDK query function)

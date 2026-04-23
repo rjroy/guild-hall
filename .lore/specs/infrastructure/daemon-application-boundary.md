@@ -72,7 +72,7 @@ Guild Hall's target architecture treats the daemon as the application. The daemo
 This spec uses specific terms to avoid confusion between Guild Hall concepts and Claude Code concepts:
 
 - **Operation**: A daemon-owned REST/CLI capability with a stable name, hierarchy position, and invocation contract. Exposed to humans through CLI commands and REST endpoints. Implemented as `OperationDefinition`/`OperationsRegistry`/`operationId` in the codebase.
-- **OperationsRegistry**: The daemon component that collects operation definitions from route factories and package-contributed operation factories, builds a navigation tree, and serves the help endpoints. Implemented in `daemon/lib/operations-registry.ts`.
+- **OperationsRegistry**: The daemon component that collects operation definitions from route factories and package-contributed operation factories, builds a navigation tree, and serves the help endpoints. Implemented in `apps/daemon/lib/operations-registry.ts`.
 - **MCP tool**: A tool provided to agents inside daemon-managed sessions through the toolbox resolver. The agent interaction mechanism.
 - **Claude Code skill**: A slash-command skill defined in a `.claude-plugin/` directory (SKILL.md files). These are Claude Code plugin artifacts, not daemon operations. Worker packages may include Claude Code skills via `domainPlugins`.
 

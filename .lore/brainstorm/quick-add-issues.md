@@ -111,7 +111,7 @@ Reuse `gitOps.commitAll` (the same function the write endpoint uses), with messa
 
 ## CLI Design
 
-The operations-registry pattern means a new daemon endpoint automatically becomes a CLI command via the existing routing in `cli/index.ts`. No CLI-specific code is needed beyond registering the operation.
+The operations-registry pattern means a new daemon endpoint automatically becomes a CLI command via the existing routing in `apps/cli/index.ts`. No CLI-specific code is needed beyond registering the operation.
 
 The CLI invocation:
 

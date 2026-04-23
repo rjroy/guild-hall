@@ -45,20 +45,20 @@ related:
 
 ### Phase 4 (Step 4): Transport descriptor type and lifecycle module refactoring
 - Dispatched: Implementation agent for socket.ts rename, TransportDescriptor type, port file lifecycle
-- Result: `daemon/lib/socket.ts` renamed to `daemon/lib/transport.ts` via git mv. `TransportDescriptor` discriminated union exported. Port file lifecycle functions (`getPortFilePath`, `writePortFile`, `removePortFile`, `cleanStalePort`) mirror socket file lifecycle. `idleTimeout: 0` pre-check on TCP passed.
+- Result: `apps/daemon/lib/socket.ts` renamed to `apps/daemon/lib/transport.ts` via git mv. `TransportDescriptor` discriminated union exported. Port file lifecycle functions (`getPortFilePath`, `writePortFile`, `removePortFile`, `cleanStalePort`) mirror socket file lifecycle. `idleTimeout: 0` pre-check on TCP passed.
 - Tests: 25 transport tests pass. Existing socket tests updated for cross-platform path assertions (path.join instead of hardcoded /).
 - Review: All 6 review checkpoints clean. Type is complete, port lifecycle mirrors socket lifecycle, no remaining old imports.
 
 ### Phase 5 (Step 5): Daemon binding platform branch
 - Dispatched: Combined with Steps 6-7 as tightly coupled changes
-- Result: `daemon/index.ts` now has platform branch. Windows: `Bun.serve({ port: 0, hostname: "127.0.0.1" })` with port file discovery. POSIX: `Bun.serve({ unix: socketPath })`. Both share `app.fetch`, `idleTimeout: 0`, `cleanupFiles` closure.
+- Result: `apps/daemon/index.ts` now has platform branch. Windows: `Bun.serve({ port: 0, hostname: "127.0.0.1" })` with port file discovery. POSIX: `Bun.serve({ unix: socketPath })`. Both share `app.fetch`, `idleTimeout: 0`, `cleanupFiles` closure.
 
 ### Phase 6 (Step 6): Transport discovery function
 - Result: `discoverTransport()` replaces duplicate `getSocketPath()` in `lib/daemon-client.ts`. File-based detection (socket file first, then port file). `TransportDescriptor` duplicated in lib/ (cannot import from daemon/).
 - Tests: 5 discovery tests (socket exists, port file exists, neither, non-numeric, precedence)
 
 ### Phase 7 (Step 7): Client functions use transport descriptor
-- Result: All 5 client functions (`daemonFetch`, `daemonFetchBinary`, `daemonStream`, `daemonStreamAsync`, `daemonHealth`) accept `transportOverride?: TransportDescriptor`. Cascade fix: `daemon/services/manager/toolbox.ts` updated.
+- Result: All 5 client functions (`daemonFetch`, `daemonFetchBinary`, `daemonStream`, `daemonStreamAsync`, `daemonHealth`) accept `transportOverride?: TransportDescriptor`. Cascade fix: `apps/daemon/services/manager/toolbox.ts` updated.
 - Tests: 32 daemon-client tests pass. TCP integration tests for all client functions added.
 - Review (Steps 5-7 combined): All 7 review checkpoints clean. Platform branch minimal, discovery file-based, SSE streaming tested on TCP, no POSIX regressions, all callers updated, TransportDescriptor types identical.
 
@@ -69,4 +69,4 @@ related:
 
 ## Divergence
 
-- `daemon/services/manager/toolbox.ts`: The plan did not mention this file, but it called the old `getSocketPath()` from `lib/daemon-client.ts` which was removed in Step 6. Updated to use `discoverTransport()` instead. This was a necessary cascade fix.
+- `apps/daemon/services/manager/toolbox.ts`: The plan did not mention this file, but it called the old `getSocketPath()` from `lib/daemon-client.ts` which was removed in Step 6. Updated to use `discoverTransport()` instead. This was a necessary cascade fix.

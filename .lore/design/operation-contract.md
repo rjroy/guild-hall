@@ -18,7 +18,7 @@ related:
 
 ## Problem
 
-Phase 5 of the DAB migration reorganized daemon routes into a capability-oriented grammar and added hand-written `help` endpoints at every hierarchy level (`daemon/routes/help.ts`). That structure works for navigation but has two problems:
+Phase 5 of the DAB migration reorganized daemon routes into a capability-oriented grammar and added hand-written `help` endpoints at every hierarchy level (`apps/daemon/routes/help.ts`). That structure works for navigation but has two problems:
 
 1. The help tree is a static data structure maintained separately from route handlers. Adding or modifying a route means updating both the route file and the help tree. They will drift.
 
@@ -160,7 +160,7 @@ Every route factory has the signature:
 function createXRoutes(deps: XDeps): Hono
 ```
 
-`createApp()` in `daemon/app.ts` calls each factory and mounts the result with `app.route("/", routes)`.
+`createApp()` in `apps/daemon/app.ts` calls each factory and mounts the result with `app.route("/", routes)`.
 
 ### Target state
 
@@ -219,7 +219,7 @@ export function createHealthRoutes(deps: HealthDeps): RouteModule {
 
 ### Factories to migrate
 
-All 11 factories in `daemon/routes/`:
+All 11 factories in `apps/daemon/routes/`:
 
 | Factory | File | Approximate skill count |
 |---------|------|------------------------|
@@ -240,7 +240,7 @@ Total: approximately 32 skills across the public API.
 ### `createApp` changes
 
 ```typescript
-// daemon/app.ts
+// apps/daemon/app.ts
 export function createApp(deps: AppDeps): Hono {
   const app = new Hono();
   const allSkills: SkillDefinition[] = [];
@@ -385,7 +385,7 @@ The static `HELP_TREE` in `help.ts` is deleted. The `HelpNode` interface, `build
 
 ### Registry location
 
-`daemon/lib/skill-registry.ts`. The registry is a daemon concern, not shared with the web layer. The web imports `SkillDefinition` from `lib/types.ts` for rendering, but the registry construction and querying logic stays in the daemon.
+`apps/daemon/lib/skill-registry.ts`. The registry is a daemon concern, not shared with the web layer. The web imports `SkillDefinition` from `lib/types.ts` for rendering, but the registry construction and querying logic stays in the daemon.
 
 ---
 
@@ -626,33 +626,33 @@ Verity also gets `readOnlyOnly: true` for the same reason. She's a researcher, n
 
 | File | Contents |
 |------|----------|
-| `daemon/lib/skill-registry.ts` | `SkillRegistry` interface, `createSkillRegistry()` function, `SkillTreeNode` type |
+| `apps/daemon/lib/skill-registry.ts` | `SkillRegistry` interface, `createSkillRegistry()` function, `SkillTreeNode` type |
 
 ### Files to modify
 
 | File | Change |
 |------|--------|
 | `lib/types.ts` | Add `SkillDefinition`, `SkillContext`, `SkillEligibility`, `RouteModule` types. Add optional `skillAccess` field to `WorkerMetadata`. |
-| `daemon/routes/help.ts` | Replace `HELP_TREE` and `HelpNode` with registry-driven queries. Change `createHelpRoutes()` signature to accept `SkillRegistry`. |
-| `daemon/routes/health.ts` | Return `RouteModule` instead of `Hono`. Add skills array. |
-| `daemon/routes/models.ts` | Same pattern. |
-| `daemon/routes/workers.ts` | Same pattern. |
-| `daemon/routes/events.ts` | Same pattern. |
-| `daemon/routes/config.ts` | Same pattern. |
-| `daemon/routes/admin.ts` | Same pattern. |
-| `daemon/routes/artifacts.ts` | Same pattern. |
-| `daemon/routes/commissions.ts` | Same pattern. |
-| `daemon/routes/meetings.ts` | Same pattern. |
-| `daemon/routes/briefing.ts` | Same pattern. |
-| `daemon/app.ts` | Collect `RouteModule` results, build registry, pass to help routes. Expose registry on return type. |
+| `apps/daemon/routes/help.ts` | Replace `HELP_TREE` and `HelpNode` with registry-driven queries. Change `createHelpRoutes()` signature to accept `SkillRegistry`. |
+| `apps/daemon/routes/health.ts` | Return `RouteModule` instead of `Hono`. Add skills array. |
+| `apps/daemon/routes/models.ts` | Same pattern. |
+| `apps/daemon/routes/workers.ts` | Same pattern. |
+| `apps/daemon/routes/events.ts` | Same pattern. |
+| `apps/daemon/routes/config.ts` | Same pattern. |
+| `apps/daemon/routes/admin.ts` | Same pattern. |
+| `apps/daemon/routes/artifacts.ts` | Same pattern. |
+| `apps/daemon/routes/commissions.ts` | Same pattern. |
+| `apps/daemon/routes/meetings.ts` | Same pattern. |
+| `apps/daemon/routes/briefing.ts` | Same pattern. |
+| `apps/daemon/app.ts` | Collect `RouteModule` results, build registry, pass to help routes. Expose registry on return type. |
 
 ### Migration order
 
 1. Add types to `lib/types.ts`.
-2. Create `daemon/lib/skill-registry.ts`.
+2. Create `apps/daemon/lib/skill-registry.ts`.
 3. Migrate route factories one at a time (each is independently testable).
-4. Update `daemon/app.ts` to collect skills and build registry.
-5. Rewrite `daemon/routes/help.ts` to use registry.
+4. Update `apps/daemon/app.ts` to collect skills and build registry.
+5. Rewrite `apps/daemon/routes/help.ts` to use registry.
 6. Delete the static `HELP_TREE`.
 
 Each step is independently verifiable with the existing test suite. The route handlers don't change behavior, only their return type wrapper changes. Help endpoints continue to return the same JSON structure, now from registry data instead of a static tree.

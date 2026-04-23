@@ -14,7 +14,7 @@ related:
 ## Context
 
 A `git show` returned 122MB of output during a worker session. The git-readonly toolbox
-(`daemon/services/git-readonly-toolbox.ts`) provides five MCP tools to workers who don't
+(`apps/daemon/services/git-readonly-toolbox.ts`) provides five MCP tools to workers who don't
 have Bash: `git_status`, `git_log`, `git_diff`, `git_show`, and `git_branch`. Every tool
 currently returns raw git output with no size limits, no binary filtering, and no noise
 exclusion. We have full control over these tools and can change what they return.

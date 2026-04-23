@@ -42,23 +42,23 @@ Requirements addressed:
 
 The infrastructure already supports model selection. The changes extend existing patterns rather than introducing new ones.
 
-**Existing model flow.** `ActivationResult.model` is `string | undefined` (`lib/types.ts:154`). `prepareSdkSession` passes `activation.model` through to `SdkQueryOptions` (`daemon/lib/agent-sdk/sdk-runner.ts:327`). The SDK runner already handles the model when present.
+**Existing model flow.** `ActivationResult.model` is `string | undefined` (`lib/types.ts:154`). `prepareSdkSession` passes `activation.model` through to `SdkQueryOptions` (`apps/daemon/lib/agent-sdk/sdk-runner.ts:327`). The SDK runner already handles the model when present.
 
-**Hardcoded "opus" in two places.** `packages/shared/worker-activation.ts:111` (all roster workers) and `daemon/services/manager/worker.ts:164` (Guild Master). Both return `model: "opus"` in `ActivationResult`. These are the only two sites that need to change from hardcoded to metadata-driven.
+**Hardcoded "opus" in two places.** `packages/shared/worker-activation.ts:111` (all roster workers) and `apps/daemon/services/manager/worker.ts:164` (Guild Master). Both return `model: "opus"` in `ActivationResult`. These are the only two sites that need to change from hardcoded to metadata-driven.
 
-**Briefing generator override pattern.** `daemon/services/briefing-generator.ts:401` overrides model via a direct spread: `{ ...prepResult.result.options, model: "sonnet" }`. This works but bypasses the `SessionPrepSpec.resourceOverrides` path that commissions use. REQ-MODEL-13 formalizes it.
+**Briefing generator override pattern.** `apps/daemon/services/briefing-generator.ts:401` overrides model via a direct spread: `{ ...prepResult.result.options, model: "sonnet" }`. This works but bypasses the `SessionPrepSpec.resourceOverrides` path that commissions use. REQ-MODEL-13 formalizes it.
 
-**Commission resource_overrides flow.** The commission orchestrator reads `resource_overrides` from the artifact frontmatter in `dispatchCommission` (`daemon/services/commission/orchestrator.ts:1385-1392`), builds a `resourceOverrides` object, and passes it to `SessionPrepSpec`. `prepareSdkSession` applies these overrides after activation (`sdk-runner.ts:313-314`). Model follows this same path.
+**Commission resource_overrides flow.** The commission orchestrator reads `resource_overrides` from the artifact frontmatter in `dispatchCommission` (`apps/daemon/services/commission/orchestrator.ts:1385-1392`), builds a `resourceOverrides` object, and passes it to `SessionPrepSpec`. `prepareSdkSession` applies these overrides after activation (`sdk-runner.ts:313-314`). Model follows this same path.
 
-**CommissionSessionForRoutes interface.** `createCommission` and `updateCommission` accept `resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number }`. This type needs `model?: string` added. The manager toolbox's `create_commission` tool schema (`daemon/services/manager/toolbox.ts:656-659`) mirrors this shape.
+**CommissionSessionForRoutes interface.** `createCommission` and `updateCommission` accept `resourceOverrides?: { maxTurns?: number; maxBudgetUsd?: number }`. This type needs `model?: string` added. The manager toolbox's `create_commission` tool schema (`apps/daemon/services/manager/toolbox.ts:656-659`) mirrors this shape.
 
 **Package validation.** `lib/packages.ts` uses Zod schemas (`workerMetadataSchema`, line 48-59) to validate `package.json` guildHall keys during discovery. The `model` field goes here with validation against the allowed list.
 
 **Worker roster UI.** No dedicated worker roster view exists in the web UI. The project page has tabs for artifacts, commissions, and meetings but not workers. REQ-MODEL-18 references the worker roster spec, which is draft. Implementation here is limited to whatever worker display currently exists (likely the dashboard or project header).
 
-**Commission UI.** Commission detail page (`web/app/projects/[name]/commissions/[id]/page.tsx`) reads `CommissionMeta` via `readCommissionMeta` and passes data to `CommissionHeader` and `CommissionView`. The `CommissionMeta` type (`lib/commissions.ts:19-35`) includes `resource_overrides` but not model specifically.
+**Commission UI.** Commission detail page (`apps/web/app/projects/[name]/commissions/[id]/page.tsx`) reads `CommissionMeta` via `readCommissionMeta` and passes data to `CommissionHeader` and `CommissionView`. The `CommissionMeta` type (`lib/commissions.ts:19-35`) includes `resource_overrides` but not model specifically.
 
-**Meeting UI.** Meeting detail page (`web/app/projects/[name]/meetings/[id]/page.tsx`) renders `MeetingView`. The model in use for a meeting is the worker's default, which requires looking up the worker package metadata.
+**Meeting UI.** Meeting detail page (`apps/web/app/projects/[name]/meetings/[id]/page.tsx`) renders `MeetingView`. The model in use for a meeting is the worker's default, which requires looking up the worker package metadata.
 
 ## Implementation Steps
 
@@ -133,7 +133,7 @@ All filesystem-loaded worker packages use this shared pattern. This single chang
 
 ### Step 4: Wire model through manager activation
 
-**Files**: `daemon/services/manager/worker.ts`
+**Files**: `apps/daemon/services/manager/worker.ts`
 **Addresses**: REQ-MODEL-2, REQ-MODEL-5, REQ-MODEL-6
 
 Two changes in this file:
@@ -156,7 +156,7 @@ The manager's metadata says `model: "opus"`, and `prepareSdkSession` will pass i
 
 ### Step 5: Add model to SessionPrepSpec.resourceOverrides and apply override in prepareSdkSession
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-MODEL-7, REQ-MODEL-8, REQ-MODEL-9, REQ-MODEL-11, REQ-MODEL-12
 
 Two changes in this file:
@@ -205,7 +205,7 @@ Meetings and mail sessions pass no `resourceOverrides.model`, so they automatica
 
 ### Step 6: Wire model through commission orchestrator
 
-**Files**: `daemon/services/commission/orchestrator.ts`, `lib/commissions.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`, `lib/commissions.ts`
 **Addresses**: REQ-MODEL-7, REQ-MODEL-10
 
 Three changes in the orchestrator:
@@ -256,7 +256,7 @@ For REQ-MODEL-10 (scheduled commissions): the scheduled commission spawner copie
 
 ### Step 7: Add model to manager toolbox create_commission tool
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 **Addresses**: REQ-MODEL-14 (partial, mechanism)
 
 Update the `create_commission` tool's Zod schema (around line 656) to include `model` in `resourceOverrides`:
@@ -285,7 +285,7 @@ Update the tool description to mention model selection:
 
 ### Step 8: Refactor briefing generator to use resourceOverrides.model
 
-**Files**: `daemon/services/briefing-generator.ts`
+**Files**: `apps/daemon/services/briefing-generator.ts`
 **Addresses**: REQ-MODEL-13
 
 In `generateWithFullSdk` (around line 372-401), replace the direct spread with `resourceOverrides.model`:
@@ -314,7 +314,7 @@ The model now flows through the standard `SessionPrepSpec.resourceOverrides` pat
 
 ### Step 9: Add model guidance to manager posture
 
-**Files**: `daemon/services/manager/worker.ts`
+**Files**: `apps/daemon/services/manager/worker.ts`
 **Addresses**: REQ-MODEL-14, REQ-MODEL-15
 
 Append model routing guidance to `MANAGER_POSTURE` (around line 45). Add a section after the existing dispatch guidance:
@@ -345,17 +345,17 @@ This step has three parts, each independent of the others.
 
 **Commission view (REQ-MODEL-16):**
 
-In `web/app/projects/[name]/commissions/[id]/page.tsx` (server component), the model is available in `commission.resource_overrides.model` (commission override) and through the worker's metadata (worker default). Determine the effective model: `commission.resource_overrides.model ?? workerDefaultModel ?? "opus"`.
+In `apps/web/app/projects/[name]/commissions/[id]/page.tsx` (server component), the model is available in `commission.resource_overrides.model` (commission override) and through the worker's metadata (worker default). Determine the effective model: `commission.resource_overrides.model ?? workerDefaultModel ?? "opus"`.
 
-Pass the resolved model as a prop to `CommissionHeader` (`web/components/commission/CommissionHeader.tsx`). Display it alongside the worker name and status badge, inside the existing metadata row. A simple text label is sufficient: "Model: haiku" or "Model: opus (default)". If the model was overridden from the worker's default, mark it with "(override)" to make cost implications visible.
+Pass the resolved model as a prop to `CommissionHeader` (`apps/web/components/commission/CommissionHeader.tsx`). Display it alongside the worker name and status badge, inside the existing metadata row. A simple text label is sufficient: "Model: haiku" or "Model: opus (default)". If the model was overridden from the worker's default, mark it with "(override)" to make cost implications visible.
 
 The worker's default model requires looking up the worker package. Since the commission page is a server component, this is a filesystem read via `discoverPackages` + `getWorkerByName` from `lib/packages.ts`. Add a helper that resolves the effective model for a commission given the worker name and `resource_overrides`.
 
 **Meeting view (REQ-MODEL-17):**
 
-In `web/app/projects/[name]/meetings/[id]/page.tsx` (server component), the model is the worker's default. The meeting artifact has a `worker` field. Look up the worker package metadata via `discoverPackages` + `getWorkerByName` to find its declared model (or fallback to "opus" if not declared).
+In `apps/web/app/projects/[name]/meetings/[id]/page.tsx` (server component), the model is the worker's default. The meeting artifact has a `worker` field. Look up the worker package metadata via `discoverPackages` + `getWorkerByName` to find its declared model (or fallback to "opus" if not declared).
 
-Pass the resolved model as a prop to `MeetingView` (`web/components/meeting/MeetingView.tsx`). Display it in the meeting header area, same pattern as commissions.
+Pass the resolved model as a prop to `MeetingView` (`apps/web/components/meeting/MeetingView.tsx`). Display it in the meeting header area, same pattern as commissions.
 
 **Worker roster (REQ-MODEL-18):**
 

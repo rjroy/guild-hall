@@ -41,19 +41,19 @@ Requirements addressed:
 
 ## Codebase Context
 
-**Daemon entry** (`daemon/index.ts:57-63`): `Bun.serve({ unix: socketPath, fetch, idleTimeout: 0 as never })`. Single server binding. The `as never` cast works around Bun's type for `idleTimeout`. Both `unix` and `port` paths use the same `Bun.serve()` interface.
+**Daemon entry** (`apps/daemon/index.ts:57-63`): `Bun.serve({ unix: socketPath, fetch, idleTimeout: 0 as never })`. Single server binding. The `as never` cast works around Bun's type for `idleTimeout`. Both `unix` and `port` paths use the same `Bun.serve()` interface.
 
-**Socket lifecycle** (`daemon/lib/socket.ts`): Six exported functions: `getSocketPath()`, `pidFilePathFor()`, `cleanStaleSocket()`, `writePidFile()`, `removePidFile()`, `removeSocketFile()`. The PID logic (`isProcessAlive`, `cleanStaleSocket`, `writePidFile`, `removePidFile`) is transport-agnostic. The socket-specific parts are `getSocketPath()`, `removeSocketFile()`, and the socket-specific naming in `cleanStaleSocket()`.
+**Socket lifecycle** (`apps/daemon/lib/socket.ts`): Six exported functions: `getSocketPath()`, `pidFilePathFor()`, `cleanStaleSocket()`, `writePidFile()`, `removePidFile()`, `removeSocketFile()`. The PID logic (`isProcessAlive`, `cleanStaleSocket`, `writePidFile`, `removePidFile`) is transport-agnostic. The socket-specific parts are `getSocketPath()`, `removeSocketFile()`, and the socket-specific naming in `cleanStaleSocket()`.
 
 **Client connectivity** (`lib/daemon-client.ts`): Four functions pass `{ socketPath }` to `http.request()`: `daemonFetch` (line 78), `daemonFetchBinary` (line 132), `daemonStream` (line 221), `daemonStreamAsync` (line 292). A duplicate `getSocketPath()` (line 33) exists here because `lib/` cannot import from `daemon/`. The `classifyError()` function already handles `ECONNREFUSED` and `ENOENT`, which covers both socket and TCP failure modes.
 
 **Home directory** (`lib/paths.ts:12-22`): `getGuildHallHome()` reads `process.env.HOME` directly. Falls back to nothing on Windows (throws). The `GUILD_HALL_HOME` override and `homeOverride` parameter are transport-independent.
 
-**Duplicate home function** (`daemon/services/meeting/notes-generator.ts:209-215`): `defaultGuildHallHome()` duplicates the `process.env.HOME` pattern. Should consolidate to use `getGuildHallHome()`.
+**Duplicate home function** (`apps/daemon/services/meeting/notes-generator.ts:209-215`): `defaultGuildHallHome()` duplicates the `process.env.HOME` pattern. Should consolidate to use `getGuildHallHome()`.
 
-**Shell dispatch** (`daemon/services/notification-service.ts:51-52`): `Bun.spawn(["sh", "-c", command], ...)`. Hardcoded POSIX shell. DI seam already exists (`dispatchShell` in `NotificationServiceDeps`), so the default just needs a platform branch.
+**Shell dispatch** (`apps/daemon/services/notification-service.ts:51-52`): `Bun.spawn(["sh", "-c", command], ...)`. Hardcoded POSIX shell. DI seam already exists (`dispatchShell` in `NotificationServiceDeps`), so the default just needs a platform branch.
 
-**Git worktree creation** (`daemon/lib/git.ts:239-241`): `createWorktree()` calls `runGit(repoPath, ["worktree", "add", worktreePath, branchName])`. No config flags passed. `core.longpaths` can be set via `git -c core.longpaths=true worktree add` or as a one-time config on the repo.
+**Git worktree creation** (`apps/daemon/lib/git.ts:239-241`): `createWorktree()` calls `runGit(repoPath, ["worktree", "add", worktreePath, branchName])`. No config flags passed. `core.longpaths` can be set via `git -c core.longpaths=true worktree add` or as a one-time config on the repo.
 
 **Test patterns**: DI everywhere, `fs.mkdtemp()` for temp dirs, `Bun.serve({ unix })` for integration tests in `daemon-client.test.ts`, `serveOnSocket()` helper with EPERM fallback in socket tests.
 
@@ -69,7 +69,7 @@ These three steps are independent. Each is a single commit that does not affect 
 
 ### Step 1: Replace process.env.HOME with os.homedir()
 
-**Files**: `lib/paths.ts`, `daemon/services/meeting/notes-generator.ts`, `tests/lib/paths.test.ts`
+**Files**: `lib/paths.ts`, `apps/daemon/services/meeting/notes-generator.ts`, `lib/tests/paths.test.ts`
 **Addresses**: REQ-WIN-11
 
 In `lib/paths.ts:getGuildHallHome()` (line 15), replace:
@@ -88,15 +88,15 @@ const home = os.homedir();
 
 The `os` import goes at the top of the file (line 1 area, alongside existing `node:fs/promises` and `node:path`). The resolution order stays the same: `homeOverride` first, then `GUILD_HALL_HOME`, then `os.homedir()`. The error message changes from "HOME environment variable is not set" to "Cannot determine home directory" (os.homedir() returns empty string on failure, not undefined).
 
-In `daemon/services/meeting/notes-generator.ts`, replace `defaultGuildHallHome()` (lines 209-215) with a call to `getGuildHallHome()` from `@/lib/paths`. This eliminates the duplicate. Add the import at the top of the file. The function is only called as a default parameter value in `createNotesGenerator()`, so the change is contained.
+In `apps/daemon/services/meeting/notes-generator.ts`, replace `defaultGuildHallHome()` (lines 209-215) with a call to `getGuildHallHome()` from `@/lib/paths`. This eliminates the duplicate. Add the import at the top of the file. The function is only called as a default parameter value in `createNotesGenerator()`, so the change is contained.
 
-**Tests** (`tests/lib/paths.test.ts`): Add a test that unsets `HOME` and `GUILD_HALL_HOME` from the environment, then calls `getGuildHallHome()`. On Linux, `os.homedir()` falls back to the passwd database when `HOME` is unset, so this test validates that the function no longer throws. It does not validate the Windows-specific `USERPROFILE` path (on Linux, `os.homedir()` never reads `USERPROFILE`).
+**Tests** (`lib/tests/paths.test.ts`): Add a test that unsets `HOME` and `GUILD_HALL_HOME` from the environment, then calls `getGuildHallHome()`. On Linux, `os.homedir()` falls back to the passwd database when `HOME` is unset, so this test validates that the function no longer throws. It does not validate the Windows-specific `USERPROFILE` path (on Linux, `os.homedir()` never reads `USERPROFILE`).
 
 The spec's success criterion "getGuildHallHome() resolves correctly when only USERPROFILE is set" is a Windows-only verification. On Linux CI, the test confirms the `os.homedir()` call path works, but the `USERPROFILE` scenario is manual-only until a Windows CI runner exists. Document this limitation in the test with a comment.
 
 ### Step 2: Platform-appropriate shell dispatch
 
-**Files**: `daemon/services/notification-service.ts`, `tests/daemon/services/notification-service.test.ts`
+**Files**: `apps/daemon/services/notification-service.ts`, `apps/daemon/tests/services/notification-service.test.ts`
 **Addresses**: REQ-WIN-12
 
 In `defaultDispatchShell()` (line 52), replace the hardcoded `["sh", "-c", command]` with a platform branch:
@@ -115,7 +115,7 @@ The DI seam (`dispatchShell` in `NotificationServiceDeps`) means tests already i
 
 ### Step 3: Git long paths and .gitattributes
 
-**Files**: `daemon/lib/git.ts`, `.gitattributes`, `tests/daemon/git.test.ts` (if worktree creation tests exist)
+**Files**: `apps/daemon/lib/git.ts`, `.gitattributes`, `apps/daemon/tests/git.test.ts` (if worktree creation tests exist)
 **Addresses**: REQ-WIN-13, REQ-WIN-14
 
 **`.gitattributes`** (new file in repo root):
@@ -126,7 +126,7 @@ The DI seam (`dispatchShell` in `NotificationServiceDeps`) means tests already i
 
 This is a one-line file. Commit it directly.
 
-**`core.longpaths`** in `daemon/lib/git.ts`: Set `core.longpaths` on the parent repo before worktree creation. The concern is path length during file checkout inside the worktree, not the `worktree add` command itself (which creates a directory, not deep file paths). However, setting it on the repo ensures it's inherited by all worktrees created from it, rather than requiring per-worktree config.
+**`core.longpaths`** in `apps/daemon/lib/git.ts`: Set `core.longpaths` on the parent repo before worktree creation. The concern is path length during file checkout inside the worktree, not the `worktree add` command itself (which creates a directory, not deep file paths). However, setting it on the repo ensures it's inherited by all worktrees created from it, rather than requiring per-worktree config.
 
 Modify the repo setup path (or `createWorktree` itself) to set the config unconditionally on the source repo:
 
@@ -156,12 +156,12 @@ Phase 1 is a coordinated change. Steps 4-8 must ship together. Two review checkp
 
 ### Step 4: Transport descriptor type and lifecycle module refactoring
 
-**Files**: `daemon/lib/socket.ts` (rename to `daemon/lib/transport.ts`), `daemon/index.ts` (import update), `tests/daemon/socket.test.ts` (rename to `tests/daemon/transport.test.ts`)
+**Files**: `apps/daemon/lib/socket.ts` (rename to `apps/daemon/lib/transport.ts`), `apps/daemon/index.ts` (import update), `apps/daemon/tests/socket.test.ts` (rename to `apps/daemon/tests/transport.test.ts`)
 **Addresses**: REQ-WIN-3, REQ-WIN-4, REQ-WIN-8, REQ-WIN-9
 
 This step defines the transport abstraction and refactors the lifecycle module. No client changes yet.
 
-**Transport descriptor type** (new export in `daemon/lib/transport.ts`):
+**Transport descriptor type** (new export in `apps/daemon/lib/transport.ts`):
 
 ```typescript
 export type TransportDescriptor =
@@ -171,7 +171,7 @@ export type TransportDescriptor =
 
 Both the daemon and client use this type. It lives in the transport module because it's the transport layer's vocabulary.
 
-**Module rename**: `daemon/lib/socket.ts` becomes `daemon/lib/transport.ts`. The file's scope expands from socket-only to transport-aware lifecycle management.
+**Module rename**: `apps/daemon/lib/socket.ts` becomes `apps/daemon/lib/transport.ts`. The file's scope expands from socket-only to transport-aware lifecycle management.
 
 **New constants**:
 
@@ -203,7 +203,7 @@ server.stop();
 
 If this fails, SSE keepalive becomes a separate concern (document in Open Questions). If it passes, proceed.
 
-**Tests**: Rename `tests/daemon/socket.test.ts` to `tests/daemon/transport.test.ts`. Keep all existing socket tests. Add new test groups:
+**Tests**: Rename `apps/daemon/tests/socket.test.ts` to `apps/daemon/tests/transport.test.ts`. Keep all existing socket tests. Add new test groups:
 
 - `getPortFilePath`: Returns correct path under given home.
 - `writePortFile` / `removePortFile`: Round-trip (write port number, read it back, remove, verify gone).
@@ -223,7 +223,7 @@ After Step 4 lands, dispatch a Thorne review. This is the transport abstraction 
 
 ### Step 5: Daemon binding platform branch
 
-**Files**: `daemon/index.ts`
+**Files**: `apps/daemon/index.ts`
 **Addresses**: REQ-WIN-1, REQ-WIN-2, REQ-WIN-3, REQ-WIN-4, REQ-WIN-5, REQ-WIN-7, REQ-WIN-10
 
 Replace the current `Bun.serve({ unix })` call (lines 57-63) with a platform branch:
@@ -310,7 +310,7 @@ REQ-WIN-5 (everything above transport unaffected): The `app.fetch` binding is th
 
 ### Step 6: Transport discovery function (shared)
 
-**Files**: `lib/daemon-client.ts`, `tests/lib/daemon-client.test.ts`
+**Files**: `lib/daemon-client.ts`, `lib/tests/daemon-client.test.ts`
 **Addresses**: REQ-WIN-6
 
 Replace the duplicate `getSocketPath()` in `lib/daemon-client.ts` (line 33) with a transport discovery function:
@@ -352,7 +352,7 @@ export function discoverTransport(homeOverride?: string): TransportDescriptor | 
 }
 ```
 
-The `TransportDescriptor` type is duplicated here from `daemon/lib/transport.ts` because `lib/` cannot import from `daemon/`. Both definitions are identical. This mirrors the existing `getSocketPath()` duplication pattern.
+The `TransportDescriptor` type is duplicated here from `apps/daemon/lib/transport.ts` because `lib/` cannot import from `daemon/`. Both definitions are identical. This mirrors the existing `getSocketPath()` duplication pattern.
 
 **Note on classifyError()**: The existing `classifyError()` already handles `ECONNREFUSED` (daemon not running) and `ENOENT` (socket file missing). For TCP, `ECONNREFUSED` still applies. `ENOENT` won't occur (TCP connections don't use filesystem paths), but the `socket_not_found` error type semantically covers "no discovery file found." Add handling for `discoverTransport()` returning null:
 
@@ -375,7 +375,7 @@ function noTransportError(): DaemonError {
 
 ### Step 7: Client functions use transport descriptor
 
-**Files**: `lib/daemon-client.ts`, `tests/lib/daemon-client.test.ts`
+**Files**: `lib/daemon-client.ts`, `lib/tests/daemon-client.test.ts`
 **Addresses**: REQ-WIN-6, REQ-WIN-7
 
 Refactor all four client functions to accept a `TransportDescriptor` instead of `socketPathOverride`. The `http.request` options change based on transport type:
@@ -411,9 +411,9 @@ Internal logic: Each function calls `discoverTransport()` when no override is pr
 
 The `daemonHealth()` function signature changes from `socketPathOverride?: string` to `transportOverride?: TransportDescriptor`.
 
-**Callers**: The four client functions (`daemonFetch`, `daemonFetchBinary`, `daemonStream`, `daemonStreamAsync`) are called from `web/` server components and `web/app/api/` route handlers. None of these callers pass a `socketPathOverride`; they all use the default discovery path. The `daemonHealth()` wrapper also takes `socketPathOverride` and passes it through; its callers likewise use the default.
+**Callers**: The four client functions (`daemonFetch`, `daemonFetchBinary`, `daemonStream`, `daemonStreamAsync`) are called from `web/` server components and `apps/web/app/api/` route handlers. None of these callers pass a `socketPathOverride`; they all use the default discovery path. The `daemonHealth()` wrapper also takes `socketPathOverride` and passes it through; its callers likewise use the default.
 
-The migration scope is therefore limited to the function signatures themselves: rename `socketPathOverride?: string` to `transportOverride?: TransportDescriptor` in the four functions and `daemonHealth()`. No caller code in `web/` or `cli/` changes. Test files that pass explicit socket paths (e.g., `tests/lib/daemon-client.test.ts`) must wrap them in `{ type: "unix", socketPath }` and add parallel `{ type: "tcp", ... }` test cases.
+The migration scope is therefore limited to the function signatures themselves: rename `socketPathOverride?: string` to `transportOverride?: TransportDescriptor` in the four functions and `daemonHealth()`. No caller code in `web/` or `cli/` changes. Test files that pass explicit socket paths (e.g., `lib/tests/daemon-client.test.ts`) must wrap them in `{ type: "unix", socketPath }` and add parallel `{ type: "tcp", ... }` test cases.
 
 **Tests**: The existing `daemon-client.test.ts` uses `Bun.serve({ unix })` integration tests. Add parallel `Bun.serve({ port: 0 })` tests that exercise the TCP path:
 
@@ -437,7 +437,7 @@ Launch a sub-agent that reads the spec at `.lore/specs/infrastructure/windows-na
 ### Phase 1 Review Checkpoint 2
 
 After Steps 5-7 land together, dispatch a Thorne review. This covers the daemon binding change and all client connectivity changes. The review should verify:
-- Platform branch in daemon/index.ts is minimal and correct
+- Platform branch in apps/daemon/index.ts is minimal and correct
 - Client discovery is file-based, not platform-based
 - SSE streaming tests cover the TCP path
 - No regressions in POSIX behavior
@@ -471,6 +471,6 @@ No specialized domain expertise needed beyond standard TypeScript/Bun developmen
 
 1. **Bun.serve({ port: 0 }) with idleTimeout: 0**: The spec requires verifying this works before writing transport code (REQ-WIN-7, AI Validation). Step 4 includes this pre-check. If it fails, SSE keepalive on TCP becomes an additional concern (periodic empty comments in the SSE stream as heartbeats).
 
-2. **Module rename ripple**: Renaming `daemon/lib/socket.ts` to `daemon/lib/transport.ts` (Step 4) updates imports in `daemon/index.ts` and the test file. Any other file that imports from `@/daemon/lib/socket` needs updating. Grep at implementation time. The rename should be a separate commit within the Step 4 work to keep the diff clean.
+2. **Module rename ripple**: Renaming `apps/daemon/lib/socket.ts` to `apps/daemon/lib/transport.ts` (Step 4) updates imports in `apps/daemon/index.ts` and the test file. Any other file that imports from `@/apps/daemon/lib/socket` needs updating. Grep at implementation time. The rename should be a separate commit within the Step 4 work to keep the diff clean.
 
 3. **`.gitattributes` line-ending normalization**: Adding `* text=auto eol=lf` (Step 3) may trigger line-ending normalization on files that were previously stored without it. The repo likely already uses LF consistently, but the implementer should verify `git status` is clean after committing the file and before moving on. If normalization creates spurious diffs, a one-time `git add --renormalize .` commit resolves them.

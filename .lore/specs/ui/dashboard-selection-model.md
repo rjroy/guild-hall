@@ -3,7 +3,7 @@ title: Dashboard selection model
 date: 2026-03-15
 status: implemented
 tags: [ux, ui, dashboard, project-selection, briefing, commission-filter]
-modules: [web/app/page, web/components/dashboard, web/components/commission, daemon/services/briefing-generator, daemon/routes/briefing, lib/config]
+modules: [apps/web/app/page, apps/web/components/dashboard, apps/web/components/commission, apps/daemon/services/briefing-generator, apps/daemon/routes/briefing, lib/config]
 related:
   - .lore/brainstorm/dashboard-selection-model.md
   - .lore/specs/ui/guild-hall-views.md

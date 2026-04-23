@@ -28,24 +28,24 @@ Requirements addressed:
 The rename touches five layers:
 
 **Core types and registry** (3 files to rename, 1 file to update):
-- `daemon/lib/skill-registry.ts` -> `operations-registry.ts`
-- `daemon/services/skill-loader.ts` -> `operations-loader.ts`
-- `daemon/services/skill-types.ts` -> `operation-types.ts`
+- `apps/daemon/lib/skill-registry.ts` -> `operations-registry.ts`
+- `apps/daemon/services/skill-loader.ts` -> `operations-loader.ts`
+- `apps/daemon/services/skill-types.ts` -> `operation-types.ts`
 - `lib/types.ts` -- `SkillDefinition`, `RouteModule.skills`, `SkillContext`
 
 **Agent injection code to remove** (1 file):
-- `daemon/lib/agent-sdk/sdk-runner.ts` -- "4b" block, `formatSkillDiscoveryContext()`, `isCommandAllowed()`, `SessionPrepDeps.skillRegistry`
+- `apps/daemon/lib/agent-sdk/sdk-runner.ts` -- "4b" block, `formatSkillDiscoveryContext()`, `isCommandAllowed()`, `SessionPrepDeps.skillRegistry`
 
 **Route factories and wiring** (12 files):
-- `daemon/routes/health.ts`, `admin.ts`, `artifacts.ts`, `briefing.ts`, `commissions.ts`, `config.ts`, `events.ts`, `git-lore.ts`, `meetings.ts`, `models.ts`, `workers.ts`
-- `daemon/routes/help.ts`, `package-skills.ts` -> `package-operations.ts`
-- `daemon/app.ts` -- imports, variable names, registry construction, late-binding removal
+- `apps/daemon/routes/health.ts`, `admin.ts`, `artifacts.ts`, `briefing.ts`, `commissions.ts`, `config.ts`, `events.ts`, `git-lore.ts`, `meetings.ts`, `models.ts`, `workers.ts`
+- `apps/daemon/routes/help.ts`, `package-skills.ts` -> `package-operations.ts`
+- `apps/daemon/app.ts` -- imports, variable names, registry construction, late-binding removal
 
 **CLI layer** (3 files + 2 test files):
-- `cli/resolve.ts` -- defines `CliSkill` interface with `skillId`, rename to `CliOperation` with `operationId`
-- `cli/format.ts` -- `formatSkillHelp()` -> `formatOperationHelp()`
-- `cli/index.ts` -- `fetchSkills()` -> `fetchOperations()`, response parsing
-- `tests/cli/resolve.test.ts`, `tests/cli/format.test.ts`
+- `apps/cli/resolve.ts` -- defines `CliSkill` interface with `skillId`, rename to `CliOperation` with `operationId`
+- `apps/cli/format.ts` -- `formatSkillHelp()` -> `formatOperationHelp()`
+- `apps/cli/index.ts` -- `fetchSkills()` -> `fetchOperations()`, response parsing
+- `apps/cli/tests/resolve.test.ts`, `apps/cli/tests/format.test.ts`
 
 **Wire format** (REST endpoints and JSON response fields):
 - `GET /help/skills` -> `GET /help/operations`
@@ -53,16 +53,16 @@ The rename touches five layers:
 - Response field `skillId` -> `operationId` throughout help endpoint responses
 
 **Manager toolbox** (string literals):
-- `daemon/services/manager/toolbox.ts` -- `[skillId: ...]` annotations in tool description strings -> `[operationId: ...]`
+- `apps/daemon/services/manager/toolbox.ts` -- `[skillId: ...]` annotations in tool description strings -> `[operationId: ...]`
 
 **Tests** (6 files to rename/update, 2 CLI test files):
-- `tests/daemon/services/skill-registry.test.ts` -> `operations-registry.test.ts`
-- `tests/daemon/services/skill-loader.test.ts` -> `operations-loader.test.ts`
-- `tests/daemon/services/skill-types.test.ts` -> `operation-types.test.ts`
-- `tests/daemon/routes/package-skills.test.ts` -> `package-operations.test.ts`
-- `tests/daemon/routes/help.test.ts`
-- `tests/daemon/app-skill-wiring.test.ts` -> `app-operations-wiring.test.ts`
-- `tests/cli/resolve.test.ts`, `tests/cli/format.test.ts`
+- `apps/daemon/tests/services/skill-registry.test.ts` -> `operations-registry.test.ts`
+- `apps/daemon/tests/services/skill-loader.test.ts` -> `operations-loader.test.ts`
+- `apps/daemon/tests/services/skill-types.test.ts` -> `operation-types.test.ts`
+- `apps/daemon/tests/routes/package-skills.test.ts` -> `package-operations.test.ts`
+- `apps/daemon/tests/routes/help.test.ts`
+- `apps/daemon/tests/app-skill-wiring.test.ts` -> `app-operations-wiring.test.ts`
+- `apps/cli/tests/resolve.test.ts`, `apps/cli/tests/format.test.ts`
 
 **Lore docs** (terminology updates):
 - `.lore/specs/infrastructure/cli-progressive-discovery.md` -- heaviest update (references retired REQs)
@@ -74,14 +74,14 @@ The rename touches five layers:
 
 ### Step 1: Remove agent-facing skill injection
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`, `daemon/app.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`, `apps/daemon/app.ts`
 
 Remove:
 - The "4b. Inject skill discovery context" block (sdk-runner.ts:430-436)
 - `formatSkillDiscoveryContext()` function (sdk-runner.ts:527-580)
 - `isCommandAllowed()` function (sdk-runner.ts:582-596)
 - `skillRegistry` field from `SessionPrepDeps` type (sdk-runner.ts:147-149)
-- Late-binding of `skillRegistry` in `daemon/app.ts` (lines 594-599)
+- Late-binding of `skillRegistry` in `apps/daemon/app.ts` (lines 594-599)
 - The `SkillRegistry` import in sdk-runner.ts (used only by the removed code)
 
 Do not remove the `SkillRegistry` type itself or its file yet; that's renamed in Step 3.
@@ -105,9 +105,9 @@ This will cause type errors across the codebase. That's expected; subsequent ste
 **Addresses**: REQ-DAB-18, REQ-DAB-19
 
 File renames:
-- `daemon/lib/skill-registry.ts` -> `daemon/lib/operations-registry.ts`
-- `daemon/services/skill-loader.ts` -> `daemon/services/operations-loader.ts`
-- `daemon/services/skill-types.ts` -> `daemon/services/operation-types.ts`
+- `apps/daemon/lib/skill-registry.ts` -> `apps/daemon/lib/operations-registry.ts`
+- `apps/daemon/services/skill-loader.ts` -> `apps/daemon/services/operations-loader.ts`
+- `apps/daemon/services/skill-types.ts` -> `apps/daemon/services/operation-types.ts`
 
 Within each file, rename all types and functions:
 - `SkillRegistry` -> `OperationsRegistry`
@@ -126,9 +126,9 @@ Within each file, rename all types and functions:
 - `SkillStreamEmitter` -> `OperationStreamEmitter`
 - `skillFactory` export name -> `operationFactory`
 
-### Step 4: Update daemon/app.ts
+### Step 4: Update apps/daemon/app.ts
 
-**Files**: `daemon/app.ts`
+**Files**: `apps/daemon/app.ts`
 
 Update:
 - Import paths to renamed files
@@ -148,27 +148,27 @@ These are mechanical: find `skills:` in the return object, rename to `operations
 
 ### Step 6: Update help routes and package routes
 
-**Files**: `daemon/routes/help.ts`, `daemon/routes/package-skills.ts`
+**Files**: `apps/daemon/routes/help.ts`, `apps/daemon/routes/package-skills.ts`
 **Addresses**: REQ-DAB-19
 
 - `help.ts`: Update imports and references to `OperationsRegistry`, `OperationTreeNode`. Rename wire format: `GET /help/skills` -> `GET /help/operations`. Update response body fields from `skills` to `operations` and `skillId` to `operationId` throughout all help endpoint JSON responses.
 - `package-skills.ts` -> `package-operations.ts`: Rename file and update all internal references (`PackageSkill` -> `PackageOperation`, etc.)
-- Update `daemon/app.ts` import of package route module
+- Update `apps/daemon/app.ts` import of package route module
 
 ### Step 7: Update CLI layer
 
-**Files**: `cli/resolve.ts`, `cli/format.ts`, `cli/index.ts`
+**Files**: `apps/cli/resolve.ts`, `apps/cli/format.ts`, `apps/cli/index.ts`
 **Addresses**: REQ-DAB-18, REQ-DAB-19
 
-- `cli/resolve.ts`: `CliSkill` -> `CliOperation`, `skillId` -> `operationId` in the interface and all usages
-- `cli/format.ts`: `formatSkillHelp()` -> `formatOperationHelp()`, `suggestCommand()` parameter types
-- `cli/index.ts`: `fetchSkills()` -> `fetchOperations()`, update `GET /help/skills` to `GET /help/operations`, update response field parsing from `skills` to `operations`
+- `apps/cli/resolve.ts`: `CliSkill` -> `CliOperation`, `skillId` -> `operationId` in the interface and all usages
+- `apps/cli/format.ts`: `formatSkillHelp()` -> `formatOperationHelp()`, `suggestCommand()` parameter types
+- `apps/cli/index.ts`: `fetchSkills()` -> `fetchOperations()`, update `GET /help/skills` to `GET /help/operations`, update response field parsing from `skills` to `operations`
 
 These files define `CliSkill` locally (not imported from `lib/types.ts`), so typecheck will not catch missed references. Use grep after completing this step.
 
 ### Step 8: Update manager toolbox string literals
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 
 Update `[skillId: ...]` annotations in tool description strings to `[operationId: ...]`. These are string content, not TypeScript identifiers. Typecheck and lint will not catch them. Search for "skillId" in string literals within this file.
 
@@ -177,14 +177,14 @@ Update `[skillId: ...]` annotations in tool description strings to `[operationId
 **Files**: 8 test files
 
 Rename test files to match source file renames:
-- `tests/daemon/services/skill-registry.test.ts` -> `operations-registry.test.ts`
-- `tests/daemon/services/skill-loader.test.ts` -> `operations-loader.test.ts`
-- `tests/daemon/services/skill-types.test.ts` -> `operation-types.test.ts`
-- `tests/daemon/routes/package-skills.test.ts` -> `package-operations.test.ts`
-- `tests/daemon/app-skill-wiring.test.ts` -> `app-operations-wiring.test.ts`
-- `tests/daemon/routes/help.test.ts` -- update imports and wire format assertions only (no rename)
-- `tests/cli/resolve.test.ts` -- update type names and field references
-- `tests/cli/format.test.ts` -- update function names and type references
+- `apps/daemon/tests/services/skill-registry.test.ts` -> `operations-registry.test.ts`
+- `apps/daemon/tests/services/skill-loader.test.ts` -> `operations-loader.test.ts`
+- `apps/daemon/tests/services/skill-types.test.ts` -> `operation-types.test.ts`
+- `apps/daemon/tests/routes/package-skills.test.ts` -> `package-operations.test.ts`
+- `apps/daemon/tests/app-skill-wiring.test.ts` -> `app-operations-wiring.test.ts`
+- `apps/daemon/tests/routes/help.test.ts` -- update imports and wire format assertions only (no rename)
+- `apps/cli/tests/resolve.test.ts` -- update type names and field references
+- `apps/cli/tests/format.test.ts` -- update function names and type references
 
 Within each, update imports, type references, and variable names. Check whether any tests covered `formatSkillDiscoveryContext` or `isCommandAllowed`; remove those tests since the functions are deleted in Step 1.
 
@@ -220,7 +220,7 @@ grep -r "SkillDefinition\|SkillRegistry\|skillFactory\|CliSkill\|skillId\|RouteM
 
 If any hits remain, fix them. Then run typecheck and tests again.
 
-Launch a sub-agent to read the DAB spec and spot-check renamed files for consistency between spec terminology and code naming. The sub-agent should specifically check the CLI layer (`cli/resolve.ts`, `cli/index.ts`) since that layer is self-contained and won't produce type errors if missed.
+Launch a sub-agent to read the DAB spec and spot-check renamed files for consistency between spec terminology and code naming. The sub-agent should specifically check the CLI layer (`apps/cli/resolve.ts`, `apps/cli/index.ts`) since that layer is self-contained and won't produce type errors if missed.
 
 ## Delegation Guide
 

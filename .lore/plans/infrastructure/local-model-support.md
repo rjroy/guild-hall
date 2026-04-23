@@ -152,7 +152,7 @@ models: z.array(modelDefinitionSchema).optional().superRefine((models, ctx) => {
 
 Note: `VALID_MODELS` must be imported from `lib/types.ts`. Watch for a circular import (`lib/types.ts` imports from `lib/config.ts` is fine; the reverse direction is what would create a cycle). The current `lib/config.ts` imports types from `lib/types.ts` at line 7, which is the correct direction.
 
-**Tests** (`tests/lib/config.test.ts`):
+**Tests** (`lib/tests/config.test.ts`):
 - Valid model definition parses correctly
 - Model name matching a built-in (`"opus"`) is rejected
 - Model name with invalid characters (`"my:model"`, `"has space"`) is rejected
@@ -217,7 +217,7 @@ export function isValidModel(value: string, config?: AppConfig): boolean {
 
 The existing `isValidModel` signature (`value: string): value is ModelName`) must change. The return type can no longer be `value is ModelName` because local model names are not `ModelName`. Change to `boolean`. Any call site that used the type predicate form needs review (there are few; the main ones are the Zod refine in `workerMetadataSchema` and the orchestrator dispatch check).
 
-**Tests** (`tests/lib/types.test.ts` or new `tests/lib/model-resolution.test.ts`):
+**Tests** (`lib/tests/types.test.ts` or new `lib/tests/model-resolution.test.ts`):
 - `resolveModel("opus")` → `{ type: "builtin", name: "opus" }`
 - `resolveModel("llama3", configWithLlama3)` → `{ type: "local", definition: ... }`
 - `resolveModel("unknown")` throws with message containing "Unknown model"
@@ -229,7 +229,7 @@ The existing `isValidModel` signature (`value: string): value is ModelName`) mus
 
 ### Step 3: SDK session env injection and reachability check
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-LOCAL-10, REQ-LOCAL-11, REQ-LOCAL-12, REQ-LOCAL-13, REQ-LOCAL-14, REQ-LOCAL-15, REQ-LOCAL-16, REQ-LOCAL-18
 **Depends on**: Step 2
 
@@ -311,7 +311,7 @@ Any HTTP response (including 4xx or 5xx) counts as reachable — a server that's
 
 REQ-LOCAL-18 (error prefix for local model failures) is partially covered: the `{ ok: false }` return from the reachability check includes the model name and URL. Mid-session failures (REQ-LOCAL-16) come from the SDK's error path and naturally include connection-level details; no additional wrapping is needed because the session type and model context are already in commission logs.
 
-**Tests** (`tests/daemon/lib/agent-sdk/sdk-runner.test.ts`):
+**Tests** (`apps/daemon/lib/tests/agent-sdk/sdk-runner.test.ts`):
 - Local model sessions: `options.env` contains `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`
 - Built-in model sessions: `options.env` is absent
 - Local model session: `options.model` is set to `definition.modelId`, not `definition.name`
@@ -368,7 +368,7 @@ export function validatePackageModels(
 
 The function is called from `createProductionApp` after `discoverPackages` (Step 8). It is not called inside `discoverPackages` itself to preserve its current signature and avoid coupling package discovery to config loading.
 
-**Tests** (`tests/lib/packages.test.ts`):
+**Tests** (`lib/tests/packages.test.ts`):
 - Worker with `model: "haiku"` passes validation with any config
 - Worker with `model: "llama3"` passes validation when config includes a `"llama3"` definition
 - Worker with `model: "llama3"` is filtered and logged when config has no `"llama3"` definition
@@ -377,7 +377,7 @@ The function is called from `createProductionApp` after `discoverPackages` (Step
 
 ### Step 5: Commission orchestrator — local model validation at dispatch
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-LOCAL-19, REQ-LOCAL-21
 **Depends on**: Step 2
 
@@ -411,13 +411,13 @@ Also import `resolveModel` from `@/lib/types` if needed for future use (not stri
 
 ### Step 6: Manager toolbox — local model validation
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 **Addresses**: REQ-LOCAL-20
 **Depends on**: Step 2
 
 Three changes:
 
-**Add `config` to the toolbox deps.** The `GuildHallToolServices` type is defined at `daemon/lib/toolbox-utils.ts:28-34` with fields: `commissionSession`, `gitOps`, `scheduleLifecycle?`, `recordOps?`, `packages?`. Add `config: AppConfig` to this type. The services object is constructed in **two** places that both need updating:
+**Add `config` to the toolbox deps.** The `GuildHallToolServices` type is defined at `apps/daemon/lib/toolbox-utils.ts:28-34` with fields: `commissionSession`, `gitOps`, `scheduleLifecycle?`, `recordOps?`, `packages?`. Add `config: AppConfig` to this type. The services object is constructed in **two** places that both need updating:
 1. Commission orchestrator at `orchestrator.ts:1726-1734`
 2. Meeting orchestrator at `meeting/orchestrator.ts:470-478`
 
@@ -457,7 +457,7 @@ The page component needs access to `AppConfig` (for `config.models`). Since it's
 
 ### Step 8: Daemon wiring — package validation and model validation in production startup
 
-**Files**: `daemon/app.ts`
+**Files**: `apps/daemon/app.ts`
 **Addresses**: REQ-LOCAL-22 (automatic via env injection), REQ-LOCAL-23 (wires Step 4)
 **Depends on**: Steps 4, 6
 
@@ -479,15 +479,15 @@ const discoveredPackages = validatePackageModels(rawPackages, config);
 
 This applies the config-aware model check to all discovered packages before prepending the manager package. Workers with unconfigured local model names are dropped here.
 
-**Add `config` to the services bag** passed to the orchestrator and through to the manager toolbox (supporting Step 6). The orchestrator's `CommissionOrchestratorDeps` already has `config`; the services object assembled at `orchestrator.ts:1726-1734` is what needs updating. Add `config` to the `GuildHallToolServices` type (in `daemon/lib/toolbox-utils.ts` or wherever it's defined) and include it in the production services bag.
+**Add `config` to the services bag** passed to the orchestrator and through to the manager toolbox (supporting Step 6). The orchestrator's `CommissionOrchestratorDeps` already has `config`; the services object assembled at `orchestrator.ts:1726-1734` is what needs updating. Add `config` to the `GuildHallToolServices` type (in `apps/daemon/lib/toolbox-utils.ts` or wherever it's defined) and include it in the production services bag.
 
 ### Step 9: /models endpoint
 
-**Files**: `daemon/routes/models.ts` (new), `daemon/app.ts`
+**Files**: `apps/daemon/routes/models.ts` (new), `apps/daemon/app.ts`
 **Addresses**: REQ-LOCAL-29, REQ-LOCAL-30
 **Depends on**: Step 1
 
-**Create `daemon/routes/models.ts`**:
+**Create `apps/daemon/routes/models.ts`**:
 
 ```typescript
 import { Hono } from "hono";
@@ -529,7 +529,7 @@ export function createModelsRoutes(deps: ModelsRouteDeps): Hono {
 
 The 1-second timeout (vs 5 seconds for session start) is per REQ-LOCAL-29: this is a dashboard health check, not a blocking session gate.
 
-**Wire into `createApp` and `createProductionApp`** in `daemon/app.ts`. Add `modelsConfig?: AppConfig` to `AppDeps`, mount the route when present, and pass `config` in `createProductionApp`.
+**Wire into `createApp` and `createProductionApp`** in `apps/daemon/app.ts`. Add `modelsConfig?: AppConfig` to `AppDeps`, mount the route when present, and pass `config` in `createProductionApp`.
 
 **Tests**: Verify response shape. Mock the fetch calls: local server up → `reachable: true`, connection refused → `reachable: false`. Verify built-in models always appear in the response.
 
@@ -598,7 +598,7 @@ Questions from the draft plan, verified against the codebase during the meeting 
 
 **resolvedModel guard.** Verified. Already guarded via conditional spread at `sdk-runner.ts:327`: `...(resolvedModel ? { model: resolvedModel } : {})`. The injection code in Step 3 should call `resolveModel()` inside the same truthiness check. Confirmed safe.
 
-**GuildHallToolServices.** Verified. Type defined at `daemon/lib/toolbox-utils.ts:28-34`. Five fields: `commissionSession`, `gitOps`, `scheduleLifecycle?`, `recordOps?`, `packages?`. Constructed in two places: commission orchestrator (`orchestrator.ts:1726-1734`) and meeting orchestrator (`meeting/orchestrator.ts:470-478`). Both need `config` added. Updated in Step 6.
+**GuildHallToolServices.** Verified. Type defined at `apps/daemon/lib/toolbox-utils.ts:28-34`. Five fields: `commissionSession`, `gitOps`, `scheduleLifecycle?`, `recordOps?`, `packages?`. Constructed in two places: commission orchestrator (`orchestrator.ts:1726-1734`) and meeting orchestrator (`meeting/orchestrator.ts:470-478`). Both need `config` added. Updated in Step 6.
 
 **Circular import.** Verified safe. `lib/config.ts` imports from `lib/types.ts` (one-way). `lib/types.ts` imports only from `@anthropic-ai/claude-agent-sdk`. Adding `resolveModel()` to `lib/types.ts` with `AppConfig` (already defined there) creates no cycle.
 

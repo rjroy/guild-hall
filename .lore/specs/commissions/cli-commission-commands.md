@@ -3,7 +3,7 @@ title: CLI Commission Commands
 date: 2026-03-20
 status: implemented
 tags: [cli, commissions, lifecycle, daemon-client, operations]
-modules: [cli, daemon/routes/commissions]
+modules: [cli, apps/daemon/routes/commissions]
 related:
   - .lore/specs/infrastructure/cli-progressive-discovery.md
   - .lore/specs/infrastructure/daemon-application-boundary.md
@@ -44,7 +44,7 @@ This spec defines what the CLI commission experience should be: which operations
 
 - REQ-CLI-COM-1: Every commission operation definition must declare all parameters that the route handler requires for a valid request. The CLI depends on these declarations to map positional arguments to request fields. An undeclared required parameter means the CLI sends an incomplete request that the daemon rejects.
 
-  Current gaps (verified against `daemon/routes/commissions.ts`):
+  Current gaps (verified against `apps/daemon/routes/commissions.ts`):
 
   | Operation | Currently declared | Missing |
   |-----------|-------------------|---------|
@@ -77,7 +77,7 @@ This spec defines what the CLI commission experience should be: which operations
 
 - REQ-CLI-COM-4: The list operation definition declares `status` and `worker` as optional query parameters with `in: "query"`. The CLI's `buildQueryString` maps positional arguments to these. Invocation: `guild-hall commission request commission list <projectName> [status] [worker]`.
 
-  The CLI omits empty-string positional arguments from the query string rather than sending them as empty values. This lets users skip `status` to filter by worker only: `guild-hall commission request commission list myproject "" guild-hall-developer`. The empty string for `status` is dropped, and only `worker` is sent. This requires a small change to `buildQueryString` in `cli/resolve.ts` to skip empty values.
+  The CLI omits empty-string positional arguments from the query string rather than sending them as empty values. This lets users skip `status` to filter by worker only: `guild-hall commission request commission list myproject "" guild-hall-developer`. The empty string for `status` is dropped, and only `worker` is sent. This requires a small change to `buildQueryString` in `apps/cli/resolve.ts` to skip empty values.
 
   Future work could add named flags (`--status=halted --worker=guild-hall-developer`), but that requires CLI infrastructure changes outside this spec's scope.
 
@@ -151,7 +151,7 @@ This spec defines what the CLI commission experience should be: which operations
 
 - REQ-CLI-COM-15: All error output goes to stderr. The exit code is 1 for any error. This matches the existing CLI error handling pattern.
 
-- REQ-CLI-COM-15a: When required positional arguments are missing, the CLI prints an error naming the missing parameter(s) and a usage line showing the full command with `<required>` and `[optional]` placeholders. This behavior already exists in `validateArgs` at `cli/resolve.ts:133-148` and applies to all operations, including commission operations, without commission-specific code.
+- REQ-CLI-COM-15a: When required positional arguments are missing, the CLI prints an error naming the missing parameter(s) and a usage line showing the full command with `<required>` and `[optional]` placeholders. This behavior already exists in `validateArgs` at `apps/cli/resolve.ts:133-148` and applies to all operations, including commission operations, without commission-specific code.
 
 ### Operation Priority
 
@@ -238,7 +238,7 @@ This spec defines what the CLI commission experience should be: which operations
 
 ## Context
 
-The CLI already works as a thin daemon client (`.lore/specs/infrastructure/cli-progressive-discovery.md`). It fetches operation definitions from `GET /help/operations`, resolves commands via greedy longest-prefix match (`cli/resolve.ts`), and formats responses generically (`cli/format.ts`). Commission operations are already registered in the daemon's `OperationsRegistry` via `daemon/routes/commissions.ts`.
+The CLI already works as a thin daemon client (`.lore/specs/infrastructure/cli-progressive-discovery.md`). It fetches operation definitions from `GET /help/operations`, resolves commands via greedy longest-prefix match (`apps/cli/resolve.ts`), and formats responses generically (`apps/cli/format.ts`). Commission operations are already registered in the daemon's `OperationsRegistry` via `apps/daemon/routes/commissions.ts`.
 
 The gap this spec addresses is not "commission commands don't exist" but "commission commands don't work well enough for terminal use." The operations are discoverable and theoretically invocable, but incomplete parameter declarations prevent the CLI from constructing valid requests, and the generic formatter doesn't produce useful output for commission data.
 

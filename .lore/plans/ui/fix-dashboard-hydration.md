@@ -3,7 +3,7 @@ title: Fix Dashboard Hydration Mismatch
 date: 2026-03-10
 status: executed
 tags: [ui, next-js, hydration, bug-fix]
-modules: [web/app/page, web/components/dashboard]
+modules: [apps/web/app/page, apps/web/components/dashboard]
 related:
   - .lore/issues/hydration-error-dashboard.md
 ---
@@ -16,7 +16,7 @@ Eliminate the React hydration error that fires on every dashboard page load. The
 
 ## Investigation Summary
 
-Every component in the dashboard render tree was examined for non-deterministic rendering between server and client. The dashboard page (`web/app/page.tsx`) is a server component that renders five child components:
+Every component in the dashboard render tree was examined for non-deterministic rendering between server and client. The dashboard page (`apps/web/app/page.tsx`) is a server component that renders five child components:
 
 | Component | Type | Date/Time Rendering | Hydration Risk |
 |-----------|------|-------------------|----------------|
@@ -56,7 +56,7 @@ If the error is:
 
 ### Strategy A: Date/Time Value Mismatch
 
-**Most likely candidate: `ManagerBriefing.tsx`** (`web/components/dashboard/ManagerBriefing.tsx`)
+**Most likely candidate: `ManagerBriefing.tsx`** (`apps/web/components/dashboard/ManagerBriefing.tsx`)
 
 The `formatRelativeTime` function at line 20 uses `Date.now()` and `new Date()`. While this only executes after the `useEffect` fetch completes (which is after hydration), there is a subtle risk: if the briefing API responds before React finishes hydrating (possible with fast local daemon responses), the state update could race with hydration.
 
@@ -116,7 +116,7 @@ Regardless of the specific mismatch found, apply these defensive changes to prev
 
 Even if this isn't the current culprit, it's a latent risk. The `formatRelativeTime` call uses `Date.now()`, which produces a different value on server vs. client. Today it's protected by `useEffect` timing, but that's fragile.
 
-**File**: `web/components/dashboard/ManagerBriefing.tsx:112-114`
+**File**: `apps/web/components/dashboard/ManagerBriefing.tsx:112-114`
 
 ```tsx
 <span className={styles.timestamp} suppressHydrationWarning>
@@ -140,9 +140,9 @@ During investigation, locale-sensitive date formatting was found in three compon
 
 | Component | File | Issue |
 |-----------|------|-------|
-| `CommissionList` | `web/components/commission/CommissionList.tsx:34-47` | `toLocaleDateString("en-US")` and `toLocaleTimeString("en-US")` in a server component. Currently safe because locale is pinned to "en-US", but `new Date()` at line 29 for `sameYear` check is time-dependent |
-| `CommissionScheduleInfo` | `web/components/commission/CommissionScheduleInfo.tsx:97-98` | `toLocaleString(undefined, ...)` in a client component. Uses browser default locale, which will differ from server |
-| `CommissionTimeline` | `web/components/commission/CommissionTimeline.tsx:235-236` | `toLocaleTimeString(undefined, ...)` in a client component. Same locale issue |
+| `CommissionList` | `apps/web/components/commission/CommissionList.tsx:34-47` | `toLocaleDateString("en-US")` and `toLocaleTimeString("en-US")` in a server component. Currently safe because locale is pinned to "en-US", but `new Date()` at line 29 for `sameYear` check is time-dependent |
+| `CommissionScheduleInfo` | `apps/web/components/commission/CommissionScheduleInfo.tsx:97-98` | `toLocaleString(undefined, ...)` in a client component. Uses browser default locale, which will differ from server |
+| `CommissionTimeline` | `apps/web/components/commission/CommissionTimeline.tsx:235-236` | `toLocaleTimeString(undefined, ...)` in a client component. Same locale issue |
 
 These are separate issues (not on the dashboard) and should be tracked in their own issue if they produce hydration errors on their respective pages.
 
@@ -176,7 +176,7 @@ If the fix is `suppressHydrationWarning` only, no new tests are needed. The attr
 
 ### Regression prevention
 
-Add a comment to `web/components/dashboard/README.md` (or inline in `page.tsx`) documenting the hydration constraint:
+Add a comment to `apps/web/components/dashboard/README.md` (or inline in `page.tsx`) documenting the hydration constraint:
 
 > Dashboard client components must have deterministic initial renders. No `Date.now()`, `new Date()`, `Math.random()`, `toLocaleString()`, or browser API calls in the render path. Time-dependent values belong in `useEffect` or behind `suppressHydrationWarning`.
 

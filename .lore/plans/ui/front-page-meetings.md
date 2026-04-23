@@ -3,7 +3,7 @@ title: "Front-Page Active Meetings"
 date: 2026-04-03
 status: executed 
 tags: [ui, dashboard, meetings, web-ui, daemon]
-modules: [web/app/page, web/app/page.module.css, web/components/dashboard/ActiveMeetings, web/components/dashboard/ActiveMeetingCard, daemon/routes/meetings, lib/meetings]
+modules: [apps/web/app/page, apps/web/app/page.module.css, apps/web/components/dashboard/ActiveMeetings, apps/web/components/dashboard/ActiveMeetingCard, apps/daemon/routes/meetings, lib/meetings]
 related:
   - .lore/specs/front-page-meetings.md
   - .lore/specs/meetings/guild-hall-meetings.md
@@ -16,11 +16,11 @@ related:
 
 Add an `ActiveMeetings` panel to the dashboard above `PendingAudiences`. The panel surfaces all open-status meetings across projects so the manager doesn't have to navigate per-project to find live conversations. Active meeting cards are navigation-only (no action buttons), visually distinct from pending request cards, and respect the project filter.
 
-Seven files change: two in the daemon/lib layer, two new component files plus a CSS module, and two dashboard files for integration. No removals.
+Seven files change: two in the apps/daemon/lib layer, two new component files plus a CSS module, and two dashboard files for integration. No removals.
 
 ## Codebase Context
 
-**The `view=artifacts` branch is the model for `view=open`.** Lines 308-326 of `daemon/routes/meetings.ts` already handle the `view=artifacts` case: it resolves the integration worktree path, calls `getActiveMeetingWorktrees`, scans both the integration `.lore/meetings/` directory and all active worktree `.lore/meetings/` directories, deduplicates by `relativePath`, and returns the merged result. The `view=open` branch follows this exact shape but returns `MeetingMeta[]` (via `readMeetingMeta`) instead of `Artifact[]`, and filters to `status === "open"`.
+**The `view=artifacts` branch is the model for `view=open`.** Lines 308-326 of `apps/daemon/routes/meetings.ts` already handle the `view=artifacts` case: it resolves the integration worktree path, calls `getActiveMeetingWorktrees`, scans both the integration `.lore/meetings/` directory and all active worktree `.lore/meetings/` directories, deduplicates by `relativePath`, and returns the merged result. The `view=open` branch follows this exact shape but returns `MeetingMeta[]` (via `readMeetingMeta`) instead of `Artifact[]`, and filters to `status === "open"`.
 
 **`readMeetingMeta` is the right read function.** `lib/meetings.ts:84-115` reads a single file and returns `MeetingMeta`. The `parseMeetingData` function is private. Call `readMeetingMeta(filePath, projectName)` directly; it already handles malformed frontmatter with empty defaults.
 
@@ -52,7 +52,7 @@ Seven files change: two in the daemon/lib layer, two new component files plus a 
 
 ## Implementation Phases
 
-### Phase 1: Backend (`lib/meetings.ts` + `daemon/routes/meetings.ts`)
+### Phase 1: Backend (`lib/meetings.ts` + `apps/daemon/routes/meetings.ts`)
 
 **REQs covered:** REQ-FPM-06, REQ-SORT-12
 
@@ -60,7 +60,7 @@ Seven files change: two in the daemon/lib layer, two new component files plus a 
 
 **Files modified:**
 - `lib/meetings.ts`
-- `daemon/routes/meetings.ts`
+- `apps/daemon/routes/meetings.ts`
 
 **Step 1a — Add `sortActiveMeetings` to `lib/meetings.ts`.**
 
@@ -79,7 +79,7 @@ export function sortActiveMeetings(meetings: MeetingMeta[]): MeetingMeta[] {
 
 Export it from `lib/meetings.ts`. No other changes to the file.
 
-**Step 1b — Add `view=open` branch to `daemon/routes/meetings.ts`.**
+**Step 1b — Add `view=open` branch to `apps/daemon/routes/meetings.ts`.**
 
 In the `GET /meeting/request/meeting/list` handler, after the `view === "artifacts"` block (line 327), add a new branch before the default return:
 
@@ -164,7 +164,7 @@ In the `operations` array, update the `meeting.request.meeting.list` entry:
 
 **Testing:**
 
-New file: `tests/daemon/routes/meetings-view-open.test.ts` (or extend `meetings-read.test.ts`).
+New file: `apps/daemon/tests/routes/meetings-view-open.test.ts` (or extend `meetings-read.test.ts`).
 
 Use the same fixture setup as `meetings-read.test.ts`: `fs.mkdtemp`, write `.md` files with varying `status` values.
 
@@ -173,14 +173,14 @@ Required tests:
 2. Mix of `status: open`, `status: requested`, `status: closed` → returns only the `open` one
 3. Multiple open meetings → sorted by `date` descending
 4. Missing meetings directory → returns `{ meetings: [] }` (no 500)
-5. `sortActiveMeetings` unit tests in `tests/lib/meetings.test.ts`:
+5. `sortActiveMeetings` unit tests in `lib/tests/meetings.test.ts`:
    - Empty array → empty
    - Single item → returned unchanged
    - Multiple items → sorted by `date` descending
 
 **Risk notes:** The worktree scanning path is exercised by the `view=artifacts` branch already; the pattern is proven. Main risk is the dedup logic — test with a file that appears in both integration and worktree to confirm the integration copy wins and the worktree copy is skipped.
 
-**Verify:** `bun run typecheck && bun test tests/lib/meetings.test.ts tests/daemon/routes/meetings-read.test.ts` (and the new test file).
+**Verify:** `bun run typecheck && bun test lib/tests/meetings.test.ts apps/daemon/tests/routes/meetings-read.test.ts` (and the new test file).
 
 **Worker:** Dalton | **Model:** Sonnet
 
@@ -193,16 +193,16 @@ Required tests:
 **Dependencies:** none (uses `MeetingMeta` type, which already exists; no Phase 1 required)
 
 **Files created:**
-- `web/components/dashboard/ActiveMeetings.tsx`
-- `web/components/dashboard/ActiveMeetingCard.tsx`
-- `web/components/dashboard/ActiveMeetingCard.module.css`
+- `apps/web/components/dashboard/ActiveMeetings.tsx`
+- `apps/web/components/dashboard/ActiveMeetingCard.tsx`
+- `apps/web/components/dashboard/ActiveMeetingCard.module.css`
 
 **`ActiveMeetings.tsx`** — mirrors `PendingAudiences.tsx` in structure:
 
 ```tsx
-import Panel from "@/web/components/ui/Panel";
-import EmptyState from "@/web/components/ui/EmptyState";
-import ActiveMeetingCard from "@/web/components/dashboard/ActiveMeetingCard";
+import Panel from "@/apps/web/components/ui/Panel";
+import EmptyState from "@/apps/web/components/ui/EmptyState";
+import ActiveMeetingCard from "@/apps/web/components/dashboard/ActiveMeetingCard";
 import type { MeetingMeta } from "@/lib/meetings";
 
 interface ActiveMeetingsProps {
@@ -235,7 +235,7 @@ No `"use client"`.
 
 ```tsx
 import Link from "next/link";
-import WorkerPortrait from "@/web/components/ui/WorkerPortrait";
+import WorkerPortrait from "@/apps/web/components/ui/WorkerPortrait";
 import type { MeetingMeta } from "@/lib/meetings";
 import styles from "./ActiveMeetingCard.module.css";
 
@@ -275,9 +275,9 @@ Use `var(--color-*)` tokens from `globals.css` only. No hex or rgb literals.
 
 **Testing:**
 
-New file: `tests/components/active-meeting-card.test.ts`
+New file: `apps/web/tests/components/active-meeting-card.test.ts`
 
-`ActiveMeetings` and `ActiveMeetingCard` are server components. Test them with Bun's rendering utilities if available, or use the same approach as `tests/components/meeting-list.test.ts`.
+`ActiveMeetings` and `ActiveMeetingCard` are server components. Test them with Bun's rendering utilities if available, or use the same approach as `apps/web/tests/components/meeting-list.test.ts`.
 
 Required tests:
 1. `ActiveMeetings` with empty array renders `EmptyState` with "No active meetings."
@@ -287,7 +287,7 @@ Required tests:
 
 **Risk notes:** The live indicator uses a CSS token (`--status-green`). Verify the token exists in `globals.css` before writing the CSS; if the token name differs, use the correct one.
 
-**Verify:** `bun run typecheck && bun test tests/components/active-meeting-card.test.ts`
+**Verify:** `bun run typecheck && bun test apps/web/tests/components/active-meeting-card.test.ts`
 
 **Worker:** Dalton | **Model:** Sonnet
 
@@ -300,8 +300,8 @@ Required tests:
 **Dependencies:** Phase 1 (endpoint must exist), Phase 2 (components must exist)
 
 **Files modified:**
-- `web/app/page.tsx`
-- `web/app/page.module.css`
+- `apps/web/app/page.tsx`
+- `apps/web/app/page.module.css`
 
 **Step 3a — Add `activeMeetingResults` fetch to `page.tsx`.**
 
@@ -349,7 +349,7 @@ const allActiveMeetings: MeetingMeta[] = activeMeetingResults
 Add import:
 
 ```ts
-import ActiveMeetings from "@/web/components/dashboard/ActiveMeetings";
+import ActiveMeetings from "@/apps/web/components/dashboard/ActiveMeetings";
 ```
 
 In the JSX, replace the `<div className={styles.audiences}>` block:
@@ -387,7 +387,7 @@ No other CSS changes needed.
 
 **Testing:**
 
-Extend `tests/components/meeting-list.test.ts` or create `tests/components/dashboard-page.test.ts`.
+Extend `apps/web/tests/components/meeting-list.test.ts` or create `apps/web/tests/components/dashboard-page.test.ts`.
 
 Required tests:
 1. With `allActiveMeetings` non-empty and no `selectedProject`, `ActiveMeetings` receives the full list

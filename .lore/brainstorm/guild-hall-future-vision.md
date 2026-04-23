@@ -10,12 +10,12 @@ context_scanned:
   - .lore/brainstorm/ (all 8 existing brainstorms)
   - .lore/retros/commission-cleanup-2026-03-21.md (and others)
   - packages/guild-hall-*/soul.md, posture.md, package.json (10 workers)
-  - daemon/lib/event-bus.ts
-  - daemon/services/briefing-generator.ts
-  - daemon/services/base-toolbox.ts
-  - daemon/services/scheduler/
-  - daemon/services/commission/orchestrator.ts (structure)
-  - daemon/lib/agent-sdk/sdk-runner.ts (structure)
+  - apps/daemon/lib/event-bus.ts
+  - apps/daemon/services/briefing-generator.ts
+  - apps/daemon/services/base-toolbox.ts
+  - apps/daemon/services/scheduler/
+  - apps/daemon/services/commission/orchestrator.ts (structure)
+  - apps/daemon/lib/agent-sdk/sdk-runner.ts (structure)
   - lib/types.ts, lib/paths.ts (structure)
 recent_brainstorm_check: "No overlap with: commission-narrative, commission-templates, triggered-commissions, worker-performance-feedback-loop, worker-sub-agents-and-mail-removal, event-router-advanced-matching, triggered-commission-creation-ux, meeting-view-layout"
 ---
@@ -198,7 +198,7 @@ File format definition, Guild Master toolbox integration for reading grants and 
 
 ### Evidence
 
-Artifacts are rendered as markdown in the web UI (`web/app/projects/[name]/artifacts/[...path]/page.tsx`). The meeting notes generator (`daemon/services/meeting/notes-generator.ts`) applies LLM interpretation to meeting transcripts, producing structured understanding from raw content. The commission narrative brainstorm proposes the same for commission reasoning. Both apply LLM judgment to content that would otherwise be opaque.
+Artifacts are rendered as markdown in the web UI (`apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`). The meeting notes generator (`apps/daemon/services/meeting/notes-generator.ts`) applies LLM interpretation to meeting transcripts, producing structured understanding from raw content. The commission narrative brainstorm proposes the same for commission reasoning. Both apply LLM judgment to content that would otherwise be opaque.
 
 But artifacts themselves — specs, plans, reviews, compendium entries — are not mediated by any worker intelligence. They're documents. A spec exists; workers read it with their tools. Nobody has applied Thorne's critical eye to the spec before it goes to Dalton for implementation. Nobody has asked what the spec would look like from the implementer's perspective before it's written.
 
@@ -243,9 +243,9 @@ New daemon route, lightweight SDK session configuration (no git, no activity wor
 
 ### Evidence
 
-The briefing generator (`daemon/services/briefing-generator.ts`) produces a snapshot cached by integration worktree HEAD commit. The cache is valid when HEAD hasn't moved or the entry is less than 1 hour old. The briefing captures current state; it has no memory of what it said last week.
+The briefing generator (`apps/daemon/services/briefing-generator.ts`) produces a snapshot cached by integration worktree HEAD commit. The cache is valid when HEAD hasn't moved or the entry is less than 1 hour old. The briefing captures current state; it has no memory of what it said last week.
 
-The `commission-cleanup-2026-03-21.md` retro documents patterns that appear across multiple batches (WARN findings getting dropped, sandbox friction, spec drift). These patterns are visible in individual retros but there is no cumulative view. Looking at git history manually: the same `daemon/services/commission/orchestrator.ts` has been touched in 8 consecutive commissions. Is it growing beyond its natural bounds? Nobody can answer that without doing the git analysis by hand.
+The `commission-cleanup-2026-03-21.md` retro documents patterns that appear across multiple batches (WARN findings getting dropped, sandbox friction, spec drift). These patterns are visible in individual retros but there is no cumulative view. Looking at git history manually: the same `apps/daemon/services/commission/orchestrator.ts` has been touched in 8 consecutive commissions. Is it growing beyond its natural bounds? Nobody can answer that without doing the git analysis by hand.
 
 The briefing answers "what is happening." Nobody answers "where is this going."
 
@@ -288,7 +288,7 @@ Health record file format, Guild Master toolbox additions for health analysis, s
 The Guild Master responds when asked: generate a briefing (user navigates to dashboard), dispatch a commission (user or Guild Master initiates), emit an event notification (event router fires). Nothing in the system watches for patterns that *span* events over time.
 
 Concrete patterns currently invisible to the guild:
-- `daemon/services/commission/orchestrator.ts` has been touched in 8 commissions in the last two weeks. The file may be growing past healthy size (it was noted as a complexity point in multiple retros). The system has no way to notice or say this.
+- `apps/daemon/services/commission/orchestrator.ts` has been touched in 8 commissions in the last two weeks. The file may be growing past healthy size (it was noted as a complexity point in multiple retros). The system has no way to notice or say this.
 - Three consecutive Thorne review commissions for the same feature domain have each surfaced the same category of finding (input validation gaps). Each was fixed independently. Nobody has noticed the pattern — same gap appearing in different implementations.
 - A commission dispatched four days ago is still `in_progress` at turn 280 of 300. The user may not know it's approaching maxTurns.
 - The test suite has grown from 3,145 to 3,209 tests across 20 commissions, but the feature-to-test ratio is declining in the commission service. Nobody has noticed.

@@ -15,7 +15,7 @@ req-prefix: IMG
 
 ## Overview
 
-The web UI renders markdown artifacts from `.lore/` but has no support for image files. Images are invisible to the artifact pipeline at every layer: discovery scans only `.md` files (`lib/artifacts.ts:270`, `collectMarkdownFiles`), the daemon routes serve only parsed markdown documents (`daemon/routes/artifacts.ts`), and the detail view (`ArtifactContent.tsx`) renders markdown through ReactMarkdown with no custom image resolver.
+The web UI renders markdown artifacts from `.lore/` but has no support for image files. Images are invisible to the artifact pipeline at every layer: discovery scans only `.md` files (`lib/artifacts.ts:270`, `collectMarkdownFiles`), the daemon routes serve only parsed markdown documents (`apps/daemon/routes/artifacts.ts`), and the detail view (`ArtifactContent.tsx`) renders markdown through ReactMarkdown with no custom image resolver.
 
 Workers already generate images. The Replicate native toolbox writes to `.lore/generated/`, and workers may place diagrams, screenshots, or reference images anywhere in `.lore/`. These files exist on disk but are unreachable from the UI.
 
@@ -29,7 +29,7 @@ This spec defines how images become first-class artifacts: discoverable in lists
 
 ### Routing
 
-The catch-all route at `web/app/projects/[name]/artifacts/[...path]/page.tsx` calls the daemon's `/workspace/artifact/document/read` endpoint. That endpoint calls `readArtifact()` in `lib/artifacts.ts:144-173`, which reads the file as UTF-8 text and parses frontmatter with gray-matter. Binary image files would produce garbled output or throw.
+The catch-all route at `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` calls the daemon's `/workspace/artifact/document/read` endpoint. That endpoint calls `readArtifact()` in `lib/artifacts.ts:144-173`, which reads the file as UTF-8 text and parses frontmatter with gray-matter. Binary image files would produce garbled output or throw.
 
 ### Rendering
 
@@ -37,7 +37,7 @@ The catch-all route at `web/app/projects/[name]/artifacts/[...path]/page.tsx` ca
 
 ### Image Serving
 
-No image serving endpoint exists. The daemon serves JSON over the Unix socket. Next.js serves from `web/public/` for static assets. `.lore/` files live in integration worktrees at `~/.guild-hall/projects/<name>/.lore/`, which is outside the Next.js public directory.
+No image serving endpoint exists. The daemon serves JSON over the Unix socket. Next.js serves from `apps/web/public/` for static assets. `.lore/` files live in integration worktrees at `~/.guild-hall/projects/<name>/.lore/`, which is outside the Next.js public directory.
 
 ## Entry Points
 

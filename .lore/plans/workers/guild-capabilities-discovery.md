@@ -22,23 +22,23 @@ The briefing tool (when implemented) tells workers what's happening; this tool t
 
 **WorkerIdentity** (`lib/types.ts:176-181`): Already has the three fields the spec requires: `name`, `displayTitle`, `description`. No new type needed.
 
-**knownWorkerNames derivation** (`daemon/services/toolbox-resolver.ts:80-83`): The resolver already filters `packages` to worker packages and maps to identity names. The same filter produces `WorkerIdentity[]` by mapping to `p.metadata.identity` instead of `p.metadata.identity.name`. This is the data source for the new callback.
+**knownWorkerNames derivation** (`apps/daemon/services/toolbox-resolver.ts:80-83`): The resolver already filters `packages` to worker packages and maps to identity names. The same filter produces `WorkerIdentity[]` by mapping to `p.metadata.identity` instead of `p.metadata.identity.name`. This is the data source for the new callback.
 
-**BaseToolboxDeps** (`daemon/services/base-toolbox.ts:28-34`): Slim interface with context fields. The new callback gets added here as optional. `GuildHallToolboxDeps` (`daemon/services/toolbox-types.ts:15-27`) is the wider interface that all toolbox factories receive. Both need the callback.
+**BaseToolboxDeps** (`apps/daemon/services/base-toolbox.ts:28-34`): Slim interface with context fields. The new callback gets added here as optional. `GuildHallToolboxDeps` (`apps/daemon/services/toolbox-types.ts:15-27`) is the wider interface that all toolbox factories receive. Both need the callback.
 
-**baseToolboxFactory** (`daemon/services/base-toolbox.ts:306-308`): Passes `GuildHallToolboxDeps` directly to `createBaseToolbox`. TypeScript structural typing narrows implicitly. Adding the callback to both interfaces maintains this pass-through pattern.
+**baseToolboxFactory** (`apps/daemon/services/base-toolbox.ts:306-308`): Passes `GuildHallToolboxDeps` directly to `createBaseToolbox`. TypeScript structural typing narrows implicitly. Adding the callback to both interfaces maintains this pass-through pattern.
 
-**Production wiring** (`daemon/app.ts`): The callback doesn't need app-level wiring. The resolver already has `packages` in scope and builds `GuildHallToolboxDeps` directly (lines 71-86). The callback is derived inside the resolver, not passed in from `app.ts`. This is simpler than the briefing tool's wiring path because the data source is already local to the resolver.
+**Production wiring** (`apps/daemon/app.ts`): The callback doesn't need app-level wiring. The resolver already has `packages` in scope and builds `GuildHallToolboxDeps` directly (lines 71-86). The callback is derived inside the resolver, not passed in from `app.ts`. This is simpler than the briefing tool's wiring path because the data source is already local to the resolver.
 
 ## Implementation Steps
 
 ### Step 1: Add getWorkerIdentities callback to both deps interfaces
 
-**Files**: `daemon/services/toolbox-types.ts`, `daemon/services/base-toolbox.ts`
+**Files**: `apps/daemon/services/toolbox-types.ts`, `apps/daemon/services/base-toolbox.ts`
 
 Add an optional `getWorkerIdentities` callback to both interfaces. The callback type is `() => WorkerIdentity[]`. It takes no arguments because the roster is project-independent (all discovered workers are available to all sessions).
 
-In `GuildHallToolboxDeps` (`daemon/services/toolbox-types.ts`):
+In `GuildHallToolboxDeps` (`apps/daemon/services/toolbox-types.ts`):
 ```typescript
 import type { WorkerIdentity } from "@/lib/types";
 
@@ -48,7 +48,7 @@ interface GuildHallToolboxDeps {
 }
 ```
 
-In `BaseToolboxDeps` (`daemon/services/base-toolbox.ts`):
+In `BaseToolboxDeps` (`apps/daemon/services/base-toolbox.ts`):
 ```typescript
 // Add WorkerIdentity to the existing import from @/lib/types (which already imports isNodeError)
 import { isNodeError } from "@/lib/types";
@@ -66,7 +66,7 @@ Both are optional. Existing callers (tests, other contexts) don't need to provid
 
 ### Step 2: Wire getWorkerIdentities in the toolbox resolver
 
-**Files**: `daemon/services/toolbox-resolver.ts`
+**Files**: `apps/daemon/services/toolbox-resolver.ts`
 
 In `resolveToolSet`, where the `deps` object is assembled (lines 71-86), add a `getWorkerIdentities` callback alongside the existing `knownWorkerNames` derivation. The data source is identical: `packages` filtered to worker packages, but projecting identity objects instead of name strings.
 
@@ -91,7 +91,7 @@ This does not touch `ToolboxResolverContext`. The callback is derived from `pack
 
 ### Step 3: Implement the list_guild_capabilities tool
 
-**Files**: `daemon/services/base-toolbox.ts`
+**Files**: `apps/daemon/services/base-toolbox.ts`
 
 Add a `makeListGuildCapabilitiesHandler` factory and register the tool in `createBaseToolbox`.
 
@@ -168,7 +168,7 @@ If any link is missing, the tool silently returns "not available" (correct degra
 
 ### Step 5: Tests
 
-**Files**: `tests/daemon/base-toolbox.test.ts`
+**Files**: `apps/daemon/tests/base-toolbox.test.ts`
 
 Add a `describe("list_guild_capabilities", ...)` block with these cases:
 

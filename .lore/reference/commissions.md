@@ -83,14 +83,14 @@ State files at `~/.guild-hall/state/commissions/{commissionId}.json` track activ
 
 | Entry | Type | Handler |
 |-------|------|---------|
-| POST /commissions | Daemon | `daemon/routes/commissions.ts` -> `commissionSession.createCommission()` |
-| POST /commissions/check-dependencies | Daemon | `daemon/routes/commissions.ts` -> `commissionSession.checkDependencyTransitions()` |
-| PUT /commissions/:id | Daemon | `daemon/routes/commissions.ts` -> `commissionSession.updateCommission()` |
-| POST /commissions/:id/dispatch | Daemon | `daemon/routes/commissions.ts` -> `commissionSession.dispatchCommission()` |
-| DELETE /commissions/:id | Daemon | `daemon/routes/commissions.ts` -> `commissionSession.cancelCommission()` |
-| POST /commissions/:id/redispatch | Daemon | `daemon/routes/commissions.ts` -> `commissionSession.redispatchCommission()` |
-| POST /commissions/:id/note | Daemon | `daemon/routes/commissions.ts` -> `commissionSession.addUserNote()` |
-| /projects/[name]/commissions/[id] | Page | `web/app/projects/[name]/commissions/[id]/page.tsx` |
+| POST /commissions | Daemon | `apps/daemon/routes/commissions.ts` -> `commissionSession.createCommission()` |
+| POST /commissions/check-dependencies | Daemon | `apps/daemon/routes/commissions.ts` -> `commissionSession.checkDependencyTransitions()` |
+| PUT /commissions/:id | Daemon | `apps/daemon/routes/commissions.ts` -> `commissionSession.updateCommission()` |
+| POST /commissions/:id/dispatch | Daemon | `apps/daemon/routes/commissions.ts` -> `commissionSession.dispatchCommission()` |
+| DELETE /commissions/:id | Daemon | `apps/daemon/routes/commissions.ts` -> `commissionSession.cancelCommission()` |
+| POST /commissions/:id/redispatch | Daemon | `apps/daemon/routes/commissions.ts` -> `commissionSession.redispatchCommission()` |
+| POST /commissions/:id/note | Daemon | `apps/daemon/routes/commissions.ts` -> `commissionSession.addUserNote()` |
+| /projects/[name]/commissions/[id] | Page | `apps/web/app/projects/[name]/commissions/[id]/page.tsx` |
 | /api/commissions/* | Next.js API | Proxy routes to daemon |
 
 ## Implementation
@@ -99,27 +99,27 @@ State files at `~/.guild-hall/state/commissions/{commissionId}.json` track activ
 
 | File | Role |
 |------|------|
-| `daemon/routes/commissions.ts` | Thin route layer, validates input, delegates to session |
-| `daemon/services/commission-session.ts` | Orchestration core: CRUD, SDK runner, queue, dependency transitions |
-| `daemon/services/commission-handlers.ts` | State machine graph, enter/exit handler implementations |
-| `daemon/services/commission-artifact-helpers.ts` | Read/write commission artifact frontmatter (regex ops) |
-| `daemon/services/commission-capacity.ts` | Concurrent limit checks (pure functions) |
-| `daemon/services/commission-recovery.ts` | Crash recovery: state files + orphaned worktrees |
-| `daemon/services/commission-sdk-logging.ts` | SDK message formatting for console |
-| `daemon/services/commission-toolbox.ts` | Commission-context MCP tools (see Workers/Toolbox feature) |
+| `apps/daemon/routes/commissions.ts` | Thin route layer, validates input, delegates to session |
+| `apps/daemon/services/commission-session.ts` | Orchestration core: CRUD, SDK runner, queue, dependency transitions |
+| `apps/daemon/services/commission-handlers.ts` | State machine graph, enter/exit handler implementations |
+| `apps/daemon/services/commission-artifact-helpers.ts` | Read/write commission artifact frontmatter (regex ops) |
+| `apps/daemon/services/commission-capacity.ts` | Concurrent limit checks (pure functions) |
+| `apps/daemon/services/commission-recovery.ts` | Crash recovery: state files + orphaned worktrees |
+| `apps/daemon/services/commission-sdk-logging.ts` | SDK message formatting for console |
+| `apps/daemon/services/commission-toolbox.ts` | Commission-context MCP tools (see Workers/Toolbox feature) |
 | `lib/commissions.ts` | Read-only scanning/parsing for Next.js server components |
 | `lib/paths.ts` | Path resolution (integration worktree, commission worktree, branch names) |
-| `web/app/projects/[name]/commissions/[id]/page.tsx` | Server component: reads artifact, builds dependency graph neighborhood |
-| `web/components/commission/CommissionView.tsx` | Client wrapper: SSE subscription, live status/timeline/artifact updates |
-| `web/components/commission/CommissionActions.tsx` | Action buttons (dispatch, cancel, re-dispatch) per status |
-| `web/components/commission/CommissionForm.tsx` | Create commission form (fetches workers, POSTs to API) |
-| `web/components/commission/CommissionList.tsx` | Server component: sorted list with gem indicators |
-| `web/components/commission/CommissionHeader.tsx` | Title, status, worker badge |
-| `web/components/commission/CommissionTimeline.tsx` | Chronological event list |
-| `web/components/commission/CommissionPrompt.tsx` | Prompt display |
-| `web/components/commission/CommissionLinkedArtifacts.tsx` | Links to produced artifacts |
-| `web/components/commission/CommissionNotes.tsx` | User note input form |
-| `web/components/commission/NeighborhoodGraph.tsx` | Dependency graph visualization (see Dependency Graph feature) |
+| `apps/web/app/projects/[name]/commissions/[id]/page.tsx` | Server component: reads artifact, builds dependency graph neighborhood |
+| `apps/web/components/commission/CommissionView.tsx` | Client wrapper: SSE subscription, live status/timeline/artifact updates |
+| `apps/web/components/commission/CommissionActions.tsx` | Action buttons (dispatch, cancel, re-dispatch) per status |
+| `apps/web/components/commission/CommissionForm.tsx` | Create commission form (fetches workers, POSTs to API) |
+| `apps/web/components/commission/CommissionList.tsx` | Server component: sorted list with gem indicators |
+| `apps/web/components/commission/CommissionHeader.tsx` | Title, status, worker badge |
+| `apps/web/components/commission/CommissionTimeline.tsx` | Chronological event list |
+| `apps/web/components/commission/CommissionPrompt.tsx` | Prompt display |
+| `apps/web/components/commission/CommissionLinkedArtifacts.tsx` | Links to produced artifacts |
+| `apps/web/components/commission/CommissionNotes.tsx` | User note input form |
+| `apps/web/components/commission/NeighborhoodGraph.tsx` | Dependency graph visualization (see Dependency Graph feature) |
 
 ### Data
 

@@ -99,11 +99,11 @@ This aligns with Vision Principle 7: changes to the base agent architecture shou
 
 - REQ-WTB-12: The `canUseToolRules` field must be removed from `WorkerMetadata` in `lib/types.ts`.
 
-- REQ-WTB-13: The `canUseToolRules` callback construction must be removed from the SDK runner (`daemon/lib/agent-sdk/sdk-runner.ts`). The `canUseTool` parameter is no longer passed to the SDK.
+- REQ-WTB-13: The `canUseToolRules` callback construction must be removed from the SDK runner (`apps/daemon/lib/agent-sdk/sdk-runner.ts`). The `canUseTool` parameter is no longer passed to the SDK.
 
-- REQ-WTB-14: The `canUseToolRules` passthrough in the toolbox resolver (`daemon/services/toolbox-resolver.ts`) must be removed.
+- REQ-WTB-14: The `canUseToolRules` passthrough in the toolbox resolver (`apps/daemon/services/toolbox-resolver.ts`) must be removed.
 
-- REQ-WTB-15: All `canUseToolRules` declarations must be removed from worker packages (`guild-hall-writer`, `guild-hall-visionary`, `guild-hall-illuminator`) and the Guild Master built-in worker (`daemon/services/manager/worker.ts`).
+- REQ-WTB-15: All `canUseToolRules` declarations must be removed from worker packages (`guild-hall-writer`, `guild-hall-visionary`, `guild-hall-illuminator`) and the Guild Master built-in worker (`apps/daemon/services/manager/worker.ts`).
 
 - REQ-WTB-16: The `worker-tool-rules.md` spec must be marked `superseded` with a reference to this spec. Its requirements (REQ-WTR-*) are fully replaced.
 

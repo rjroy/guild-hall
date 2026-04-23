@@ -41,7 +41,7 @@ Requirements addressed:
 
 **Discovery loop** (`lib/packages.ts:93-221`): The posture/soul loading block (line 173) guards on `"identity" in metadata`, which is false for plugin packages. The plugin path detection (lines 202-209) runs unconditionally after metadata validation. Both behaviors are correct for plugin packages without changes. Verified against source.
 
-**Plugin resolution** (`daemon/lib/agent-sdk/sdk-runner.ts:298-315`): Domain plugin resolution finds packages by name, checks `pluginPath`, and collects `{ type: "local", path }` entries. It does not check `metadata.type`, so a plugin-type package resolves identically to a worker-type package that happens to carry a plugin. Verified against source.
+**Plugin resolution** (`apps/daemon/lib/agent-sdk/sdk-runner.ts:298-315`): Domain plugin resolution finds packages by name, checks `pluginPath`, and collects `{ type: "local", path }` entries. It does not check `metadata.type`, so a plugin-type package resolves identically to a worker-type package that happens to carry a plugin. Verified against source.
 
 **Type guards** (`lib/packages.ts:264-274`): `isWorkerType` checks for `"worker"`, `isToolboxType` checks for `"toolbox"`. Neither matches `"plugin"`. Plugin packages are excluded from `getWorkers()` and `getToolboxes()` results. Verified.
 
@@ -131,7 +131,7 @@ export const packageMetadataSchema = z.union([
 ]);
 ```
 
-**Tests** (new test file `tests/lib/plugin-metadata.test.ts`):
+**Tests** (new test file `lib/tests/plugin-metadata.test.ts`):
 - `pluginMetadataSchema` accepts valid `{ type: "plugin", name: "...", description: "..." }`
 - `pluginMetadataSchema` rejects missing `name` or `description`
 - `packageMetadataSchema` accepts plugin-type metadata alongside worker and toolbox

@@ -18,10 +18,10 @@ Context types (`meeting`, `commission`, `briefing`) define what kind of session 
 
 These are currently hardcoded in five places across the daemon:
 
-1. **`contextType` union** in `daemon/services/toolbox-types.ts:20` (the `GuildHallToolboxDeps` interface)
-2. **`SYSTEM_TOOLBOX_REGISTRY`** in `daemon/services/toolbox-resolver.ts:26-31` (maps context type names to toolbox factories)
-3. **`ToolboxResolverContext.contextType`** in `daemon/services/toolbox-resolver.ts:39` (duplicated union)
-4. **`SessionPrepSpec.contextType`** and **`SessionPrepDeps` inline type** in `daemon/lib/agent-sdk/sdk-runner.ts:92,113` (more duplicated unions)
+1. **`contextType` union** in `apps/daemon/services/toolbox-types.ts:20` (the `GuildHallToolboxDeps` interface)
+2. **`SYSTEM_TOOLBOX_REGISTRY`** in `apps/daemon/services/toolbox-resolver.ts:26-31` (maps context type names to toolbox factories)
+3. **`ToolboxResolverContext.contextType`** in `apps/daemon/services/toolbox-resolver.ts:39` (duplicated union)
+4. **`SessionPrepSpec.contextType`** and **`SessionPrepDeps` inline type** in `apps/daemon/lib/agent-sdk/sdk-runner.ts:92,113` (more duplicated unions)
 5. **`buildSystemPrompt`** in `packages/shared/worker-activation.ts:32-83` (hardcoded if-chains for `meetingContext`, `commissionContext`)
 
 Additional downstream uses: `base-toolbox.ts` repeats the union in two places: the `BaseToolboxDeps` interface (line 32) and the `makeRecordDecisionHandler` parameter (line 327). Both need the same `string` change.
@@ -40,7 +40,7 @@ This spec extracts a registry where each context type declares its capabilities.
 
 ### Registry Definition
 
-- REQ-CXTR-1: A `ContextTypeRegistration` interface is defined in `daemon/services/toolbox-types.ts` with these fields:
+- REQ-CXTR-1: A `ContextTypeRegistration` interface is defined in `apps/daemon/services/toolbox-types.ts` with these fields:
 
   ```typescript
   interface ContextTypeRegistration {
@@ -57,7 +57,7 @@ This spec extracts a registry where each context type declares its capabilities.
 
 ### Registry Population
 
-- REQ-CXTR-3: A factory function `createContextTypeRegistry()` is defined in a new file `daemon/services/context-type-registry.ts`. It creates and returns a `ContextTypeRegistry` populated with the three built-in context types:
+- REQ-CXTR-3: A factory function `createContextTypeRegistry()` is defined in a new file `apps/daemon/services/context-type-registry.ts`. It creates and returns a `ContextTypeRegistry` populated with the three built-in context types:
 
   | Name | Toolbox Factory | State Subdir |
   |------|----------------|--------------|
@@ -126,7 +126,7 @@ This spec extracts a registry where each context type declares its capabilities.
 
 ### Production Wiring
 
-- REQ-CXTR-13: `createProductionApp()` in `daemon/app.ts` creates the registry via `createContextTypeRegistry()` and passes it to `resolveToolSet` (through the session prep pipeline). This follows the wiring pattern used by the event router: factory at startup, injected into consumers.
+- REQ-CXTR-13: `createProductionApp()` in `apps/daemon/app.ts` creates the registry via `createContextTypeRegistry()` and passes it to `resolveToolSet` (through the session prep pipeline). This follows the wiring pattern used by the event router: factory at startup, injected into consumers.
 
 - REQ-CXTR-14: The registry is a field on `SessionPrepDeps`:
 
@@ -159,8 +159,8 @@ This spec extracts a registry where each context type declares its capabilities.
 
 ## Success Criteria
 
-- [ ] `ContextTypeRegistration` interface and `ContextTypeRegistry` type are defined in `daemon/services/toolbox-types.ts`
-- [ ] `createContextTypeRegistry()` factory in `daemon/services/context-type-registry.ts` returns a registry with all three built-in types
+- [ ] `ContextTypeRegistration` interface and `ContextTypeRegistry` type are defined in `apps/daemon/services/toolbox-types.ts`
+- [ ] `createContextTypeRegistry()` factory in `apps/daemon/services/context-type-registry.ts` returns a registry with all three built-in types
 - [ ] `SYSTEM_TOOLBOX_REGISTRY` in `toolbox-resolver.ts` contains only non-context-type system toolboxes (e.g. `manager`)
 - [ ] `resolveToolSet` receives and uses the registry for context toolbox lookup (step 2) and context type validation
 - [ ] `contextType` fields across `toolbox-types.ts`, `toolbox-resolver.ts`, `sdk-runner.ts`, and `base-toolbox.ts` use `string` instead of the hardcoded union
@@ -178,12 +178,12 @@ This spec extracts a registry where each context type declares its capabilities.
 - Run `bun test` and confirm all tests pass before declaring work complete.
 
 **Structural checks:**
-- Confirm `ContextTypeRegistration` and `ContextTypeRegistry` are defined in `daemon/services/toolbox-types.ts`.
-- Confirm `createContextTypeRegistry()` is defined in `daemon/services/context-type-registry.ts` and imports toolbox factories from their source modules.
+- Confirm `ContextTypeRegistration` and `ContextTypeRegistry` are defined in `apps/daemon/services/toolbox-types.ts`.
+- Confirm `createContextTypeRegistry()` is defined in `apps/daemon/services/context-type-registry.ts` and imports toolbox factories from their source modules.
 - Confirm `SYSTEM_TOOLBOX_REGISTRY` in `toolbox-resolver.ts` no longer contains `meeting` or `commission` entries.
 - Confirm `resolveToolSet` signature includes `contextTypeRegistry` parameter.
-- Confirm `createProductionApp` in `daemon/app.ts` calls `createContextTypeRegistry()` and threads it to session prep.
-- Confirm no file outside `daemon/services/context-type-registry.ts` imports both context toolbox factories (`meetingToolboxFactory`, `commissionToolboxFactory`).
+- Confirm `createProductionApp` in `apps/daemon/app.ts` calls `createContextTypeRegistry()` and threads it to session prep.
+- Confirm no file outside `apps/daemon/services/context-type-registry.ts` imports both context toolbox factories (`meetingToolboxFactory`, `commissionToolboxFactory`).
 
 **Behavioral checks:**
 - Test that `resolveToolSet` with `contextType: "meeting"` adds the meeting toolbox server.

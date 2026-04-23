@@ -3,7 +3,7 @@ title: Commission and Meeting Outcomes to Project Memory
 date: 2026-03-20
 status: implemented
 tags: [memory, commissions, meetings, automation, lifecycle, haiku, triage]
-modules: [daemon/services/commission/orchestrator, daemon/services/meeting/orchestrator, daemon/services/base-toolbox, daemon/services/memory-sections, daemon/lib/event-bus]
+modules: [apps/daemon/services/commission/orchestrator, apps/daemon/services/meeting/orchestrator, apps/daemon/services/base-toolbox, apps/daemon/services/memory-sections, apps/daemon/lib/event-bus]
 related:
   - .lore/brainstorm/commission-outcomes-to-memory.md
   - .lore/research/memory-retention-prompt-design.md
@@ -174,7 +174,7 @@ This spec defines an automatic triage step: after an activity finishes, a Haiku 
 
 ### Logging
 
-- REQ-OTMEM-18: The triage service uses the injectable logger (`Log` interface from `daemon/lib/log.ts`) with tag `"outcome-triage"`.
+- REQ-OTMEM-18: The triage service uses the injectable logger (`Log` interface from `apps/daemon/lib/log.ts`) with tag `"outcome-triage"`.
 
 - REQ-OTMEM-19: Log levels:
   - `info`: triage initiated (includes activity type and ID), triage completed (includes whether memory was written or session ended without writes).
@@ -226,8 +226,8 @@ This spec defines an automatic triage step: after an activity finishes, a Haiku 
 - Run `bun test` and confirm all tests pass before declaring work complete.
 
 **Structural checks:**
-- Confirm the triage factory is wired in `createProductionApp()` (`daemon/app.ts`).
-- Confirm the triage service uses `Log` from `daemon/lib/log.ts`, not direct `console` calls.
+- Confirm the triage factory is wired in `createProductionApp()` (`apps/daemon/app.ts`).
+- Confirm the triage service uses `Log` from `apps/daemon/lib/log.ts`, not direct `console` calls.
 - Confirm memory tools are constructed via `makeReadMemoryHandler`/`makeEditMemoryHandler` (same factories as base toolbox).
 - Confirm the triage session uses the Claude Agent SDK, not the full `runSdkSession` pipeline.
 

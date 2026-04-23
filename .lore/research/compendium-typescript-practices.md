@@ -58,7 +58,7 @@ type OrderId = string & { readonly __brand: unique symbol };
 function createUserId(id: string): UserId { return id as UserId; }
 ```
 
-A `UserId` cannot be passed where an `OrderId` is expected, despite both being strings at runtime. Guild Hall uses this pattern for `MeetingId`, `CommissionId`, and `SdkSessionId` in `daemon/types.ts`.
+A `UserId` cannot be passed where an `OrderId` is expected, despite both being strings at runtime. Guild Hall uses this pattern for `MeetingId`, `CommissionId`, and `SdkSessionId` in `apps/daemon/types.ts`.
 
 **Source:** [Learning TypeScript: Branded Types](https://www.learningtypescript.com/articles/branded-types); [Prosopo: TypeScript Branding](https://prosopo.io/articles/typescript-branding/)
 

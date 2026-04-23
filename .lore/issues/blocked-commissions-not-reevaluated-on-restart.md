@@ -18,18 +18,18 @@ Originally identified during the Local Model Support session (2026-03-09). Re-ve
 
 ## Verified Locations (2026-04-18)
 
-**Startup sequence:** `daemon/app.ts:413`
+**Startup sequence:** `apps/daemon/app.ts:413`
 ```ts
 await commissionSession.recoverCommissions();
 ```
 
-**Recovery function:** `daemon/services/commission/orchestrator.ts:768` (`recoverCommissions`)
+**Recovery function:** `apps/daemon/services/commission/orchestrator.ts:768` (`recoverCommissions`)
 - Scans `~/.guild-hall/state/commissions/*.json`
 - Transitions in-process commissions to `failed` (process lost on restart)
 - Scans for orphaned worktrees, transitions to `failed`
 - Does **not** call `checkDependencyTransitions()`
 
-**Dependency re-evaluation function:** `daemon/services/commission/orchestrator.ts:651` (`checkDependencyTransitions`)
+**Dependency re-evaluation function:** `apps/daemon/services/commission/orchestrator.ts:651` (`checkDependencyTransitions`)
 - Currently invoked at lines 469, 1560, 1589 — all inside event paths (commission completion, manual nudge endpoints).
 - Never invoked during startup recovery.
 

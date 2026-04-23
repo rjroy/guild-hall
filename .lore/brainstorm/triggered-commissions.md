@@ -26,13 +26,13 @@ This is the concrete mechanism behind standing delegation's "whenever X happens,
 
 ### The Event Router
 
-`daemon/services/event-router.ts` subscribes to the EventBus and evaluates notification rules against events. Each rule has a `match` object (exact-match on `type`, optional `projectName`) and a `channel` reference. When a rule matches, it dispatches to the channel (shell or webhook).
+`apps/daemon/services/event-router.ts` subscribes to the EventBus and evaluates notification rules against events. Each rule has a `match` object (exact-match on `type`, optional `projectName`) and a `channel` reference. When a rule matches, it dispatches to the channel (shell or webhook).
 
 The router is stateless, fire-and-forget, and synchronous in its matching. Channel dispatch is async but untracked (failures are logged and dropped). The router has no concept of "actions" beyond channel dispatch.
 
 ### The EventBus
 
-`daemon/lib/event-bus.ts` defines 13 `SystemEvent` variants:
+`apps/daemon/lib/event-bus.ts` defines 13 `SystemEvent` variants:
 
 | Event Type | Key Fields | Relevant? |
 |------------|-----------|-----------|
@@ -54,13 +54,13 @@ The high-value trigger sources are `commission_status` (especially transitions t
 
 ### The Scheduler
 
-`daemon/services/scheduler/index.ts` handles scheduled commissions. It ticks every 60 seconds, scans for active schedules, evaluates cron expressions, spawns one-shot commissions. Overlap prevention, stuck-run escalation, catch-up on restart.
+`apps/daemon/services/scheduler/index.ts` handles scheduled commissions. It ticks every 60 seconds, scans for active schedules, evaluates cron expressions, spawns one-shot commissions. Overlap prevention, stuck-run escalation, catch-up on restart.
 
 The scheduler reads schedule artifacts from `.lore/commissions/` (type: scheduled, status: active). It spawns commissions through `commissionSession.createCommission()` and `commissionSession.dispatchCommission()`.
 
 ### Commission Dependencies
 
-`daemon/services/commission/orchestrator.ts` (around line 1030) handles dependency transitions. Commissions with `depends_on` start in `blocked` status. When all dependencies reach `completed` or `abandoned`, the commission transitions to `pending` and becomes eligible for dispatch. This is polled during `checkDependencyTransitions()`, not event-driven.
+`apps/daemon/services/commission/orchestrator.ts` (around line 1030) handles dependency transitions. Commissions with `depends_on` start in `blocked` status. When all dependencies reach `completed` or `abandoned`, the commission transitions to `pending` and becomes eligible for dispatch. This is polled during `checkDependencyTransitions()`, not event-driven.
 
 ## Question 1: What Do Triggers Look Like?
 

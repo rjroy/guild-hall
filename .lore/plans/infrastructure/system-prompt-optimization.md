@@ -3,7 +3,7 @@ title: "Plan: System Prompt Optimization"
 date: 2026-03-30
 status: executed
 tags: [system-prompt, memory, activation, performance, prompt-caching, sub-agents]
-modules: [packages/shared/worker-activation, daemon/lib/agent-sdk/sdk-runner, daemon/services/memory-injector, daemon/services/manager/worker, lib/types, daemon/services/commission/orchestrator, daemon/services/meeting/orchestrator, daemon/services/meeting/session-loop]
+modules: [packages/shared/worker-activation, apps/daemon/lib/agent-sdk/sdk-runner, apps/daemon/services/memory-injector, apps/daemon/services/manager/worker, lib/types, apps/daemon/services/commission/orchestrator, apps/daemon/services/meeting/orchestrator, apps/daemon/services/meeting/session-loop]
 related:
   - .lore/specs/infrastructure/system-prompt-optimization.md
   - .lore/brainstorm/large-system-prompt.md
@@ -55,7 +55,7 @@ Requirements addressed:
 systemPrompt: { type: "preset", preset: "claude_code", append: activation.systemPrompt }
 ```
 
-`activateManager()` in `daemon/services/manager/worker.ts:178-254` duplicates this assembly pattern with one addition: manager context after commission context.
+`activateManager()` in `apps/daemon/services/manager/worker.ts:178-254` duplicates this assembly pattern with one addition: manager context after commission context.
 
 ### Sub-Agent Memory Loading
 
@@ -63,11 +63,11 @@ systemPrompt: { type: "preset", preset: "claude_code", append: activation.system
 
 ### Memory Injector
 
-`loadMemories` in `daemon/services/memory-injector.ts:260-365` returns `{ memoryBlock: string }` where `memoryBlock` includes the `MEMORY_GUIDANCE` constant (lines 19-43) concatenated with scope content. The guidance text is 650 chars of behavioral instructions about how to use `edit_memory` and `read_memory` tools.
+`loadMemories` in `apps/daemon/services/memory-injector.ts:260-365` returns `{ memoryBlock: string }` where `memoryBlock` includes the `MEMORY_GUIDANCE` constant (lines 19-43) concatenated with scope content. The guidance text is 650 chars of behavioral instructions about how to use `edit_memory` and `read_memory` tools.
 
 ### Commission Orchestrator
 
-`dispatchCommission` at `daemon/services/commission/orchestrator.ts:1765-1786` builds a `SessionPrepSpec` with `activationExtras.commissionContext` containing the task prompt and dependencies. Then `runCommissionSession` (line 1798) calls `prepareSdkSession` and passes the raw `prompt` to `runSdkSession` at line 1838. The task text currently appears twice: once formatted in the system prompt (via commission context in activation), once as the first user message (raw).
+`dispatchCommission` at `apps/daemon/services/commission/orchestrator.ts:1765-1786` builds a `SessionPrepSpec` with `activationExtras.commissionContext` containing the task prompt and dependencies. Then `runCommissionSession` (line 1798) calls `prepareSdkSession` and passes the raw `prompt` to `runSdkSession` at line 1838. The task text currently appears twice: once formatted in the system prompt (via commission context in activation), once as the first user message (raw).
 
 ### Meeting Orchestrator Three Paths
 
@@ -83,17 +83,17 @@ There's also a **no-session resume** path (`sendMessage` lines 886-916) when `sd
 
 ### `buildMeetingPrepSpec`
 
-`daemon/services/meeting/orchestrator.ts:461-519` builds `SessionPrepSpec` for meetings. It sets `meetingContext.agenda` to whatever `prompt` parameter is passed. For new sessions, this is the actual agenda. For renewal/no-session resume, this is the truncated transcript (which means `meetingContext.agenda` ends up containing transcript text, not the original agenda). After the split, this is fine: for renewal, the session context assembled from this "agenda" will contain the transcript, and the original agenda was in the first message of the previous session.
+`apps/daemon/services/meeting/orchestrator.ts:461-519` builds `SessionPrepSpec` for meetings. It sets `meetingContext.agenda` to whatever `prompt` parameter is passed. For new sessions, this is the actual agenda. For renewal/no-session resume, this is the truncated transcript (which means `meetingContext.agenda` ends up containing transcript text, not the original agenda). After the split, this is fine: for renewal, the session context assembled from this "agenda" will contain the transcript, and the original agenda was in the first message of the previous session.
 
 ### Existing Tests
 
-- `tests/packages/worker-activation.test.ts` (157 lines): Tests `buildSystemPrompt` assembly order, section separation, identity metadata, model selection. All tests assert against `result.systemPrompt`. Every test needs updating to verify the split between `systemPrompt` and `sessionContext`.
+- `packages/tests/worker-activation.test.ts` (157 lines): Tests `buildSystemPrompt` assembly order, section separation, identity metadata, model selection. All tests assert against `result.systemPrompt`. Every test needs updating to verify the split between `systemPrompt` and `sessionContext`.
 
-- `tests/daemon/services/sdk-runner.test.ts` (~1370 lines): Tests `prepareSdkSession` including sub-agent map construction (lines 1079-1354). Sub-agent tests at lines 1261-1281 specifically verify that sub-agents receive memory content. These tests need reversal (verify memory is NOT loaded for sub-agents).
+- `apps/daemon/tests/services/sdk-runner.test.ts` (~1370 lines): Tests `prepareSdkSession` including sub-agent map construction (lines 1079-1354). Sub-agent tests at lines 1261-1281 specifically verify that sub-agents receive memory content. These tests need reversal (verify memory is NOT loaded for sub-agents).
 
-- `tests/daemon/services/manager/worker.test.ts` (515 lines): Tests `activateManager` assembly order, memory inclusion, manager context, model guidance. Assembly order test at line 254 verifies soul < identity < posture < memory < meeting < commission < manager. Needs splitting into system prompt vs session context assertions.
+- `apps/daemon/tests/services/manager/worker.test.ts` (515 lines): Tests `activateManager` assembly order, memory inclusion, manager context, model guidance. Assembly order test at line 254 verifies soul < identity < posture < memory < meeting < commission < manager. Needs splitting into system prompt vs session context assertions.
 
-- `tests/daemon/memory-injection.test.ts`: Tests `loadMemories` including guidance text inclusion, scope formatting, budget enforcement. Tests that verify guidance is in `memoryBlock` need updating for the new separation.
+- `apps/daemon/tests/memory-injection.test.ts`: Tests `loadMemories` including guidance text inclusion, scope formatting, budget enforcement. Tests that verify guidance is in `memoryBlock` need updating for the new separation.
 
 - No dedicated test files exist for commission-orchestrator or meeting-orchestrator session lifecycle. Those flows are integration-level; their prompt composition changes will be verified through the existing test infrastructure (checking that `prepareSdkSession` results flow correctly) plus manual validation.
 
@@ -119,7 +119,7 @@ Independent of Phase 2. Lower risk, smaller scope. Can be implemented, reviewed,
 
 #### Step 1: Skip Memory Loading for Sub-Agents
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-SPO-1, REQ-SPO-2, REQ-SPO-3, REQ-SPO-4, REQ-SPO-5
 
 Remove the `Promise.allSettled` memory loading block at lines 364-371. Replace the sub-agent `ActivationContext` construction (lines 387-397) to set `injectedMemory: ""` directly instead of using loaded memory:
@@ -146,7 +146,7 @@ REQ-SPO-5 is a clarification: sub-agents inherit no tools per REQ-SUBAG-12, so m
 
 #### Phase 1 Tests
 
-**File**: `tests/daemon/services/sdk-runner.test.ts`
+**File**: `apps/daemon/tests/services/sdk-runner.test.ts`
 
 **Update existing tests:**
 - "agent with memory content has prompt containing memory" (line 1261): Reverse this test. Verify that sub-agent `ActivationContext.injectedMemory` is `""` regardless of what `loadMemories` returns for the sub-agent. The `loadMemories` mock should not be called for sub-agent workers.
@@ -166,7 +166,7 @@ The steps are ordered by dependency: types first, then producers, then consumers
 
 #### Step 1: Export Memory Guidance and Separate Scope Content
 
-**Files**: `daemon/services/memory-injector.ts`
+**Files**: `apps/daemon/services/memory-injector.ts`
 **Addresses**: REQ-SPO-9, REQ-SPO-10, REQ-SPO-11
 
 Export `MEMORY_GUIDANCE` as a named constant so the activation function can inject it into the system prompt independently:
@@ -190,7 +190,7 @@ memoryBlock: `## Memories\n\nNo memories fit within budget.`
 
 The `MemoryResult` type stays `{ memoryBlock: string }`. The spec shows `MemoryResult` gaining a `memoryGuidance` field as one option, and exporting the constant directly as the alternative, noting "Either approach satisfies the requirement." This plan uses the constant-export variant of REQ-SPO-11 because the guidance text never changes at runtime, so routing it through a function return adds indirection without value.
 
-**Tests** (`tests/daemon/memory-injection.test.ts`):
+**Tests** (`apps/daemon/tests/memory-injection.test.ts`):
 - Update "returns guidance block when no memory files exist" (line 37): `memoryBlock` should still contain `## Memories` and `No memories saved yet.` but NOT contain `edit_memory` (the guidance text).
 - Add a test verifying the exported `MEMORY_GUIDANCE` constant contains expected content (`edit_memory`, `read_memory`, tool instructions).
 - Update all tests that assert guidance text is in `memoryBlock` to verify it's absent.
@@ -198,7 +198,7 @@ The `MemoryResult` type stays `{ memoryBlock: string }`. The spec shows `MemoryR
 
 #### Step 2: Type Changes
 
-**Files**: `lib/types.ts`, `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `lib/types.ts`, `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-SPO-6, REQ-SPO-18
 
 Add `sessionContext` to `ActivationResult`:
@@ -265,7 +265,7 @@ export function activateWorkerWithSharedPattern(
 
 `ActivationContext` fields (`commissionContext`, `meetingContext`, `injectedMemory`) are retained per REQ-SPO-25. They're still populated by the orchestrators. The activation function just routes them to `sessionContext` instead of `systemPrompt`.
 
-**Import path decision**: `worker-activation.ts` is in `packages/shared/` and currently imports only from `@/lib/types`. Importing `MEMORY_GUIDANCE` from `daemon/services/memory-injector.ts` would cross the package/daemon boundary, which `lib/` and `packages/` must not do (per CLAUDE.md type boundary rules).
+**Import path decision**: `worker-activation.ts` is in `packages/shared/` and currently imports only from `@/lib/types`. Importing `MEMORY_GUIDANCE` from `apps/daemon/services/memory-injector.ts` would cross the package/daemon boundary, which `lib/` and `packages/` must not do (per CLAUDE.md type boundary rules).
 
 **Resolution**: Pass memory guidance through `ActivationContext` as a new field `memoryGuidance: string`. `prepareSdkSession` populates it after exporting the constant from `memory-injector.ts`:
 
@@ -282,7 +282,7 @@ This follows the existing DI pattern: `prepareSdkSession` (in `daemon/`) already
 
 The activation function in `packages/shared/worker-activation.ts` then reads `context.memoryGuidance` without importing from `daemon/`. If `memoryGuidance` is undefined (e.g., sub-agents), the section is omitted from the system prompt.
 
-**Tests** (`tests/packages/worker-activation.test.ts`):
+**Tests** (`packages/tests/worker-activation.test.ts`):
 
 Every test that asserts against `result.systemPrompt` needs updating. Key changes:
 
@@ -298,7 +298,7 @@ Every test that asserts against `result.systemPrompt` needs updating. Key change
 
 #### Step 4: Refactor `activateManager`
 
-**Files**: `daemon/services/manager/worker.ts`
+**Files**: `apps/daemon/services/manager/worker.ts`
 **Addresses**: REQ-SPO-15, REQ-SPO-16
 
 Apply the same split as Step 3. `activateManager` currently duplicates `buildSystemPrompt` logic inline (lines 178-254). After this change:
@@ -340,7 +340,7 @@ export function activateManager(context: ActivationContext): ActivationResult {
 
 Consider extracting `formatIdentity` and `formatCommissionContext` as shared helpers since both `buildSystemPrompt` (Step 3) and `activateManager` use identical formatting for identity and commission blocks.
 
-**Tests** (`tests/daemon/services/manager/worker.test.ts`):
+**Tests** (`apps/daemon/tests/services/manager/worker.test.ts`):
 
 - "includes injected memory in system prompt" (line 167) → move assertion to `sessionContext`.
 - "includes manager context in system prompt" (line 177) → move assertion to `sessionContext`.
@@ -352,7 +352,7 @@ Consider extracting `formatIdentity` and `formatCommissionContext` as shared hel
 
 #### Step 5: Update `prepareSdkSession` and Sub-Agent Map
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-SPO-17, REQ-SPO-24
 
 Two changes in `prepareSdkSession`:
@@ -384,7 +384,7 @@ agents[subMeta.identity.name] = {
 
 `subActivation.sessionContext` is ignored. Since Phase 1 already set `injectedMemory: ""` and sub-agents have no activity context, `sessionContext` will be `""` for sub-agents. No explicit assertion needed in the code, but tests should verify.
 
-**Tests** (`tests/daemon/services/sdk-runner.test.ts`):
+**Tests** (`apps/daemon/tests/services/sdk-runner.test.ts`):
 
 - "happy path: all 5 steps succeed" (line 414) → add assertion: `result.result.sessionContext` is a string.
 - "activationExtras are spread into activation context" (line 492) → verify that meeting context appears in `sessionContext` of the result, not in the system prompt options.
@@ -393,7 +393,7 @@ agents[subMeta.identity.name] = {
 
 #### Step 6: Commission Orchestrator Integration
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-SPO-19, REQ-SPO-20
 
 In `runCommissionSession` (line 1798), change the prompt passed to `runSdkSession`:
@@ -416,7 +416,7 @@ The `sessionContext` includes the formatted commission block (task + dependencie
 
 The orchestrator still populates `activationExtras.commissionContext` at line 1778. That's how the task reaches the activation function, which formats it into `sessionContext`. No change to that flow.
 
-**Tests**: The spec explicitly requires: "Commission orchestrator tests must verify that the prompt passed to `runSdkSession` includes session context content." The `prepareSdkSession` tests (Step 5) verify that `sessionContext` exists on the result, but they don't verify the orchestrator uses it correctly (passes `sessionContext` instead of `prompt` to `runSdkSession`). Add a test in the commission orchestrator test area (or a new file `tests/daemon/services/commission-session.test.ts`) that:
+**Tests**: The spec explicitly requires: "Commission orchestrator tests must verify that the prompt passed to `runSdkSession` includes session context content." The `prepareSdkSession` tests (Step 5) verify that `sessionContext` exists on the result, but they don't verify the orchestrator uses it correctly (passes `sessionContext` instead of `prompt` to `runSdkSession`). Add a test in the commission orchestrator test area (or a new file `apps/daemon/tests/services/commission-session.test.ts`) that:
 
 - Captures the prompt passed to `queryFn` (via a mock `queryFn`).
 - Verifies the captured prompt matches `sessionContext` from the activation result, not the raw task text.
@@ -426,7 +426,7 @@ If creating a new test file for commission session behavior is too heavy, an int
 
 #### Step 7: Meeting Orchestrator and Session Loop Integration
 
-**Files**: `daemon/services/meeting/session-loop.ts`, `daemon/services/meeting/orchestrator.ts`
+**Files**: `apps/daemon/services/meeting/session-loop.ts`, `apps/daemon/services/meeting/orchestrator.ts`
 **Addresses**: REQ-SPO-21, REQ-SPO-22, REQ-SPO-23
 
 This step has the highest complexity. Three distinct code paths need different handling.
@@ -495,7 +495,7 @@ Currently, `acceptMeetingRequest` builds a combined prompt: `agenda + artifacts 
 
 After this change, the agenda is in `sessionContext`. The `acceptMeetingRequest` prompt composition at lines 622-628 simplifies: artifact references and the user's optional message can be appended after `sessionContext` in the SDK prompt, or kept as part of `meetingContext.agenda` (which flows to session context). The simpler approach: keep the existing prompt composition as-is. The combined prompt still flows through `buildMeetingPrepSpec` → `meetingContext.agenda` → `sessionContext`. The `startSession` function then prepends this session context to the greeting prompt. Net effect: same content, just in the first message instead of the system prompt.
 
-**Tests**: No dedicated session-loop or meeting-orchestrator test files exist. The spec requires meeting orchestrator tests for all three paths. Add tests (in a new `tests/daemon/services/session-loop.test.ts` or within existing test infrastructure) that verify:
+**Tests**: No dedicated session-loop or meeting-orchestrator test files exist. The spec requires meeting orchestrator tests for all three paths. Add tests (in a new `apps/daemon/tests/services/session-loop.test.ts` or within existing test infrastructure) that verify:
 
 - **New session** (REQ-SPO-21): The prompt passed to `iterateSession` is `sessionContext + "\n\n" + MEETING_GREETING_PROMPT`. Capture via mock.
 - **Resume** (REQ-SPO-22): The prompt passed to `iterateSession` is the user's message only, no `sessionContext` prepended.

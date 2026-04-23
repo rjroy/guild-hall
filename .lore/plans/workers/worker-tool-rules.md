@@ -38,7 +38,7 @@ The spec builds on Phase 2 of the sandboxed execution spec (REQ-SBX-11 through R
 | Sandbox injection for Bash workers | `sdk-runner.ts:460-471` (auto-triggers on `builtInTools.includes("Bash")`) | Implemented |
 | Package validation (REQ-SBX-15) | `lib/packages.ts:83-98` (superRefine on workerMetadataSchema) | Implemented |
 
-The toolbox resolver test at `tests/daemon/toolbox-resolver.test.ts:541-561` covers the passthrough. The sdk-runner test at `tests/daemon/services/sdk-runner.test.ts:1172-1420` covers the can-use-tool callback mechanism with 7 test cases (empty rules, non-empty rules, tool matching, command matching, path matching, interrupt:false). The package validation tests at `tests/lib/packages.test.ts:327-368` cover REQ-SBX-15 with 4 test cases.
+The toolbox resolver test at `apps/daemon/tests/toolbox-resolver.test.ts:541-561` covers the passthrough. The sdk-runner test at `apps/daemon/tests/services/sdk-runner.test.ts:1172-1420` covers the can-use-tool callback mechanism with 7 test cases (empty rules, non-empty rules, tool matching, command matching, path matching, interrupt:false). The package validation tests at `lib/tests/packages.test.ts:327-368` cover REQ-SBX-15 with 4 test cases.
 
 No gaps found between spec assumptions and implemented infrastructure.
 
@@ -46,13 +46,13 @@ No gaps found between spec assumptions and implemented infrastructure.
 
 **Octavia's package** (`packages/guild-hall-writer/package.json`): Current `builtInTools` is `["Skill", "Task", "Read", "Glob", "Grep", "Write", "Edit"]`. No `can-use-toolRules` field. Adding `"Bash"` and `can-use-toolRules` requires editing the `guildHall` block. The `guildHall` block also contains `model`, `domainPlugins`, `domainToolboxes`, `checkoutScope`, and `resourceDefaults`, all unchanged.
 
-**Guild Master's metadata** (`daemon/services/manager/worker.ts:107-129`): `createManagerPackage()` builds a `WorkerMetadata` object in code. Current `builtInTools` at line 123 is `["Read", "Glob", "Grep"]`. No `can-use-toolRules` field. The metadata is defined inline in the function, not in a separate file.
+**Guild Master's metadata** (`apps/daemon/services/manager/worker.ts:107-129`): `createManagerPackage()` builds a `WorkerMetadata` object in code. Current `builtInTools` at line 123 is `["Read", "Glob", "Grep"]`. No `can-use-toolRules` field. The metadata is defined inline in the function, not in a separate file.
 
-**Existing manager tests** (`tests/daemon/services/manager-worker.test.ts`): Has a test at line 54-58 that validates `createManagerPackage()` output against `workerMetadataSchema.safeParse()`. This test will automatically validate that any `can-use-toolRules` we add reference only tools in `builtInTools` (REQ-SBX-15). Also has `builtInTools` assertion at line 85-89 that currently expects `["Read", "Glob", "Grep"]`.
+**Existing manager tests** (`apps/daemon/tests/services/manager-worker.test.ts`): Has a test at line 54-58 that validates `createManagerPackage()` output against `workerMetadataSchema.safeParse()`. This test will automatically validate that any `can-use-toolRules` we add reference only tools in `builtInTools` (REQ-SBX-15). Also has `builtInTools` assertion at line 85-89 that currently expects `["Read", "Glob", "Grep"]`.
 
-**Second manager test file** (`tests/daemon/services/manager/worker.test.ts`): Another test file for the same module with overlapping coverage. Has `builtInTools` assertion at line 85-88 that also expects `["Read", "Glob", "Grep"]`. Imports `CanUseToolRule` type (line 9), so it's already prepared for rules.
+**Second manager test file** (`apps/daemon/tests/services/manager/worker.test.ts`): Another test file for the same module with overlapping coverage. Has `builtInTools` assertion at line 85-88 that also expects `["Read", "Glob", "Grep"]`. Imports `CanUseToolRule` type (line 9), so it's already prepared for rules.
 
-**can-use-tool test patterns** (`tests/daemon/services/sdk-runner.test.ts:1172-1420`): Existing tests inject `can-use-toolRules` through the `resolveToolSet` mock, then call `prepareSdkSession`, then invoke the returned `can-use-tool` function with tool names and inputs. This is the pattern the new tests should follow.
+**can-use-tool test patterns** (`apps/daemon/tests/services/sdk-runner.test.ts:1172-1420`): Existing tests inject `can-use-toolRules` through the `resolveToolSet` mock, then call `prepareSdkSession`, then invoke the returned `can-use-tool` function with tool names and inputs. This is the pattern the new tests should follow.
 
 ## Implementation Steps
 
@@ -94,7 +94,7 @@ The recursive flag exclusion (REQ-WTR-7) works implicitly through micromatch pre
 
 ### Step 2: Add Bash and can-use-toolRules to Guild Master's metadata
 
-**File**: `daemon/services/manager/worker.ts`
+**File**: `apps/daemon/services/manager/worker.ts`
 **Addresses**: REQ-WTR-9, REQ-WTR-10, REQ-WTR-11, REQ-WTR-12, REQ-WTR-13
 **Depends on**: Nothing
 
@@ -123,11 +123,11 @@ can-use-toolRules: [
 
 Same sandbox auto-activation note as Step 1 applies (REQ-WTR-13).
 
-**Verification**: `bun run typecheck` passes. The existing test at `tests/daemon/services/manager-worker.test.ts:54-58` (`workerMetadataSchema.safeParse(pkg.metadata)`) will fail temporarily because Step 4 hasn't updated the `builtInTools` assertion yet, but the schema validation itself will confirm REQ-SBX-15 compliance (Bash is in builtInTools, can-use-toolRules references Bash).
+**Verification**: `bun run typecheck` passes. The existing test at `apps/daemon/tests/services/manager-worker.test.ts:54-58` (`workerMetadataSchema.safeParse(pkg.metadata)`) will fail temporarily because Step 4 hasn't updated the `builtInTools` assertion yet, but the schema validation itself will confirm REQ-SBX-15 compliance (Bash is in builtInTools, can-use-toolRules references Bash).
 
 ### Step 3: Add can-use-tool callback tests for Octavia and Guild Master rules
 
-**File**: `tests/daemon/services/sdk-runner.test.ts`
+**File**: `apps/daemon/tests/services/sdk-runner.test.ts`
 **Addresses**: REQ-WTR-17 (test cases 1-15)
 **Depends on**: Nothing (tests inject mock rules, not the real worker metadata)
 
@@ -229,11 +229,11 @@ Test cases:
 
 **Import**: The test file must import `CanUseToolRule` from `@/lib/types` (add to the existing import at line 5-12).
 
-**Verification**: `bun test tests/daemon/services/sdk-runner.test.ts` passes.
+**Verification**: `bun test apps/daemon/tests/services/sdk-runner.test.ts` passes.
 
 ### Step 4: Update manager package tests and add validation tests
 
-**Files**: `tests/daemon/services/manager-worker.test.ts`, `tests/daemon/services/manager/worker.test.ts`
+**Files**: `apps/daemon/tests/services/manager-worker.test.ts`, `apps/daemon/tests/services/manager/worker.test.ts`
 **Addresses**: REQ-WTR-17 (test cases 16-18)
 **Depends on**: Step 2 (the production code change must be in place)
 
@@ -241,7 +241,7 @@ Test cases:
 
 Both test files assert the current `builtInTools` value. Update them:
 
-In `tests/daemon/services/manager-worker.test.ts:85-89`:
+In `apps/daemon/tests/services/manager-worker.test.ts:85-89`:
 ```typescript
 test("builtInTools includes read-only tools and Bash", () => {
   const pkg = createManagerPackage();
@@ -250,7 +250,7 @@ test("builtInTools includes read-only tools and Bash", () => {
 });
 ```
 
-In `tests/daemon/services/manager/worker.test.ts:85-88` (same change, different file):
+In `apps/daemon/tests/services/manager/worker.test.ts:85-88` (same change, different file):
 ```typescript
 test("builtInTools includes read-only tools and Bash", () => {
   const pkg = createManagerPackage();
@@ -261,7 +261,7 @@ test("builtInTools includes read-only tools and Bash", () => {
 
 #### Add new test cases (test cases 16-17)
 
-In `tests/daemon/services/manager-worker.test.ts`, add to the `createManagerPackage` describe block:
+In `apps/daemon/tests/services/manager-worker.test.ts`, add to the `createManagerPackage` describe block:
 
 ```typescript
 test("builtInTools contains Bash (REQ-WTR-17 case 16)", () => {
@@ -294,9 +294,9 @@ test("can-use-toolRules contains allowlist and catch-all deny (REQ-WTR-17 case 1
 
 #### Package validation (test case 18)
 
-The existing test at `tests/daemon/services/manager-worker.test.ts:54-58` already validates `createManagerPackage()` output against `workerMetadataSchema.safeParse()`. After Step 2 adds `can-use-toolRules` referencing `"Bash"` with `"Bash"` in `builtInTools`, this test automatically verifies REQ-SBX-15 compliance for the Guild Master. No new test needed for this case.
+The existing test at `apps/daemon/tests/services/manager-worker.test.ts:54-58` already validates `createManagerPackage()` output against `workerMetadataSchema.safeParse()`. After Step 2 adds `can-use-toolRules` referencing `"Bash"` with `"Bash"` in `builtInTools`, this test automatically verifies REQ-SBX-15 compliance for the Guild Master. No new test needed for this case.
 
-For Octavia's `package.json` (REQ-WTR-17 case 18): the package discovery process in `lib/packages.ts` runs `workerMetadataSchema.safeParse()` at runtime when the daemon starts. A dedicated test that reads and validates the actual file would be stronger but is not strictly necessary since the Zod schema is the same one tested in `tests/lib/packages.test.ts`. If the implementer wants to add one, it belongs in `tests/lib/packages.test.ts`:
+For Octavia's `package.json` (REQ-WTR-17 case 18): the package discovery process in `lib/packages.ts` runs `workerMetadataSchema.safeParse()` at runtime when the daemon starts. A dedicated test that reads and validates the actual file would be stronger but is not strictly necessary since the Zod schema is the same one tested in `lib/tests/packages.test.ts`. If the implementer wants to add one, it belongs in `lib/tests/packages.test.ts`:
 
 ```typescript
 test("guild-hall-writer package.json passes workerMetadataSchema validation", async () => {
@@ -310,7 +310,7 @@ test("guild-hall-writer package.json passes workerMetadataSchema validation", as
 
 This is optional. The plan marks it as a recommended addition, not a requirement.
 
-**Verification**: `bun test tests/daemon/services/manager-worker.test.ts tests/daemon/services/manager/worker.test.ts` passes.
+**Verification**: `bun test apps/daemon/tests/services/manager-worker.test.ts apps/daemon/tests/services/manager/worker.test.ts` passes.
 
 ### Step 5: Full suite verification
 
@@ -331,7 +331,7 @@ The pre-commit hook enforces all three plus a production build.
 
 **Pre-commit hook sequencing.** Steps 1 and 2 change production code. Step 4 changes test assertions that will fail until the production changes are in place. Steps 1, 2, and 4 should be committed together so the pre-commit hook's test run passes. Step 3 (new tests) can be a separate commit because it adds new tests, not fixes broken assertions.
 
-**Two test files for the same module.** `tests/daemon/services/manager-worker.test.ts` and `tests/daemon/services/manager/worker.test.ts` both test `createManagerPackage()`. Both have `builtInTools` assertions that need updating. The newer file (`manager/worker.test.ts`) has less coverage but imports `CanUseToolRule`. The older file (`manager-worker.test.ts`) has schema validation and richer posture content tests. Both must be updated.
+**Two test files for the same module.** `apps/daemon/tests/services/manager-worker.test.ts` and `apps/daemon/tests/services/manager/worker.test.ts` both test `createManagerPackage()`. Both have `builtInTools` assertions that need updating. The newer file (`manager/worker.test.ts`) has less coverage but imports `CanUseToolRule`. The older file (`manager-worker.test.ts`) has schema validation and richer posture content tests. Both must be updated.
 
 ## Delegation Guide
 

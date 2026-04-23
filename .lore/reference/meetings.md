@@ -104,14 +104,14 @@ State files at `~/.guild-hall/state/meetings/{meetingId}.json` track open meetin
 
 | Entry | Type | Handler |
 |-------|------|---------|
-| POST /meetings | Daemon | `daemon/routes/meetings.ts` -> `meetingSession.createMeeting()` |
-| POST /meetings/:id/messages | Daemon | `daemon/routes/meetings.ts` -> `meetingSession.sendMessage()` |
-| DELETE /meetings/:id | Daemon | `daemon/routes/meetings.ts` -> `meetingSession.closeMeeting()` |
-| POST /meetings/:id/interrupt | Daemon | `daemon/routes/meetings.ts` -> `meetingSession.interruptTurn()` |
-| POST /meetings/:id/accept | Daemon | `daemon/routes/meetings.ts` -> `meetingSession.acceptMeetingRequest()` |
-| POST /meetings/:id/decline | Daemon | `daemon/routes/meetings.ts` -> `meetingSession.declineMeeting()` |
-| POST /meetings/:id/defer | Daemon | `daemon/routes/meetings.ts` -> `meetingSession.deferMeeting()` |
-| /projects/[name]/meetings/[id] | Page | `web/app/projects/[name]/meetings/[id]/page.tsx` |
+| POST /meetings | Daemon | `apps/daemon/routes/meetings.ts` -> `meetingSession.createMeeting()` |
+| POST /meetings/:id/messages | Daemon | `apps/daemon/routes/meetings.ts` -> `meetingSession.sendMessage()` |
+| DELETE /meetings/:id | Daemon | `apps/daemon/routes/meetings.ts` -> `meetingSession.closeMeeting()` |
+| POST /meetings/:id/interrupt | Daemon | `apps/daemon/routes/meetings.ts` -> `meetingSession.interruptTurn()` |
+| POST /meetings/:id/accept | Daemon | `apps/daemon/routes/meetings.ts` -> `meetingSession.acceptMeetingRequest()` |
+| POST /meetings/:id/decline | Daemon | `apps/daemon/routes/meetings.ts` -> `meetingSession.declineMeeting()` |
+| POST /meetings/:id/defer | Daemon | `apps/daemon/routes/meetings.ts` -> `meetingSession.deferMeeting()` |
+| /projects/[name]/meetings/[id] | Page | `apps/web/app/projects/[name]/meetings/[id]/page.tsx` |
 | /api/meetings/* | Next.js API | Proxy routes to daemon (8 route files) |
 | POST /api/meetings/[id]/quick-comment | Next.js API | Compound: creates commission from meeting request, then declines the meeting |
 
@@ -121,28 +121,28 @@ State files at `~/.guild-hall/state/meetings/{meetingId}.json` track open meetin
 
 | File | Role |
 |------|------|
-| `daemon/routes/meetings.ts` | Thin route layer, validates input, streams SSE responses. Defines `MeetingSessionForRoutes` interface. |
-| `daemon/services/meeting-session.ts` | Orchestration core: CRUD, SDK session runner, session renewal, transcript context injection, crash recovery. Builds the ActivityMachine with meeting-specific handler deps. |
-| `daemon/services/meeting/orchestrator.ts` | Meeting lifecycle flows: open, close, decline, defer. Sequential steps over injected dependencies. |
-| `daemon/services/meeting/record.ts` | Meeting artifact record operations: create, update status, append log, linked artifacts. |
-| `daemon/services/meeting/registry.ts` | Active meeting registry: lookup, counting, concurrent-close guard. |
-| `daemon/services/meeting-toolbox.ts` | Meeting-context MCP tools (see Workers/Toolbox feature). |
-| `daemon/services/transcript.ts` | Transcript CRUD: `createTranscript`, `appendUserTurn`, `appendAssistantTurn`, `readTranscript`, `removeTranscript`. |
-| `daemon/services/notes-generator.ts` | AI-generated meeting notes from transcript + artifact context. |
-| `daemon/services/query-runner.ts` | Shared SDK query execution and event translation. `runQueryAndTranslate` yields `GuildHallEvent` from `SDKMessage` stream. Handles session expiry detection. |
+| `apps/daemon/routes/meetings.ts` | Thin route layer, validates input, streams SSE responses. Defines `MeetingSessionForRoutes` interface. |
+| `apps/daemon/services/meeting-session.ts` | Orchestration core: CRUD, SDK session runner, session renewal, transcript context injection, crash recovery. Builds the ActivityMachine with meeting-specific handler deps. |
+| `apps/daemon/services/meeting/orchestrator.ts` | Meeting lifecycle flows: open, close, decline, defer. Sequential steps over injected dependencies. |
+| `apps/daemon/services/meeting/record.ts` | Meeting artifact record operations: create, update status, append log, linked artifacts. |
+| `apps/daemon/services/meeting/registry.ts` | Active meeting registry: lookup, counting, concurrent-close guard. |
+| `apps/daemon/services/meeting-toolbox.ts` | Meeting-context MCP tools (see Workers/Toolbox feature). |
+| `apps/daemon/services/transcript.ts` | Transcript CRUD: `createTranscript`, `appendUserTurn`, `appendAssistantTurn`, `readTranscript`, `removeTranscript`. |
+| `apps/daemon/services/notes-generator.ts` | AI-generated meeting notes from transcript + artifact context. |
+| `apps/daemon/services/query-runner.ts` | Shared SDK query execution and event translation. `runQueryAndTranslate` yields `GuildHallEvent` from `SDKMessage` stream. Handles session expiry detection. |
 | `lib/meetings.ts` | Read-only scanning/parsing for Next.js: `MeetingMeta`, `scanMeetings`, `scanMeetingRequests`, `getActiveMeetingWorktrees`, `parseTranscriptToMessages`. |
 | `lib/paths.ts` | Path resolution (meeting worktree, branch names). |
-| `web/app/projects/[name]/meetings/[id]/page.tsx` | Server component: reads artifact, parses transcript for session resume, resolves linked artifact existence and hrefs. |
-| `web/components/meeting/MeetingView.tsx` | Client wrapper: composes ChatInterface + ArtifactsPanel + close button. Manages close flow (DELETE, show notes). |
-| `web/components/meeting/ChatInterface.tsx` | Core chat UI: SSE streaming, message parsing (`parseSSEBuffer`), stop button (abort + POST /interrupt), session resume from sessionStorage or transcript. |
-| `web/components/meeting/MessageBubble.tsx` | Renders individual chat messages with markdown. |
-| `web/components/meeting/StreamingMessage.tsx` | Renders the in-progress assistant message during streaming. |
-| `web/components/meeting/MessageInput.tsx` | Chat input with submit handling. |
-| `web/components/meeting/ToolUseIndicator.tsx` | Shows tool use status during streaming. |
-| `web/components/meeting/ArtifactsPanel.tsx` | Sidebar panel listing linked artifacts. |
-| `web/components/meeting/NotesDisplay.tsx` | Post-close view showing generated notes with link back to project. |
-| `web/components/meeting/MeetingHeader.tsx` | Header showing worker name and meeting metadata. |
-| `web/components/meeting/ErrorMessage.tsx` | Error display within the chat interface. |
+| `apps/web/app/projects/[name]/meetings/[id]/page.tsx` | Server component: reads artifact, parses transcript for session resume, resolves linked artifact existence and hrefs. |
+| `apps/web/components/meeting/MeetingView.tsx` | Client wrapper: composes ChatInterface + ArtifactsPanel + close button. Manages close flow (DELETE, show notes). |
+| `apps/web/components/meeting/ChatInterface.tsx` | Core chat UI: SSE streaming, message parsing (`parseSSEBuffer`), stop button (abort + POST /interrupt), session resume from sessionStorage or transcript. |
+| `apps/web/components/meeting/MessageBubble.tsx` | Renders individual chat messages with markdown. |
+| `apps/web/components/meeting/StreamingMessage.tsx` | Renders the in-progress assistant message during streaming. |
+| `apps/web/components/meeting/MessageInput.tsx` | Chat input with submit handling. |
+| `apps/web/components/meeting/ToolUseIndicator.tsx` | Shows tool use status during streaming. |
+| `apps/web/components/meeting/ArtifactsPanel.tsx` | Sidebar panel listing linked artifacts. |
+| `apps/web/components/meeting/NotesDisplay.tsx` | Post-close view showing generated notes with link back to project. |
+| `apps/web/components/meeting/MeetingHeader.tsx` | Header showing worker name and meeting metadata. |
+| `apps/web/components/meeting/ErrorMessage.tsx` | Error display within the chat interface. |
 
 ### Data
 

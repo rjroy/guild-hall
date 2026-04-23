@@ -19,15 +19,15 @@ This plan implements the full spec at `.lore/specs/infrastructure/event-router.m
 
 ## Codebase Context
 
-**EventBus** (`daemon/lib/event-bus.ts`): 13 `SystemEvent` variants. `createEventBus(log)` returns `{ emit, subscribe }`. Subscribers are stored in a `Set`. `subscribe()` returns an unsubscribe callback. The SSE route (`daemon/routes/events.ts`) subscribes synchronously and dispatches `writeSSE` fire-and-forget. The router follows the same pattern.
+**EventBus** (`apps/daemon/lib/event-bus.ts`): 13 `SystemEvent` variants. `createEventBus(log)` returns `{ emit, subscribe }`. Subscribers are stored in a `Set`. `subscribe()` returns an unsubscribe callback. The SSE route (`apps/daemon/routes/events.ts`) subscribes synchronously and dispatches `writeSSE` fire-and-forget. The router follows the same pattern.
 
 **Config schema** (`lib/config.ts`): `appConfigSchema` is a Zod object with `projects`, `models`, `settings`, and several optional scalars. Cross-reference validation uses `superRefine` (model name uniqueness check at lines 64-86). The router's channel-reference validation follows this same pattern.
 
 **AppConfig type** (`lib/types.ts`): TypeScript interface at line 35. Both the Zod schema and the interface need the new `channels` and `notifications` fields.
 
-**Production wiring** (`daemon/app.ts`): `createProductionApp()` creates the EventBus at line 190, reads config at line 188, and returns `{ app, registry, shutdown }`. The router hooks into this as a new service. The `shutdown` function already collects cleanup callbacks (scheduler.stop, briefingRefresh.stop); the router's unsubscribe callback joins that list.
+**Production wiring** (`apps/daemon/app.ts`): `createProductionApp()` creates the EventBus at line 190, reads config at line 188, and returns `{ app, registry, shutdown }`. The router hooks into this as a new service. The `shutdown` function already collects cleanup callbacks (scheduler.stop, briefingRefresh.stop); the router's unsubscribe callback joins that list.
 
-**Logger** (`daemon/lib/log.ts`): `Log` interface with `error`, `warn`, `info`. Factory type `CreateLog = (tag: string) => Log`. The router uses tag `"event-router"`.
+**Logger** (`apps/daemon/lib/log.ts`): `Log` interface with `error`, `warn`, `info`. Factory type `CreateLog = (tag: string) => Log`. The router uses tag `"event-router"`.
 
 **Env var convention for shell channels**: The spec defines `EVENT_TYPE`, `EVENT_JSON`, and `EVENT_<FIELD_NAME>` in SCREAMING_SNAKE_CASE. The conversion from camelCase (`commissionId`) to SCREAMING_SNAKE (`COMMISSION_ID`) is a straightforward regex transformation.
 
@@ -48,7 +48,7 @@ Define three new schemas:
 
 2. **Channel map schema**: `z.record()` with key validation matching `^[a-zA-Z0-9_-]+$` (REQ-EVRT-8). Use `z.record(channelNameSchema, channelSchema)` where `channelNameSchema` is a `z.string().regex()`.
 
-3. **Notification rule schema**: Object with `match` (object with required `type` string and optional `projectName` string) and `channel` (string). The `match.type` field validates against the 13 `SystemEvent` discriminant values. Extract these values into a const array (e.g., `SYSTEM_EVENT_TYPES`) from the `SystemEvent` type definition in `daemon/lib/event-bus.ts`, then reference it in the Zod schema via `z.enum()`. Since `lib/config.ts` should not import from `daemon/`, define the valid event type strings as a const array in `lib/types.ts` and import from there. Keep it in sync with `SystemEvent` via a type-level check (a mapped type that fails to compile if the arrays diverge).
+3. **Notification rule schema**: Object with `match` (object with required `type` string and optional `projectName` string) and `channel` (string). The `match.type` field validates against the 13 `SystemEvent` discriminant values. Extract these values into a const array (e.g., `SYSTEM_EVENT_TYPES`) from the `SystemEvent` type definition in `apps/daemon/lib/event-bus.ts`, then reference it in the Zod schema via `z.enum()`. Since `lib/config.ts` should not import from `daemon/`, define the valid event type strings as a const array in `lib/types.ts` and import from there. Keep it in sync with `SystemEvent` via a type-level check (a mapped type that fails to compile if the arrays diverge).
 
 4. **Notifications array schema**: `z.array(notificationRuleSchema)`.
 
@@ -87,7 +87,7 @@ notifications?: NotificationRule[];
 
 #### Step 4: Tests for config schema
 
-**Files**: `tests/lib/config.test.ts`
+**Files**: `lib/tests/config.test.ts`
 **Addresses**: REQ-EVRT-1 through REQ-EVRT-9
 
 Add a `describe("channels and notifications", ...)` block. Test cases:
@@ -104,13 +104,13 @@ Add a `describe("channels and notifications", ...)` block. Test cases:
 10. Accepts notification rule with `projectName` in match.
 11. Accepts notification rule without `projectName` in match.
 
-Run `bun test tests/lib/config.test.ts` to confirm.
+Run `bun test lib/tests/config.test.ts` to confirm.
 
 ### Phase 2: Router Service
 
 #### Step 5: Create the EventRouter factory
 
-**Files**: `daemon/services/event-router.ts` (new)
+**Files**: `apps/daemon/services/event-router.ts` (new)
 **Addresses**: REQ-EVRT-10, REQ-EVRT-11, REQ-EVRT-12, REQ-EVRT-13, REQ-EVRT-15, REQ-EVRT-24, REQ-EVRT-25
 
 Create `createEventRouter(deps)` factory. The deps interface:
@@ -141,7 +141,7 @@ The async dispatch wrapping: use `void Promise.resolve().then(async () => { ... 
 
 #### Step 6: Implement shell channel dispatch
 
-**Files**: `daemon/services/event-router.ts`
+**Files**: `apps/daemon/services/event-router.ts`
 **Addresses**: REQ-EVRT-17, REQ-EVRT-19
 
 Default `dispatchShell` implementation:
@@ -155,7 +155,7 @@ Default `dispatchShell` implementation:
 
 #### Step 7: Implement webhook channel dispatch
 
-**Files**: `daemon/services/event-router.ts`
+**Files**: `apps/daemon/services/event-router.ts`
 **Addresses**: REQ-EVRT-18, REQ-EVRT-19
 
 Default `dispatchWebhook` implementation:
@@ -166,7 +166,7 @@ Default `dispatchWebhook` implementation:
 
 #### Step 8: Tests for the router
 
-**Files**: `tests/daemon/services/event-router.test.ts` (new)
+**Files**: `apps/daemon/tests/services/event-router.test.ts` (new)
 **Addresses**: REQ-EVRT-10 through REQ-EVRT-25
 
 Test cases using `createEventBus` with `nullLog` and injected mock dispatch functions:
@@ -201,19 +201,19 @@ Test cases using `createEventBus` with `nullLog` and injected mock dispatch func
 17. `projectName` becomes `EVENT_PROJECT_NAME`.
 18. `type` becomes `EVENT_TYPE` (matches the explicit `EVENT_TYPE` var).
 
-Run `bun test tests/daemon/services/event-router.test.ts` to confirm.
+Run `bun test apps/daemon/tests/services/event-router.test.ts` to confirm.
 
 ### Phase 3: Production Wiring
 
 #### Step 9: Wire the router into createProductionApp
 
-**Files**: `daemon/app.ts`
+**Files**: `apps/daemon/app.ts`
 **Addresses**: REQ-EVRT-10, REQ-EVRT-22, REQ-EVRT-24
 
 After the EventBus is created and config is read (around line 190), create the router:
 
 ```typescript
-const { createEventRouter } = await import("@/daemon/services/event-router");
+const { createEventRouter } = await import("@/apps/daemon/services/event-router");
 const unsubscribeRouter = createEventRouter({
   eventBus,
   channels: config.channels ?? {},
@@ -228,7 +228,7 @@ The router should be created early in the startup sequence (after EventBus and c
 
 #### Step 10: Integration test
 
-**Files**: `tests/daemon/services/event-router.test.ts` (append to existing)
+**Files**: `apps/daemon/tests/services/event-router.test.ts` (append to existing)
 
 Add an integration test that creates a real `EventBus`, a real router with mock dispatchers, emits an event, and verifies the mock was called. This validates the subscribe/emit/dispatch chain end-to-end without hitting the network or spawning processes.
 
@@ -246,7 +246,7 @@ Launch a sub-agent with fresh context. The agent reads the spec at `.lore/specs/
 - `appConfigSchema` includes channels and notifications with cross-reference validation.
 - `AppConfig` in `lib/types.ts` includes the new optional fields.
 - The router factory is wired in `createProductionApp()`.
-- The router uses `Log` from `daemon/lib/log.ts`, not `console`.
+- The router uses `Log` from `apps/daemon/lib/log.ts`, not `console`.
 - Shell env vars are correctly constructed.
 - Webhook POSTs the correct body and content type.
 - `projectName` matching correctly skips events without the field.
@@ -293,6 +293,6 @@ The `SYSTEM_EVENT_TYPES` array in Step 1 is the one piece that crosses the `lib/
 
 ## Resolved Questions
 
-**Event type list sync** (resolved 2026-03-19): Step 1 proposes a const array of valid event type strings in `lib/types.ts` with a type-level assertion against `SystemEvent["type"]`. This requires `SystemEvent` to be importable from `lib/types.ts`, but it currently lives in `daemon/lib/event-bus.ts`.
+**Event type list sync** (resolved 2026-03-19): Step 1 proposes a const array of valid event type strings in `lib/types.ts` with a type-level assertion against `SystemEvent["type"]`. This requires `SystemEvent` to be importable from `lib/types.ts`, but it currently lives in `apps/daemon/lib/event-bus.ts`.
 
 **Decision: Option 2.** Define the event type strings as a standalone const array in `lib/types.ts` without a compile-time assertion, and add a test that imports both and verifies they match. This avoids moving types across boundaries. The test catches drift at CI time, which is sufficient.

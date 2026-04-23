@@ -70,13 +70,13 @@ Everything this plan requires is already built. No infrastructure changes, no ne
 
 | File | Why |
 |------|-----|
-| `tests/packages/worker-roster.test.ts` | `expectedRosterPackageNames` and `expectedRoleProfiles` don't include the Steward yet |
-| `tests/packages/worker-role-smoke.test.ts` | No Steward import or smoke test |
-| `tests/packages/worker-routing-validation.test.ts` | Routing signals and type union don't include `"steward"` |
+| `packages/tests/worker-roster.test.ts` | `expectedRosterPackageNames` and `expectedRoleProfiles` don't include the Steward yet |
+| `packages/tests/worker-role-smoke.test.ts` | No Steward import or smoke test |
+| `packages/tests/worker-routing-validation.test.ts` | Routing signals and type union don't include `"steward"` |
 
 ### Portrait directory
 
-Existing portraits live at `web/public/images/portraits/`. The Steward's portrait path in `package.json` is `/images/portraits/edmund-steward.webp`. A placeholder must exist at `web/public/images/portraits/edmund-steward.webp` before the UI will display the worker without a broken image.
+Existing portraits live at `apps/web/public/images/portraits/`. The Steward's portrait path in `package.json` is `/images/portraits/edmund-steward.webp`. A placeholder must exist at `apps/web/public/images/portraits/edmund-steward.webp` before the UI will display the worker without a broken image.
 
 ## Implementation Steps
 
@@ -125,7 +125,7 @@ export function activate(context: ActivationContext): ActivationResult {
 
 **Test strategy**: No tests at this step. Discovery validation happens in Step 5. The schema validation in `lib/packages.ts` will catch any metadata errors when the discovery test runs.
 
-**Verification**: Run `bun test tests/packages/worker-roster.test.ts` after Step 5. For early validation: `node -e "import('./packages/guild-hall-steward/package.json', {assert:{type:'json'}}).then(m=>console.log(m.default.guildHall))"` confirms the JSON is valid and the shape is correct.
+**Verification**: Run `bun test packages/tests/worker-roster.test.ts` after Step 5. For early validation: `node -e "import('./packages/guild-hall-steward/package.json', {assert:{type:'json'}}).then(m=>console.log(m.default.guildHall))"` confirms the JSON is valid and the shape is correct.
 
 ---
 
@@ -137,7 +137,7 @@ export function activate(context: ActivationContext): ActivationResult {
 
 Three sections: Character, Voice, Vibe. The spec provides complete example content in REQ-STW-7 that satisfies all sub-requirements. Dalton should use that content as-is; no creative work required.
 
-**Structure requirements** (from REQ-WID-2, verified in `tests/packages/worker-roster.test.ts`):
+**Structure requirements** (from REQ-WID-2, verified in `packages/tests/worker-roster.test.ts`):
 - Three `##`-level sections: `## Character`, `## Voice`, `## Vibe`
 - Voice section contains `### Anti-examples` and `### Calibration pairs` subsections
 - Total under 80 lines
@@ -157,7 +157,7 @@ The spec's example content at REQ-STW-7 fulfills all these requirements and shou
 - Under 80 lines
 - No posture content leakage
 
-**Verification**: `bun test tests/packages/worker-roster.test.ts` after Step 5 runs soul file structure checks for all roster workers including the Steward.
+**Verification**: `bun test packages/tests/worker-roster.test.ts` after Step 5 runs soul file structure checks for all roster workers including the Steward.
 
 ---
 
@@ -218,31 +218,31 @@ The workflow must encode the commission execution sequence from REQ-STW-8 in fiv
 - Key operational phrases verified in Steward-specific posture content test
 - Advisory boundary (no write tool calls in email toolbox) verified via toolbox introspection
 
-**Verification**: `bun test tests/packages/worker-roster.test.ts` confirms section structure. `bun test tests/packages/guild-hall-steward/` confirms content tests.
+**Verification**: `bun test packages/tests/worker-roster.test.ts` confirms section structure. `bun test packages/guild-hall-steward/tests/` confirms content tests.
 
 ---
 
 ### Step 4: Portrait placeholder
 
-**File**: `web/public/images/portraits/edmund-steward.webp`
+**File**: `apps/web/public/images/portraits/edmund-steward.webp`
 **Addresses**: REQ-STW-2 (portraitPath references this file)
 **Delegate**: Dalton
 
 Create a placeholder `.webp` file so the UI doesn't display a broken image for the Steward. Copy an existing portrait as a placeholder; the creative portrait is a separate deliverable not in scope for this plan.
 
 ```bash
-cp web/public/images/portraits/guild-master.webp web/public/images/portraits/edmund-steward.webp
+cp apps/web/public/images/portraits/guild-master.webp apps/web/public/images/portraits/edmund-steward.webp
 ```
 
 The portrait can be replaced later with a proper Edmund image without any code changes. The `portraitPath` in `package.json` points to the correct path regardless of the image content.
 
-**Verification**: File exists at `web/public/images/portraits/edmund-steward.webp`. The worker card in the UI displays without a broken image placeholder.
+**Verification**: File exists at `apps/web/public/images/portraits/edmund-steward.webp`. The worker card in the UI displays without a broken image placeholder.
 
 ---
 
 ### Step 5: Update roster and routing tests
 
-**Files**: `tests/packages/worker-roster.test.ts`, `tests/packages/worker-role-smoke.test.ts`, `tests/packages/worker-routing-validation.test.ts`
+**Files**: `packages/tests/worker-roster.test.ts`, `packages/tests/worker-role-smoke.test.ts`, `packages/tests/worker-routing-validation.test.ts`
 **Addresses**: Success criteria — discoverable by roster, visible for commission assignment, manager routes correctly
 **Delegate**: Sable
 **Depends on**: Step 1 complete (package.json must exist for schema validation)
@@ -308,13 +308,13 @@ Update `fixtures/worker-routing-intents.json` to include representative and adve
 
 **Test strategy**: These are updates to existing tests that extend existing patterns. No new test infrastructure needed.
 
-**Verification**: `bun test tests/packages/worker-roster.test.ts tests/packages/worker-role-smoke.test.ts tests/packages/worker-routing-validation.test.ts` all pass with the Steward included.
+**Verification**: `bun test packages/tests/worker-roster.test.ts packages/tests/worker-role-smoke.test.ts packages/tests/worker-routing-validation.test.ts` all pass with the Steward included.
 
 ---
 
 ### Step 6: Steward integration tests
 
-**File**: `tests/packages/guild-hall-steward/integration.test.ts` (new)
+**File**: `packages/guild-hall-steward/tests/integration.test.ts` (new)
 **Addresses**: AI Validation criteria — package discovery, toolbox resolution, advisory boundary, posture content verification
 **Delegate**: Sable
 **Depends on**: Steps 1-3 complete
@@ -386,9 +386,9 @@ describe("guild-hall-steward package", () => {
 });
 ```
 
-The toolbox resolution test (second test) requires knowing whether REQ-WKR-13 causes activation failure or graceful degradation. Check `daemon/services/toolbox-resolver.ts` behavior when a declared domain toolbox is missing before implementing this test. If the resolver logs a warning and continues (soft failure), adjust the test expectation accordingly.
+The toolbox resolution test (second test) requires knowing whether REQ-WKR-13 causes activation failure or graceful degradation. Check `apps/daemon/services/toolbox-resolver.ts` behavior when a declared domain toolbox is missing before implementing this test. If the resolver logs a warning and continues (soft failure), adjust the test expectation accordingly.
 
-**Verification**: `bun test tests/packages/guild-hall-steward/integration.test.ts` passes. `bun test` full suite passes.
+**Verification**: `bun test packages/guild-hall-steward/tests/integration.test.ts` passes. `bun test` full suite passes.
 
 ---
 
@@ -428,7 +428,7 @@ For Step 3 (posture), the posture must encode enough operational detail to drive
 
 Step 5 updates existing test files. Follow the patterns already in each file. The roster test additions are mechanical — add to the arrays, add the guardrail patterns. The routing test additions require creating fixture intents, which involves some judgment about what makes a steward-routed commission distinct from a researcher-routed one.
 
-Step 6 creates a new test file. Pattern it after `tests/packages/guild-hall-email/integration.test.ts`. The posture content verification tests are straightforward regex checks; the toolbox resolution test may require checking the resolver behavior first.
+Step 6 creates a new test file. Pattern it after `packages/guild-hall-email/tests/integration.test.ts`. The posture content verification tests are straightforward regex checks; the toolbox resolution test may require checking the resolver behavior first.
 
 **Dependency**: Sable's work (Steps 5-6) depends on Dalton's work (Steps 1-3) being complete. Sable cannot run roster tests against a missing package. Sequence strictly.
 
@@ -446,7 +446,7 @@ Review only. No code changes. The most important review targets are posture comp
 
 ## Open Questions
 
-1. **REQ-WKR-13 behavior for missing domain toolboxes**: The spec says "activation fails cleanly if the toolbox is missing." Whether this means the resolver throws an error or returns a degraded activation context is not confirmed by reading `lib/packages.ts` alone — the behavior lives in `daemon/services/toolbox-resolver.ts`. Sable should check the resolver before writing the "Steward without email toolbox" test in Step 6. If the resolver soft-fails (warning + continues), the test expectation changes.
+1. **REQ-WKR-13 behavior for missing domain toolboxes**: The spec says "activation fails cleanly if the toolbox is missing." Whether this means the resolver throws an error or returns a degraded activation context is not confirmed by reading `lib/packages.ts` alone — the behavior lives in `apps/daemon/services/toolbox-resolver.ts`. Sable should check the resolver before writing the "Steward without email toolbox" test in Step 6. If the resolver soft-fails (warning + continues), the test expectation changes.
 
 2. **Memory file paths**: Worker-scoped memory paths are injected via `context.injectedMemory` from the SDK session setup. The posture in Step 3 should name the memory files explicitly. Confirm how the memory path is surfaced in `context` — whether as a directory path the Steward uses with `Write`, or as a pre-loaded string. This affects how the workflow step describes "read memory at commission start."
 

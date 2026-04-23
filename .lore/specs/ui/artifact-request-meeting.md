@@ -92,8 +92,8 @@ The navigation approach is the right choice here. It is consistent with the comm
 
 ## Context
 
-- `web/components/artifact/MetadataSidebar.tsx`: Current sidebar. `createCommissionHref()` is the template for `requestMeetingHref()`. The commission link at line 141-148 moves to the Actions section.
-- `web/components/commission/CreateCommissionButton.tsx`: Structural template for `CreateMeetingButton`. Same toggle pattern, different form fields.
-- `web/app/projects/[name]/page.tsx`: Lines 19 and 62-67 show how commission query params are consumed. Meeting params follow the same pattern on the meetings tab (line 78-80).
-- `daemon/routes/meetings.ts:77-111`: `POST /meeting/request/meeting/create` accepts `{ projectName, workerName, prompt }` and streams SSE. This is the target endpoint for REQ-ARM-9.
+- `apps/web/components/artifact/MetadataSidebar.tsx`: Current sidebar. `createCommissionHref()` is the template for `requestMeetingHref()`. The commission link at line 141-148 moves to the Actions section.
+- `apps/web/components/commission/CreateCommissionButton.tsx`: Structural template for `CreateMeetingButton`. Same toggle pattern, different form fields.
+- `apps/web/app/projects/[name]/page.tsx`: Lines 19 and 62-67 show how commission query params are consumed. Meeting params follow the same pattern on the meetings tab (line 78-80).
+- `apps/daemon/routes/meetings.ts:77-111`: `POST /meeting/request/meeting/create` accepts `{ projectName, workerName, prompt }` and streams SSE. This is the target endpoint for REQ-ARM-9.
 - [Spec: Guild Hall Meetings](../meetings/guild-hall-meetings.md): REQ-MTG-6 defines that user-created meetings start as open and skip the requested state. REQ-MTG-8 defines the meeting creation flow. REQ-MTG-2 defines the meeting artifact fields including agenda and referenced artifacts.

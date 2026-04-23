@@ -3,7 +3,7 @@ title: "Memory Single-File Redesign"
 date: 2026-03-17
 status: executed
 tags: [memory, architecture, toolbox, agent-ux, migration]
-modules: [daemon/services/memory-injector, daemon/services/memory-compaction, daemon/services/base-toolbox, daemon/lib/agent-sdk/sdk-runner, daemon/services/meeting/orchestrator, daemon/app]
+modules: [apps/daemon/services/memory-injector, apps/daemon/services/memory-compaction, apps/daemon/services/base-toolbox, apps/daemon/lib/agent-sdk/sdk-runner, apps/daemon/services/meeting/orchestrator, apps/daemon/app]
 related:
   - .lore/specs/infrastructure/memory-single-file-redesign.md
   - .lore/brainstorm/memory-single-file-redesign.md
@@ -21,23 +21,23 @@ The current memory system stores one file per memory entry per scope, with a `ME
 
 | File | Role | Lines |
 |------|------|-------|
-| `daemon/services/memory-injector.ts` | `loadMemories`, `memoryScopeDir`, `MEMORY_GUIDANCE`, budget logic | ~260 |
-| `daemon/services/memory-compaction.ts` | `triggerCompaction`, `runCompaction`, SDK-based summarization | ~355 |
-| `daemon/services/base-toolbox.ts` | `read_memory`, `write_memory`, `record_decision` MCP tools | ~186 |
-| `daemon/lib/agent-sdk/sdk-runner.ts` | Calls `loadMemories`, conditionally calls `triggerCompaction` (lines 383-394) | consumer |
-| `daemon/services/meeting/orchestrator.ts` | Wires `triggerCompaction` into session prep deps (lines 419-427) | consumer |
-| `daemon/services/manager/context.ts` | Type signature for `loadMemoriesFn`, compaction trigger (line 339) | consumer |
-| `daemon/app.ts` | Production wiring: imports `triggerCompaction`, passes to session deps (lines 183-343) | consumer |
+| `apps/daemon/services/memory-injector.ts` | `loadMemories`, `memoryScopeDir`, `MEMORY_GUIDANCE`, budget logic | ~260 |
+| `apps/daemon/services/memory-compaction.ts` | `triggerCompaction`, `runCompaction`, SDK-based summarization | ~355 |
+| `apps/daemon/services/base-toolbox.ts` | `read_memory`, `write_memory`, `record_decision` MCP tools | ~186 |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts` | Calls `loadMemories`, conditionally calls `triggerCompaction` (lines 383-394) | consumer |
+| `apps/daemon/services/meeting/orchestrator.ts` | Wires `triggerCompaction` into session prep deps (lines 419-427) | consumer |
+| `apps/daemon/services/manager/context.ts` | Type signature for `loadMemoriesFn`, compaction trigger (line 339) | consumer |
+| `apps/daemon/app.ts` | Production wiring: imports `triggerCompaction`, passes to session deps (lines 183-343) | consumer |
 
 ### Existing Test Files
 
 | File | Coverage |
 |------|----------|
-| `tests/daemon/memory-injection.test.ts` | `loadMemories`, budget enforcement, scope directory reading |
-| `tests/daemon/memory-compaction.test.ts` | Top-level compaction tests |
-| `tests/daemon/services/memory-compaction.test.ts` | Detailed compaction service tests |
-| `tests/daemon/memory-access-control.test.ts` | Scope isolation, path validation |
-| `tests/daemon/base-toolbox.test.ts` | Tool handler tests for read/write/record_decision |
+| `apps/daemon/tests/memory-injection.test.ts` | `loadMemories`, budget enforcement, scope directory reading |
+| `apps/daemon/tests/memory-compaction.test.ts` | Top-level compaction tests |
+| `apps/daemon/tests/services/memory-compaction.test.ts` | Detailed compaction service tests |
+| `apps/daemon/tests/memory-access-control.test.ts` | Scope isolation, path validation |
+| `apps/daemon/tests/base-toolbox.test.ts` | Tool handler tests for read/write/record_decision |
 
 ### Dependency Graph (what calls what)
 
@@ -75,7 +75,7 @@ The `write_memory` deprecation alias (spec decision 6) is handled alongside `edi
 
 **Risk:** Low. Pure string manipulation, no side effects, no integration points.
 
-### Step 1.1: Create `daemon/services/memory-sections.ts`
+### Step 1.1: Create `apps/daemon/services/memory-sections.ts`
 
 New file with two exported functions:
 
@@ -97,7 +97,7 @@ Rendering rules (from REQ-MEM-6):
 
 ### Step 1.2: Tests for section parser
 
-**File:** `tests/daemon/services/memory-sections.test.ts`
+**File:** `apps/daemon/tests/services/memory-sections.test.ts`
 
 Test cases:
 - Empty string produces empty array
@@ -109,7 +109,7 @@ Test cases:
 - Content with `## ` appearing mid-line (not at start, should not split)
 - Trailing whitespace normalization
 
-**Verification:** `bun test tests/daemon/services/memory-sections.test.ts`
+**Verification:** `bun test apps/daemon/tests/services/memory-sections.test.ts`
 
 ---
 
@@ -188,7 +188,7 @@ Map the old `write_memory(scope, path, content)` to `edit_memory(scope, section=
 
 ### Step 2.6: Tests for tools
 
-**File:** Update `tests/daemon/base-toolbox.test.ts` and `tests/daemon/memory-access-control.test.ts`
+**File:** Update `apps/daemon/tests/base-toolbox.test.ts` and `apps/daemon/tests/memory-access-control.test.ts`
 
 Test cases for `edit_memory`:
 - Upsert creates file and section when neither exists
@@ -220,7 +220,7 @@ Test cases for `write_memory` alias:
 - Maps to upsert correctly
 - Path parameter becomes section name
 
-**Verification:** `bun test tests/daemon/base-toolbox.test.ts tests/daemon/memory-access-control.test.ts`
+**Verification:** `bun test apps/daemon/tests/base-toolbox.test.ts apps/daemon/tests/memory-access-control.test.ts`
 
 ---
 
@@ -256,13 +256,13 @@ Remove `needsCompaction` from type signatures and conditional logic:
 
 | File | Change |
 |------|--------|
-| `daemon/lib/agent-sdk/sdk-runner.ts:127` | Remove `needsCompaction` from return type |
-| `daemon/lib/agent-sdk/sdk-runner.ts:134-138` | Remove `triggerCompaction` from `SessionPrepDeps` |
-| `daemon/lib/agent-sdk/sdk-runner.ts:389-394` | Remove compaction trigger block |
-| `daemon/services/manager/context.ts:59` | Remove `needsCompaction` from type signature |
-| `daemon/services/manager/context.ts:339` | Remove compaction trigger conditional |
-| `daemon/services/meeting/orchestrator.ts:415` | Remove `needsCompaction: false` from fallback |
-| `daemon/services/meeting/orchestrator.ts:419-427` | Remove `triggerCompaction` wiring |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts:127` | Remove `needsCompaction` from return type |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts:134-138` | Remove `triggerCompaction` from `SessionPrepDeps` |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts:389-394` | Remove compaction trigger block |
+| `apps/daemon/services/manager/context.ts:59` | Remove `needsCompaction` from type signature |
+| `apps/daemon/services/manager/context.ts:339` | Remove compaction trigger conditional |
+| `apps/daemon/services/meeting/orchestrator.ts:415` | Remove `needsCompaction: false` from fallback |
+| `apps/daemon/services/meeting/orchestrator.ts:419-427` | Remove `triggerCompaction` wiring |
 
 ### Step 3.4: Remove compaction wiring from `app.ts`
 
@@ -270,7 +270,7 @@ Remove the `triggerCompaction` import (line 183-185) and the production wiring t
 
 ### Step 3.5: Update injection tests
 
-**File:** `tests/daemon/memory-injection.test.ts`
+**File:** `apps/daemon/tests/memory-injection.test.ts`
 
 Rewrite tests to:
 - Use single-file fixtures instead of directory fixtures
@@ -280,11 +280,11 @@ Rewrite tests to:
 - Remove all `needsCompaction` assertions
 
 Also update any other test files that reference `needsCompaction` or `triggerCompaction` in their fixtures:
-- `tests/daemon/services/sdk-runner.test.ts`
-- `tests/daemon/services/briefing-generator.test.ts`
-- `tests/daemon/services/commission/orchestrator.test.ts`
-- `tests/daemon/services/mail/orchestrator.test.ts`
-- `tests/daemon/integration-commission.test.ts`
+- `apps/daemon/tests/services/sdk-runner.test.ts`
+- `apps/daemon/tests/services/briefing-generator.test.ts`
+- `apps/daemon/tests/services/commission/orchestrator.test.ts`
+- `apps/daemon/tests/services/mail/orchestrator.test.ts`
+- `apps/daemon/tests/integration-commission.test.ts`
 
 **Verification:** `bun test` (full suite, since type changes propagate widely)
 
@@ -321,7 +321,7 @@ After migration is wired in, the old `memoryScopeDir` is only needed by migratio
 
 ### Step 4.3: Migration tests
 
-**File:** `tests/daemon/services/memory-migration.test.ts` (new)
+**File:** `apps/daemon/tests/services/memory-migration.test.ts` (new)
 
 Test cases:
 - Legacy directory with 5 files including `_compacted.md`: verify single file has preamble + 4 alphabetical sections, legacy dir renamed to `.migrated`
@@ -333,7 +333,7 @@ Test cases:
 - Migration via `read_memory`: triggers migration, returns content from new file
 - Concurrent migration attempts: second caller sees the single file and skips
 
-**Verification:** `bun test tests/daemon/services/memory-migration.test.ts`
+**Verification:** `bun test apps/daemon/tests/services/memory-migration.test.ts`
 
 ---
 
@@ -345,15 +345,15 @@ Test cases:
 
 **Risk:** Low. By this phase, all consumers have been updated (Phase 3 removed the call sites). This is cleanup.
 
-### Step 5.1: Delete `daemon/services/memory-compaction.ts`
+### Step 5.1: Delete `apps/daemon/services/memory-compaction.ts`
 
 Remove the file entirely per REQ-MEM-20.
 
 ### Step 5.2: Delete compaction test files
 
 Remove:
-- `tests/daemon/memory-compaction.test.ts`
-- `tests/daemon/services/memory-compaction.test.ts`
+- `apps/daemon/tests/memory-compaction.test.ts`
+- `apps/daemon/tests/services/memory-compaction.test.ts`
 
 ### Step 5.3: Deprecate `systemModels.memoryCompaction` config field
 
@@ -362,7 +362,7 @@ Per REQ-MEM-21: leave the field in the Zod schema for backward compatibility but
 ### Step 5.4: Remove stale imports
 
 Grep for any remaining references to `memory-compaction`, `triggerCompaction`, `needsCompaction`, or `compactFn` across the codebase. Remove or update each one. Check:
-- `daemon/services/meeting/orchestrator.ts` (import statement at line 83)
+- `apps/daemon/services/meeting/orchestrator.ts` (import statement at line 83)
 - Any test fixtures that still reference compaction
 
 ### Step 5.5: Verify clean build
@@ -375,26 +375,26 @@ Grep for any remaining references to `memory-compaction`, `triggerCompaction`, `
 
 | File | Change |
 |------|--------|
-| `daemon/services/memory-sections.ts` | **New.** Section parser and renderer |
-| `daemon/services/memory-injector.ts` | Rewrite `loadMemories` for single-file reads, add `memoryScopeFile`, add `migrateIfNeeded`, update `MEMORY_GUIDANCE`, remove `needsCompaction` from return type |
-| `daemon/services/memory-compaction.ts` | **Deleted.** |
-| `daemon/services/base-toolbox.ts` | Replace `write_memory` with `edit_memory` (keep deprecated alias), rewrite `read_memory`, add per-toolbox `readScopes` tracking, add mutex usage |
-| `daemon/lib/agent-sdk/sdk-runner.ts` | Remove `triggerCompaction` from deps type, remove compaction trigger block, update `loadMemories` return type |
-| `daemon/services/meeting/orchestrator.ts` | Remove `triggerCompaction` import and wiring, update `loadMemories` fallback type |
-| `daemon/services/manager/context.ts` | Remove `needsCompaction` from type, remove compaction trigger |
-| `daemon/app.ts` | Remove `triggerCompaction` import and production wiring |
-| `tests/daemon/services/memory-sections.test.ts` | **New.** Parser/renderer tests |
-| `tests/daemon/services/memory-migration.test.ts` | **New.** Migration tests |
-| `tests/daemon/base-toolbox.test.ts` | Rewrite for `edit_memory`, updated `read_memory`, guard tests |
-| `tests/daemon/memory-access-control.test.ts` | Update for new tool schemas |
-| `tests/daemon/memory-injection.test.ts` | Rewrite for single-file, section-level budget |
-| `tests/daemon/memory-compaction.test.ts` | **Deleted.** |
-| `tests/daemon/services/memory-compaction.test.ts` | **Deleted.** |
-| `tests/daemon/services/sdk-runner.test.ts` | Remove compaction-related fixtures |
-| `tests/daemon/services/briefing-generator.test.ts` | Update `loadMemories` mock return type |
-| `tests/daemon/services/commission/orchestrator.test.ts` | Update `loadMemories` mock return type |
-| `tests/daemon/services/mail/orchestrator.test.ts` | Update `loadMemories` mock return type |
-| `tests/daemon/integration-commission.test.ts` | Update `loadMemories` mock return type |
+| `apps/daemon/services/memory-sections.ts` | **New.** Section parser and renderer |
+| `apps/daemon/services/memory-injector.ts` | Rewrite `loadMemories` for single-file reads, add `memoryScopeFile`, add `migrateIfNeeded`, update `MEMORY_GUIDANCE`, remove `needsCompaction` from return type |
+| `apps/daemon/services/memory-compaction.ts` | **Deleted.** |
+| `apps/daemon/services/base-toolbox.ts` | Replace `write_memory` with `edit_memory` (keep deprecated alias), rewrite `read_memory`, add per-toolbox `readScopes` tracking, add mutex usage |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts` | Remove `triggerCompaction` from deps type, remove compaction trigger block, update `loadMemories` return type |
+| `apps/daemon/services/meeting/orchestrator.ts` | Remove `triggerCompaction` import and wiring, update `loadMemories` fallback type |
+| `apps/daemon/services/manager/context.ts` | Remove `needsCompaction` from type, remove compaction trigger |
+| `apps/daemon/app.ts` | Remove `triggerCompaction` import and production wiring |
+| `apps/daemon/tests/services/memory-sections.test.ts` | **New.** Parser/renderer tests |
+| `apps/daemon/tests/services/memory-migration.test.ts` | **New.** Migration tests |
+| `apps/daemon/tests/base-toolbox.test.ts` | Rewrite for `edit_memory`, updated `read_memory`, guard tests |
+| `apps/daemon/tests/memory-access-control.test.ts` | Update for new tool schemas |
+| `apps/daemon/tests/memory-injection.test.ts` | Rewrite for single-file, section-level budget |
+| `apps/daemon/tests/memory-compaction.test.ts` | **Deleted.** |
+| `apps/daemon/tests/services/memory-compaction.test.ts` | **Deleted.** |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | Remove compaction-related fixtures |
+| `apps/daemon/tests/services/briefing-generator.test.ts` | Update `loadMemories` mock return type |
+| `apps/daemon/tests/services/commission/orchestrator.test.ts` | Update `loadMemories` mock return type |
+| `apps/daemon/tests/services/mail/orchestrator.test.ts` | Update `loadMemories` mock return type |
+| `apps/daemon/tests/integration-commission.test.ts` | Update `loadMemories` mock return type |
 
 ## What Stays
 

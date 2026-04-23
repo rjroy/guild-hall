@@ -39,7 +39,7 @@ The user needs error visibility on reopen for two reasons: knowing that recovery
 
 - REQ-MEP-2: Error sections MUST be appended to the transcript at the point they occur in the event stream, not deferred to post-loop. This preserves chronological ordering relative to assistant text and tool use that may have preceded the error in the same turn.
 
-- REQ-MEP-3: A new function `appendErrorSafe` in `daemon/services/meeting/transcript.ts` handles the write. It follows the same pattern as `appendAssistantTurnSafe` and `appendCompactionMarkerSafe`: swallow filesystem errors with a warning log so transcript failures don't break the meeting flow.
+- REQ-MEP-3: A new function `appendErrorSafe` in `apps/daemon/services/meeting/transcript.ts` handles the write. It follows the same pattern as `appendAssistantTurnSafe` and `appendCompactionMarkerSafe`: swallow filesystem errors with a warning log so transcript failures don't break the meeting flow.
 
   ```typescript
   export async function appendErrorSafe(
@@ -54,7 +54,7 @@ The user needs error visibility on reopen for two reasons: knowing that recovery
 
 ### Transcript Parsing: Read Error Sections
 
-- REQ-MEP-5: The transcript heading regex in `parseTranscriptMessages` (`daemon/services/meeting/transcript.ts:327`) and `parseTranscriptToMessages` (`lib/meetings.ts:297`) MUST be extended to match `## Error (timestamp)` headings. Both parsers already handle three heading types (`User`, `Assistant`, `Context Compacted`). Error becomes the fourth.
+- REQ-MEP-5: The transcript heading regex in `parseTranscriptMessages` (`apps/daemon/services/meeting/transcript.ts:327`) and `parseTranscriptToMessages` (`lib/meetings.ts:297`) MUST be extended to match `## Error (timestamp)` headings. Both parsers already handle three heading types (`User`, `Assistant`, `Context Compacted`). Error becomes the fourth.
 
 - REQ-MEP-6: Parsed error sections produce messages with `role: "system"` and a content string that clearly identifies the message as an error. The content MUST be prefixed with a distinguishing marker so the UI can differentiate errors from compaction notices (which also use `role: "system"`). Format: the content string is the raw error reason, and the message carries an additional field or the content is prefixed.
 
@@ -68,11 +68,11 @@ The user needs error visibility on reopen for two reasons: knowing that recovery
 
 ### Transcript Truncation: Preserve Error Sections
 
-- REQ-MEP-7: The `truncateTranscript` function (`daemon/services/meeting/transcript.ts:168`) already splits on a heading pattern that includes `User`, `Assistant`, and `Context Compacted`. This pattern MUST be extended to include `Error` so that error sections are not split mid-section during truncation.
+- REQ-MEP-7: The `truncateTranscript` function (`apps/daemon/services/meeting/transcript.ts:168`) already splits on a heading pattern that includes `User`, `Assistant`, and `Context Compacted`. This pattern MUST be extended to include `Error` so that error sections are not split mid-section during truncation.
 
 ### UI: Display Persisted Errors
 
-- REQ-MEP-8: The `ChatInterface` component (`web/components/meeting/ChatInterface.tsx`) already renders `system` role messages from the transcript (compaction notices). Persisted error messages (those with content starting with `Error:`) MUST render with visual treatment that distinguishes them from informational system messages. The existing `ErrorMessage` component's styling is the reference for how errors should look.
+- REQ-MEP-8: The `ChatInterface` component (`apps/web/components/meeting/ChatInterface.tsx`) already renders `system` role messages from the transcript (compaction notices). Persisted error messages (those with content starting with `Error:`) MUST render with visual treatment that distinguishes them from informational system messages. The existing `ErrorMessage` component's styling is the reference for how errors should look.
 
 - REQ-MEP-9: Persisted error messages from the transcript MUST NOT re-trigger the `error` state in ChatInterface. They are historical records, not active errors. They render inline in the message list at their chronological position, not in the sticky error banner.
 

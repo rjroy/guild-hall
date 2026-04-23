@@ -3,7 +3,7 @@ title: "Commit .lore Changes from the Web UI"
 date: 2026-03-14
 status: executed
 tags: [ui, artifacts, git, web, daemon]
-modules: [daemon/lib/git, daemon/routes/git-lore, daemon/app, "web/app/projects/[name]/page", web/components/project/CommitLoreButton]
+modules: [apps/daemon/lib/git, apps/daemon/routes/git-lore, apps/daemon/app, "apps/web/app/projects/[name]/page", apps/web/components/project/CommitLoreButton]
 related:
   - .lore/specs/ui/commit-lore-from-web.md
   - .lore/brainstorm/commit-lore-from-web.md
@@ -18,15 +18,15 @@ Add a "Commit .lore" button to the Artifacts tab action bar. The button expands 
 
 ## Codebase Context
 
-**Git abstraction boundary.** `runGit` in `daemon/lib/git.ts` is a private function. Route handlers cannot call it directly. All git operations go through the `GitOps` interface. The spec says "calls `runGit` directly (like the admin routes)" — what it means is: don't use the existing `commitAll` convenience method (it stages everything with `git add -A`). Instead, add targeted methods to `GitOps` that do the right thing for `.lore/`.
+**Git abstraction boundary.** `runGit` in `apps/daemon/lib/git.ts` is a private function. Route handlers cannot call it directly. All git operations go through the `GitOps` interface. The spec says "calls `runGit` directly (like the admin routes)" — what it means is: don't use the existing `commitAll` convenience method (it stages everything with `git add -A`). Instead, add targeted methods to `GitOps` that do the right thing for `.lore/`.
 
-**`GitOps` interface** is at `daemon/lib/git.ts:105`. `createGitOps()` is the production implementation at line 203. Any new interface methods need implementations in both places and stubs in every existing test fixture that constructs a `GitOps` mock (`tests/daemon/routes/artifacts.test.ts:35-69`, `tests/daemon/routes/admin.test.ts:14-48`, and any others that build a full mock).
+**`GitOps` interface** is at `apps/daemon/lib/git.ts:105`. `createGitOps()` is the production implementation at line 203. Any new interface methods need implementations in both places and stubs in every existing test fixture that constructs a `GitOps` mock (`apps/daemon/tests/routes/artifacts.test.ts:35-69`, `apps/daemon/tests/routes/admin.test.ts:14-48`, and any others that build a full mock).
 
-**Route wiring pattern.** `daemon/app.ts:33-50` defines `AppDeps`. Optional fields like `admin?: AdminDeps` and `artifacts?: ArtifactDeps` are conditionally mounted at lines 118-128. `createProductionApp` wires them at lines 550-565 using the shared `config`, `guildHallHome`, and `git` instances.
+**Route wiring pattern.** `apps/daemon/app.ts:33-50` defines `AppDeps`. Optional fields like `admin?: AdminDeps` and `artifacts?: ArtifactDeps` are conditionally mounted at lines 118-128. `createProductionApp` wires them at lines 550-565 using the shared `config`, `guildHallHome`, and `git` instances.
 
-**Admin route as model.** `daemon/routes/admin.ts:17-32` defines `AdminDeps`. The same shape applies for `GitLoreDeps`. Skill definitions follow `admin.ts:280-343`. The `descriptions` record at `admin.ts:346-351` already registers `"workspace.git"` — the new route must not re-register that key or it will overwrite the admin entry.
+**Admin route as model.** `apps/daemon/routes/admin.ts:17-32` defines `AdminDeps`. The same shape applies for `GitLoreDeps`. Skill definitions follow `admin.ts:280-343`. The `descriptions` record at `admin.ts:346-351` already registers `"workspace.git"` — the new route must not re-register that key or it will overwrite the admin entry.
 
-**Page and CSS.** `web/app/projects/[name]/page.tsx:39-45` is the `Promise.all` block to extend. Lines 57-90 are the tab conditionals; the commissions tab (`line 60-78`) and meetings tab (`79-90`) establish the `<Tab><Actions><List>` structure the artifacts tab currently lacks. `page.module.css` has `.commissionTab`, `.commissionActions`, `.meetingTab`, `.meetingActions` — add the matching artifact variants.
+**Page and CSS.** `apps/web/app/projects/[name]/page.tsx:39-45` is the `Promise.all` block to extend. Lines 57-90 are the tab conditionals; the commissions tab (`line 60-78`) and meetings tab (`79-90`) establish the `<Tab><Actions><List>` structure the artifacts tab currently lacks. `page.module.css` has `.commissionTab`, `.commissionActions`, `.meetingTab`, `.meetingActions` — add the matching artifact variants.
 
 **Component model.** `CreateCommissionButton.tsx` is the closest analog: a `"use client"` component that toggles an inline form, collapses on success, no modal. `CommitLoreButton` is simpler — one text field, no router refresh on success.
 
@@ -34,7 +34,7 @@ Add a "Commit .lore" button to the Artifacts tab action bar. The button expands 
 
 ### Step 1: Extend `GitOps` with lore-scoped operations
 
-**Modified file:** `daemon/lib/git.ts`
+**Modified file:** `apps/daemon/lib/git.ts`
 
 Add two methods to the `GitOps` interface:
 
@@ -87,16 +87,16 @@ commitLore: () => Promise.resolve({ committed: false }),
 
 ---
 
-### Step 2: Create `daemon/routes/git-lore.ts`
+### Step 2: Create `apps/daemon/routes/git-lore.ts`
 
-**New file:** `daemon/routes/git-lore.ts`
+**New file:** `apps/daemon/routes/git-lore.ts`
 
 ```ts
 import { Hono } from "hono";
-import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import { nullLog } from "@/daemon/lib/log";
-import type { Log } from "@/daemon/lib/log";
-import type { GitOps } from "@/daemon/lib/git";
+import { errorMessage } from "@/apps/daemon/lib/toolbox-utils";
+import { nullLog } from "@/apps/daemon/lib/log";
+import type { Log } from "@/apps/daemon/lib/log";
+import type { GitOps } from "@/apps/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 
@@ -167,9 +167,9 @@ Export `createGitLoreRoutes(deps: GitLoreDeps): RouteModule`.
 
 ---
 
-### Step 3: Wire into `daemon/app.ts`
+### Step 3: Wire into `apps/daemon/app.ts`
 
-**Modified file:** `daemon/app.ts`
+**Modified file:** `apps/daemon/app.ts`
 
 Two changes:
 
@@ -208,14 +208,14 @@ No new infrastructure: `config`, `guildHallHome`, and `git` are the same instanc
 
 ---
 
-### Step 4: Update `web/app/projects/[name]/page.tsx`
+### Step 4: Update `apps/web/app/projects/[name]/page.tsx`
 
-**Modified file:** `web/app/projects/[name]/page.tsx`
+**Modified file:** `apps/web/app/projects/[name]/page.tsx`
 
 **4a. Add import** at the top with the other component imports:
 
 ```ts
-import CommitLoreButton from "@/web/components/project/CommitLoreButton";
+import CommitLoreButton from "@/apps/web/components/project/CommitLoreButton";
 ```
 
 **4b. Extend the `Promise.all` block** (currently lines 39-45). Add the lore status fetch as the fifth entry:
@@ -263,7 +263,7 @@ const pendingFileCount = loreStatusResult.ok ? loreStatusResult.data.fileCount :
 
 ### Step 5: Add CSS classes to `page.module.css`
 
-**Modified file:** `web/app/projects/[name]/page.module.css`
+**Modified file:** `apps/web/app/projects/[name]/page.module.css`
 
 Append after the existing `.meetingActions` block (line 35):
 
@@ -286,9 +286,9 @@ Identical shape to `.commissionTab`/`.commissionActions` and `.meetingTab`/`.mee
 
 ### Step 6: Create the Next.js API proxy route
 
-**New file:** `web/app/api/git/lore/commit/route.ts`
+**New file:** `apps/web/app/api/git/lore/commit/route.ts`
 
-Client components cannot call the daemon directly (it's on a Unix socket). All client-side mutations go through Next.js API routes that proxy to the daemon. Follow the pattern in `web/app/api/artifacts/route.ts`.
+Client components cannot call the daemon directly (it's on a Unix socket). All client-side mutations go through Next.js API routes that proxy to the daemon. Follow the pattern in `apps/web/app/api/artifacts/route.ts`.
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -339,8 +339,8 @@ The API route applies its own `message` validation before forwarding. This means
 
 ### Step 7: Create `CommitLoreButton`
 
-**New file:** `web/components/project/CommitLoreButton.tsx`
-**New file:** `web/components/project/CommitLoreButton.module.css`
+**New file:** `apps/web/components/project/CommitLoreButton.tsx`
+**New file:** `apps/web/components/project/CommitLoreButton.module.css`
 
 `CommitLoreButton` is a `"use client"` component. Props:
 
@@ -377,13 +377,13 @@ When `showForm` is true, render an inline form below the button:
 **Submit handler:**
 1. If `message.trim() === ""`, set `validationError = "A commit message is required"`, return early (do not call daemon).
 2. Set `submitting = true`, clear `validationError`.
-3. `POST /workspace/git/lore/commit?projectName=${encodeURIComponent(projectName)}` with `{ message: message.trim() }` via `fetch` to the daemon socket path. The daemon runs on a Unix socket; use the same base URL pattern as other client-side API calls in the codebase. Check how `web/lib/daemon-api.ts` exposes the base URL for fetch calls from client components.
+3. `POST /workspace/git/lore/commit?projectName=${encodeURIComponent(projectName)}` with `{ message: message.trim() }` via `fetch` to the daemon socket path. The daemon runs on a Unix socket; use the same base URL pattern as other client-side API calls in the codebase. Check how `apps/web/lib/daemon-api.ts` exposes the base URL for fetch calls from client components.
 4. On success with `committed: true`: set `result = { kind: "success", text: "Committed." }`, `showForm = false`, `message = ""`. The result text is shown briefly (a few seconds via `setTimeout` → clear result), then fades.
 5. On `committed: false`: set `result = { kind: "nothing", text: "Nothing to commit." }`, `showForm = false`.
 6. On non-2xx or network error: set `result = { kind: "error", text: error message }`. Do NOT collapse the form — the user should be able to correct and retry.
 7. Set `submitting = false`.
 
-**API call pattern.** `fetchDaemon` in `web/lib/daemon-api.ts` is server-only. Client components call Next.js API routes via `fetch`. `CommitLoreButton` calls `POST /api/git/lore/commit?projectName=${encodeURIComponent(projectName)}` with `Content-Type: application/json` and body `{ message }`. This is the same pattern as `CreateMeetingButton.tsx:37-41`.
+**API call pattern.** `fetchDaemon` in `apps/web/lib/daemon-api.ts` is server-only. Client components call Next.js API routes via `fetch`. `CommitLoreButton` calls `POST /api/git/lore/commit?projectName=${encodeURIComponent(projectName)}` with `Content-Type: application/json` and body `{ message }`. This is the same pattern as `CreateMeetingButton.tsx:37-41`.
 
 **CSS (`CommitLoreButton.module.css`):**
 
@@ -507,9 +507,9 @@ When `showForm` is true, render an inline form below the button:
 
 ### Step 8: Tests
 
-**New file:** `tests/daemon/routes/git-lore.test.ts`
+**New file:** `apps/daemon/tests/routes/git-lore.test.ts`
 
-Use the same structure as `tests/daemon/routes/artifacts.test.ts`: mock `GitOps`, wire through `createApp`, use `app.request()`. All tests follow the DI pattern — no real git subprocess calls.
+Use the same structure as `apps/daemon/tests/routes/artifacts.test.ts`: mock `GitOps`, wire through `createApp`, use `app.request()`. All tests follow the DI pattern — no real git subprocess calls.
 
 Required test cases (from the spec's AI Validation section):
 
@@ -539,7 +539,7 @@ For the staging boundary test (item 9), write a unit test directly on `createGit
 
 If JSDOM is not available in the test suite, note the component tests as manual verification items and document the expected behaviors clearly in the component file comments.
 
-**Verify:** `bun test tests/daemon/routes/git-lore.test.ts` passes. Full `bun test` passes.
+**Verify:** `bun test apps/daemon/tests/routes/git-lore.test.ts` passes. Full `bun test` passes.
 
 ---
 
@@ -566,7 +566,7 @@ Manual smoke test (from spec's AI Validation section):
 |------|-----|-------|
 | Steps 1–4 | Implementation agent | Pure TypeScript/DI work; no UI required |
 | Step 5 | Implementation agent | CSS only |
-| Step 6 | Implementation agent | Thin Next.js API proxy; mirrors `web/app/api/artifacts/route.ts` pattern exactly |
+| Step 6 | Implementation agent | Thin Next.js API proxy; mirrors `apps/web/app/api/artifacts/route.ts` pattern exactly |
 | Step 7 | Implementation agent | Client component; API path is `/api/git/lore/commit` per Step 6 |
 | Step 8 | Implementation agent | Daemon route tests are straightforward DI; git staging boundary test requires a real temp git repo |
 | Step 9 | Fresh-eyes review agent | Verify spec compliance and staging boundary correctness |
@@ -579,6 +579,6 @@ Manual smoke test (from spec's AI Validation section):
 
 - **No router refresh after commit.** The `hasPendingChanges` prop is server-rendered and becomes stale after a commit until the next page navigation. This is acceptable per the spec. Do not call `router.refresh()` on success.
 
-- **Daemon fetch from client components.** Check `web/lib/daemon-api.ts` and existing form components before implementing the `fetch` call in `CommitLoreButton`. The daemon runs on a Unix socket proxied via Next.js API routes. Client-side calls likely go to `/api/daemon/[...path]` or similar — verify before assuming a direct URL works.
+- **Daemon fetch from client components.** Check `apps/web/lib/daemon-api.ts` and existing form components before implementing the `fetch` call in `CommitLoreButton`. The daemon runs on a Unix socket proxied via Next.js API routes. Client-side calls likely go to `/api/daemon/[...path]` or similar — verify before assuming a direct URL works.
 
 - **`runGit` is private.** The two new `GitOps` methods (`lorePendingChanges`, `commitLore`) are the only correct way to add git behavior reachable from route handlers. Do not export `runGit` or try to use it from outside `git.ts`.

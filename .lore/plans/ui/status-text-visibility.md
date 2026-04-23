@@ -17,7 +17,7 @@ Replace the bare `GemIndicator` in all list views with a `StatusBadge` composite
 
 ## Codebase Context
 
-**GemIndicator** (`web/components/ui/GemIndicator.tsx`): A plain `<img>` with a CSS filter applied to shift the base blue gem to green/amber/red/blue. Props: `status: "active" | "pending" | "blocked" | "info"`, `size: "sm" | "md"`. No wrapper element, no text. 16×16px (sm) or 24×24px (md).
+**GemIndicator** (`apps/web/components/ui/GemIndicator.tsx`): A plain `<img>` with a CSS filter applied to shift the base blue gem to green/amber/red/blue. Props: `status: "active" | "pending" | "blocked" | "info"`, `size: "sm" | "md"`. No wrapper element, no text. 16×16px (sm) or 24×24px (md).
 
 **Status mapping**: `statusToGem()` at `lib/types.ts:252` maps ~20 freeform status strings to four gem variants. Unrecognized strings → "info". `meetingStatusToGem()` in `MeetingList.tsx:22` is a separate mapping for the four meeting-specific statuses (open/requested/declined/closed). These two mappings differ for "open": `statusToGem("open") = "pending"` (amber), but `meetingStatusToGem("open") = "active"` (green). Any status component that centralizes gem computation must handle this split or accept a pre-computed gem variant as a prop.
 
@@ -39,9 +39,9 @@ Replace the bare `GemIndicator` in all list views with a `StatusBadge` composite
 
 **Row layouts**: CommissionList and MeetingList use `flex row: [gem | info]` (gem on left). ArtifactList and RecentArtifacts use `flex row: [scroll-icon | info | gem]` (gem on right). DependencyMap uses cards with `flex row: [gem | info]`. The StatusBadge is a drop-in replacement in all positions — its internal layout is self-contained.
 
-**Existing status color tokens in `web/app/globals.css`**: `--color-brass: #b8860b`, `--color-amber: #ffb000`, `--color-text-muted: #a89878`. There is no green or red text token. New tokens are required for status label colors.
+**Existing status color tokens in `apps/web/app/globals.css`**: `--color-brass: #b8860b`, `--color-amber: #ffb000`, `--color-text-muted: #a89878`. There is no green or red text token. New tokens are required for status label colors.
 
-**Test infrastructure**: Tests use `findComponentElements(el, "ComponentName")` to find component instances by display name in the JSX tree. The five list components listed above have associated test files that assert `GemIndicator` presence/props. After replacing `<GemIndicator>` with `<StatusBadge>` in those components, `GemIndicator` becomes an implementation detail of `StatusBadge`. Tests should be updated to assert at the `StatusBadge` level. The direct `tests/components/GemIndicator.test.tsx` needs no changes.
+**Test infrastructure**: Tests use `findComponentElements(el, "ComponentName")` to find component instances by display name in the JSX tree. The five list components listed above have associated test files that assert `GemIndicator` presence/props. After replacing `<GemIndicator>` with `<StatusBadge>` in those components, `GemIndicator` becomes an implementation detail of `StatusBadge`. Tests should be updated to assert at the `StatusBadge` level. The direct `apps/web/tests/components/GemIndicator.test.tsx` needs no changes.
 
 ## Design Decisions
 
@@ -59,9 +59,9 @@ Replace the bare `GemIndicator` in all list views with a `StatusBadge` composite
 
 ### Phase 1: Foundation
 
-#### Step 1: Add status color tokens to `web/app/globals.css`
+#### Step 1: Add status color tokens to `apps/web/app/globals.css`
 
-**File**: `web/app/globals.css`
+**File**: `apps/web/app/globals.css`
 
 In the `:root` block, after the gem filter variables (around line 71), add:
 
@@ -95,7 +95,7 @@ export function formatStatus(status: string): string {
 }
 ```
 
-**Test strategy** (add to `tests/lib/types.test.ts` or create if absent):
+**Test strategy** (add to `lib/tests/types.test.ts` or create if absent):
 - `formatStatus("complete")` → "Complete"
 - `formatStatus("in_progress")` → "In Progress"
 - `formatStatus("wontfix")` → "Wontfix"
@@ -103,11 +103,11 @@ export function formatStatus(status: string): string {
 - `formatStatus("")` → ""
 - `formatStatus("DONE")` → "Done" (already-uppercase input round-trips cleanly)
 
-Check if `tests/lib/types.test.ts` exists before creating it.
+Check if `lib/tests/types.test.ts` exists before creating it.
 
 #### Step 3: Create `StatusBadge` component
 
-**Files**: `web/components/ui/StatusBadge.tsx` (new), `web/components/ui/StatusBadge.module.css` (new)
+**Files**: `apps/web/components/ui/StatusBadge.tsx` (new), `apps/web/components/ui/StatusBadge.module.css` (new)
 
 `StatusBadge.tsx`:
 
@@ -177,7 +177,7 @@ function capitalize(s: string): string {
 
 Note: `capitalize()` is a module-private helper, not exported. It exists only to map the `gem` prop to a CSS class suffix.
 
-#### Step 4: Create `tests/components/StatusBadge.test.tsx`
+#### Step 4: Create `apps/web/tests/components/StatusBadge.test.tsx`
 
 The component is a server component (no `"use client"`), so it can be tested with direct function calls like `GemIndicator.test.tsx`. Follow the same pattern.
 
@@ -197,7 +197,7 @@ All five components follow the same change pattern:
 
 #### Step 5: Update `CommissionList.tsx`
 
-**File**: `web/components/commission/CommissionList.tsx`
+**File**: `apps/web/components/commission/CommissionList.tsx`
 
 The raw status is `commission.status`. In the render:
 ```tsx
@@ -213,7 +213,7 @@ The status text appears to the left of `.info`, inline with the gem, because Sta
 
 #### Step 6: Update `MeetingList.tsx`
 
-**File**: `web/components/project/MeetingList.tsx`
+**File**: `apps/web/components/project/MeetingList.tsx`
 
 MeetingList has four render branches (`open`, `requested`, `closed`, fallback). All four use `<GemIndicator status={gem} size="sm" />`. Replace all with `<StatusBadge gem={gem} label={status} size="sm" />`. The `status` variable is already computed at the top of the map callback (line 97).
 
@@ -221,7 +221,7 @@ Note: for the "requested" branch, the badge sits between the gem and the Accept 
 
 #### Step 7: Update `ArtifactList.tsx`
 
-**File**: `web/components/project/ArtifactList.tsx`
+**File**: `apps/web/components/project/ArtifactList.tsx`
 
 The gem appears at the end of the artifact link row. `TreeNodeRow` computes:
 ```typescript
@@ -237,13 +237,13 @@ The StatusBadge renders inline-flex at the right end of the row. The label appea
 
 #### Step 8: Update `RecentArtifacts.tsx`
 
-**File**: `web/components/dashboard/RecentArtifacts.tsx`
+**File**: `apps/web/components/dashboard/RecentArtifacts.tsx`
 
 Same pattern as ArtifactList: gem is at the right end. The raw artifact status is accessible from `artifact.meta.status` in the render loop (the `gemStatus` variable is computed from it). Replace `<GemIndicator status={gemStatus} size="sm" />` with `<StatusBadge gem={gemStatus} label={artifact.meta.status} size="sm" />`.
 
 #### Step 9: Update `DependencyMap.tsx`
 
-**File**: `web/components/dashboard/DependencyMap.tsx`
+**File**: `apps/web/components/dashboard/DependencyMap.tsx`
 
 Same pattern as CommissionList: gem on the left. The raw status is `commission.status`. Replace `<GemIndicator status={gemStatus} size="sm" />` with `<StatusBadge gem={gemStatus} label={commission.status} size="sm" />`.
 
@@ -254,8 +254,8 @@ Same pattern as CommissionList: gem on the left. The raw status is `commission.s
 The following test files assert GemIndicator presence in components that are changing. Each needs to be checked and updated to assert at the StatusBadge level instead.
 
 **Files to check** (look for `findComponentElements(el, "GemIndicator")` in trees that render the five updated components):
-- `tests/components/dashboard-commissions.test.ts` — likely covers DependencyMap and/or CommissionList
-- `tests/components/commission-form.test.tsx` — check whether it renders CommissionList or a separate form component
+- `apps/web/tests/components/dashboard-commissions.test.ts` — likely covers DependencyMap and/or CommissionList
+- `apps/web/tests/components/commission-form.test.tsx` — check whether it renders CommissionList or a separate form component
 - Any test file that renders CommissionList, MeetingList, ArtifactList, RecentArtifacts, or DependencyMap
 
 For each assertion `findComponentElements(el, "GemIndicator")` inside an updated component's render tree:
@@ -265,7 +265,7 @@ For each assertion `findComponentElements(el, "GemIndicator")` inside an updated
 - The `GemIndicator` is still rendered inside `StatusBadge`, so gem-specific assertions about CSS classes or alt text remain accessible via the nested GemIndicator node
 
 **Files that do NOT need changes**:
-- `tests/components/GemIndicator.test.tsx` — tests GemIndicator directly, which is unchanged
+- `apps/web/tests/components/GemIndicator.test.tsx` — tests GemIndicator directly, which is unchanged
 - Tests for `CommissionHeader.tsx`, `CommissionTimeline.tsx`, `MetadataSidebar.tsx` — those components are not touched
 
 #### Step 11: Full test suite and review

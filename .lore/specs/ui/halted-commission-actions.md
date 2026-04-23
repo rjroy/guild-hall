@@ -3,7 +3,7 @@ title: Halted commission action buttons
 date: 2026-03-20
 status: implemented
 tags: [ui, commissions, halted, client-component]
-modules: [web/components/commission/CommissionActions, web/app/api/commissions]
+modules: [apps/web/components/commission/CommissionActions, apps/web/app/api/commissions]
 related:
   - .lore/_abandoned/specs/commission-halted-continuation.md
   - .lore/brainstorm/halted-commission-ui.md
@@ -74,9 +74,9 @@ One surface: the commission detail page (`/projects/[name]/commissions/[id]`), r
 
 ### API Proxy Routes
 
-- REQ-HCA-12: A new Next.js API route at `web/app/api/commissions/[commissionId]/continue/route.ts` proxies to the daemon's `POST /commission/run/continue` endpoint. The route follows the same pattern as the existing dispatch proxy (`web/app/api/commissions/[commissionId]/dispatch/route.ts`): extract `commissionId` from params, call `daemonFetch("/commission/run/continue", ...)` with `{ commissionId }` in the body, forward the response status and body.
+- REQ-HCA-12: A new Next.js API route at `apps/web/app/api/commissions/[commissionId]/continue/route.ts` proxies to the daemon's `POST /commission/run/continue` endpoint. The route follows the same pattern as the existing dispatch proxy (`apps/web/app/api/commissions/[commissionId]/dispatch/route.ts`): extract `commissionId` from params, call `daemonFetch("/commission/run/continue", ...)` with `{ commissionId }` in the body, forward the response status and body.
 
-- REQ-HCA-13: A new Next.js API route at `web/app/api/commissions/[commissionId]/save/route.ts` proxies to the daemon's `POST /commission/run/save` endpoint. The route extracts `commissionId` from params and parses the request body for an optional `reason`. It calls `daemonFetch("/commission/run/save", ...)` with `{ commissionId, reason }` and forwards the response. The structure follows the abandon proxy (`web/app/api/commissions/[commissionId]/abandon/route.ts`), but note: the daemon's save endpoint treats `reason` as optional (unlike abandon, which returns 400 if `reason` is missing). The proxy should forward whatever the client sends without additional validation.
+- REQ-HCA-13: A new Next.js API route at `apps/web/app/api/commissions/[commissionId]/save/route.ts` proxies to the daemon's `POST /commission/run/save` endpoint. The route extracts `commissionId` from params and parses the request body for an optional `reason`. It calls `daemonFetch("/commission/run/save", ...)` with `{ commissionId, reason }` and forwards the response. The structure follows the abandon proxy (`apps/web/app/api/commissions/[commissionId]/abandon/route.ts`), but note: the daemon's save endpoint treats `reason` as optional (unlike abandon, which returns 400 if `reason` is missing). The proxy should forward whatever the client sends without additional validation.
 
 ### Post-Action Behavior
 

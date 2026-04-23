@@ -197,7 +197,7 @@ Behaviour and invariants that emerged during implementation and review, pinned b
 
 ### Surface sentinel taxonomy
 
-The CLI surface leaf carries a string `operationId`. Most leaves name a real daemon operation. Three sentinel values cover the cases where a leaf does not resolve one-to-one to a registered daemon operation. All three are defined in `cli/surface.ts` and interpreted by `cli/surface-utils.ts` and the resolver.
+The CLI surface leaf carries a string `operationId`. Most leaves name a real daemon operation. Three sentinel values cover the cases where a leaf does not resolve one-to-one to a registered daemon operation. All three are defined in `apps/cli/surface.ts` and interpreted by `apps/cli/surface-utils.ts` and the resolver.
 
 - **`PACKAGE_OP_SENTINEL` (`"__package_op__"`)** — marks the `package-op invoke` leaf, the transitional fallback for package-contributed operations not yet mapped into the noun-centric surface. The first positional argument is the target `operationId`; the resolver looks the target up in the in-process registry when one is injected, or falls back to a verb heuristic when it is not (REQ-CLI-AGENT-13, REQ-CLI-AGENT-22 registry consistency check).
 - **`AGGREGATE_SENTINEL` (`"__aggregate__"`)** — marks a leaf that composes multiple daemon operations into one agent-facing command. The leaf also declares an `aggregate.operationIds` list and a one-line `justification`. `meeting list` is currently the sole aggregate (REQ-CLI-AGENT-10a).
@@ -207,38 +207,38 @@ Choosing between the three: if a command calls the daemon, prefer a concrete `op
 
 ### Fundamental-operations exemptions
 
-REQ-CLI-AGENT-21 requires every listable-noun group to carry both `list` and `read`. Two groups ship with `list` and no `read`: `worker` and `model`. The daemon does not yet expose `workers.read` or `models.read`; both are documented gaps in the `LIST_WITHOUT_READ_EXEMPT_GROUPS` set (`cli/surface-utils.ts:89`) and enforced by `tests/cli/surface-structural.test.ts`. The exemption is deliberate: the plan's §Top-Level Layout notes these verb sets grow as new daemon enumerations arrive.
+REQ-CLI-AGENT-21 requires every listable-noun group to carry both `list` and `read`. Two groups ship with `list` and no `read`: `worker` and `model`. The daemon does not yet expose `workers.read` or `models.read`; both are documented gaps in the `LIST_WITHOUT_READ_EXEMPT_GROUPS` set (`apps/cli/surface-utils.ts:89`) and enforced by `apps/cli/tests/surface-structural.test.ts`. The exemption is deliberate: the plan's §Top-Level Layout notes these verb sets grow as new daemon enumerations arrive.
 
 ### Method inference and overrides
 
-`cli/surface-utils.ts` derives each leaf's HTTP method from a verb heuristic: verbs in `GET_VERBS` (`list`, `read`, `status`, `meta`, `health`, `check`, `graph`, `validate`) resolve to GET; everything else resolves to POST. Two escape valves cover the heuristic's blind spots:
+`apps/cli/surface-utils.ts` derives each leaf's HTTP method from a verb heuristic: verbs in `GET_VERBS` (`list`, `read`, `status`, `meta`, `health`, `check`, `graph`, `validate`) resolve to GET; everything else resolves to POST. Two escape valves cover the heuristic's blind spots:
 
-- **`METHOD_OVERRIDES`** — a per-operation override table. `system.events.stream.subscribe` maps to GET here because SSE streams are conventionally GET and `subscribe` is not a general-purpose read verb. Pinned by `tests/cli/surface-structural.test.ts` (`invocationForOperation — method inference`).
+- **`METHOD_OVERRIDES`** — a per-operation override table. `system.events.stream.subscribe` maps to GET here because SSE streams are conventionally GET and `subscribe` is not a general-purpose read verb. Pinned by `apps/cli/tests/surface-structural.test.ts` (`invocationForOperation — method inference`).
 - **`STREAMING_OPERATIONS`** — a per-operation table listing streaming event types so the CLI can dispatch SSE-returning operations without a runtime daemon catalog (REQ-CLI-AGENT-26).
 
 Future stream-shaped operations (or any other verb-heuristic misfit) get a one-line addition to the relevant table.
 
 ### `meeting list` aggregation
 
-The aggregation leaf declares `--state` (default `all`) and `--projectName` as flags. The dispatcher at `cli/index.ts` fans out as follows:
+The aggregation leaf declares `--state` (default `all`) and `--projectName` as flags. The dispatcher at `apps/cli/index.ts` fans out as follows:
 
 - `--state=requested` or `--state=all` with `--projectName` set: fetch the project's `meeting.request.meeting.list`.
 - `--state=requested` or `--state=all` without `--projectName`: fetch `system.config.project.list` and fan out `meeting.request.meeting.list` per registered project.
 - `--state=active` or `--state=all`: fetch `meeting.session.meeting.list` once (global; each row carries `projectName`).
 
-Rows are sorted by `startedAt` descending. Rows with an empty `startedAt` (possible when a session ID cannot be parsed) are appended to the tail in their original relative order, rather than sorting as epoch-zero. Pinned by `tests/cli/meeting-list-aggregation.test.ts` (the `m-4` block).
+Rows are sorted by `startedAt` descending. Rows with an empty `startedAt` (possible when a session ID cannot be parsed) are appended to the tail in their original relative order, rather than sorting as epoch-zero. Pinned by `apps/cli/tests/meeting-list-aggregation.test.ts` (the `m-4` block).
 
 ### Formatter registry keying
 
-The commission formatter registry (`cli/commission-format.ts`) is keyed by `operationId`, not by CLI path. `COMMISSION_FORMATTERS`, `COMMISSION_ACTION_OPERATIONS`, and `ACTION_VERBS` all use operation IDs. `getCommissionFormatter` rejects path-style lookups. The dead `commission.run.continue` and `commission.run.save` entries (residual halted-continuation code) were removed during the refactor; `tests/cli/no-continue-save.test.ts` guards against their reintroduction. This supersedes [cli-commission-commands](.lore/specs/commissions/cli-commission-commands.md) REQ-CLI-COM-18 and REQ-CLI-COM-19.
+The commission formatter registry (`apps/cli/commission-format.ts`) is keyed by `operationId`, not by CLI path. `COMMISSION_FORMATTERS`, `COMMISSION_ACTION_OPERATIONS`, and `ACTION_VERBS` all use operation IDs. `getCommissionFormatter` rejects path-style lookups. The dead `commission.run.continue` and `commission.run.save` entries (residual halted-continuation code) were removed during the refactor; `apps/cli/tests/no-continue-save.test.ts` guards against their reintroduction. This supersedes [cli-commission-commands](.lore/specs/commissions/cli-commission-commands.md) REQ-CLI-COM-18 and REQ-CLI-COM-19.
 
 ### Commission UX regression protection
 
-Commission formatter output (list table, detail view, action confirmations, schedule/trigger rendering, timeline truncation) is pinned by snapshot assertions in `tests/cli/commission-format.test.ts` under `tests/cli/__snapshots__/`. Column widths, spacing, and line order are frozen against a 100-column terminal width.
+Commission formatter output (list table, detail view, action confirmations, schedule/trigger rendering, timeline truncation) is pinned by snapshot assertions in `apps/cli/tests/commission-format.test.ts` under `apps/cli/tests/__snapshots__/`. Column widths, spacing, and line order are frozen against a 100-column terminal width.
 
 ### Help-path daemon-free guarantee
 
-`tests/cli/help.test.ts` exercises `runCli` with a spy `daemonFetch` that throws on invocation, confirming the help path issues zero daemon requests. The symmetric daemon-side 404 guard for `/help`, `/help/operations`, and a representative tree-walk route lives in `tests/cli/surface-structural.test.ts`.
+`apps/cli/tests/help.test.ts` exercises `runCli` with a spy `daemonFetch` that throws on invocation, confirming the help path issues zero daemon requests. The symmetric daemon-side 404 guard for `/help`, `/help/operations`, and a representative tree-walk route lives in `apps/cli/tests/surface-structural.test.ts`.
 
 ## Context
 

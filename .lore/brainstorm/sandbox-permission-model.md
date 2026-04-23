@@ -20,7 +20,7 @@ The problem surfaces when a worker needs to do something legitimate that the san
 
 But the deeper issue isn't about package managers. It's about the permission model itself.
 
-Guild Hall currently has zero permission checks. The SDK runner sets `permissionMode: "dontAsk"` (`sdk-runner.ts:494`). Every tool invocation is auto-approved. The `canUseTool` callback type signature still exists in `SdkQueryOptions` (lines 79-86) but nothing populates it after the `canUseToolRules` removal. The EventBus event types (`daemon/types.ts:88-95`) have no permission-request or approval-required event.
+Guild Hall currently has zero permission checks. The SDK runner sets `permissionMode: "dontAsk"` (`sdk-runner.ts:494`). Every tool invocation is auto-approved. The `canUseTool` callback type signature still exists in `SdkQueryOptions` (lines 79-86) but nothing populates it after the `canUseToolRules` removal. The EventBus event types (`apps/daemon/types.ts:88-95`) have no permission-request or approval-required event.
 
 The access model is entirely binary: a worker either has a tool or doesn't. Either the sandbox allows a filesystem path or it doesn't. There is no "ask the human" path. No "this requires elevated access, pause and wait for approval." No notification that something was attempted and blocked.
 

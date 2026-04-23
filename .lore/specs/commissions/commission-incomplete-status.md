@@ -3,7 +3,7 @@ title: Commission Incomplete Status
 date: 2026-03-20
 status: superseded
 tags: [commissions, lifecycle, incomplete, toolbox, event-bus, triage]
-modules: [daemon/services/commission/orchestrator, daemon/services/commission/lifecycle, daemon/services/commission/toolbox, daemon/lib/event-bus, daemon/types]
+modules: [apps/daemon/services/commission/orchestrator, apps/daemon/services/commission/lifecycle, apps/daemon/services/commission/toolbox, apps/daemon/lib/event-bus, apps/daemon/types]
 related:
   - .lore/brainstorm/worker-sub-agents-and-mail-removal.md
   - .lore/specs/commissions/guild-hall-commissions.md
@@ -35,9 +35,9 @@ The distinction from `halted` matters: `halted` means "ran out of turns" (system
 
 ### Status and Lifecycle
 
-- REQ-CINC-1: Add `"incomplete"` to `CommissionStatus` in `daemon/types.ts`. This is a terminal status, like `completed`, `failed`, `cancelled`, and `abandoned`.
+- REQ-CINC-1: Add `"incomplete"` to `CommissionStatus` in `apps/daemon/types.ts`. This is a terminal status, like `completed`, `failed`, `cancelled`, and `abandoned`.
 
-- REQ-CINC-2: Add transition `in_progress -> incomplete` to the lifecycle state machine in `daemon/services/commission/lifecycle.ts`. No other state transitions to `incomplete`. Unlike `halted`, there is no recovery path: `incomplete` is terminal and cannot transition to any other state.
+- REQ-CINC-2: Add transition `in_progress -> incomplete` to the lifecycle state machine in `apps/daemon/services/commission/lifecycle.ts`. No other state transitions to `incomplete`. Unlike `halted`, there is no recovery path: `incomplete` is terminal and cannot transition to any other state.
 
 - REQ-CINC-3: The commission has ten states after this change (amends REQ-COM-34): `pending`, `blocked`, `dispatched`, `in_progress`, `halted`, `incomplete`, `completed`, `failed`, `cancelled`, `abandoned`.
 
@@ -89,7 +89,7 @@ The distinction from `halted` matters: `halted` means "ran out of turns" (system
 
 ### Event Bus
 
-- REQ-CINC-13: Add a `commission_incomplete` event type to `SystemEvent` in `daemon/lib/event-bus.ts`:
+- REQ-CINC-13: Add a `commission_incomplete` event type to `SystemEvent` in `apps/daemon/lib/event-bus.ts`:
 
   ```typescript
   | { type: "commission_incomplete"; commissionId: string; summary: string; reason: string; annotation: string }

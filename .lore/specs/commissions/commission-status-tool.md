@@ -31,7 +31,7 @@ A read tool in the manager toolbox that lets the Guild Master check commission s
 
 ### Single Commission Mode
 
-- REQ-CST-3: When `commissionId` is provided, the tool reads the commission artifact directly using `readCommissionMeta()` from `lib/commissions.ts`, resolving the artifact path via `resolveCommissionBasePath()` from `lib/paths`. For scheduled commissions, it additionally parses schedule metadata from the raw frontmatter using gray-matter (same approach as the existing read route in `daemon/routes/commissions.ts`).
+- REQ-CST-3: When `commissionId` is provided, the tool reads the commission artifact directly using `readCommissionMeta()` from `lib/commissions.ts`, resolving the artifact path via `resolveCommissionBasePath()` from `lib/paths`. For scheduled commissions, it additionally parses schedule metadata from the raw frontmatter using gray-matter (same approach as the existing read route in `apps/daemon/routes/commissions.ts`).
 
 - REQ-CST-4: The tool returns a JSON object with these fields:
   - `commissionId`: the commission identifier
@@ -77,7 +77,7 @@ A read tool in the manager toolbox that lets the Guild Master check commission s
 
 ### Data Access
 
-- REQ-CST-9: Unlike the write tools (which call daemon routes via `callRoute` per REQ-DAB-7), this read tool accesses commission data directly through `lib/commissions.ts`. The existing daemon read routes use GET with query parameters, but `callRoute` (`RouteCaller` type) only supports POST with JSON bodies. Extending the typed interface for a single read tool isn't worth the cost. Direct reads are the established pattern for read-only operations in the manager context: the briefing generator (`daemon/services/briefing-generator.ts`) already reads commission data this way.
+- REQ-CST-9: Unlike the write tools (which call daemon routes via `callRoute` per REQ-DAB-7), this read tool accesses commission data directly through `lib/commissions.ts`. The existing daemon read routes use GET with query parameters, but `callRoute` (`RouteCaller` type) only supports POST with JSON bodies. Extending the typed interface for a single read tool isn't worth the cost. Direct reads are the established pattern for read-only operations in the manager context: the briefing generator (`apps/daemon/services/briefing-generator.ts`) already reads commission data this way.
 
 - REQ-CST-10: The tool needs `guildHallHome` from `ManagerToolboxDeps` (already available) to resolve integration worktree paths via `integrationWorktreePath()`. No new dependencies are required.
 
@@ -118,13 +118,13 @@ A read tool in the manager toolbox that lets the Guild Master check commission s
 ## Constraints
 
 - Read-only. This tool does not modify commission state.
-- The manager toolbox file (`daemon/services/manager/toolbox.ts`) is already 1075 lines. The handler factory should be kept concise; most of the work is data reshaping, not business logic.
+- The manager toolbox file (`apps/daemon/services/manager/toolbox.ts`) is already 1075 lines. The handler factory should be kept concise; most of the work is data reshaping, not business logic.
 - The tool operates on the current project only (from `deps.projectName`). Cross-project commission queries are out of scope.
 
 ## Context
 
 - [Spec: Guild Hall Commissions](.lore/specs/commissions/guild-hall-commissions.md): Commission lifecycle states, artifact format, commission toolbox.
 - [Spec: Daemon Application Boundary](.lore/specs/infrastructure/daemon-application-boundary.md): REQ-DAB-7 (tools call daemon routes), REQ-DAB-11 (internal tools without routes).
-- Existing daemon routes: `GET /commission/request/commission/list` and `GET /commission/request/commission/read` in `daemon/routes/commissions.ts`.
+- Existing daemon routes: `GET /commission/request/commission/list` and `GET /commission/request/commission/read` in `apps/daemon/routes/commissions.ts`.
 - Existing read functions: `scanCommissions()` and `readCommissionMeta()` in `lib/commissions.ts`.
-- Manager toolbox pattern: `daemon/services/manager/toolbox.ts` shows the factory pattern, route calling, and tool registration.
+- Manager toolbox pattern: `apps/daemon/services/manager/toolbox.ts` shows the factory pattern, route calling, and tool registration.

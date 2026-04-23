@@ -11,13 +11,13 @@ parent: whats-missing-2026-03-20.md
 
 ## Evidence
 
-Meetings and commissions produce fundamentally different records. A meeting stores its transcript in state files and generates notes via `daemon/services/meeting/notes-generator.ts`, which passes the transcript through an LLM to produce a structured summary. The user can read what happened and why. A commission stores nothing. The SDK session streams events to SSE for real-time display, but when the session ends, the only record is the `result_summary` field in the commission artifact's frontmatter and whatever the worker wrote as its deliverable.
+Meetings and commissions produce fundamentally different records. A meeting stores its transcript in state files and generates notes via `apps/daemon/services/meeting/notes-generator.ts`, which passes the transcript through an LLM to produce a structured summary. The user can read what happened and why. A commission stores nothing. The SDK session streams events to SSE for real-time display, but when the session ends, the only record is the `result_summary` field in the commission artifact's frontmatter and whatever the worker wrote as its deliverable.
 
 The asymmetry is stark. A meeting that produced a spec leaves behind: the spec artifact, the meeting transcript, and LLM-generated notes that narrate how the conversation arrived at the spec. A commission that produced the same spec leaves behind: the spec artifact and a one-line summary. The reasoning, the false starts, the decisions about what to include and exclude, the files the worker read before choosing an approach: all gone.
 
 The `record_decision` tool (see decisions-surface.md) captures explicit decision points, but most reasoning is implicit. A worker reads five files, notices a pattern in three of them, and proposes a design based on that observation. None of that appears in a decision record. It's the connective tissue between "I was asked to do X" and "I produced Y."
 
-The commission detail page (`web/app/projects/[name]/commissions/[id]/page.tsx`) shows timeline entries (status transitions) and streaming output (live only). After completion, the page shows metadata and linked artifacts. The reasoning is absent.
+The commission detail page (`apps/web/app/projects/[name]/commissions/[id]/page.tsx`) shows timeline entries (status transitions) and streaming output (live only). After completion, the page shows metadata and linked artifacts. The reasoning is absent.
 
 ## Proposal
 
@@ -30,7 +30,7 @@ The shape could be:
 ```markdown
 ## Commission Narrative
 
-**Approach:** Read the existing mail system implementation across 4 files in daemon/services/mail/.
+**Approach:** Read the existing mail system implementation across 4 files in apps/daemon/services/mail/.
 Noticed the sender and queue were tightly coupled. Decided to separate them because the queue
 needed independent testability.
 
@@ -38,8 +38,8 @@ needed independent testability.
 - Chose DI callback over event emission for mail delivery confirmation (consistent with sdk-logging.ts pattern)
 - Left mail retry logic out of scope (no evidence of delivery failures in production)
 
-**Files consulted:** daemon/services/mail/sender.ts, daemon/services/mail/queue.ts,
-daemon/services/base-toolbox.ts, tests/daemon/services/mail/
+**Files consulted:** apps/daemon/services/mail/sender.ts, apps/daemon/services/mail/queue.ts,
+apps/daemon/services/base-toolbox.ts, apps/daemon/tests/services/mail/
 
 **Artifacts produced:** .lore/specs/infrastructure/mail-refactor.md
 ```

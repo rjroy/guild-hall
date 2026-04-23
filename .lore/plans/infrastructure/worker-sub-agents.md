@@ -3,7 +3,7 @@ title: "Plan: Worker Sub-Agents"
 date: 2026-03-20
 status: executed
 tags: [workers, sub-agents, activation, agent-sdk]
-modules: [daemon/lib/agent-sdk/sdk-runner, lib/types, daemon/services/context-type-registry, packages/shared/worker-activation, lib/packages]
+modules: [apps/daemon/lib/agent-sdk/sdk-runner, lib/types, apps/daemon/services/context-type-registry, packages/shared/worker-activation, lib/packages]
 related:
   - .lore/specs/infrastructure/worker-sub-agents.md
   - .lore/brainstorm/worker-sub-agents-and-mail-removal.md
@@ -23,15 +23,15 @@ This plan implements the full spec at `.lore/specs/infrastructure/worker-sub-age
 
 **Package validation** (`lib/packages.ts`): Two-layer validation. First, Zod schema (`workerMetadataSchema`, line 70-98) validates structure during discovery. Second, `validatePackageModels()` (line 258-275) validates model names against built-in and local models post-discovery. `subAgentModel` validation follows the same two-layer pattern but rejects local models (REQ-SUBAG-2).
 
-**prepareSdkSession** (`daemon/lib/agent-sdk/sdk-runner.ts:318-500`): Five-step pipeline (find worker, resolve tools, load memories, activate, build options). The new agent map construction inserts between step 4 (activate) and step 5 (build options). The existing `SessionPrepDeps` already has `loadMemories` and `activateWorker`, both reusable for sub-agent preparation.
+**prepareSdkSession** (`apps/daemon/lib/agent-sdk/sdk-runner.ts:318-500`): Five-step pipeline (find worker, resolve tools, load memories, activate, build options). The new agent map construction inserts between step 4 (activate) and step 5 (build options). The existing `SessionPrepDeps` already has `loadMemories` and `activateWorker`, both reusable for sub-agent preparation.
 
 **activateWorkerWithSharedPattern** (`packages/shared/worker-activation.ts:88-99`): Takes an `ActivationContext`, calls `buildSystemPrompt()`, returns `ActivationResult`. When no `meetingContext` or `commissionContext` is provided, the prompt contains only soul, identity, posture, and memory sections. This is exactly what sub-agents need (REQ-SUBAG-16).
 
-**ContextTypeName** (`daemon/services/context-type-registry.ts:6`): Union type `"meeting" | "commission" | "briefing"`. Needs `"subagent"` added. The registry function at line 8-30 adds entries; `"subagent"` follows the `"briefing"` pattern (no toolbox factory).
+**ContextTypeName** (`apps/daemon/services/context-type-registry.ts:6`): Union type `"meeting" | "commission" | "briefing"`. Needs `"subagent"` added. The registry function at line 8-30 adds entries; `"subagent"` follows the `"briefing"` pattern (no toolbox factory).
 
-**SdkQueryOptions** (`daemon/lib/agent-sdk/sdk-runner.ts:41-82`): Options passed to the SDK. Needs an `agents` field. `runSdkSession` (line 163-207) spreads options into `resolvedOptions`; the `agents` field passes through without transformation.
+**SdkQueryOptions** (`apps/daemon/lib/agent-sdk/sdk-runner.ts:41-82`): Options passed to the SDK. Needs an `agents` field. `runSdkSession` (line 163-207) spreads options into `resolvedOptions`; the `agents` field passes through without transformation.
 
-**Test patterns** (`tests/daemon/services/sdk-runner.test.ts`): Uses `makeSpec()` and `makeDeps()` helpers to construct `SessionPrepSpec` and `SessionPrepDeps` with defaults. Tests assert on `result.result.options` properties. Sub-agent tests follow the same pattern, asserting on the new `agents` field.
+**Test patterns** (`apps/daemon/tests/services/sdk-runner.test.ts`): Uses `makeSpec()` and `makeDeps()` helpers to construct `SessionPrepSpec` and `SessionPrepDeps` with defaults. Tests assert on `result.result.options` properties. Sub-agent tests follow the same pattern, asserting on the new `agents` field.
 
 ## Delegation Guide
 
@@ -80,7 +80,7 @@ Local model names are explicitly rejected because the SDK's `AgentDefinition.mod
 
 #### Step 4: Add `"subagent"` to ContextTypeName and registry
 
-**Files**: `daemon/services/context-type-registry.ts`
+**Files**: `apps/daemon/services/context-type-registry.ts`
 **Addresses**: REQ-SUBAG-13, REQ-SUBAG-14
 
 1. Extend `ContextTypeName` to `"meeting" | "commission" | "briefing" | "subagent"`.
@@ -95,7 +95,7 @@ Local model names are explicitly rejected because the SDK's `AgentDefinition.mod
 
 #### Step 5: Tests for Phase 1
 
-**Files**: `tests/lib/packages.test.ts`
+**Files**: `lib/tests/packages.test.ts`
 **Addresses**: REQ-SUBAG-1, REQ-SUBAG-2, REQ-SUBAG-3, REQ-SUBAG-4, REQ-SUBAG-29
 
 Add test cases to the existing package validation tests:
@@ -108,7 +108,7 @@ Add test cases to the existing package validation tests:
 
 Also add a test confirming `"subagent"` is in the context type registry with no toolbox factory and `stateSubdir: "subagents"`.
 
-Run `bun test tests/lib/packages.test.ts` to confirm.
+Run `bun test lib/tests/packages.test.ts` to confirm.
 
 **Review checkpoint**: Thorne reviews Phase 1. Verify type additions are backward-compatible and validation catches the right cases.
 
@@ -163,7 +163,7 @@ Note: `guild-hall-email` and `guild-hall-replicate` are toolbox-only packages (t
 
 #### Step 7: Tests for `buildSubAgentDescription`
 
-**Files**: `tests/packages/shared/sub-agent-description.test.ts` (new)
+**Files**: `packages/shared/tests/sub-agent-description.test.ts` (new)
 **Addresses**: REQ-SUBAG-17, REQ-SUBAG-18, REQ-SUBAG-19, REQ-SUBAG-20
 
 Test cases:
@@ -174,7 +174,7 @@ Test cases:
 4. Description includes `identity.description`.
 5. The function has no side effects (returns a string, no I/O).
 
-Run `bun test tests/packages/shared/sub-agent-description.test.ts` to confirm.
+Run `bun test packages/shared/tests/sub-agent-description.test.ts` to confirm.
 
 **Review checkpoint**: Thorne reviews Phase 2. Verify the function is pure and the lookup table entries are accurate against the actual worker roster.
 
@@ -186,7 +186,7 @@ Adds the `agents` field to the options type and wires it through `runSdkSession`
 
 #### Step 8: Add `agents` to SdkQueryOptions
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-SUBAG-21
 
 Add the `agents` property to `SdkQueryOptions` (after the `env` field, around line 55):
@@ -204,7 +204,7 @@ The type is inline, matching the existing pattern where `SdkQueryOptions` is a G
 
 #### Step 9: Verify `runSdkSession` passthrough
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-SUBAG-22
 
 `runSdkSession` already spreads `options` into `resolvedOptions` at line 174:
@@ -216,7 +216,7 @@ The `agents` field passes through automatically. No code change needed, but add 
 
 #### Step 10: Tests for Phase 3
 
-**Files**: `tests/daemon/services/sdk-runner.test.ts`
+**Files**: `apps/daemon/tests/services/sdk-runner.test.ts`
 **Addresses**: REQ-SUBAG-21, REQ-SUBAG-22
 
 Add test cases in the `runSdkSession` describe block:
@@ -225,7 +225,7 @@ Add test cases in the `runSdkSession` describe block:
 
 The `agents` field on `SdkQueryOptions` is verified at compile time by TypeScript (the field exists on the type). No runtime test is needed in Phase 3 because `prepareSdkSession` does not populate `agents` until Phase 4. Phase 4 tests cover runtime assertions.
 
-Run `bun test tests/daemon/services/sdk-runner.test.ts` to confirm no regressions.
+Run `bun test apps/daemon/tests/services/sdk-runner.test.ts` to confirm no regressions.
 
 **Review checkpoint**: Thorne reviews Phase 3. Verify the type addition is correct and passthrough works.
 
@@ -237,7 +237,7 @@ The core integration. Constructs the agent map in `prepareSdkSession` and popula
 
 #### Step 11: Build the agent map in `prepareSdkSession`
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-SUBAG-5, REQ-SUBAG-6, REQ-SUBAG-7, REQ-SUBAG-8, REQ-SUBAG-9, REQ-SUBAG-10, REQ-SUBAG-11, REQ-SUBAG-12, REQ-SUBAG-15, REQ-SUBAG-16, REQ-SUBAG-25, REQ-SUBAG-26, REQ-SUBAG-27, REQ-SUBAG-28, REQ-SUBAG-30, REQ-SUBAG-31
 
 Insert a new step between step 4 (activate worker, line 388-411) and step 5 (build SDK query options, line 413). The new step:
@@ -293,7 +293,7 @@ log.info(`Building sub-agent map: ${otherWorkerPackages.length} workers availabl
 
 #### Step 12: Tests for agent map construction
 
-**Files**: `tests/daemon/services/sdk-runner.test.ts`
+**Files**: `apps/daemon/tests/services/sdk-runner.test.ts`
 **Addresses**: REQ-SUBAG-5 through REQ-SUBAG-12, REQ-SUBAG-15, REQ-SUBAG-16, REQ-SUBAG-25 through REQ-SUBAG-28, REQ-SUBAG-30, REQ-SUBAG-31
 
 Add a new `describe("sub-agent map construction", ...)` block within the `prepareSdkSession` describe. Create helper fixtures:
@@ -331,7 +331,7 @@ Test cases:
 
 13. **Model field always present on agent entry**: Even when `subAgentModel` is omitted (defaulting to `"inherit"`), the agent entry has `model` set to `"inherit"` (not `undefined`). Verifies REQ-SUBAG-11: the field is always explicit for traceability.
 
-Run `bun test tests/daemon/services/sdk-runner.test.ts` to confirm.
+Run `bun test apps/daemon/tests/services/sdk-runner.test.ts` to confirm.
 
 **Review checkpoint**: Thorne reviews Phase 4. This is the critical review. Verify:
 - Agent map construction happens between step 4 and step 5.

@@ -147,7 +147,7 @@ Daemon creates git operations from diff
 - Tools that assume a git repo (Claude Code's git integration, any worker that runs `git log` or `git blame`) won't work
 - The daemon must implement its own change detection, which git already does well
 - Three-tier branching (master/claude/activity) depends on real git branches and real worktrees
-- All of Guild Hall's existing git infrastructure (`daemon/lib/git.ts`, `daemon/services/git-admin.ts`) becomes irrelevant for these workspaces
+- All of Guild Hall's existing git infrastructure (`apps/daemon/lib/git.ts`, `apps/daemon/services/git-admin.ts`) becomes irrelevant for these workspaces
 
 ### Assessment
 

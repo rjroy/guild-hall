@@ -3,7 +3,7 @@ title: "HTML Mockup Preview"
 date: 2026-04-06
 status: executed
 tags: [ui, artifacts, mockups, preview]
-modules: [lib/types, lib/artifacts, daemon/routes/artifacts, lib/daemon-client, "web/app/api/artifacts/mockup/route", "web/app/projects/[name]/artifacts/[...path]/page", web/components/project/ArtifactList, web/components/dashboard/RecentArtifacts]
+modules: [lib/types, lib/artifacts, apps/daemon/routes/artifacts, lib/daemon-client, "apps/web/app/api/artifacts/mockup/route", "apps/web/app/projects/[name]/artifacts/[...path]/page", apps/web/components/project/ArtifactList, apps/web/components/dashboard/RecentArtifacts]
 related:
   - .lore/specs/ui/html-mockup-preview.md
   - .lore/plans/ui/artifact-image-display.md
@@ -23,14 +23,14 @@ Make self-contained HTML mockups discoverable in artifact views and previewable 
 **Artifact type.** The `Artifact` interface at `lib/types.ts:68-78` has `artifactType?: "document" | "image"`. This union needs a third member: `"mockup"`. All code that switches on `artifactType` must handle the new value. Current switch points:
 - `ArtifactList.tsx:47` (tree view icon selection)
 - `RecentArtifacts.tsx:74` (recent scrolls icon selection)
-- `serializeArtifact()` at `daemon/routes/artifacts.ts:397` (default fallback)
-- Catch-all page at `web/app/projects/[name]/artifacts/[...path]/page.tsx:53-54` (extension-based branch)
+- `serializeArtifact()` at `apps/daemon/routes/artifacts.ts:397` (default fallback)
+- Catch-all page at `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx:53-54` (extension-based branch)
 
-**Daemon routes.** The image serving pattern at `daemon/routes/artifacts.ts:194-244` is the template: validate params, check extension, resolve integration worktree, `validatePath()`, read file, return with typed headers. The mockup route is simpler because it uses the integration worktree only (REQ-MKP-9) and has a fixed Content-Type.
+**Daemon routes.** The image serving pattern at `apps/daemon/routes/artifacts.ts:194-244` is the template: validate params, check extension, resolve integration worktree, `validatePath()`, read file, return with typed headers. The mockup route is simpler because it uses the integration worktree only (REQ-MKP-9) and has a fixed Content-Type.
 
-**Image proxy pattern.** The Next.js proxy at `web/app/api/artifacts/image/route.ts` uses `daemonFetchBinary()` from `lib/daemon-client.ts` to forward binary responses. The mockup proxy follows the same shape but must also forward CSP and other security headers from the daemon response (REQ-MKP-13).
+**Image proxy pattern.** The Next.js proxy at `apps/web/app/api/artifacts/image/route.ts` uses `daemonFetchBinary()` from `lib/daemon-client.ts` to forward binary responses. The mockup proxy follows the same shape but must also forward CSP and other security headers from the daemon response (REQ-MKP-13).
 
-**Catch-all route.** `web/app/projects/[name]/artifacts/[...path]/page.tsx` branches on `IMAGE_EXTENSIONS` at line 53. An HTML file currently falls through to the document branch and gets parsed as markdown with gray-matter, producing garbled output. The fix adds an `.html` check before the image check.
+**Catch-all route.** `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` branches on `IMAGE_EXTENSIONS` at line 53. An HTML file currently falls through to the document branch and gets parsed as markdown with gray-matter, producing garbled output. The fix adds an `.html` check before the image check.
 
 **CSS Modules.** No Tailwind. Fantasy design tokens from `globals.css`. New components get `.module.css` files. No raw color values; use `var(--color-*)` tokens.
 
@@ -123,7 +123,7 @@ This mirrors the image branch exactly, per the spec's directive to match the ima
 
 #### Step 4: Tests for scanner changes
 
-**Modified file:** `tests/lib/artifacts.test.ts`
+**Modified file:** `lib/tests/artifacts.test.ts`
 
 Add test cases within the existing artifact scanner test suite:
 
@@ -134,7 +134,7 @@ Add test cases within the existing artifact scanner test suite:
 - Non-`.html` extensions (`.htm`, `.xhtml`) are not collected
 - `content` is empty string for mockup artifacts
 
-**Verification:** `bun test tests/lib/artifacts.test.ts` passes.
+**Verification:** `bun test lib/tests/artifacts.test.ts` passes.
 
 **Covers:** REQ-MKP-1, REQ-MKP-4, REQ-MKP-5
 
@@ -144,7 +144,7 @@ Depends on Phase 1 (type union must exist). This is a single commission.
 
 #### Step 5: Add the mockup serving endpoint
 
-**Modified file:** `daemon/routes/artifacts.ts`
+**Modified file:** `apps/daemon/routes/artifacts.ts`
 
 Add a new route within `createArtifactRoutes`:
 
@@ -193,7 +193,7 @@ Add `"workspace.artifact.mockup": "HTML mockup artifacts"` to the descriptions r
 
 #### Step 6: Tests for the mockup serving endpoint
 
-**Modified file:** `tests/daemon/routes/artifacts.test.ts`
+**Modified file:** `apps/daemon/tests/routes/artifacts.test.ts`
 
 Add test cases using the existing Hono `app.request()` test pattern:
 
@@ -208,7 +208,7 @@ Add test cases using the existing Hono `app.request()` test pattern:
 - Returns 415 for non-`.html` extension (e.g., `.htm`, `.txt`)
 - Returns 400 for path traversal attempt (`../../../etc/passwd`)
 
-**Verification:** `bun test tests/daemon/routes/artifacts.test.ts` passes.
+**Verification:** `bun test apps/daemon/tests/routes/artifacts.test.ts` passes.
 
 **Covers:** REQ-MKP-6, REQ-MKP-7, REQ-MKP-8, REQ-MKP-10, REQ-MKP-17, REQ-MKP-18, REQ-MKP-19
 
@@ -218,9 +218,9 @@ Depends on Phase 2 (daemon endpoint must exist for integration testing). This is
 
 #### Step 7: Add the mockup proxy route
 
-**New file:** `web/app/api/artifacts/mockup/route.ts`
+**New file:** `apps/web/app/api/artifacts/mockup/route.ts`
 
-Follows the image proxy pattern at `web/app/api/artifacts/image/route.ts`. Key differences:
+Follows the image proxy pattern at `apps/web/app/api/artifacts/image/route.ts`. Key differences:
 
 - Calls `/workspace/artifact/mockup/read` instead of `/workspace/artifact/image/read`
 - Forwards additional headers from daemon response: `Content-Security-Policy`, `X-Content-Type-Options`, `Content-Disposition` (REQ-MKP-13)
@@ -280,7 +280,7 @@ export async function GET(request: NextRequest) {
 
 #### Step 8: Tests for the proxy route
 
-**New file:** `tests/web/api/artifacts-mockup.test.ts` (or add to existing proxy test file if one exists)
+**New file:** `apps/web/tests/api/artifacts-mockup.test.ts` (or add to existing proxy test file if one exists)
 
 - Forwards 200 response with body and headers intact
 - Forwards 404 status from daemon
@@ -289,7 +289,7 @@ export async function GET(request: NextRequest) {
 - Returns 503 when daemon is offline
 - CSP header from daemon is preserved in proxy response
 
-**Verification:** `bun test tests/web/api/artifacts-mockup.test.ts` passes.
+**Verification:** `bun test apps/web/tests/api/artifacts-mockup.test.ts` passes.
 
 **Covers:** REQ-MKP-13, REQ-MKP-18, REQ-MKP-19
 
@@ -299,7 +299,7 @@ Depends on Phase 1 (scanner produces mockup artifacts) and Phase 3 (proxy route 
 
 #### Step 9: Branch the catch-all route for mockup artifacts
 
-**Modified file:** `web/app/projects/[name]/artifacts/[...path]/page.tsx`
+**Modified file:** `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`
 
 The current branching at lines 53-54 checks `IMAGE_EXTENSIONS`. Add an `.html` check before the image check:
 
@@ -386,8 +386,8 @@ if (isHtml) {
 
 #### Step 10: Create `MockupPreviewLanding` component
 
-**New file:** `web/components/artifact/MockupPreviewLanding.tsx`
-**New file:** `web/components/artifact/MockupPreviewLanding.module.css`
+**New file:** `apps/web/components/artifact/MockupPreviewLanding.tsx`
+**New file:** `apps/web/components/artifact/MockupPreviewLanding.module.css`
 
 Client component (needs `window.open()` for the button click). Renders:
 
@@ -439,8 +439,8 @@ CSS should center the content vertically, style the button with the fantasy butt
 
 #### Step 11: Create `MockupMetadataSidebar` component
 
-**New file:** `web/components/artifact/MockupMetadataSidebar.tsx`
-**New file:** `web/components/artifact/MockupMetadataSidebar.module.css`
+**New file:** `apps/web/components/artifact/MockupMetadataSidebar.tsx`
+**New file:** `apps/web/components/artifact/MockupMetadataSidebar.module.css`
 
 Server component. Shows:
 - Filename
@@ -453,7 +453,7 @@ Omits file size (see Step 9 note). Omits status, tags, modules, related, actions
 
 #### Step 12: Add mockup icon and preview action to tree view
 
-**Modified file:** `web/components/project/ArtifactList.tsx`
+**Modified file:** `apps/web/components/project/ArtifactList.tsx`
 
 In `TreeNodeRow` at line 47, the current check is:
 
@@ -504,7 +504,7 @@ Add `.mockupIcon` and `.previewAction` classes to `ArtifactList.module.css`.
 
 #### Step 13: Add mockup icon to Recent Scrolls
 
-**Modified file:** `web/components/dashboard/RecentArtifacts.tsx`
+**Modified file:** `apps/web/components/dashboard/RecentArtifacts.tsx`
 
 At line 74, extend the icon selection:
 
@@ -524,7 +524,7 @@ Add `.mockupIcon` to `RecentArtifacts.module.css`.
 
 #### Step 14: Update `artifactHref` for mockup artifacts
 
-**Modified file:** `web/components/dashboard/RecentArtifacts.tsx`
+**Modified file:** `apps/web/components/dashboard/RecentArtifacts.tsx`
 
 The `artifactHref()` function at line 27-49 routes meetings specially and falls through to the artifact detail view for everything else. Mockup artifacts should link to the detail view (where the "Open Preview" button lives), not directly to the preview URL. The current fallback at line 48 already does this:
 
@@ -579,11 +579,11 @@ No parallelism between phases. Each phase depends on the artifacts of the previo
 
 | File | Purpose |
 |------|---------|
-| `web/app/api/artifacts/mockup/route.ts` | Next.js API proxy for mockup serving |
-| `web/components/artifact/MockupPreviewLanding.tsx` | Landing page with "Open Preview" button |
-| `web/components/artifact/MockupPreviewLanding.module.css` | Styling for mockup landing page |
-| `web/components/artifact/MockupMetadataSidebar.tsx` | Metadata panel for mockup artifacts |
-| `web/components/artifact/MockupMetadataSidebar.module.css` | Styling for mockup metadata panel |
+| `apps/web/app/api/artifacts/mockup/route.ts` | Next.js API proxy for mockup serving |
+| `apps/web/components/artifact/MockupPreviewLanding.tsx` | Landing page with "Open Preview" button |
+| `apps/web/components/artifact/MockupPreviewLanding.module.css` | Styling for mockup landing page |
+| `apps/web/components/artifact/MockupMetadataSidebar.tsx` | Metadata panel for mockup artifacts |
+| `apps/web/components/artifact/MockupMetadataSidebar.module.css` | Styling for mockup metadata panel |
 
 ### Modified Files
 
@@ -591,20 +591,20 @@ No parallelism between phases. Each phase depends on the artifacts of the previo
 |------|---------|
 | `lib/types.ts` | Add `"mockup"` to `artifactType` union |
 | `lib/artifacts.ts` | Widen collector to include `.html`, add mockup branch in scanner |
-| `daemon/routes/artifacts.ts` | Add mockup read endpoint with CSP headers, add operation definition |
-| `web/app/projects/[name]/artifacts/[...path]/page.tsx` | Add `.html` branch in catch-all route |
-| `web/components/project/ArtifactList.tsx` | Mockup icon and preview action in tree view |
-| `web/components/project/ArtifactList.module.css` | `.mockupIcon` and `.previewAction` classes |
-| `web/components/dashboard/RecentArtifacts.tsx` | Mockup icon in Recent Scrolls |
-| `web/components/dashboard/RecentArtifacts.module.css` | `.mockupIcon` class |
+| `apps/daemon/routes/artifacts.ts` | Add mockup read endpoint with CSP headers, add operation definition |
+| `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` | Add `.html` branch in catch-all route |
+| `apps/web/components/project/ArtifactList.tsx` | Mockup icon and preview action in tree view |
+| `apps/web/components/project/ArtifactList.module.css` | `.mockupIcon` and `.previewAction` classes |
+| `apps/web/components/dashboard/RecentArtifacts.tsx` | Mockup icon in Recent Scrolls |
+| `apps/web/components/dashboard/RecentArtifacts.module.css` | `.mockupIcon` class |
 
 ### Test Files
 
 | File | What's Tested |
 |------|---------------|
-| `tests/lib/artifacts.test.ts` | Scanner discovers HTML files, synthetic metadata, `artifactType: "mockup"` |
-| `tests/daemon/routes/artifacts.test.ts` | Mockup endpoint: headers, status codes, path validation, extension validation |
-| `tests/web/api/artifacts-mockup.test.ts` | Proxy: header forwarding, error status passthrough, daemon offline |
+| `lib/tests/artifacts.test.ts` | Scanner discovers HTML files, synthetic metadata, `artifactType: "mockup"` |
+| `apps/daemon/tests/routes/artifacts.test.ts` | Mockup endpoint: headers, status codes, path validation, extension validation |
+| `apps/web/tests/api/artifacts-mockup.test.ts` | Proxy: header forwarding, error status passthrough, daemon offline |
 
 ## Testing Strategy
 
@@ -612,9 +612,9 @@ No parallelism between phases. Each phase depends on the artifacts of the previo
 
 | Test Area | File | What to Test |
 |-----------|------|-------------|
-| Scanner | `tests/lib/artifacts.test.ts` | HTML files discovered with `artifactType: "mockup"`; synthetic metadata (title, date, status "complete"); mixed `.md`/image/`.html` in single scan; `.htm` and `.xhtml` not collected; empty content |
-| Daemon route | `tests/daemon/routes/artifacts.test.ts` | Correct `Content-Type: text/html; charset=utf-8`; CSP header contains `connect-src 'none'` and `frame-ancestors 'none'`; `X-Content-Type-Options: nosniff`; `Cache-Control: no-cache`; returns 415 for non-`.html`; returns 400 for traversal; returns 404 for missing file |
-| Proxy | `tests/web/api/artifacts-mockup.test.ts` | Forwards body and all security headers; forwards 404/415; returns 503 when daemon offline; returns 400 for missing params |
+| Scanner | `lib/tests/artifacts.test.ts` | HTML files discovered with `artifactType: "mockup"`; synthetic metadata (title, date, status "complete"); mixed `.md`/image/`.html` in single scan; `.htm` and `.xhtml` not collected; empty content |
+| Daemon route | `apps/daemon/tests/routes/artifacts.test.ts` | Correct `Content-Type: text/html; charset=utf-8`; CSP header contains `connect-src 'none'` and `frame-ancestors 'none'`; `X-Content-Type-Options: nosniff`; `Cache-Control: no-cache`; returns 415 for non-`.html`; returns 400 for traversal; returns 404 for missing file |
+| Proxy | `apps/web/tests/api/artifacts-mockup.test.ts` | Forwards body and all security headers; forwards 404/415; returns 503 when daemon offline; returns 400 for missing params |
 
 ### Manual Verification
 

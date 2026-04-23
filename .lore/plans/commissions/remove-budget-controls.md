@@ -28,15 +28,15 @@ Every file that references `maxTurns`, `maxBudgetUsd`, `resourceDefaults`, or `r
 | `lib/types.ts` | Remove `ResourceDefaults`, remove `resourceDefaults` from `WorkerMetadata` and `ActivationContext`, remove `resourceBounds` from `ActivationResult` |
 | `lib/packages.ts` | Remove `resourceDefaultsSchema`, remove from `guildHallSchema` |
 | `lib/commissions.ts` | Remove `maxTurns`/`maxBudgetUsd` from `CommissionMeta.resource_overrides` type and parsing |
-| `daemon/lib/agent-sdk/sdk-runner.ts` | Remove from `SessionPrepSpec.resourceOverrides`, `SdkRunnerOutcome.reason`, `drainSdkSession` opts, `prepareSdkSession` option assembly |
-| `daemon/services/commission/orchestrator.ts` | Remove maxTurns halt trigger, remove budget fields from artifact creation/update/parse functions |
-| `daemon/services/commission/halted-types.ts` | Update comment only |
-| `daemon/services/manager/worker.ts` | Remove `resourceDefaults` from Guild Master metadata, remove `resourceBounds` from `activateManager` |
-| `daemon/services/manager/toolbox.ts` | Remove `maxTurns`/`maxBudgetUsd` from all Zod schemas and YAML update logic |
-| `daemon/routes/commissions.ts` | Remove `maxTurns`/`maxBudgetUsd` from route body types |
-| `daemon/services/scheduler/index.ts` | Remove from `readResourceOverrides` |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts` | Remove from `SessionPrepSpec.resourceOverrides`, `SdkRunnerOutcome.reason`, `drainSdkSession` opts, `prepareSdkSession` option assembly |
+| `apps/daemon/services/commission/orchestrator.ts` | Remove maxTurns halt trigger, remove budget fields from artifact creation/update/parse functions |
+| `apps/daemon/services/commission/halted-types.ts` | Update comment only |
+| `apps/daemon/services/manager/worker.ts` | Remove `resourceDefaults` from Guild Master metadata, remove `resourceBounds` from `activateManager` |
+| `apps/daemon/services/manager/toolbox.ts` | Remove `maxTurns`/`maxBudgetUsd` from all Zod schemas and YAML update logic |
+| `apps/daemon/routes/commissions.ts` | Remove `maxTurns`/`maxBudgetUsd` from route body types |
+| `apps/daemon/services/scheduler/index.ts` | Remove from `readResourceOverrides` |
 | `packages/shared/worker-activation.ts` | Remove `resourceBounds` assembly |
-| `web/components/commission/CommissionForm.tsx` | Remove Max Turns and Max Budget input fields |
+| `apps/web/components/commission/CommissionForm.tsx` | Remove Max Turns and Max Budget input fields |
 
 ### Worker Packages (Phase 1, sub-phase 2)
 
@@ -53,42 +53,42 @@ Every file that references `maxTurns`, `maxBudgetUsd`, `resourceDefaults`, or `r
 
 | File | What changes |
 |------|-------------|
-| `tests/lib/packages.test.ts` | Remove `resourceDefaults` assertions |
-| `tests/lib/commissions.test.ts` | Remove `maxTurns`/`maxBudgetUsd` from test data and assertions |
-| `tests/lib/workspace-scoping.test.ts` | Remove budget fields from test data |
-| `tests/packages/worker-role-smoke.test.ts` | Remove `resourceDefaults` from test data |
-| `tests/packages/worker-activation.test.ts` | Remove `resourceDefaults`/`resourceBounds` from test data |
-| `tests/packages/guild-hall-illuminator/integration.test.ts` | Remove maxTurns assertion |
-| `tests/daemon/services/sdk-runner.test.ts` | Remove maxTurns/maxBudget tests, update remaining tests |
-| `tests/daemon/services/commission/orchestrator.test.ts` | Remove halt-entry tests for maxTurns, update `resourceBounds` in remaining tests |
-| `tests/daemon/services/commission/record.test.ts` | Remove budget fields from test data |
-| `tests/daemon/services/manager/toolbox.test.ts` | Remove `maxTurns`/`maxBudgetUsd` from resourceOverrides test data |
-| `tests/daemon/services/manager-toolbox.test.ts` | Remove budget-related assertions |
-| `tests/daemon/services/manager-worker.test.ts` | Remove `resourceDefaults`/`resourceBounds` tests |
-| `tests/daemon/services/manager-context.test.ts` | Remove `resourceDefaults` from context data |
-| `tests/daemon/services/briefing-generator.test.ts` | Remove `resourceBounds` from test data |
-| `tests/daemon/services/outcome-triage.test.ts` | Remove maxTurns assertion (triage's internal limit stays, but the assertion on the exact value may need updating) |
-| `tests/daemon/services/trigger-evaluator-service.test.ts` | Remove `_resourceOverrides` placeholder |
-| `tests/daemon/services/scheduler/scheduler.test.ts` | Remove budget fields from `resourceOverrides` parameter |
-| `tests/daemon/services/meeting/orchestrator.test.ts` | Remove `resourceDefaults`/`resourceBounds` from test data |
-| `tests/daemon/services/meeting/recovery.test.ts` | Remove `resourceDefaults`/`resourceBounds` from test data |
-| `tests/daemon/meeting-session.test.ts` | Remove `resourceDefaults`/`resourceBounds`/`maxTurns` assertions |
-| `tests/daemon/meeting-project-scope.test.ts` | Remove `resourceDefaults`/`resourceBounds` from test data |
-| `tests/daemon/integration.test.ts` | Remove `resourceDefaults`/`resourceBounds`/`maxTurns` assertions |
-| `tests/daemon/integration-commission.test.ts` | Remove `resourceBounds` from test data |
-| `tests/daemon/commission-toolbox.test.ts` | Remove budget fields from test data |
-| `tests/daemon/notes-generator.test.ts` | Remove `maxTurns`/`maxBudgetUsd` assertions (except internal limit checks), remove `resourceDefaults`/`resourceBounds` from test data |
-| `tests/daemon/routes/commissions.test.ts` | Remove budget fields from test data and assertions |
-| `tests/daemon/routes/commissions-read.test.ts` | Remove budget fields from test data and assertions |
-| `tests/components/commission-form.test.tsx` | Remove maxTurns/maxBudgetUsd form interaction tests |
+| `lib/tests/packages.test.ts` | Remove `resourceDefaults` assertions |
+| `lib/tests/commissions.test.ts` | Remove `maxTurns`/`maxBudgetUsd` from test data and assertions |
+| `lib/tests/workspace-scoping.test.ts` | Remove budget fields from test data |
+| `packages/tests/worker-role-smoke.test.ts` | Remove `resourceDefaults` from test data |
+| `packages/tests/worker-activation.test.ts` | Remove `resourceDefaults`/`resourceBounds` from test data |
+| `packages/guild-hall-illuminator/tests/integration.test.ts` | Remove maxTurns assertion |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | Remove maxTurns/maxBudget tests, update remaining tests |
+| `apps/daemon/tests/services/commission/orchestrator.test.ts` | Remove halt-entry tests for maxTurns, update `resourceBounds` in remaining tests |
+| `apps/daemon/tests/services/commission/record.test.ts` | Remove budget fields from test data |
+| `apps/daemon/tests/services/manager/toolbox.test.ts` | Remove `maxTurns`/`maxBudgetUsd` from resourceOverrides test data |
+| `apps/daemon/tests/services/manager-toolbox.test.ts` | Remove budget-related assertions |
+| `apps/daemon/tests/services/manager-worker.test.ts` | Remove `resourceDefaults`/`resourceBounds` tests |
+| `apps/daemon/tests/services/manager-context.test.ts` | Remove `resourceDefaults` from context data |
+| `apps/daemon/tests/services/briefing-generator.test.ts` | Remove `resourceBounds` from test data |
+| `apps/daemon/tests/services/outcome-triage.test.ts` | Remove maxTurns assertion (triage's internal limit stays, but the assertion on the exact value may need updating) |
+| `apps/daemon/tests/services/trigger-evaluator-service.test.ts` | Remove `_resourceOverrides` placeholder |
+| `apps/daemon/tests/services/scheduler/scheduler.test.ts` | Remove budget fields from `resourceOverrides` parameter |
+| `apps/daemon/tests/services/meeting/orchestrator.test.ts` | Remove `resourceDefaults`/`resourceBounds` from test data |
+| `apps/daemon/tests/services/meeting/recovery.test.ts` | Remove `resourceDefaults`/`resourceBounds` from test data |
+| `apps/daemon/tests/meeting-session.test.ts` | Remove `resourceDefaults`/`resourceBounds`/`maxTurns` assertions |
+| `apps/daemon/tests/meeting-project-scope.test.ts` | Remove `resourceDefaults`/`resourceBounds` from test data |
+| `apps/daemon/tests/integration.test.ts` | Remove `resourceDefaults`/`resourceBounds`/`maxTurns` assertions |
+| `apps/daemon/tests/integration-commission.test.ts` | Remove `resourceBounds` from test data |
+| `apps/daemon/tests/commission-toolbox.test.ts` | Remove budget fields from test data |
+| `apps/daemon/tests/notes-generator.test.ts` | Remove `maxTurns`/`maxBudgetUsd` assertions (except internal limit checks), remove `resourceDefaults`/`resourceBounds` from test data |
+| `apps/daemon/tests/routes/commissions.test.ts` | Remove budget fields from test data and assertions |
+| `apps/daemon/tests/routes/commissions-read.test.ts` | Remove budget fields from test data and assertions |
+| `apps/web/tests/components/commission-form.test.tsx` | Remove maxTurns/maxBudgetUsd form interaction tests |
 
 ### Files NOT Modified (internal utility limits preserved)
 
 | File | Why untouched |
 |------|--------------|
-| `daemon/services/briefing-generator.ts` | Uses `maxTurns` on `SdkQueryOptions` directly for internal session limits (200, 10, 1). These are implementation safeguards, not user-facing budget controls. However, `resourceOverrides.maxTurns` in `SessionPrepSpec` will no longer exist, so the briefing generator must set `maxTurns` directly on the options object post-prep, not through `resourceOverrides`. See Phase 1 Step 3. |
-| `daemon/services/outcome-triage.ts` | Uses `maxTurns` directly on `SdkQueryOptions` (TRIAGE_MAX_TURNS = 10). Internal safeguard. Untouched. |
-| `daemon/services/meeting/notes-generator.ts` | Uses `maxTurns: 1` directly on `SdkQueryOptions`. Internal safeguard. Untouched. |
+| `apps/daemon/services/briefing-generator.ts` | Uses `maxTurns` on `SdkQueryOptions` directly for internal session limits (200, 10, 1). These are implementation safeguards, not user-facing budget controls. However, `resourceOverrides.maxTurns` in `SessionPrepSpec` will no longer exist, so the briefing generator must set `maxTurns` directly on the options object post-prep, not through `resourceOverrides`. See Phase 1 Step 3. |
+| `apps/daemon/services/outcome-triage.ts` | Uses `maxTurns` directly on `SdkQueryOptions` (TRIAGE_MAX_TURNS = 10). Internal safeguard. Untouched. |
+| `apps/daemon/services/meeting/notes-generator.ts` | Uses `maxTurns: 1` directly on `SdkQueryOptions`. Internal safeguard. Untouched. |
 
 ### Documentation (Phase 1 sub-phase 4)
 
@@ -103,17 +103,17 @@ Every file that references `maxTurns`, `maxBudgetUsd`, `resourceDefaults`, or `r
 
 | File | What changes |
 |------|-------------|
-| `daemon/services/commission/halted-types.ts` | Delete entire file |
-| `daemon/types.ts` | Remove `"halted"` from `CommissionStatus` union |
-| `daemon/services/commission/lifecycle.ts` | Remove halted from transition graph, delete `halt()` and `continueHalted()` methods |
-| `daemon/services/commission/orchestrator.ts` | Remove `handleHalt`, `continueCommission`, `saveCommission`, `cancelHaltedCommission`, `commissionStatePath`, `writeStateFile`, `deleteStateFile`, halted recovery from `recoverCommissions`; remove from `CommissionSessionForRoutes` interface |
-| `daemon/routes/commissions.ts` | Remove `POST /commission/run/continue` and `POST /commission/run/save` routes |
-| `daemon/services/manager/toolbox.ts` | Remove `continue_commission` and `save_commission` tools, `makeContinueCommissionHandler`, `makeSaveCommissionHandler` |
-| `web/components/commission/CommissionActions.tsx` | Remove continue/save buttons, handlers, confirmation dialogs, `saveReason` state |
-| `web/app/api/commissions/[commissionId]/continue/route.ts` | Delete entire file |
-| `web/app/api/commissions/[commissionId]/save/route.ts` | Delete entire file |
-| `web/components/commission/commission-filter.ts` | Remove `"halted"` from `DEFAULT_STATUSES` and "Active" filter group |
-| `daemon/services/scheduler/index.ts` | Remove `status === "halted"` from `isSpawnedCommissionActive` |
+| `apps/daemon/services/commission/halted-types.ts` | Delete entire file |
+| `apps/daemon/types.ts` | Remove `"halted"` from `CommissionStatus` union |
+| `apps/daemon/services/commission/lifecycle.ts` | Remove halted from transition graph, delete `halt()` and `continueHalted()` methods |
+| `apps/daemon/services/commission/orchestrator.ts` | Remove `handleHalt`, `continueCommission`, `saveCommission`, `cancelHaltedCommission`, `commissionStatePath`, `writeStateFile`, `deleteStateFile`, halted recovery from `recoverCommissions`; remove from `CommissionSessionForRoutes` interface |
+| `apps/daemon/routes/commissions.ts` | Remove `POST /commission/run/continue` and `POST /commission/run/save` routes |
+| `apps/daemon/services/manager/toolbox.ts` | Remove `continue_commission` and `save_commission` tools, `makeContinueCommissionHandler`, `makeSaveCommissionHandler` |
+| `apps/web/components/commission/CommissionActions.tsx` | Remove continue/save buttons, handlers, confirmation dialogs, `saveReason` state |
+| `apps/web/app/api/commissions/[commissionId]/continue/route.ts` | Delete entire file |
+| `apps/web/app/api/commissions/[commissionId]/save/route.ts` | Delete entire file |
+| `apps/web/components/commission/commission-filter.ts` | Remove `"halted"` from `DEFAULT_STATUSES` and "Active" filter group |
+| `apps/daemon/services/scheduler/index.ts` | Remove `status === "halted"` from `isSpawnedCommissionActive` |
 | `lib/commissions.ts` | Remove `halted` from `STATUS_GROUP` and event mapping |
 
 #### Documentation Files
@@ -128,10 +128,10 @@ Every file that references `maxTurns`, `maxBudgetUsd`, `resourceDefaults`, or `r
 
 | File | What changes |
 |------|-------------|
-| `tests/daemon/services/commission/lifecycle.test.ts` | Remove entire "halted transitions" describe block (~lines 844-990) |
-| `tests/daemon/services/commission/orchestrator.test.ts` | Remove halt entry tests (~lines 2629-2827), recovery halted tests (~lines 938-1050), continueCommission tests (~lines 2866-3179), saveCommission tests (~lines 3183-3380), cancel/abandon halted tests (~lines 3343-3455) |
-| `tests/components/commission-actions.test.tsx` | Remove halted visibility, handleContinue, handleSave, save reason, halted action mutual exclusion, API proxy route tests for continue/save |
-| `tests/daemon/routes/commissions.test.ts` | Remove `continueCommission`/`saveCommission` mock setup, `POST /commission/run/save` describe block, `POST /commission/run/continue` tests |
+| `apps/daemon/tests/services/commission/lifecycle.test.ts` | Remove entire "halted transitions" describe block (~lines 844-990) |
+| `apps/daemon/tests/services/commission/orchestrator.test.ts` | Remove halt entry tests (~lines 2629-2827), recovery halted tests (~lines 938-1050), continueCommission tests (~lines 2866-3179), saveCommission tests (~lines 3183-3380), cancel/abandon halted tests (~lines 3343-3455) |
+| `apps/web/tests/components/commission-actions.test.tsx` | Remove halted visibility, handleContinue, handleSave, save reason, halted action mutual exclusion, API proxy route tests for continue/save |
+| `apps/daemon/tests/routes/commissions.test.ts` | Remove `continueCommission`/`saveCommission` mock setup, `POST /commission/run/save` describe block, `POST /commission/run/continue` tests |
 
 ## Phase 1 Commission: Budget Control Removal
 
@@ -163,7 +163,7 @@ In `lib/commissions.ts`:
 
 ### Step 2: Remove from SDK runner
 
-**File:** `daemon/lib/agent-sdk/sdk-runner.ts`
+**File:** `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 
 - Remove `maxTurns` and `maxBudgetUsd` from `SessionPrepSpec.resourceOverrides` type (line 106). It becomes `resourceOverrides?: { model?: string }`.
 - Remove `"maxTurns"` and `"maxBudget"` from `SdkRunnerOutcome.reason` (line 148). It becomes `reason?: "completed"`.
@@ -172,7 +172,7 @@ In `lib/commissions.ts`:
 
 ### Step 3: Fix briefing generator's maxTurns path
 
-**File:** `daemon/services/briefing-generator.ts`
+**File:** `apps/daemon/services/briefing-generator.ts`
 
 The briefing generator currently sets `maxTurns` via `SessionPrepSpec.resourceOverrides`:
 ```typescript
@@ -198,7 +198,7 @@ For `generateWithFullSdk` and `generateWithCheapSdk`, move `maxTurns` from `reso
 
 ### Step 4: Remove from commission orchestrator
 
-**File:** `daemon/services/commission/orchestrator.ts`
+**File:** `apps/daemon/services/commission/orchestrator.ts`
 
 This is the largest single file change. Work through these areas:
 
@@ -226,29 +226,29 @@ Update `Halted (maxTurns)` to a generic halt message, or leave as-is if `handleH
 
 ### Step 5: Remove from worker activation
 
-**Files:** `packages/shared/worker-activation.ts`, `daemon/services/manager/worker.ts`
+**Files:** `packages/shared/worker-activation.ts`, `apps/daemon/services/manager/worker.ts`
 
 In `packages/shared/worker-activation.ts`:
 - Remove `resourceBounds` from the returned `ActivationResult` (lines 78-79 and surrounding structure)
 
-In `daemon/services/manager/worker.ts`:
+In `apps/daemon/services/manager/worker.ts`:
 - Remove `resourceDefaults: { maxTurns: 200 }` from Guild Master metadata (lines 147-149)
 - Remove `resourceBounds` from `activateManager` return (lines 234-237)
 - Remove the line about `resourceOverrides` from the model guidance text (line 100), or update it to say "model" only
 
 ### Step 6: Remove from routes and scheduler
 
-**Files:** `daemon/routes/commissions.ts`, `daemon/services/scheduler/index.ts`
+**Files:** `apps/daemon/routes/commissions.ts`, `apps/daemon/services/scheduler/index.ts`
 
-In `daemon/routes/commissions.ts`:
+In `apps/daemon/routes/commissions.ts`:
 - Remove `maxTurns` and `maxBudgetUsd` from the `resourceOverrides` type in the create and scheduled-create route body schemas (lines 56, 168)
 
-In `daemon/services/scheduler/index.ts`:
+In `apps/daemon/services/scheduler/index.ts`:
 - Remove `maxTurns` and `maxBudgetUsd` parsing from `readResourceOverrides` (lines 488-492). The function returns `{ model?: string }`.
 
 ### Step 7: Remove from manager toolbox schemas
 
-**File:** `daemon/services/manager/toolbox.ts`
+**File:** `apps/daemon/services/manager/toolbox.ts`
 
 - Remove `maxTurns: z.number().optional()` and `maxBudgetUsd: z.number().optional()` from the `create_commission` Zod schema (lines 1539-1541)
 - Same for `create_scheduled_commission` schema (lines 1628-1630)
@@ -259,7 +259,7 @@ In `daemon/services/scheduler/index.ts`:
 
 ### Step 8: Remove from halted-types comment
 
-**File:** `daemon/services/commission/halted-types.ts`
+**File:** `apps/daemon/services/commission/halted-types.ts`
 
 Update the doc comment (lines 1-7) to remove the `maxTurns` reference. Describe the halted state generically: "When a commission is halted without submitting a result, the orchestrator persists this state to disk."
 
@@ -285,7 +285,7 @@ to: key removed entirely.
 
 ### Step 10: Remove budget inputs from CommissionForm
 
-**File:** `web/components/commission/CommissionForm.tsx`
+**File:** `apps/web/components/commission/CommissionForm.tsx`
 
 - Remove `maxTurns` and `maxBudgetUsd` state variables (lines 53-54)
 - Remove the parsing and inclusion of `maxTurns`/`maxBudgetUsd` in `resourceOverrides` (lines 133-142)
@@ -293,7 +293,7 @@ to: key removed entirely.
 - Remove the "Max Turns" and "Max Budget (USD)" input fields and their labels (lines 370-402)
 - The `resourceOverrides` object now only includes `model` when set
 
-Check `web/components/commission/CommissionForm.module.css` for any styles that become orphaned. The `overridesField` and `overridesLabel` classes are likely shared with the model selector, so they stay.
+Check `apps/web/components/commission/CommissionForm.module.css` for any styles that become orphaned. The `overridesField` and `overridesLabel` classes are likely shared with the model selector, so they stay.
 
 **Sub-phase 2 verification:** `bun run build` should pass. The UI renders without budget fields.
 
@@ -317,7 +317,7 @@ Many test files construct `WorkerMetadata`, `ActivationContext`, or `ActivationR
 
 **Key test file decisions:**
 
-`tests/daemon/services/sdk-runner.test.ts`:
+`apps/daemon/tests/services/sdk-runner.test.ts`:
 - Remove "reason is 'maxTurns'" test (line 317)
 - Remove "reason is 'completed' when turn count is below maxTurns" test (line 330)
 - Update "reason works without maxTurns opt" test (line 364) to just verify reason is "completed" on success
@@ -325,12 +325,12 @@ Many test files construct `WorkerMetadata`, `ActivationContext`, or `ActivationR
 - Remove the "resourceOverrides.maxTurns/maxBudgetUsd override" test (line 513 area)
 - Keep the "resourceOverrides.model overrides activation model" test (line 776)
 
-`tests/daemon/services/commission/orchestrator.test.ts`:
+`apps/daemon/tests/services/commission/orchestrator.test.ts`:
 - The `describe("halt entry (maxTurns without result)")` block (line 2628+) contains ~6 tests. Remove the entire block. The halted state has no trigger after this removal. If the halted infrastructure is tested elsewhere (continue, save, cancel), those tests remain.
 - Remove `maxTurns` from `resourceBounds` in all remaining test fixtures. Since `resourceBounds` is removed from `ActivationResult`, these all need updating.
 - Remove `maxTurns`/`maxBudgetUsd` from `resourceOverrides` in artifact creation tests
 
-`tests/components/commission-form.test.tsx`:
+`apps/web/tests/components/commission-form.test.tsx`:
 - Remove the test that submits maxTurns and maxBudgetUsd values (line 126 area)
 
 ### Step 12: Run tests and fix stragglers
@@ -355,7 +355,7 @@ Remove the halted-due-to-maxTurns section (line 62 area). Replace with a descrip
 
 ### Step 15: Update worker guidance text
 
-In `daemon/services/manager/worker.ts`, the model guidance line (line 100) mentions `resourceOverrides`. Update to say: "To override a worker's default model, set `model` in `resourceOverrides` when creating the commission."
+In `apps/daemon/services/manager/worker.ts`, the model guidance line (line 100) mentions `resourceOverrides`. Update to say: "To override a worker's default model, set `model` in `resourceOverrides` when creating the commission."
 
 This line may already say exactly that. Verify and adjust if it mentions maxTurns or maxBudgetUsd.
 
@@ -371,17 +371,17 @@ This line may already say exactly that. Verify and adjust if it mentions maxTurn
 
 ### Step 16: Delete halted type and remove from status union
 
-**Files:** `daemon/services/commission/halted-types.ts`, `daemon/types.ts`, `lib/commissions.ts`
+**Files:** `apps/daemon/services/commission/halted-types.ts`, `apps/daemon/types.ts`, `lib/commissions.ts`
 
-- Delete `daemon/services/commission/halted-types.ts` entirely. The `HaltedCommissionState` type is no longer used.
-- Remove `"halted"` from the `CommissionStatus` union type in `daemon/types.ts`.
+- Delete `apps/daemon/services/commission/halted-types.ts` entirely. The `HaltedCommissionState` type is no longer used.
+- Remove `"halted"` from the `CommissionStatus` union type in `apps/daemon/types.ts`.
 - Remove `halted` from the `STATUS_GROUP` mapping in `lib/commissions.ts`. Remove the `halted: "status_halted"` entry from the event mapping.
 
 **Verification:** `bun run typecheck` will fail with many downstream errors pointing to every consumer of the halted state. This is expected; the errors guide the remaining steps.
 
 ### Step 17: Remove halted from lifecycle
 
-**File:** `daemon/services/commission/lifecycle.ts`
+**File:** `apps/daemon/services/commission/lifecycle.ts`
 
 - Remove the `halted` entry from the `TRANSITIONS` map (line 53): `halted: ["in_progress", "completed", "cancelled", "abandoned", "failed"]`.
 - Remove `"halted"` from the `in_progress` target states array.
@@ -391,7 +391,7 @@ This line may already say exactly that. Verify and adjust if it mentions maxTurn
 
 ### Step 18: Remove halted functions from orchestrator
 
-**File:** `daemon/services/commission/orchestrator.ts`
+**File:** `apps/daemon/services/commission/orchestrator.ts`
 
 This is the largest single change. Work through these areas in order:
 
@@ -425,7 +425,7 @@ Remove `continueCommission` and `saveCommission` from the object returned by the
 
 ### Step 19: Remove daemon routes for continue and save
 
-**File:** `daemon/routes/commissions.ts`
+**File:** `apps/daemon/routes/commissions.ts`
 
 - Delete the `POST /commission/run/continue` route handler (lines 290-322).
 - Delete the `POST /commission/run/save` route handler (lines 324-353).
@@ -433,7 +433,7 @@ Remove `continueCommission` and `saveCommission` from the object returned by the
 
 ### Step 20: Remove manager toolbox tools
 
-**File:** `daemon/services/manager/toolbox.ts`
+**File:** `apps/daemon/services/manager/toolbox.ts`
 
 - Delete `makeContinueCommissionHandler()` (lines 632-686) and its tool registration (line 1516).
 - Delete `makeSaveCommissionHandler()` (lines 688-731) and its tool registration (line 1517).
@@ -443,7 +443,7 @@ Remove `continueCommission` and `saveCommission` from the object returned by the
 
 **Files:** Multiple web components and API routes.
 
-**CommissionActions.tsx** (`web/components/commission/CommissionActions.tsx`):
+**CommissionActions.tsx** (`apps/web/components/commission/CommissionActions.tsx`):
 - Remove `"continue" | "save"` from the confirming state union type (line 33-35).
 - Delete the `saveReason` state variable (line 37).
 - Delete `handleContinue()` handler (lines 129-148).
@@ -455,16 +455,16 @@ Remove `continueCommission` and `saveCommission` from the object returned by the
 - If the component now only has cancel/abandon buttons, simplify the confirming state type accordingly.
 
 **Delete API proxy routes:**
-- Delete `web/app/api/commissions/[commissionId]/continue/route.ts` (entire file, 25 lines).
-- Delete `web/app/api/commissions/[commissionId]/save/route.ts` (entire file, 37 lines).
+- Delete `apps/web/app/api/commissions/[commissionId]/continue/route.ts` (entire file, 25 lines).
+- Delete `apps/web/app/api/commissions/[commissionId]/save/route.ts` (entire file, 37 lines).
 
-**Commission filter** (`web/components/commission/commission-filter.ts`):
+**Commission filter** (`apps/web/components/commission/commission-filter.ts`):
 - Remove `"halted"` from the `DEFAULT_STATUSES` set (line 9).
 - Remove `"halted"` from the "Active" filter group (line 18).
 
 ### Step 22: Remove scheduler halted check
 
-**File:** `daemon/services/scheduler/index.ts`
+**File:** `apps/daemon/services/scheduler/index.ts`
 
 - Remove `|| status === "halted"` from `isSpawnedCommissionActive()` (line 519). The function becomes:
   ```typescript
@@ -477,7 +477,7 @@ Remove `continueCommission` and `saveCommission` from the object returned by the
 **CLAUDE.md:**
 - Update the commission lifecycle description (line 130). Remove halted entirely:
   ```
-  **Commission lifecycle.** Commissions flow through: `pending` -> `dispatched` -> `in_progress` -> `completed`/`failed`. Scheduled commissions use `daemon/services/scheduler/` with croner.
+  **Commission lifecycle.** Commissions flow through: `pending` -> `dispatched` -> `in_progress` -> `completed`/`failed`. Scheduled commissions use `apps/daemon/services/scheduler/` with croner.
   ```
 - Update the routes table (line 45): change `Create, list, dispatch, continue, save, cancel` to `Create, list, dispatch, cancel`.
 - Update the services table (line 62): change `Commission orchestrator (dispatch, lifecycle, halted state, capacity)` to `Commission orchestrator (dispatch, lifecycle, capacity)`.
@@ -495,7 +495,7 @@ Update frontmatter `status` from `implemented` to `superseded`. Add a note below
 
 Work through each test file. The volume is high but the work is mechanical: delete entire describe blocks and remove halted references from fixtures.
 
-**`tests/daemon/services/commission/lifecycle.test.ts` (lines 844-990):**
+**`apps/daemon/tests/services/commission/lifecycle.test.ts` (lines 844-990):**
 Delete the entire "halted transitions" describe block (~146 lines). This covers:
 - `halt()` and `continueHalted()` transition tests
 - Transitions from halted to completed, cancelled, abandoned, failed
@@ -505,7 +505,7 @@ Delete the entire "halted transitions" describe block (~146 lines). This covers:
 - Halt/continue cycle test
 - Concurrent halt rejection test
 
-**`tests/daemon/services/commission/orchestrator.test.ts`:**
+**`apps/daemon/tests/services/commission/orchestrator.test.ts`:**
 Delete these blocks:
 - Halt entry tests (~lines 2629-2827, ~198 lines): maxTurns without result transitions, halt_count increment, timeline recording, removal from executions
 - Halted recovery tests (~lines 938-1050, ~112 lines): intact worktree stays halted, missing worktree transitions to failed, capacity after recovery
@@ -513,7 +513,7 @@ Delete these blocks:
 - `saveCommission` tests (~lines 3183-3380, ~197 lines): partial work save with squash-merge, worktree missing failure
 - Cancel/abandon halted tests (~lines 3343-3455, ~112 lines): branch preserved, worktree cleanup, status sync, dependent unblocking
 
-**`tests/components/commission-actions.test.tsx`:**
+**`apps/web/tests/components/commission-actions.test.tsx`:**
 Delete all halted-related test cases:
 - Halted status visibility (showContinue, showSave)
 - `handleContinue` handler tests
@@ -523,7 +523,7 @@ Delete all halted-related test cases:
 - API proxy route tests for continue/save
 - Button order tests for halted status
 
-**`tests/daemon/routes/commissions.test.ts`:**
+**`apps/daemon/tests/routes/commissions.test.ts`:**
 - Remove `continueCommission` and `saveCommission` from the mock setup in the test harness (they come from `CommissionSessionForRoutes`).
 - Delete the `POST /commission/run/save` describe block.
 - Delete any `POST /commission/run/continue` tests.

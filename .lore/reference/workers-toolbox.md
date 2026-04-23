@@ -41,7 +41,7 @@ All workers use `model: "opus"`. The Researcher uses `sparse` checkout (`.lore/`
 
 | Entry | Type | Handler |
 |-------|------|---------|
-| `GET /workers` | Daemon | `daemon/routes/workers.ts` -> list discovered worker packages with metadata and portrait URLs |
+| `GET /workers` | Daemon | `apps/daemon/routes/workers.ts` -> list discovered worker packages with metadata and portrait URLs |
 
 The toolbox system has no direct entry points. It is invoked internally by `meeting-session.ts` and `commission-session.ts` during worker activation.
 
@@ -53,21 +53,21 @@ The toolbox system has no direct entry points. It is invoked internally by `meet
 |------|------|
 | `lib/packages.ts` | Package discovery: `discoverPackages()` scans directories for `package.json` with `guildHall` key. Zod validation (`workerMetadataSchema`, `toolboxMetadataSchema`, `packageMetadataSchema`). Filter helpers: `getWorkers`, `getToolboxes`, `getWorkerByName`. Package name safety validation. |
 | `lib/types.ts` | Shared type definitions: `WorkerMetadata`, `ToolboxMetadata`, `PackageMetadata`, `DiscoveredPackage`, `ResolvedToolSet`, `ActivationContext`, `ActivationResult`, `WorkerIdentity`, `CheckoutScope`, `ResourceDefaults`. |
-| `daemon/services/toolbox-resolver.ts` | `resolveToolSet()`: five-step tool assembly. `SYSTEM_TOOLBOX_REGISTRY` maps names to factories (meeting, commission, manager). Loads domain toolboxes via dynamic import. Generates `allowedTools` with MCP wildcards. |
-| `daemon/services/toolbox-types.ts` | Shared types: `GuildHallToolboxDeps`, `ToolboxOutput`, `ToolboxFactory`. All factories receive deps including eventBus, config, optional services. |
-| `daemon/lib/toolbox-utils.ts` | Shared utilities: `validateContainedPath` (path traversal prevention), `resolveWritePath` (activity worktree vs integration worktree fallback), `formatTimestamp`, `escapeYamlValue`, `errorMessage`, `parseLinkedArtifacts`, `insertLinkedArtifact`. `GuildHallToolServices` type (commissionSession + gitOps). |
-| `daemon/services/base-toolbox.ts` | Base toolbox factory: `read_memory`, `edit_memory`, `write_memory` (deprecated alias), `record_decision` tools. Uses `memoryScopeDir` for scope resolution. Always present for every worker. |
-| `daemon/services/commission-toolbox.ts` | Commission toolbox factory: `report_progress`, `submit_result` (with `resultSubmitted` idempotency flag) tools. Writes to commission artifacts and emits EventBus events. |
-| `daemon/services/meeting-toolbox.ts` | Meeting toolbox factory: `link_artifact` (with path validation and existence check), `propose_followup` (writes to integration worktree), `summarize_progress` tools. |
-| `daemon/services/manager-toolbox.ts` | Manager toolbox factory: 7 tools for project coordination. `create_commission` optionally dispatches immediately. `create_pr` blocks on active activities, pushes claude branch, opens PR via `gitOps.createPullRequest`, writes PR marker file. `sync_project` delegates to `cli/rebase.ts:syncProject`. |
-| `daemon/services/manager-worker.ts` | Guild Master definition: `MANAGER_POSTURE`, `createManagerPackage()` (returns a `DiscoveredPackage` with empty path), `activateManager()` (assembles posture + memory + manager context), `activateWorker()` (routes built-in vs external packages). |
+| `apps/daemon/services/toolbox-resolver.ts` | `resolveToolSet()`: five-step tool assembly. `SYSTEM_TOOLBOX_REGISTRY` maps names to factories (meeting, commission, manager). Loads domain toolboxes via dynamic import. Generates `allowedTools` with MCP wildcards. |
+| `apps/daemon/services/toolbox-types.ts` | Shared types: `GuildHallToolboxDeps`, `ToolboxOutput`, `ToolboxFactory`. All factories receive deps including eventBus, config, optional services. |
+| `apps/daemon/lib/toolbox-utils.ts` | Shared utilities: `validateContainedPath` (path traversal prevention), `resolveWritePath` (activity worktree vs integration worktree fallback), `formatTimestamp`, `escapeYamlValue`, `errorMessage`, `parseLinkedArtifacts`, `insertLinkedArtifact`. `GuildHallToolServices` type (commissionSession + gitOps). |
+| `apps/daemon/services/base-toolbox.ts` | Base toolbox factory: `read_memory`, `edit_memory`, `write_memory` (deprecated alias), `record_decision` tools. Uses `memoryScopeDir` for scope resolution. Always present for every worker. |
+| `apps/daemon/services/commission-toolbox.ts` | Commission toolbox factory: `report_progress`, `submit_result` (with `resultSubmitted` idempotency flag) tools. Writes to commission artifacts and emits EventBus events. |
+| `apps/daemon/services/meeting-toolbox.ts` | Meeting toolbox factory: `link_artifact` (with path validation and existence check), `propose_followup` (writes to integration worktree), `summarize_progress` tools. |
+| `apps/daemon/services/manager-toolbox.ts` | Manager toolbox factory: 7 tools for project coordination. `create_commission` optionally dispatches immediately. `create_pr` blocks on active activities, pushes claude branch, opens PR via `gitOps.createPullRequest`, writes PR marker file. `sync_project` delegates to `apps/cli/rebase.ts:syncProject`. |
+| `apps/daemon/services/manager-worker.ts` | Guild Master definition: `MANAGER_POSTURE`, `createManagerPackage()` (returns a `DiscoveredPackage` with empty path), `activateManager()` (assembles posture + memory + manager context), `activateWorker()` (routes built-in vs external packages). |
 | `packages/shared/worker-activation.ts` | Shared activation pattern for external workers: `activateWorkerWithSharedPattern()`. Builds system prompt from posture + memory + meeting/commission context. Injects commission protocol instructions. All external workers use this. |
 | `packages/guild-hall-developer/index.ts` | Example external worker: exports `activate()` that delegates to shared activation. All 5 external workers follow this identical pattern. |
 | `packages/guild-hall-*/package.json` | Worker metadata: `guildHall` key with type, identity (name, description, displayTitle), posture, domainToolboxes, builtInTools, checkoutScope, resourceDefaults. |
-| `daemon/services/memory-injector.ts` | `loadMemories()`: reads single memory file per scope, parses `## sections`, applies soft character cap (16000 default). `memoryScopeDir()` resolves scope paths. Returns `MemoryResult` with memoryBlock. Legacy multi-file layouts read for backward compatibility. |
-| `daemon/services/memory-sections.ts` | Section-based memory operations: parse, upsert, append, delete named `## sections` within a single memory file per scope. |
-| `daemon/services/manager-context.ts` | `buildManagerContext()`: assembles markdown summary of workers, commissions, active meetings, meeting requests. Priority-ordered truncation at 8000 chars. Loads manager's own memories. Shared with briefing generator. |
-| `daemon/routes/workers.ts` | `GET /workers` route: filters to worker packages, reads portrait images as base64 data URIs, returns worker list with displayName, displayTitle, description, portraitUrl. |
+| `apps/daemon/services/memory-injector.ts` | `loadMemories()`: reads single memory file per scope, parses `## sections`, applies soft character cap (16000 default). `memoryScopeDir()` resolves scope paths. Returns `MemoryResult` with memoryBlock. Legacy multi-file layouts read for backward compatibility. |
+| `apps/daemon/services/memory-sections.ts` | Section-based memory operations: parse, upsert, append, delete named `## sections` within a single memory file per scope. |
+| `apps/daemon/services/manager-context.ts` | `buildManagerContext()`: assembles markdown summary of workers, commissions, active meetings, meeting requests. Priority-ordered truncation at 8000 chars. Loads manager's own memories. Shared with briefing generator. |
+| `apps/daemon/routes/workers.ts` | `GET /workers` route: filters to worker packages, reads portrait images as base64 data URIs, returns worker list with displayName, displayTitle, description, portraitUrl. |
 
 ### Data
 
@@ -81,7 +81,7 @@ The toolbox system has no direct entry points. It is invoked internally by `meet
 - Uses: Claude Agent SDK (`createSdkMcpServer`, `tool`)
 - Uses: EventBus (commission toolbox emits progress/result/question events)
 - Uses: Git operations (manager toolbox uses `gitOps` for PR creation and branch sync)
-- Uses: `cli/rebase.ts` (manager's `sync_project` tool delegates to `syncProject()`)
+- Uses: `apps/cli/rebase.ts` (manager's `sync_project` tool delegates to `syncProject()`)
 - Used by: [commissions](./commissions.md) (commission session resolves tools and activates workers)
 - Used by: [meetings](./meetings.md) (meeting session resolves tools and activates workers)
 - Used by: [dashboard](./dashboard.md) (briefing generator uses `buildManagerContext()`)

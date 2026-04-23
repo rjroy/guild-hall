@@ -3,7 +3,7 @@ title: Worker Sub-Agents
 date: 2026-03-20
 status: implemented
 tags: [workers, sub-agents, activation, agent-sdk]
-modules: [daemon/lib/agent-sdk/sdk-runner, lib/types, daemon/services/context-type-registry, packages/shared/worker-activation]
+modules: [apps/daemon/lib/agent-sdk/sdk-runner, lib/types, apps/daemon/services/context-type-registry, packages/shared/worker-activation]
 related:
   - .lore/brainstorm/worker-sub-agents-and-mail-removal.md
   - .lore/specs/infrastructure/context-type-registry.md
@@ -90,7 +90,7 @@ This spec makes every discovered worker available as a sub-agent to every other 
 
 ### Sub-Agent Activation Path
 
-- REQ-SUBAG-13: A new context type `"subagent"` is added in `daemon/services/context-type-registry.ts`. This requires two changes:
+- REQ-SUBAG-13: A new context type `"subagent"` is added in `apps/daemon/services/context-type-registry.ts`. This requires two changes:
   1. The `ContextTypeName` union type is extended to include `"subagent"` (per the pattern from REQ-CXTR-9). Without this, TypeScript will reject `"subagent"` at any call site that uses `ContextTypeName`.
   2. The runtime registry gains a `"subagent"` entry (see REQ-SUBAG-14).
 

@@ -46,11 +46,11 @@ Requirements addressed:
 | File | Role | Changes Expected |
 |------|------|-----------------|
 | `lib/types.ts` | WorkerMetadata type definition | Add `meetingScope` field |
-| `daemon/services/manager/worker.ts` | Guild Master package factory | Add `meetingScope: "project"` to metadata |
-| `daemon/services/meeting/registry.ts` | ActiveMeetingEntry type | Add `scope` field |
-| `daemon/services/meeting/orchestrator.ts` | Meeting lifecycle orchestration | Scope-aware branching in create, accept, close, cleanup, recovery |
-| `daemon/services/workspace.ts` | Git workspace provisioning | No changes (skipped for project scope) |
-| `tests/daemon/meeting-session.test.ts` | Meeting orchestrator tests | New test cases for project-scoped flows |
+| `apps/daemon/services/manager/worker.ts` | Guild Master package factory | Add `meetingScope: "project"` to metadata |
+| `apps/daemon/services/meeting/registry.ts` | ActiveMeetingEntry type | Add `scope` field |
+| `apps/daemon/services/meeting/orchestrator.ts` | Meeting lifecycle orchestration | Scope-aware branching in create, accept, close, cleanup, recovery |
+| `apps/daemon/services/workspace.ts` | Git workspace provisioning | No changes (skipped for project scope) |
+| `apps/daemon/tests/meeting-session.test.ts` | Meeting orchestrator tests | New test cases for project-scoped flows |
 
 ### Patterns to Follow
 
@@ -63,15 +63,15 @@ Requirements addressed:
 ### Integration Points
 
 - `buildMeetingPrepSpec()` already sets `workspaceDir: meeting.worktreeDir`. When `worktreeDir` is the integration path, the SDK session naturally sees `claude/main` content. No changes needed.
-- `resolveWritePath()` in `daemon/lib/toolbox-utils.ts` computes the activity worktree path from `meetingWorktreePath(guildHallHome, projectName, contextId)` and checks if it exists via `fs.access()`. For project-scoped meetings, the activity worktree path won't exist (no worktree is created), so the fallback to the integration worktree fires. This is correct behavior but depends on the fallback path, not on `worktreeDir`. Tests should verify this explicitly.
+- `resolveWritePath()` in `apps/daemon/lib/toolbox-utils.ts` computes the activity worktree path from `meetingWorktreePath(guildHallHome, projectName, contextId)` and checks if it exists via `fs.access()`. For project-scoped meetings, the activity worktree path won't exist (no worktree is created), so the fallback to the integration worktree fires. This is correct behavior but depends on the fallback path, not on `worktreeDir`. Tests should verify this explicitly.
 - `generateMeetingNotes()` receives `worktreeDir` and reads the transcript and linked artifacts from it. Works identically for either scope.
-- `commitAll()` in `daemon/lib/git.ts` stages and commits. Used by `workspace.finalize()` internally, and will be called directly for project-scoped close.
+- `commitAll()` in `apps/daemon/lib/git.ts` stages and commits. Used by `workspace.finalize()` internally, and will be called directly for project-scoped close.
 
 ## Implementation Steps
 
 ### Step 1: Add meetingScope to Worker Metadata and Guild Master Package
 
-**Files**: `lib/types.ts`, `daemon/services/manager/worker.ts`
+**Files**: `lib/types.ts`, `apps/daemon/services/manager/worker.ts`
 **Addresses**: REQ-PSM-2, REQ-PSM-13
 
 Add `meetingScope?: "project" | "activity"` to the `WorkerMetadata` interface. This is an optional field; absence means `"activity"`.
@@ -82,7 +82,7 @@ In `createManagerPackage()`, add `meetingScope: "project"` to the Guild Master's
 
 ### Step 2: Add scope to ActiveMeetingEntry and State Serialization
 
-**Files**: `daemon/services/meeting/registry.ts`, `daemon/services/meeting/orchestrator.ts`
+**Files**: `apps/daemon/services/meeting/registry.ts`, `apps/daemon/services/meeting/orchestrator.ts`
 **Addresses**: REQ-PSM-1, REQ-PSM-9
 
 Add `scope: "project" | "activity"` to the `ActiveMeetingEntry` type.
@@ -95,7 +95,7 @@ Update the recovery state type in `recoverMeetings()` to read `scope` from the s
 
 ### Step 3: Add Scope Resolution Helper
 
-**Files**: `daemon/services/meeting/orchestrator.ts`
+**Files**: `apps/daemon/services/meeting/orchestrator.ts`
 **Addresses**: REQ-PSM-2, REQ-PSM-14
 
 Add a helper function inside `createMeetingSession()`:
@@ -115,7 +115,7 @@ This function is called once at meeting creation time. The resolved scope is sto
 
 ### Step 4: Branch createMeeting and acceptMeetingRequest for Project Scope
 
-**Files**: `daemon/services/meeting/orchestrator.ts`
+**Files**: `apps/daemon/services/meeting/orchestrator.ts`
 **Addresses**: REQ-PSM-3, REQ-PSM-4, REQ-PSM-12, REQ-PSM-14, REQ-PSM-18
 
 #### createMeeting Changes
@@ -145,7 +145,7 @@ After the lock, branch on `entry.scope`:
 
 ### Step 5: Branch closeMeeting for Project Scope
 
-**Files**: `daemon/services/meeting/orchestrator.ts`
+**Files**: `apps/daemon/services/meeting/orchestrator.ts`
 **Addresses**: REQ-PSM-5, REQ-PSM-7
 
 In `closeMeeting()`, after generating notes and writing the close artifact (steps 1-3, which work as-is since `meeting.worktreeDir` is either the activity or integration worktree), restructure the finalization conditional.
@@ -198,7 +198,7 @@ After the scope-specific finalization, the remaining close steps are the same fo
 
 ### Step 6: Update cleanupFailedEntry for Project Scope
 
-**Files**: `daemon/services/meeting/orchestrator.ts`
+**Files**: `apps/daemon/services/meeting/orchestrator.ts`
 **Addresses**: REQ-PSM-6
 
 In `cleanupFailedEntry()`, gate the worktree removal on scope:
@@ -226,7 +226,7 @@ For project scope, only the deregister happens. The integration worktree is neve
 
 ### Step 7: Update recoverMeetings for Project Scope
 
-**Files**: `daemon/services/meeting/orchestrator.ts`
+**Files**: `apps/daemon/services/meeting/orchestrator.ts`
 **Addresses**: REQ-PSM-9, REQ-PSM-10
 
 In `recoverMeetings()`, read the `scope` field from the state file. Default to `"activity"` when absent.
@@ -257,7 +257,7 @@ Set the `scope` field on the recovered `ActiveMeetingEntry`.
 
 ### Step 8: Tests
 
-**Files**: `tests/daemon/meeting-session.test.ts` (extend existing), possibly a new `tests/daemon/meeting-session-project-scope.test.ts` if the existing file is already large
+**Files**: `apps/daemon/tests/meeting-session.test.ts` (extend existing), possibly a new `apps/daemon/tests/meeting-session-project-scope.test.ts` if the existing file is already large
 **Addresses**: All REQ-PSM requirements via AI Validation section of the spec
 
 The spec's AI Validation section defines these test scenarios:
@@ -273,7 +273,7 @@ The spec's AI Validation section defines these test scenarios:
 9. **Mixed scope test**: One project-scoped + one activity-scoped meeting. Both count toward cap. Both function independently.
 10. **Toolbox test**: `link_artifact`, `summarize_progress`, `propose_followup` work when `worktreeDir` is the integration path.
 
-Test infrastructure: Use the existing mock patterns from `tests/daemon/meeting-session.test.ts`:
+Test infrastructure: Use the existing mock patterns from `apps/daemon/tests/meeting-session.test.ts`:
 - Mock `queryFn` with canned SDK messages
 - Mock `activateFn` returning standard `ActivationResult`
 - Mock `gitOps` tracking calls (especially `commitAll`, `createBranch`, `createWorktree`)

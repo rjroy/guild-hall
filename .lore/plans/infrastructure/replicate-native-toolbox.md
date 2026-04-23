@@ -3,14 +3,14 @@ title: Plan for Replicate native domain toolbox
 date: 2026-03-17
 status: executed
 tags: [replicate, domain-toolbox, image-generation, packages, integration-testing]
-modules: [packages/guild-hall-replicate, daemon/lib/event-bus.ts]
+modules: [packages/guild-hall-replicate, apps/daemon/lib/event-bus.ts]
 related:
   - .lore/specs/infrastructure/replicate-native-toolbox.md
   - .lore/brainstorm/replicate-native-toolbox.md
   - .lore/research/replicate-image-generation-integration.md
   - packages/guild-hall-email/index.ts
-  - daemon/services/toolbox-types.ts
-  - daemon/lib/event-bus.ts
+  - apps/daemon/services/toolbox-types.ts
+  - apps/daemon/lib/event-bus.ts
 ---
 
 # Plan: Replicate Native Domain Toolbox
@@ -45,13 +45,13 @@ Requirements addressed:
 
 The `guild-hall-email` package at `packages/guild-hall-email/` is the direct precedent. It demonstrates the two-state factory pattern (unconfigured vs. configured), env var token reading, `createSdkMcpServer()` for tool registration, and the DI-injected `fetch` pattern on `JmapClient` that makes HTTP calls testable without module mocking.
 
-The `ToolboxFactory` signature at `daemon/services/toolbox-types.ts:33` is `(deps: GuildHallToolboxDeps) => ToolboxOutput`. The deps object provides `guildHallHome`, `projectName`, `contextId`, `contextType`, `eventBus`, and other fields. The toolbox resolver at `daemon/services/toolbox-resolver.ts:148` loads domain toolboxes by dynamic import of `index.ts` and calls `toolboxFactory(deps)`.
+The `ToolboxFactory` signature at `apps/daemon/services/toolbox-types.ts:33` is `(deps: GuildHallToolboxDeps) => ToolboxOutput`. The deps object provides `guildHallHome`, `projectName`, `contextId`, `contextType`, `eventBus`, and other fields. The toolbox resolver at `apps/daemon/services/toolbox-resolver.ts:148` loads domain toolboxes by dynamic import of `index.ts` and calls `toolboxFactory(deps)`.
 
-The `SystemEvent` union at `daemon/lib/event-bus.ts:12-24` currently has event types covering commissions, meetings, and schedules. Adding a `toolbox_replicate` variant follows the same discriminated union pattern.
+The `SystemEvent` union at `apps/daemon/lib/event-bus.ts:12-24` currently has event types covering commissions, meetings, and schedules. Adding a `toolbox_replicate` variant follows the same discriminated union pattern.
 
-Output path construction needs `resolveWritePath()` from `daemon/lib/toolbox-utils.ts:171-187`, which resolves to the activity worktree for active commissions/meetings, falling back to the integration worktree. The `.lore/generated/` directory goes under that resolved base path.
+Output path construction needs `resolveWritePath()` from `apps/daemon/lib/toolbox-utils.ts:171-187`, which resolves to the activity worktree for active commissions/meetings, falling back to the integration worktree. The `.lore/generated/` directory goes under that resolved base path.
 
-The email toolbox tests at `tests/packages/guild-hall-email/factory.test.ts` show the pattern: a `mockFetch()` helper that queues responses, `makeDeps()` for `GuildHallToolboxDeps`, env var save/restore in `beforeEach`/`afterEach`, and direct invocation via `McpServerInstance._registeredTools`. This same approach applies to the Replicate toolbox.
+The email toolbox tests at `packages/guild-hall-email/tests/factory.test.ts` show the pattern: a `mockFetch()` helper that queues responses, `makeDeps()` for `GuildHallToolboxDeps`, env var save/restore in `beforeEach`/`afterEach`, and direct invocation via `McpServerInstance._registeredTools`. This same approach applies to the Replicate toolbox.
 
 Replicate's API surface for this toolbox is six endpoints:
 - `POST /v1/models/{owner}/{name}/predictions` (create prediction, with `Prefer: wait`)
@@ -78,7 +78,7 @@ That's one billable prediction per full integration run. The `get_model_params` 
 
 ### Step 1: Package scaffold and two-state factory
 
-**Files**: `packages/guild-hall-replicate/package.json` (new), `packages/guild-hall-replicate/index.ts` (new), `tests/packages/guild-hall-replicate/factory.test.ts` (new)
+**Files**: `packages/guild-hall-replicate/package.json` (new), `packages/guild-hall-replicate/index.ts` (new), `packages/guild-hall-replicate/tests/factory.test.ts` (new)
 **Addresses**: REQ-RPL-1, REQ-RPL-2, REQ-RPL-3, REQ-RPL-4, REQ-RPL-5, REQ-RPL-6
 **Expertise**: none
 
@@ -99,7 +99,7 @@ Follow the `guild-hall-email/index.ts` pattern closely: `createSdkMcpServer()` w
 
 ### Step 2: ReplicateClient HTTP wrapper
 
-**Files**: `packages/guild-hall-replicate/replicate-client.ts` (new), `tests/packages/guild-hall-replicate/replicate-client.test.ts` (new)
+**Files**: `packages/guild-hall-replicate/replicate-client.ts` (new), `packages/guild-hall-replicate/tests/replicate-client.test.ts` (new)
 **Addresses**: REQ-RPL-15, REQ-RPL-16
 
 Create `ReplicateClient` as an internal class (not exported from the package entry point). Constructor takes `token: string` and an optional `fetchFn: typeof fetch` parameter defaulting to the global `fetch`. All HTTP calls go through `this.fetchFn`, enabling test injection.
@@ -144,7 +144,7 @@ No external dependencies. Uses `node:fs` for file reads (upload) and writes (dow
 
 ### Step 3: Model registry
 
-**Files**: `packages/guild-hall-replicate/model-registry.ts` (new), `tests/packages/guild-hall-replicate/model-registry.test.ts` (new)
+**Files**: `packages/guild-hall-replicate/model-registry.ts` (new), `packages/guild-hall-replicate/tests/model-registry.test.ts` (new)
 **Addresses**: REQ-RPL-23, REQ-RPL-24, REQ-RPL-25, REQ-RPL-29
 
 Define the `ModelEntry` type and `MODEL_REGISTRY` array. Each entry:
@@ -178,12 +178,12 @@ Export helper functions:
 
 ### Step 4: Output handling utilities
 
-**Files**: `packages/guild-hall-replicate/output.ts` (new), `tests/packages/guild-hall-replicate/output.test.ts` (new)
+**Files**: `packages/guild-hall-replicate/output.ts` (new), `packages/guild-hall-replicate/tests/output.test.ts` (new)
 **Addresses**: REQ-RPL-17, REQ-RPL-18, REQ-RPL-19, REQ-RPL-20, REQ-RPL-21, REQ-RPL-22
 
 Create helper functions for output path construction and file validation:
 
-**`resolveOutputDir(deps)`**: Builds the `.lore/generated/` path for the current context. Uses `resolveWritePath()` from `daemon/lib/toolbox-utils.ts` to get the worktree base, then appends `.lore/generated/`. Creates the directory if it doesn't exist. This function takes `guildHallHome`, `projectName`, `contextId`, and `contextType` from deps (REQ-RPL-17).
+**`resolveOutputDir(deps)`**: Builds the `.lore/generated/` path for the current context. Uses `resolveWritePath()` from `apps/daemon/lib/toolbox-utils.ts` to get the worktree base, then appends `.lore/generated/`. Creates the directory if it doesn't exist. This function takes `guildHallHome`, `projectName`, `contextId`, and `contextType` from deps (REQ-RPL-17).
 
 **`generateFilename(tool, predictionId, ext, userFilename?)`**: Produces the output filename. If `userFilename` is provided, use it as-is (REQ-RPL-18). Otherwise, generate `{tool}-{timestamp}-{hash}.{ext}` where `timestamp` is `YYYYMMDD-HHmmss` (reuse `formatTimestamp` from `toolbox-utils.ts`), `hash` is the first 6 characters of the prediction ID, and `ext` matches the model's actual output format.
 
@@ -204,7 +204,7 @@ Create helper functions for output path construction and file validation:
 
 ### Step 5: Core generation tools
 
-**Files**: `packages/guild-hall-replicate/tools/generate-image.ts` (new), `packages/guild-hall-replicate/tools/edit-image.ts` (new), `packages/guild-hall-replicate/tools/remove-background.ts` (new), `packages/guild-hall-replicate/tools/upscale-image.ts` (new), `tests/packages/guild-hall-replicate/tools/generate-image.test.ts` (new), `tests/packages/guild-hall-replicate/tools/edit-image.test.ts` (new), `tests/packages/guild-hall-replicate/tools/remove-background.test.ts` (new), `tests/packages/guild-hall-replicate/tools/upscale-image.test.ts` (new)
+**Files**: `packages/guild-hall-replicate/tools/generate-image.ts` (new), `packages/guild-hall-replicate/tools/edit-image.ts` (new), `packages/guild-hall-replicate/tools/remove-background.ts` (new), `packages/guild-hall-replicate/tools/upscale-image.ts` (new), `packages/guild-hall-replicate/tests/tools/generate-image.test.ts` (new), `packages/guild-hall-replicate/tests/tools/edit-image.test.ts` (new), `packages/guild-hall-replicate/tests/tools/remove-background.test.ts` (new), `packages/guild-hall-replicate/tests/tools/upscale-image.test.ts` (new)
 **Addresses**: REQ-RPL-7, REQ-RPL-8, REQ-RPL-9, REQ-RPL-10, REQ-RPL-21, REQ-RPL-22, REQ-RPL-26, REQ-RPL-29, REQ-RPL-31, REQ-RPL-32, REQ-RPL-33
 
 Each tool handler is a factory function: `makeGenerateImageHandler(client, deps)` returns an async function matching the tool's parameter schema. This follows the `guild-hall-email` pattern (see `makeSearchEmailsHandler` etc.).
@@ -253,7 +253,7 @@ Wire the real handlers into the configured server in `index.ts`, replacing the s
 
 ### Step 6: Discovery and lifecycle tools
 
-**Files**: `packages/guild-hall-replicate/tools/list-models.ts` (new), `packages/guild-hall-replicate/tools/get-model-params.ts` (new), `packages/guild-hall-replicate/tools/check-prediction.ts` (new), `packages/guild-hall-replicate/tools/cancel-prediction.ts` (new), `tests/packages/guild-hall-replicate/tools/discovery.test.ts` (new)
+**Files**: `packages/guild-hall-replicate/tools/list-models.ts` (new), `packages/guild-hall-replicate/tools/get-model-params.ts` (new), `packages/guild-hall-replicate/tools/check-prediction.ts` (new), `packages/guild-hall-replicate/tools/cancel-prediction.ts` (new), `packages/guild-hall-replicate/tests/tools/discovery.test.ts` (new)
 **Addresses**: REQ-RPL-11, REQ-RPL-12, REQ-RPL-13, REQ-RPL-14
 
 **`list_models` handler (REQ-RPL-11):**
@@ -283,10 +283,10 @@ Wire these into the configured server in `index.ts`.
 
 ### Step 7: EventBus integration
 
-**Files**: `daemon/lib/event-bus.ts` (modify), `packages/guild-hall-replicate/index.ts` (modify), generation tool handlers (modify)
+**Files**: `apps/daemon/lib/event-bus.ts` (modify), `packages/guild-hall-replicate/index.ts` (modify), generation tool handlers (modify)
 **Addresses**: REQ-RPL-27, REQ-RPL-28
 
-Add a new variant to the `SystemEvent` union in `daemon/lib/event-bus.ts`:
+Add a new variant to the `SystemEvent` union in `apps/daemon/lib/event-bus.ts`:
 
 ```typescript
 | { type: "toolbox_replicate"; action: string; tool: string; model: string; files: string[]; cost: string; projectName: string; contextId: string }
@@ -306,7 +306,7 @@ No changes to existing EventBus tests are needed. The new event type is additive
 
 ### Step 8: Integration tests and cleanup
 
-**Files**: `tests/packages/guild-hall-replicate/integration.test.ts` (new), `.gitignore` (modify)
+**Files**: `packages/guild-hall-replicate/tests/integration.test.ts` (new), `.gitignore` (modify)
 **Addresses**: REQ-RPL-34, spec success criteria (end-to-end validation)
 
 **Integration tests:**
@@ -352,7 +352,7 @@ The validation agent should verify:
 
 **Steps 5-6** (tool handlers) are the largest steps. The implementation agent should build one tool at a time within each step, running tests between each. The four generation tools in Step 5 share the same prediction lifecycle pattern, so the first one (`generate_image`) establishes the template and the remaining three follow it.
 
-**Step 7** (EventBus) touches `daemon/lib/event-bus.ts`, which is shared infrastructure. The change is additive (one new union variant), but verify that existing EventBus tests still pass after the modification.
+**Step 7** (EventBus) touches `apps/daemon/lib/event-bus.ts`, which is shared infrastructure. The change is additive (one new union variant), but verify that existing EventBus tests still pass after the modification.
 
 **Step 8** (integration tests) requires `REPLICATE_API_TOKEN` to be set in the environment. The implementation agent should run these once to confirm end-to-end behavior. They will not run in CI by default.
 

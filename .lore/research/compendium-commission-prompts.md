@@ -195,7 +195,7 @@ These are the gaps observed in local commissions and documented in retros, cross
 
 **The retro evidence:** "The plan treated the handler/agent/tool code as the deliverable, not the production wiring that connects them" (worker-dispatch retro). "DI factory codebases need an explicit 'production wiring' step" (same retro).
 
-**The fix:** Include in the prompt: "After implementing the logic, wire it into `createProductionApp()` in `daemon/app.ts`." Name the integration point explicitly.
+**The fix:** Include in the prompt: "After implementing the logic, wire it into `createProductionApp()` in `apps/daemon/app.ts`." Name the integration point explicitly.
 
 ### Assumed Conventions
 
@@ -203,7 +203,7 @@ These are the gaps observed in local commissions and documented in retros, cross
 
 **The external evidence:** Anthropic's golden rule: "Show your prompt to a colleague with minimal context on the task and ask them to follow it. If they'd be confused, Claude will be too." Cursor's guidance: "Reference canonical examples in your codebase for agents to follow."
 
-**The fix:** Point to an existing example. "Follow the test pattern in `tests/daemon/toolbox-resolver.test.ts`." "Match the format of existing artifacts in `.lore/research/`."
+**The fix:** Point to an existing example. "Follow the test pattern in `apps/daemon/tests/toolbox-resolver.test.ts`." "Match the format of existing artifacts in `.lore/research/`."
 
 ### Ambiguous Scope Boundaries
 

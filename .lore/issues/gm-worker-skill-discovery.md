@@ -13,7 +13,7 @@ related: [.lore/specs/workers/worker-domain-plugins.md, .lore/specs/workers/guil
 
 A user asked the Guild Master to "run the meeting cleanup." This maps directly to the writer's `/cleanup-meetings` domain plugin skill. The GM had no awareness that skill existed, so it improvised a manual cleanup attempt instead of delegating to the writer with the right instruction.
 
-The manager context builder (`daemon/services/manager/context.ts:117-142`) surfaces worker name, title, description, checkout scope, domain toolboxes (package names only), and built-in tools. It does not surface:
+The manager context builder (`apps/daemon/services/manager/context.ts:117-142`) surfaces worker name, title, description, checkout scope, domain toolboxes (package names only), and built-in tools. It does not surface:
 
 1. **Domain plugin skills** (e.g., `/cleanup-meetings`, `/cleanup-commissions` on the writer)
 2. **What those skills do** or when to invoke them

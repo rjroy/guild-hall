@@ -14,7 +14,7 @@ related:
 
 ## Context
 
-The CLI (`cli/index.ts`) has a hardcoded switch statement routing to individual command files (`register.ts`, `rebase.ts`, `validate.ts`), each with bespoke response parsing. Adding a daemon capability requires writing a new CLI file and updating the switch. Three worker packages reference CLI commands (`guild-hall artifact list`, `guild-hall artifact read`, `guild-hall models`, `guild-hall workers`) that don't exist because nobody built the corresponding CLI files.
+The CLI (`apps/cli/index.ts`) has a hardcoded switch statement routing to individual command files (`register.ts`, `rebase.ts`, `validate.ts`), each with bespoke response parsing. Adding a daemon capability requires writing a new CLI file and updating the switch. Three worker packages reference CLI commands (`guild-hall artifact list`, `guild-hall artifact read`, `guild-hall models`, `guild-hall workers`) that don't exist because nobody built the corresponding CLI files.
 
 The daemon already owns a complete skill registry (33 skills across 11 route files) with hierarchy metadata and a help endpoint that serves the tree. The CLI should discover capabilities from the daemon at runtime instead of knowing them at build time.
 
@@ -79,27 +79,27 @@ Help rendering uses the existing `/help` hierarchy endpoint. The CLI formats JSO
 
 ### migrate-content
 
-Kept as a local special case in `cli/index.ts`. One-off migration scripts are a legitimate CLI concern. It has 11 tests, doesn't use the daemon, and there's no reason to make it a daemon endpoint.
+Kept as a local special case in `apps/cli/index.ts`. One-off migration scripts are a legitimate CLI concern. It has 11 tests, doesn't use the daemon, and there's no reason to make it a daemon endpoint.
 
 ## Phases
 
 ### Phase 1: Daemon-side metadata enrichment
 
-Add `cliPath` and `parameters` to `SkillDefinition` in `lib/types.ts`. Add `GET /help/skills` endpoint to `daemon/routes/help.ts` returning the flat skill list. Update all 33 skill definitions across route files with their `cliPath` and `parameters`.
+Add `cliPath` and `parameters` to `SkillDefinition` in `lib/types.ts`. Add `GET /help/skills` endpoint to `apps/daemon/routes/help.ts` returning the flat skill list. Update all 33 skill definitions across route files with their `cliPath` and `parameters`.
 
 **Files:**
 - `lib/types.ts` - add `cliPath?: string[]` and `parameters?: Array<{name, required, in}>` to `SkillDefinition`
-- `daemon/routes/help.ts` - add `GET /help/skills` endpoint
-- `daemon/routes/artifacts.ts` - add cliPath/parameters to 3 skills
-- `daemon/routes/admin.ts` - add cliPath/parameters to 5 skills
-- `daemon/routes/models.ts` - add cliPath/parameters to 1 skill
-- `daemon/routes/workers.ts` - add cliPath/parameters to 1 skill
-- `daemon/routes/config.ts` - add cliPath/parameters to 3 skills
-- `daemon/routes/commissions.ts` - add cliPath/parameters to 11 skills
-- `daemon/routes/meetings.ts` - add cliPath/parameters to 9 skills
-- `daemon/routes/briefing.ts` - add cliPath/parameters to 1 skill
-- `daemon/routes/health.ts` - add cliPath/parameters to 1 skill
-- `daemon/routes/events.ts` - add cliPath/parameters to 1 skill
+- `apps/daemon/routes/help.ts` - add `GET /help/skills` endpoint
+- `apps/daemon/routes/artifacts.ts` - add cliPath/parameters to 3 skills
+- `apps/daemon/routes/admin.ts` - add cliPath/parameters to 5 skills
+- `apps/daemon/routes/models.ts` - add cliPath/parameters to 1 skill
+- `apps/daemon/routes/workers.ts` - add cliPath/parameters to 1 skill
+- `apps/daemon/routes/config.ts` - add cliPath/parameters to 3 skills
+- `apps/daemon/routes/commissions.ts` - add cliPath/parameters to 11 skills
+- `apps/daemon/routes/meetings.ts` - add cliPath/parameters to 9 skills
+- `apps/daemon/routes/briefing.ts` - add cliPath/parameters to 1 skill
+- `apps/daemon/routes/health.ts` - add cliPath/parameters to 1 skill
+- `apps/daemon/routes/events.ts` - add cliPath/parameters to 1 skill
 
 **CLI path assignments (proposed):**
 
@@ -144,27 +144,27 @@ Add `cliPath` and `parameters` to `SkillDefinition` in `lib/types.ts`. Add `GET 
 
 ### Phase 2: CLI rewrite
 
-Replace `cli/index.ts` with the thin client. Create `cli/resolve.ts` for argv-to-skill resolution (pure, testable). Create `cli/format.ts` for terminal output formatting. Delete `cli/register.ts`, `cli/rebase.ts`, `cli/validate.ts`.
+Replace `apps/cli/index.ts` with the thin client. Create `apps/cli/resolve.ts` for argv-to-skill resolution (pure, testable). Create `apps/cli/format.ts` for terminal output formatting. Delete `apps/cli/register.ts`, `apps/cli/rebase.ts`, `apps/cli/validate.ts`.
 
 **Files:**
-- `cli/index.ts` - rewrite to thin dispatch loop (flag extraction, skill fetch, resolve, dispatch, format)
-- `cli/resolve.ts` - new: match argv segments to skill cliPaths, separate command segments from positional args
-- `cli/format.ts` - new: TTY-aware output formatting (tables for lists, key-value for single items, tree for help, JSON for piped). Supports `--json` and `--tty` overrides.
-- `cli/stream.ts` - new: SSE consumer for streaming skills. Uses `daemonStreamAsync()`, prints events as they arrive, exits on stream close.
-- `cli/register.ts` - delete
-- `cli/rebase.ts` - delete
-- `cli/validate.ts` - delete
+- `apps/cli/index.ts` - rewrite to thin dispatch loop (flag extraction, skill fetch, resolve, dispatch, format)
+- `apps/cli/resolve.ts` - new: match argv segments to skill cliPaths, separate command segments from positional args
+- `apps/cli/format.ts` - new: TTY-aware output formatting (tables for lists, key-value for single items, tree for help, JSON for piped). Supports `--json` and `--tty` overrides.
+- `apps/cli/stream.ts` - new: SSE consumer for streaming skills. Uses `daemonStreamAsync()`, prints events as they arrive, exits on stream close.
+- `apps/cli/register.ts` - delete
+- `apps/cli/rebase.ts` - delete
+- `apps/cli/validate.ts` - delete
 
 **Existing utilities to reuse:**
 - `lib/daemon-client.ts` - `daemonFetch()`, `daemonStreamAsync()`, `daemonHealth()`, `isDaemonError()` (no changes needed)
 
 ### Phase 3: Tests
 
-- `tests/cli/resolve.test.ts` - resolution algorithm: known commands, unknown commands, help detection, positional arg extraction
-- `tests/cli/format.test.ts` - output formatting for various response shapes, TTY vs JSON mode, --json/--tty overrides
-- `tests/cli/stream.test.ts` - SSE event consumption and output
-- `tests/daemon/routes/help.test.ts` - update/add tests for `GET /help/skills` endpoint
-- Keep `tests/cli/migrate-content-to-body.test.ts` unchanged
+- `apps/cli/tests/resolve.test.ts` - resolution algorithm: known commands, unknown commands, help detection, positional arg extraction
+- `apps/cli/tests/format.test.ts` - output formatting for various response shapes, TTY vs JSON mode, --json/--tty overrides
+- `apps/cli/tests/stream.test.ts` - SSE event consumption and output
+- `apps/daemon/tests/routes/help.test.ts` - update/add tests for `GET /help/skills` endpoint
+- Keep `apps/cli/tests/migrate-content-to-body.test.ts` unchanged
 - Run full suite to verify nothing breaks
 
 ### Phase 4: Verification

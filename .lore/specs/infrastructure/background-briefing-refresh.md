@@ -24,7 +24,7 @@ The fix is to move generation out of the request path entirely. A background ser
 
 ## Requirements
 
-- REQ-BBR-1: A new `BriefingRefreshService` is added at `daemon/services/briefing-refresh.ts`. It has three public methods: `start()`, `stop()`, and `runCycle()`. `runCycle()` is synchronous to start and returns a Promise that resolves when all projects in the current cycle are processed.
+- REQ-BBR-1: A new `BriefingRefreshService` is added at `apps/daemon/services/briefing-refresh.ts`. It has three public methods: `start()`, `stop()`, and `runCycle()`. `runCycle()` is synchronous to start and returns a Promise that resolves when all projects in the current cycle are processed.
 
 - REQ-BBR-2: `start()` immediately runs the first cycle, then schedules the next cycle to begin after the configured interval once the current one completes. The interval is post-completion, not clock-based: if a cycle takes 10 minutes, the next cycle starts 60 minutes after the previous one finished, not 60 minutes after it started.
 
@@ -43,11 +43,11 @@ The fix is to move generation out of the request path entirely. A background ser
 
   The service captures `config` at construction time. Projects registered after daemon startup are not picked up until restart. This is consistent with how the commission scheduler and other services handle config.
 
-- REQ-BBR-8: `createProductionApp()` constructs the `BriefingRefreshService`, calls `start()` after the briefing generator is created, and includes the service's `stop()` in the shutdown function returned to `daemon/index.ts`. The existing `shutdown` return already calls `scheduler.stop()`; it should call both `scheduler.stop()` and `briefingRefreshService.stop()`.
+- REQ-BBR-8: `createProductionApp()` constructs the `BriefingRefreshService`, calls `start()` after the briefing generator is created, and includes the service's `stop()` in the shutdown function returned to `apps/daemon/index.ts`. The existing `shutdown` return already calls `scheduler.stop()`; it should call both `scheduler.stop()` and `briefingRefreshService.stop()`.
 
-- REQ-BBR-9: The briefing generator (`daemon/services/briefing-generator.ts`) gains a new method `getCachedBriefing(projectName: string): Promise<BriefingResult | null>`. This method reads the cache file and returns the cached entry if it exists, or `null` if no cache file is found or the file is malformed. It does not check staleness and does not trigger generation under any circumstances.
+- REQ-BBR-9: The briefing generator (`apps/daemon/services/briefing-generator.ts`) gains a new method `getCachedBriefing(projectName: string): Promise<BriefingResult | null>`. This method reads the cache file and returns the cached entry if it exists, or `null` if no cache file is found or the file is malformed. It does not check staleness and does not trigger generation under any circumstances.
 
-- REQ-BBR-10: The briefing route handler (`daemon/routes/briefing.ts`) is updated to call `getCachedBriefing` instead of `generateBriefing`. If the result is `null` (no cache yet), the handler returns HTTP 200 with `{ briefing: null, generatedAt: null, cached: false, pending: true }`. This allows the web layer to show a "loading" or "unavailable" state without treating it as an error.
+- REQ-BBR-10: The briefing route handler (`apps/daemon/routes/briefing.ts`) is updated to call `getCachedBriefing` instead of `generateBriefing`. If the result is `null` (no cache yet), the handler returns HTTP 200 with `{ briefing: null, generatedAt: null, cached: false, pending: true }`. This allows the web layer to show a "loading" or "unavailable" state without treating it as an error.
 
 - REQ-BBR-11: The existing `generateBriefing` method on the briefing generator is unchanged in its behavior and signature. The background refresh service calls it; external callers (tests, future tooling) continue to work without modification.
 
@@ -83,7 +83,7 @@ The fix is to move generation out of the request path entirely. A background ser
 
 **Custom:**
 - Verify `createProductionApp()` shutdown calls both `scheduler.stop()` and `briefingRefreshService.stop()`
-- Verify the route no longer calls `generateBriefing` (grep for `generateBriefing` in `daemon/routes/briefing.ts` should return zero matches)
+- Verify the route no longer calls `generateBriefing` (grep for `generateBriefing` in `apps/daemon/routes/briefing.ts` should return zero matches)
 - Confirm the integration worktree HEAD-reading logic in `generateBriefing` is not duplicated in the refresh service
 
 ## Constraints
@@ -95,9 +95,9 @@ The fix is to move generation out of the request path entirely. A background ser
 
 ## Context
 
-- **Current implementation**: `daemon/services/briefing-generator.ts` contains `generateBriefing`, the three generation strategies (full SDK, single-turn, template fallback), and the file-based cache. None of this changes structurally.
-- **Route**: `daemon/routes/briefing.ts` currently calls `deps.briefingGenerator.generateBriefing(projectName)` inline in the GET handler. REQ-BBR-10 changes this to `getCachedBriefing`.
-- **Daemon lifecycle**: `daemon/app.ts` `createProductionApp()` is the composition root. The existing `SchedulerService` (commission schedules) follows the `start()`/`stop()` pattern this spec reuses. See `daemon/services/scheduler/index.ts` for the precedent.
+- **Current implementation**: `apps/daemon/services/briefing-generator.ts` contains `generateBriefing`, the three generation strategies (full SDK, single-turn, template fallback), and the file-based cache. None of this changes structurally.
+- **Route**: `apps/daemon/routes/briefing.ts` currently calls `deps.briefingGenerator.generateBriefing(projectName)` inline in the GET handler. REQ-BBR-10 changes this to `getCachedBriefing`.
+- **Daemon lifecycle**: `apps/daemon/app.ts` `createProductionApp()` is the composition root. The existing `SchedulerService` (commission schedules) follows the `start()`/`stop()` pattern this spec reuses. See `apps/daemon/services/scheduler/index.ts` for the precedent.
 - **Interval semantics**: The described behavior ("After the last briefing finishes updating, waits one hour before checking again") is post-completion wait, not fixed-clock. `setInterval` would be the wrong primitive; use `setTimeout` inside a recursive async function instead.
 - **Config field placement**: `systemModels?: SystemModels` is the precedent for optional top-level config sub-sections. `briefingRefreshIntervalMinutes` is a single scalar, so it belongs directly on `AppConfig` rather than in a new sub-object.
 - **New project handling**: The commission scheduler also captures config at construction and has the same limitation. Consistent behavior is better than a one-off live-reload mechanism here.

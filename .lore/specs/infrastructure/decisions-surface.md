@@ -3,7 +3,7 @@ title: Decisions Surface
 date: 2026-03-20
 status: implemented
 tags: [decisions, lifecycle, artifacts, memory, triage]
-modules: [daemon/services/commission/orchestrator, daemon/services/meeting/orchestrator, daemon/services/base-toolbox]
+modules: [apps/daemon/services/commission/orchestrator, apps/daemon/services/meeting/orchestrator, apps/daemon/services/base-toolbox]
 related:
   - .lore/brainstorm/decisions-surface.md
   - .lore/specs/infrastructure/commission-outcomes-to-memory.md
@@ -28,7 +28,7 @@ An optional third change improves the input: strengthen worker postures and the 
 
 - Brainstorm `.lore/brainstorm/decisions-surface.md` maps the full design space. The user chose Option 2 (continuity-focused): artifact persistence + memory promotion via triage.
 - Outcomes-to-memory spec (`.lore/specs/infrastructure/commission-outcomes-to-memory.md`) defines the triage service that handles memory promotion.
-- `daemon/services/base-toolbox.ts:330-364` defines `makeRecordDecisionHandler` and the `record_decision` tool.
+- `apps/daemon/services/base-toolbox.ts:330-364` defines `makeRecordDecisionHandler` and the `record_decision` tool.
 
 ## Requirements
 
@@ -52,9 +52,9 @@ An optional third change improves the input: strengthen worker postures and the 
 
   Entries appear in chronological order (the order they were written to the JSONL file). If the array is empty, the function returns an empty string (no section is appended).
 
-- REQ-DSRF-3: For commissions, the persistence hook runs in `handleSuccessfulCompletion` (`daemon/services/commission/orchestrator.ts`), after the artifact status is updated to `completed` but before `deleteStateFile` is called. The hook reads decisions via REQ-DSRF-1, formats them via REQ-DSRF-2, and appends the result to the commission artifact body. The artifact body is the markdown content after the YAML frontmatter. The decisions section is appended at the end of the existing body content.
+- REQ-DSRF-3: For commissions, the persistence hook runs in `handleSuccessfulCompletion` (`apps/daemon/services/commission/orchestrator.ts`), after the artifact status is updated to `completed` but before `deleteStateFile` is called. The hook reads decisions via REQ-DSRF-1, formats them via REQ-DSRF-2, and appends the result to the commission artifact body. The artifact body is the markdown content after the YAML frontmatter. The decisions section is appended at the end of the existing body content.
 
-- REQ-DSRF-4: For meetings, the persistence hook runs in `closeMeeting` (`daemon/services/meeting/orchestrator.ts`), after notes are written to the artifact (step 3, `closeArtifact`) but before `deleteStateFile` is called (step 6). The hook reads decisions and appends them to the meeting artifact body, same as commissions.
+- REQ-DSRF-4: For meetings, the persistence hook runs in `closeMeeting` (`apps/daemon/services/meeting/orchestrator.ts`), after notes are written to the artifact (step 3, `closeArtifact`) but before `deleteStateFile` is called (step 6). The hook reads decisions and appends them to the meeting artifact body, same as commissions.
 
 - REQ-DSRF-5: If `readDecisions` returns an empty array (no decisions recorded), no `## Decisions` section is appended. The artifact body is unchanged.
 
@@ -80,7 +80,7 @@ An optional third change improves the input: strengthen worker postures and the 
 
 ### Posture Improvements (Optional)
 
-- REQ-DSRF-14: The `record_decision` tool description in `daemon/services/base-toolbox.ts` is updated from its current minimal text to include guidance on when and what to record. Suggested replacement:
+- REQ-DSRF-14: The `record_decision` tool description in `apps/daemon/services/base-toolbox.ts` is updated from its current minimal text to include guidance on when and what to record. Suggested replacement:
 
   ```
   Record a decision made during this session. Use this when you make a

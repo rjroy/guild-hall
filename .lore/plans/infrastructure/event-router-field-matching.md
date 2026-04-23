@@ -20,15 +20,15 @@ The spec is at `.lore/specs/infrastructure/event-router-field-matching.md` (REQ-
 
 ## Codebase Context
 
-**Event Router** (`daemon/services/event-router.ts`): 91 lines. `EventMatchRule` interface (line 15) has `type` and optional `projectName`. The `matches()` function (line 80) is a standalone function that checks `type` (exact) then `projectName` (exact, optional). It does not currently receive the `log` dependency. The router's `createEventRouter(deps)` factory closes over `log` from deps.
+**Event Router** (`apps/daemon/services/event-router.ts`): 91 lines. `EventMatchRule` interface (line 15) has `type` and optional `projectName`. The `matches()` function (line 80) is a standalone function that checks `type` (exact) then `projectName` (exact, optional). It does not currently receive the `log` dependency. The router's `createEventRouter(deps)` factory closes over `log` from deps.
 
 **Config schema** (`lib/config.ts`): `notificationRuleSchema` (line 90) has `match: z.object({ type: z.enum(SYSTEM_EVENT_TYPES), projectName: z.string().optional() })`. The `fields` property adds here.
 
 **Types** (`lib/types.ts`): `NotificationRule` interface (line 372) has `match: { type: SystemEventType; projectName?: string }`. The `fields` property mirrors here.
 
-**Existing micromatch usage** (`daemon/lib/agent-sdk/sdk-runner.ts:292`): Calls `micromatch.isMatch(value, patterns, { dot: true })` for file path matching. The event router intentionally omits `{ dot: true }` because event field values are not file paths (REQ-EVFM-6, REQ-EVFM-7).
+**Existing micromatch usage** (`apps/daemon/lib/agent-sdk/sdk-runner.ts:292`): Calls `micromatch.isMatch(value, patterns, { dot: true })` for file path matching. The event router intentionally omits `{ dot: true }` because event field values are not file paths (REQ-EVFM-6, REQ-EVFM-7).
 
-**Existing tests** (`tests/daemon/services/event-router.test.ts`): 208 lines, 15 tests across 5 describe blocks covering subscription, matching, unsubscribe, cleanup, and logging. Uses `collectingLog` for log assertions.
+**Existing tests** (`apps/daemon/tests/services/event-router.test.ts`): 208 lines, 15 tests across 5 describe blocks covering subscription, matching, unsubscribe, cleanup, and logging. Uses `collectingLog` for log assertions.
 
 ## Implementation Steps
 
@@ -67,7 +67,7 @@ export interface NotificationRule {
 
 ### Step 3: Extend EventMatchRule and matches()
 
-**File**: `daemon/services/event-router.ts`
+**File**: `apps/daemon/services/event-router.ts`
 **Addresses**: REQ-EVFM-1, REQ-EVFM-2, REQ-EVFM-3, REQ-EVFM-4, REQ-EVFM-5, REQ-EVFM-6, REQ-EVFM-7, REQ-EVFM-8, REQ-EVFM-13, REQ-EVFM-14, REQ-EVFM-17, REQ-EVFM-18, REQ-EVFM-22
 
 Three changes in this file:
@@ -113,11 +113,11 @@ Three changes in this file:
    - `type` and `projectName` remain exact comparison, untouched (REQ-EVFM-14).
    - Try/catch per field, not per rule, so a valid field can still match even if another field's pattern is broken. But since all fields must match (AND), and a broken pattern returns false, the rule as a whole won't match. The try/catch prevents a crash.
 
-**Files not changed** (verification): `daemon/services/notification-service.ts`, `daemon/lib/event-bus.ts`, and all event emit sites remain untouched (REQ-EVFM-19, REQ-EVFM-20, REQ-EVFM-21).
+**Files not changed** (verification): `apps/daemon/services/notification-service.ts`, `apps/daemon/lib/event-bus.ts`, and all event emit sites remain untouched (REQ-EVFM-19, REQ-EVFM-20, REQ-EVFM-21).
 
 ### Step 4: Tests
 
-**File**: `tests/daemon/services/event-router.test.ts`
+**File**: `apps/daemon/tests/services/event-router.test.ts`
 **Addresses**: All behavioral REQs
 
 Add a new `describe("EventRouter field matching", ...)` block. The existing `makeRouter()` helper and `tick()` function work unchanged. All tests use the existing `collectingLog` pattern for log assertions.
@@ -198,12 +198,12 @@ Launch a sub-agent with fresh context to verify against the spec's AI Validation
 
 | File | Change |
 |------|--------|
-| `daemon/services/event-router.ts` | Import micromatch, extend `EventMatchRule`, extend `matches()` with fields loop, pass `log` to `matches()` |
+| `apps/daemon/services/event-router.ts` | Import micromatch, extend `EventMatchRule`, extend `matches()` with fields loop, pass `log` to `matches()` |
 | `lib/config.ts` | Add `fields` to notification match schema |
 | `lib/types.ts` | Add `fields` to `NotificationRule.match` |
-| `tests/daemon/services/event-router.test.ts` | Add 16 test cases for field matching |
+| `apps/daemon/tests/services/event-router.test.ts` | Add 16 test cases for field matching |
 
-No other files change. The notification service, EventBus, event emit sites, and production wiring (`daemon/app.ts`) are untouched.
+No other files change. The notification service, EventBus, event emit sites, and production wiring (`apps/daemon/app.ts`) are untouched.
 
 ## Implementation Notes
 
@@ -211,7 +211,7 @@ No other files change. The notification service, EventBus, event emit sites, and
 
 **micromatch is already installed.** It's in `package.json` as a direct dependency, used in `sdk-runner.ts`. No `bun add` needed.
 
-**No config schema tests needed for `fields`.** The existing `notificationRuleSchema` tests in `tests/lib/config.test.ts` cover the schema shape. Adding `fields` as an optional `z.record(z.string(), z.string())` is a trivial schema extension that Zod handles without edge cases. The behavioral tests in the router test file cover the interesting semantics (glob matching, coercion, missing fields).
+**No config schema tests needed for `fields`.** The existing `notificationRuleSchema` tests in `lib/tests/config.test.ts` cover the schema shape. Adding `fields` as an optional `z.record(z.string(), z.string())` is a trivial schema extension that Zod handles without edge cases. The behavioral tests in the router test file cover the interesting semantics (glob matching, coercion, missing fields).
 
 ## Delegation Guide
 

@@ -15,11 +15,11 @@ Brainstorm for adding a "Trigger" option to the commission creation form in the 
 
 ## What Exists Today
 
-The form lives in `web/components/commission/CommissionForm.tsx`. It has a type selector (radio buttons: One-shot / Schedule) and conditional fields for the selected type. Scheduling shows a cron expression field and an optional repeat count. Then the shared section: Title, Worker, Prompt, Dependencies, and a collapsed Resource Overrides expander.
+The form lives in `apps/web/components/commission/CommissionForm.tsx`. It has a type selector (radio buttons: One-shot / Schedule) and conditional fields for the selected type. Scheduling shows a cron expression field and an optional repeat count. Then the shared section: Title, Worker, Prompt, Dependencies, and a collapsed Resource Overrides expander.
 
 The daemon route at `POST /commission/request/commission/create` already handles `type: "triggered"`. It accepts `match`, `approval`, and `maxDepth` fields. No backend work is needed to support the creation form — only frontend.
 
-The `type: "triggered"` entry is already in `CommissionType` in `daemon/types.ts`. TriggerInfo and TriggerActions components already exist for the detail view.
+The `type: "triggered"` entry is already in `CommissionType` in `apps/daemon/types.ts`. TriggerInfo and TriggerActions components already exist for the detail view.
 
 ## Field Mapping
 
@@ -321,9 +321,9 @@ No changes needed to the daemon for the creation path:
 - Handles `approval` and `maxDepth` with defaults
 - `createTriggeredCommission` is fully wired
 
-The Next.js API route at `web/app/api/commissions/route.ts` proxies to the daemon. If it currently passes through the `type`, `match`, `approval`, and `maxDepth` fields from the request body, no API route changes are needed. If it strips unknown fields, it needs updating.
+The Next.js API route at `apps/web/app/api/commissions/route.ts` proxies to the daemon. If it currently passes through the `type`, `match`, `approval`, and `maxDepth` fields from the request body, no API route changes are needed. If it strips unknown fields, it needs updating.
 
-Worth verifying: does `web/app/api/commissions/route.ts` pass through the full body, or does it rebuild the payload from specific fields?
+Worth verifying: does `apps/web/app/api/commissions/route.ts` pass through the full body, or does it rebuild the payload from specific fields?
 
 ## Open Questions
 

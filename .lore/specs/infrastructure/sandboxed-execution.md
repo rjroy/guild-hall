@@ -64,7 +64,7 @@ A tool must pass all three gates to execute.
 
 ### Requirements
 
-- REQ-SBX-1: `SdkQueryOptions` (in `daemon/lib/agent-sdk/sdk-runner.ts`) must add a `sandbox` field matching the SDK's `SandboxSettings` type.
+- REQ-SBX-1: `SdkQueryOptions` (in `apps/daemon/lib/agent-sdk/sdk-runner.ts`) must add a `sandbox` field matching the SDK's `SandboxSettings` type.
 
   Add to `SdkQueryOptions`:
   ```typescript
@@ -257,7 +257,7 @@ Rules are evaluated in declaration order. The first rule whose `tool` and match 
   }
   ```
 
-- REQ-SBX-18: `SdkQueryOptions` (in `daemon/lib/agent-sdk/sdk-runner.ts`) must add a `canUseTool` field:
+- REQ-SBX-18: `SdkQueryOptions` (in `apps/daemon/lib/agent-sdk/sdk-runner.ts`) must add a `canUseTool` field:
 
   ```typescript
   canUseTool?: (
@@ -271,7 +271,7 @@ Rules are evaluated in declaration order. The first rule whose `tool` and match 
 
 ### Toolbox resolver changes for Phase 2
 
-- REQ-SBX-19: The toolbox resolver (`daemon/services/toolbox-resolver.ts`) must include `canUseToolRules` in the returned `ResolvedToolSet`. The value is `worker.canUseToolRules ?? []`. No transformation or validation at this layer; the resolver passes through what the package declared.
+- REQ-SBX-19: The toolbox resolver (`apps/daemon/services/toolbox-resolver.ts`) must include `canUseToolRules` in the returned `ResolvedToolSet`. The value is `worker.canUseToolRules ?? []`. No transformation or validation at this layer; the resolver passes through what the package declared.
 
 ### SDK runner changes for Phase 2
 
@@ -341,18 +341,18 @@ Neither change is part of this spec. They are follow-on package changes enabled 
 
 | File | Change |
 |------|--------|
-| `daemon/lib/agent-sdk/sdk-runner.ts` | Add `sandbox` to `SdkQueryOptions`; inject sandbox config in `prepareSdkSession` when worker has Bash |
-| `tests/daemon/services/sdk-runner.test.ts` | Add test cases per REQ-SBX-10 |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts` | Add `sandbox` to `SdkQueryOptions`; inject sandbox config in `prepareSdkSession` when worker has Bash |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | Add test cases per REQ-SBX-10 |
 
 ### Phase 2
 
 | File | Change |
 |------|--------|
 | `lib/types.ts` | Add `CanUseToolRule` type; add `canUseToolRules?: CanUseToolRule[]` to `WorkerMetadata`; add `canUseToolRules: CanUseToolRule[]` to `ResolvedToolSet` |
-| `daemon/lib/agent-sdk/sdk-runner.ts` | Add `canUseTool` to `SdkQueryOptions`; build and inject `canUseTool` callback in `prepareSdkSession` when rules are present |
-| `daemon/services/toolbox-resolver.ts` | Include `canUseToolRules: worker.canUseToolRules ?? []` in return value |
-| `tests/daemon/services/sdk-runner.test.ts` | Add test cases per REQ-SBX-24; update mock `ResolvedToolSet` fixtures to include `canUseToolRules: []` |
-| `tests/daemon/toolbox-resolver.test.ts` | Add test cases per REQ-SBX-24; update mock `WorkerMetadata` fixtures if affected |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts` | Add `canUseTool` to `SdkQueryOptions`; build and inject `canUseTool` callback in `prepareSdkSession` when rules are present |
+| `apps/daemon/services/toolbox-resolver.ts` | Include `canUseToolRules: worker.canUseToolRules ?? []` in return value |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | Add test cases per REQ-SBX-24; update mock `ResolvedToolSet` fixtures to include `canUseToolRules: []` |
+| `apps/daemon/tests/toolbox-resolver.test.ts` | Add test cases per REQ-SBX-24; update mock `WorkerMetadata` fixtures if affected |
 | Package loading / validation (path TBD) | Validate that `canUseToolRules` references only tools in `builtInTools` |
 
 ## Out of Scope

@@ -32,25 +32,25 @@ Requirements addressed:
 
 ## Codebase Context
 
-**Briefing generator** (`daemon/services/briefing-generator.ts`): Factory function `createBriefingGenerator(deps)` returns `{ generateBriefing, invalidateCache, generateAllProjectsBriefing }`. The `generateBriefing` method handles staleness checks (HEAD commit changed OR TTL exceeded), runs a three-tier generation cascade (full SDK session, single-turn, template fallback), and writes cache files to `~/.guild-hall/state/briefings/<project>.json`. Cache entries are `{ text, generatedAt, headCommit }`. Internal helpers `readCacheFile` and `writeCacheFile` handle file I/O. The staleness check reads the integration worktree HEAD via a git-aware `readHeadCommit` function.
+**Briefing generator** (`apps/daemon/services/briefing-generator.ts`): Factory function `createBriefingGenerator(deps)` returns `{ generateBriefing, invalidateCache, generateAllProjectsBriefing }`. The `generateBriefing` method handles staleness checks (HEAD commit changed OR TTL exceeded), runs a three-tier generation cascade (full SDK session, single-turn, template fallback), and writes cache files to `~/.guild-hall/state/briefings/<project>.json`. Cache entries are `{ text, generatedAt, headCommit }`. Internal helpers `readCacheFile` and `writeCacheFile` handle file I/O. The staleness check reads the integration worktree HEAD via a git-aware `readHeadCommit` function.
 
-**Route handler** (`daemon/routes/briefing.ts`): Single GET endpoint at `/coordination/review/briefing/read`. Two code paths: `!projectName || projectName === "all"` calls `generateAllProjectsBriefing()`, otherwise calls `generateBriefing(projectName)`. Returns `BriefingResult { briefing, generatedAt, cached }`.
+**Route handler** (`apps/daemon/routes/briefing.ts`): Single GET endpoint at `/coordination/review/briefing/read`. Two code paths: `!projectName || projectName === "all"` calls `generateAllProjectsBriefing()`, otherwise calls `generateBriefing(projectName)`. Returns `BriefingResult { briefing, generatedAt, cached }`.
 
-**Production wiring** (`daemon/app.ts`): `createProductionApp()` is the composition root (590 lines). Creates the briefing generator at lines 437-450 with full SDK deps. Returns `{ app, registry, shutdown: () => scheduler.stop() }`. The scheduler is the only service with a lifecycle today.
+**Production wiring** (`apps/daemon/app.ts`): `createProductionApp()` is the composition root (590 lines). Creates the briefing generator at lines 437-450 with full SDK deps. Returns `{ app, registry, shutdown: () => scheduler.stop() }`. The scheduler is the only service with a lifecycle today.
 
-**Scheduler precedent** (`daemon/services/scheduler/index.ts`): `SchedulerService` accepts deps in constructor, has `start()` (runs initial tick, sets `setInterval`), `stop()` (clears interval), and `tick()` for testing. Uses `setInterval` because its ticks are fixed-frequency checks. The briefing refresh needs `setTimeout` instead (post-completion delay per spec).
+**Scheduler precedent** (`apps/daemon/services/scheduler/index.ts`): `SchedulerService` accepts deps in constructor, has `start()` (runs initial tick, sets `setInterval`), `stop()` (clears interval), and `tick()` for testing. Uses `setInterval` because its ticks are fixed-frequency checks. The briefing refresh needs `setTimeout` instead (post-completion delay per spec).
 
-**Daemon shutdown** (`daemon/index.ts`): Stores the shutdown function from `createProductionApp()` as `schedulerShutdown`, calls it on SIGINT/SIGTERM alongside `server.stop()`, PID file removal, and socket cleanup.
+**Daemon shutdown** (`apps/daemon/index.ts`): Stores the shutdown function from `createProductionApp()` as `schedulerShutdown`, calls it on SIGINT/SIGTERM alongside `server.stop()`, PID file removal, and socket cleanup.
 
 **Config** (`lib/types.ts`, `lib/config.ts`): `AppConfig` already has `briefingCacheTtlMinutes?: number` as precedent for an optional scalar briefing field. Zod schema validates with `z.number().int().positive().optional()`.
 
-**Existing tests**: `tests/daemon/routes/briefing.test.ts` (8 tests using mock generator via `createApp` test client), `tests/daemon/services/briefing-generator.test.ts` (uses real temp dirs and git repos). Route tests use a `makeMockBriefingGenerator()` helper that returns `BriefingGenerator` with overridable methods.
+**Existing tests**: `apps/daemon/tests/routes/briefing.test.ts` (8 tests using mock generator via `createApp` test client), `apps/daemon/tests/services/briefing-generator.test.ts` (uses real temp dirs and git repos). Route tests use a `makeMockBriefingGenerator()` helper that returns `BriefingGenerator` with overridable methods.
 
 ## Implementation Steps
 
 ### Step 1: Add config field
 
-**Files**: `lib/types.ts`, `lib/config.ts`, `tests/lib/config.test.ts`
+**Files**: `lib/types.ts`, `lib/config.ts`, `lib/tests/config.test.ts`
 **Addresses**: REQ-BBR-6
 
 Add `briefingRefreshIntervalMinutes?: number` to the `AppConfig` interface in `lib/types.ts`. Add the corresponding Zod field in `lib/config.ts` using the same pattern as `briefingCacheTtlMinutes`:
@@ -59,14 +59,14 @@ Add `briefingRefreshIntervalMinutes?: number` to the `AppConfig` interface in `l
 briefingRefreshIntervalMinutes: z.number().int().positive().optional(),
 ```
 
-Add a test in `tests/lib/config.test.ts` confirming:
+Add a test in `lib/tests/config.test.ts` confirming:
 - Config with `briefingRefreshIntervalMinutes: 30` parses successfully
 - Config without the field parses successfully (optional)
 - Invalid values (0, negative, non-integer) are rejected
 
 ### Step 2: Add `getCachedBriefing` to the generator
 
-**Files**: `daemon/services/briefing-generator.ts`, `tests/daemon/services/briefing-generator.test.ts`
+**Files**: `apps/daemon/services/briefing-generator.ts`, `apps/daemon/tests/services/briefing-generator.test.ts`
 **Addresses**: REQ-BBR-9
 
 Add a `getCachedBriefing(projectName: string): Promise<BriefingResult | null>` method to the object returned by `createBriefingGenerator`. The implementation:
@@ -89,11 +89,11 @@ Run existing briefing-generator tests to confirm `generateBriefing` behavior is 
 
 ### Step 3: Create `BriefingRefreshService`
 
-**Files**: `daemon/services/briefing-refresh.ts` (new), `tests/daemon/services/briefing-refresh.test.ts` (new)
+**Files**: `apps/daemon/services/briefing-refresh.ts` (new), `apps/daemon/tests/services/briefing-refresh.test.ts` (new)
 **Addresses**: REQ-BBR-1, REQ-BBR-2, REQ-BBR-3, REQ-BBR-4, REQ-BBR-5, REQ-BBR-7
 **Expertise**: None needed. Follows scheduler precedent closely.
 
-Create `daemon/services/briefing-refresh.ts` with:
+Create `apps/daemon/services/briefing-refresh.ts` with:
 
 **Interface:**
 ```typescript
@@ -129,7 +129,7 @@ Key detail: `start()` is fire-and-forget for the first cycle. Use `void schedule
 
 **`stop()`**: Sets `running = false`. If `pendingTimer` is set, clears it and sets to `null`. Does not abort in-flight cycle (REQ-BBR-3). The `running` flag prevents scheduling the next cycle after the current one completes.
 
-**Tests** (`tests/daemon/services/briefing-refresh.test.ts`):
+**Tests** (`apps/daemon/tests/services/briefing-refresh.test.ts`):
 
 Use a mock briefing generator (same DI pattern as route tests). Inject a controllable `generateBriefing` that resolves/rejects on demand.
 
@@ -147,7 +147,7 @@ For the "stop during in-flight cycle" test (case 5): pass a controllable `genera
 
 ### Step 4: Update route handler
 
-**Files**: `daemon/routes/briefing.ts`, `tests/daemon/routes/briefing.test.ts`
+**Files**: `apps/daemon/routes/briefing.ts`, `apps/daemon/tests/routes/briefing.test.ts`
 **Addresses**: REQ-BBR-10
 
 Replace the single-project path in the route handler. Where it currently calls `generateBriefing(projectName)`, call `getCachedBriefing(projectName)` instead. If the result is `null`, return:
@@ -162,7 +162,7 @@ If the result is non-null, return it as before.
 
 The `BriefingRouteDeps` interface doesn't need changing because `getCachedBriefing` is a method on the same `briefingGenerator` object.
 
-Update the mock generator in `tests/daemon/routes/briefing.test.ts` to include `getCachedBriefing`. Update existing tests that test the single-project path to use the new response shape. Add:
+Update the mock generator in `apps/daemon/tests/routes/briefing.test.ts` to include `getCachedBriefing`. Update existing tests that test the single-project path to use the new response shape. Add:
 
 - **Cache hit**: `getCachedBriefing` returns a result. Verify 200 with briefing content.
 - **Cache miss (pending)**: `getCachedBriefing` returns `null`. Verify 200 with `{ briefing: null, pending: true }`.
@@ -170,16 +170,16 @@ Update the mock generator in `tests/daemon/routes/briefing.test.ts` to include `
 
 The "all projects" path is addressed in Open Questions below.
 
-**AI Validation check**: After this step, grep `daemon/routes/briefing.ts` for `generateBriefing`. It should appear zero times (as the spec's AI Validation section requires).
+**AI Validation check**: After this step, grep `apps/daemon/routes/briefing.ts` for `generateBriefing`. It should appear zero times (as the spec's AI Validation section requires).
 
 ### Step 5: Wire in production app
 
-**Files**: `daemon/app.ts`
+**Files**: `apps/daemon/app.ts`
 **Addresses**: REQ-BBR-8
 
 In `createProductionApp()`, after the briefing generator is created (around line 450):
 
-1. Import `createBriefingRefreshService` from `@/daemon/services/briefing-refresh`
+1. Import `createBriefingRefreshService` from `@/apps/daemon/services/briefing-refresh`
 2. Create the service:
    ```typescript
    const briefingRefresh = createBriefingRefreshService({
@@ -205,7 +205,7 @@ In `createProductionApp()`, after the briefing generator is created (around line
    };
    ```
 
-No changes to `daemon/index.ts`. The `schedulerShutdown` variable name is a bit misleading now (it shuts down more than the scheduler), but renaming it is cosmetic and outside the spec's scope.
+No changes to `apps/daemon/index.ts`. The `schedulerShutdown` variable name is a bit misleading now (it shuts down more than the scheduler), but renaming it is cosmetic and outside the spec's scope.
 
 ### Step 6: Validate against spec
 
@@ -218,7 +218,7 @@ Launch a sub-agent that:
 4. Verifies each REQ is satisfied
 5. Checks the AI Validation criteria:
    - `createProductionApp()` shutdown calls both `scheduler.stop()` and `briefingRefresh.stop()`
-   - `daemon/routes/briefing.ts` does not contain `generateBriefing`
+   - `apps/daemon/routes/briefing.ts` does not contain `generateBriefing`
    - No staleness logic duplication in the refresh service
 6. Confirms existing briefing-generator tests pass without modification (REQ-BBR-11)
 
@@ -242,4 +242,4 @@ Review strategy: A single post-completion review (Step 6) is sufficient for this
 
 2. **Web layer `pending: true` handling**: The `ManagerBriefing.tsx` component currently expects `briefing` to be a string. When the route returns `{ briefing: null, pending: true }`, the component needs a loading/placeholder state. This is out of scope for this plan (the spec scopes to daemon changes), but should be tracked as follow-up work.
 
-3. **Variable naming in `daemon/index.ts`**: The `schedulerShutdown` variable now shuts down both the scheduler and the briefing refresh service. Renaming it to `shutdown` or `serviceShutdown` would be clearer, but is cosmetic. Leave for a future cleanup pass.
+3. **Variable naming in `apps/daemon/index.ts`**: The `schedulerShutdown` variable now shuts down both the scheduler and the briefing refresh service. Renaming it to `shutdown` or `serviceShutdown` would be clearer, but is cosmetic. Leave for a future cleanup pass.

@@ -40,21 +40,21 @@ Requirements addressed:
 
 ## Codebase Context
 
-**Artifact page** (`web/app/projects/[name]/artifacts/[...path]/page.tsx`, 161 lines). Server component. Makes three daemon fetches today: project config (`/system/config/project/read`), artifact document (`/workspace/artifact/document/read`), and commission list (`/commission/request/commission/list`). The image path (line 52-91) fetches project config + image meta only. The document path (line 94-161) has access to `artifact.meta.extras` (an untyped `Record<string, unknown>`) and `associatedCommissions` (filtered by `linked_artifacts`). Adding a fourth fetch to `/system/packages/worker/list` follows the established pattern.
+**Artifact page** (`apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`, 161 lines). Server component. Makes three daemon fetches today: project config (`/system/config/project/read`), artifact document (`/workspace/artifact/document/read`), and commission list (`/commission/request/commission/list`). The image path (line 52-91) fetches project config + image meta only. The document path (line 94-161) has access to `artifact.meta.extras` (an untyped `Record<string, unknown>`) and `associatedCommissions` (filtered by `linked_artifacts`). Adding a fourth fetch to `/system/packages/worker/list` follows the established pattern.
 
-**Worker list route** (`daemon/routes/workers.ts:28-61`). Returns `{ workers: [...] }` where each worker has `displayName` (from `pkg.metadata.identity.name`), `displayTitle`, and `portraitUrl` (from `pkg.metadata.identity.portraitPath ?? null`). The key for portrait lookup is `displayName`, which matches the `extras.worker` value written to frontmatter.
+**Worker list route** (`apps/daemon/routes/workers.ts:28-61`). Returns `{ workers: [...] }` where each worker has `displayName` (from `pkg.metadata.identity.name`), `displayTitle`, and `portraitUrl` (from `pkg.metadata.identity.portraitPath ?? null`). The key for portrait lookup is `displayName`, which matches the `extras.worker` value written to frontmatter.
 
-**ArtifactProvenance** (`web/components/artifact/ArtifactProvenance.tsx`, 66 lines). Client component. Props: `projectName`, `artifactTitle`, `artifactPath`. Delegates to `DetailHeader` for expanded/condensed states. The expanded state (lines 51-63) renders a breadcrumb row and a source row. The source row at lines 58-61 is the Phase 1 stub: `<WorkerPortrait size="sm" />` + `"Source information unavailable."`.
+**ArtifactProvenance** (`apps/web/components/artifact/ArtifactProvenance.tsx`, 66 lines). Client component. Props: `projectName`, `artifactTitle`, `artifactPath`. Delegates to `DetailHeader` for expanded/condensed states. The expanded state (lines 51-63) renders a breadcrumb row and a source row. The source row at lines 58-61 is the Phase 1 stub: `<WorkerPortrait size="sm" />` + `"Source information unavailable."`.
 
-**WorkerPortrait** (`web/components/ui/WorkerPortrait.tsx`, 57 lines). Accepts optional `name`, `title`, `portraitUrl`, and `size` props. When `portraitUrl` is present, renders `<img>`. When absent, renders initials from `name` or `"?"`. Renders `<p>` for `name` and `title` below the portrait when present. For this feature, `name` is omitted (REQ-AWA-15) so the portrait renders without a label beneath it.
+**WorkerPortrait** (`apps/web/components/ui/WorkerPortrait.tsx`, 57 lines). Accepts optional `name`, `title`, `portraitUrl`, and `size` props. When `portraitUrl` is present, renders `<img>`. When absent, renders initials from `name` or `"?"`. Renders `<p>` for `name` and `title` below the portrait when present. For this feature, `name` is omitted (REQ-AWA-15) so the portrait renders without a label beneath it.
 
 **Guild Master constants** (`lib/packages.ts:21-22`). `MANAGER_WORKER_NAME = "Guild Master"` and `MANAGER_PORTRAIT_PATH = "/images/portraits/guild-master.webp"`. These are already exported. The artifact page imports from `@/lib/packages`.
 
-**fetchDaemon** (`web/lib/daemon-api.ts`). Returns `DaemonResult<T>`: `{ ok: true, data: T } | { ok: false, error: string }`. All existing page fetches use this pattern with early-return on failure.
+**fetchDaemon** (`apps/web/lib/daemon-api.ts`). Returns `DaemonResult<T>`: `{ ok: true, data: T } | { ok: false, error: string }`. All existing page fetches use this pattern with early-return on failure.
 
-**CSS** (`web/components/artifact/ArtifactProvenance.module.css`, 45 lines). `.sourceRow` has `display: flex; align-items: center; gap: var(--space-sm)`. `.text` has `color: var(--color-text-muted); font-size: 0.85rem; font-style: italic`.
+**CSS** (`apps/web/components/artifact/ArtifactProvenance.module.css`, 45 lines). `.sourceRow` has `display: flex; align-items: center; gap: var(--space-sm)`. `.text` has `color: var(--color-text-muted); font-size: 0.85rem; font-style: italic`.
 
-**Existing tests** (`tests/components/artifact-provenance.test.ts`, 44 lines). Import-only tests. No rendering, no prop verification. These are minimal and need expansion.
+**Existing tests** (`apps/web/tests/components/artifact-provenance.test.ts`, 44 lines). Import-only tests. No rendering, no prop verification. These are minimal and need expansion.
 
 **Daemon changes**: Confirmed none needed. The worker list endpoint already returns `displayName` and `portraitUrl`. Frontmatter extras already carry `worker` and `workerDisplayTitle`. Commission list is already fetched. The spec's "no daemon changes" claim is verified.
 
@@ -62,7 +62,7 @@ Requirements addressed:
 
 ### Step 1: Add Attribution interface and update ArtifactProvenance props
 
-**File**: `web/components/artifact/ArtifactProvenance.tsx`
+**File**: `apps/web/components/artifact/ArtifactProvenance.tsx`
 
 **Addresses**: REQ-AWA-01, REQ-AWA-02
 
@@ -91,7 +91,7 @@ No rendering changes in this step. The component accepts the new prop but doesn'
 
 ### Step 2: Extract attribution resolution as a pure function
 
-**New file**: `web/lib/resolve-attribution.ts`
+**New file**: `apps/web/lib/resolve-attribution.ts`
 
 **Addresses**: REQ-AWA-03, REQ-AWA-06, REQ-AWA-07
 
@@ -143,7 +143,7 @@ All inputs are `unknown` from the untyped `extras` object, so the function valid
 
 ### Step 3: Wire attribution resolution on the artifact page
 
-**File**: `web/app/projects/[name]/artifacts/[...path]/page.tsx`
+**File**: `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`
 
 **Addresses**: REQ-AWA-04, REQ-AWA-05, REQ-AWA-08, REQ-AWA-09, REQ-AWA-10
 
@@ -170,7 +170,7 @@ if (workersResult.ok) {
 
 If the fetch fails, `portraitMap` stays empty. Resolution still works; only `workerPortraitUrl` is absent. (REQ-AWA-08)
 
-**3b. Call `resolveAttribution`.** Import the function from `@/web/lib/resolve-attribution` and the `Attribution` type from the component:
+**3b. Call `resolveAttribution`.** Import the function from `@/apps/web/lib/resolve-attribution` and the `Attribution` type from the component:
 
 ```ts
 const extras = artifact.meta.extras as Record<string, unknown> | undefined;
@@ -208,7 +208,7 @@ Empty string `title` is treated as absent by using `|| undefined`. (REQ-AWA-13 f
 
 ### Step 4: Update ArtifactProvenance rendering
 
-**File**: `web/components/artifact/ArtifactProvenance.tsx`
+**File**: `apps/web/components/artifact/ArtifactProvenance.tsx`
 
 **Addresses**: REQ-AWA-11, REQ-AWA-12, REQ-AWA-13, REQ-AWA-14, REQ-AWA-15, REQ-AWA-19
 
@@ -260,7 +260,7 @@ Add `Link` import from `next/link` at the top of the file.
 
 ### Step 5: CSS adjustments
 
-**File**: `web/components/artifact/ArtifactProvenance.module.css`
+**File**: `apps/web/components/artifact/ArtifactProvenance.module.css`
 
 **Addresses**: REQ-AWA-16, REQ-AWA-17, REQ-AWA-18
 
@@ -299,7 +299,7 @@ This matches other in-page links across the artifact views. (REQ-AWA-18)
 
 Two test files:
 
-**6a. Attribution resolution tests** (`tests/web/artifact-attribution-resolution.test.ts`, new file)
+**6a. Attribution resolution tests** (`apps/web/tests/artifact-attribution-resolution.test.ts`, new file)
 
 This tests the pure `resolveAttribution` function from Step 2. No component rendering, no daemon interaction.
 
@@ -319,7 +319,7 @@ Test cases:
 12. **Undefined extras**: `extras` is undefined, returns `null`.
 13. **Empty portrait map (fetch failure path)**: `extras.worker = "Dalton"`, portrait map is empty (simulating REQ-AWA-08 fetch failure), result includes `workerName` and `workerTitle` but no `workerPortraitUrl`. Verifies graceful degradation.
 
-**6b. Update existing provenance tests** (`tests/components/artifact-provenance.test.ts`)
+**6b. Update existing provenance tests** (`apps/web/tests/components/artifact-provenance.test.ts`)
 
 Expand the import-only tests to cover the new prop shape:
 
@@ -344,12 +344,12 @@ Launch a review sub-agent that reads the spec at `.lore/specs/ui/artifact-proven
 
 | File | Change | Steps |
 |------|--------|-------|
-| `web/components/artifact/ArtifactProvenance.tsx` | Add `Attribution` interface, conditional rendering, Link import | 1, 4 |
-| `web/lib/resolve-attribution.ts` | **New file**. Pure resolution function | 2 |
-| `web/app/projects/[name]/artifacts/[...path]/page.tsx` | Add worker list fetch, call resolution, pass attribution prop | 3 |
-| `web/components/artifact/ArtifactProvenance.module.css` | Replace `.text` with `.attributedText`, add `.commissionLink` | 5 |
-| `tests/web/artifact-attribution-resolution.test.ts` | **New file**. Resolution logic tests | 6 |
-| `tests/components/artifact-provenance.test.ts` | Expand with attribution prop tests | 6 |
+| `apps/web/components/artifact/ArtifactProvenance.tsx` | Add `Attribution` interface, conditional rendering, Link import | 1, 4 |
+| `apps/web/lib/resolve-attribution.ts` | **New file**. Pure resolution function | 2 |
+| `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` | Add worker list fetch, call resolution, pass attribution prop | 3 |
+| `apps/web/components/artifact/ArtifactProvenance.module.css` | Replace `.text` with `.attributedText`, add `.commissionLink` | 5 |
+| `apps/web/tests/artifact-attribution-resolution.test.ts` | **New file**. Resolution logic tests | 6 |
+| `apps/web/tests/components/artifact-provenance.test.ts` | Expand with attribution prop tests | 6 |
 
 Six files total. Two new (pure function + its tests), four modified. No daemon files. No new dependencies.
 

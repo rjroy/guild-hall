@@ -49,19 +49,19 @@ systemModels:
 
 ### Configurable Sites
 
-- REQ-SYS-MODEL-5: ~~Memory compaction reads its model from `config.systemModels?.memoryCompaction`. When absent, falls back to `"sonnet"` (current behavior preserved). Source: `daemon/services/memory-compaction.ts:291`.~~ **Deprecated.** The `memoryCompaction` config field is unused after the memory single-file redesign (REQ-MEM-21). The field remains in the schema for backward compatibility but has no effect.
+- REQ-SYS-MODEL-5: ~~Memory compaction reads its model from `config.systemModels?.memoryCompaction`. When absent, falls back to `"sonnet"` (current behavior preserved). Source: `apps/daemon/services/memory-compaction.ts:291`.~~ **Deprecated.** The `memoryCompaction` config field is unused after the memory single-file redesign (REQ-MEM-21). The field remains in the schema for backward compatibility but has no effect.
 
-- REQ-SYS-MODEL-6: Meeting notes generation reads its model from `config.systemModels?.meetingNotes`. When absent, falls back to `"sonnet"` (current behavior preserved). Source: `daemon/services/meeting/notes-generator.ts:163`.
+- REQ-SYS-MODEL-6: Meeting notes generation reads its model from `config.systemModels?.meetingNotes`. When absent, falls back to `"sonnet"` (current behavior preserved). Source: `apps/daemon/services/meeting/notes-generator.ts:163`.
 
-- REQ-SYS-MODEL-7: The briefing generator reads its model from `config.systemModels?.briefing`. When absent, falls back to `"sonnet"` (current behavior preserved). Source: `daemon/services/briefing-generator.ts:385`. (`BriefingGeneratorDeps` already carries `AppConfig` — no DI change needed for this service.)
+- REQ-SYS-MODEL-7: The briefing generator reads its model from `config.systemModels?.briefing`. When absent, falls back to `"sonnet"` (current behavior preserved). Source: `apps/daemon/services/briefing-generator.ts:385`. (`BriefingGeneratorDeps` already carries `AppConfig` — no DI change needed for this service.)
 
-- REQ-SYS-MODEL-8: The Guild Master worker reads its model from `config.systemModels?.guildMaster`. When absent, falls back to `"opus"` (current behavior preserved). Source: `daemon/services/manager/worker.ts:116`.
+- REQ-SYS-MODEL-8: The Guild Master worker reads its model from `config.systemModels?.guildMaster`. When absent, falls back to `"opus"` (current behavior preserved). Source: `apps/daemon/services/manager/worker.ts:116`.
 
 ### Config Access
 
 - REQ-SYS-MODEL-9: Each service reads `systemModels` through its existing dependency injection pattern. Services that do not currently accept config (`CompactionDeps`, `NotesGeneratorDeps`) gain an optional `config?: AppConfig` field. The service reads `config?.systemModels?.memoryCompaction ?? "sonnet"` (or the equivalent `meetingNotes` field) when constructing the options object passed to its SDK call. Existing callers that pass no config continue to compile and behave as before.
 
-- REQ-SYS-MODEL-10: The Guild Master package factory receives config at the call site in `daemon/app.ts`. The config parameter is optional with an `"opus"` fallback so test sites that call the factory with no config argument continue to work.
+- REQ-SYS-MODEL-10: The Guild Master package factory receives config at the call site in `apps/daemon/app.ts`. The config parameter is optional with an `"opus"` fallback so test sites that call the factory with no config argument continue to work.
 
 ## Exit Points
 

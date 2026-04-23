@@ -43,24 +43,24 @@ Requirements addressed:
 
 ## Codebase Context
 
-**SdkQueryOptions** (`daemon/lib/agent-sdk/sdk-runner.ts:35-50`): The local type for SDK session options. Has `tools`, `allowedTools`, `model`, `env`, etc. No `sandbox` or `canUseTool` fields today. The SDK's `Options` type accepts both; they flow through to `query()`.
+**SdkQueryOptions** (`apps/daemon/lib/agent-sdk/sdk-runner.ts:35-50`): The local type for SDK session options. Has `tools`, `allowedTools`, `model`, `env`, etc. No `sandbox` or `canUseTool` fields today. The SDK's `Options` type accepts both; they flow through to `query()`.
 
-**prepareSdkSession** (`daemon/lib/agent-sdk/sdk-runner.ts:237-404`): 5-step setup: find worker, resolve tools, load memories, activate, build options. Step 5 (line 385-400) constructs the final `SdkQueryOptions` object. This is where sandbox settings and `canUseTool` injection happen.
+**prepareSdkSession** (`apps/daemon/lib/agent-sdk/sdk-runner.ts:237-404`): 5-step setup: find worker, resolve tools, load memories, activate, build options. Step 5 (line 385-400) constructs the final `SdkQueryOptions` object. This is where sandbox settings and `canUseTool` injection happen.
 
 The function already reads `activation.tools.builtInTools` (line 390) to populate the `tools` field (from TAE). The condition "worker has Bash" is `activation.tools.builtInTools.includes("Bash")`, which is available at step 5 without any new plumbing.
 
-**Toolbox resolver** (`daemon/services/toolbox-resolver.ts:63-144`): Returns `{ mcpServers, allowedTools, builtInTools }`. Adding `canUseToolRules` to the return value means adding it to `ResolvedToolSet` in `lib/types.ts:222-226` and passing `worker.canUseToolRules ?? []` through at line 143.
+**Toolbox resolver** (`apps/daemon/services/toolbox-resolver.ts:63-144`): Returns `{ mcpServers, allowedTools, builtInTools }`. Adding `canUseToolRules` to the return value means adding it to `ResolvedToolSet` in `lib/types.ts:222-226` and passing `worker.canUseToolRules ?? []` through at line 143.
 
 **ResolvedToolSet** (`lib/types.ts:222-226`): Shared type. Adding `canUseToolRules` here causes compile errors in every test fixture that constructs one without the new field. The full fixture list (same set affected by TAE):
 
 | File | Fixture | Value for `canUseToolRules` |
 |------|---------|---------------------------|
-| `tests/daemon/services/sdk-runner.test.ts` | `mockResolvedTools` (multiple) | `[]` |
-| `tests/daemon/services/sdk-runner.test.ts` | inline `tools` overrides | `[]` |
-| `tests/daemon/services/manager-worker.test.ts` | `defaultTools` (line 23) | `[]` |
-| `tests/daemon/services/manager-worker.test.ts` | inline `ResolvedToolSet` | `[]` |
-| `tests/packages/worker-role-smoke.test.ts` | `makeResolvedTools()` | `[]` |
-| `tests/packages/worker-activation.test.ts` | `makeResolvedTools()` | `[]` |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | `mockResolvedTools` (multiple) | `[]` |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | inline `tools` overrides | `[]` |
+| `apps/daemon/tests/services/manager-worker.test.ts` | `defaultTools` (line 23) | `[]` |
+| `apps/daemon/tests/services/manager-worker.test.ts` | inline `ResolvedToolSet` | `[]` |
+| `packages/tests/worker-role-smoke.test.ts` | `makeResolvedTools()` | `[]` |
+| `packages/tests/worker-activation.test.ts` | `makeResolvedTools()` | `[]` |
 
 **WorkerMetadata** (`lib/types.ts:176-190`): Has `builtInTools: string[]`. No `canUseToolRules` today. Adding it as optional avoids breaking existing packages that don't declare rules.
 
@@ -76,7 +76,7 @@ The function already reads `activation.tools.builtInTools` (line 390) to populat
 
 ### Step 1: Add `sandbox` to `SdkQueryOptions`
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-SBX-1
 
 Add `sandbox` to `SdkQueryOptions` (after `env`, around line 49):
@@ -112,7 +112,7 @@ The type mirrors the SDK's `SandboxSettings` structurally without importing it. 
 
 ### Step 2: Inject sandbox settings in `prepareSdkSession`
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-SBX-2, REQ-SBX-3, REQ-SBX-4, REQ-SBX-5, REQ-SBX-6, REQ-SBX-7
 
 In `prepareSdkSession`, at step 5c (after local env resolution, before building the options object at line 385), add sandbox injection:
@@ -153,7 +153,7 @@ Key points:
 
 ### Step 3: Bubblewrap prerequisite detection
 
-**Files**: `daemon/app.ts`
+**Files**: `apps/daemon/app.ts`
 **Addresses**: REQ-SBX-9
 
 At daemon startup, after package discovery and before session setup, check whether any Bash-capable worker is loaded and whether `bwrap` is available. The check runs once, at boot, and logs a warning if the prerequisite is missing.
@@ -198,7 +198,7 @@ The detection uses `which bwrap` rather than attempting a sandbox invocation. Th
 
 ### Step 4: Phase 1 tests
 
-**Files**: `tests/daemon/services/sdk-runner.test.ts`
+**Files**: `apps/daemon/tests/services/sdk-runner.test.ts`
 **Addresses**: REQ-SBX-10 (tests 1-5)
 
 Add a new `describe("sandbox injection")` block in the `prepareSdkSession` test suite.
@@ -313,7 +313,7 @@ describe("sandbox injection", () => {
 
 The test helpers `makeDeps` and `makeSpec` follow existing patterns in the file (they create `SessionPrepDeps` and `SessionPrepSpec` with sensible defaults). If these helpers don't exist by name, adapt to whatever naming the file uses. The key mock fixtures set up `builtInTools` with or without `"Bash"` to exercise the condition.
 
-**Verification**: `bun test tests/daemon/services/sdk-runner.test.ts` passes.
+**Verification**: `bun test apps/daemon/tests/services/sdk-runner.test.ts` passes.
 
 ---
 
@@ -323,7 +323,7 @@ Phase 2 depends on Phase 1 being complete. The two phases share the same files b
 
 ### Step 5: Type changes and toolbox resolver passthrough
 
-**Files**: `lib/types.ts`, `daemon/services/toolbox-resolver.ts`
+**Files**: `lib/types.ts`, `apps/daemon/services/toolbox-resolver.ts`
 **Addresses**: REQ-SBX-11, REQ-SBX-17, REQ-SBX-19
 
 **lib/types.ts**: Add `CanUseToolRule` interface after `ResolvedToolSet` (around line 227). Add `canUseToolRules?: CanUseToolRule[]` to `WorkerMetadata`. Add `canUseToolRules: CanUseToolRule[]` (required, defaults to `[]`) to `ResolvedToolSet`.
@@ -360,7 +360,7 @@ export interface WorkerMetadata {
 }
 ```
 
-**daemon/services/toolbox-resolver.ts**: Update the return value at line 143:
+**apps/daemon/services/toolbox-resolver.ts**: Update the return value at line 143:
 
 ```typescript
 return {
@@ -416,7 +416,7 @@ export const workerMetadataSchema = z.object({
 
 Note: moving from `z.object({...})` to `z.object({...}).superRefine(...)` changes the schema's output type. The `superRefine` receives the parsed data with all defaults applied (e.g., `systemToolboxes` defaults to `[]`). Verify that the rest of `discoverPackages` still works with the refined schema's output type.
 
-**Tests** (add to `tests/lib/packages.test.ts` or a new test file):
+**Tests** (add to `lib/tests/packages.test.ts` or a new test file):
 
 ```typescript
 test("canUseToolRules referencing a tool not in builtInTools is rejected", () => {
@@ -453,11 +453,11 @@ test("canUseToolRules referencing a tool in builtInTools passes validation", () 
 });
 ```
 
-**Verification**: `bun test tests/lib/packages.test.ts` passes.
+**Verification**: `bun test lib/tests/packages.test.ts` passes.
 
 ### Step 7: Build and inject `canUseTool` callback in `prepareSdkSession`
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`, `package.json` (new dependency)
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`, `package.json` (new dependency)
 **Addresses**: REQ-SBX-12, REQ-SBX-13, REQ-SBX-14, REQ-SBX-16, REQ-SBX-18, REQ-SBX-20, REQ-SBX-21, REQ-SBX-22
 
 **New dependency**: Add `micromatch` for glob pattern matching:
@@ -467,7 +467,7 @@ bun add micromatch
 bun add -D @types/micromatch
 ```
 
-**daemon/lib/agent-sdk/sdk-runner.ts**: Add `canUseTool` to `SdkQueryOptions` (after `sandbox`):
+**apps/daemon/lib/agent-sdk/sdk-runner.ts**: Add `canUseTool` to `SdkQueryOptions` (after `sandbox`):
 
 ```typescript
 canUseTool?: (
@@ -571,10 +571,10 @@ Key points from the spec:
 
 ### Step 8: Phase 2 tests
 
-**Files**: `tests/daemon/services/sdk-runner.test.ts`, `tests/daemon/toolbox-resolver.test.ts`
+**Files**: `apps/daemon/tests/services/sdk-runner.test.ts`, `apps/daemon/tests/toolbox-resolver.test.ts`
 **Addresses**: REQ-SBX-24 (test cases 1-9: toolbox resolver + SDK runner)
 
-**Toolbox resolver tests** (`tests/daemon/toolbox-resolver.test.ts`):
+**Toolbox resolver tests** (`apps/daemon/tests/toolbox-resolver.test.ts`):
 
 ```typescript
 test("resolveToolSet returns canUseToolRules: [] when worker has no rules", async () => {
@@ -597,7 +597,7 @@ test("resolveToolSet returns canUseToolRules matching worker declaration", async
 });
 ```
 
-**SDK runner tests** (`tests/daemon/services/sdk-runner.test.ts`):
+**SDK runner tests** (`apps/daemon/tests/services/sdk-runner.test.ts`):
 
 Add a `describe("canUseTool callback")` block:
 
@@ -765,7 +765,7 @@ describe("canUseTool callback", () => {
 });
 ```
 
-**Verification**: `bun test tests/daemon/services/sdk-runner.test.ts` and `bun test tests/daemon/toolbox-resolver.test.ts` pass.
+**Verification**: `bun test apps/daemon/tests/services/sdk-runner.test.ts` and `bun test apps/daemon/tests/toolbox-resolver.test.ts` pass.
 
 ### Step 9: Full suite verification and spec validation
 

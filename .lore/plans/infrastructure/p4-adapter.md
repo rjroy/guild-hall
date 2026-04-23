@@ -64,7 +64,7 @@ The spec requires platform-specific operations (Windows `attrib -R` vs Unix `chm
 
 **Requirements:**
 - REQ-P4A-1 (standalone `p4-adapter/` directory)
-- REQ-P4A-2 (no imports from daemon/web/lib/packages)
+- REQ-P4A-2 (no imports from apps/daemon/web/lib/packages)
 - REQ-P4A-4 (Bun CLI script, same pattern as `cli/`)
 - REQ-P4A-32 (P4CONFIG environment resolution)
 - REQ-P4A-36 (no `p4 submit` in the wrapper)

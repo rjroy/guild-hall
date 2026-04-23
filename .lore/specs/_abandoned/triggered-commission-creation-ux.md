@@ -4,7 +4,7 @@ date: 2026-03-21
 status: superseded
 superseded_by: .lore/specs/heartbeat-commission-dispatch.md
 tags: [ui, commissions, triggers, form, client-component]
-modules: [web/components/commission/CommissionForm]
+modules: [apps/web/components/commission/CommissionForm]
 related:
   - .lore/brainstorm/triggered-commission-creation-ux.md
   - .lore/specs/commissions/triggered-commissions.md
@@ -18,11 +18,11 @@ req-prefix: TCF
 
 The commission creation form (`CommissionForm.tsx`) supports two commission types: One-shot and Schedule. The daemon already handles `type: "triggered"` in the creation route, including validation of `match.type` against `SYSTEM_EVENT_TYPES`. The trigger detail view components (`TriggerInfo`, `TriggerActions`) already exist. What's missing is the ability to create a triggered commission from the web UI.
 
-This spec adds "Trigger" as a third option on the type selector, renders trigger-specific form fields when selected, and wires the payload through the existing API proxy. No daemon or API route changes are required. The web API proxy at `web/app/api/commissions/route.ts` already passes the full request body through to the daemon via `JSON.stringify(body)`.
+This spec adds "Trigger" as a third option on the type selector, renders trigger-specific form fields when selected, and wires the payload through the existing API proxy. No daemon or API route changes are required. The web API proxy at `apps/web/app/api/commissions/route.ts` already passes the full request body through to the daemon via `JSON.stringify(body)`.
 
 ## Entry Points
 
-One surface: the commission creation form rendered by `CreateCommissionButton` on the commissions tab of the project view (`/projects/[name]`). The form is `CommissionForm.tsx` in `web/components/commission/`.
+One surface: the commission creation form rendered by `CreateCommissionButton` on the commissions tab of the project view (`/projects/[name]`). The form is `CommissionForm.tsx` in `apps/web/components/commission/`.
 
 ## Requirements
 
@@ -71,7 +71,7 @@ One surface: the commission creation form rendered by `CreateCommissionButton` o
   | `schedule_spawned` | `scheduleId`, `spawnedId`, `projectName`, `runNumber` |
   | `toolbox_replicate` | `action`, `tool`, `model`, `files`, `cost`, `projectName`, `contextId` |
 
-  This mapping is derived from `SystemEvent` variants in `daemon/lib/event-bus.ts`. It is a static snapshot. If `SystemEvent` gains new variants or fields, this map must be updated manually. A sync test is not required for v1 since the event type list itself is already tested for consistency between `SystemEvent` and `SYSTEM_EVENT_TYPES`.
+  This mapping is derived from `SystemEvent` variants in `apps/daemon/lib/event-bus.ts`. It is a static snapshot. If `SystemEvent` gains new variants or fields, this map must be updated manually. A sync test is not required for v1 since the event type list itself is already tested for consistency between `SystemEvent` and `SYSTEM_EVENT_TYPES`.
 
   The glob syntax hint appends: "Supports glob patterns: `*`, `?`, `{a,b}`, `!pattern`"
 
@@ -226,7 +226,7 @@ The event-type-to-fields mapping and the match summary generation logic are pure
 - Confirm `canSubmit` requires `matchType.length > 0` when `commissionType === "triggered"`.
 - Confirm `handleSubmit` builds `match`, `approval`, and `maxDepth` fields in the payload for triggered type.
 - Confirm empty field pattern rows are filtered out before payload construction.
-- Confirm no changes to `web/app/api/commissions/route.ts` (the proxy already passes the full body through).
+- Confirm no changes to `apps/web/app/api/commissions/route.ts` (the proxy already passes the full body through).
 
 **Behavioral checks:**
 - Render test: mount `CommissionForm`, select "Trigger" type, verify trigger section appears with all four field groups.
@@ -243,7 +243,7 @@ The event-type-to-fields mapping and the match summary generation logic are pure
 ## Constraints
 
 - No daemon changes. The creation route already handles `type: "triggered"` with `match`, `approval`, and `maxDepth` fields.
-- No API proxy changes. `web/app/api/commissions/route.ts` passes the full request body through.
+- No API proxy changes. `apps/web/app/api/commissions/route.ts` passes the full request body through.
 - The event-type-to-fields mapping is a static snapshot. It does not auto-sync with `SystemEvent` type definitions. Manual update is required when event types change.
 - Click-to-insert for template variables (clicking a variable token inserts it at cursor position in the prompt) is not in scope. It's a nice-to-have that requires cursor position tracking and `textarea` selection management.
 - Field key autocomplete (dropdown suggestions in the Key input based on event type) is not in scope. The hint text is sufficient for v1.
@@ -262,5 +262,5 @@ The event-type-to-fields mapping and the match summary generation logic are pure
 - [Spec: Triggered Commissions](../commissions/triggered-commissions.md): Defines the trigger data model, lifecycle, and daemon creation route this form submits to. REQ-TRIG-1 through REQ-TRIG-3 define the artifact shape. REQ-TRIG-25a defines the `createTriggeredCommission` tool parameters which mirror what the form sends.
 - [Spec: Halted Commission Action Buttons](halted-commission-actions.md): Prior UI spec in the same directory, used as a format reference.
 - `CommissionForm.tsx`: The form component this spec modifies. Currently supports one-shot and scheduled types with a type toggle and conditional schedule section.
-- `web/app/api/commissions/route.ts`: The API proxy. Passes full request body to daemon. No changes needed.
-- `daemon/routes/commissions.ts:104-121`: The daemon creation route for `type: "triggered"`. Validates `match.type` against `SYSTEM_EVENT_TYPES`.
+- `apps/web/app/api/commissions/route.ts`: The API proxy. Passes full request body to daemon. No changes needed.
+- `apps/daemon/routes/commissions.ts:104-121`: The daemon creation route for `type: "triggered"`. Validates `match.type` against `SYSTEM_EVENT_TYPES`.

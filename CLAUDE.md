@@ -10,17 +10,17 @@ Guild Hall is a multi-agent workspace for delegating work to AI specialists and 
 
 **LLM interaction boundary.** All LLM calls go through the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`). No direct Anthropic API calls. If the full `runSdkSession` pipeline is too heavy, build a lighter SDK session. Do not drop to the raw API.
 
-**DI factory pattern.** Routes use `createXRoutes(deps)`. Production wiring lives in `daemon/app.ts` via `createProductionApp()`. New factories must be wired there.
+**DI factory pattern.** Routes use `createXRoutes(deps)`. Production wiring lives in `apps/daemon/app.ts` via `createProductionApp()`. New factories must be wired there.
 
-**Type boundaries.** Daemon-specific types live in `daemon/types.ts`. Shared types live in `lib/types.ts`. `lib/` never imports from `daemon/` or `web/`.
+**Type boundaries.** Daemon-specific types live in `apps/daemon/types.ts`. Shared types live in `lib/types.ts`. `lib/` never imports from `apps/daemon/` or `apps/web/`.
 
 **Five Concerns.** Session, Activity, Artifact, Toolbox, and Worker are separate concerns with boundary rules. See `.lore/specs/infrastructure/daemon-application-boundary.md`.
 
 **Plugin naming.** Claude plugin names in `plugin/.claude-plugin/plugin.json` must be kebab-case. The Claude Agent SDK will not load plugins with spaces or other non-kebab naming.
 
-**Git branch tiers.** `master` / `claude` / activity branches. All git operations go through `daemon/lib/git.ts`; rebase/sync through `daemon/services/git-admin.ts`.
+**Git branch tiers.** `master` / `claude` / activity branches. All git operations go through `apps/daemon/lib/git.ts`; rebase/sync through `apps/daemon/services/git-admin.ts`.
 
-**`@/` path alias.** Resolves to repo root everywhere. `web/tsconfig.json` must use `baseUrl: ".."` plus an explicit `@/*` mapping — bun resolves the nearest `tsconfig.json` per file, and relative `../*` paths break under `extends`.
+**`@/` path alias.** Resolves to repo root everywhere. `apps/web/tsconfig.json` must use `baseUrl: ".."` plus an explicit `@/*` mapping — bun resolves the nearest `tsconfig.json` per file, and relative `../*` paths break under `extends`.
 
 ## Commands
 
@@ -32,7 +32,7 @@ bun run build                      # production build
 bun run lint                       # ESLint
 bun run typecheck                  # TypeScript
 bun test                           # all tests
-bun test tests/lib/config.test.ts  # single file
+bun test lib/tests/config.test.ts  # single file
 bun run guild-hall --help          # CLI subcommands
 ```
 
@@ -51,7 +51,7 @@ bun run guild-hall --help          # CLI subcommands
 
 - **Vendor prefix order matters.** `-webkit-backdrop-filter` must come BEFORE `backdrop-filter` or the standard property gets dropped during Next.js compilation.
 - **No CSS Modules `composes`.** Turbopack silently ignores it. Use TSX-side class composition instead.
-- **No raw color values in CSS Modules.** All colors must use `var(--color-*)` tokens from `web/app/globals.css`. Add a token there first; never use hex, rgb, or hsl literals in `.module.css`.
+- **No raw color values in CSS Modules.** All colors must use `var(--color-*)` tokens from `apps/web/app/globals.css`. Add a token there first; never use hex, rgb, or hsl literals in `.module.css`.
 - Styling uses CSS Modules, not Tailwind.
 
 ## Changelog

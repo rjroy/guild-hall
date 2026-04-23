@@ -3,7 +3,7 @@ title: Meetings List Preview Text
 date: 2026-03-19
 status: implemented
 tags: [ui, meetings, ux]
-modules: [web/components/project]
+modules: [apps/web/components/project]
 related:
   - .lore/specs/meetings/guild-hall-meetings.md
   - .lore/specs/meetings/meeting-rename.md
@@ -26,7 +26,7 @@ Depends on: [Spec: Guild Hall Meetings](guild-hall-meetings.md) for the meeting 
 
 ## Entry Points
 
-- User views the Meetings tab on a Project page (`web/components/project/MeetingList.tsx`)
+- User views the Meetings tab on a Project page (`apps/web/components/project/MeetingList.tsx`)
 
 ## Requirements
 
@@ -112,8 +112,8 @@ Depends on: [Spec: Guild Hall Meetings](guild-hall-meetings.md) for the meeting 
 
 ## Context
 
-- `web/components/project/MeetingList.tsx`: The component this spec modifies. Currently renders title, status gem, date, and worker. The `meetingTitle()` helper reads `meeting.meta.title`. The `.info` CSS class wraps the title and metadata row.
-- `web/components/project/MeetingList.module.css`: Existing styles. The preview line adds a new `.preview` class following the pattern of `.title` and `.meta`.
-- `web/components/dashboard/MeetingRequestCard.tsx`: Already displays `request.agenda` as preview text (line 245-247). Confirms that agenda is a reliable, non-empty field for meetings created through the request flow.
+- `apps/web/components/project/MeetingList.tsx`: The component this spec modifies. Currently renders title, status gem, date, and worker. The `meetingTitle()` helper reads `meeting.meta.title`. The `.info` CSS class wraps the title and metadata row.
+- `apps/web/components/project/MeetingList.module.css`: Existing styles. The preview line adds a new `.preview` class following the pattern of `.title` and `.meta`.
+- `apps/web/components/dashboard/MeetingRequestCard.tsx`: Already displays `request.agenda` as preview text (line 245-247). Confirms that agenda is a reliable, non-empty field for meetings created through the request flow.
 - `lib/meetings.ts`: Defines `MeetingMeta` with typed `agenda` and `notes` fields. The `MeetingList` component does not use this type (it receives `Artifact[]`), but the field names confirm what's stored in frontmatter.
-- `daemon/services/meeting/record.ts`: `writeMeetingArtifact()` writes `agenda` from the user's initial prompt. For user-created meetings, this is the message they typed to start the meeting. For accepted requests, it's the request's agenda text.
+- `apps/daemon/services/meeting/record.ts`: `writeMeetingArtifact()` writes `agenda` from the user's initial prompt. For user-created meetings, this is the message they typed to start the meeting. For accepted requests, it's the request's agenda text.
