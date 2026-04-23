@@ -17,8 +17,8 @@ import type {
   ToolboxMetadata,
   DiscoveredPackage,
 } from "@/lib/types";
-import { prepareSdkSession } from "@/daemon/lib/agent-sdk/sdk-runner";
-import { noopEventBus } from "@/daemon/lib/event-bus";
+import { prepareSdkSession } from "@/apps/daemon/lib/agent-sdk/sdk-runner";
+import { noopEventBus } from "@/apps/daemon/lib/event-bus";
 import type { ActivationResult, ResolvedToolSet } from "@/lib/types";
 
 let tmpDir: string;

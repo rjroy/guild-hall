@@ -5,7 +5,7 @@ import * as os from "node:os";
 import { readConfig, writeConfig, getProject } from "@/lib/config";
 import { appConfigSchema, projectConfigSchema, modelDefinitionSchema } from "@/lib/config";
 import { SYSTEM_EVENT_TYPES } from "@/lib/types";
-import type { SystemEvent } from "@/daemon/lib/event-bus";
+import type { SystemEvent } from "@/apps/daemon/lib/event-bus";
 
 let tmpDir: string;
 

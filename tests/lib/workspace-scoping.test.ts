@@ -15,12 +15,12 @@ import { scanCommissions } from "@/lib/commissions";
 import {
   makeReadMemoryHandler,
   makeEditMemoryHandler,
-} from "@/daemon/services/base-toolbox";
+} from "@/apps/daemon/services/base-toolbox";
 import {
   buildManagerContext,
   type ManagerContextDeps,
-} from "@/daemon/services/manager/context";
-import { MANAGER_PACKAGE_NAME } from "@/daemon/services/manager/worker";
+} from "@/apps/daemon/services/manager/context";
+import { MANAGER_PACKAGE_NAME } from "@/apps/daemon/services/manager/worker";
 import type { DiscoveredPackage, WorkerMetadata } from "@/lib/types";
 import type { CommissionMeta } from "@/lib/commissions";
 

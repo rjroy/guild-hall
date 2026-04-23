@@ -4,8 +4,8 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { makeGenerateImageHandler } from "@/packages/guild-hall-replicate/tools/generate-image";
 import { ReplicateClient } from "@/packages/guild-hall-replicate/replicate-client";
-import { createEventBus } from "@/daemon/lib/event-bus";
-import type { SystemEvent } from "@/daemon/lib/event-bus";
+import { createEventBus } from "@/apps/daemon/lib/event-bus";
+import type { SystemEvent } from "@/apps/daemon/lib/event-bus";
 
 // -- Mock fetch --
 

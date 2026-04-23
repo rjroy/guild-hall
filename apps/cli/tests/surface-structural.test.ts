@@ -15,20 +15,20 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { createApp } from "@/daemon/app";
-import { noopEventBus } from "@/daemon/lib/event-bus";
-import type { GitOps } from "@/daemon/lib/git";
-import type { HeartbeatService } from "@/daemon/services/heartbeat/index";
-import type { createBriefingGenerator } from "@/daemon/services/briefing-generator";
-import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";
-import type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
+import { createApp } from "@/apps/daemon/app";
+import { noopEventBus } from "@/apps/daemon/lib/event-bus";
+import type { GitOps } from "@/apps/daemon/lib/git";
+import type { HeartbeatService } from "@/apps/daemon/services/heartbeat/index";
+import type { createBriefingGenerator } from "@/apps/daemon/services/briefing-generator";
+import type { MeetingSessionForRoutes } from "@/apps/daemon/services/meeting/orchestrator";
+import type { ActiveMeetingEntry } from "@/apps/daemon/services/meeting/registry";
+import type { CommissionSessionForRoutes } from "@/apps/daemon/services/commission/orchestrator";
 import type {
   AppConfig,
   DiscoveredPackage,
   OperationDefinition,
 } from "@/lib/types";
-import type { OperationsRegistry } from "@/daemon/lib/operations-registry";
+import type { OperationsRegistry } from "@/apps/daemon/lib/operations-registry";
 import {
   CLI_SURFACE,
   AGGREGATE_SENTINEL,

@@ -14,7 +14,7 @@ import { NextRequest } from "next/server";
  * - Daemon offline (503) — when all required fields are present
  *
  * The actual write, git commit, and dependency check behavior is tested
- * in tests/daemon/routes/artifacts.test.ts.
+ * in apps/daemon/tests/routes/artifacts.test.ts.
  */
 
 let tmpDir: string;

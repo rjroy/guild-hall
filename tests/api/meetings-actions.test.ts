@@ -14,7 +14,7 @@ import { POST as deferPOST } from "@/web/app/api/meetings/[meetingId]/defer/rout
  * DaemonError and the routes to respond with 503.
  *
  * The happy path (daemon online) is covered by the daemon route tests in
- * tests/daemon/routes/meetings.test.ts, which test the daemon endpoints
+ * apps/daemon/tests/routes/meetings.test.ts, which test the daemon endpoints
  * directly via app.request() with injected dependencies.
  */
 

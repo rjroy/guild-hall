@@ -33,7 +33,12 @@ const eslintConfig = defineConfig([
   // issues in source but only produce noise in tests that call components
   // directly or use expect().rejects.
   {
-    files: ["tests/**/*.ts", "tests/**/*.tsx"],
+    files: [
+      "tests/**/*.ts",
+      "tests/**/*.tsx",
+      "apps/*/tests/**/*.ts",
+      "apps/*/tests/**/*.tsx",
+    ],
     rules: {
       "@typescript-eslint/await-thenable": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",

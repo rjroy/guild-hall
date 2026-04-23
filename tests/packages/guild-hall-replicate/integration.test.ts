@@ -21,7 +21,7 @@ import { ReplicateClient } from "@/packages/guild-hall-replicate/replicate-clien
 import { makeGenerateImageHandler } from "@/packages/guild-hall-replicate/tools/generate-image";
 import { makeGetModelParamsHandler } from "@/packages/guild-hall-replicate/tools/get-model-params";
 import { makeCheckPredictionHandler } from "@/packages/guild-hall-replicate/tools/check-prediction";
-import { createEventBus } from "@/daemon/lib/event-bus";
+import { createEventBus } from "@/apps/daemon/lib/event-bus";
 
 const ENABLED = process.env.REPLICATE_INTEGRATION_TESTS === "true";
 const TOKEN = process.env.REPLICATE_API_TOKEN ?? "";

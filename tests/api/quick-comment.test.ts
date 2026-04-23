@@ -17,7 +17,7 @@ import { POST } from "@/web/app/api/meetings/[meetingId]/quick-comment/route";
  *
  * Tests that verify meeting metadata parsing, worker extraction, commission
  * creation, and decline behavior are covered by the daemon route tests
- * (tests/daemon/routes/meetings.test.ts and tests/daemon/routes/commissions.test.ts)
+ * (apps/daemon/tests/routes/meetings.test.ts and apps/daemon/tests/routes/commissions.test.ts)
  * since this route is now a pure compound orchestration of daemon endpoints.
  */
 

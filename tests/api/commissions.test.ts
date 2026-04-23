@@ -20,7 +20,7 @@ import { GET as eventsGET } from "@/web/app/api/events/route";
  * DaemonError and the routes to respond with 503.
  *
  * The happy path (daemon online) is covered by the daemon route tests in
- * tests/daemon/routes/commissions.test.ts, which test the daemon endpoints
+ * apps/daemon/tests/routes/commissions.test.ts, which test the daemon endpoints
  * directly via app.request() with injected dependencies.
  */
 

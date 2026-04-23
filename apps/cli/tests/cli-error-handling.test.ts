@@ -140,7 +140,7 @@ describe("CLI error handling: daemon route error responses", () => {
   // route currently returns 429).
 
   test("404 from commission read (commission not found)", async () => {
-    const { createApp } = await import("@/daemon/app");
+    const { createApp } = await import("@/apps/daemon/app");
     const stubSession = makeStubSession();
     const tmpDir = await import("node:fs/promises").then((fs) => fs.mkdtemp(`${os.tmpdir()}/cli-err-`));
     const config = { projects: [{ name: "test-project", path: `${os.tmpdir()}/nonexistent` }], logLevel: "info" as const };
@@ -160,7 +160,7 @@ describe("CLI error handling: daemon route error responses", () => {
   });
 
   test("409 from dispatch with wrong status", async () => {
-    const { createApp } = await import("@/daemon/app");
+    const { createApp } = await import("@/apps/daemon/app");
     const stubSession = makeStubSession({
       dispatchCommission: () => Promise.reject(new Error('Commission must be "pending" to dispatch')),
     });
@@ -180,7 +180,7 @@ describe("CLI error handling: daemon route error responses", () => {
   });
 
   test("429 returns error body message (not hardcoded commission text)", async () => {
-    const { createApp } = await import("@/daemon/app");
+    const { createApp } = await import("@/apps/daemon/app");
     const stubSession = makeStubSession();
     createApp({
       health: { getMeetingCount: () => 0, getCommissionCount: () => 0, getUptimeSeconds: () => 42 },
@@ -206,7 +206,7 @@ describe("CLI error handling: daemon route error responses", () => {
   });
 
   test("409 from cancel with invalid transition", async () => {
-    const { createApp } = await import("@/daemon/app");
+    const { createApp } = await import("@/apps/daemon/app");
     const stubSession = makeStubSession({
       cancelCommission: () => Promise.reject(new Error("Cannot cancel a completed commission")),
     });
@@ -227,7 +227,7 @@ describe("CLI error handling: daemon route error responses", () => {
 });
 
 // Minimal stub session for tests that need one
-import type { CommissionSessionForRoutes } from "@/daemon/services/commission/orchestrator";
+import type { CommissionSessionForRoutes } from "@/apps/daemon/services/commission/orchestrator";
 
 function makeStubSession(overrides: Partial<CommissionSessionForRoutes> = {}): CommissionSessionForRoutes {
   return {

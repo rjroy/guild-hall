@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { createEventBus } from "@/daemon/lib/event-bus";
-import type { GuildHallToolboxDeps } from "@/daemon/services/toolbox-types";
+import { createEventBus } from "@/apps/daemon/lib/event-bus";
+import type { GuildHallToolboxDeps } from "@/apps/daemon/services/toolbox-types";
 import type { AppConfig } from "@/lib/types";
 import type {
   JmapSession,

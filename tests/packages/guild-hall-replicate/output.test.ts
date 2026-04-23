@@ -8,7 +8,7 @@ import {
   detectExtension,
   validateInputFile,
 } from "@/packages/guild-hall-replicate/output";
-import { formatTimestamp } from "@/daemon/lib/toolbox-utils";
+import { formatTimestamp } from "@/apps/daemon/lib/toolbox-utils";
 
 // -- Temp dir tracking --
 

@@ -5,12 +5,12 @@ import type {
   JmapResponse,
   Mailbox,
 } from "@/packages/guild-hall-email/jmap-client";
-import { OperationHandlerError } from "@/daemon/services/operation-types";
+import { OperationHandlerError } from "@/apps/daemon/services/operation-types";
 import type {
   OperationFactoryDeps,
   OperationHandlerContext,
   PackageOperation,
-} from "@/daemon/services/operation-types";
+} from "@/apps/daemon/services/operation-types";
 import type { AppConfig } from "@/lib/types";
 
 // -- Mock data --

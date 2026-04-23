@@ -23,7 +23,7 @@
   "files": ["web/css-modules.d.ts"],
   "include": [
     "lib/**/*.ts",
-    "daemon/**/*.ts",
+    "apps/daemon/**/*.ts",
     "apps/cli/**/*.ts",
     "tests/**/*.ts",
     "tests/**/*.tsx",

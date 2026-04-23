@@ -6,9 +6,9 @@ import {
   discoverPackages,
   packageMetadataSchema,
 } from "@/lib/packages";
-import { resolveToolSet } from "@/daemon/services/toolbox-resolver";
-import { createContextTypeRegistry } from "@/daemon/services/context-type-registry";
-import { createEventBus } from "@/daemon/lib/event-bus";
+import { resolveToolSet } from "@/apps/daemon/services/toolbox-resolver";
+import { createContextTypeRegistry } from "@/apps/daemon/services/context-type-registry";
+import { createEventBus } from "@/apps/daemon/lib/event-bus";
 import type {
   WorkerMetadata,
   DiscoveredPackage,
