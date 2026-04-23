@@ -12,6 +12,8 @@ related:
 
 # Plan: P4 Adapter (Disposable Local Git)
 
+> **Historical note.** This plan describes the P4 adapter as it was built, and its path references reflect the repo layout at the time of execution (`p4-adapter/` at repo root). The module was subsequently relocated to `lib/p4-adapter/` (commit `4b7ded40`) and the spec updated by the repository-layout refactor. For current paths see `.lore/specs/infrastructure/p4-adapter.md`; for the relocation rationale see `.lore/specs/infrastructure/repository-layout.md`. The original language is preserved here because this plan is marked `status: executed` — it is a dated record of what was done.
+
 ## Context
 
 The P4 adapter is a standalone CLI tool that wraps a Perforce workspace in a disposable git repo. Two commands (`init`, `shelve`) handle the full lifecycle. It lives in `p4-adapter/` at the repo root, follows the same standalone-Bun-script pattern as `cli/`, and has zero coupling to daemon, web, lib, or packages.
