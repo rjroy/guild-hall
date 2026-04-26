@@ -1,36 +1,42 @@
 .inputBar {
   display: flex;
-  gap: var(--space-sm);
+  gap: var(--space-2);
   align-items: flex-end;
-  padding: var(--space-md);
-  background-color: rgba(26, 20, 18, 0.9);
-  border-top: 1px solid rgba(184, 134, 11, 0.2);
-  border-radius: 0 0 8px 8px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-raised);
+  border-top: 1px solid var(--rule);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
 .textarea {
   flex: 1;
   font-family: var(--font-body);
-  font-size: 1rem;
-  line-height: 1.5;
-  color: var(--color-text);
-  background-color: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(184, 134, 11, 0.15);
-  border-radius: 6px;
-  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-base);
+  line-height: var(--leading-snug);
+  color: var(--fg);
+  background: var(--parchment-50);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 9px 12px;
   resize: none;
   outline: none;
   overflow-y: auto;
   max-height: 200px;
+  box-shadow: var(--shadow-inset);
+  transition: border-color var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .textarea {
+  background: var(--bg-sunken);
 }
 
 .textarea::placeholder {
-  color: var(--color-text-muted);
+  color: var(--fg-muted);
+  font-style: italic;
 }
 
 .textarea:focus {
-  border-color: rgba(184, 134, 11, 0.4);
-  box-shadow: 0 0 0 1px rgba(184, 134, 11, 0.15);
+  border-color: var(--ember-500);
 }
 
 .textarea:disabled {
@@ -43,38 +49,49 @@
 .sendButton,
 .stopButton {
   flex-shrink: 0;
-  padding: var(--space-sm) var(--space-lg);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 600;
-  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: var(--tracking-wider);
+  border-radius: var(--radius);
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
+  transition: all var(--dur) var(--ease-out);
   white-space: nowrap;
+  border: 1px solid transparent;
 }
 
 .sendButton {
-  background-color: rgba(184, 134, 11, 0.2);
-  border: 1px solid var(--color-brass);
-  color: var(--color-brass);
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  border-color: var(--ember-700);
+  color: var(--fg-on-ember);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .sendButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.35);
-  color: var(--color-amber);
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+  box-shadow: var(--shadow), var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+:global([data-theme="dark"]) .sendButton {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
 }
 
 .sendButton:disabled {
-  opacity: 0.35;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .stopButton {
-  background-color: rgba(224, 96, 96, 0.15);
-  border: 1px solid var(--color-error-light);
-  color: var(--color-error-light);
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .stopButton:hover {
-  background-color: rgba(224, 96, 96, 0.3);
+  background: var(--danger);
+  color: var(--parchment-50);
 }

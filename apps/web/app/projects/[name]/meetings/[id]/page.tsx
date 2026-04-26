@@ -7,6 +7,7 @@ import MeetingView from "@/apps/web/components/meeting/MeetingView";
 import Panel from "@/apps/web/components/ui/Panel";
 import type { LinkedArtifact } from "@/apps/web/components/meeting/ArtifactsPanel";
 import DaemonError from "@/apps/web/components/ui/DaemonError";
+import { AppBar } from "@/apps/web/components/guild";
 import styles from "./page.module.css";
 
 /** Shape returned by GET /workers */
@@ -94,8 +95,10 @@ export default async function MeetingPage({
   // Closed meetings show an ended message
   if (status === "closed" || status === "complete") {
     return (
-      <div className={styles.meetingView}>
-        <MeetingHeader
+      <div className={styles.shell}>
+        <AppBar project={projectName} page="Audience" />
+        <div className={styles.meetingView}>
+          <MeetingHeader
           projectName={projectName}
           projectTitle={projectTitle}
           workerName={workerName}
@@ -104,17 +107,18 @@ export default async function MeetingPage({
           agenda={agenda}
           model={workerModel}
         />
-        <Panel size="full">
-          <div className={styles.ended}>
-            <p className={styles.endedText}>This audience has ended.</p>
-            <a
-              href={`/projects/${encoded}`}
-              className={styles.endedLink}
-            >
-              Return to project
-            </a>
-          </div>
-        </Panel>
+          <Panel size="full">
+            <div className={styles.ended}>
+              <p className={styles.endedText}>This audience has ended.</p>
+              <a
+                href={`/projects/${encoded}`}
+                className={styles.endedLink}
+              >
+                Return to project
+              </a>
+            </div>
+          </Panel>
+        </div>
       </div>
     );
   }
@@ -122,19 +126,22 @@ export default async function MeetingPage({
   const initialArtifacts = buildLinkedArtifacts(linkedPaths, projectName);
 
   return (
-    <div className={styles.meetingView}>
-      <MeetingView
-        meetingId={id}
-        projectName={projectName}
-        projectTitle={projectTitle}
-        workerName={workerName}
-        workerDisplayTitle={workerDisplayTitle}
-        workerPortraitUrl={workerPortraitUrl}
-        initialArtifacts={initialArtifacts}
-        initialMessages={parsedMessages}
-        agenda={agenda}
-        model={workerModel}
-      />
+    <div className={styles.shell}>
+      <AppBar project={projectName} page="Audience" />
+      <div className={styles.meetingView}>
+        <MeetingView
+          meetingId={id}
+          projectName={projectName}
+          projectTitle={projectTitle}
+          workerName={workerName}
+          workerDisplayTitle={workerDisplayTitle}
+          workerPortraitUrl={workerPortraitUrl}
+          initialArtifacts={initialArtifacts}
+          initialMessages={parsedMessages}
+          agenda={agenda}
+          model={workerModel}
+        />
+      </div>
     </div>
   );
 }

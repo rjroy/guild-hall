@@ -1,56 +1,62 @@
 .toolUse {
-  border: 1px solid rgba(184, 134, 11, 0.15);
-  border-radius: 4px;
-  margin: var(--space-xs) 0;
-  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  margin: var(--space-1) 0;
+  background: var(--bg-sunken);
 }
 
 .toolHeader {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-2);
   width: 100%;
-  padding: var(--space-xs) var(--space-sm);
-  background: none;
-  border: none;
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: 0;
   cursor: pointer;
-  font-family: var(--font-body);
-  color: var(--color-text);
+  font-family: var(--font-serif);
+  color: var(--fg);
   text-align: left;
+  transition: background var(--dur) var(--ease-out);
 }
 
 .toolHeader:hover {
-  background-color: rgba(184, 134, 11, 0.05);
+  background: var(--brand-soft);
 }
 
 .toolName {
-  font-family: var(--font-code);
-  font-size: 0.8rem;
-  color: var(--color-brass);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--ember-700);
   font-weight: 500;
 }
 
+:global([data-theme="dark"]) .toolName {
+  color: var(--ember-300);
+}
+
 .toolStatus {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
+  font-size: var(--text-xs);
+  color: var(--fg-3);
   margin-left: auto;
 }
 
 .expandIcon {
   font-size: 0.65rem;
-  color: var(--color-text-muted);
+  color: var(--fg-3);
   flex-shrink: 0;
 }
 
 /* --- Expanded details --- */
 
 .toolDetails {
-  border-top: 1px solid rgba(184, 134, 11, 0.1);
-  padding: var(--space-sm);
+  border-top: 1px solid var(--rule);
+  padding: var(--space-2);
 }
 
 .detailSection {
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-2);
 }
 
 .detailSection:last-child {
@@ -59,21 +65,22 @@
 
 .detailLabel {
   display: block;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: var(--space-xs);
+  color: var(--fg-3);
+  margin-bottom: var(--space-1);
 }
 
 .detailContent {
-  font-family: var(--font-code);
-  font-size: 0.75rem;
-  color: var(--color-text);
-  background-color: rgba(0, 0, 0, 0.3);
-  padding: var(--space-sm);
-  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--parchment-50);
+  background: var(--ink-900);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ink-700);
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-word;

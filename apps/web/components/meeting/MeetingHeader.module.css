@@ -1,13 +1,17 @@
-/* Meeting-specific condensed override: tighter border-radius */
+/* ============================================================
+   MeetingHeader — guild audience banner
+   ============================================================ */
+
+/* Meeting-specific condensed override: keep banner shape */
 .meetingCondensed {
-  border-radius: 8px;
+  border-radius: 0;
 }
 
 /* --- Worker + Agenda row (expanded) --- */
 
 .headerContent {
   display: flex;
-  gap: var(--space-lg);
+  gap: var(--space-5);
   align-items: flex-start;
 }
 
@@ -15,7 +19,7 @@
 
 .headerContentCondensed {
   display: flex;
-  gap: var(--space-sm);
+  gap: var(--space-3);
   align-items: center;
 }
 
@@ -30,7 +34,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-2);
 }
 
 /* --- Agenda (condensed) --- */
@@ -41,10 +45,9 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-3);
 }
 
-/* Breadcrumb + agenda text column that shrinks to make room for buttons */
 .agendaContentCondensed {
   flex: 1;
   min-width: 0;
@@ -54,65 +57,71 @@
 }
 
 .agendaTitle {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-brass);
-  margin: 0;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--ember-700);
+  margin: 0;
+}
+
+:global([data-theme="dark"]) .agendaTitle {
+  color: var(--ember-300);
 }
 
 .agendaText {
-  font-size: 0.9rem;
-  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
   margin: 0;
-  line-height: 1.5;
+  line-height: var(--leading-snug);
   white-space: pre-wrap;
 }
 
-/* Condensed agenda: single line with ellipsis */
 .agendaTextCondensed {
-  font-size: 0.8rem;
-  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
   margin: 0;
-  line-height: 1.3;
+  line-height: var(--leading-snug);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Trailing row: model label + toggle chevron */
 .agendaTrailing {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-3);
   flex-shrink: 0;
 }
 
 .modelLabel {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
 }
 
-/* --- Phone close button (REQ-MTG-LAYOUT-22) --- */
+/* --- Phone close button --- */
 
 .headerCloseButton {
   display: none;
-  background: rgba(180, 60, 60, 0.15);
-  border: 1px solid rgba(180, 60, 60, 0.3);
-  border-radius: 4px;
-  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
   cursor: pointer;
-  font-size: 0.75rem;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wide);
   line-height: 1;
   padding: 4px 8px;
   flex-shrink: 0;
-  transition: background-color 0.2s, border-color 0.2s;
+  transition: background var(--dur) var(--ease-out);
 }
 
 .headerCloseButton:hover:not(:disabled) {
-  background-color: rgba(180, 60, 60, 0.25);
-  border-color: rgba(180, 60, 60, 0.5);
+  background: var(--danger-soft);
 }
 
 .headerCloseButton:disabled {
@@ -130,7 +139,6 @@
 }
 
 @media (max-width: 480px) {
-  /* REQ-MTG-LAYOUT-22: Show close button in condensed header on phone */
   .headerCloseButton {
     display: inline-flex;
   }

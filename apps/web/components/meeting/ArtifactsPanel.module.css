@@ -1,17 +1,9 @@
 .panel {
-  background-color: var(--color-panel-bg);
-  border: 1px solid rgba(184, 134, 11, 0.15);
-  border-radius: 8px;
-  padding: var(--space-md);
-
-  border-image-source: url("/images/ui/border.webp");
-  border-image-slice: 120 120 120 120;
-  border-image-width: 30px;
-  border-radius: 30px;
-
-  /* vendor prefix must precede standard property in Next.js */
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
 }
 
 .header {
@@ -19,25 +11,30 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  background: none;
-  border: none;
+  background: transparent;
+  border: 0;
   cursor: pointer;
   user-select: none;
-  padding: var(--space-xs) 0;
+  padding: var(--space-1) 0;
 }
 
 .title {
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--color-brass);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
   margin: 0;
+}
+
+:global([data-theme="dark"]) .title {
+  color: var(--ember-300);
 }
 
 .toggleIcon {
   font-size: 0.75rem;
-  color: var(--color-text-muted);
-  transition: transform 0.2s;
+  color: var(--fg-3);
+  transition: transform 0.2s var(--ease-out);
 }
 
 .toggleIconExpanded {
@@ -46,31 +43,38 @@
 
 .list {
   list-style: none;
-  margin: var(--space-sm) 0 0;
+  margin: var(--space-3) 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-1);
 }
 
 .item {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-xs);
-  border-radius: 4px;
-  transition: background-color 0.15s;
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  border: 1px solid var(--rule);
+  transition: border-color var(--dur) var(--ease-out);
 }
 
 .item:hover {
-  background-color: rgba(184, 134, 11, 0.08);
+  border-color: var(--ember-500);
 }
 
 .artifactLink {
-  color: var(--color-brass);
+  font-family: var(--font-mono);
+  color: var(--ember-700);
   text-decoration: none;
-  font-size: 0.85rem;
+  font-size: 12px;
   font-weight: 500;
+}
+
+:global([data-theme="dark"]) .artifactLink {
+  color: var(--ember-300);
 }
 
 .artifactLink:hover {
@@ -79,20 +83,22 @@
 }
 
 .artifactPath {
-  font-family: var(--font-code);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
 }
 
 .notFound {
+  font-family: var(--font-serif);
   font-style: italic;
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
+  color: var(--fg-3);
+  font-size: var(--text-xs);
 }
 
 .empty {
-  font-size: 0.85rem;
+  font-family: var(--font-serif);
   font-style: italic;
-  color: var(--color-text-muted);
-  margin: var(--space-sm) 0 0;
+  font-size: var(--text-sm);
+  color: var(--fg-3);
+  margin: var(--space-2) 0 0;
 }

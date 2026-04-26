@@ -1,42 +1,26 @@
 .chatInterface {
   display: flex;
   flex-direction: column;
-  background-color: var(--color-panel-bg);
-  padding: 3px;
-  border: 1px solid rgba(184, 134, 11, 0.15);
-  border-radius: 8px;
-  /* Fill available vertical space in the meeting view */
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   flex: 1;
   min-height: 200px;
-
-  /* vendor prefix must precede standard property in Next.js */
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  overflow: hidden;
 }
-
-.chatInterface::before {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  inset: -3px;
-  border: 40px solid transparent;
-  border-image-source: url("/images/ui/border-ornate.webp");
-  border-image-slice: 120 120 120 120 fill;
-  border-image-width: 40px;
-}
-
 
 .messageArea {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-lg);
+  padding: var(--space-6);
   scroll-behavior: smooth;
-  margin: 6px 7px 0 0; /* Account for border */
 }
 
 /* Scrollbar styling for the message area */
 .messageArea::-webkit-scrollbar {
-  width: 6px;
+  width: 10px;
+  height: 10px;
 }
 
 .messageArea::-webkit-scrollbar-track {
@@ -44,19 +28,17 @@
 }
 
 .messageArea::-webkit-scrollbar-thumb {
-  background-color: rgba(184, 134, 11, 0.3);
-  border-radius: 3px;
+  background: var(--rule);
+  border-radius: 999px;
+  border: 2px solid var(--bg-raised);
 }
 
 .messageArea::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(184, 134, 11, 0.5);
+  background: var(--rule-strong);
 }
 
-/* --- Responsive --- */
-
 @media (max-width: 480px) {
-  .chatInterface::before {
-    border-width: 24px;
-    border-image-width: 24px;
+  .messageArea {
+    padding: var(--space-4);
   }
 }

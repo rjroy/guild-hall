@@ -1,12 +1,24 @@
+/* ============================================================
+   Audience layout — AppBar → MeetingView (or ended panel)
+   ============================================================ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
 .meetingView {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  padding: var(--space-lg);
-  height: 100vh;
-  height: 100dvh;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
-  max-width: 960px;
+  max-width: 1280px;
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -16,42 +28,49 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-2xl);
+  gap: var(--space-4);
+  padding: var(--space-12);
   text-align: center;
 }
 
 .endedText {
-  font-size: 1.1rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
   font-style: italic;
+  font-size: var(--text-lg);
+  color: var(--fg-2);
   margin: 0;
 }
 
 .endedLink {
-  color: var(--color-brass);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  font-size: 0.9rem;
-  transition: color 0.2s;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
+  text-decoration: none;
+  border: 1px solid var(--ember-500);
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  transition: all var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .endedLink {
+  color: var(--ember-300);
 }
 
 .endedLink:hover {
-  color: var(--color-amber);
+  background: var(--brand-soft);
 }
-
-/* --- Responsive --- */
 
 @media (max-width: 768px) {
   .meetingView {
-    padding: var(--space-md);
+    padding: var(--space-3) var(--space-4);
   }
 }
 
 @media (max-width: 480px) {
   .meetingView {
-    padding: var(--space-sm);
-    gap: var(--space-sm);
-    max-width: 100%;
+    padding: var(--space-3);
+    gap: var(--space-3);
   }
 }
