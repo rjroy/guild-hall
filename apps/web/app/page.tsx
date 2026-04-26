@@ -7,6 +7,7 @@ import RecentArtifacts from "@/apps/web/components/dashboard/RecentArtifacts";
 import ActiveMeetings from "@/apps/web/components/dashboard/ActiveMeetings";
 import PendingAudiences from "@/apps/web/components/dashboard/PendingAudiences";
 import DaemonError from "@/apps/web/components/ui/DaemonError";
+import { AppBar } from "@/apps/web/components/guild";
 import styles from "./page.module.css";
 
 /** Shape returned by GET /workers */
@@ -105,37 +106,43 @@ export default async function DashboardPage({
   }
 
   return (
-    <div className={styles.dashboard}>
-      <div className={styles.projects}>
-        <WorkspaceSidebar
-          projects={config.projects}
-          selectedProject={selectedProject}
-        />
-      </div>
-      <div className={styles.main}>
-        <ManagerBriefing projectName={selectedProject} />
-        <InFlight
-          commissions={selectedProject
-            ? allCommissions.filter(c => c.projectName === selectedProject)
-            : allCommissions}
-          selectedProject={selectedProject}
-        />
-      </div>
-      <div className={styles.sidebar}>
-        <ActiveMeetings
-          meetings={selectedProject
-            ? allActiveMeetings.filter((m) => m.projectName === selectedProject)
-            : allActiveMeetings}
-          workerPortraits={workerPortraits}
-        />
-        <PendingAudiences
-          requests={selectedProject ? allRequests.filter((r) => r.projectName === selectedProject) : allRequests}
-          workerPortraits={workerPortraits}
-        />
-        <RecentArtifacts
-          artifacts={artifacts}
-          selectedProject={selectedProject}
-        />
+    <div className={styles.shell}>
+      <AppBar
+        project={selectedProject ?? "all projects"}
+        page="The Long Hall"
+      />
+      <div className={styles.dashboard}>
+        <div className={styles.projects}>
+          <WorkspaceSidebar
+            projects={config.projects}
+            selectedProject={selectedProject}
+          />
+        </div>
+        <div className={styles.main}>
+          <ManagerBriefing projectName={selectedProject} />
+          <InFlight
+            commissions={selectedProject
+              ? allCommissions.filter(c => c.projectName === selectedProject)
+              : allCommissions}
+            selectedProject={selectedProject}
+          />
+        </div>
+        <div className={styles.sidebar}>
+          <ActiveMeetings
+            meetings={selectedProject
+              ? allActiveMeetings.filter((m) => m.projectName === selectedProject)
+              : allActiveMeetings}
+            workerPortraits={workerPortraits}
+          />
+          <PendingAudiences
+            requests={selectedProject ? allRequests.filter((r) => r.projectName === selectedProject) : allRequests}
+            workerPortraits={workerPortraits}
+          />
+          <RecentArtifacts
+            artifacts={artifacts}
+            selectedProject={selectedProject}
+          />
+        </div>
       </div>
     </div>
   );

@@ -1,20 +1,25 @@
 /* ============================================================
-   Dashboard: Five-Zone Grid Layout
+   Dashboard layout — app bar above three-zone grid
 
-   +----------+----------+-----------+
-   | projects |  main    | sidebar   |
-   +----------+----------+-----------+
+   +---------------------------- AppBar ----------------------------+
+   |  projects   |          main           |        sidebar         |
+   +-------------+-------------------------+------------------------+
    ============================================================ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
 
 .dashboard {
   display: grid;
   grid-template-columns: 260px 1fr 320px;
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    "projects main sidebar";
-  gap: var(--space-md);
-  padding: var(--space-lg);
-  min-height: 100vh;
+  grid-template-areas: "projects main sidebar";
+  gap: var(--space-4);
+  padding: var(--space-6);
+  flex: 1;
+  min-height: 0;
 }
 
 .projects {
@@ -22,7 +27,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-4);
 }
 
 .main {
@@ -30,7 +35,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-4);
 }
 
 .sidebar {
@@ -38,7 +43,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-4);
 }
 
 /* --- Responsive: drop grid, use flex column --- */
@@ -47,26 +52,18 @@
   .dashboard {
     display: flex;
     flex-direction: column;
-    gap: var(--space-md);
-    padding: var(--space-md);
+    gap: var(--space-4);
+    padding: var(--space-4);
   }
 
-  .projects {
-    order: 0;
-  }
-
-  .main {
-    order: 1;
-  }
-
-  .sidebar {
-    order: 2;
-  }
+  .projects { order: 0; }
+  .main { order: 1; }
+  .sidebar { order: 2; }
 }
 
 @media (max-width: 480px) {
   .dashboard {
-    padding: var(--space-sm);
-    gap: var(--space-sm);
+    padding: var(--space-3);
+    gap: var(--space-3);
   }
 }

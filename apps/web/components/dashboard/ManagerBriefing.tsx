@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Panel from "@/apps/web/components/ui/Panel";
+import { Flourish } from "@/apps/web/components/guild";
 import styles from "./ManagerBriefing.module.css";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -89,14 +90,7 @@ export default function ManagerBriefing({ projectName }: ManagerBriefingProps) {
 
   return (
     <Panel title="Guild Master's Briefing" variant="parchment">
-      {/* Static decorative asset. next/image optimization not beneficial. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/images/ui/scroll-window.webp"
-        alt=""
-        className={styles.divider}
-        aria-hidden="true"
-      />
+      <Flourish />
       {state.status === "idle" && null}
       {state.status === "loading" && (
         <div className={styles.skeleton}>

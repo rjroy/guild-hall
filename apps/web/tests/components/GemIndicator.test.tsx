@@ -7,12 +7,12 @@ import GemIndicator from "@/apps/web/components/ui/GemIndicator";
  *
  * CSS module class names resolve to undefined in bun test, so className
  * tests verify structural behavior (the filter/join pattern produces a
- * string) rather than specific CSS class values. The alt text mapping
- * and img src are fully testable since they're plain data.
+ * string) rather than specific CSS class values. The aria-label mapping
+ * is fully testable since it's plain data.
  */
 
 describe("GemIndicator", () => {
-  describe("alt text", () => {
+  describe("aria-label", () => {
     const cases: Array<{ status: "active" | "pending" | "blocked" | "info"; expected: string }> = [
       { status: "active", expected: "Active" },
       { status: "pending", expected: "Pending" },
@@ -21,18 +21,18 @@ describe("GemIndicator", () => {
     ];
 
     for (const { status, expected } of cases) {
-      test(`status "${status}" has alt text "${expected}"`, () => {
+      test(`status "${status}" has aria-label "${expected}"`, () => {
         const el = GemIndicator({ status });
-        expect(el.props.alt).toBe(expected);
+        expect(el.props["aria-label"]).toBe(expected);
       });
     }
   });
 
-  describe("renders as img element", () => {
-    test("returns an img element with the gem asset src", () => {
+  describe("renders as a span with role=img", () => {
+    test("returns a span element with role=img", () => {
       const el = GemIndicator({ status: "active" });
-      expect(el.type).toBe("img");
-      expect(el.props.src).toBe("/images/ui/gem.webp");
+      expect(el.type).toBe("span");
+      expect(el.props.role).toBe("img");
     });
   });
 
@@ -52,8 +52,8 @@ describe("GemIndicator", () => {
 
       for (const status of statuses) {
         const el = GemIndicator({ status, size: "md" });
-        expect(el.type).toBe("img");
-        expect(el.props.src).toBe("/images/ui/gem.webp");
+        expect(el.type).toBe("span");
+        expect(el.props.role).toBe("img");
         expect(typeof el.props.className).toBe("string");
       }
     });
@@ -62,8 +62,8 @@ describe("GemIndicator", () => {
       const sm = GemIndicator({ status: "active", size: "sm" });
       const md = GemIndicator({ status: "active", size: "md" });
 
-      expect(sm.type).toBe("img");
-      expect(md.type).toBe("img");
+      expect(sm.type).toBe("span");
+      expect(md.type).toBe("span");
       expect(typeof sm.props.className).toBe("string");
       expect(typeof md.props.className).toBe("string");
     });
@@ -74,10 +74,8 @@ describe("GemIndicator", () => {
       const defaultSize = GemIndicator({ status: "info" });
       const explicitMd = GemIndicator({ status: "info", size: "md" });
 
-      // Both should be img elements with the same alt text
       expect(defaultSize.type).toBe(explicitMd.type);
-      expect(defaultSize.props.alt).toBe(explicitMd.props.alt);
-      expect(defaultSize.props.src).toBe(explicitMd.props.src);
+      expect(defaultSize.props["aria-label"]).toBe(explicitMd.props["aria-label"]);
     });
   });
 });

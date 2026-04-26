@@ -1,36 +1,43 @@
-/* InFlight card - filtered commission list on the dashboard */
+/* ============================================================
+   InFlight — filtered commission list on the dashboard
+   ============================================================ */
 
 .list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: 0;
   overflow-y: auto;
-  max-height: 200px;
+  max-height: 280px;
 }
 
 .row {
-  border-radius: 4px;
-  transition: background-color 0.15s ease;
+  border-bottom: 1px solid var(--rule-soft);
+  transition: background-color var(--dur) var(--ease-out);
+}
+
+.row:last-child {
+  border-bottom: 0;
 }
 
 .row:hover {
-  background-color: rgba(184, 134, 11, 0.1);
+  background-color: var(--brand-soft);
 }
 
 .link {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm);
+  gap: var(--space-3);
+  padding: var(--space-3);
   text-decoration: none;
   color: inherit;
 }
 
 .title {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--fg-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -39,13 +46,19 @@
 }
 
 .worker {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
+  font-size: var(--text-xs);
+  color: var(--fg-2);
   white-space: nowrap;
 }
 
 .projectLabel {
-  font-size: 0.75rem;
-  color: var(--color-brass);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ember-700);
   white-space: nowrap;
+}
+
+:global([data-theme="dark"]) .projectLabel {
+  color: var(--ember-300);
 }

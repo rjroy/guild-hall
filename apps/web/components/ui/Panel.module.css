@@ -1,129 +1,91 @@
+/* ============================================================
+   Panel
+   ----------------------------------------------------------
+   Guild card surface. Two variants:
+   - dark: solid bg-raised, ink rule, soft shadow ("card")
+   - parchment: warm scroll surface with inset glow ("scroll")
+   ============================================================ */
+
 .panel {
   position: relative;
-  border: 10px solid transparent;
-  border-radius: 30px;
-
-  /* vendor prefix must precede standard property in Next.js */
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  border-radius: var(--radius-md);
 }
 
-/* Ensure panel content sits above any pseudo-element backgrounds */
 .content {
   position: relative;
   z-index: 1;
 }
 
-/* ============================================================
-   Variant: dark (default)
-   Glassmorphic panel over the background image.
-   ============================================================ */
-
+/* ---- Variant: dark (default card) ---- */
 .dark {
-  background-color: var(--color-panel-bg);
-  border-image-source: url("/images/ui/border.webp");
-  border-image-slice: 120 120 120 120;
-  border-image-width: 30px;
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-sm);
 }
 
-/* ============================================================
-   Variant: parchment
-   Warm surface for content panels. Paper texture is the
-   visible background, not a ghost overlay.
-   ============================================================ */
-
+/* ---- Variant: parchment (scroll) ---- */
 .parchment {
-  background-color: hsla(30, 20%, 14%, 0.85);
-  border-image-source: url("/images/ui/border-ornate.webp");
-  border-image-slice: 52 52 52 52;
-  border-image-width: 20px;
-  border-image-outset: 5px;
+  background: var(--parchment-50);
+  border-top: 1px solid var(--parchment-300);
+  border-bottom: 1px solid var(--parchment-300);
+  box-shadow: var(--shadow-sm), inset 0 0 60px rgba(184, 154, 94, 0.15);
+  border-radius: 4px;
 }
-
-/* Paper texture visible as warm underlayer */
-.parchment::before {
+:global([data-theme="dark"]) .parchment {
+  background: var(--bg-raised);
+  border-color: var(--rule);
+  box-shadow: var(--shadow), inset 0 0 60px rgba(58, 40, 20, 0.45);
+}
+.parchment::before,
+.parchment::after {
   content: "";
   position: absolute;
-  inset: 0;
-  background-image: url("/images/ui/paper-bg.webp");
-  background-size: cover;
-  opacity: 0.08;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  background: linear-gradient(90deg, transparent, rgba(58, 40, 20, 0.18) 40%, transparent 100%);
   pointer-events: none;
   z-index: 0;
 }
+.parchment::before { left: 0; }
+.parchment::after  { right: 0; transform: scaleX(-1); }
 
-.parchment .title {
-  color: var(--color-amber);
-}
-
-/* --- Size Variants --- */
-
-.sm {
-  padding: var(--space-sm);
-}
-
-.md {
-  padding: var(--space-md);
-}
-
-.lg {
-  padding: var(--space-lg);
-}
-
+/* ---- Sizes ---- */
+.sm   { padding: var(--space-3); }
+.md   { padding: var(--space-4); }
+.lg   { padding: var(--space-6); }
 .full {
-  padding: var(--space-lg);
+  padding: var(--space-6);
   width: 100%;
 }
 
-/* --- Header --- */
+/* Parchment variant gets a bit more horizontal breathing room
+   to honor the scroll-edge gradients */
+.parchment.sm   { padding: var(--space-4) var(--space-5); }
+.parchment.md   { padding: var(--space-5) var(--space-6); }
+.parchment.lg   { padding: var(--space-6) var(--space-8); }
+.parchment.full { padding: var(--space-6) var(--space-8); }
 
+/* ---- Header / Title ---- */
 .header {
-  margin-bottom: var(--space-md);
+  margin-bottom: var(--space-3);
 }
 
 .title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--color-brass);
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg-1);
   margin: 0;
+  line-height: var(--leading-snug);
 }
 
-/* --- Responsive --- */
-
-@media (max-width: 1200px) {
-  .panel {
-    border-width: 8px;
-    border-radius: 22px;
-  }
-
-  .dark {
-    border-image-width: 22px;
-  }
-
-  .parchment {
-    border-image-width: 16px;
-  }
-
-  .title {
-    font-size: 1.1rem;
-  }
-
-  .header {
-    margin-bottom: var(--space-sm);
-  }
-}
-
+/* Responsive */
 @media (max-width: 480px) {
-  .panel {
-    border-width: 6px;
-    border-radius: 18px;
+  .sm, .md, .lg, .full { padding: var(--space-3); }
+  .parchment.sm, .parchment.md, .parchment.lg, .parchment.full {
+    padding: var(--space-4);
   }
-
-  .dark {
-    border-image-width: 18px;
-  }
-
-  .parchment {
-    border-image-width: 14px;
-  }
+  .title { font-size: var(--text-lg); }
 }

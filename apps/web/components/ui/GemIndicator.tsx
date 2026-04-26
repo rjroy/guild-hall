@@ -1,11 +1,13 @@
 import styles from "./GemIndicator.module.css";
 
+export type GemStatus = "pending" | "active" | "blocked" | "info" | "inactive";
+
 interface GemIndicatorProps {
-  status: "pending" | "active" | "blocked" | "info" | "inactive";
+  status: GemStatus;
   size?: "sm" | "md";
 }
 
-const ALT_TEXT: Record<GemIndicatorProps["status"], string> = {
+const ALT_TEXT: Record<GemStatus, string> = {
   active: "Active",
   pending: "Pending",
   blocked: "Blocked",
@@ -21,13 +23,5 @@ export default function GemIndicator({
     .filter(Boolean)
     .join(" ");
 
-  return (
-    // Static decorative asset, fixed size. next/image optimization not beneficial.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src="/images/ui/gem.webp"
-      alt={ALT_TEXT[status]}
-      className={className}
-    />
-  );
+  return <span className={className} role="img" aria-label={ALT_TEXT[status]} />;
 }

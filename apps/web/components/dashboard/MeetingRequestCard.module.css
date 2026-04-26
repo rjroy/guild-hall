@@ -1,83 +1,105 @@
+/* ============================================================
+   MeetingRequestCard — actionable pending audience card
+   ============================================================ */
+
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  border-radius: 8px;
-  background-color: rgba(184, 134, 11, 0.06);
-  border: 1px solid rgba(184, 134, 11, 0.15);
-  transition: background-color 0.15s ease;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--dur) var(--ease-out);
 }
 
 .card:hover {
-  background-color: rgba(184, 134, 11, 0.1);
+  border-color: var(--rule-strong);
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-3);
 }
 
 .workerName {
-  font-size: 0.95rem;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
   font-weight: 600;
-  color: var(--color-text-heading);
+  color: var(--fg-1);
   margin: 0;
 }
 
 .workerTitle {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xs);
+  color: var(--fg-3);
   margin: 0;
 }
 
 .agenda {
-  font-size: 0.85rem;
-  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
   margin: 0;
-  line-height: 1.5;
+  line-height: var(--leading-snug);
 }
 
 .artifacts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-xs);
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .artifactTag {
-  font-size: 0.75rem;
-  color: var(--color-brass);
-  background-color: rgba(184, 134, 11, 0.1);
-  padding: 2px var(--space-sm);
-  border-radius: 4px;
-  border: 1px solid rgba(184, 134, 11, 0.2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-700);
+  background: var(--parchment-200);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--rule);
+}
+
+:global([data-theme="dark"]) .artifactTag {
+  color: var(--fg-2);
+  background: var(--bg-sunken);
 }
 
 .deferredBadge {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
   font-style: italic;
+  font-size: var(--text-xs);
+  color: var(--fg-3);
 }
 
 .actions {
   display: flex;
-  gap: var(--space-sm);
-  margin-top: var(--space-xs);
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 
+/* Base — mirrors .btn from guild.css */
 .actionButton {
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  font-weight: 500;
-  padding: var(--space-xs) var(--space-md);
-  border-radius: 4px;
-  border: 1px solid rgba(184, 134, 11, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: all var(--dur) var(--ease-out);
+  background: transparent;
 }
 
 .actionButton:disabled {
@@ -85,161 +107,154 @@
   cursor: not-allowed;
 }
 
-.openButton {
-  background-color: rgba(184, 134, 11, 0.15);
-  color: var(--color-text-heading);
+/* Primary action — ember-tinted */
+.openButton,
+.dateConfirmButton,
+.quickCommentSendButton {
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  color: var(--fg-on-ember);
+  border-color: var(--ember-700);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-.openButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.25);
-  border-color: var(--color-brass);
+.openButton:hover:not(:disabled),
+.dateConfirmButton:hover:not(:disabled),
+.quickCommentSendButton:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+  box-shadow: var(--shadow), var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
-.deferButton {
-  background-color: transparent;
-  color: var(--color-text-muted);
+:global([data-theme="dark"]) .openButton,
+:global([data-theme="dark"]) .dateConfirmButton,
+:global([data-theme="dark"]) .quickCommentSendButton {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
 }
 
-.deferButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.08);
-  color: var(--color-text);
+/* Secondary actions — quiet */
+.deferButton,
+.ignoreButton,
+.dateCancelButton,
+.quickCommentButton,
+.quickCommentCancelButton {
+  color: var(--fg-2);
+  border-color: var(--rule);
+  background: transparent;
 }
 
-.ignoreButton {
-  background-color: transparent;
-  color: var(--color-text-muted);
+.deferButton:hover:not(:disabled),
+.ignoreButton:hover:not(:disabled),
+.dateCancelButton:hover:not(:disabled),
+.quickCommentButton:hover:not(:disabled),
+.quickCommentCancelButton:hover:not(:disabled) {
+  color: var(--ember-700);
+  background: var(--brand-soft);
+  border-color: var(--ember-500);
 }
 
-.ignoreButton:hover:not(:disabled) {
-  background-color: rgba(139, 69, 19, 0.1);
-  color: var(--color-text);
+:global([data-theme="dark"]) .deferButton:hover:not(:disabled),
+:global([data-theme="dark"]) .ignoreButton:hover:not(:disabled),
+:global([data-theme="dark"]) .dateCancelButton:hover:not(:disabled),
+:global([data-theme="dark"]) .quickCommentButton:hover:not(:disabled),
+:global([data-theme="dark"]) .quickCommentCancelButton:hover:not(:disabled) {
+  color: var(--ember-300);
 }
 
+/* Date picker row */
 .datePickerRow {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  margin-top: var(--space-xs);
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  flex-wrap: wrap;
 }
 
 .dateInput {
   font-family: var(--font-body);
-  font-size: 0.8rem;
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: 4px;
-  border: 1px solid rgba(184, 134, 11, 0.3);
-  background-color: rgba(26, 20, 18, 0.5);
-  color: var(--color-text);
+  font-size: var(--text-sm);
+  padding: 6px var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--rule);
+  background: var(--parchment-50);
+  color: var(--fg);
+  box-shadow: var(--shadow-inset);
 }
 
-.dateConfirmButton {
-  background-color: rgba(184, 134, 11, 0.12);
-  color: var(--color-text);
+:global([data-theme="dark"]) .dateInput {
+  background: var(--bg-sunken);
 }
 
-.dateConfirmButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.2);
+.dateInput:focus {
+  outline: none;
+  border-color: var(--ember-500);
 }
 
-.dateCancelButton {
-  background-color: transparent;
-  color: var(--color-text-muted);
-}
-
-.dateCancelButton:hover:not(:disabled) {
-  color: var(--color-text);
-}
-
-.quickCommentButton {
-  background-color: rgba(184, 134, 11, 0.08);
-  color: var(--color-text-muted);
-}
-
-.quickCommentButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.18);
-  color: var(--color-text);
-  border-color: var(--color-brass);
-}
-
+/* Quick comment form */
 .quickCommentForm {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  margin-top: var(--space-xs);
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 
 .quickCommentInput {
   font-family: var(--font-body);
-  font-size: 0.85rem;
-  padding: var(--space-sm);
-  border-radius: 4px;
-  border: 1px solid rgba(184, 134, 11, 0.3);
-  background-color: rgba(26, 20, 18, 0.5);
-  color: var(--color-text);
+  font-size: var(--text-sm);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--rule);
+  background: var(--parchment-50);
+  color: var(--fg);
+  box-shadow: var(--shadow-inset);
   resize: vertical;
   min-height: 60px;
-  line-height: 1.4;
+  line-height: var(--leading-snug);
+}
+
+:global([data-theme="dark"]) .quickCommentInput {
+  background: var(--bg-sunken);
 }
 
 .quickCommentInput::placeholder {
-  color: var(--color-text-muted);
-  opacity: 0.7;
+  color: var(--fg-muted);
 }
 
 .quickCommentInput:focus {
   outline: none;
-  border-color: var(--color-brass);
+  border-color: var(--ember-500);
 }
 
 .quickCommentActions {
   display: flex;
-  gap: var(--space-sm);
-}
-
-.quickCommentSendButton {
-  background-color: rgba(184, 134, 11, 0.15);
-  color: var(--color-text-heading);
-}
-
-.quickCommentSendButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.25);
-  border-color: var(--color-brass);
-}
-
-.quickCommentCancelButton {
-  background-color: transparent;
-  color: var(--color-text-muted);
-}
-
-.quickCommentCancelButton:hover:not(:disabled) {
-  color: var(--color-text);
+  gap: var(--space-2);
 }
 
 .error {
-  font-size: 0.8rem;
-  color: var(--color-error);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--danger);
   margin: 0;
 }
 
 .streamingIndicator {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
+  gap: var(--space-2);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg-3);
 }
 
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(184, 134, 11, 0.3);
-  border-top-color: var(--color-brass);
+  border: 2px solid var(--rule);
+  border-top-color: var(--ember-500);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }

@@ -6,3 +6,4 @@ export { default as Tag } from "./Tag";
 export { default as Flourish } from "./Flourish";
 export { default as WorkerAvatar } from "./WorkerAvatar";
 export type { WorkerRole } from "./WorkerAvatar";
+export { default as AppBar } from "./AppBar";

@@ -1,60 +1,55 @@
+/* ============================================================
+   RecentArtifacts — recent scrolls list
+   ============================================================ */
+
 .list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: 0;
   max-height: 270px;
   overflow-y: auto;
-
 }
 
 .item {
-  border-radius: 4px;
-  transition: background-color 0.15s ease;
+  border-bottom: 1px solid var(--rule-soft);
+  transition: background var(--dur) var(--ease-out);
+}
+
+.item:last-child {
+  border-bottom: 0;
 }
 
 .item:hover {
-  background-color: rgba(184, 134, 11, 0.1);
+  background: var(--brand-soft);
 }
 
 .link {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
   text-decoration: none;
   color: inherit;
 }
 
 .scrollIcon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
   flex-shrink: 0;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
-.imageIcon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-  opacity: 0.7;
-  line-height: 1;
-}
-
+.imageIcon,
 .mockupIcon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
-  opacity: 0.7;
+  font-size: 0.95rem;
   line-height: 1;
 }
 
@@ -67,20 +62,28 @@
 }
 
 .title {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--fg-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .projectLabel {
-  font-size: 0.75rem;
-  color: var(--color-brass);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .projectLabel {
+  color: var(--ember-300);
 }
 
 .date {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xs);
+  color: var(--fg-3);
 }

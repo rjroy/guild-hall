@@ -89,10 +89,6 @@ export default function WorkspaceSidebar({
 
   return (
     <Panel size="sm">
-      <Link href="/" className={styles.homeLink}>
-        <h1 className={styles.guildTitle}>Guild Hall</h1>
-      </Link>
-
       <div className={styles.sidebarHeader}>
         <h3 className={styles.sectionHeading}>Active Projects</h3>
         <button

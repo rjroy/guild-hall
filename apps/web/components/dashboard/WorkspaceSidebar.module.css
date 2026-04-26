@@ -1,52 +1,73 @@
+/* ============================================================
+   WorkspaceSidebar — guild project list
+   ============================================================ */
+
 .homeLink {
   display: block;
   text-decoration: none;
 }
 
 .guildTitle {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-brass);
-  margin: 0 0 var(--space-lg);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 400;
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg-1);
+  margin: 0 0 var(--space-5);
 }
 
 .sectionHeading {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 0 0 var(--space-sm);
+  color: var(--ember-700);
+  margin: 0 0 var(--space-2);
+}
+
+:global([data-theme="dark"]) .sectionHeading {
+  color: var(--ember-300);
 }
 
 .projectList {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-1);
   overflow-y: auto;
   max-height: 580px;
 }
 
 .projectItem {
-  border-radius: 4px;
-  transition: background-color 0.15s ease;
+  border-radius: var(--radius);
+  transition: background-color var(--dur) var(--ease-out);
 }
 
 .projectItem:hover {
-  background-color: rgba(184, 134, 11, 0.1);
+  background-color: var(--brand-soft);
 }
 
 .selected {
-  border-left: 3px solid var(--color-brass);
-  background-color: rgba(184, 134, 11, 0.08);
+  background-color: var(--brand-soft);
+  position: relative;
+}
+
+.selected::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--ember-500);
+  border-radius: 2px;
 }
 
 .projectLink {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-sm);
-  padding: var(--space-sm);
+  gap: var(--space-2);
+  padding: var(--space-2);
   text-decoration: none;
   color: inherit;
 }
@@ -59,14 +80,24 @@
 }
 
 .projectName {
-  font-size: 0.95rem;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--color-text);
+  color: var(--fg);
+}
+
+.selected .projectName {
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .selected .projectName {
+  color: var(--ember-300);
 }
 
 .projectDescription {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  color: var(--fg-3);
+  font-style: italic;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -75,46 +106,55 @@
 .projectActions {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
-  margin-left: calc(var(--space-sm) + 16px + var(--space-sm));
-  margin-bottom: var(--space-xs);
+  gap: var(--space-1);
+  margin-left: calc(var(--space-2) + 16px + var(--space-2));
+  margin-bottom: var(--space-1);
 }
 
 .viewProjectLink {
-  display: block;
-  padding: 2px var(--space-sm);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-brass);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-2);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
   text-decoration: none;
-  border: 1px solid var(--color-brass);
-  border-radius: 3px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
   width: fit-content;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition: color var(--dur) var(--ease-out), background-color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .viewProjectLink {
+  color: var(--ember-300);
 }
 
 .viewProjectLink:hover {
-  color: var(--color-parchment);
-  background-color: rgba(184, 134, 11, 0.2);
+  border-color: var(--ember-500);
+  background-color: var(--brand-soft);
 }
 
 .tickNowButton {
-  padding: 1px var(--space-xs);
-  font-size: 0.65rem;
-  font-weight: 600;
-  font-family: inherit;
-  color: var(--color-text-muted);
-  background: none;
-  border: 1px solid var(--color-text-muted);
-  border-radius: 3px;
+  padding: 2px var(--space-2);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--fg-3);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
   white-space: nowrap;
 }
 
 .tickNowButton:hover:not(:disabled) {
-  color: var(--color-text);
-  border-color: var(--color-text);
+  color: var(--fg);
+  border-color: var(--rule-strong);
 }
 
 .tickNowButton:disabled {
@@ -125,7 +165,7 @@
 .allProjectsItem .projectLink {
   /* No GemIndicator, so left-align the text with the project names below
      by adding padding equal to the gem width (16px) + gap */
-  padding-left: calc(var(--space-sm) + 16px + var(--space-sm));
+  padding-left: calc(var(--space-2) + 16px + var(--space-2));
 }
 
 /* --- Sidebar header (heading + sort toggle) --- */
@@ -134,7 +174,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-2);
 }
 
 .sidebarHeader .sectionHeading {
@@ -142,54 +182,55 @@
 }
 
 .sortToggle {
-  background: none;
-  border: 1px solid var(--color-text-muted);
-  color: var(--color-text-muted);
-  font-size: 0.7rem;
-  padding: 2px 6px;
-  border-radius: 3px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
 }
 
 .sortToggle:hover {
-  color: var(--color-text);
-  border-color: var(--color-text);
+  color: var(--fg);
+  border-color: var(--rule-strong);
 }
 
 /* --- Group sections --- */
 
 .groupSection {
-  margin-bottom: var(--space-xs);
+  margin-bottom: var(--space-1);
   flex: 0 auto;
 }
 
 .groupHeader {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-1);
   width: 100%;
-  background: none;
-  border: none;
-  padding: var(--space-xs) var(--space-sm);
+  background: transparent;
+  border: 0;
+  padding: var(--space-1) var(--space-2);
   cursor: pointer;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-  font-weight: 600;
+  color: var(--fg-3);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
   text-align: left;
-  border-radius: 3px;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  border-radius: var(--radius-sm);
+  transition: color var(--dur) var(--ease-out);
 }
 
 .groupHeader:hover {
-  color: var(--color-text);
+  color: var(--fg);
 }
 
 .groupIndicator {
   font-size: 0.65rem;
-  transition: transform 0.15s ease;
+  transition: transform var(--dur) var(--ease-out);
 }
 
 .groupIndicator.expanded {
@@ -204,14 +245,14 @@
 
 @media (max-width: 1200px) {
   .guildTitle {
-    font-size: 1.2rem;
-    margin-bottom: var(--space-sm);
+    font-size: var(--text-lg);
+    margin-bottom: var(--space-2);
   }
 
   .projectList {
     flex-direction: row;
     flex-wrap: wrap;
-    gap: var(--space-sm);
+    gap: var(--space-2);
     max-height: 200px;
   }
 
@@ -219,7 +260,7 @@
     flex: 0 1 auto;
     display: flex;
     align-items: center;
-    gap: var(--space-xs);
+    gap: var(--space-1);
   }
 
   .projectDescription {
@@ -232,12 +273,12 @@
   }
 
   .viewProjectLink {
-    font-size: 0.7rem;
+    font-size: 10px;
     white-space: nowrap;
   }
 
   .tickNowButton {
-    font-size: 0.6rem;
+    font-size: 10px;
   }
 
   .groupSection {
