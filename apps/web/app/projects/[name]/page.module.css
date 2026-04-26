@@ -1,63 +1,53 @@
+/* ============================================================
+   Project Hub layout
+   AppBar → ProjectHeader (banner) → ProjectTabs → tab content
+   ============================================================ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
 .projectView {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  padding: var(--space-lg);
-  min-height: 100vh;
-  max-width: 960px;
-  margin: 0 auto;
 }
 
 .tabContent {
   flex: 1;
+  padding: var(--space-6) var(--space-8);
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.commissionTab {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.commissionActions {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.meetingTab {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.meetingActions {
-  display: flex;
-  justify-content: flex-start;
-}
-
+.commissionTab,
+.meetingTab,
 .artifactTab {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-4);
 }
 
+.commissionActions,
+.meetingActions,
 .artifactActions {
   display: flex;
   justify-content: flex-start;
-  gap: 0 var(--space-sm)
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
-/* --- Responsive --- */
-
 @media (max-width: 768px) {
-  .projectView {
-    padding: var(--space-md);
+  .tabContent {
+    padding: var(--space-4) var(--space-4);
   }
 }
 
 @media (max-width: 480px) {
-  .projectView {
-    padding: var(--space-sm);
-    gap: var(--space-sm);
-    max-width: 100%;
+  .tabContent {
+    padding: var(--space-3);
+    gap: var(--space-3);
   }
 }

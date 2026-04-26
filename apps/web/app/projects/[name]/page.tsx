@@ -11,6 +11,7 @@ import CreateMeetingButton from "@/apps/web/components/meeting/CreateMeetingButt
 import CommitLoreButton from "@/apps/web/components/project/CommitLoreButton";
 import NewIssueButton from "@/apps/web/components/project/NewIssueButton";
 import DaemonError from "@/apps/web/components/ui/DaemonError";
+import { AppBar } from "@/apps/web/components/guild";
 import styles from "./page.module.css";
 
 export default async function ProjectPage({
@@ -54,10 +55,12 @@ export default async function ProjectPage({
   const pendingFileCount = loreStatusResult.ok ? loreStatusResult.data.fileCount : 0;
 
   return (
-    <div className={styles.projectView}>
-      <ProjectHeader project={project} />
-      <ProjectTabs projectName={projectName} activeTab={tab} />
-      <div className={styles.tabContent}>
+    <div className={styles.shell}>
+      <AppBar project={projectName} page="Project Hub" />
+      <div className={styles.projectView}>
+        <ProjectHeader project={project} />
+        <ProjectTabs projectName={projectName} activeTab={tab} />
+        <div className={styles.tabContent}>
         {tab === "artifacts" && (
           <div className={styles.artifactTab}>
             <div className={styles.artifactActions}>
@@ -95,6 +98,7 @@ export default async function ProjectPage({
             <MeetingList meetings={meetingArtifacts} projectName={projectName} />
           </div>
         )}
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import GemIndicator from "@/apps/web/components/ui/GemIndicator";
+import { Icon, type IconName } from "@/apps/web/components/guild";
 import styles from "./ProjectTabs.module.css";
 
 interface ProjectTabsProps {
@@ -7,11 +7,11 @@ interface ProjectTabsProps {
   activeTab: string;
 }
 
-const TABS = [
-  { key: "commissions", label: "Commissions" },
-  { key: "artifacts", label: "Artifacts" },
-  { key: "meetings", label: "Meetings" },
-] as const;
+const TABS: ReadonlyArray<{ key: string; label: string; icon: IconName }> = [
+  { key: "commissions", label: "Commissions", icon: "quill" },
+  { key: "artifacts", label: "Artifacts", icon: "folder" },
+  { key: "meetings", label: "Meetings", icon: "users" },
+];
 
 export default function ProjectTabs({
   projectName,
@@ -34,7 +34,7 @@ export default function ProjectTabs({
             className={className}
             aria-current={isActive ? "page" : undefined}
           >
-            <GemIndicator status="info" size="sm" />
+            <Icon name={tab.icon} size={14} />
             <span className={styles.label}>{tab.label}</span>
           </Link>
         );

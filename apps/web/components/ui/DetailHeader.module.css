@@ -1,55 +1,76 @@
+/* ============================================================
+   DetailHeader — collapsible page header (banner)
+   ----------------------------------------------------------
+   Replaces the border-image webp with a clean paper-raised
+   surface, doubled molding rule at the bottom, and warm
+   parchment shading. Same condensed/expanded behavior.
+   ============================================================ */
+
 .header {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-sm) 50px;
-
-  border-radius: 50px;
-  margin-bottom: var(--space-md);
-  /* vendor prefix must precede standard property in Next.js */
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-
-  border-image-source: url("/images/ui/scroll-window-dark.webp");
-  border-image-slice: 52 fill;
-  border-image-width: 50px;
-  border-image-repeat: stretch;
-
-  transition: max-height 250ms ease, padding 250ms ease;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-8);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--rule);
+  transition: max-height 250ms var(--ease-out), padding 250ms var(--ease-out);
   overflow: hidden;
   position: relative;
 }
 
+/* Doubled molding line below the banner — prints, not pixels */
+.header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 1px;
+  background: var(--rule);
+}
+
 .headerCondensed {
-  padding: var(--space-xs) var(--space-md);
-  margin-bottom: var(--space-sm);
+  padding: var(--space-2) var(--space-5);
   cursor: pointer;
 }
 
 /* --- Toggle button --- */
 
 .toggleButton {
-  background: none;
-  border: 1px solid var(--color-brass);
-  border-radius: 5px;
-  color: var(--color-brass);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  color: var(--fg-2);
   cursor: pointer;
-  font-size: 0.80rem;
+  font-size: 0.8rem;
   line-height: 1;
-  padding: 4px 7px;
-  transition: color 0.2s, border-color 0.2s;
+  padding: 4px 8px;
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
   flex-shrink: 0;
 }
 
 .toggleButton:hover {
-  color: var(--color-amber);
-  border-color: var(--color-amber);
+  color: var(--ember-700);
+  border-color: var(--ember-500);
+}
+
+:global([data-theme="dark"]) .toggleButton:hover {
+  color: var(--ember-300);
 }
 
 /* --- Responsive --- */
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .header {
-    padding: var(--space-sm) var(--space-md);
+    padding: var(--space-4) var(--space-5);
+  }
+  .headerCondensed {
+    padding: var(--space-2) var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: var(--space-3) var(--space-4);
   }
 }

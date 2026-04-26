@@ -1,43 +1,50 @@
+/* CommitLoreButton — ghost action that expands into a commit message form */
+
 .commitButton {
-  padding: var(--space-sm) var(--space-md);
-  background-color: var(--color-button-bg);
-  border: 1px solid var(--color-brass);
-  color: var(--color-brass);
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 600;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: var(--tracking-wider);
+  padding: 9px 18px;
+  background: var(--bg-raised);
+  color: var(--fg);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
   cursor: pointer;
-  transition: background-color 0.2s;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  transition: all var(--dur) var(--ease-out);
 }
 
 .commitButton:hover {
-  background-color: var(--color-button-bg-hover);
+  border-color: var(--ember-500);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .commitButton:hover {
+  color: var(--ember-300);
 }
 
 .commitButtonMuted {
-  opacity: 0.45;
+  opacity: 0.5;
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  margin-top: var(--space-xs);
-  background-color: rgba(26, 20, 18, 0.85);
-  /* -webkit- must come before standard property (Next.js compilation quirk) */
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--color-bronze);
-  border-radius: 6px;
-  padding: var(--space-lg);
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
 }
 
 .inputRow {
   display: flex;
-  gap: var(--space-sm);
+  gap: var(--space-2);
   align-items: flex-start;
   flex-wrap: wrap;
 }
@@ -45,75 +52,105 @@
 .messageInput {
   flex: 1;
   min-width: 240px;
-  padding: var(--space-xs) var(--space-sm);
+  padding: 9px 12px;
   font-family: var(--font-body);
-  font-size: 0.9rem;
-  background-color: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(184, 134, 11, 0.4);
-  border-radius: 4px;
-  color: var(--color-parchment);
+  font-size: var(--text-base);
+  background: var(--parchment-50);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--fg);
+  box-shadow: var(--shadow-inset);
+  transition: border-color var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .messageInput {
+  background: var(--bg-sunken);
 }
 
 .messageInput:focus {
   outline: none;
-  border-color: var(--color-brass);
+  border-color: var(--ember-500);
 }
 
 .fileCount {
-  font-size: 0.8rem;
-  opacity: 0.65;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--fg-3);
   align-self: center;
 }
 
 .validationError {
-  font-size: 0.8rem;
-  color: var(--color-error);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--danger);
 }
 
 .formActions {
   display: flex;
-  gap: var(--space-sm);
+  gap: var(--space-2);
   align-items: center;
 }
 
 .submitButton {
-  padding: var(--space-xs) var(--space-md);
-  background-color: rgba(184, 134, 11, 0.2);
-  border: 1px solid var(--color-brass);
-  color: var(--color-brass);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 600;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
+  padding: 6px 12px;
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  color: var(--fg-on-ember);
+  border: 1px solid var(--ember-700);
+  border-radius: var(--radius);
   cursor: pointer;
+  transition: all var(--dur) var(--ease-out);
+}
+
+.submitButton:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+}
+
+:global([data-theme="dark"]) .submitButton {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
 }
 
 .submitButton:disabled {
-  opacity: 0.4;
-  cursor: default;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .cancelLink {
-  font-size: 0.85rem;
-  opacity: 0.6;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
   cursor: pointer;
-  background: none;
-  border: none;
-  color: inherit;
-  padding: 0;
-  text-decoration: underline;
+  background: transparent;
+  border: 0;
+  color: var(--fg-3);
+  padding: 6px 12px;
 }
 
 .cancelLink:hover {
-  opacity: 1;
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .cancelLink:hover {
+  color: var(--ember-300);
 }
 
 .resultText {
-  font-size: 0.85rem;
-  opacity: 0.8;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg-2);
 }
 
 .resultError {
-  font-size: 0.85rem;
-  color: var(--color-error);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--danger);
 }

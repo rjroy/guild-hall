@@ -1,8 +1,15 @@
+/* ============================================================
+   Breadcrumb — quiet path with chevron separators
+   ============================================================ */
+
 .breadcrumb {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
-  font-size: 0.85rem;
+  gap: var(--space-1);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--fg-3);
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
@@ -11,24 +18,29 @@
 .segment {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-1);
 }
 
 .link {
-  color: var(--color-text-muted);
+  color: var(--fg-3);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--dur) var(--ease-out);
 }
 
 .link:hover {
-  color: var(--color-amber);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .link:hover {
+  color: var(--ember-300);
 }
 
 .separator {
-  color: var(--color-text-muted);
+  color: var(--fg-muted);
 }
 
 .current {
-  color: var(--color-brass);
-  font-weight: 500;
+  color: var(--fg);
+  font-style: normal;
+  font-weight: 600;
 }

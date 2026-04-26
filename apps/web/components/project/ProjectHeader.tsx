@@ -53,6 +53,7 @@ export default function ProjectHeader({ project }: ProjectHeaderProps) {
             <Breadcrumb segments={segments} />
             {toggleButton}
           </div>
+          <div className={styles.eyebrow}>The Project</div>
           <h1 className={styles.heading}>{title}</h1>
           {project.description && (
             <p className={styles.description}>{project.description}</p>

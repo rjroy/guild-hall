@@ -1,24 +1,44 @@
-/* --- Expanded state --- */
+/* ============================================================
+   ProjectHeader — guild banner with eyebrow + display title
+   ============================================================ */
 
 .breadcrumbRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-sm);
+  gap: var(--space-3);
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
+  margin-bottom: var(--space-1);
+}
+
+:global([data-theme="dark"]) .eyebrow {
+  color: var(--ember-300);
 }
 
 .heading {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--color-text-heading);
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-4xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg-1);
   margin: 0;
 }
 
 .description {
-  color: var(--color-text-muted);
-  font-size: 0.95rem;
-  line-height: 1.5;
-  margin: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--fg-2);
+  font-size: var(--text-base);
+  line-height: var(--leading-snug);
+  margin: var(--space-2) 0 0;
 }
 
 /* --- Condensed state --- */
@@ -26,23 +46,25 @@
 .condensedRow {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: var(--space-4);
   min-height: 36px;
 }
 
 .condensedLeft {
   display: flex;
   align-items: baseline;
-  gap: var(--space-md);
+  gap: var(--space-4);
   flex: 1;
   min-width: 0;
   overflow: hidden;
 }
 
 .headingCondensed {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--color-text-heading);
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg-1);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -52,23 +74,33 @@
 .condensedTrailing {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-2);
   flex-shrink: 0;
 }
 
-/* --- Title link --- */
+/* --- Title link (when project has a repoUrl) --- */
 
 .titleLink {
-  color: var(--color-text-heading);
+  color: inherit;
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--dur) var(--ease-out);
 }
 
 .titleLink:hover {
-  color: var(--color-amber);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .titleLink:hover {
+  color: var(--ember-300);
 }
 
 .externalIcon {
   font-size: 0.7em;
   opacity: 0.6;
+}
+
+@media (max-width: 768px) {
+  .heading {
+    font-size: var(--text-3xl);
+  }
 }

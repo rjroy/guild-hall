@@ -1,76 +1,78 @@
+/* ============================================================
+   ArtifactList — tree + smart-view artifact browser
+   ============================================================ */
+
 .list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: 0;
 }
 
 .item {
-  border-radius: 4px;
-  transition: background-color 0.15s ease;
+  border-bottom: 1px solid var(--rule-soft);
+  transition: background var(--dur) var(--ease-out);
+}
+
+.item:last-child {
+  border-bottom: 0;
 }
 
 .item:hover {
-  background-color: rgba(184, 134, 11, 0.1);
+  background: var(--brand-soft);
 }
 
 .link {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm);
+  gap: var(--space-3);
+  padding: var(--space-3);
   text-decoration: none;
   color: inherit;
 }
 
 .scrollIcon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
   flex-shrink: 0;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
-.imageIcon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-  opacity: 0.7;
-  line-height: 1;
-}
-
+.imageIcon,
 .mockupIcon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
-  opacity: 0.7;
+  font-size: 0.95rem;
   line-height: 1;
 }
 
 .previewAction {
   flex-shrink: 0;
-  padding: 2px var(--space-sm);
-  background: none;
-  border: 1px solid var(--color-brass);
-  border-radius: 3px;
-  color: var(--color-brass);
-  font-size: 0.75rem;
-  font-family: inherit;
+  padding: 2px var(--space-2);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  color: var(--ember-700);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .previewAction {
+  color: var(--ember-300);
 }
 
 .previewAction:hover {
-  background: var(--color-brass);
-  color: var(--color-bg);
+  border-color: var(--ember-500);
+  background: var(--brand-soft);
 }
 
 .info {
@@ -82,9 +84,10 @@
 }
 
 .title {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--fg-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -93,64 +96,86 @@
 .meta {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
 .date {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xs);
+  color: var(--fg-3);
 }
 
 .tags {
   display: flex;
-  gap: var(--space-xs);
+  gap: var(--space-1);
   flex-wrap: wrap;
 }
 
 .tag {
-  font-size: 0.7rem;
-  padding: 1px 6px;
-  background-color: rgba(244, 228, 193, 0.1);
-  color: var(--color-text-muted);
-  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px var(--space-2);
+  background: var(--parchment-200);
+  color: var(--ink-700);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
   white-space: nowrap;
+}
+
+:global([data-theme="dark"]) .tag {
+  background: var(--bg-sunken);
+  color: var(--fg-2);
 }
 
 .directoryRow {
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm);
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
   user-select: none;
   width: 100%;
-  background: none;
-  border: none;
+  background: transparent;
+  border: 0;
   text-align: left;
-  font-family: inherit;
+  font-family: var(--font-serif);
   color: inherit;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur) var(--ease-out);
+}
+
+.directoryRow:hover {
+  background: var(--brand-soft);
 }
 
 .directoryRowDepth0 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-brass);
-  margin-bottom: var(--space-xs);
-  padding-bottom: var(--space-xs);
-  border-bottom: 1px solid rgba(184, 134, 11, 0.2);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  color: var(--ember-700);
+  margin-bottom: var(--space-1);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--rule);
+}
+
+:global([data-theme="dark"]) .directoryRowDepth0 {
+  color: var(--ember-300);
 }
 
 .directoryRowDeep {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg-2);
 }
 
 .chevron {
   display: inline-block;
   font-size: 0.65rem;
-  transition: transform 0.15s ease;
+  transition: transform var(--dur) var(--ease-out);
   flex-shrink: 0;
+  color: var(--fg-3);
 }
 
 .chevronExpanded {
@@ -163,7 +188,7 @@
 }
 
 .treeSection {
-  margin-bottom: var(--space-lg);
+  margin-bottom: var(--space-6);
 }
 
 .treeSection:last-child {
@@ -172,83 +197,99 @@
 
 /* View controls wrapper */
 .viewControls {
-  margin-bottom: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--color-panel-bg);
-  border-radius: 6px;
-  border-bottom: 1px solid var(--color-bronze);
-  /* -webkit- prefix must come before standard property (Next.js compilation quirk) */
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
 }
 
 /* Sub-tabs */
 .subTabs {
   display: flex;
-  gap: var(--space-sm);
-  border-bottom: 1px solid var(--color-border);
+  gap: 0;
+  border-bottom: 1px solid var(--rule);
 }
 
 .subTab {
-  background: none;
-  border: none;
-  padding: var(--space-xs) var(--space-sm);
+  background: transparent;
+  border: 0;
+  padding: var(--space-2) var(--space-3);
   cursor: pointer;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  font-family: inherit;
+  color: var(--fg-2);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
   border-bottom: 2px solid transparent;
-  transition: color 0.2s;
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
+}
+
+.subTab:hover {
+  color: var(--fg-1);
 }
 
 .subTabActive {
-  color: var(--color-brass);
-  border-bottom-color: var(--color-brass);
+  color: var(--ember-700);
+  border-bottom-color: var(--ember-500);
+}
+
+:global([data-theme="dark"]) .subTabActive {
+  color: var(--ember-300);
 }
 
 /* Smart view filter bar */
 .filterBar {
-  background: var(--color-panel-bg);
+  background: var(--bg-raised);
   display: flex;
-  gap: var(--space-sm);
-  padding-top: var(--space-sm);
+  gap: var(--space-2);
+  padding-top: var(--space-2);
   flex-wrap: wrap;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
   overflow-y: auto;
   max-height: 150px;
-  border-radius: 10px;
+  border-radius: var(--radius);
 }
 
 .filterButton {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  padding: var(--space-xs) var(--space-sm);
+  gap: var(--space-1);
+  background: var(--bg-sunken);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
   cursor: pointer;
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-  font-family: inherit;
-  transition: all 0.2s;
-  margin: 0 0 0 var(--space-sm);
+  color: var(--fg-2);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  transition: all var(--dur) var(--ease-out);
+  margin: 0 0 0 var(--space-2);
 }
 
 .filterButtonActive {
-  background: rgba(184, 157, 105, 0.15);
-  border-color: var(--color-brass);
-  color: var(--color-parchment);
+  background: var(--brand-soft);
+  border-color: var(--ember-500);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .filterButtonActive {
+  color: var(--ember-300);
 }
 
 .filterBadge {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 10px;
+  background: var(--parchment-200);
+  border-radius: var(--radius-pill);
   padding: 0 6px;
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
   min-width: 1.2em;
   text-align: center;
+  color: var(--ink-700);
+}
+
+:global([data-theme="dark"]) .filterBadge {
+  background: var(--bg-sunken);
+  color: var(--fg-2);
 }
 
 /* Smart view list items */
@@ -261,37 +302,38 @@
 }
 
 .smartItem {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--rule-soft);
 }
 
 .smartItem:last-child {
-  border-bottom: none;
+  border-bottom: 0;
 }
 
 .smartLink {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-3) var(--space-4);
   text-decoration: none;
   color: inherit;
-  transition: background 0.15s;
+  transition: background var(--dur) var(--ease-out);
 }
 
 .smartLink:hover {
-  background: rgba(184, 134, 11, 0.1);
+  background: var(--brand-soft);
 }
 
 .smartItemMain {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-sm);
+  gap: var(--space-2);
 }
 
 .smartTitle {
-  font-size: 0.95rem;
-  color: var(--color-parchment);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg-1);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -301,18 +343,28 @@
 
 .smartItemMeta {
   display: flex;
-  gap: var(--space-sm);
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+  gap: var(--space-2);
+  font-family: var(--font-serif);
+  font-size: var(--text-xs);
+  color: var(--fg-3);
 }
 
 .metaLabel {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
+  background: var(--parchment-200);
+  border-radius: var(--radius-sm);
   padding: 1px 6px;
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-700);
+}
+
+:global([data-theme="dark"]) .metaLabel {
+  background: var(--bg-sunken);
+  color: var(--fg-2);
 }
 
 .metaDate {
-  font-size: 0.75rem;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xs);
 }

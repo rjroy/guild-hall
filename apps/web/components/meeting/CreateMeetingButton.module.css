@@ -1,22 +1,39 @@
-/* CreateMeetingButton - matches CreateCommissionButton styling */
+/* CreateMeetingButton — primary CTA for the meetings tab */
 
 .createButton {
-  padding: var(--space-sm) var(--space-md);
-  background-color: var(--color-button-bg);
-  border: 1px solid var(--color-brass);
-  color: var(--color-brass);
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 600;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: var(--tracking-wider);
+  padding: 9px 18px;
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  color: var(--fg-on-ember);
+  border: 1px solid var(--ember-700);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   cursor: pointer;
-  transition: background-color 0.2s;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  transition: all var(--dur) var(--ease-out);
 }
 
 .createButton:hover:not(:disabled) {
-  background-color: var(--color-button-bg-hover);
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+  box-shadow: var(--shadow), var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.createButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+:global([data-theme="dark"]) .createButton {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
+}
+
+:global([data-theme="dark"]) .createButton:hover:not(:disabled) {
+  box-shadow: var(--shadow-md), var(--shadow-glow);
 }
 
 .createButton:disabled {

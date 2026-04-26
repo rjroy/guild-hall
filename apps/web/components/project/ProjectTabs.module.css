@@ -1,50 +1,68 @@
+/* ============================================================
+   ProjectTabs — ribbon-style tabs (Commissions / Artifacts / Meetings)
+   ============================================================ */
+
 .tabBar {
   display: flex;
-  gap: var(--space-xs);
-  background-color: var(--color-panel-bg);
-  border-bottom: 1px solid rgba(184, 134, 11, 0.2);
-  padding: 0 10px;
+  gap: 0;
+  align-items: flex-end;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--rule);
+  padding: 0 var(--space-8);
+  position: relative;
+}
 
-  /* vendor prefix must precede standard property in Next.js */
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  /*
-  background-image: url('/images/ui/scroll-window.webp');
-  background-size: 100% 100%;
-  */
-  background-blend-mode: hue;
-  border-radius: 50px;
-
-  border-image-source: url("/images/ui/scroll-window-dark.webp");
-  border-image-slice: 52 fill;
-  border-image-width: 20px;
-  border-image-repeat: stretch;
+/* Doubled molding line below the ribbon */
+.tabBar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 1px;
+  background: var(--rule);
 }
 
 .tab {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-sm);
-  color: var(--color-text-muted);
+  gap: var(--space-2);
+  padding: 10px 22px;
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg-2);
   text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 500;
+  background: transparent;
+  border: 0;
   border-bottom: 2px solid transparent;
-  transition:
-    color 0.2s,
-    border-color 0.2s;
+  cursor: pointer;
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
 }
 
 .tab:hover {
-  color: var(--color-text);
+  color: var(--fg-1);
 }
 
 .active {
-  color: var(--color-text-heading);
-  border-bottom-color: var(--color-brass);
+  color: var(--ember-700);
+  border-bottom-color: var(--ember-500);
+}
+
+:global([data-theme="dark"]) .active {
+  color: var(--ember-300);
 }
 
 .label {
   white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .tabBar {
+    padding: 0 var(--space-4);
+  }
+  .tab {
+    padding: 10px 14px;
+    font-size: var(--text-sm);
+  }
 }
