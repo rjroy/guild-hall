@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import DaemonStatus from "@/apps/web/components/ui/DaemonStatus";
 import "./globals.css";
+import "./guild.css";
 
 export const metadata: Metadata = {
   title: "Guild Hall",
@@ -21,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark">
       <body>
         <DaemonStatus>
           <div style={{ minHeight: "100vh" }}>{children}</div>

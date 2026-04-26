@@ -57,6 +57,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "apps/web/next-env.d.ts",
+    // Imported design-system handoff bundle — not part of the project source.
+    "tmp/**",
   ]),
 ]);
 
