@@ -1,7 +1,12 @@
+/* ============================================================
+   CommissionActions — dispatch / save / cancel / re-dispatch /
+   abandon / queued / confirm row
+   ============================================================ */
+
 .container {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-3);
 }
 
 /* --- Shared button base --- */
@@ -14,13 +19,19 @@
 .abandonButton,
 .confirmYes,
 .confirmNo {
-  padding: var(--space-xs) var(--space-md);
-  border-radius: 4px;
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
   cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s;
+  transition: all var(--dur) var(--ease-out);
+  border: 1px solid transparent;
 }
 
 .dispatchButton:disabled,
@@ -35,103 +46,114 @@
   cursor: not-allowed;
 }
 
-/* --- Dispatch (primary action, brass) --- */
+/* --- Dispatch (primary action) --- */
 
-.dispatchButton {
-  background-color: rgba(184, 134, 11, 0.2);
-  border: 1px solid var(--color-brass);
-  color: var(--color-brass);
-}
-
-.dispatchButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.35);
-}
-
-/* --- Continue (primary recovery, brass like dispatch) --- */
-
+.dispatchButton,
 .continueButton {
-  background-color: rgba(184, 134, 11, 0.2);
-  border: 1px solid var(--color-brass);
-  color: var(--color-brass);
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  border-color: var(--ember-700);
+  color: var(--fg-on-ember);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
+.dispatchButton:hover:not(:disabled),
 .continueButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.35);
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+  box-shadow: var(--shadow), var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
-/* --- Save (secondary recovery, lower opacity brass) --- */
-
-.saveButton {
-  background-color: rgba(184, 134, 11, 0.15);
-  border: 1px solid rgba(184, 134, 11, 0.4);
-  color: var(--color-brass);
+:global([data-theme="dark"]) .dispatchButton,
+:global([data-theme="dark"]) .continueButton {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
 }
 
-.saveButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.25);
-}
+/* --- Save / Re-dispatch (secondary ghost) --- */
 
-/* --- Cancel (danger action, red) --- */
-
-.cancelButton {
-  background-color: rgba(180, 60, 60, 0.15);
-  border: 1px solid rgba(180, 60, 60, 0.3);
-  color: var(--color-text);
-}
-
-.cancelButton:hover:not(:disabled) {
-  background-color: rgba(180, 60, 60, 0.25);
-  border-color: rgba(180, 60, 60, 0.5);
-}
-
-/* --- Re-dispatch (secondary action) --- */
-
+.saveButton,
 .redispatchButton {
-  background-color: rgba(184, 134, 11, 0.15);
-  border: 1px solid rgba(184, 134, 11, 0.4);
-  color: var(--color-brass);
+  background: var(--bg-raised);
+  border-color: var(--rule-strong);
+  color: var(--fg);
 }
 
+.saveButton:hover:not(:disabled),
 .redispatchButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.25);
+  border-color: var(--ember-500);
+  color: var(--ember-700);
 }
 
-/* --- Abandon (muted destructive, same palette as cancel) --- */
+:global([data-theme="dark"]) .saveButton:hover:not(:disabled),
+:global([data-theme="dark"]) .redispatchButton:hover:not(:disabled) {
+  color: var(--ember-300);
+}
+
+/* --- Cancel / Confirm-yes (danger) --- */
+
+.cancelButton,
+.confirmYes {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.cancelButton:hover:not(:disabled),
+.confirmYes:hover:not(:disabled) {
+  background: var(--danger);
+  color: var(--parchment-50);
+}
+
+/* --- Abandon (muted danger) --- */
 
 .abandonButton {
-  background-color: rgba(180, 60, 60, 0.1);
-  border: 1px solid rgba(180, 60, 60, 0.25);
-  color: var(--color-text-muted);
+  background: transparent;
+  border-color: var(--rule);
+  color: var(--fg-3);
 }
 
 .abandonButton:hover:not(:disabled) {
-  background-color: rgba(180, 60, 60, 0.2);
-  border-color: rgba(180, 60, 60, 0.4);
-  color: var(--color-text);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
-/* --- Queued indicator (amber, non-interactive) --- */
+/* --- Confirm-no (quiet) --- */
+
+.confirmNo {
+  background: transparent;
+  border-color: var(--rule);
+  color: var(--fg-2);
+}
+
+.confirmNo:hover:not(:disabled) {
+  border-color: var(--rule-strong);
+  color: var(--fg);
+}
+
+/* --- Queued indicator --- */
 
 .queuedIndicator {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-xs) var(--space-md);
-  background-color: rgba(184, 134, 11, 0.12);
-  border: 1px solid rgba(184, 134, 11, 0.35);
-  border-radius: 4px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
 }
 
 .queuedLabel {
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-brass);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--warning);
 }
 
 .queuedText {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xs);
+  color: var(--fg-3);
 }
 
 /* --- Confirmation row --- */
@@ -140,68 +162,62 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-xs);
-  background-color: rgba(180, 60, 60, 0.08);
-  border: 1px solid rgba(180, 60, 60, 0.2);
-  border-radius: 6px;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
 }
 
 .confirmText {
-  font-size: 0.85rem;
-  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
   flex: 1 1 100%;
 }
 
 .confirmButtons {
   display: flex;
-  gap: var(--space-sm);
+  gap: var(--space-2);
 }
 
-.confirmYes {
-  background-color: rgba(180, 60, 60, 0.2);
-  border: 1px solid rgba(180, 60, 60, 0.4);
-  color: var(--color-error-light);
-}
-
-.confirmYes:hover:not(:disabled) {
-  background-color: rgba(180, 60, 60, 0.35);
-}
-
-.confirmNo {
-  background-color: transparent;
-  border: 1px solid var(--color-text-muted);
-  color: var(--color-text-muted);
-}
-
-.confirmNo:hover:not(:disabled) {
-  border-color: var(--color-text);
-  color: var(--color-text);
-}
-
-/* --- Action reason textarea (shared by Save and Abandon) --- */
+/* --- Action reason textarea --- */
 
 .actionReason {
   width: 100%;
   min-height: 3rem;
-  padding: var(--space-xs);
+  padding: 9px 12px;
   font-family: var(--font-body);
-  font-size: 0.85rem;
-  color: var(--color-text);
-  background-color: rgba(245, 230, 200, 0.08);
-  border: 1px solid var(--color-brass);
-  border-radius: 4px;
+  font-size: var(--text-sm);
+  color: var(--fg);
+  background: var(--parchment-50);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-inset);
   resize: vertical;
+  transition: border-color var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .actionReason {
+  background: var(--bg-sunken);
+}
+
+.actionReason:focus {
+  outline: none;
+  border-color: var(--ember-500);
 }
 
 .actionReason::placeholder {
-  color: var(--color-text-muted);
+  color: var(--fg-muted);
+  font-style: italic;
 }
 
 /* --- Error --- */
 
 .error {
-  font-size: 0.8rem;
-  color: var(--color-error);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--danger);
   margin: 0;
 }

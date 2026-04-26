@@ -1,57 +1,71 @@
+/* ============================================================
+   CommissionTimeline — chronicle of events
+   ============================================================ */
+
 .container {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
 }
 
 .label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-brass);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--ember-700);
   margin: 0;
+}
+
+:global([data-theme="dark"]) .label {
+  color: var(--ember-300);
 }
 
 /* --- Tab bar --- */
 
 .tabBar {
   display: flex;
-  gap: 2px;
-  border-bottom: 1px solid rgba(184, 134, 11, 0.2);
-  padding-bottom: 1px;
+  gap: 0;
+  border-bottom: 1px solid var(--rule);
 }
 
 .tab {
-  background: none;
-  border: none;
-  padding: var(--space-xs) var(--space-sm);
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  background: transparent;
+  border: 0;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--fg-2);
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
 }
 
 .tab:hover {
-  color: var(--color-brass);
+  color: var(--fg-1);
 }
 
 .tabActive {
-  color: var(--color-brass);
-  border-bottom-color: var(--color-brass);
-  font-weight: 600;
+  color: var(--ember-700);
+  border-bottom-color: var(--ember-500);
 }
 
-/* --- Empty state --- */
+:global([data-theme="dark"]) .tabActive {
+  color: var(--ember-300);
+}
 
 .empty {
-  font-size: 0.85rem;
+  font-family: var(--font-serif);
   font-style: italic;
-  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  color: var(--fg-3);
   margin: 0;
 }
 
@@ -65,13 +79,13 @@
 }
 
 .item {
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: 4px;
-  transition: background-color 0.15s;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  transition: background var(--dur) var(--ease-out);
 }
 
 .item:hover {
-  background-color: rgba(184, 134, 11, 0.06);
+  background: var(--brand-soft);
 }
 
 /* --- Shared entry layout --- */
@@ -85,35 +99,37 @@
 .generic {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  font-size: 0.85rem;
+  gap: var(--space-3);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
   flex-wrap: wrap;
 }
 
 .time {
-  font-family: var(--font-code);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
   flex-shrink: 0;
   min-width: 50px;
 }
 
 .eventContent {
   align-items: center;
-  color: var(--color-text);
+  color: var(--fg);
   flex: 1;
   min-width: 0;
-  padding: 0px var(--space-sm);
+  padding: 0 var(--space-2);
 }
 
 .eventContent ul {
-  padding: 0px 20px;
+  padding: 0 20px;
 }
 
 .reason {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
   font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--fg-3);
   width: 100%;
   padding-left: 62px;
 }
@@ -122,33 +138,38 @@
 
 .statusText {
   text-transform: capitalize;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--fg-1);
 }
 
 .arrow {
-  color: var(--color-text-muted);
-  margin: 0 var(--space-xs);
+  color: var(--fg-muted);
+  margin: 0 var(--space-1);
 }
 
 /* --- Progress --- */
 
 .progressIcon {
-  color: var(--color-brass);
+  color: var(--ember-700);
   font-size: 0.7rem;
   flex-shrink: 0;
+}
+
+:global([data-theme="dark"]) .progressIcon {
+  color: var(--ember-300);
 }
 
 /* --- Question --- */
 
 .question {
-  background-color: rgba(255, 176, 0, 0.05);
-  border-left: 2px solid var(--color-amber);
-  padding-left: var(--space-sm);
-  border-radius: 0 4px 4px 0;
+  background: var(--warning-soft);
+  border-left: 2px solid var(--warning);
+  padding-left: var(--space-3);
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 .questionIcon {
-  color: var(--color-amber);
+  color: var(--warning);
   font-weight: 700;
   font-size: 0.9rem;
   flex-shrink: 0;
@@ -157,14 +178,14 @@
 /* --- Result --- */
 
 .result {
-  background-color: rgba(100, 180, 100, 0.05);
-  border-left: 2px solid rgba(100, 180, 100, 0.5);
-  padding-left: var(--space-sm);
-  border-radius: 0 4px 4px 0;
+  background: var(--success-soft);
+  border-left: 2px solid var(--success);
+  padding-left: var(--space-3);
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 .resultIcon {
-  color: rgba(100, 180, 100, 0.8);
+  color: var(--success);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -172,34 +193,46 @@
 /* --- User note --- */
 
 .note {
-  background-color: rgba(184, 134, 11, 0.05);
-  border-left: 2px solid rgba(184, 134, 11, 0.3);
-  padding-left: var(--space-sm);
-  border-radius: 0 4px 4px 0;
+  background: var(--brand-soft);
+  border-left: 2px solid var(--ember-500);
+  padding-left: var(--space-3);
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 .noteIcon {
-  color: var(--color-brass);
+  color: var(--ember-700);
   flex-shrink: 0;
 }
 
-/* --- Manager note --- */
+:global([data-theme="dark"]) .noteIcon {
+  color: var(--ember-300);
+}
+
+/* --- Manager note (verdigris/rune accent) --- */
 
 .managerNote {
-  background-color: rgba(120, 80, 160, 0.06);
-  border-left: 2px solid rgba(120, 80, 160, 0.4);
-  padding-left: var(--space-sm);
-  border-radius: 0 4px 4px 0;
+  background: rgba(47, 110, 102, 0.08);
+  border-left: 2px solid var(--verdigris-500);
+  padding-left: var(--space-3);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+:global([data-theme="dark"]) .managerNote {
+  background: rgba(127, 224, 208, 0.08);
 }
 
 .managerNoteIcon {
-  color: rgba(120, 80, 160, 0.8);
+  color: var(--verdigris-500);
   font-weight: 700;
   flex-shrink: 0;
+}
+
+:global([data-theme="dark"]) .managerNoteIcon {
+  color: var(--verdigris-300);
 }
 
 /* --- Generic fallback --- */
 
 .generic {
-  color: var(--color-text-muted);
+  color: var(--fg-3);
 }

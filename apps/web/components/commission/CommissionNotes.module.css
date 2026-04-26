@@ -1,61 +1,87 @@
+/* ============================================================
+   CommissionNotes — manager's notes (input + button)
+   ============================================================ */
+
 .container {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
 }
 
 .label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-brass);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--ember-700);
   margin: 0;
+}
+
+:global([data-theme="dark"]) .label {
+  color: var(--ember-300);
 }
 
 .inputRow {
   display: flex;
-  gap: var(--space-sm);
+  gap: var(--space-2);
 }
 
 .input {
   flex: 1;
-  padding: var(--space-xs) var(--space-sm);
-  background-color: rgba(26, 20, 18, 0.6);
-  border: 1px solid rgba(184, 134, 11, 0.25);
-  border-radius: 4px;
-  color: var(--color-text);
+  padding: 9px 12px;
+  background: var(--parchment-50);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--fg);
   font-family: var(--font-body);
-  font-size: 0.85rem;
-  transition: border-color 0.2s;
+  font-size: var(--text-base);
+  box-shadow: var(--shadow-inset);
+  transition: border-color var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .input {
+  background: var(--bg-sunken);
 }
 
 .input:focus {
   outline: none;
-  border-color: var(--color-brass);
+  border-color: var(--ember-500);
 }
 
 .input::placeholder {
-  color: var(--color-text-muted);
+  color: var(--fg-muted);
   font-style: italic;
 }
 
 .submitButton {
-  padding: var(--space-xs) var(--space-md);
-  background-color: rgba(184, 134, 11, 0.15);
-  border: 1px solid rgba(184, 134, 11, 0.4);
-  border-radius: 4px;
-  color: var(--color-brass);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  border: 1px solid var(--ember-700);
+  border-radius: var(--radius);
+  color: var(--fg-on-ember);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all var(--dur) var(--ease-out);
   flex-shrink: 0;
 }
 
 .submitButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.25);
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+}
+
+:global([data-theme="dark"]) .submitButton {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
 }
 
 .submitButton:disabled {
@@ -64,7 +90,9 @@
 }
 
 .error {
-  font-size: 0.8rem;
-  color: var(--color-error);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--danger);
   margin: 0;
 }

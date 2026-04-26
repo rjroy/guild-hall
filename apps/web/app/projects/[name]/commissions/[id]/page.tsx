@@ -14,6 +14,7 @@ import CommissionView from "@/apps/web/components/commission/CommissionView";
 import NeighborhoodGraph from "@/apps/web/components/commission/NeighborhoodGraph";
 import type { CommissionArtifact } from "@/apps/web/components/commission/CommissionLinkedArtifacts";
 import DaemonError from "@/apps/web/components/ui/DaemonError";
+import { AppBar } from "@/apps/web/components/guild";
 import styles from "./page.module.css";
 
 /** Shape returned by GET /workers */
@@ -108,8 +109,10 @@ export default async function CommissionPage({
   const graph = graphResult.ok ? graphResult.data : { nodes: [], edges: [] };
 
   return (
-    <div className={styles.commissionView}>
-      <CommissionHeader
+    <div className={styles.shell}>
+      <AppBar project={projectName} page="Commission" />
+      <div className={styles.commissionView}>
+        <CommissionHeader
         title={commission.title}
         status={commission.status}
         worker={commission.worker}
@@ -126,14 +129,15 @@ export default async function CommissionPage({
         commissionId={id}
         projectName={projectName}
       />
-      <CommissionView
-        commissionId={commission.commissionId}
-        projectName={projectName}
-        prompt={commission.prompt}
-        initialStatus={commission.status}
-        initialTimeline={timeline}
-        initialArtifacts={linkedArtifacts}
-      />
+        <CommissionView
+          commissionId={commission.commissionId}
+          projectName={projectName}
+          prompt={commission.prompt}
+          initialStatus={commission.status}
+          initialTimeline={timeline}
+          initialArtifacts={linkedArtifacts}
+        />
+      </div>
     </div>
   );
 }

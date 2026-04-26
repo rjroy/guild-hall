@@ -1,100 +1,86 @@
-/* CommissionForm - inline form for creating commissions */
+/* CommissionForm — inline form for creating commissions */
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  background-color: rgba(26, 20, 18, 0.85);
-  /* -webkit- must come before standard property (Next.js compilation quirk) */
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--color-bronze);
-  border-radius: 6px;
-  padding: var(--space-lg);
+  gap: var(--space-4);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
 }
 
 .fieldGroup {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: 6px;
 }
 
 .label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--fg-2);
 }
 
-.textInput {
+.textInput,
+.select,
+.textarea,
+.numberInput {
   width: 100%;
-  padding: var(--space-sm);
-  background-color: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--color-bronze);
-  border-radius: 4px;
-  color: var(--color-text);
+  padding: 9px 12px;
+  background: var(--parchment-50);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--fg);
   font-family: var(--font-body);
-  font-size: 1rem;
-  line-height: 1.5;
+  font-size: var(--text-base);
+  line-height: var(--leading-snug);
+  box-shadow: var(--shadow-inset);
+  transition: border-color var(--dur) var(--ease-out);
 }
 
-.textInput:focus {
+:global([data-theme="dark"]) .textInput,
+:global([data-theme="dark"]) .select,
+:global([data-theme="dark"]) .textarea,
+:global([data-theme="dark"]) .numberInput {
+  background: var(--bg-sunken);
+}
+
+.textInput:focus,
+.select:focus,
+.textarea:focus,
+.numberInput:focus {
   outline: none;
-  border-color: var(--color-brass);
+  border-color: var(--ember-500);
 }
 
-.textInput::placeholder {
-  color: var(--color-text-muted);
+.textInput::placeholder,
+.textarea::placeholder,
+.numberInput::placeholder {
+  color: var(--fg-muted);
+  font-style: italic;
 }
 
 .select {
-  width: 100%;
-  padding: var(--space-sm);
-  background-color: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--color-bronze);
-  border-radius: 4px;
-  color: var(--color-text);
-  font-family: var(--font-body);
-  font-size: 1rem;
-  line-height: 1.5;
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a89878' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237A6248' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right var(--space-sm) center;
-  padding-right: var(--space-xl);
-}
-
-.select:focus {
-  outline: none;
-  border-color: var(--color-brass);
+  background-position: right var(--space-3) center;
+  padding-right: var(--space-8);
 }
 
 .select option {
-  background-color: var(--color-dark-bg);
-  color: var(--color-text);
+  background: var(--bg-raised);
+  color: var(--fg);
 }
 
 .textarea {
-  width: 100%;
   min-height: 140px;
-  padding: var(--space-sm);
-  background-color: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--color-bronze);
-  border-radius: 4px;
-  color: var(--color-text);
-  font-family: var(--font-body);
-  font-size: 1rem;
-  line-height: 1.5;
   resize: vertical;
-}
-
-.textarea:focus {
-  outline: none;
-  border-color: var(--color-brass);
-}
-
-.textarea::placeholder {
-  color: var(--color-text-muted);
 }
 
 /* Collapsible resource overrides */
@@ -102,25 +88,26 @@
 .overridesToggle {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-1);
   padding: 0;
   background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 500;
+  border: 0;
+  color: var(--fg-3);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
   cursor: pointer;
-  transition: color 0.2s;
+  transition: color var(--dur) var(--ease-out);
 }
 
 .overridesToggle:hover {
-  color: var(--color-text);
+  color: var(--fg);
 }
 
 .overridesArrow {
   font-size: 0.65rem;
-  transition: transform 0.2s;
+  transition: transform var(--dur) var(--ease-out);
 }
 
 .overridesArrowOpen {
@@ -130,46 +117,28 @@
 .overridesSection {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  margin-top: var(--space-xs);
+  gap: var(--space-3);
+  margin-top: var(--space-2);
 }
 
 .overridesFields {
   display: flex;
-  gap: var(--space-md);
+  gap: var(--space-3);
 }
 
 .overridesField {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: 6px;
 }
 
 .overridesLabel {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.numberInput {
-  width: 100%;
-  padding: var(--space-sm);
-  background-color: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--color-bronze);
-  border-radius: 4px;
-  color: var(--color-text);
-  font-family: var(--font-body);
-  font-size: 1rem;
-  line-height: 1.5;
-}
-
-.numberInput:focus {
-  outline: none;
-  border-color: var(--color-brass);
-}
-
-.numberInput::placeholder {
-  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--fg-3);
 }
 
 /* Buttons */
@@ -177,66 +146,75 @@
 .buttonRow {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-sm);
-  margin-top: var(--space-sm);
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .cancelButton {
-  padding: var(--space-sm) var(--space-md);
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
   background: transparent;
-  border: 1px solid var(--color-text-muted);
-  color: var(--color-text-muted);
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 500;
-  border-radius: 4px;
+  border: 1px solid var(--rule);
+  color: var(--fg-2);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
+  border-radius: var(--radius);
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
 }
 
 .cancelButton:hover {
-  color: var(--color-text);
-  border-color: var(--color-text);
+  color: var(--fg);
+  border-color: var(--rule-strong);
 }
 
 .submitButton {
-  padding: var(--space-sm) var(--space-md);
-  background-color: rgba(184, 134, 11, 0.15);
-  border: 1px solid var(--color-brass);
-  color: var(--color-brass);
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 600;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  border: 1px solid var(--ember-700);
+  color: var(--fg-on-ember);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wider);
+  border-radius: var(--radius);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all var(--dur) var(--ease-out);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .submitButton:hover:not(:disabled) {
-  background-color: rgba(184, 134, 11, 0.25);
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+  box-shadow: var(--shadow), var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+:global([data-theme="dark"]) .submitButton {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
 }
 
 .submitButton:disabled {
-  opacity: 0.4;
-  border-color: var(--color-text-muted);
-  color: var(--color-text-muted);
-  background-color: rgba(168, 152, 120, 0.1);
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Error display */
+/* Status / error */
 
 .errorMessage {
-  color: var(--color-text-placeholder);
-  font-size: 0.9rem;
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--danger);
+  font-size: var(--text-sm);
   margin: 0;
 }
 
-/* Status messages */
-
 .statusMessage {
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
+  font-family: var(--font-serif);
   font-style: italic;
+  color: var(--fg-3);
+  font-size: var(--text-sm);
   margin: 0;
 }
