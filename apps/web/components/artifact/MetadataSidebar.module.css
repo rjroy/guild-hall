@@ -1,87 +1,117 @@
+/* ============================================================
+   MetadataSidebar — provenance + tags + actions
+   ============================================================ */
+
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-5);
 }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-2);
 }
 
 .sectionTitle {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-brass);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--ember-700);
   margin: 0;
+}
+
+:global([data-theme="dark"]) .sectionTitle {
+  color: var(--ember-300);
 }
 
 .statusRow {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-2);
 }
 
 .statusText {
-  font-size: 0.85rem;
-  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
   text-transform: capitalize;
 }
 
 .value {
-  font-size: 0.85rem;
-  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
   margin: 0;
 }
 
 .badges {
   display: flex;
-  gap: var(--space-xs);
+  gap: var(--space-1);
   flex-wrap: wrap;
 }
 
 .badge {
-  font-size: 0.7rem;
-  padding: 1px 6px;
-  background-color: rgba(244, 228, 193, 0.1);
-  color: var(--color-text-muted);
-  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px var(--space-2);
+  background: var(--parchment-200);
+  color: var(--ink-700);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
   white-space: nowrap;
 }
 
+:global([data-theme="dark"]) .badge {
+  background: var(--bg-sunken);
+  color: var(--fg-2);
+}
+
 .projectLink {
-  font-size: 0.85rem;
-  color: var(--color-brass);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--ember-700);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .projectLink {
+  color: var(--ember-300);
 }
 
 .projectLink:hover {
-  color: var(--color-amber);
+  text-decoration: underline;
 }
 
 .commissionList {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-2);
 }
 
 .commissionLink {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+  gap: var(--space-2);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg-2);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--dur) var(--ease-out);
 }
 
 .commissionLink:hover {
-  color: var(--color-amber);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .commissionLink:hover {
+  color: var(--ember-300);
 }
 
 .commissionTitle {
@@ -93,45 +123,74 @@
 .actionLinks {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-2);
 }
 
 .actionLink {
-  display: block;
-  padding: var(--space-xs) var(--space-sm);
-  background-color: rgba(168, 152, 120, 0.15);
-  border: 1px solid var(--color-brass);
-  color: var(--color-brass);
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  font-weight: 600;
-  border-radius: 4px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wider);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  color: var(--fg);
   text-decoration: none;
+  text-align: center;
   width: 100%;
-  transition: background-color 0.2s, color 0.2s;
+  transition: all var(--dur) var(--ease-out);
 }
 
-.actionLink:hover {
-  background-color: rgba(168, 152, 120, 0.25);
-  color: var(--color-amber);
+.actionLink:first-child {
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  border-color: var(--ember-700);
+  color: var(--fg-on-ember);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.actionLink:first-child:hover {
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+  box-shadow: var(--shadow), var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+:global([data-theme="dark"]) .actionLink:first-child {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
+}
+
+.actionLink:not(:first-child):hover {
+  border-color: var(--ember-500);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .actionLink:not(:first-child):hover {
+  color: var(--ember-300);
 }
 
 .relatedList {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-1);
 }
 
 .relatedLink {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-3);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--dur) var(--ease-out);
   word-break: break-all;
 }
 
 .relatedLink:hover {
-  color: var(--color-amber);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .relatedLink:hover {
+  color: var(--ember-300);
 }

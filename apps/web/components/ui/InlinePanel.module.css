@@ -1,8 +1,8 @@
 /* Collapsible inline panel for relocated sidebar content on mobile viewports */
 
 .inlinePanel {
-  border-top: 1px solid var(--color-brass);
-  padding-top: var(--space-sm);
+  border-top: 1px solid var(--rule);
+  padding-top: var(--space-3);
   flex-shrink: 0;
 }
 
@@ -11,29 +11,32 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: var(--space-xs) var(--space-sm);
-  background-color: var(--color-panel-bg);
-  border: 1px solid var(--color-brass);
-  border-radius: 6px;
-  color: var(--color-brass);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 500;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
   cursor: pointer;
-  transition: background-color 0.2s;
-
-  /* vendor prefix must precede standard property in Next.js */
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  transition: background var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
 }
 
 .handle:hover {
-  background-color: var(--color-dark-bg);
+  border-color: var(--ember-500);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .handle:hover {
+  color: var(--ember-300);
 }
 
 .chevron {
   font-size: 0.65rem;
-  transition: transform 0.2s;
+  transition: transform 0.2s var(--ease-out);
+  color: var(--fg-3);
 }
 
 .chevronOpen {
@@ -43,8 +46,8 @@
 .content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  padding-top: var(--space-sm);
+  gap: var(--space-3);
+  padding-top: var(--space-3);
   max-height: 40vh;
   overflow-y: auto;
 }

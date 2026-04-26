@@ -1,28 +1,31 @@
-/* Artifact-specific: darker background */
-.artifact {
-  background-color: rgba(26, 20, 18, 0.85);
-}
+/* ============================================================
+   ArtifactProvenance — banner header for artifact pages
+   ============================================================ */
 
-/* --- Condensed row layout (REQ-DVL-26) --- */
+/* Local override: provenance banner uses the standard paper-raised
+   surface from DetailHeader; no extra background here. */
+
+/* --- Condensed row --- */
 
 .condensedRow {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-3);
   min-width: 0;
 }
 
 .condensedTrailing {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-2);
   flex-shrink: 0;
   margin-left: auto;
 }
 
 .condensedPath {
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  color: var(--fg-3);
+  font-size: var(--text-sm);
   margin: 0;
 }
 
@@ -32,32 +35,39 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-sm);
+  gap: var(--space-3);
 }
 
 .sourceRow {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  padding-top: var(--space-sm);
-  border-top: 1px solid rgba(184, 134, 11, 0.15);
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
 }
 
 .artifactPath {
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  color: var(--fg-3);
+  font-size: var(--text-sm);
   margin: 0;
 }
 
 .attributedText {
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
+  font-family: var(--font-serif);
+  color: var(--fg-2);
+  font-size: var(--text-sm);
   margin: 0;
 }
 
 .commissionLink {
-  color: var(--color-brass);
+  color: var(--ember-700);
   text-decoration: none;
+  font-weight: 600;
+}
+
+:global([data-theme="dark"]) .commissionLink {
+  color: var(--ember-300);
 }
 
 .commissionLink:hover {

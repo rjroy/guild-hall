@@ -1,26 +1,34 @@
 .copyButton {
-  padding: var(--space-xs) var(--space-md);
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  font-weight: 600;
-  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
-  background-color: rgba(184, 134, 11, 0.15);
-  border: 1px solid var(--color-brass);
-  color: var(--color-brass);
+  transition: all var(--dur) var(--ease-out);
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--fg-2);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .copyButton:hover {
-  background-color: rgba(184, 134, 11, 0.3);
-  color: var(--color-amber);
+  border-color: var(--ember-500);
+  color: var(--ember-700);
 }
 
-/* Confirmed state: brief green flash to signal success */
+:global([data-theme="dark"]) .copyButton:hover {
+  color: var(--ember-300);
+}
+
+/* Confirmed state: brief moss-tinted flash to signal success */
 .copyButton[aria-label="Path copied"] {
-  background-color: rgba(76, 148, 76, 0.2);
-  border-color: var(--color-success);
-  color: var(--color-success-light);
+  background: var(--success-soft);
+  border-color: var(--success);
+  color: var(--success);
 }

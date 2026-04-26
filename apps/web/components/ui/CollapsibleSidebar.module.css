@@ -8,7 +8,7 @@
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  transition: width 200ms ease;
+  transition: width 200ms var(--ease-out);
   position: relative;
 }
 
@@ -19,51 +19,61 @@
 
 .collapseButton {
   position: absolute;
-  top: var(--space-sm);
-  right: var(--space-sm);
-  background: none;
-  border: 1px solid var(--color-brass);
-  border-radius: 4px;
-  color: var(--color-brass);
+  top: var(--space-2);
+  right: var(--space-2);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  color: var(--fg-2);
   cursor: pointer;
   font-size: 0.6rem;
   line-height: 1;
   padding: 4px 6px;
-  transition: color 0.2s, border-color 0.2s;
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
   z-index: 1;
 }
 
 .collapseButton:hover {
-  color: var(--color-amber);
-  border-color: var(--color-amber);
+  color: var(--ember-700);
+  border-color: var(--ember-500);
+}
+
+:global([data-theme="dark"]) .collapseButton:hover {
+  color: var(--ember-300);
 }
 
 .expandTab {
   flex-shrink: 0;
   writing-mode: vertical-rl;
-  background: var(--color-panel-bg);
-  border: 1px solid rgba(184, 134, 11, 0.3);
-  border-radius: 4px 0 0 4px;
-  color: var(--color-brass);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  color: var(--fg-2);
   cursor: pointer;
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  padding: var(--space-sm) var(--space-xs);
-  transition: color 0.2s, border-color 0.2s;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-1);
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
   align-self: flex-start;
 }
 
 .expandTab:hover {
-  color: var(--color-amber);
-  border-color: var(--color-amber);
+  color: var(--ember-700);
+  border-color: var(--ember-500);
+}
+
+:global([data-theme="dark"]) .expandTab:hover {
+  color: var(--ember-300);
 }
 
 .expandLabel {
-  margin-top: var(--space-xs);
+  margin-top: var(--space-1);
 }
 
 .content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-4);
 }

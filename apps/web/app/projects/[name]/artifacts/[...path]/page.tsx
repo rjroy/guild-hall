@@ -14,6 +14,7 @@ import ImageMetadataSidebar from "@/apps/web/components/artifact/ImageMetadataSi
 import MockupPreviewLanding from "@/apps/web/components/artifact/MockupPreviewLanding";
 import MockupMetadataSidebar from "@/apps/web/components/artifact/MockupMetadataSidebar";
 import DaemonError from "@/apps/web/components/ui/DaemonError";
+import { AppBar } from "@/apps/web/components/guild";
 import styles from "./page.module.css";
 
 /** Serialized artifact from daemon (lastModified is ISO string, not Date) */
@@ -75,28 +76,31 @@ export default async function ArtifactPage({
     const previewUrl = `/api/artifacts/mockup?project=${encodeURIComponent(projectName)}&path=${encodeURIComponent(relativePath)}`;
 
     return (
-      <div className={styles.artifactView}>
-        <ArtifactProvenance
-          projectName={projectName}
-          projectTitle={projectTitle}
-          artifactTitle={mockupTitle}
-          artifactPath={relativePath}
-        />
-        <ArtifactDetailLayout
-          main={
-            <MockupPreviewLanding
-              previewUrl={previewUrl}
-              filename={filename}
-            />
-          }
-          sidebar={
-            <MockupMetadataSidebar
-              filename={filename}
-              lastModified={mockupArtifact.lastModified}
-              projectName={projectName}
-            />
-          }
-        />
+      <div className={styles.shell}>
+        <AppBar project={projectName} page="Artifact" />
+        <div className={styles.artifactView}>
+          <ArtifactProvenance
+            projectName={projectName}
+            projectTitle={projectTitle}
+            artifactTitle={mockupTitle}
+            artifactPath={relativePath}
+          />
+          <ArtifactDetailLayout
+            main={
+              <MockupPreviewLanding
+                previewUrl={previewUrl}
+                filename={filename}
+              />
+            }
+            sidebar={
+              <MockupMetadataSidebar
+                filename={filename}
+                lastModified={mockupArtifact.lastModified}
+                projectName={projectName}
+              />
+            }
+          />
+        </div>
       </div>
     );
   }
@@ -116,30 +120,33 @@ export default async function ArtifactPage({
     const filename = relativePath.split("/").pop() ?? "";
 
     return (
-      <div className={styles.artifactView}>
-        <ArtifactProvenance
-          projectName={projectName}
-          projectTitle={projectTitle}
-          artifactTitle={imageTitle}
-          artifactPath={relativePath}
-        />
-        <ArtifactDetailLayout
-          main={
-            <ImageArtifactView
-              projectName={projectName}
-              artifactPath={relativePath}
-            />
-          }
-          sidebar={
-            <ImageMetadataSidebar
-              filename={filename}
-              mimeType={mimeType}
-              fileSize={fileSize}
-              lastModified={lastModified}
-              projectName={projectName}
-            />
-          }
-        />
+      <div className={styles.shell}>
+        <AppBar project={projectName} page="Artifact" />
+        <div className={styles.artifactView}>
+          <ArtifactProvenance
+            projectName={projectName}
+            projectTitle={projectTitle}
+            artifactTitle={imageTitle}
+            artifactPath={relativePath}
+          />
+          <ArtifactDetailLayout
+            main={
+              <ImageArtifactView
+                projectName={projectName}
+                artifactPath={relativePath}
+              />
+            }
+            sidebar={
+              <ImageMetadataSidebar
+                filename={filename}
+                mimeType={mimeType}
+                fileSize={fileSize}
+                lastModified={lastModified}
+                projectName={projectName}
+              />
+            }
+          />
+        </div>
       </div>
     );
   }
@@ -199,38 +206,41 @@ export default async function ArtifactPage({
   }
 
   return (
-    <div className={styles.artifactView}>
-      <ArtifactProvenance
-        projectName={projectName}
-        artifactTitle={displayTitle}
-        artifactPath={relativePath}
-        attribution={attribution}
-      />
-      {meetingLink && (
-        <div className={styles.meetingBanner}>
-          <Link href={meetingLink} className={styles.meetingBannerLink}>
-            View Meeting
-          </Link>
-        </div>
-      )}
-      <ArtifactDetailLayout
-        main={
-          <ArtifactContent
-            body={artifact.content}
-            rawContent={artifact.rawContent ?? ""}
-            projectName={projectName}
-            artifactPath={artifact.relativePath}
-          />
-        }
-        sidebar={
-          <MetadataSidebar
-            meta={artifact.meta}
-            projectName={projectName}
-            artifactPath={relativePath}
-            associatedCommissions={associatedCommissions}
-          />
-        }
-      />
+    <div className={styles.shell}>
+      <AppBar project={projectName} page="Artifact" />
+      <div className={styles.artifactView}>
+        <ArtifactProvenance
+          projectName={projectName}
+          artifactTitle={displayTitle}
+          artifactPath={relativePath}
+          attribution={attribution}
+        />
+        {meetingLink && (
+          <div className={styles.meetingBanner}>
+            <Link href={meetingLink} className={styles.meetingBannerLink}>
+              View Meeting
+            </Link>
+          </div>
+        )}
+        <ArtifactDetailLayout
+          main={
+            <ArtifactContent
+              body={artifact.content}
+              rawContent={artifact.rawContent ?? ""}
+              projectName={projectName}
+              artifactPath={artifact.relativePath}
+            />
+          }
+          sidebar={
+            <MetadataSidebar
+              meta={artifact.meta}
+              projectName={projectName}
+              artifactPath={relativePath}
+              associatedCommissions={associatedCommissions}
+            />
+          }
+        />
+      </div>
     </div>
   );
 }
