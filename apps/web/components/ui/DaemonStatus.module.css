@@ -3,19 +3,17 @@
 
 .container {
   position: fixed;
-  bottom: var(--space-md);
-  right: var(--space-md);
+  bottom: var(--space-4);
+  right: var(--space-4);
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-xs) var(--space-md);
-  background: var(--color-panel-bg);
-  border: 1px solid var(--color-bronze);
-  border-radius: 4px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
   z-index: 1000;
-  /* Vendor prefix must come before standard property (Next.js compilation quirk) */
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
 }
 
 .gem {
@@ -23,13 +21,18 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--color-amber);
-  box-shadow: 0 0 6px var(--color-amber);
+  background: radial-gradient(circle at 35% 30%, #F3DFA1, var(--brass-500) 70%);
+  box-shadow:
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.55),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(26, 20, 14, 0.35),
+    0 0 6px rgba(201, 162, 74, 0.5);
 }
 
 .text {
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  letter-spacing: 0.02em;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--fg-2);
 }

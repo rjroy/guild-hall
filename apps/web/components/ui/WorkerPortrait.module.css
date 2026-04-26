@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-1);
 }
 
 /* Container for the circular frame and inner image */
@@ -34,12 +34,13 @@
   left: 50%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background-color: var(--color-panel-bg);
+  background: var(--bg-sunken);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted);
-  font-weight: 600;
+  color: var(--fg-2);
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
   user-select: none;
 }
 
@@ -92,16 +93,19 @@
 /* --- Text --- */
 
 .name {
-  font-size: 0.85rem;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--fg);
   text-align: center;
   margin: 0;
 }
 
 .title {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xs);
+  color: var(--fg-3);
   text-align: center;
   margin: 0;
 }

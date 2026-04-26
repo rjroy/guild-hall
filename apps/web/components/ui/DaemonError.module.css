@@ -3,28 +3,30 @@
   align-items: center;
   justify-content: center;
   min-height: 50vh;
-  padding: var(--space-xl);
+  padding: var(--space-8);
 }
 
 .content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-md);
+  gap: var(--space-4);
   text-align: center;
-  padding: var(--space-lg);
+  padding: var(--space-6);
 }
 
 .title {
-  color: var(--color-text);
-  font-family: var(--font-heading, var(--font-body));
-  font-size: 1.4rem;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg-1);
   margin: 0;
 }
 
 .message {
-  color: var(--color-text-muted);
-  font-size: 0.95rem;
+  font-family: var(--font-mono);
+  color: var(--fg-3);
+  font-size: var(--text-sm);
   margin: 0;
-  font-family: var(--font-code);
 }

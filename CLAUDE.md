@@ -47,11 +47,31 @@ bun run guild-hall --help          # CLI subcommands
 - Daemon tests use Hono's `app.request()` test client with injected deps.
 - Tests must not modify the actual repo. Use temp directories for any git or filesystem operations.
 
+## Design System
+
+The web app uses the guild design system. Tokens live in `apps/web/app/globals.css`; shared utility classes (paper, card, btn, scroll, gem, ribbon-tabs, tree-row, side-row, bubble-them/you, etc.) live in `apps/web/app/guild.css`. Reusable React primitives (Icon, StatusPill, Tag, Flourish, WorkerAvatar, AppBar) live in `apps/web/components/guild/`.
+
+Theme is set on `<html data-theme="dark">` (or `"light"` for parchment mode). Toggle persists in `localStorage` under `guild:theme` and broadcasts via the `guild:theme-change` event so multiple AppBar instances stay in sync. AppBar reads it via `useSyncExternalStore` to avoid hydration mismatches.
+
+Token families:
+- **Surfaces:** `--bg`, `--bg-raised`, `--bg-sunken`, `--bg-inverse`
+- **Foregrounds:** `--fg`, `--fg-1`, `--fg-2`, `--fg-3`, `--fg-muted`, `--fg-on-dark`, `--fg-on-ember`
+- **Borders:** `--rule`, `--rule-strong`, `--rule-soft`
+- **Brand:** `--brand`, `--brand-hover`, `--brand-press`, `--brand-soft`
+- **Status:** `--success`, `--warning`, `--danger`, `--info` (each with `*-soft` variant)
+- **Palette ramps:** `--parchment-50..400`, `--ink-400..900`, `--ember-50..900`, `--brass-300..700`, `--moss-300..700`, `--lapis-300..700`, `--oxblood-300..700`, `--verdigris-300..700`
+- **Type:** `--font-display` (IM Fell English SC), `--font-serif` (Vollkorn), `--font-body` (Vollkorn), `--font-mono` (JetBrains Mono); scale `--text-xs..6xl`; leading and tracking tokens
+- **Space:** `--space-1..24` (4px base)
+- **Radius:** `--radius-sm`, `--radius`, `--radius-md`, `--radius-lg`, `--radius-xl`, `--radius-pill`
+- **Shadow:** `--shadow-xs..lg`, `--shadow-glow`, `--shadow-rune`, `--shadow-inset`
+- **Motion:** `--ease-out`, `--ease-in`, `--ease-soft`, `--dur-fast`, `--dur`, `--dur-slow`
+
 ## CSS Quirks
 
 - **Vendor prefix order matters.** `-webkit-backdrop-filter` must come BEFORE `backdrop-filter` or the standard property gets dropped during Next.js compilation.
 - **No CSS Modules `composes`.** Turbopack silently ignores it. Use TSX-side class composition instead.
-- **No raw color values in CSS Modules.** All colors must use `var(--color-*)` tokens from `apps/web/app/globals.css`. Add a token there first; never use hex, rgb, or hsl literals in `.module.css`.
+- **No raw color values in CSS Modules.** All colors must use guild tokens from `apps/web/app/globals.css`. Add a token there first; never use hex, rgb, or hsl literals in `.module.css`.
+- **Theme-aware styles use `:global([data-theme="dark"])`.** CSS Modules scope class names by default; the theme attribute is global, so dark-mode overrides need the `:global()` selector.
 - Styling uses CSS Modules, not Tailwind.
 
 ## Changelog

@@ -6,38 +6,7 @@
    dark theme = ink ("the guild hall at night").
    ============================================================ */
 
-/* ---- New webfonts (parchment voice) ---- */
 @import url('https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=Vollkorn:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap');
-
-/* ---- Legacy self-hosted fonts (still referenced by un-migrated CSS modules; removed in Phase 7) ---- */
-@font-face {
-  font-family: "Ysabeau Office";
-  src: url("/fonts/ysabeau-office/YsabeauOffice-VariableFont_wght.ttf") format("truetype");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Ysabeau Office";
-  src: url("/fonts/ysabeau-office/YsabeauOffice-Italic-VariableFont_wght.ttf") format("truetype");
-  font-weight: 100 900;
-  font-style: italic;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Source Code Pro";
-  src: url("/fonts/source-code-pro/SourceCodePro-VariableFont_wght.ttf") format("truetype");
-  font-weight: 200 900;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Source Code Pro";
-  src: url("/fonts/source-code-pro/SourceCodePro-Italic-VariableFont_wght.ttf") format("truetype");
-  font-weight: 200 900;
-  font-style: italic;
-  font-display: swap;
-}
 
 :root {
   /* =====================================================
@@ -145,7 +114,7 @@
   --font-display: 'IM Fell English SC', 'IM Fell English', 'Cormorant Garamond', 'Times New Roman', serif;
   --font-serif:   'Vollkorn', 'IM Fell English', Georgia, 'Times New Roman', serif;
   --font-body:    'Vollkorn', Georgia, 'Times New Roman', serif;
-  --font-mono:    'JetBrains Mono', 'Source Code Pro', 'Iosevka', 'Menlo', 'Consolas', monospace;
+  --font-mono:    'JetBrains Mono', 'Iosevka', 'Menlo', 'Consolas', monospace;
 
   /* Modular scale */
   --text-xs:   12px;
@@ -217,59 +186,8 @@
   --dur:       200ms;
   --dur-slow:  360ms;
 
-  /* =====================================================
-     LEGACY TOKEN ALIASES — referenced by un-migrated
-     CSS modules. Removed in Phase 7. Each phase that
-     migrates a module replaces these with direct new
-     tokens.
-     ===================================================== */
-  --color-text:             var(--fg);
-  --color-text-muted:       var(--fg-3);
-  --color-text-heading:     var(--fg-1);
-  --color-text-bright:      var(--fg-1);
-  --color-text-placeholder: var(--fg-muted);
-
-  --color-dark-bg:          var(--bg);
-  --color-parchment:        var(--parchment-100);
-  --color-panel-bg:         color-mix(in srgb, var(--bg-raised) 78%, transparent);
-  --color-button-bg:        color-mix(in srgb, var(--bg-sunken) 75%, transparent);
-  --color-button-bg-hover:  var(--bg-sunken);
-
-  --color-brass:   var(--brass-700);
-  --color-bronze:  var(--brass-700);
-  --color-amber:   var(--ember-300);
-
-  --color-error:        var(--danger);
-  --color-error-light:  var(--oxblood-300);
-  --color-success:      var(--success);
-  --color-success-light: var(--moss-300);
-
-  /* Status label text colors (paired with --gem-* filters used by GemIndicator) */
-  --color-status-active:   var(--moss-300);
-  --color-status-pending:  var(--brass-300);
-  --color-status-blocked:  var(--oxblood-300);
-  --color-status-info:     var(--lapis-300);
-  --color-status-inactive: var(--fg-muted);
-
-  /* Gem filter rotations applied to public/images/gem.webp by GemIndicator */
-  --gem-active:  hue-rotate(-100deg) saturate(1.5) brightness(0.9);
-  --gem-pending: hue-rotate(-140deg) saturate(2) brightness(1.1);
-  --gem-blocked: hue-rotate(120deg) saturate(2) brightness(0.85);
-  --gem-info:    none;
-  --gem-inactive: saturate(0) brightness(0.7);
-
-  /* Legacy spacing — map to new scale */
-  --space-xs:  var(--space-1);
-  --space-sm:  var(--space-2);
-  --space-md:  var(--space-4);
-  --space-lg:  var(--space-6);
-  --space-xl:  var(--space-8);
-  --space-2xl: var(--space-12);
-
-  /* Legacy fonts (now resolve to new system) */
-  --font-code: var(--font-mono);
-
-  /* Breakpoints (reference only) */
+  /* Breakpoints (reference only — CSS custom properties cannot
+     appear in @media conditions) */
   --breakpoint-tablet: 768px;
   --breakpoint-phone:  480px;
 
@@ -360,21 +278,6 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-}
-
-/* Legacy fixed-position background. Removed in Phase 7 once all screens
-   render their own paper texture via the .paper utility. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background-image: url("/images/background.webp");
-  background-size: cover;
-  background-position: center;
-}
-[data-theme="dark"] body::before {
-  opacity: 1;
 }
 
 /* =====================================================

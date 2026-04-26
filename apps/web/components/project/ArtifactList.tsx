@@ -5,6 +5,7 @@ import Link from "next/link";
 import Panel from "@/apps/web/components/ui/Panel";
 import StatusBadge from "@/apps/web/components/ui/StatusBadge";
 import EmptyState from "@/apps/web/components/ui/EmptyState";
+import { Icon } from "@/apps/web/components/guild";
 import type { Artifact } from "@/lib/types";
 import { statusToGem } from "@/lib/types";
 import { displayTitle, buildArtifactTree } from "@/lib/artifact-grouping";
@@ -60,14 +61,7 @@ function TreeNodeRow({
           ) : isImage ? (
             <span className={styles.imageIcon} aria-hidden="true">{"\uD83D\uDDBC"}</span>
           ) : (
-            /* Static decorative icon. next/image optimization not beneficial. */
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src="/images/ui/scroll-icon.webp"
-              alt=""
-              className={styles.scrollIcon}
-              aria-hidden="true"
-            />
+            <Icon name="scroll" size={18} className={styles.scrollIcon} />
           )}
           <div className={styles.info}>
             <span className={styles.title}>{displayTitle(node.artifact)}</span>
