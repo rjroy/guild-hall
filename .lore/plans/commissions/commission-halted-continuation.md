@@ -3,7 +3,7 @@ title: "Plan: Commission halted state and continuation"
 date: 2026-03-16
 status: executed
 tags: [commissions, lifecycle, halted, continuation, max-turns, recovery]
-modules: [commission/lifecycle, commission/orchestrator, manager-toolbox, commission-routes, lib/commissions, daemon/types]
+modules: [commission/lifecycle, commission/orchestrator, manager-toolbox, commission-routes, lib/commissions, apps/daemon/types]
 related:
   - .lore/_abandoned/specs/commission-halted-continuation.md
   - .lore/specs/commissions/guild-hall-commissions.md
@@ -42,21 +42,21 @@ Requirements addressed:
 
 ### State Machine (Layer 2)
 
-`daemon/services/commission/lifecycle.ts` owns the `TRANSITIONS` graph (line 48). The `halted` state needs to be added here with edges matching REQ-COM-35. The lifecycle class uses a per-entry promise chain for concurrency control and defers event emission until after lock release.
+`apps/daemon/services/commission/lifecycle.ts` owns the `TRANSITIONS` graph (line 48). The `halted` state needs to be added here with edges matching REQ-COM-35. The lifecycle class uses a per-entry promise chain for concurrency control and defers event emission until after lock release.
 
 New methods needed: `halt()` and an overload point for `continue` (careful: `continue` is a JS keyword). The spec says `halted -> in_progress` via continue. A new `continueHalted()` method with a distinct reason string keeps the flow clear.
 
 ### Commission Status Type
 
-`daemon/types.ts:39` defines `CommissionStatus` as a union of string literals. `"halted"` must be added. Every `switch` or conditional on `CommissionStatus` across the codebase needs to handle the new state. Key locations:
+`apps/daemon/types.ts:39` defines `CommissionStatus` as a union of string literals. `"halted"` must be added. Every `switch` or conditional on `CommissionStatus` across the codebase needs to handle the new state. Key locations:
 - `lifecycle.ts` TRANSITIONS map
 - `orchestrator.ts` handleSessionCompletion, cancelCommission, recovery
 - `lib/commissions.ts` STATUS_GROUP for sorting
-- `daemon/services/manager/toolbox.ts` SUMMARY_GROUP for list counts
+- `apps/daemon/services/manager/toolbox.ts` SUMMARY_GROUP for list counts
 
 ### Orchestrator (Layer 5)
 
-`daemon/services/commission/orchestrator.ts` (900+ lines) is where the halt entry and continue/save flows live. Three areas need changes:
+`apps/daemon/services/commission/orchestrator.ts` (900+ lines) is where the halt entry and continue/save flows live. Three areas need changes:
 
 1. **handleSessionCompletion** (line 509): Currently, when `resultSubmitted === false`, the orchestrator calls `failAndCleanup`. The spec (REQ-COM-36) says when `outcome.reason === "maxTurns"` and `resultSubmitted === false`, transition to `halted` instead. This is the branching point.
 
@@ -66,15 +66,15 @@ New methods needed: `halt()` and an overload point for `continue` (careful: `con
 
 ### Capacity
 
-`daemon/services/commission/capacity.ts` checks `executions` map size. Halted commissions won't be in `executions` (they're removed on halt). When a halted commission continues, it re-enters `executions` and the capacity check runs before launch.
+`apps/daemon/services/commission/capacity.ts` checks `executions` map size. Halted commissions won't be in `executions` (they're removed on halt). When a halted commission continues, it re-enters `executions` and the capacity check runs before launch.
 
 ### Manager Toolbox
 
-`daemon/services/manager/toolbox.ts` (1200+ lines) needs two new tool handlers: `makeContinueCommissionHandler` and `makeSaveCommissionHandler`. Follow the factory pattern of existing handlers. The `CommissionSessionForRoutes` interface is the contract; the manager toolbox calls through it.
+`apps/daemon/services/manager/toolbox.ts` (1200+ lines) needs two new tool handlers: `makeContinueCommissionHandler` and `makeSaveCommissionHandler`. Follow the factory pattern of existing handlers. The `CommissionSessionForRoutes` interface is the contract; the manager toolbox calls through it.
 
 ### Commission Routes
 
-`daemon/routes/commissions.ts` defines routes using the capability-oriented path grammar. New routes needed:
+`apps/daemon/routes/commissions.ts` defines routes using the capability-oriented path grammar. New routes needed:
 - `POST /commission/run/continue` (alongside dispatch, cancel, redispatch, abandon)
 - `POST /commission/run/save`
 
@@ -92,14 +92,14 @@ Add `halted` to the type system and transition graph. This phase is pure Layer 2
 
 #### Step 1.1: Add `halted` to CommissionStatus
 
-**Files**: `daemon/types.ts`
+**Files**: `apps/daemon/types.ts`
 **Addresses**: REQ-COM-33, REQ-COM-34
 
 Add `"halted"` to the `CommissionStatus` union type at line 39.
 
 #### Step 1.2: Add `halted` transitions to lifecycle
 
-**Files**: `daemon/services/commission/lifecycle.ts`
+**Files**: `apps/daemon/services/commission/lifecycle.ts`
 **Addresses**: REQ-COM-35
 
 Update the `TRANSITIONS` map at line 48:
@@ -112,25 +112,25 @@ Add two new trigger methods:
 
 #### Step 1.3: Update activeCount
 
-**Files**: `daemon/services/commission/lifecycle.ts`
+**Files**: `apps/daemon/services/commission/lifecycle.ts`
 **Addresses**: REQ-COM-47
 
 The `activeCount` getter at line 302 counts `dispatched` and `in_progress`. `halted` must NOT be counted here. No change needed to this getter since `halted` is neither `dispatched` nor `in_progress`, but verify the capacity logic in the orchestrator is consistent (it uses the `executions` map, not `activeCount`).
 
 #### Step 1.4: Update sorting, display, and gem mappings
 
-**Files**: `lib/commissions.ts`, `daemon/services/manager/toolbox.ts`, `lib/types.ts`
+**Files**: `lib/commissions.ts`, `apps/daemon/services/manager/toolbox.ts`, `lib/types.ts`
 **Addresses**: REQ-COM-48 (partial: sorting and display)
 
 In `lib/commissions.ts` STATUS_GROUP (line 248): add `halted: 1` (active group).
 
-In `daemon/services/manager/toolbox.ts` SUMMARY_GROUP (line 951): add `halted: "active"`.
+In `apps/daemon/services/manager/toolbox.ts` SUMMARY_GROUP (line 951): add `halted: "active"`.
 
 In `lib/types.ts` ARTIFACT_STATUS_GROUP: add `halted` to group 1 (same as `in_progress`). This controls `statusToGem()` which determines gem colors across the entire UI. Without this, halted commissions show a red gem (indistinguishable from failed).
 
 #### Step 1.5: Tests for Phase 1
 
-**Files**: `tests/daemon/services/commission/lifecycle.test.ts` (new or existing)
+**Files**: `apps/daemon/tests/services/commission/lifecycle.test.ts` (new or existing)
 **Expertise**: none
 
 - Verify `halted` transitions: in_progress -> halted succeeds
@@ -144,7 +144,7 @@ Wire the orchestrator to transition to `halted` instead of `failed` when maxTurn
 
 #### Step 2.1: Branch handleSessionCompletion for maxTurns
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-36, REQ-COM-38
 
 In `handleSessionCompletion` (line 509), before the existing `failAndCleanup` path at line 541, add a check:
@@ -171,16 +171,16 @@ The new `handleHalt` function:
 
 #### Step 2.2: Add halt_count support to CommissionRecordOps
 
-**Files**: `daemon/services/commission/record.ts`
+**Files**: `apps/daemon/services/commission/record.ts`
 **Addresses**: REQ-COM-45
 
-Add a method to increment `halt_count` in the artifact frontmatter. If the field doesn't exist, initialize it to 1. Use the `replaceYamlField` utility from `daemon/lib/record-utils.ts` following the pattern of existing field updates.
+Add a method to increment `halt_count` in the artifact frontmatter. If the field doesn't exist, initialize it to 1. Use the `replaceYamlField` utility from `apps/daemon/lib/record-utils.ts` following the pattern of existing field updates.
 
 Also add a method or parameter to read `current_progress` for inclusion in the state file.
 
 #### Step 2.3: State file format
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-37
 
 The state file for halted commissions uses the existing `writeStateFile` helper. Shape:
@@ -203,7 +203,7 @@ A new `HaltedCommissionState` type should be defined in a commission-specific ty
 
 #### Step 2.4: Tests for Phase 2
 
-**Files**: `tests/daemon/services/commission/orchestrator.test.ts` (extend existing)
+**Files**: `apps/daemon/tests/services/commission/orchestrator.test.ts` (extend existing)
 **Expertise**: none
 
 - Simulate `outcome.reason === "maxTurns"` with `resultSubmitted === false`. Verify: commission transitions to `halted`, worktree is NOT deleted, state file contains all required fields, `halt_count` is 1, timeline has `status_halted` event, commission is removed from `executions`.
@@ -217,7 +217,7 @@ Resume a halted commission in the same worktree with a new SDK session. This is 
 
 #### Step 3.1: Add continueCommission to CommissionSessionForRoutes
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-39
 
 Add to the interface (line 94):
@@ -227,7 +227,7 @@ continueCommission(commissionId: CommissionId): Promise<{ status: "accepted" | "
 
 #### Step 3.2: Implement continueCommission
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-39, REQ-COM-40, REQ-COM-40a, REQ-COM-41, REQ-COM-47
 
 Implementation flow:
@@ -262,7 +262,7 @@ The only subtlety: `handleHalt` must re-read and increment `halt_count` (not set
 
 #### Step 3.4: Add continue route
 
-**Files**: `daemon/routes/commissions.ts`
+**Files**: `apps/daemon/routes/commissions.ts`
 **Addresses**: REQ-COM-49 (route exposure)
 
 Add `POST /commission/run/continue` following the pattern of dispatch (line 173):
@@ -272,7 +272,7 @@ Add `POST /commission/run/continue` following the pattern of dispatch (line 173)
 
 #### Step 3.5: Tests for Phase 3
 
-**Files**: `tests/daemon/services/commission/orchestrator.test.ts` (extend)
+**Files**: `apps/daemon/tests/services/commission/orchestrator.test.ts` (extend)
 **Expertise**: none
 
 - Continue a halted commission: verify worktree reused, session launched with continuation prompt containing turnsUsed and lastProgress, state file updated to in_progress.
@@ -288,7 +288,7 @@ Merge partial work from a halted commission without agent completion.
 
 #### Step 4.1: Add saveCommission to CommissionSessionForRoutes
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-42
 
 Add to the interface:
@@ -298,7 +298,7 @@ saveCommission(commissionId: CommissionId, reason?: string): Promise<void>;
 
 #### Step 4.2: Implement saveCommission
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-42, REQ-COM-43, REQ-COM-44
 
 Implementation flow:
@@ -317,14 +317,14 @@ Implementation flow:
 
 #### Step 4.3: Add save route
 
-**Files**: `daemon/routes/commissions.ts`
+**Files**: `apps/daemon/routes/commissions.ts`
 **Addresses**: REQ-COM-49 (route exposure)
 
 Add `POST /commission/run/save` with `commissionId` and optional `reason` in body.
 
 #### Step 4.4: Tests for Phase 4
 
-**Files**: `tests/daemon/services/commission/orchestrator.test.ts` (extend)
+**Files**: `apps/daemon/tests/services/commission/orchestrator.test.ts` (extend)
 **Expertise**: none
 
 - Save a halted commission: verify squash-merge to claude, completion marked as partial (timeline has `partial: "true"`), result_summary updated, worktree cleaned up.
@@ -338,7 +338,7 @@ Handle halted commissions on daemon restart.
 
 #### Step 5.1: Add halted recovery to recoverCommissions
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-46
 
 In `recoverCommissions()`, before the active commission recovery (line 1040), add a halted recovery block:
@@ -367,7 +367,7 @@ A halted commission with an intact worktree just stays halted.
 
 #### Step 5.2: Tests for Phase 5
 
-**Files**: `tests/daemon/services/commission/orchestrator.test.ts` (extend)
+**Files**: `apps/daemon/tests/services/commission/orchestrator.test.ts` (extend)
 **Expertise**: none
 
 - Daemon restart with halted state file and existing worktree: verify commission registered as halted, no transition occurs, commission waits for user action.
@@ -380,7 +380,7 @@ Give the Guild Master visibility into halted commissions and the ability to trig
 
 #### Step 6.1: Update check_commission_status for halted
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 **Addresses**: REQ-COM-48
 
 Single commission mode (line 1012): When status is `halted`, include `turnsUsed` and `lastProgress` in the result. Read these from the state file (or from the most recent `status_halted` timeline event in the artifact). The state file is more reliable since it's always present for halted commissions.
@@ -391,7 +391,7 @@ List mode: already handled by the SUMMARY_GROUP update in Phase 1.
 
 #### Step 6.2: Add continue_commission tool
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 **Addresses**: REQ-COM-49
 
 New factory function `makeContinueCommissionHandler(deps)`:
@@ -403,7 +403,7 @@ Register in `createManagerToolbox` alongside existing tools.
 
 #### Step 6.3: Add save_commission tool
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 **Addresses**: REQ-COM-49
 
 New factory function `makeSaveCommissionHandler(deps)`:
@@ -415,7 +415,7 @@ Register in `createManagerToolbox` alongside existing tools.
 
 #### Step 6.4: Update cancel for halted commissions
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-35 (halted -> cancelled)
 
 The existing `cancelCommission` (line 1924) handles active commissions (in `executions`) and pending/blocked commissions. Halted commissions need their own branch:
@@ -438,7 +438,7 @@ Halted commissions have no concurrent sessions, making this straightforward.
 
 #### Step 6.5: Update abandon for halted commissions
 
-**Files**: `daemon/services/commission/orchestrator.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`
 **Addresses**: REQ-COM-35 (halted -> abandoned)
 
 The existing `abandonCommission` (line 2008) has a different structure than `cancelCommission`. It checks `executions.has()` first (throws if active), then falls to tracked-in-lifecycle. A halted commission IS tracked in lifecycle but not in executions.
@@ -455,7 +455,7 @@ Do NOT rely on the existing tracked path in `abandonCommission` because it does 
 
 #### Step 6.6: Tests for Phase 6
 
-**Files**: `tests/daemon/services/manager/toolbox.test.ts`, `tests/daemon/services/commission/orchestrator.test.ts` (extend)
+**Files**: `apps/daemon/tests/services/manager/toolbox.test.ts`, `apps/daemon/tests/services/commission/orchestrator.test.ts` (extend)
 **Expertise**: none
 
 - `check_commission_status` single mode: halted commission returns turnsUsed and lastProgress.
@@ -509,4 +509,4 @@ Launch a sub-agent that reads the spec at `.lore/_abandoned/specs/commission-hal
 
 2. **`resource_overrides` on continue (RESOLVED)**: REQ-COM-40a says "if the user wants to increase the budget for a continuation, they update `resource_overrides` on the commission artifact before continuing." The `updateCommission` method already supports modifying `resource_overrides` on pending commissions. Decision: add `halted` to the allowed statuses in `updateCommission`'s status check. This is a one-line change and should be done in Phase 3, Step 3.2, since continue is the primary consumer. Without this, the REQ-COM-40a workflow for adjusting turn budget before continuing is broken. Note: `resource_overrides` comes from the integration worktree artifact (not the state file), and `prepareSdkSession` reads it from the artifact during session prep.
 
-3. **HaltedCommissionState type location**: Recommendation: create `daemon/services/commission/halted-types.ts` to keep it close to where it's consumed.
+3. **HaltedCommissionState type location**: Recommendation: create `apps/daemon/services/commission/halted-types.ts` to keep it close to where it's consumed.

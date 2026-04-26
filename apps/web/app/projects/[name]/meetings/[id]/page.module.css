@@ -1,0 +1,76 @@
+/* ============================================================
+   Audience layout — AppBar → MeetingView (or ended panel)
+   ============================================================ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.meetingView {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* --- Closed meeting state --- */
+
+.ended {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-12);
+  text-align: center;
+}
+
+.endedText {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-lg);
+  color: var(--fg-2);
+  margin: 0;
+}
+
+.endedLink {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
+  text-decoration: none;
+  border: 1px solid var(--ember-500);
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  transition: all var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .endedLink {
+  color: var(--ember-300);
+}
+
+.endedLink:hover {
+  background: var(--brand-soft);
+}
+
+@media (max-width: 768px) {
+  .meetingView {
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .meetingView {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+}

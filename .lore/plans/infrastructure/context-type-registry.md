@@ -3,7 +3,7 @@ title: "Plan: Context Type Registry"
 date: 2026-03-20
 status: executed
 tags: [refactor, toolbox-resolver, registry, extensibility, daemon-service]
-modules: [toolbox-resolver, toolbox-types, context-type-registry, base-toolbox, sdk-runner, daemon/app]
+modules: [toolbox-resolver, toolbox-types, context-type-registry, base-toolbox, sdk-runner, apps/daemon/app]
 related:
   - .lore/specs/infrastructure/context-type-registry.md
   - .lore/issues/context-type-registry-refactor.md
@@ -20,19 +20,19 @@ This plan implements the full spec at `.lore/specs/infrastructure/context-type-r
 
 ## Codebase Context
 
-**Toolbox types** (`daemon/services/toolbox-types.ts`): Defines `GuildHallToolboxDeps` with `contextType: "meeting" | "commission" | "mail" | "briefing"` at line 20, `ToolboxFactory`, and `ToolboxOutput`. This is where the new `ContextTypeRegistration` interface and `ContextTypeRegistry` type will live.
+**Toolbox types** (`apps/daemon/services/toolbox-types.ts`): Defines `GuildHallToolboxDeps` with `contextType: "meeting" | "commission" | "mail" | "briefing"` at line 20, `ToolboxFactory`, and `ToolboxOutput`. This is where the new `ContextTypeRegistration` interface and `ContextTypeRegistry` type will live.
 
-**Toolbox resolver** (`daemon/services/toolbox-resolver.ts`): `SYSTEM_TOOLBOX_REGISTRY` (lines 26-31) maps four names to toolbox factories: `meeting`, `commission`, `manager`, `mail`. The `resolveToolSet` function uses it for both context toolbox auto-add (step 2, line 103) and system toolbox lookup (step 3, line 110). After the refactor, context types move to the registry and only `manager` stays in the resolver's own map.
+**Toolbox resolver** (`apps/daemon/services/toolbox-resolver.ts`): `SYSTEM_TOOLBOX_REGISTRY` (lines 26-31) maps four names to toolbox factories: `meeting`, `commission`, `manager`, `mail`. The `resolveToolSet` function uses it for both context toolbox auto-add (step 2, line 103) and system toolbox lookup (step 3, line 110). After the refactor, context types move to the registry and only `manager` stays in the resolver's own map.
 
-**Base toolbox** (`daemon/services/base-toolbox.ts`): `BaseToolboxDeps` (line 32) repeats the hardcoded union. `makeRecordDecisionHandler` (line 325-330) has an inline conditional chain mapping `contextType` to `stateSubdir`. Both change.
+**Base toolbox** (`apps/daemon/services/base-toolbox.ts`): `BaseToolboxDeps` (line 32) repeats the hardcoded union. `makeRecordDecisionHandler` (line 325-330) has an inline conditional chain mapping `contextType` to `stateSubdir`. Both change.
 
-**SDK runner** (`daemon/lib/agent-sdk/sdk-runner.ts`): `SessionPrepSpec.contextType` (line 92) and the inline context type in `SessionPrepDeps.resolveToolSet` (line 113) both carry the hardcoded union. Per the spec, these caller-facing interfaces get `ContextTypeName` (compile-time narrowing), while internal interfaces get `string`.
+**SDK runner** (`apps/daemon/lib/agent-sdk/sdk-runner.ts`): `SessionPrepSpec.contextType` (line 92) and the inline context type in `SessionPrepDeps.resolveToolSet` (line 113) both carry the hardcoded union. Per the spec, these caller-facing interfaces get `ContextTypeName` (compile-time narrowing), while internal interfaces get `string`.
 
-**Production wiring** (`daemon/app.ts`): `createProductionApp()` constructs `prepDeps` (line 329) wrapping `resolveToolSet`. The registry needs to be created here and threaded through `prepDeps` to the resolver.
+**Production wiring** (`apps/daemon/app.ts`): `createProductionApp()` constructs `prepDeps` (line 329) wrapping `resolveToolSet`. The registry needs to be created here and threaded through `prepDeps` to the resolver.
 
-**Existing tests** (`tests/daemon/toolbox-resolver.test.ts`): Tests `resolveToolSet` with `contextType: "meeting"` throughout. The `testContext()` helper (line 73) constructs a `ToolboxResolverContext`. All call sites need the new `contextTypeRegistry` parameter.
+**Existing tests** (`apps/daemon/tests/toolbox-resolver.test.ts`): Tests `resolveToolSet` with `contextType: "meeting"` throughout. The `testContext()` helper (line 73) constructs a `ToolboxResolverContext`. All call sites need the new `contextTypeRegistry` parameter.
 
-**Additional test files** referencing the resolver or constructing contexts: `tests/daemon/services/sdk-runner.test.ts`, `tests/daemon/services/briefing-generator.test.ts`, `tests/daemon/services/commission/orchestrator.test.ts`, `tests/daemon/services/mail/orchestrator.test.ts`, `tests/daemon/integration-commission.test.ts`, `tests/daemon/memory-access-control.test.ts`, and three package integration tests.
+**Additional test files** referencing the resolver or constructing contexts: `apps/daemon/tests/services/sdk-runner.test.ts`, `apps/daemon/tests/services/briefing-generator.test.ts`, `apps/daemon/tests/services/commission/orchestrator.test.ts`, `apps/daemon/tests/services/mail/orchestrator.test.ts`, `apps/daemon/tests/integration-commission.test.ts`, `apps/daemon/tests/memory-access-control.test.ts`, and three package integration tests.
 
 ## Implementation Steps
 
@@ -46,7 +46,7 @@ Define the types and build the factory. No behavioral changes, no existing code 
 
 #### Step 1.1: Define `ContextTypeRegistration` and `ContextTypeRegistry` in toolbox-types.ts
 
-Add to `daemon/services/toolbox-types.ts`:
+Add to `apps/daemon/services/toolbox-types.ts`:
 
 ```typescript
 export interface ContextTypeRegistration {
@@ -62,7 +62,7 @@ These use `ToolboxFactory` already defined in the same file. No new imports need
 
 #### Step 1.2: Define `ContextTypeName` and `createContextTypeRegistry` factory
 
-Create `daemon/services/context-type-registry.ts`:
+Create `apps/daemon/services/context-type-registry.ts`:
 
 ```typescript
 import type { ContextTypeRegistry } from "./toolbox-types";
@@ -101,7 +101,7 @@ This is the single file that imports all three context toolbox factories. The fa
 
 #### Step 1.3: Tests for registry factory
 
-Create `tests/daemon/services/context-type-registry.test.ts`:
+Create `apps/daemon/tests/services/context-type-registry.test.ts`:
 
 1. `createContextTypeRegistry()` returns a Map with 4 entries.
 2. `meeting` entry has `toolboxFactory` defined and `stateSubdir: "meetings"`.
@@ -110,7 +110,7 @@ Create `tests/daemon/services/context-type-registry.test.ts`:
 5. `briefing` entry has no `toolboxFactory` and `stateSubdir: "briefings"`.
 6. Each call returns a fresh instance (not the same reference).
 
-Run `bun test tests/daemon/services/context-type-registry.test.ts`.
+Run `bun test apps/daemon/tests/services/context-type-registry.test.ts`.
 
 ### Phase 2: Widen Internal Type Signatures
 
@@ -122,7 +122,7 @@ Change internal interfaces from the hardcoded union to `string`. No behavioral c
 
 #### Step 2.1: Widen `GuildHallToolboxDeps.contextType` to `string`
 
-In `daemon/services/toolbox-types.ts` line 20, change:
+In `apps/daemon/services/toolbox-types.ts` line 20, change:
 ```typescript
 contextType: "meeting" | "commission" | "mail" | "briefing";
 ```
@@ -133,20 +133,20 @@ contextType: string;
 
 #### Step 2.2: Widen `ToolboxResolverContext.contextType` to `string`
 
-In `daemon/services/toolbox-resolver.ts` line 39, change the union to `string`.
+In `apps/daemon/services/toolbox-resolver.ts` line 39, change the union to `string`.
 
 #### Step 2.3: Widen `BaseToolboxDeps.contextType` to `string`
 
-In `daemon/services/base-toolbox.ts` line 32, change the union to `string`.
+In `apps/daemon/services/base-toolbox.ts` line 32, change the union to `string`.
 
 #### Step 2.4: Widen `makeRecordDecisionHandler` parameter to `string`
 
-In `daemon/services/base-toolbox.ts` line 328, change the `contextType` parameter type from the union to `string`.
+In `apps/daemon/services/base-toolbox.ts` line 328, change the `contextType` parameter type from the union to `string`.
 
 #### Step 2.5: Update caller-facing interfaces to use `ContextTypeName`
 
-In `daemon/lib/agent-sdk/sdk-runner.ts`:
-- Import `ContextTypeName` from `@/daemon/services/context-type-registry`.
+In `apps/daemon/lib/agent-sdk/sdk-runner.ts`:
+- Import `ContextTypeName` from `@/apps/daemon/services/context-type-registry`.
 - `SessionPrepSpec.contextType` (line 92): change from hardcoded union to `ContextTypeName`.
 - `SessionPrepDeps.resolveToolSet` inline context type (line 113): change to `contextType: string`. This is the internal-facing side that the resolver consumes, so it uses `string` per REQ-CXTR-9.
 
@@ -170,7 +170,7 @@ The behavioral change. The resolver receives the registry, uses it for context t
 
 #### Step 3.1: Add `stateSubdir` to `GuildHallToolboxDeps`
 
-In `daemon/services/toolbox-types.ts`, add to `GuildHallToolboxDeps`:
+In `apps/daemon/services/toolbox-types.ts`, add to `GuildHallToolboxDeps`:
 
 ```typescript
 stateSubdir?: string;
@@ -180,7 +180,7 @@ Optional so existing test code that constructs `GuildHallToolboxDeps` directly d
 
 #### Step 3.2: Refactor `resolveToolSet` signature and body
 
-In `daemon/services/toolbox-resolver.ts`:
+In `apps/daemon/services/toolbox-resolver.ts`:
 
 1. Add `contextTypeRegistry` parameter to `resolveToolSet`:
 
@@ -237,7 +237,7 @@ const deps: GuildHallToolboxDeps = {
 
 #### Step 3.3: Update `makeRecordDecisionHandler` to use `stateSubdir` from deps
 
-In `daemon/services/base-toolbox.ts`:
+In `apps/daemon/services/base-toolbox.ts`:
 
 1. Add `stateSubdir?: string` to `BaseToolboxDeps` (line 30 area).
 
@@ -265,20 +265,20 @@ const recordDecision = makeRecordDecisionHandler(
 
 #### Step 3.4: Update `SessionPrepDeps` and production wiring
 
-In `daemon/lib/agent-sdk/sdk-runner.ts`:
+In `apps/daemon/lib/agent-sdk/sdk-runner.ts`:
 
-1. Import `ContextTypeRegistry` from `@/daemon/services/toolbox-types`.
+1. Import `ContextTypeRegistry` from `@/apps/daemon/services/toolbox-types`.
 2. Add `contextTypeRegistry: ContextTypeRegistry` to `SessionPrepDeps`.
 3. In `prepareSdkSession`, pass `deps.contextTypeRegistry` to `deps.resolveToolSet` as the fourth argument.
 
-In `daemon/app.ts`:
+In `apps/daemon/app.ts`:
 
-1. Import `createContextTypeRegistry` from `@/daemon/services/context-type-registry`.
+1. Import `createContextTypeRegistry` from `@/apps/daemon/services/context-type-registry`.
 2. In `createProductionApp()`, before constructing `prepDeps`, create the registry:
 
 ```typescript
 const { createContextTypeRegistry } = await import(
-  "@/daemon/services/context-type-registry"
+  "@/apps/daemon/services/context-type-registry"
 );
 const contextTypeRegistry = createContextTypeRegistry();
 ```
@@ -309,16 +309,16 @@ Every test that calls `resolveToolSet` directly or constructs `SessionPrepDeps` 
 
 | File | Change |
 |------|--------|
-| `tests/daemon/toolbox-resolver.test.ts` | Add `createContextTypeRegistry()` to `testContext()` setup; pass as 4th arg to `resolveToolSet` |
-| `tests/daemon/services/sdk-runner.test.ts` | Add `contextTypeRegistry` to mock `SessionPrepDeps` |
-| `tests/daemon/services/briefing-generator.test.ts` | Add `contextTypeRegistry` to mock `SessionPrepDeps` |
-| `tests/daemon/services/commission/orchestrator.test.ts` | Add `contextTypeRegistry` to `prepDeps` mock |
-| `tests/daemon/services/mail/orchestrator.test.ts` | Add `contextTypeRegistry` to `prepDeps` mock |
-| `tests/daemon/integration-commission.test.ts` | Add `contextTypeRegistry` to `prepDeps` |
-| `tests/daemon/memory-access-control.test.ts` | Update if it constructs `BaseToolboxDeps` directly |
-| `tests/packages/guild-hall-email/integration.test.ts` | Add `contextTypeRegistry` to `prepDeps` |
-| `tests/packages/guild-hall-illuminator/integration.test.ts` | Add `contextTypeRegistry` to `prepDeps` |
-| `tests/packages/guild-hall-steward/integration.test.ts` | Add `contextTypeRegistry` to `prepDeps` |
+| `apps/daemon/tests/toolbox-resolver.test.ts` | Add `createContextTypeRegistry()` to `testContext()` setup; pass as 4th arg to `resolveToolSet` |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | Add `contextTypeRegistry` to mock `SessionPrepDeps` |
+| `apps/daemon/tests/services/briefing-generator.test.ts` | Add `contextTypeRegistry` to mock `SessionPrepDeps` |
+| `apps/daemon/tests/services/commission/orchestrator.test.ts` | Add `contextTypeRegistry` to `prepDeps` mock |
+| `apps/daemon/tests/services/mail/orchestrator.test.ts` | Add `contextTypeRegistry` to `prepDeps` mock |
+| `apps/daemon/tests/integration-commission.test.ts` | Add `contextTypeRegistry` to `prepDeps` |
+| `apps/daemon/tests/memory-access-control.test.ts` | Update if it constructs `BaseToolboxDeps` directly |
+| `packages/guild-hall-email/tests/integration.test.ts` | Add `contextTypeRegistry` to `prepDeps` |
+| `packages/guild-hall-illuminator/tests/integration.test.ts` | Add `contextTypeRegistry` to `prepDeps` |
+| `packages/guild-hall-steward/tests/integration.test.ts` | Add `contextTypeRegistry` to `prepDeps` |
 
 For the resolver test specifically, also add new test cases:
 
@@ -349,12 +349,12 @@ Run `bun test` and confirm all tests pass.
 Launch a fresh-context review agent (Thorne). The agent reads the spec at `.lore/specs/infrastructure/context-type-registry.md` and all modified files, then verifies:
 
 - Every REQ-CXTR has at least one test covering it.
-- `ContextTypeRegistration` and `ContextTypeRegistry` are in `daemon/services/toolbox-types.ts`.
-- `createContextTypeRegistry()` is in `daemon/services/context-type-registry.ts` and imports toolbox factories from their source modules.
+- `ContextTypeRegistration` and `ContextTypeRegistry` are in `apps/daemon/services/toolbox-types.ts`.
+- `createContextTypeRegistry()` is in `apps/daemon/services/context-type-registry.ts` and imports toolbox factories from their source modules.
 - `SYSTEM_TOOLBOX_REGISTRY` in `toolbox-resolver.ts` contains only `manager`.
 - `resolveToolSet` signature includes `contextTypeRegistry` parameter.
-- `createProductionApp` in `daemon/app.ts` calls `createContextTypeRegistry()` and threads it to session prep.
-- No file outside `daemon/services/context-type-registry.ts` imports all three context toolbox factories.
+- `createProductionApp` in `apps/daemon/app.ts` calls `createContextTypeRegistry()` and threads it to session prep.
+- No file outside `apps/daemon/services/context-type-registry.ts` imports all three context toolbox factories.
 - `makeRecordDecisionHandler` uses `stateSubdir` string, not a conditional chain.
 - `contextType` fields in internal interfaces use `string`; caller-facing interfaces use `ContextTypeName`.
 - `briefing` context type registers with no `toolboxFactory` and the resolver handles it by skipping step 2.
@@ -364,14 +364,14 @@ Launch a fresh-context review agent (Thorne). The agent reads the spec at `.lore
 
 | File | Phase | Change |
 |------|-------|--------|
-| `daemon/services/toolbox-types.ts` | 1, 2, 3 | Add `ContextTypeRegistration`, `ContextTypeRegistry` (P1); widen `GuildHallToolboxDeps.contextType` to `string` (P2); add `stateSubdir` field (P3) |
-| `daemon/services/context-type-registry.ts` | 1 | **New.** `ContextTypeName`, `createContextTypeRegistry()` |
-| `daemon/services/toolbox-resolver.ts` | 2, 3 | Widen `ToolboxResolverContext.contextType` (P2); add registry param, shrink `SYSTEM_TOOLBOX_REGISTRY`, remove 3 toolbox imports (P3) |
-| `daemon/services/base-toolbox.ts` | 2, 3 | Widen `BaseToolboxDeps.contextType` (P2); add `stateSubdir` to deps, refactor `makeRecordDecisionHandler` (P3) |
-| `daemon/lib/agent-sdk/sdk-runner.ts` | 2, 3 | Use `ContextTypeName` on `SessionPrepSpec`, widen inline context type to `string` (P2); add `contextTypeRegistry` to `SessionPrepDeps`, thread to resolver (P3) |
-| `daemon/app.ts` | 3 | Create registry, pass through `prepDeps` |
-| `tests/daemon/services/context-type-registry.test.ts` | 1 | **New.** Registry factory tests |
-| `tests/daemon/toolbox-resolver.test.ts` | 3 | Pass registry to `resolveToolSet`, add unknown-type and briefing tests |
+| `apps/daemon/services/toolbox-types.ts` | 1, 2, 3 | Add `ContextTypeRegistration`, `ContextTypeRegistry` (P1); widen `GuildHallToolboxDeps.contextType` to `string` (P2); add `stateSubdir` field (P3) |
+| `apps/daemon/services/context-type-registry.ts` | 1 | **New.** `ContextTypeName`, `createContextTypeRegistry()` |
+| `apps/daemon/services/toolbox-resolver.ts` | 2, 3 | Widen `ToolboxResolverContext.contextType` (P2); add registry param, shrink `SYSTEM_TOOLBOX_REGISTRY`, remove 3 toolbox imports (P3) |
+| `apps/daemon/services/base-toolbox.ts` | 2, 3 | Widen `BaseToolboxDeps.contextType` (P2); add `stateSubdir` to deps, refactor `makeRecordDecisionHandler` (P3) |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts` | 2, 3 | Use `ContextTypeName` on `SessionPrepSpec`, widen inline context type to `string` (P2); add `contextTypeRegistry` to `SessionPrepDeps`, thread to resolver (P3) |
+| `apps/daemon/app.ts` | 3 | Create registry, pass through `prepDeps` |
+| `apps/daemon/tests/services/context-type-registry.test.ts` | 1 | **New.** Registry factory tests |
+| `apps/daemon/tests/toolbox-resolver.test.ts` | 3 | Pass registry to `resolveToolSet`, add unknown-type and briefing tests |
 | 8 additional test files | 3 | Add `contextTypeRegistry` to mock `prepDeps` or resolver calls |
 
 ## What Stays
@@ -434,7 +434,7 @@ Phase 4 is the review checkpoint. One review commission after Phases 1-3 complet
 |------|-----------|--------|------------|
 | Test call site missed (resolver takes 4 args, test passes 3) | Medium | Build break (caught by typecheck) | Grep for `resolveToolSet(` across all test files |
 | `stateSubdir` not threaded correctly to `makeRecordDecisionHandler` | Low | Decision logs written to wrong directory (caught by existing tests if any exercise decision recording) | Dedicated test case in Step 3.5 |
-| `prepDeps` wrapper in `daemon/app.ts` doesn't pass registry | Low | Runtime error on first session (caught by integration tests) | Integration tests exercise the full prep pipeline |
+| `prepDeps` wrapper in `apps/daemon/app.ts` doesn't pass registry | Low | Runtime error on first session (caught by integration tests) | Integration tests exercise the full prep pipeline |
 | Circular import between `context-type-registry.ts` and `toolbox-types.ts` | None | N/A | Registry imports types from toolbox-types; toolbox-types doesn't import from registry |
 | Tests that construct `BaseToolboxDeps` directly don't provide `stateSubdir` | Low | Type error (caught by typecheck) | Field is optional with fallback in `createBaseToolbox` |
 

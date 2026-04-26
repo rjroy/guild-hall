@@ -12,10 +12,10 @@ context_scanned:
   - .lore/brainstorm/triggered-commissions.md (resolved)
   - .lore/brainstorm/triggered-commission-creation-ux.md (resolved)
   - .lore/brainstorm/guild-campaigns-artifact-design.md (open)
-  - daemon/services/scheduler/ (3 files, ~900 lines)
-  - daemon/services/trigger-evaluator.ts (~300 lines)
-  - daemon/services/commission/record.ts (schedule/trigger ops)
-  - daemon/app.ts (wiring)
+  - apps/daemon/services/scheduler/ (3 files, ~900 lines)
+  - apps/daemon/services/trigger-evaluator.ts (~300 lines)
+  - apps/daemon/services/commission/record.ts (schedule/trigger ops)
+  - apps/daemon/app.ts (wiring)
 vision_status: approved (v3, 2026-03-22)
 recent_brainstorm_check: No prior brainstorm covers this replacement concept.
 ---
@@ -36,7 +36,7 @@ This brainstorm explores what that replacement looks like, what it enables, what
 
 ### Evidence
 
-The scheduler service at `daemon/services/scheduler/index.ts` ticks every 60 seconds, scans `.lore/commissions/` for active schedules, evaluates cron expressions, checks overlap, and spawns one-shot commissions. The trigger evaluator at `daemon/services/trigger-evaluator.ts` subscribes to the EventBus, evaluates match rules with micromatch, expands template variables, tracks provenance depth, and dispatches commissions when patterns match.
+The scheduler service at `apps/daemon/services/scheduler/index.ts` ticks every 60 seconds, scans `.lore/commissions/` for active schedules, evaluates cron expressions, checks overlap, and spawns one-shot commissions. The trigger evaluator at `apps/daemon/services/trigger-evaluator.ts` subscribes to the EventBus, evaluates match rules with micromatch, expands template variables, tracks provenance depth, and dispatches commissions when patterns match.
 
 Both systems encode judgment in infrastructure. The cron expression says "every Monday at 9 AM." The trigger rule says "when status matches completed and commissionId matches commission-Dalton-*." These are decisions frozen in config, and they're brittle. Changing what the guild reacts to means editing YAML schemas, not telling the guild what you want.
 
@@ -70,7 +70,7 @@ It's also Principle 7 (Ride the Wave). Cron parsing and event matching are capab
 
 ### Scope: Medium
 
-Removal of ~1200 lines of scheduler/trigger code. New heartbeat loop (likely < 200 lines). GM session with constrained system prompt. Changes to `daemon/app.ts` wiring. UI changes: remove schedule/trigger creation forms, add per-project `[Tick Now]` button on dashboard (shows heartbeat file size). Heartbeat file scaffolding on project load. Spec retirement for SCOM and TRIG requirement sets.
+Removal of ~1200 lines of scheduler/trigger code. New heartbeat loop (likely < 200 lines). GM session with constrained system prompt. Changes to `apps/daemon/app.ts` wiring. UI changes: remove schedule/trigger creation forms, add per-project `[Tick Now]` button on dashboard (shows heartbeat file size). Heartbeat file scaffolding on project load. Spec retirement for SCOM and TRIG requirement sets.
 
 ---
 
@@ -80,7 +80,7 @@ Removal of ~1200 lines of scheduler/trigger code. New heartbeat loop (likely < 2
 
 The triggered commission system exists because the guild needs to react to events: a commission completes, a review finds issues, a scheduled run fails. The heartbeat replaces the trigger's rule-matching with Haiku's judgment, but Haiku still needs to know what happened. If it only reads the standing prompts, it has no context about recent activity.
 
-The EventBus at `daemon/lib/event-bus.ts` already emits 13 event types. The triage service subscribes to `commission_result` events and processes them. The notification service routes events to channels.
+The EventBus at `apps/daemon/lib/event-bus.ts` already emits 13 event types. The triage service subscribes to `commission_result` events and processes them. The notification service routes events to channels.
 
 ### Proposal
 
@@ -168,13 +168,13 @@ No additional code beyond what Proposal 1 requires. The trust marker is parsed f
 
 ### Evidence
 
-The event router at `daemon/services/event-router.ts` has three action types: shell commands, webhooks, and (via the trigger evaluator) commission dispatch. If the heartbeat replaces triggered commissions, the event router's commission dispatch integration becomes dead code. But the event router itself remains valuable for notifications: shell commands and webhooks still serve "tell me when something happens."
+The event router at `apps/daemon/services/event-router.ts` has three action types: shell commands, webhooks, and (via the trigger evaluator) commission dispatch. If the heartbeat replaces triggered commissions, the event router's commission dispatch integration becomes dead code. But the event router itself remains valuable for notifications: shell commands and webhooks still serve "tell me when something happens."
 
-The trigger evaluator at `daemon/services/trigger-evaluator.ts` is the bridge between the event router and commission creation. It subscribes to matched events, expands templates, tracks provenance, and calls `createCommission`. All of that goes away.
+The trigger evaluator at `apps/daemon/services/trigger-evaluator.ts` is the bridge between the event router and commission creation. It subscribes to matched events, expands templates, tracks provenance, and calls `createCommission`. All of that goes away.
 
 ### Proposal
 
-Remove the trigger evaluator entirely. Remove the `TriggerBlock`, `TriggeredBy`, and related types from `daemon/types.ts`. Remove the trigger-related record operations from `daemon/services/commission/record.ts` (`readTriggerMetadata`, `writeTriggerFields`, `readTriggeredBy`). Remove the manager toolbox tools (`create_triggered_commission`, `update_trigger`). Remove the UI components (`TriggerInfo`, `TriggerActions`, trigger tab in `CommissionForm`).
+Remove the trigger evaluator entirely. Remove the `TriggerBlock`, `TriggeredBy`, and related types from `apps/daemon/types.ts`. Remove the trigger-related record operations from `apps/daemon/services/commission/record.ts` (`readTriggerMetadata`, `writeTriggerFields`, `readTriggeredBy`). Remove the manager toolbox tools (`create_triggered_commission`, `update_trigger`). Remove the UI components (`TriggerInfo`, `TriggerActions`, trigger tab in `CommissionForm`).
 
 Keep the event router. It still routes events to notification channels. It just no longer has commission dispatch as an action type.
 

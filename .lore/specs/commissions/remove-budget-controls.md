@@ -57,7 +57,7 @@ Three problems drive this removal:
 
 - REQ-RBUDGET-3: Remove `maxTurns` and `maxBudgetUsd` from the `resource_overrides` type in `CommissionMeta` (`lib/commissions.ts`). The field becomes `resource_overrides: { model?: string }`. Parsing logic drops the `maxTurns` and `maxBudgetUsd` extraction.
 
-- REQ-RBUDGET-4: Remove `maxTurns` and `maxBudgetUsd` from `SessionPrepSpec.resourceOverrides` (`daemon/lib/agent-sdk/sdk-runner.ts`). The type becomes `resourceOverrides?: { model?: string }`.
+- REQ-RBUDGET-4: Remove `maxTurns` and `maxBudgetUsd` from `SessionPrepSpec.resourceOverrides` (`apps/daemon/lib/agent-sdk/sdk-runner.ts`). The type becomes `resourceOverrides?: { model?: string }`.
 
 - REQ-RBUDGET-5: Remove `maxTurns` and `maxBudgetUsd` from `SdkRunnerOutcome.reason`. The `"maxTurns"` and `"maxBudget"` reason variants are removed. `reason` becomes `"completed" | undefined` (completed on success, undefined on abort/error).
 
@@ -87,25 +87,25 @@ Three problems drive this removal:
 
 - REQ-RBUDGET-14: Remove `resourceDefaults` from all worker `package.json` files. The `guildHall` section no longer includes `resourceDefaults`. Affected packages: `guild-hall-researcher`, `guild-hall-reviewer`, `guild-hall-illuminator`, `guild-hall-writer`, `guild-hall-visionary`, `guild-hall-steward`.
 
-- REQ-RBUDGET-15: Remove `resourceDefaults` from the Guild Master's hardcoded metadata in `daemon/services/manager/worker.ts`.
+- REQ-RBUDGET-15: Remove `resourceDefaults` from the Guild Master's hardcoded metadata in `apps/daemon/services/manager/worker.ts`.
 
 #### Worker Activation Changes
 
-- REQ-RBUDGET-16: Remove `resourceBounds` assembly from worker activation functions. `packages/shared/worker-activation.ts` no longer reads `context.resourceDefaults` to build `resourceBounds`. `daemon/services/manager/worker.ts` (`activateManager`) no longer builds `resourceBounds`.
+- REQ-RBUDGET-16: Remove `resourceBounds` assembly from worker activation functions. `packages/shared/worker-activation.ts` no longer reads `context.resourceDefaults` to build `resourceBounds`. `apps/daemon/services/manager/worker.ts` (`activateManager`) no longer builds `resourceBounds`.
 
 #### Toolbox and Route Changes
 
-- REQ-RBUDGET-17: Remove `maxTurns` and `maxBudgetUsd` from the `create_commission` tool's Zod schema and all references in the manager toolbox (`daemon/services/manager/toolbox.ts`). The `resourceOverrides` parameter becomes `z.object({ model: z.string().optional() }).optional()`.
+- REQ-RBUDGET-17: Remove `maxTurns` and `maxBudgetUsd` from the `create_commission` tool's Zod schema and all references in the manager toolbox (`apps/daemon/services/manager/toolbox.ts`). The `resourceOverrides` parameter becomes `z.object({ model: z.string().optional() }).optional()`.
 
 - REQ-RBUDGET-18: Remove `maxTurns` and `maxBudgetUsd` from the `create_scheduled_commission` and `update_schedule` tool schemas in the manager toolbox.
 
-- REQ-RBUDGET-19: Remove `maxTurns` and `maxBudgetUsd` from the commission creation and scheduling route body types (`daemon/routes/commissions.ts`).
+- REQ-RBUDGET-19: Remove `maxTurns` and `maxBudgetUsd` from the commission creation and scheduling route body types (`apps/daemon/routes/commissions.ts`).
 
 - REQ-RBUDGET-20: The `update_commission` tool's `resourceOverrides` handling in the manager toolbox removes the regex-based YAML update logic for `maxTurns` and `maxBudgetUsd`. Only `model` updates remain.
 
 #### Scheduler Changes
 
-- REQ-RBUDGET-21: `readResourceOverrides` in `daemon/services/scheduler/index.ts` stops parsing `maxTurns` and `maxBudgetUsd` from scheduled commission artifact YAML. It parses only `model`.
+- REQ-RBUDGET-21: `readResourceOverrides` in `apps/daemon/services/scheduler/index.ts` stops parsing `maxTurns` and `maxBudgetUsd` from scheduled commission artifact YAML. It parses only `model`.
 
 #### UI Changes
 
@@ -121,7 +121,7 @@ Three problems drive this removal:
 
 #### Halted State Type Update
 
-- REQ-RBUDGET-26: In Phase 1, update the comment in `daemon/services/commission/halted-types.ts` to remove the `maxTurns` reference. Phase 2 deletes this file entirely (see REQ-RBUDGET-27).
+- REQ-RBUDGET-26: In Phase 1, update the comment in `apps/daemon/services/commission/halted-types.ts` to remove the `maxTurns` reference. Phase 2 deletes this file entirely (see REQ-RBUDGET-27).
 
 ### Phase 2: Halted State Removal
 
@@ -129,17 +129,17 @@ With `maxTurns` removed in Phase 1, no code path can transition a commission int
 
 #### State and Type Removal
 
-- REQ-RBUDGET-27: Delete `daemon/services/commission/halted-types.ts`. The `HaltedCommissionState` type is no longer used.
+- REQ-RBUDGET-27: Delete `apps/daemon/services/commission/halted-types.ts`. The `HaltedCommissionState` type is no longer used.
 
-- REQ-RBUDGET-28: Remove `"halted"` from the `CommissionStatus` union type in `daemon/types.ts`.
+- REQ-RBUDGET-28: Remove `"halted"` from the `CommissionStatus` union type in `apps/daemon/types.ts`.
 
-- REQ-RBUDGET-29: Remove the `halted` entry from the lifecycle transition graph in `daemon/services/commission/lifecycle.ts`. Remove `"halted"` from the `in_progress` target states. Remove the `halt()` and `continueHalted()` lifecycle methods.
+- REQ-RBUDGET-29: Remove the `halted` entry from the lifecycle transition graph in `apps/daemon/services/commission/lifecycle.ts`. Remove `"halted"` from the `in_progress` target states. Remove the `halt()` and `continueHalted()` lifecycle methods.
 
 - REQ-RBUDGET-30: Remove `halted` from the `STATUS_GROUP` mapping in `lib/commissions.ts`. Remove the `halted: "status_halted"` entry from the event mapping.
 
 #### Orchestrator Cleanup
 
-- REQ-RBUDGET-31: Remove the `handleHalt` function from `daemon/services/commission/orchestrator.ts`. If Phase 1 left it as dead code, Phase 2 deletes it. If Phase 1 already removed it, this requirement is satisfied.
+- REQ-RBUDGET-31: Remove the `handleHalt` function from `apps/daemon/services/commission/orchestrator.ts`. If Phase 1 left it as dead code, Phase 2 deletes it. If Phase 1 already removed it, this requirement is satisfied.
 
 - REQ-RBUDGET-32: Remove the `continueCommission` function from the orchestrator. Remove `continueCommission` from the `CommissionSessionForRoutes` interface and the factory return object.
 
@@ -153,27 +153,27 @@ With `maxTurns` removed in Phase 1, no code path can transition a commission int
 
 #### Route Removal
 
-- REQ-RBUDGET-37: Remove the `POST /commission/run/continue` route from `daemon/routes/commissions.ts`.
+- REQ-RBUDGET-37: Remove the `POST /commission/run/continue` route from `apps/daemon/routes/commissions.ts`.
 
-- REQ-RBUDGET-38: Remove the `POST /commission/run/save` route from `daemon/routes/commissions.ts`.
+- REQ-RBUDGET-38: Remove the `POST /commission/run/save` route from `apps/daemon/routes/commissions.ts`.
 
 #### Manager Toolbox Removal
 
-- REQ-RBUDGET-39: Remove the `continue_commission` tool from the manager toolbox (`daemon/services/manager/toolbox.ts`). Remove the `makeContinueCommissionHandler` function and its tool registration.
+- REQ-RBUDGET-39: Remove the `continue_commission` tool from the manager toolbox (`apps/daemon/services/manager/toolbox.ts`). Remove the `makeContinueCommissionHandler` function and its tool registration.
 
 - REQ-RBUDGET-40: Remove the `save_commission` tool from the manager toolbox. Remove the `makeSaveCommissionHandler` function and its tool registration.
 
 #### Web UI Removal
 
-- REQ-RBUDGET-41: Remove the continue and save action buttons from `web/components/commission/CommissionActions.tsx`. Remove the `handleContinue` and `handleSave` handlers, the `showContinue` and `showSave` visibility checks, the `saveReason` state variable, and the associated confirmation dialogs. The `"continue"` and `"save"` variants are removed from the confirming state union. If removing these leaves the component with only cancel/abandon actions, simplify accordingly.
+- REQ-RBUDGET-41: Remove the continue and save action buttons from `apps/web/components/commission/CommissionActions.tsx`. Remove the `handleContinue` and `handleSave` handlers, the `showContinue` and `showSave` visibility checks, the `saveReason` state variable, and the associated confirmation dialogs. The `"continue"` and `"save"` variants are removed from the confirming state union. If removing these leaves the component with only cancel/abandon actions, simplify accordingly.
 
-- REQ-RBUDGET-42: Delete the web API proxy routes for halted commission actions: `web/app/api/commissions/[commissionId]/continue/route.ts` and `web/app/api/commissions/[commissionId]/save/route.ts`.
+- REQ-RBUDGET-42: Delete the web API proxy routes for halted commission actions: `apps/web/app/api/commissions/[commissionId]/continue/route.ts` and `apps/web/app/api/commissions/[commissionId]/save/route.ts`.
 
-- REQ-RBUDGET-43: Remove `"halted"` from the `DEFAULT_STATUSES` set and the "Active" filter group in `web/components/commission/commission-filter.ts`.
+- REQ-RBUDGET-43: Remove `"halted"` from the `DEFAULT_STATUSES` set and the "Active" filter group in `apps/web/components/commission/commission-filter.ts`.
 
 #### Scheduler Cleanup
 
-- REQ-RBUDGET-44: Remove the `|| status === "halted"` check from `isSpawnedCommissionActive` in `daemon/services/scheduler/index.ts`. A commission can no longer be in `halted` status, so the check is dead code.
+- REQ-RBUDGET-44: Remove the `|| status === "halted"` check from `isSpawnedCommissionActive` in `apps/daemon/services/scheduler/index.ts`. A commission can no longer be in `halted` status, so the check is dead code.
 
 #### Documentation Updates
 
@@ -183,13 +183,13 @@ With `maxTurns` removed in Phase 1, no code path can transition a commission int
 
 #### Test Cleanup
 
-- REQ-RBUDGET-47: Remove all halted-related tests from `tests/daemon/services/commission/lifecycle.test.ts`: the "halted transitions" describe block, `halt()` tests, `continueHalted()` tests, and transitions from/to halted.
+- REQ-RBUDGET-47: Remove all halted-related tests from `apps/daemon/tests/services/commission/lifecycle.test.ts`: the "halted transitions" describe block, `halt()` tests, `continueHalted()` tests, and transitions from/to halted.
 
-- REQ-RBUDGET-48: Remove all halted-related tests from `tests/daemon/services/commission/orchestrator.test.ts`: halt entry tests, `continueCommission` tests, `saveCommission` tests, cancel/abandon halted commission tests, halted crash recovery tests, and capacity-related halted tests.
+- REQ-RBUDGET-48: Remove all halted-related tests from `apps/daemon/tests/services/commission/orchestrator.test.ts`: halt entry tests, `continueCommission` tests, `saveCommission` tests, cancel/abandon halted commission tests, halted crash recovery tests, and capacity-related halted tests.
 
-- REQ-RBUDGET-49: Remove all halted-related tests from `tests/components/commission-actions.test.tsx`: halted status visibility, handleContinue, handleSave, save reason, mutual exclusion of halted actions, API proxy route tests for continue/save, and button order tests for halted status.
+- REQ-RBUDGET-49: Remove all halted-related tests from `apps/web/tests/components/commission-actions.test.tsx`: halted status visibility, handleContinue, handleSave, save reason, mutual exclusion of halted actions, API proxy route tests for continue/save, and button order tests for halted status.
 
-- REQ-RBUDGET-50: Remove the `continueCommission` and `saveCommission` mock setup from the test harness in `tests/daemon/routes/commissions.test.ts`. Remove the `POST /commission/run/save` describe block and any `POST /commission/run/continue` tests.
+- REQ-RBUDGET-50: Remove the `continueCommission` and `saveCommission` mock setup from the test harness in `apps/daemon/tests/routes/commissions.test.ts`. Remove the `POST /commission/run/save` describe block and any `POST /commission/run/continue` tests.
 
 ## Backward Compatibility
 

@@ -59,6 +59,6 @@ From there, click a project in the workspace sidebar to open its project hub.
 ## Code references
 
 - Root README setup section: [`README.md`](../../README.md)
-- CLI commands: [`cli/index.ts`](../../cli/index.ts)
-- Dashboard route: [`web/app/page.tsx`](../../web/app/page.tsx)
-- Project route: [`web/app/projects/[name]/page.tsx`](../../web/app/projects/[name]/page.tsx)
+- CLI commands: [`apps/cli/index.ts`](../../apps/cli/index.ts)
+- Dashboard route: [`apps/web/app/page.tsx`](../../apps/web/app/page.tsx)
+- Project route: [`apps/web/app/projects/[name]/page.tsx`](../../apps/web/app/projects/[name]/page.tsx)

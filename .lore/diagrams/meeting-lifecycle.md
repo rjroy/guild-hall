@@ -282,7 +282,7 @@ The crash recovery flowchart shows the pessimistic approach: SDK sessions are in
 - `.lore/specs/meetings/guild-hall-meetings.md` for requirements and REQ IDs
 - `.lore/specs/infrastructure/guild-hall-system.md` for system-level architecture
 - `.lore/diagrams/commission-lifecycle.md` for the commission equivalent
-- `daemon/services/meeting/orchestrator.ts` for the orchestration implementation
-- `daemon/services/meeting/registry.ts` for cap enforcement and close guard
-- `daemon/services/workspace.ts` for git isolation
-- `daemon/services/sdk-runner.ts` for the shared session infrastructure
+- `apps/daemon/services/meeting/orchestrator.ts` for the orchestration implementation
+- `apps/daemon/services/meeting/registry.ts` for cap enforcement and close guard
+- `apps/daemon/services/workspace.ts` for git isolation
+- `apps/daemon/services/sdk-runner.ts` for the shared session infrastructure

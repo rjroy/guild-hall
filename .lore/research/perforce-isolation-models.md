@@ -86,7 +86,7 @@ First sync is the critical cost. A workspace view that maps `//depot/code/...` b
 
 ### What Guild Hall code would need to change
 
-`daemon/lib/git.ts` and `daemon/services/git-admin.ts` would need a parallel `daemon/lib/p4.ts` abstraction. All git commands (clone, branch, worktree add, merge, rebase) map to p4 commands (client create/modify, sync, shelve, unshelve). The integration flow (activity → claude → master) has no P4 equivalent; that layer would need to be redesigned or dropped.
+`apps/daemon/lib/git.ts` and `apps/daemon/services/git-admin.ts` would need a parallel `apps/daemon/lib/p4.ts` abstraction. All git commands (clone, branch, worktree add, merge, rebase) map to p4 commands (client create/modify, sync, shelve, unshelve). The integration flow (activity → claude → master) has no P4 equivalent; that layer would need to be redesigned or dropped.
 
 ### Verdict
 
@@ -249,7 +249,7 @@ None beyond write access. Shelving is available to all users.
 
 ## Guild Hall Code Impact
 
-Any viable approach requires replacing `daemon/lib/git.ts` and `daemon/services/git-admin.ts` with P4 equivalents. The core operations that need mapping:
+Any viable approach requires replacing `apps/daemon/lib/git.ts` and `apps/daemon/services/git-admin.ts` with P4 equivalents. The core operations that need mapping:
 
 | Git operation | P4 equivalent (Approach 1) | P4 equivalent (Approach 2) |
 |---|---|---|

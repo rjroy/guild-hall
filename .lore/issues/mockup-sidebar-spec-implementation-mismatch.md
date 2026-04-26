@@ -3,7 +3,7 @@ title: HTML mockup sidebar — REQ-MKP spec/implementation mismatch (file size m
 date: 2026-04-18
 status: open
 tags: [bug, ui, mockup, spec-drift, documentation]
-modules: [web/components/artifact/MockupMetadataSidebar]
+modules: [apps/web/components/artifact/MockupMetadataSidebar]
 related:
   - .lore/specs/ui/html-mockup-preview.md
   - .lore/retros/meeting-cleanup-2026-04-18.md
@@ -22,7 +22,7 @@ This is the same pattern as `meeting-layout-spec-implementation-mismatch.md`: a 
 **Spec — REQ-MKP-?:** `.lore/specs/ui/html-mockup-preview.md:80`
 > "A metadata sidebar showing: filename, file size, last modified date"
 
-**Implementation — sidebar fields:** `web/components/artifact/MockupMetadataSidebar.tsx:5-15`
+**Implementation — sidebar fields:** `apps/web/components/artifact/MockupMetadataSidebar.tsx:5-15`
 ```ts
 interface MockupMetadataSidebarProps {
   filename: string;

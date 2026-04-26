@@ -1,0 +1,368 @@
+/* ============================================================
+   Guild Hall Design System
+   ------------------------------------------------------------
+   Warm, earthy, painterly. Parchment grounds, ember accents,
+   deep ink shadows. Light theme = parchment ("the day hall");
+   dark theme = ink ("the guild hall at night").
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=Vollkorn:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+
+:root {
+  /* =====================================================
+     COLOR — Earthy palette
+     ===================================================== */
+
+  /* Parchment / paper grounds (lightest → deepest) */
+  --parchment-50:  #FBF5E7;
+  --parchment-100: #F4EAD0;
+  --parchment-200: #E8D9B0;
+  --parchment-300: #D4BE85;
+  --parchment-400: #B89A5E;
+
+  /* Ink / wood (darkest → lightest) */
+  --ink-900: #1A140E;
+  --ink-800: #2A1F15;
+  --ink-700: #3D2D1F;
+  --ink-600: #5A4632;
+  --ink-500: #7A6248;
+  --ink-400: #9B8467;
+
+  /* Ember — primary accent */
+  --ember-50:  #FBE4C9;
+  --ember-100: #F4C896;
+  --ember-300: #E29550;
+  --ember-500: #C56A1F;
+  --ember-700: #8B4513;
+  --ember-900: #4A2407;
+
+  /* Oxblood — wax seal, cleric's robe */
+  --oxblood-300: #C8654E;
+  --oxblood-500: #9C2B1B;
+  --oxblood-700: #6B1A0F;
+
+  /* Brass — gilded clockwork, lamp glow */
+  --brass-300: #E8C77A;
+  --brass-500: #C9A24A;
+  --brass-700: #8C6F23;
+
+  /* Verdigris — oxidized copper */
+  --verdigris-300: #6FA39B;
+  --verdigris-500: #2F6E66;
+  --verdigris-700: #1A463F;
+
+  /* Lapis — wizard's blue, stained glass */
+  --lapis-300: #5E7BA8;
+  --lapis-500: #2E4A78;
+  --lapis-700: #1A2E4F;
+
+  /* Moss — forest, leather binding */
+  --moss-300: #8AA46A;
+  --moss-500: #4F6B36;
+  --moss-700: #2E4220;
+
+  /* =====================================================
+     SEMANTIC COLOR — light theme defaults
+     ===================================================== */
+
+  /* Surfaces */
+  --bg:           var(--parchment-100);
+  --bg-raised:    var(--parchment-50);
+  --bg-sunken:    var(--parchment-200);
+  --bg-inverse:   var(--ink-800);
+
+  /* Foregrounds */
+  --fg:           var(--ink-800);
+  --fg-1:         var(--ink-900);
+  --fg-2:         var(--ink-600);
+  --fg-3:         var(--ink-500);
+  --fg-muted:     var(--ink-400);
+  --fg-on-dark:   var(--parchment-50);
+  --fg-on-ember:  var(--parchment-50);
+
+  /* Borders / strokes */
+  --rule:         var(--parchment-300);
+  --rule-strong:  var(--ink-600);
+  --rule-soft:    var(--parchment-200);
+
+  /* Brand & action */
+  --brand:        var(--ember-500);
+  --brand-hover:  var(--ember-700);
+  --brand-press:  var(--ember-900);
+  --brand-soft:   var(--ember-50);
+
+  /* Status */
+  --success:      var(--moss-500);
+  --success-soft: #DDE6CC;
+  --warning:      var(--brass-700);
+  --warning-soft: #F4E6BD;
+  --danger:       var(--oxblood-500);
+  --danger-soft:  #F0CFC9;
+  --info:         var(--lapis-500);
+  --info-soft:    #D2DCEC;
+
+  /* Magical accent */
+  --rune:         var(--verdigris-500);
+  --rune-glow:    #7FE0D0;
+
+  /* Scrim for modals (warm black) */
+  --scrim:        rgba(26, 20, 14, 0.55);
+
+  /* =====================================================
+     TYPE
+     ===================================================== */
+  --font-display: 'IM Fell English SC', 'IM Fell English', 'Cormorant Garamond', 'Times New Roman', serif;
+  --font-serif:   'Vollkorn', 'IM Fell English', Georgia, 'Times New Roman', serif;
+  --font-body:    'Vollkorn', Georgia, 'Times New Roman', serif;
+  --font-mono:    'JetBrains Mono', 'Iosevka', 'Menlo', 'Consolas', monospace;
+
+  /* Modular scale */
+  --text-xs:   12px;
+  --text-sm:   14px;
+  --text-base: 17px;
+  --text-lg:   20px;
+  --text-xl:   24px;
+  --text-2xl:  30px;
+  --text-3xl:  38px;
+  --text-4xl:  48px;
+  --text-5xl:  60px;
+  --text-6xl:  76px;
+
+  --leading-tight:   1.15;
+  --leading-snug:    1.3;
+  --leading-normal:  1.55;
+  --leading-relaxed: 1.7;
+
+  --tracking-tight:  -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.04em;
+  --tracking-wider:  0.12em;
+
+  /* =====================================================
+     SPACING — 4px base
+     ===================================================== */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* =====================================================
+     RADIUS
+     ===================================================== */
+  --radius-sm: 3px;
+  --radius:    6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* =====================================================
+     SHADOWS — warm, candle-lit (tinted with ink)
+     ===================================================== */
+  --shadow-xs:  0 1px 0 rgba(42, 31, 21, 0.08);
+  --shadow-sm:  0 1px 2px rgba(42, 31, 21, 0.10), 0 1px 1px rgba(42, 31, 21, 0.06);
+  --shadow:     0 4px 8px rgba(42, 31, 21, 0.12), 0 1px 2px rgba(42, 31, 21, 0.08);
+  --shadow-md:  0 8px 18px rgba(42, 31, 21, 0.14), 0 2px 4px rgba(42, 31, 21, 0.08);
+  --shadow-lg:  0 18px 40px rgba(42, 31, 21, 0.20), 0 4px 8px rgba(42, 31, 21, 0.10);
+  --shadow-glow: 0 0 24px rgba(197, 106, 31, 0.35);
+  --shadow-rune: 0 0 28px rgba(127, 224, 208, 0.45);
+  --shadow-inset: inset 0 1px 2px rgba(42, 31, 21, 0.18);
+
+  /* =====================================================
+     MOTION
+     ===================================================== */
+  --ease-out:  cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in:   cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  --ease-soft: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --dur-fast:  120ms;
+  --dur:       200ms;
+  --dur-slow:  360ms;
+
+  /* Breakpoints (reference only — CSS custom properties cannot
+     appear in @media conditions) */
+  --breakpoint-tablet: 768px;
+  --breakpoint-phone:  480px;
+
+  scrollbar-color: var(--rule) var(--bg);
+}
+
+/* =====================================================
+   DARK THEME — "the guild hall at night"
+   ===================================================== */
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  --bg:           #14100B;
+  --bg-raised:    #1F1810;
+  --bg-sunken:    #0D0A07;
+  --bg-inverse:   var(--parchment-50);
+
+  --fg:           #EFE2C5;
+  --fg-1:         #FBF5E7;
+  --fg-2:         #C8B58F;
+  --fg-3:         #9B8467;
+  --fg-muted:     #6B5840;
+  --fg-on-dark:   var(--ink-900);
+  --fg-on-ember:  #1A140E;
+
+  --rule:         #3A2E1F;
+  --rule-strong:  #5A4632;
+  --rule-soft:    #2A1F15;
+
+  --brand:        var(--ember-300);
+  --brand-hover:  var(--ember-100);
+  --brand-press:  var(--ember-500);
+  --brand-soft:   #3A2814;
+
+  --success-soft: #243018;
+  --warning-soft: #3A2E10;
+  --danger-soft:  #3A1612;
+  --info-soft:    #16223A;
+
+  --success:      var(--moss-300);
+  --warning:      var(--brass-300);
+  --danger:       var(--oxblood-300);
+  --info:         var(--lapis-300);
+
+  --rune:         var(--verdigris-300);
+
+  --shadow-xs:  0 1px 0 rgba(0, 0, 0, 0.4);
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.45), 0 1px 1px rgba(0, 0, 0, 0.3);
+  --shadow:     0 4px 8px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md:  0 8px 18px rgba(0, 0, 0, 0.55), 0 2px 4px rgba(0, 0, 0, 0.35);
+  --shadow-lg:  0 18px 40px rgba(0, 0, 0, 0.65), 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 28px rgba(226, 149, 80, 0.55);
+  --shadow-rune: 0 0 32px rgba(127, 224, 208, 0.5);
+  --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+
+  --scrim: rgba(0, 0, 0, 0.7);
+}
+
+/* =====================================================
+   RESET
+   ===================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+/* Prevent iOS Safari auto-zoom on input focus (triggers below 16px) */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* =====================================================
+   BASE TYPOGRAPHY
+   ===================================================== */
+h1, .h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-5xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg-1);
+  margin: 0 0 var(--space-4);
+}
+h2, .h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-3xl);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg-1);
+  margin: 0 0 var(--space-3);
+}
+h3, .h3 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--fg-1);
+  margin: 0 0 var(--space-2);
+}
+h4, .h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: var(--text-lg);
+  color: var(--fg-1);
+  margin: 0 0 var(--space-2);
+}
+h5, h6 {
+  color: var(--fg-1);
+  line-height: 1.3;
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wider);
+  color: var(--ember-700);
+  text-transform: uppercase;
+}
+[data-theme="dark"] .eyebrow { color: var(--ember-300); }
+
+p, .body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-relaxed);
+  color: var(--fg);
+  text-wrap: pretty;
+  margin: 0;
+}
+.lead {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--fg-2);
+}
+.caption {
+  font-size: var(--text-sm);
+  color: var(--fg-3);
+  font-style: italic;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+::selection { background: var(--ember-100); color: var(--ink-900); }
+[data-theme="dark"] ::selection { background: var(--ember-700); color: var(--parchment-50); }

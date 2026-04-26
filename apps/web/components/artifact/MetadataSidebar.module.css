@@ -1,0 +1,196 @@
+/* ============================================================
+   MetadataSidebar — provenance + tags + actions
+   ============================================================ */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
+  margin: 0;
+}
+
+:global([data-theme="dark"]) .sectionTitle {
+  color: var(--ember-300);
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.statusText {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  text-transform: capitalize;
+}
+
+.value {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  margin: 0;
+}
+
+.badges {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px var(--space-2);
+  background: var(--parchment-200);
+  color: var(--ink-700);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+:global([data-theme="dark"]) .badge {
+  background: var(--bg-sunken);
+  color: var(--fg-2);
+}
+
+.projectLink {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--ember-700);
+  text-decoration: none;
+  transition: color var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .projectLink {
+  color: var(--ember-300);
+}
+
+.projectLink:hover {
+  text-decoration: underline;
+}
+
+.commissionList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.commissionLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg-2);
+  text-decoration: none;
+  transition: color var(--dur) var(--ease-out);
+}
+
+.commissionLink:hover {
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .commissionLink:hover {
+  color: var(--ember-300);
+}
+
+.commissionTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionLinks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wider);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  color: var(--fg);
+  text-decoration: none;
+  text-align: center;
+  width: 100%;
+  transition: all var(--dur) var(--ease-out);
+}
+
+.actionLink:first-child {
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  border-color: var(--ember-700);
+  color: var(--fg-on-ember);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.actionLink:first-child:hover {
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+  box-shadow: var(--shadow), var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+:global([data-theme="dark"]) .actionLink:first-child {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
+}
+
+.actionLink:not(:first-child):hover {
+  border-color: var(--ember-500);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .actionLink:not(:first-child):hover {
+  color: var(--ember-300);
+}
+
+.relatedList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.relatedLink {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-3);
+  text-decoration: none;
+  transition: color var(--dur) var(--ease-out);
+  word-break: break-all;
+}
+
+.relatedLink:hover {
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .relatedLink:hover {
+  color: var(--ember-300);
+}

@@ -3,7 +3,7 @@ title: "Image Display in Artifact Views"
 date: 2026-03-18
 status: executed
 tags: [ui, artifacts, images, daemon, api]
-modules: [lib/artifacts, lib/artifact-grouping, lib/types, lib/daemon-client, daemon/routes/artifacts, "web/app/projects/[name]/artifacts/[...path]/page", web/app/api/artifacts/image/route, web/components/artifact/ArtifactContent, web/components/artifact/ImageArtifactView, web/components/artifact/ImageMetadataSidebar, web/components/project/ArtifactList, web/components/dashboard/RecentArtifacts]
+modules: [lib/artifacts, lib/artifact-grouping, lib/types, lib/daemon-client, apps/daemon/routes/artifacts, "apps/web/app/projects/[name]/artifacts/[...path]/page", apps/web/app/api/artifacts/image/route, apps/web/components/artifact/ArtifactContent, apps/web/components/artifact/ImageArtifactView, apps/web/components/artifact/ImageMetadataSidebar, apps/web/components/project/ArtifactList, apps/web/components/dashboard/RecentArtifacts]
 related:
   - .lore/specs/ui/artifact-image-display.md
   - .lore/specs/ui/artifact-tree-view.md
@@ -22,21 +22,21 @@ Make images first-class artifacts: discoverable in tree views and Recent Scrolls
 
 **Artifact type.** `Artifact` in `lib/types.ts:57-64` has `meta`, `filePath`, `relativePath`, `content`, `rawContent`, `lastModified`. For images, `content` will be empty string and `rawContent` omitted. The spec says add an optional `artifactType` field. The `Artifact` type is used everywhere (tree view, recent scrolls, sorting), so the field must be backward-compatible.
 
-**Daemon routes.** `daemon/routes/artifacts.ts` has three routes under `/workspace/artifact/document/`. The new image endpoint goes under `/workspace/artifact/image/` to keep the namespace clean. The existing `serializeArtifact()` at line 247 needs to include the new `artifactType` field.
+**Daemon routes.** `apps/daemon/routes/artifacts.ts` has three routes under `/workspace/artifact/document/`. The new image endpoint goes under `/workspace/artifact/image/` to keep the namespace clean. The existing `serializeArtifact()` at line 247 needs to include the new `artifactType` field.
 
-**Activity worktree resolution.** The document read route at `daemon/routes/artifacts.ts:89-131` resolves meetings/ and commissions/ paths to activity worktrees via `resolveMeetingBasePath` and `resolveCommissionBasePath` from `lib/paths.ts`. The image read route must replicate this pattern (REQ-IMG-8).
+**Activity worktree resolution.** The document read route at `apps/daemon/routes/artifacts.ts:89-131` resolves meetings/ and commissions/ paths to activity worktrees via `resolveMeetingBasePath` and `resolveCommissionBasePath` from `lib/paths.ts`. The image read route must replicate this pattern (REQ-IMG-8).
 
 **Path validation.** `validatePath()` at `lib/artifacts.ts:14-21` resolves and checks containment. Reuse this for image serving (REQ-IMG-7).
 
-**Next.js API proxy.** `web/app/api/artifacts/route.ts` handles PUT for document writes. A new `web/app/api/artifacts/image/route.ts` handles GET for image proxy (REQ-IMG-9). The daemon client at `lib/daemon-client.ts` uses `node:http` with `socketPath`; the proxy route needs to forward binary responses, not JSON.
+**Next.js API proxy.** `apps/web/app/api/artifacts/route.ts` handles PUT for document writes. A new `apps/web/app/api/artifacts/image/route.ts` handles GET for image proxy (REQ-IMG-9). The daemon client at `lib/daemon-client.ts` uses `node:http` with `socketPath`; the proxy route needs to forward binary responses, not JSON.
 
-**Catch-all route.** `web/app/projects/[name]/artifacts/[...path]/page.tsx` is a server component. It calls `/workspace/artifact/document/read` and renders `ArtifactContent` + `MetadataSidebar`. For images, it needs to detect the file extension and render a different component (REQ-IMG-10).
+**Catch-all route.** `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` is a server component. It calls `/workspace/artifact/document/read` and renders `ArtifactContent` + `MetadataSidebar`. For images, it needs to detect the file extension and render a different component (REQ-IMG-10).
 
-**ArtifactContent.** Client component at `web/components/artifact/ArtifactContent.tsx`. Uses ReactMarkdown with remarkGfm. The `components.img` override goes here for inline image resolution (REQ-IMG-17).
+**ArtifactContent.** Client component at `apps/web/components/artifact/ArtifactContent.tsx`. Uses ReactMarkdown with remarkGfm. The `components.img` override goes here for inline image resolution (REQ-IMG-17).
 
-**ArtifactList (tree view).** Client component at `web/components/project/ArtifactList.tsx`. Uses scroll-icon.webp for all artifacts. Needs to switch icon for image artifacts (REQ-IMG-2).
+**ArtifactList (tree view).** Client component at `apps/web/components/project/ArtifactList.tsx`. Uses scroll-icon.webp for all artifacts. Needs to switch icon for image artifacts (REQ-IMG-2).
 
-**RecentArtifacts.** Server component at `web/components/dashboard/RecentArtifacts.tsx`. Also uses scroll-icon.webp. Same icon switch needed (REQ-IMG-3).
+**RecentArtifacts.** Server component at `apps/web/components/dashboard/RecentArtifacts.tsx`. Also uses scroll-icon.webp. Same icon switch needed (REQ-IMG-3).
 
 **CSS Modules everywhere.** No Tailwind. New components get `.module.css` files. Fantasy design tokens from `globals.css`.
 
@@ -164,7 +164,7 @@ Also update the existing markdown branch to include `artifactType: "document"` i
 
 #### Step 4: Update `serializeArtifact` in daemon routes
 
-**Modified file:** `daemon/routes/artifacts.ts`
+**Modified file:** `apps/daemon/routes/artifacts.ts`
 
 Add `artifactType` to the serialized output:
 
@@ -187,7 +187,7 @@ function serializeArtifact(a: Artifact): Record<string, unknown> {
 
 #### Step 5: Add the daemon image serving endpoint
 
-**Modified file:** `daemon/routes/artifacts.ts`
+**Modified file:** `apps/daemon/routes/artifacts.ts`
 
 Add a new route within `createArtifactRoutes`:
 
@@ -215,7 +215,7 @@ Add the corresponding `OperationDefinition` to the operations array. Add `"works
 
 #### Step 6: Add the Next.js API image proxy route
 
-**New file:** `web/app/api/artifacts/image/route.ts`
+**New file:** `apps/web/app/api/artifacts/image/route.ts`
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -279,7 +279,7 @@ return new NextResponse(result.body, {
 
 #### Step 7: Add `/workspace/artifact/image/meta` daemon endpoint
 
-**Modified file:** `daemon/routes/artifacts.ts`
+**Modified file:** `apps/daemon/routes/artifacts.ts`
 
 Lightweight endpoint that returns image metadata without reading the full file. This must be built before Step 8 (the page component that calls it).
 
@@ -304,7 +304,7 @@ Add the `OperationDefinition` entry and add `"workspace.artifact.image"` to the 
 
 #### Step 8: Branch the catch-all route for image artifacts
 
-**Modified file:** `web/app/projects/[name]/artifacts/[...path]/page.tsx`
+**Modified file:** `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`
 
 The page currently assumes all artifacts are markdown documents. Add a check after the project validation:
 
@@ -364,8 +364,8 @@ if (isImage) {
 
 #### Step 9: Create `ImageArtifactView` component
 
-**New file:** `web/components/artifact/ImageArtifactView.tsx`
-**New file:** `web/components/artifact/ImageArtifactView.module.css`
+**New file:** `apps/web/components/artifact/ImageArtifactView.tsx`
+**New file:** `apps/web/components/artifact/ImageArtifactView.module.css`
 
 Server component (no interactivity needed). Renders the image at natural size, constrained to viewport width:
 
@@ -408,8 +408,8 @@ Use `<img>` not `next/image` because the source is a dynamic API route, not a st
 
 #### Step 10: Create `ImageMetadataSidebar` component
 
-**New file:** `web/components/artifact/ImageMetadataSidebar.tsx`
-**New file:** `web/components/artifact/ImageMetadataSidebar.module.css`
+**New file:** `apps/web/components/artifact/ImageMetadataSidebar.tsx`
+**New file:** `apps/web/components/artifact/ImageMetadataSidebar.module.css`
 
 Server component. Shows:
 - Filename
@@ -430,7 +430,7 @@ Still shows: Project link (same as MetadataSidebar).
 
 #### Step 11: Add custom image renderer to ArtifactContent
 
-**Modified file:** `web/components/artifact/ArtifactContent.tsx`
+**Modified file:** `apps/web/components/artifact/ArtifactContent.tsx`
 
 Add a `components` prop to `ReactMarkdown` that overrides `img`:
 
@@ -500,7 +500,7 @@ Add `.inlineImage` to `ArtifactContent.module.css`:
 
 This replaces the existing `.markdownContent img` rule at line 265-269 which already does `max-width: 100%`. The class-based selector is more specific and clearer in intent.
 
-**Testability:** Extract `resolveImageSrc` to a separate file (e.g., `web/lib/resolve-image-src.ts`) so it can be unit tested independently. The test file (`tests/web/lib/resolve-image-src.test.ts`) covers: relative paths, absolute paths, external URLs, empty src, paths with special characters, deeply nested artifact paths.
+**Testability:** Extract `resolveImageSrc` to a separate file (e.g., `apps/web/lib/resolve-image-src.ts`) so it can be unit tested independently. The test file (`apps/web/lib/tests/resolve-image-src.test.ts`) covers: relative paths, absolute paths, external URLs, empty src, paths with special characters, deeply nested artifact paths.
 
 **Covers:** REQ-IMG-14 (relative paths), REQ-IMG-15 (absolute paths), REQ-IMG-16 (external URLs), REQ-IMG-17 (components.img override), REQ-IMG-22 (loading="lazy")
 
@@ -508,7 +508,7 @@ This replaces the existing `.markdownContent img` rule at line 265-269 which alr
 
 #### Step 12: Add an image artifact icon
 
-**New file:** `web/public/images/ui/image-icon.webp` (or `.png`)
+**New file:** `apps/web/public/images/ui/image-icon.webp` (or `.png`)
 
 The tree view and Recent Scrolls both use `scroll-icon.webp` for markdown artifacts. Image artifacts need a distinct icon (REQ-IMG-2). Options:
 
@@ -523,7 +523,7 @@ If generating an icon isn't feasible during implementation, use a text-based ind
 
 #### Step 13: Update `ArtifactList` tree view for image artifacts
 
-**Modified file:** `web/components/project/ArtifactList.tsx`
+**Modified file:** `apps/web/components/project/ArtifactList.tsx`
 
 In `TreeNodeRow`, when rendering a leaf node, check `node.artifact?.artifactType`:
 
@@ -552,7 +552,7 @@ Add `.imageIcon` to `ArtifactList.module.css` with sizing to match `.scrollIcon`
 
 #### Step 14: Update `RecentArtifacts` for image artifacts
 
-**Modified file:** `web/components/dashboard/RecentArtifacts.tsx`
+**Modified file:** `apps/web/components/dashboard/RecentArtifacts.tsx`
 
 Same icon switch as Step 13. Check `artifact.artifactType === "image"` and render the image icon instead of scroll icon.
 
@@ -566,7 +566,7 @@ The current `displayTitle` function strips `.md` from filenames. For image artif
 
 However, `RecentArtifacts.tsx:19-26` has its own `displayTitle` function that only strips `.md`. Update it to also strip image extensions, or better, consolidate to use the one from `lib/artifact-grouping.ts`.
 
-**Modified file:** `web/components/dashboard/RecentArtifacts.tsx`
+**Modified file:** `apps/web/components/dashboard/RecentArtifacts.tsx`
 
 Replace the local `displayTitle` with an import from `lib/artifact-grouping.ts`. The existing function there already handles the title-from-meta case. Update the fallback to strip image extensions too:
 
@@ -644,11 +644,11 @@ Phases 3, 4, and 5 can be built concurrently once Phase 2 is complete.
 
 | File | Purpose |
 |------|---------|
-| `web/app/api/artifacts/image/route.ts` | Next.js API proxy for image serving |
-| `web/components/artifact/ImageArtifactView.tsx` | Standalone image display component |
-| `web/components/artifact/ImageArtifactView.module.css` | Styling for standalone image view |
-| `web/components/artifact/ImageMetadataSidebar.tsx` | Metadata panel for image artifacts |
-| `web/components/artifact/ImageMetadataSidebar.module.css` | Styling for image metadata panel |
+| `apps/web/app/api/artifacts/image/route.ts` | Next.js API proxy for image serving |
+| `apps/web/components/artifact/ImageArtifactView.tsx` | Standalone image display component |
+| `apps/web/components/artifact/ImageArtifactView.module.css` | Styling for standalone image view |
+| `apps/web/components/artifact/ImageMetadataSidebar.tsx` | Metadata panel for image artifacts |
+| `apps/web/components/artifact/ImageMetadataSidebar.module.css` | Styling for image metadata panel |
 
 ### Modified Files
 
@@ -658,13 +658,13 @@ Phases 3, 4, and 5 can be built concurrently once Phase 2 is complete.
 | `lib/artifacts.ts` | Widen scanner, add image constants, export `IMAGE_MIME_TYPES` |
 | `lib/artifact-grouping.ts` | Update `displayTitle` fallback to strip image extensions |
 | `lib/daemon-client.ts` | Add `daemonFetchBinary` for binary responses |
-| `daemon/routes/artifacts.ts` | Add image read + image meta endpoints, update serializer |
-| `web/app/projects/[name]/artifacts/[...path]/page.tsx` | Branch rendering for image artifacts |
-| `web/components/artifact/ArtifactContent.tsx` | Add `components.img` override for inline images |
-| `web/components/artifact/ArtifactContent.module.css` | Add `.inlineImage` class |
-| `web/components/project/ArtifactList.tsx` | Switch icon for image artifacts |
-| `web/components/project/ArtifactList.module.css` | Add `.imageIcon` class |
-| `web/components/dashboard/RecentArtifacts.tsx` | Switch icon, consolidate `displayTitle` |
+| `apps/daemon/routes/artifacts.ts` | Add image read + image meta endpoints, update serializer |
+| `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` | Branch rendering for image artifacts |
+| `apps/web/components/artifact/ArtifactContent.tsx` | Add `components.img` override for inline images |
+| `apps/web/components/artifact/ArtifactContent.module.css` | Add `.inlineImage` class |
+| `apps/web/components/project/ArtifactList.tsx` | Switch icon for image artifacts |
+| `apps/web/components/project/ArtifactList.module.css` | Add `.imageIcon` class |
+| `apps/web/components/dashboard/RecentArtifacts.tsx` | Switch icon, consolidate `displayTitle` |
 
 ## Testing Strategy
 
@@ -672,17 +672,17 @@ Phases 3, 4, and 5 can be built concurrently once Phase 2 is complete.
 
 | Test Area | File | What to Test |
 |-----------|------|-------------|
-| Scanner | `tests/lib/artifacts.test.ts` | Mixed .md and image files discovered; unsupported extensions skipped; empty directory; nested dirs; synthetic metadata (title derivation, status "complete", date from mtime) |
-| Scanner | `tests/lib/artifacts.test.ts` | `artifactType` is "document" for .md, "image" for images |
-| Image MIME mapping | `tests/lib/artifacts.test.ts` | All 6 extensions map correctly; unknown extension returns undefined |
-| Path resolution | `tests/web/lib/resolve-image-src.test.ts` | `resolveImageSrc`: relative paths, absolute paths, external URLs, empty src, edge cases (no directory, deeply nested, special characters) |
-| Path validation | `tests/daemon/routes/artifacts.test.ts` | Image endpoint rejects `../` traversal; returns 415 for unsupported extension; returns 404 for missing file |
-| Daemon image route | `tests/daemon/routes/artifacts.test.ts` | Correct Content-Type for each extension; Cache-Control header present; binary response body matches file |
-| Daemon image meta | `tests/daemon/routes/artifacts.test.ts` | Returns synthetic metadata, fileSize, mimeType |
-| Activity worktree | `tests/daemon/routes/artifacts.test.ts` | Image in meetings/ path resolves to activity worktree |
-| Serialization | `tests/daemon/routes/artifacts.test.ts` | `serializeArtifact` includes `artifactType` |
-| API proxy | `tests/web/api/artifacts-image.test.ts` | Forwards binary response; passes through Content-Type; handles daemon offline |
-| Binary client | `tests/lib/daemon-client.test.ts` | `daemonFetchBinary` returns Buffer, not string |
+| Scanner | `lib/tests/artifacts.test.ts` | Mixed .md and image files discovered; unsupported extensions skipped; empty directory; nested dirs; synthetic metadata (title derivation, status "complete", date from mtime) |
+| Scanner | `lib/tests/artifacts.test.ts` | `artifactType` is "document" for .md, "image" for images |
+| Image MIME mapping | `lib/tests/artifacts.test.ts` | All 6 extensions map correctly; unknown extension returns undefined |
+| Path resolution | `apps/web/lib/tests/resolve-image-src.test.ts` | `resolveImageSrc`: relative paths, absolute paths, external URLs, empty src, edge cases (no directory, deeply nested, special characters) |
+| Path validation | `apps/daemon/tests/routes/artifacts.test.ts` | Image endpoint rejects `../` traversal; returns 415 for unsupported extension; returns 404 for missing file |
+| Daemon image route | `apps/daemon/tests/routes/artifacts.test.ts` | Correct Content-Type for each extension; Cache-Control header present; binary response body matches file |
+| Daemon image meta | `apps/daemon/tests/routes/artifacts.test.ts` | Returns synthetic metadata, fileSize, mimeType |
+| Activity worktree | `apps/daemon/tests/routes/artifacts.test.ts` | Image in meetings/ path resolves to activity worktree |
+| Serialization | `apps/daemon/tests/routes/artifacts.test.ts` | `serializeArtifact` includes `artifactType` |
+| API proxy | `apps/web/tests/api/artifacts-image.test.ts` | Forwards binary response; passes through Content-Type; handles daemon offline |
+| Binary client | `lib/tests/daemon-client.test.ts` | `daemonFetchBinary` returns Buffer, not string |
 
 ### Visual Verification (Manual)
 
@@ -757,7 +757,7 @@ If a single commission, build in phase order (1, 6, 2, 3, 4, 5) with review afte
 
 - **CSS Modules, not Tailwind.** All new components get `.module.css` files. Use design tokens from `globals.css`.
 - **Server components by default.** Only add `"use client"` when the component needs hooks or event handlers. `ImageArtifactView` and `ImageMetadataSidebar` are server components. The inline image renderer lives inside `ArtifactContent` which is already a client component.
-- **`fetchDaemon` for JSON, `daemonFetchBinary` for binary.** The server component page uses `fetchDaemon` from `web/lib/daemon-api.ts`. The API proxy route uses the lower-level client from `lib/daemon-client.ts`.
+- **`fetchDaemon` for JSON, `daemonFetchBinary` for binary.** The server component page uses `fetchDaemon` from `apps/web/lib/daemon-api.ts`. The API proxy route uses the lower-level client from `lib/daemon-client.ts`.
 - **Vendor prefix order.** In CSS, `-webkit-backdrop-filter` before `backdrop-filter` (Turbopack drops the standard if it comes first).
 - **DI for testability.** Daemon routes use the factory pattern (`createArtifactRoutes(deps)`). New endpoints go in the same factory. Tests use Hono's `app.request()` with injected deps.
 - **`eslint-disable-next-line @next/next/no-img-element`** for decorative/dynamic images. `next/image` optimization doesn't apply to Unix socket proxied images.

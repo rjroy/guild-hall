@@ -1,0 +1,44 @@
+.chatInterface {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  flex: 1;
+  min-height: 200px;
+  overflow: hidden;
+}
+
+.messageArea {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-6);
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar styling for the message area */
+.messageArea::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.messageArea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messageArea::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border-radius: 999px;
+  border: 2px solid var(--bg-raised);
+}
+
+.messageArea::-webkit-scrollbar-thumb:hover {
+  background: var(--rule-strong);
+}
+
+@media (max-width: 480px) {
+  .messageArea {
+    padding: var(--space-4);
+  }
+}

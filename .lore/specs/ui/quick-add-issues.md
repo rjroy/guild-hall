@@ -4,7 +4,7 @@ date: 2026-03-29
 status: implemented
 author: Octavia
 tags: [ux, issues, web-ui, cli, daemon, artifacts]
-modules: [daemon/routes/workspace-issue, daemon/app, web/components/project/NewIssueButton, "web/app/projects/[name]/page"]
+modules: [apps/daemon/routes/workspace-issue, apps/daemon/app, apps/web/components/project/NewIssueButton, "apps/web/app/projects/[name]/page"]
 related:
   - .lore/brainstorm/quick-add-issues.md
   - .lore/issues/quick-add-issues.md
@@ -35,11 +35,11 @@ The button appears only in the project view, not the dashboard. Dashboard-level 
 
 ### Daemon: route file and deps interface
 
-- REQ-QAI-1: Add a new route file `daemon/routes/workspace-issue.ts`. Issue creation is semantically distinct from generic artifact I/O: it owns slug generation, conflict resolution, and a meaningful commit message. It does not belong in `daemon/routes/artifacts.ts`.
+- REQ-QAI-1: Add a new route file `apps/daemon/routes/workspace-issue.ts`. Issue creation is semantically distinct from generic artifact I/O: it owns slug generation, conflict resolution, and a meaningful commit message. It does not belong in `apps/daemon/routes/artifacts.ts`.
 
   **Rationale:** The existing `POST /workspace/artifact/document/write` is a low-level document write. Slug generation, conflict resolution, and commit message construction are server-owned behaviors that belong in a dedicated handler — the same reason commission IDs are generated server-side.
 
-- REQ-QAI-2: Define an `IssueRouteDeps` interface in `daemon/routes/workspace-issue.ts`:
+- REQ-QAI-2: Define an `IssueRouteDeps` interface in `apps/daemon/routes/workspace-issue.ts`:
 
   ```ts
   export interface IssueRouteDeps {
@@ -50,9 +50,9 @@ The button appears only in the project view, not the dashboard. Dashboard-level 
   }
   ```
 
-  This is the minimal dep slice. It follows the `GitLoreDeps` pattern in `daemon/routes/git-lore.ts`.
+  This is the minimal dep slice. It follows the `GitLoreDeps` pattern in `apps/daemon/routes/git-lore.ts`.
 
-- REQ-QAI-3: Add an optional `workspaceIssue?: IssueRouteDeps` field to `AppDeps` in `daemon/app.ts`. Conditionally mount the routes using the same `if (deps.workspaceIssue)` guard already used for `admin`, `artifacts`, and `gitLore` at `daemon/app.ts`.
+- REQ-QAI-3: Add an optional `workspaceIssue?: IssueRouteDeps` field to `AppDeps` in `apps/daemon/app.ts`. Conditionally mount the routes using the same `if (deps.workspaceIssue)` guard already used for `admin`, `artifacts`, and `gitLore` at `apps/daemon/app.ts`.
 
 - REQ-QAI-4: Wire `workspaceIssue` in `createProductionApp` with the same `config`, `guildHallHome`, and `gitOps` instances used by `admin` and `artifacts`. No new infrastructure is needed.
 
@@ -100,13 +100,13 @@ The button appears only in the project view, not the dashboard. Dashboard-level 
   - `hierarchy: { root: "workspace", feature: "issue", object: "create" }`
   - Parameters: `projectName` required-in-body, `title` required-in-body, `body` optional-in-body.
 
-  Follow the `OperationDefinition` shape used throughout `daemon/routes/admin.ts`.
+  Follow the `OperationDefinition` shape used throughout `apps/daemon/routes/admin.ts`.
 
-- REQ-QAI-11: Add a `descriptions` entry for `"workspace.issue"` in the route module: `"Create and manage issues in .lore/issues/"`. Follow the pattern in `daemon/routes/admin.ts`.
+- REQ-QAI-11: Add a `descriptions` entry for `"workspace.issue"` in the route module: `"Create and manage issues in .lore/issues/"`. Follow the pattern in `apps/daemon/routes/admin.ts`.
 
 ### Web UI: page changes
 
-- REQ-QAI-12: In `web/app/projects/[name]/page.tsx`, add a `NewIssueButton` component to the `artifactActions` bar established by `commit-lore-from-web` (REQ-CLORE-13). Place it alongside `CommitLoreButton` in the same action bar:
+- REQ-QAI-12: In `apps/web/app/projects/[name]/page.tsx`, add a `NewIssueButton` component to the `artifactActions` bar established by `commit-lore-from-web` (REQ-CLORE-13). Place it alongside `CommitLoreButton` in the same action bar:
 
   ```tsx
   <div className={styles.artifactActions}>
@@ -123,7 +123,7 @@ The button appears only in the project view, not the dashboard. Dashboard-level 
 
 ### Web UI: NewIssueButton component
 
-- REQ-QAI-13: Create `web/components/project/NewIssueButton.tsx` as a client component (`"use client"`). It accepts:
+- REQ-QAI-13: Create `apps/web/components/project/NewIssueButton.tsx` as a client component (`"use client"`). It accepts:
 
   ```ts
   interface NewIssueButtonProps {
@@ -155,7 +155,7 @@ The button appears only in the project view, not the dashboard. Dashboard-level 
 
 ### CLI
 
-- REQ-QAI-21: The `workspace.issue.create` operation registered in REQ-QAI-10 automatically surfaces as a CLI command via the operations registry and the existing routing in `cli/index.ts`. No CLI-specific code is required. The invocation is:
+- REQ-QAI-21: The `workspace.issue.create` operation registered in REQ-QAI-10 automatically surfaces as a CLI command via the operations registry and the existing routing in `apps/cli/index.ts`. No CLI-specific code is required. The invocation is:
 
   ```
   guild-hall workspace issue create <project> --title "Title text"
@@ -177,11 +177,11 @@ The button appears only in the project view, not the dashboard. Dashboard-level 
 
 | Exit | Target | Notes |
 |------|--------|-------|
-| `daemon/routes/workspace-issue.ts` | New file | REQ-QAI-1 through REQ-QAI-11 |
-| `daemon/app.ts` | `AppDeps`, `createProductionApp` | REQ-QAI-3, REQ-QAI-4 |
-| `web/app/projects/[name]/page.tsx` | Add `NewIssueButton` to `artifactActions` | REQ-QAI-12 |
-| `web/components/project/NewIssueButton.tsx` | New component | REQ-QAI-13 through REQ-QAI-20 |
-| `cli/index.ts` | No change required | Operations registry handles CLI routing |
+| `apps/daemon/routes/workspace-issue.ts` | New file | REQ-QAI-1 through REQ-QAI-11 |
+| `apps/daemon/app.ts` | `AppDeps`, `createProductionApp` | REQ-QAI-3, REQ-QAI-4 |
+| `apps/web/app/projects/[name]/page.tsx` | Add `NewIssueButton` to `artifactActions` | REQ-QAI-12 |
+| `apps/web/components/project/NewIssueButton.tsx` | New component | REQ-QAI-13 through REQ-QAI-20 |
+| `apps/cli/index.ts` | No change required | Operations registry handles CLI routing |
 
 ## Success Criteria
 
@@ -233,8 +233,8 @@ The button appears only in the project view, not the dashboard. Dashboard-level 
 ## Context
 
 - [Brainstorm: Quick Add Issues](../../brainstorm/quick-add-issues.md): source for all design decisions in this spec. Documents the three alternatives considered for web placement (artifact panel, project header, floating button) and why Option A (artifact panel) was selected; documents Path 1 vs. Path 2 for file creation and why a dedicated endpoint wins over reusing the write route.
-- `daemon/routes/git-lore.ts` (`commit-lore-from-web` spec): establishes the `IssueRouteDeps` pattern, the optional dep field in `AppDeps`, and the inline form component model followed here.
-- `web/components/project/CommitLoreButton.tsx`: the inline form expansion pattern this component follows. Both sit in the same `artifactActions` bar.
-- `daemon/routes/artifacts.ts`: the generic write handler this endpoint deliberately does not extend. The issue endpoint is purpose-built for semantic reasons (slug generation, commit message), not a wrapper around the write route.
+- `apps/daemon/routes/git-lore.ts` (`commit-lore-from-web` spec): establishes the `IssueRouteDeps` pattern, the optional dep field in `AppDeps`, and the inline form component model followed here.
+- `apps/web/components/project/CommitLoreButton.tsx`: the inline form expansion pattern this component follows. Both sit in the same `artifactActions` bar.
+- `apps/daemon/routes/artifacts.ts`: the generic write handler this endpoint deliberately does not extend. The issue endpoint is purpose-built for semantic reasons (slug generation, commit message), not a wrapper around the write route.
 - `lib/artifacts.ts`: `scanArtifacts` already picks up all `.md` files under `.lore/` recursively. No changes needed for the new file to appear in the artifact tree.
 - [Issue: Quick Add Issues](../../issues/quick-add-issues.md): the user-facing issue that motivated this spec.

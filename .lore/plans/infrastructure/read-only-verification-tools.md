@@ -4,12 +4,12 @@ date: 2026-04-16
 status: parked
 tags: [toolbox, verification, mcp-tools, worker-boundaries, plan]
 modules:
-  - daemon/services/verification-toolbox
-  - daemon/lib/project-checks
-  - daemon/services/toolbox-resolver
-  - daemon/routes/admin
-  - daemon/routes/workspace-issue
-  - daemon/app
+  - apps/daemon/services/verification-toolbox
+  - apps/daemon/lib/project-checks
+  - apps/daemon/services/toolbox-resolver
+  - apps/daemon/routes/admin
+  - apps/daemon/routes/workspace-issue
+  - apps/daemon/app
 related:
   - .lore/specs/infrastructure/read-only-verification-tools.md
   - .lore/specs/workers/worker-tool-boundaries.md
@@ -58,13 +58,13 @@ Requirements addressed:
 
 ### Reference implementation: git-readonly toolbox
 
-`daemon/services/git-readonly-toolbox.ts` is the closest analogue and the template for this work. It already demonstrates the full pattern:
+`apps/daemon/services/git-readonly-toolbox.ts` is the closest analogue and the template for this work. It already demonstrates the full pattern:
 
 - `createGitReadonlyTools(workingDirectory, runGit)` returns `tool()` definitions for direct testing.
 - `createGitReadonlyToolbox(workingDirectory, runGit)` wraps the tools with `createSdkMcpServer({ name, version, tools })`.
 - `gitReadonlyToolboxFactory: ToolboxFactory` adapts to the resolver (`deps.workingDirectory ?? process.cwd()`).
-- Registration is a single-line addition to `SYSTEM_TOOLBOX_REGISTRY` at `daemon/services/toolbox-resolver.ts:25`.
-- Subprocesses use `Bun.spawn` with `env: cleanGitEnv()` from `daemon/lib/git.ts:29`.
+- Registration is a single-line addition to `SYSTEM_TOOLBOX_REGISTRY` at `apps/daemon/services/toolbox-resolver.ts:25`.
+- Subprocesses use `Bun.spawn` with `env: cleanGitEnv()` from `apps/daemon/lib/git.ts:29`.
 
 Follow this exact shape for `verification-toolbox.ts`. A different runner injection seam (`runCheck` instead of `runGit`) keeps tests hermetic.
 
@@ -76,7 +76,7 @@ The `yaml` package version (`^2.8.2`) is already installed; no `package.json` ch
 
 ### Registration handler surface
 
-`daemon/routes/admin.ts:108-178` owns `POST /system/config/project/register`. The handler currently:
+`apps/daemon/routes/admin.ts:108-178` owns `POST /system/config/project/register`. The handler currently:
 
 1. Validates the request body (name, path, directory, `.git/`, duplicate name).
 2. Detects default branch, initializes `claude/main`, creates the integration worktree.
@@ -87,17 +87,17 @@ The template write + issue filing must happen after the integration worktree exi
 
 ### Issue creation
 
-`daemon/routes/workspace-issue.ts:54-111` owns issue creation. The POST handler does the following after validating inputs:
+`apps/daemon/routes/workspace-issue.ts:54-111` owns issue creation. The POST handler does the following after validating inputs:
 
 1. `slugify(title)` and `resolveSlug(issuesDir, baseSlug)` to pick a unique filename.
 2. Writes `.lore/issues/<slug>.md` with minimal frontmatter (`title`, `date`, `status: open`).
 3. Commits with message `Add issue: <slug>` via `deps.gitOps.commitAll(worktreePath, ...)`.
 
-Extract the write+commit core into a shared helper (`createIssueOnDisk` or similar) in `daemon/routes/workspace-issue.ts` so the registration handler and startup reconciliation can call it without going through HTTP. The route continues to call the helper. This is the smallest change that satisfies "reuse the issue-creation logic" from the spec's Implementation Structure section.
+Extract the write+commit core into a shared helper (`createIssueOnDisk` or similar) in `apps/daemon/routes/workspace-issue.ts` so the registration handler and startup reconciliation can call it without going through HTTP. The route continues to call the helper. This is the smallest change that satisfies "reuse the issue-creation logic" from the spec's Implementation Structure section.
 
 ### Startup reconciliation surface
 
-`daemon/app.ts:207-246` already iterates `config.projects` on startup for three reconciliation tasks: integration worktree recreation, `ensureHeartbeatFile`, and `syncProject`. The verification reconciliation slots in as a fourth step in the same loop or a parallel loop. The existing pattern logs `warn` on per-project failure and does not block startup (REQ-VFY-25 matches this exactly).
+`apps/daemon/app.ts:207-246` already iterates `config.projects` on startup for three reconciliation tasks: integration worktree recreation, `ensureHeartbeatFile`, and `syncProject`. The verification reconciliation slots in as a fourth step in the same loop or a parallel loop. The existing pattern logs `warn` on per-project failure and does not block startup (REQ-VFY-25 matches this exactly).
 
 ### Worker enablement is out of scope
 
@@ -111,9 +111,9 @@ Five phases. The foundation (config + toolbox + wiring) is Phase 1-3; the bootst
 
 Standalone module. Pure I/O + validation. No daemon changes yet.
 
-#### Step 1: Build `daemon/lib/project-checks.ts`
+#### Step 1: Build `apps/daemon/lib/project-checks.ts`
 
-**New file**: `daemon/lib/project-checks.ts`
+**New file**: `apps/daemon/lib/project-checks.ts`
 
 **Exports**:
 
@@ -143,7 +143,7 @@ Standalone module. Pure I/O + validation. No daemon changes yet.
 5. Throw a clear error on schema failure: `` `Invalid .lore/guild-hall-config.yaml: ${issues}` ``.
 6. Return `parsed.checks ?? {}`, dropping any keys whose value is `undefined`. Empty-string values are preserved and **returned as-is**; the tool handler (Phase 2) decides to treat them like missing keys. Keeping the raw value here makes the "empty === missing" behavior visible in one spot instead of spread across two modules.
 
-**Tests**: new file `tests/daemon/lib/project-checks.test.ts`.
+**Tests**: new file `apps/daemon/lib/tests/project-checks.test.ts`.
 
 - Missing file returns `{}`.
 - Well-formed file returns parsed checks for all four keys.
@@ -160,9 +160,9 @@ Standalone module. Pure I/O + validation. No daemon changes yet.
 
 Standalone MCP server. Depends on Phase 1. Still not wired into the resolver.
 
-#### Step 2: Build `daemon/services/verification-toolbox.ts`
+#### Step 2: Build `apps/daemon/services/verification-toolbox.ts`
 
-**New file**: `daemon/services/verification-toolbox.ts`
+**New file**: `apps/daemon/services/verification-toolbox.ts`
 
 **Exports**:
 
@@ -185,7 +185,7 @@ Standalone MCP server. Depends on Phase 1. Still not wired into the resolver.
 6. `await proc.exited` for the exit code. Clear the timeout timer.
 7. Return `{ exitCode, stdout, stderr, timedOut }`.
 
-**Spawn failure handling (REQ-VFY-15)**: `Bun.spawn` throws synchronously when the binary doesn't exist, matching the `runCmd` pattern at `daemon/lib/git.ts:79-92`. The handler wraps `Bun.spawn` in `try`/`catch` and returns a distinct result type (or throws to the tool handler, which translates to `isError: true`). Simplest shape: `defaultRunCheck` throws on spawn failure; the tool handler catches and returns `isError: true` with the message. This keeps the runner's return shape narrow.
+**Spawn failure handling (REQ-VFY-15)**: `Bun.spawn` throws synchronously when the binary doesn't exist, matching the `runCmd` pattern at `apps/daemon/lib/git.ts:79-92`. The handler wraps `Bun.spawn` in `try`/`catch` and returns a distinct result type (or throws to the tool handler, which translates to `isError: true`). Simplest shape: `defaultRunCheck` throws on spawn failure; the tool handler catches and returns `isError: true` with the message. This keeps the runner's return shape narrow.
 
 **Tool handler template** (one per tool, all four share this logic):
 
@@ -259,7 +259,7 @@ createSdkMcpServer({
 
 #### Step 3: Tests for verification-toolbox
 
-**New file**: `tests/daemon/services/verification-toolbox.test.ts`
+**New file**: `apps/daemon/tests/services/verification-toolbox.test.ts`
 
 Test scaffolding: a `mockRunCheck` helper that records invocations (`cwd`, `command`, `opts`) and returns a canned `CheckRunResult`. Tests that exercise the config use `fs.mkdtemp()` to build a temp worktree with a `.lore/guild-hall-config.yaml` fixture (matching the existing project pattern, since `mock.module()` is forbidden).
 
@@ -286,7 +286,7 @@ One-line registration plus the opt-in path. This is the **fix-before-fan-out** p
 
 **Files modified**:
 
-- `daemon/services/toolbox-resolver.ts`
+- `apps/daemon/services/toolbox-resolver.ts`
 
 **Changes**:
 
@@ -297,7 +297,7 @@ No other resolver changes. `GuildHallToolboxDeps.workingDirectory` already exist
 
 #### Step 5: Integration test
 
-**File modified**: `tests/daemon/services/toolbox-resolver.test.ts` (or a new sibling test if the existing file is already large).
+**File modified**: `apps/daemon/tests/services/toolbox-resolver.test.ts` (or a new sibling test if the existing file is already large).
 
 Coverage:
 
@@ -324,7 +324,7 @@ New config files need to appear in fresh projects. This phase extends the regist
 
 **New exported helpers** (cross-cutting):
 
-1. **Template content** lives in `daemon/lib/project-checks.ts` (extend Phase 1):
+1. **Template content** lives in `apps/daemon/lib/project-checks.ts` (extend Phase 1):
    ```typescript
    export const PROJECT_CHECKS_TEMPLATE = `# .lore/guild-hall-config.yaml
    # Configures project-local verification commands for the verification toolbox.
@@ -345,7 +345,7 @@ New config files need to appear in fresh projects. This phase extends the regist
    `;
    ```
 
-2. **Bootstrap orchestrator**: new file `daemon/services/verification-bootstrap.ts` (or add to `daemon/lib/project-checks.ts`; prefer the services file because it reaches into `GitOps` and `IssueWriter`). Exports:
+2. **Bootstrap orchestrator**: new file `apps/daemon/services/verification-bootstrap.ts` (or add to `apps/daemon/lib/project-checks.ts`; prefer the services file because it reaches into `GitOps` and `IssueWriter`). Exports:
 
    ```typescript
    async function bootstrapVerificationConfig(args: {
@@ -369,7 +369,7 @@ New config files need to appear in fresh projects. This phase extends the regist
      5. If the commit throws, unlink the template file and delete the issue file (rollback per REQ-VFY-26), log `warn`, and rethrow.
      6. Return `{ wrote: true, issueSlug }`.
 
-3. **Extract `IssueWriter` from `workspace-issue.ts`**. Refactor `daemon/routes/workspace-issue.ts` so the write-and-commit body becomes:
+3. **Extract `IssueWriter` from `workspace-issue.ts`**. Refactor `apps/daemon/routes/workspace-issue.ts` so the write-and-commit body becomes:
 
    ```typescript
    export interface IssueWriter {
@@ -394,12 +394,12 @@ New config files need to appear in fresh projects. This phase extends the regist
 
 **Files modified**:
 
-- `daemon/routes/workspace-issue.ts` — refactor as above; export `createIssueWriter`.
-- `daemon/routes/admin.ts` — extend the `/system/config/project/register` handler.
-- `daemon/lib/project-checks.ts` — add `PROJECT_CHECKS_TEMPLATE`.
-- `daemon/services/verification-bootstrap.ts` — new file with `bootstrapVerificationConfig`.
+- `apps/daemon/routes/workspace-issue.ts` — refactor as above; export `createIssueWriter`.
+- `apps/daemon/routes/admin.ts` — extend the `/system/config/project/register` handler.
+- `apps/daemon/lib/project-checks.ts` — add `PROJECT_CHECKS_TEMPLATE`.
+- `apps/daemon/services/verification-bootstrap.ts` — new file with `bootstrapVerificationConfig`.
 
-**Changes to the register handler** (`daemon/routes/admin.ts:108-178`):
+**Changes to the register handler** (`apps/daemon/routes/admin.ts:108-178`):
 
 1. Add `createIssueWriter` and `bootstrapVerificationConfig` to the handler's dependency surface. Rather than passing via `AdminDeps` (which would ripple through `createApp` wiring), import the defaults and allow DI overrides on `AdminDeps` for test substitution:
 
@@ -431,7 +431,7 @@ New config files need to appear in fresh projects. This phase extends the regist
 
 3. Wiring in `createApp` does not change: `AdminDeps` gains optional fields but their defaults are internal to the route factory.
 
-**Tests**: extend `tests/daemon/routes/admin.test.ts` (or add a new bootstrap test file).
+**Tests**: extend `apps/daemon/tests/routes/admin.test.ts` (or add a new bootstrap test file).
 
 - Registration creates `.lore/guild-hall-config.yaml` with the template content when the file does not exist.
 - Registration creates a `.lore/issues/populate-verification-check-commands.md` issue file with matching frontmatter (title, status `open`).
@@ -447,7 +447,7 @@ Pre-existing projects need the same treatment as new registrations. The daemon r
 
 #### Step 7: Reconciliation loop
 
-**File modified**: `daemon/app.ts`
+**File modified**: `apps/daemon/app.ts`
 
 **Changes**:
 
@@ -455,10 +455,10 @@ Pre-existing projects need the same treatment as new registrations. The daemon r
 
    ```typescript
    const { bootstrapVerificationConfig } = await import(
-     "@/daemon/services/verification-bootstrap"
+     "@/apps/daemon/services/verification-bootstrap"
    );
    const { createIssueWriter } = await import(
-     "@/daemon/routes/workspace-issue"
+     "@/apps/daemon/routes/workspace-issue"
    );
    const issueWriter = createIssueWriter(git, createLog("workspace-issue"));
 
@@ -487,7 +487,7 @@ Pre-existing projects need the same treatment as new registrations. The daemon r
 
 #### Step 8: Startup tests
 
-**File modified**: `tests/daemon/app.test.ts` (if present) or `tests/daemon/services/verification-bootstrap.test.ts` (new, preferred because app.test is typically integration-heavy).
+**File modified**: `apps/daemon/tests/app.test.ts` (if present) or `apps/daemon/tests/services/verification-bootstrap.test.ts` (new, preferred because app.test is typically integration-heavy).
 
 Coverage:
 

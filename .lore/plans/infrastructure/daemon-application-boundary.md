@@ -28,7 +28,7 @@ This is a multi-phase migration across the full codebase. Each phase is independ
 
 ### Requirements Already Satisfied
 
-- **REQ-DAB-6** (daemon spawns and manages agent sessions): Already satisfied by the current architecture. The daemon owns session lifecycle through `daemon/services/commission/orchestrator.ts` and `daemon/services/meeting/orchestrator.ts`. Context injection happens in `prepareSdkSession()` (`daemon/lib/agent-sdk/sdk-runner.ts`). Side-effect mediation happens through EventBus callbacks in toolbox factories. No migration work needed.
+- **REQ-DAB-6** (daemon spawns and manages agent sessions): Already satisfied by the current architecture. The daemon owns session lifecycle through `apps/daemon/services/commission/orchestrator.ts` and `apps/daemon/services/meeting/orchestrator.ts`. Context injection happens in `prepareSdkSession()` (`apps/daemon/lib/agent-sdk/sdk-runner.ts`). Side-effect mediation happens through EventBus callbacks in toolbox factories. No migration work needed.
 
 - **REQ-DAB-13** (five concerns are internal decomposition, not competing boundaries): Satisfied by construction. This plan never proposes exposing Session, Activity, Artifact, Toolbox, or Worker as separate public surfaces. The five concerns remain daemon-internal. Each phase's validation should confirm this invariant was not violated.
 
@@ -46,26 +46,26 @@ The web layer's server components read application state directly from disk rath
 
 | Page | File | What It Reads |
 |------|------|---------------|
-| Dashboard | `web/app/page.tsx` | config, recent artifacts, commissions, meeting requests, worker portraits |
-| Project | `web/app/projects/[name]/page.tsx` | config, artifacts, meetings, commissions, dependency graph |
-| Artifact | `web/app/projects/[name]/artifacts/[...path]/page.tsx` | config, artifact content, commission/meeting base paths |
-| Commission | `web/app/projects/[name]/commissions/[id]/page.tsx` | `fs.readFile()` for commission artifact, config, packages, dependency graph |
-| Meeting | `web/app/projects/[name]/meetings/[id]/page.tsx` | `fs.readFile()` for meeting transcript, config, packages, portraits |
+| Dashboard | `apps/web/app/page.tsx` | config, recent artifacts, commissions, meeting requests, worker portraits |
+| Project | `apps/web/app/projects/[name]/page.tsx` | config, artifacts, meetings, commissions, dependency graph |
+| Artifact | `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` | config, artifact content, commission/meeting base paths |
+| Commission | `apps/web/app/projects/[name]/commissions/[id]/page.tsx` | `fs.readFile()` for commission artifact, config, packages, dependency graph |
+| Meeting | `apps/web/app/projects/[name]/meetings/[id]/page.tsx` | `fs.readFile()` for meeting transcript, config, packages, portraits |
 
 All five server component pages use `@/lib/` utilities (`readConfig()`, `scanArtifacts()`, `scanCommissions()`, `readMeetingMeta()`, etc.) that resolve to filesystem reads against integration worktrees and `~/.guild-hall/` directories.
 
-`web/app/projects/[name]/layout.tsx` is a passthrough layout with no filesystem reads (verified). No migration needed.
+`apps/web/app/projects/[name]/layout.tsx` is a passthrough layout with no filesystem reads (verified). No migration needed.
 
 **API routes with boundary violations:**
 
 | Route | File | Violation |
 |-------|------|-----------|
-| `PUT /api/artifacts` | `web/app/api/artifacts/route.ts` | Writes artifact content directly to integration worktree, commits via `createGitOps()`, then notifies daemon of dependency changes |
-| `POST /api/meetings/[id]/quick-comment` | `web/app/api/meetings/[meetingId]/quick-comment/route.ts` | Reads meeting artifact from filesystem (`readMeetingMeta()`), then orchestrates commission creation + meeting decline through daemon. The filesystem read is the violation; the daemon calls are fine. |
+| `PUT /api/artifacts` | `apps/web/app/api/artifacts/route.ts` | Writes artifact content directly to integration worktree, commits via `createGitOps()`, then notifies daemon of dependency changes |
+| `POST /api/meetings/[id]/quick-comment` | `apps/web/app/api/meetings/[meetingId]/quick-comment/route.ts` | Reads meeting artifact from filesystem (`readMeetingMeta()`), then orchestrates commission creation + meeting decline through daemon. The filesystem read is the violation; the daemon calls are fine. |
 
 **API routes that already proxy to daemon (no violation):**
 
-Most `web/app/api/` routes use `daemonFetch()` from `lib/daemon-client.ts` and are pure proxies: briefing, events (SSE), all commission mutations (dispatch, redispatch, abandon, note, schedule-status), all meeting mutations (accept, decline, defer, interrupt, messages, close), workers, models, health.
+Most `apps/web/app/api/` routes use `daemonFetch()` from `lib/daemon-client.ts` and are pure proxies: briefing, events (SSE), all commission mutations (dispatch, redispatch, abandon, note, schedule-status), all meeting mutations (accept, decline, defer, interrupt, messages, close), workers, models, health.
 
 **Shared lib/ utilities used for filesystem reads:**
 
@@ -86,13 +86,13 @@ All CLI commands operate directly on the filesystem and git. Only `register.ts` 
 
 | Command | File | Operations |
 |---------|------|------------|
-| `register` | `cli/register.ts` | `fs.stat()`, `fs.mkdir()`, git worktree creation, claude branch init, config.yaml write, daemon reload call |
-| `validate` | `cli/validate.ts` | `fs.stat()` for path verification, config.yaml read |
-| `rebase` | `cli/rebase.ts` | `fs.readdir()`, `fs.readFile()`, git rebase/revParse/isAncestor/resetHard, project locking |
-| `sync` | `cli/rebase.ts` | Same file, `syncProject()`: merged PR detection, branch reset, rebase |
-| `migrate-content` | `cli/migrate-content-to-body.ts` | `fs.readdir()`, `fs.readFile()`, `fs.writeFile()` for YAML migration |
+| `register` | `apps/cli/register.ts` | `fs.stat()`, `fs.mkdir()`, git worktree creation, claude branch init, config.yaml write, daemon reload call |
+| `validate` | `apps/cli/validate.ts` | `fs.stat()` for path verification, config.yaml read |
+| `rebase` | `apps/cli/rebase.ts` | `fs.readdir()`, `fs.readFile()`, git rebase/revParse/isAncestor/resetHard, project locking |
+| `sync` | `apps/cli/rebase.ts` | Same file, `syncProject()`: merged PR detection, branch reset, rebase |
+| `migrate-content` | `apps/cli/migrate-content-to-body.ts` | `fs.readdir()`, `fs.readFile()`, `fs.writeFile()` for YAML migration |
 
-Note: `cli/rebase.ts` exports `syncProject()` and `hasActiveActivities()`, which are imported by the daemon's manager toolbox (`daemon/services/manager/toolbox.ts`). This is a shared dependency, not a CLI-to-daemon coupling, but it means the daemon already depends on CLI code. The DAB migration should reverse this: the daemon owns the logic, and the CLI calls the daemon.
+Note: `apps/cli/rebase.ts` exports `syncProject()` and `hasActiveActivities()`, which are imported by the daemon's manager toolbox (`apps/daemon/services/manager/toolbox.ts`). This is a shared dependency, not a CLI-to-daemon coupling, but it means the daemon already depends on CLI code. The DAB migration should reverse this: the daemon owns the logic, and the CLI calls the daemon.
 
 ### Agent Toolbox Architecture: Internal Callbacks (REQ-DAB-7, REQ-DAB-11)
 
@@ -183,7 +183,7 @@ New daemon routes:
 - `POST /artifacts?projectName=X` - Write artifact (replaces `PUT /api/artifacts` boundary violation)
 
 **Implementation approach:**
-1. Create `daemon/routes/artifacts.ts` with DI factory pattern matching existing routes.
+1. Create `apps/daemon/routes/artifacts.ts` with DI factory pattern matching existing routes.
 2. The route handlers call the same `lib/artifacts.ts` functions the web currently calls directly. The daemon already has access to config and paths.
 3. The write route replaces the web's direct filesystem write by owning the write + git commit + dependency check sequence.
 4. Tests use Hono's `app.request()` pattern with injected deps.
@@ -223,9 +223,9 @@ The `/workers` and `/models` routes already exist and serve the web layer throug
 
 **What changes:**
 
-Each server component page (`web/app/page.tsx`, `web/app/projects/[name]/page.tsx`, etc.) replaces its `lib/` utility calls with `daemonFetch()` calls to the routes built in Phases 0-1.
+Each server component page (`apps/web/app/page.tsx`, `apps/web/app/projects/[name]/page.tsx`, etc.) replaces its `lib/` utility calls with `daemonFetch()` calls to the routes built in Phases 0-1.
 
-Example transformation in `web/app/page.tsx`:
+Example transformation in `apps/web/app/page.tsx`:
 ```
 // Before:
 const config = await readConfig();
@@ -280,13 +280,13 @@ Recommendation: Option 1. The compound logic is simple (read meeting metadata, c
 
 **Implementation must follow this sub-step order:**
 
-1. **Move shared logic to a daemon service.** Create `daemon/services/git-admin.ts` (or similar) containing `syncProject()`, `hasActiveActivities()`, and the rebase logic currently in `cli/rebase.ts`. These functions already operate on paths and git ops that the daemon has access to.
+1. **Move shared logic to a daemon service.** Create `apps/daemon/services/git-admin.ts` (or similar) containing `syncProject()`, `hasActiveActivities()`, and the rebase logic currently in `apps/cli/rebase.ts`. These functions already operate on paths and git ops that the daemon has access to.
 
-2. **Update daemon imports.** Change `daemon/services/manager/toolbox.ts` (line 35-36, which imports from `@/cli/rebase`) to import from the new daemon service. Update `daemon/app.ts` if it references CLI code. Run tests to confirm the daemon builds without any `@/cli/` imports.
+2. **Update daemon imports.** Change `apps/daemon/services/manager/toolbox.ts` (line 35-36, which imports from `@/apps/cli/rebase`) to import from the new daemon service. Update `apps/daemon/app.ts` if it references CLI code. Run tests to confirm the daemon builds without any `@/apps/cli/` imports.
 
-3. **Create daemon admin routes.** Add `POST /admin/rebase` and `POST /admin/sync` in `daemon/routes/admin.ts`, calling the logic from the new daemon service. Add `POST /admin/register-project` and `GET /admin/validate` routes.
+3. **Create daemon admin routes.** Add `POST /admin/rebase` and `POST /admin/sync` in `apps/daemon/routes/admin.ts`, calling the logic from the new daemon service. Add `POST /admin/register-project` and `GET /admin/validate` routes.
 
-4. **Slim the CLI.** Replace `cli/rebase.ts` internals with `daemonFetch()` calls. Each CLI command becomes a thin script that parses arguments, calls the daemon, and prints the result.
+4. **Slim the CLI.** Replace `apps/cli/rebase.ts` internals with `daemonFetch()` calls. Each CLI command becomes a thin script that parses arguments, calls the daemon, and prints the result.
 
 This ordering prevents the circular dependency identified in risk R4. If step 1 and 2 happen out of order, or if step 4 happens before step 3, the build breaks.
 
@@ -407,7 +407,7 @@ Currently, capabilities are defined implicitly by route handlers and by MCP tool
 
 1. Define a `SkillDefinition` type in `lib/types.ts` (shared, since web needs it for rendering help).
 2. Change every route factory's return type from bare `Hono` to `{ routes: Hono, skills: SkillDefinition[] }`. Current route factories affected: `createHealthRoutes`, `createMeetingRoutes`, `createCommissionRoutes`, `createEventRoutes`, `createWorkerRoutes`, `createBriefingRoutes`, `createModelRoutes`, `createAdminRoutes`, `createArtifactRoutes`, plus any added in Phases 0-4. This is the largest mechanical change in this phase; the design doc should define the exact return type and migration pattern.
-3. Update `daemon/app.ts` to collect all skill definitions from route factories at startup and build a skill registry.
+3. Update `apps/daemon/app.ts` to collect all skill definitions from route factories at startup and build a skill registry.
 4. Replace the hand-written `help` endpoint responses (from Phase 5) with registry-driven responses.
 5. The CLI can use the same registry for `--help` on any command.
 
@@ -567,7 +567,7 @@ Recommendation: Start with error page (simplest). Add caching if UX demands it. 
 
 **Q3: Should `lib/` utilities move into the daemon?**
 
-Currently, `lib/` functions like `scanArtifacts()` and `readCommissionMeta()` are shared between web and daemon. After Phase 2, the web no longer calls them directly. Should they move from `lib/` to `daemon/lib/`?
+Currently, `lib/` functions like `scanArtifacts()` and `readCommissionMeta()` are shared between web and daemon. After Phase 2, the web no longer calls them directly. Should they move from `lib/` to `apps/daemon/lib/`?
 
 Recommendation: Leave them in `lib/` for now. They're pure functions that operate on paths and parse files. The daemon calls them, tests import them, and moving them adds no architectural benefit. The type boundary is already correct: `lib/` never imports from `daemon/`.
 
@@ -591,7 +591,7 @@ Recommendation: Defer this to after Phase 7. Domain plugins are the newest and l
 
 **R3: The skill concept is still evolving.** REQ-DAB-8 through DAB-12 define skills abstractly. The design doc shows `skillId`, `version`, schemas. But the metadata format, registration mechanism, and relationship to existing Zod schemas need concrete design work before Phase 6 starts. A `/lore-development:design` session before Phase 6 is recommended.
 
-**R4: CLI migration breaks the `cli/rebase.ts` -> daemon import.** The manager toolbox currently imports `syncProject()` from `cli/rebase.ts`. Phase 4 needs to move this function to a daemon service before making the CLI a daemon client, or the dependency becomes circular. This is a sequencing constraint, not a blocker.
+**R4: CLI migration breaks the `apps/cli/rebase.ts` -> daemon import.** The manager toolbox currently imports `syncProject()` from `apps/cli/rebase.ts`. Phase 4 needs to move this function to a daemon service before making the CLI a daemon client, or the dependency becomes circular. This is a sequencing constraint, not a blocker.
 
 **R5: Agent toolbox refactoring may break session behavior.** The manager toolbox's tools are tightly coupled to session lifecycle (e.g., `commissionSession.createCommission()` updates in-process state that the session runner watches). Switching to daemon API calls changes the notification path. Careful testing is needed to ensure EventBus subscriptions still fire correctly when the creation path changes.
 
@@ -618,7 +618,7 @@ Each phase has its own validation criteria:
 - **Phases 0-1:** New daemon routes have unit tests (Hono `app.request()` pattern). Tests verify JSON response shapes match what server components expect.
 - **Phase 2:** Server components still render correctly. Manual verification that pages load without filesystem access (all reads go through daemon). Regression test: daemon offline produces a clear error, not a crash.
 - **Phase 3:** `PUT /api/artifacts` and `POST /api/meetings/[id]/quick-comment` no longer perform direct filesystem operations. The `createGitOps()` import is removed from web API routes. The quick-comment route does not acquire new business logic, only pure sequencing of daemon calls.
-- **Phase 4:** CLI commands work with daemon running. CLI commands fail clearly with daemon offline. `cli/rebase.ts` no longer exports functions imported by daemon code.
+- **Phase 4:** CLI commands work with daemon running. CLI commands fail clearly with daemon offline. `apps/cli/rebase.ts` no longer exports functions imported by daemon code.
 - **Phase 5:** All routes accessible at new paths. `help` endpoints return structured metadata. Old paths removed.
 - **Phase 6:** Skill registry exists and is populated from route metadata. `help` endpoints serve from registry.
 - **Phase 7:** Manager toolbox tools invoke daemon routes. Workers with new CLI skill access have Bash + `canUseToolRules` enforced. Verify EventBus events fire correctly for commission creation, dispatch, and abandonment when triggered through the daemon route path (not just the service method path). Verify `canUseToolRules` correctly allows `guild-hall` subcommands and denies all other Bash for Thorne, Verity, and Edmund. Fresh-context review confirms no session behavior regressions.

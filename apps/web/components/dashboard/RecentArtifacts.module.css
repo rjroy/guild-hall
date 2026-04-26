@@ -1,0 +1,89 @@
+/* ============================================================
+   RecentArtifacts — recent scrolls list
+   ============================================================ */
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 270px;
+  overflow-y: auto;
+}
+
+.item {
+  border-bottom: 1px solid var(--rule-soft);
+  transition: background var(--dur) var(--ease-out);
+}
+
+.item:last-child {
+  border-bottom: 0;
+}
+
+.item:hover {
+  background: var(--brand-soft);
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  text-decoration: none;
+  color: inherit;
+}
+
+.scrollIcon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.imageIcon,
+.mockupIcon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--fg-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .projectLabel {
+  color: var(--ember-300);
+}
+
+.date {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xs);
+  color: var(--fg-3);
+}

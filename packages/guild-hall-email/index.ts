@@ -17,8 +17,8 @@ import {
   tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod/v4";
-import type { ToolResult } from "@/daemon/types";
-import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
+import type { ToolResult } from "@/apps/daemon/types";
+import type { ToolboxFactory } from "@/apps/daemon/services/toolbox-types";
 import { JmapClient } from "./jmap-client";
 import {
   makeSearchEmailsHandler,

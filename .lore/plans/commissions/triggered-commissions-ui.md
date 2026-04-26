@@ -37,7 +37,7 @@ Requirements addressed (Phase 3, web UI):
 
 This plan assumes both earlier phases are complete:
 
-- `CommissionType` includes `"triggered"` in `daemon/types.ts`
+- `CommissionType` includes `"triggered"` in `apps/daemon/types.ts`
 - `TriggerBlock` type exists with `match`, `approval`, `maxDepth`, `runs_completed`, `last_triggered`, `last_spawned_id`
 - Trigger artifacts exist in `.lore/commissions/` with `type: triggered` and a `trigger:` frontmatter block
 - The daemon route `/commission/schedule/commission/update` (or its trigger equivalent) handles trigger status transitions
@@ -47,29 +47,29 @@ This plan assumes both earlier phases are complete:
 
 ## Codebase Context
 
-**Commission detail page** (`web/app/projects/[name]/commissions/[id]/page.tsx`): Server component. Fetches commission detail from the daemon, builds `scheduleInfo` when `type === "scheduled"`, and passes `commissionType` and `scheduleInfo` as props to `CommissionView`. The trigger equivalent needs the same treatment: detect `type === "triggered"`, build a `triggerInfo` prop, pass it down.
+**Commission detail page** (`apps/web/app/projects/[name]/commissions/[id]/page.tsx`): Server component. Fetches commission detail from the daemon, builds `scheduleInfo` when `type === "scheduled"`, and passes `commissionType` and `scheduleInfo` as props to `CommissionView`. The trigger equivalent needs the same treatment: detect `type === "triggered"`, build a `triggerInfo` prop, pass it down.
 
-**CommissionView** (`web/components/commission/CommissionView.tsx`): Client component. Lines 270-291 show the conditional sidebar rendering. When `commissionType === "scheduled"` and `scheduleInfo` is present, it renders `CommissionScheduleInfo` + `CommissionScheduleActions` in `Panel` wrappers. Otherwise it renders `CommissionActions`. Triggered commissions will add a third branch.
+**CommissionView** (`apps/web/components/commission/CommissionView.tsx`): Client component. Lines 270-291 show the conditional sidebar rendering. When `commissionType === "scheduled"` and `scheduleInfo` is present, it renders `CommissionScheduleInfo` + `CommissionScheduleActions` in `Panel` wrappers. Otherwise it renders `CommissionActions`. Triggered commissions will add a third branch.
 
-**CommissionScheduleInfo** (`web/components/commission/CommissionScheduleInfo.tsx`): Server component. Renders a `<dl>` of schedule fields (cron, runs, last run, next run) and a "Recent Runs" list with linked commission IDs. This is the structural template for `TriggerInfo`.
+**CommissionScheduleInfo** (`apps/web/components/commission/CommissionScheduleInfo.tsx`): Server component. Renders a `<dl>` of schedule fields (cron, runs, last run, next run) and a "Recent Runs" list with linked commission IDs. This is the structural template for `TriggerInfo`.
 
-**CommissionScheduleActions** (`web/components/commission/CommissionScheduleActions.tsx`): Client component with `"use client"`. Manages `loading`/`error` state. Calls `POST /api/commissions/[id]/schedule-status` with `{ status: targetStatus }`. Shows Pause/Resume toggle and Complete button. Returns null for terminal statuses. This is the structural template for `TriggerActions`.
+**CommissionScheduleActions** (`apps/web/components/commission/CommissionScheduleActions.tsx`): Client component with `"use client"`. Manages `loading`/`error` state. Calls `POST /api/commissions/[id]/schedule-status` with `{ status: targetStatus }`. Shows Pause/Resume toggle and Complete button. Returns null for terminal statuses. This is the structural template for `TriggerActions`.
 
-**Schedule status API route** (`web/app/api/commissions/[commissionId]/schedule-status/route.ts`): Thin proxy. Takes `commissionId` from params, merges request body, calls `daemonFetch("/commission/schedule/commission/update", ...)`. Returns daemon response. The trigger-status route follows the same pattern, calling a trigger-specific daemon endpoint.
+**Schedule status API route** (`apps/web/app/api/commissions/[commissionId]/schedule-status/route.ts`): Thin proxy. Takes `commissionId` from params, merges request body, calls `daemonFetch("/commission/schedule/commission/update", ...)`. Returns daemon response. The trigger-status route follows the same pattern, calling a trigger-specific daemon endpoint.
 
-**Commission list** (`web/components/commission/CommissionList.tsx`): Renders the list. Line 123 shows the "Recurring" label for scheduled commissions. Lines 143-150 show the `sourceSchedule` provenance link. Triggered commissions need: a "Trigger" label (parallel to "Recurring") and a `triggered_by` provenance link (parallel to `sourceSchedule`).
+**Commission list** (`apps/web/components/commission/CommissionList.tsx`): Renders the list. Line 123 shows the "Recurring" label for scheduled commissions. Lines 143-150 show the `sourceSchedule` provenance link. Triggered commissions need: a "Trigger" label (parallel to "Recurring") and a `triggered_by` provenance link (parallel to `sourceSchedule`).
 
-**Filter groups** (`web/components/commission/commission-filter.ts`): `FILTER_GROUPS` defines four groups: Idle (pending, blocked, paused), Active (dispatched, in_progress, halted, active), Failed (failed, cancelled), Done (abandoned, completed). Trigger statuses map directly onto these groups: `active` is already in Active, `paused` is already in Idle, `completed` is in Done, `failed` is in Failed. No filter group changes needed (REQ-TRIG-41).
+**Filter groups** (`apps/web/components/commission/commission-filter.ts`): `FILTER_GROUPS` defines four groups: Idle (pending, blocked, paused), Active (dispatched, in_progress, halted, active), Failed (failed, cancelled), Done (abandoned, completed). Trigger statuses map directly onto these groups: `active` is already in Active, `paused` is already in Idle, `completed` is in Done, `failed` is in Failed. No filter group changes needed (REQ-TRIG-41).
 
 **CommissionMeta** (`lib/commissions.ts:19`): Interface for list items. Has `type: string`, `sourceSchedule: string`, `worker`, `status`, etc. Needs a `triggeredBy` field (or equivalent) for the provenance link, and the trigger metadata needs to flow from the daemon detail response.
 
-**Daemon commission detail route** (`daemon/routes/commissions.ts`): Returns commission metadata including `scheduleInfo` when `type === "scheduled"`. Needs a parallel `triggerInfo` block when `type === "triggered"`.
+**Daemon commission detail route** (`apps/daemon/routes/commissions.ts`): Returns commission metadata including `scheduleInfo` when `type === "scheduled"`. Needs a parallel `triggerInfo` block when `type === "triggered"`.
 
 ## Implementation Steps
 
 ### Step 1: Extend daemon detail response with trigger info
 
-**Files**: `daemon/routes/commissions.ts`, `daemon/services/commission/record.ts`
+**Files**: `apps/daemon/routes/commissions.ts`, `apps/daemon/services/commission/record.ts`
 **Addresses**: REQ-TRIG-39 (data source for TriggerInfo panel)
 
 The daemon's commission detail endpoint needs to return trigger metadata when `type === "triggered"`, following the `scheduleInfo` pattern.
@@ -101,7 +101,7 @@ Tests:
 
 ### Step 2: Extend CommissionMeta with trigger provenance
 
-**Files**: `lib/commissions.ts`, `daemon/routes/commissions.ts`
+**Files**: `lib/commissions.ts`, `apps/daemon/routes/commissions.ts`
 **Addresses**: REQ-TRIG-42 (provenance links in list view)
 
 Add trigger provenance to the commission list data.
@@ -122,7 +122,7 @@ Tests:
 
 ### Step 3: TriggerInfo component
 
-**Files**: `web/components/commission/TriggerInfo.tsx` (new), `web/components/commission/TriggerInfo.module.css` (new)
+**Files**: `apps/web/components/commission/TriggerInfo.tsx` (new), `apps/web/components/commission/TriggerInfo.module.css` (new)
 **Addresses**: REQ-TRIG-39 (TriggerInfo panel)
 
 Create a display component for trigger configuration and runtime state, structurally parallel to `CommissionScheduleInfo.tsx`.
@@ -169,7 +169,7 @@ Note: The daemon detail response (Step 1) returns raw trigger metadata without `
 
 The CSS module follows the same structure as `CommissionScheduleInfo.module.css`: `container`, `label`, `fields`, `field`, `fieldLabel`, `fieldValue`, `recentRuns`, `runList`, `runItem`, `runLink`, `runId`, `runMeta`, `runStatus`, `runDate`.
 
-Extract `formatTimestamp` into a shared utility (`web/components/commission/format-timestamp.ts`) since both `CommissionScheduleInfo` and `TriggerInfo` need it. Update `CommissionScheduleInfo` to import from the shared location. Verify `CommissionScheduleInfo` renders correctly after the refactor.
+Extract `formatTimestamp` into a shared utility (`apps/web/components/commission/format-timestamp.ts`) since both `CommissionScheduleInfo` and `TriggerInfo` need it. Update `CommissionScheduleInfo` to import from the shared location. Verify `CommissionScheduleInfo` renders correctly after the refactor.
 
 Tests:
 - Renders match rule with event type.
@@ -183,7 +183,7 @@ Tests:
 
 ### Step 4: TriggerActions component
 
-**Files**: `web/components/commission/TriggerActions.tsx` (new), `web/components/commission/TriggerActions.module.css` (new)
+**Files**: `apps/web/components/commission/TriggerActions.tsx` (new), `apps/web/components/commission/TriggerActions.module.css` (new)
 **Addresses**: REQ-TRIG-39 (TriggerActions panel)
 
 Create action buttons for trigger lifecycle management, structurally parallel to `CommissionScheduleActions.tsx`.
@@ -225,7 +225,7 @@ Tests:
 
 ### Step 5: Trigger status API route
 
-**Files**: `web/app/api/commissions/[commissionId]/trigger-status/route.ts` (new)
+**Files**: `apps/web/app/api/commissions/[commissionId]/trigger-status/route.ts` (new)
 **Addresses**: REQ-TRIG-40
 
 Create the Next.js API route that proxies trigger status updates to the daemon. This follows the `schedule-status/route.ts` pattern exactly.
@@ -265,7 +265,7 @@ The daemon endpoint path (`/commission/trigger/commission/update`) follows the p
 
 **Daemon-side route needed.** The daemon must expose a route at `/commission/trigger/commission/update` that accepts `{ commissionId, status }`, validates the transition, calls `triggerEvaluator.unregisterTrigger()`/`registerTrigger()` as appropriate, and updates the artifact status. This is the daemon-side counterpart to the web route. If Phase 2's `update_trigger` toolbox handler already exposes this through a callable path, the daemon route can delegate to the same logic. If not, the route needs its own handler following the `update_schedule` route pattern.
 
-**Decision**: The Phase 2 plan's `update_trigger` operates through the MCP toolbox (Guild Master's tools). The web UI can't call MCP tools directly; it needs a REST route. The daemon needs a new route in `daemon/routes/commissions.ts` that handles trigger status updates. This route reuses the same record ops and trigger evaluator methods that the toolbox handler uses, not the handler itself.
+**Decision**: The Phase 2 plan's `update_trigger` operates through the MCP toolbox (Guild Master's tools). The web UI can't call MCP tools directly; it needs a REST route. The daemon needs a new route in `apps/daemon/routes/commissions.ts` that handles trigger status updates. This route reuses the same record ops and trigger evaluator methods that the toolbox handler uses, not the handler itself.
 
 Tests:
 - Route returns 503 when daemon is offline.
@@ -274,7 +274,7 @@ Tests:
 
 ### Step 6: Daemon route and orchestrator method for trigger status updates
 
-**Files**: `daemon/services/commission/orchestrator.ts`, `daemon/routes/commissions.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts`, `apps/daemon/routes/commissions.ts`
 **Addresses**: REQ-TRIG-40 (daemon side)
 
 This step follows the same pattern as scheduled commission status updates: the route calls an orchestrator method, not the trigger evaluator directly. This keeps `CommissionRoutesDeps` unchanged and routes all stateful commission operations through `CommissionSessionForRoutes`.
@@ -313,7 +313,7 @@ The orchestrator already has `triggerEvaluatorRef` in its deps (from Phase 2 Ste
 
 **6b: Add the daemon route.**
 
-Add `POST /commission/trigger/commission/update` in `daemon/routes/commissions.ts`. The handler:
+Add `POST /commission/trigger/commission/update` in `apps/daemon/routes/commissions.ts`. The handler:
 
 1. Parses `{ commissionId, status, projectName }` from the request body.
 2. Calls `commissionSession.updateTriggerStatus(commissionId, status, projectName)`.
@@ -323,7 +323,7 @@ The route factory receives `commissionSession` from existing deps. No `triggerEv
 
 This mirrors how `/commission/schedule/commission/update` calls `commissionSession.updateScheduleStatus()`.
 
-**Shared logic with Phase 2's MCP tool.** The `update_trigger` MCP tool (Phase 2) and this orchestrator method both implement trigger status transitions. Extract the `TRIGGER_STATUS_TRANSITIONS` map and the transition validation into a shared constant (e.g., in `daemon/services/commission/trigger-lifecycle.ts`). Both the orchestrator method and the MCP tool handler import it. This prevents the two code paths from drifting.
+**Shared logic with Phase 2's MCP tool.** The `update_trigger` MCP tool (Phase 2) and this orchestrator method both implement trigger status transitions. Extract the `TRIGGER_STATUS_TRANSITIONS` map and the transition validation into a shared constant (e.g., in `apps/daemon/services/commission/trigger-lifecycle.ts`). Both the orchestrator method and the MCP tool handler import it. This prevents the two code paths from drifting.
 
 Tests:
 - `updateTriggerStatus` transitions active to paused, paused to active, either to completed.
@@ -335,7 +335,7 @@ Tests:
 
 ### Step 7: Wire TriggerInfo and TriggerActions into CommissionView
 
-**Files**: `web/components/commission/CommissionView.tsx`, `web/app/projects/[name]/commissions/[id]/page.tsx`
+**Files**: `apps/web/components/commission/CommissionView.tsx`, `apps/web/app/projects/[name]/commissions/[id]/page.tsx`
 **Addresses**: REQ-TRIG-39 (integration)
 
 **CommissionDetail interface** (in the detail page, around line 27): Add a `triggerInfo` field alongside `scheduleInfo`:
@@ -395,7 +395,7 @@ This is the daemon response shape (Step 1). The page assembles the full `Trigger
 )}
 ```
 
-**Detail page** (`web/app/projects/[name]/commissions/[id]/page.tsx`): Build `triggerInfo` from the daemon response, same pattern as `scheduleInfo`:
+**Detail page** (`apps/web/app/projects/[name]/commissions/[id]/page.tsx`): Build `triggerInfo` from the daemon response, same pattern as `scheduleInfo`:
 
 1. The daemon detail response now includes `triggerInfo` (from Step 1).
 2. When `triggerInfo` is present, build recent spawns by filtering the all-commissions list for those with `sourceTrigger` matching this commission's ID.
@@ -410,7 +410,7 @@ Tests:
 
 ### Step 8: Commission list "Trigger" label and provenance links
 
-**Files**: `web/components/commission/CommissionList.tsx`
+**Files**: `apps/web/components/commission/CommissionList.tsx`
 **Addresses**: REQ-TRIG-38 (list view), REQ-TRIG-42 (provenance links)
 
 **"Trigger" label** (parallel to the "Recurring" label at line 123):
@@ -483,7 +483,7 @@ No new npm packages. No external dependencies.
 
 ## Risk Notes
 
-- **Daemon route and MCP tool overlap.** Phase 2's `update_trigger` MCP tool and Step 6's `updateTriggerStatus()` orchestrator method both implement trigger status transitions. Step 6 addresses this by extracting the transition map into a shared constant (`daemon/services/commission/trigger-lifecycle.ts`). The orchestrator method is the canonical implementation; the MCP tool handler should be updated to call `updateTriggerStatus()` through `callRoute` rather than reimplementing the logic, if the Phase 2 implementation supports that path. If not, the shared constant prevents drift.
+- **Daemon route and MCP tool overlap.** Phase 2's `update_trigger` MCP tool and Step 6's `updateTriggerStatus()` orchestrator method both implement trigger status transitions. Step 6 addresses this by extracting the transition map into a shared constant (`apps/daemon/services/commission/trigger-lifecycle.ts`). The orchestrator method is the canonical implementation; the MCP tool handler should be updated to call `updateTriggerStatus()` through `callRoute` rather than reimplementing the logic, if the Phase 2 implementation supports that path. If not, the shared constant prevents drift.
 
 - **Recent spawns query.** `TriggerInfo` shows recent spawned commissions, built by filtering the all-commissions list for entries with `sourceTrigger` matching the current trigger ID. This is the same pattern as scheduled commission recent runs. For projects with many commissions, this full-list fetch could be slow. Acceptable for now; the scheduled commission pattern handles the same volume.
 

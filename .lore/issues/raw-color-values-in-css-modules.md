@@ -15,12 +15,12 @@ Surfaced during commission cleanup when Thorne flagged `rgba(184, 134, 11, 0.3)`
 ## Verified Status (2026-04-18)
 
 - **196 raw color values across 35 `.module.css` files** in `web/`. Search: `grep -rn "rgba\|rgb(\|#[0-9a-fA-F]\{3\}\|hsl(" web --include="*.module.css" | grep -v "var(--"`.
-- Sample violations in one file (`web/components/artifact/ArtifactContent.module.css`):
+- Sample violations in one file (`apps/web/components/artifact/ArtifactContent.module.css`):
   - line 8: `rgba(26, 20, 18, 0.9)` — panel background
   - lines 39, 45: `rgba(184, 134, 11, 0.15)`, `rgba(184, 134, 11, 0.3)` — brass at two opacities
   - lines 50, 56: `rgba(76, 148, 76, 0.2)`, `rgba(76, 148, 76, 0.35)` — green at two opacities
   - line 87: `rgba(224, 96, 96, 0.1)` — red tint
-- Affected directories: `web/app/projects/[name]/artifacts/`, `web/components/artifact/`, `commission/`, `dashboard/`, `meeting/`, and others.
+- Affected directories: `apps/web/app/projects/[name]/artifacts/`, `apps/web/components/artifact/`, `commission/`, `dashboard/`, `meeting/`, and others.
 
 The recurring values (brass at 15%/20%/30%, green at 20%/35%, panel-near-black at 85%/90%) are evidence of unnamed semantic tokens. They want names like `--color-emphasis-bg` or `--color-success-pill-bg`.
 
@@ -31,7 +31,7 @@ Two-step. Don't attempt one big refactor.
 **Step 1 — Catalog and tokenize.**
 
 - Sweep `.module.css` files for raw color values.
-- Group recurring values. For each, add a `--color-*` token to `web/app/globals.css`. Name by intent (`--color-emphasis-bg`), not appearance (`--color-brass-30`).
+- Group recurring values. For each, add a `--color-*` token to `apps/web/app/globals.css`. Name by intent (`--color-emphasis-bg`), not appearance (`--color-brass-30`).
 - For genuinely one-off values, add a `/* token-exempt: ... */` comment with the reason.
 
 **Step 2 — Replace and lint.**

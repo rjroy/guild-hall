@@ -17,8 +17,8 @@ import {
 import type {
   OperationFactory,
   PackageOperation,
-} from "@/daemon/services/operation-types";
-import { OperationHandlerError } from "@/daemon/services/operation-types";
+} from "@/apps/daemon/services/operation-types";
+import { OperationHandlerError } from "@/apps/daemon/services/operation-types";
 import type { OperationDefinition } from "@/lib/types";
 
 // -- Zod request schemas --

@@ -31,11 +31,11 @@ Requirements addressed:
 
 ## Codebase Context
 
-**canUseToolRules surface area.** 23 source/test files reference `canUseToolRules`. The type is defined in `lib/types.ts` (CanUseToolRule interface, WorkerMetadata field, ResolvedToolSet field). Zod validation in `lib/packages.ts` enforces that rules only reference tools in `builtInTools` (REQ-SBX-15). The toolbox resolver at `daemon/services/toolbox-resolver.ts:148-157` uses it to build a gated-tools set that excludes those tools from `allowedTools`. The SDK runner at `daemon/lib/agent-sdk/sdk-runner.ts:280-320` builds a `canUseTool` callback from the rules and passes it to the SDK at line 565.
+**canUseToolRules surface area.** 23 source/test files reference `canUseToolRules`. The type is defined in `lib/types.ts` (CanUseToolRule interface, WorkerMetadata field, ResolvedToolSet field). Zod validation in `lib/packages.ts` enforces that rules only reference tools in `builtInTools` (REQ-SBX-15). The toolbox resolver at `apps/daemon/services/toolbox-resolver.ts:148-157` uses it to build a gated-tools set that excludes those tools from `allowedTools`. The SDK runner at `apps/daemon/lib/agent-sdk/sdk-runner.ts:280-320` builds a `canUseTool` callback from the rules and passes it to the SDK at line 565.
 
 **Toolbox factory pattern.** System toolboxes follow `ToolboxFactory = (deps: GuildHallToolboxDeps) => ToolboxOutput`. The `ToolboxOutput` contains a single `server: McpSdkServerConfigWithInstance`. Registration is in `SYSTEM_TOOLBOX_REGISTRY` (name-to-factory map) at `toolbox-resolver.ts:24`. Currently only `manager` is registered. The resolver iterates `worker.systemToolboxes` and looks up each name in the registry.
 
-**Git subprocess pattern.** `daemon/lib/git.ts` exports `runGit(cwd, args, opts?)` which spawns git with `cleanGitEnv()` isolation. Returns `{ stdout, stderr, exitCode }`. This is the function the git-readonly toolbox should use internally.
+**Git subprocess pattern.** `apps/daemon/lib/git.ts` exports `runGit(cwd, args, opts?)` which spawns git with `cleanGitEnv()` isolation. Returns `{ stdout, stderr, exitCode }`. This is the function the git-readonly toolbox should use internally.
 
 **Worker assignments today:**
 
@@ -63,10 +63,10 @@ This phase is purely additive. No existing code breaks. The toolbox can be built
 
 #### Step 1.1: Create the toolbox implementation
 
-**Files**: `daemon/services/git-readonly-toolbox.ts` (new)
+**Files**: `apps/daemon/services/git-readonly-toolbox.ts` (new)
 **Addresses**: REQ-WTB-1, REQ-WTB-2, REQ-WTB-3
 
-Create a new file following the same pattern as `daemon/services/base-toolbox.ts` and `daemon/services/manager/toolbox.ts`. Export a `gitReadonlyToolboxFactory` function with signature `(deps: GuildHallToolboxDeps) => ToolboxOutput`.
+Create a new file following the same pattern as `apps/daemon/services/base-toolbox.ts` and `apps/daemon/services/manager/toolbox.ts`. Export a `gitReadonlyToolboxFactory` function with signature `(deps: GuildHallToolboxDeps) => ToolboxOutput`.
 
 The toolbox creates an MCP server named `"guild-hall-git-readonly"` with five tools:
 
@@ -78,7 +78,7 @@ The toolbox creates an MCP server named `"guild-hall-git-readonly"` with five to
 | `git_show` | `ref: string` (required) | Commit object with diff: `{ hash, author, date, subject, body, diff }` |
 | `git_branch` | `all?: boolean`, `remote?: boolean` | Array of branch objects: `{ name, current: boolean }` |
 
-Each tool internally calls `runGit()` from `daemon/lib/git.ts` with `cleanGitEnv()`. The working directory comes from `deps` (the session's CWD, which the toolbox resolver can thread through, or from `process.cwd()` in the MCP handler context).
+Each tool internally calls `runGit()` from `apps/daemon/lib/git.ts` with `cleanGitEnv()`. The working directory comes from `deps` (the session's CWD, which the toolbox resolver can thread through, or from `process.cwd()` in the MCP handler context).
 
 Implementation notes:
 - Parse git output into structured data inside each handler. `git log` with `--format` flags produces parseable output. `git status --porcelain=v1` gives machine-readable status. `git branch --format` gives clean branch names.
@@ -90,14 +90,14 @@ Implementation notes:
 
 #### Step 1.2: Register in the system toolbox registry
 
-**Files**: `daemon/services/toolbox-resolver.ts`
+**Files**: `apps/daemon/services/toolbox-resolver.ts`
 **Addresses**: REQ-WTB-4
 
 Add `"git-readonly": gitReadonlyToolboxFactory` to `SYSTEM_TOOLBOX_REGISTRY`. Import the factory from the new file.
 
 #### Step 1.3: Thread workingDirectory through deps
 
-**Files**: `daemon/services/toolbox-types.ts`, `daemon/services/toolbox-resolver.ts`
+**Files**: `apps/daemon/services/toolbox-types.ts`, `apps/daemon/services/toolbox-resolver.ts`
 **Addresses**: REQ-WTB-1 (toolbox needs CWD to run git)
 
 Add `workingDirectory?: string` to `GuildHallToolboxDeps`. In `resolveToolSet`, populate it from whatever context field carries the workspace directory. The `ToolboxResolverContext` doesn't currently have it, but `SessionPrepSpec.workspaceDir` does. Either:
@@ -108,7 +108,7 @@ The first option is cleaner. Add `workingDirectory?: string` to `ToolboxResolver
 
 #### Step 1.4: Unit tests for git-readonly toolbox
 
-**Files**: `tests/daemon/services/git-readonly-toolbox.test.ts` (new)
+**Files**: `apps/daemon/tests/services/git-readonly-toolbox.test.ts` (new)
 **Addresses**: REQ-WTB-2, REQ-WTB-3 (AI Validation: structured data, not raw output)
 
 Tests with mocked `runGit`:
@@ -125,7 +125,7 @@ DI approach: the toolbox factory accepts `deps` which can include a mock `runGit
 
 #### Step 1.5: Integration test for toolbox resolver
 
-**Files**: `tests/daemon/toolbox-resolver.test.ts`
+**Files**: `apps/daemon/tests/toolbox-resolver.test.ts`
 **Addresses**: REQ-WTB-4, REQ-WTB-5 (AI Validation: integration test)
 
 Add a test: a worker with `systemToolboxes: ["git-readonly"]` and no Bash in `builtInTools` produces a resolved tool set that includes the git-readonly MCP server and does NOT include Bash in `allowedTools` or `builtInTools`.
@@ -156,7 +156,7 @@ This is a coordinated removal across types, validation, resolver, SDK runner, an
 
 #### Step 2.3: Remove from toolbox resolver
 
-**Files**: `daemon/services/toolbox-resolver.ts`
+**Files**: `apps/daemon/services/toolbox-resolver.ts`
 **Addresses**: REQ-WTB-14
 
 Remove the gated-tools logic at lines 148-157. The `allowedTools` assembly simplifies to:
@@ -171,7 +171,7 @@ Remove `canUseToolRules` from the return statement (line 157). The `ResolvedTool
 
 #### Step 2.4: Remove from SDK runner
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-WTB-13
 
 - Delete the `buildCanUseTool` function (lines 280-320)
@@ -187,7 +187,7 @@ Also in this file: the sub-agent construction in `prepareSdkSession` (around lin
 
 #### Step 2.5: Remove from Guild Master declaration
 
-**Files**: `daemon/services/manager/worker.ts`
+**Files**: `apps/daemon/services/manager/worker.ts`
 **Addresses**: REQ-WTB-15
 
 Remove the `canUseToolRules` array from `createManagerPackage()` (lines 128-144).
@@ -207,24 +207,24 @@ Remove the `canUseToolRules` field from the `guildHall` section of each package.
 Every test that constructs a `ResolvedToolSet` or `WorkerMetadata` with `canUseToolRules` needs the field removed. Every test that asserts on `canUseToolRules` behavior needs removal or replacement.
 
 Test files referencing `canUseToolRules`:
-1. `tests/packages/guild-hall-illuminator/integration.test.ts`
-2. `tests/packages/worker-activation.test.ts`
-3. `tests/packages/worker-role-smoke.test.ts`
-4. `tests/daemon/services/sdk-runner.test.ts` (heaviest: ~20 occurrences including canUseTool callback tests)
-5. `tests/daemon/toolbox-resolver.test.ts`
-6. `tests/lib/packages.test.ts`
-7. `tests/daemon/services/commission/orchestrator.test.ts`
-8. `tests/daemon/services/manager-context.test.ts`
-9. `tests/daemon/services/manager-worker.test.ts`
-10. `tests/daemon/services/manager/worker.test.ts`
-11. `tests/daemon/services/meeting/orchestrator.test.ts`
-12. `tests/daemon/services/meeting/recovery.test.ts`
-13. `tests/daemon/integration-commission.test.ts`
-14. `tests/daemon/integration.test.ts`
-15. `tests/daemon/meeting-project-scope.test.ts`
-16. `tests/daemon/meeting-session.test.ts`
-17. `tests/daemon/notes-generator.test.ts`
-18. `tests/daemon/services/briefing-generator.test.ts`
+1. `packages/guild-hall-illuminator/tests/integration.test.ts`
+2. `packages/tests/worker-activation.test.ts`
+3. `packages/tests/worker-role-smoke.test.ts`
+4. `apps/daemon/tests/services/sdk-runner.test.ts` (heaviest: ~20 occurrences including canUseTool callback tests)
+5. `apps/daemon/tests/toolbox-resolver.test.ts`
+6. `lib/tests/packages.test.ts`
+7. `apps/daemon/tests/services/commission/orchestrator.test.ts`
+8. `apps/daemon/tests/services/manager-context.test.ts`
+9. `apps/daemon/tests/services/manager-worker.test.ts`
+10. `apps/daemon/tests/services/manager/worker.test.ts`
+11. `apps/daemon/tests/services/meeting/orchestrator.test.ts`
+12. `apps/daemon/tests/services/meeting/recovery.test.ts`
+13. `apps/daemon/tests/integration-commission.test.ts`
+14. `apps/daemon/tests/integration.test.ts`
+15. `apps/daemon/tests/meeting-project-scope.test.ts`
+16. `apps/daemon/tests/meeting-session.test.ts`
+17. `apps/daemon/tests/notes-generator.test.ts`
+18. `apps/daemon/tests/services/briefing-generator.test.ts`
 
 For most files (items 1-3, 6-18), the fix is mechanical: remove `canUseToolRules: []` from object literals. For `sdk-runner.test.ts` (item 4) and `toolbox-resolver.test.ts` (item 5), tests that specifically test canUseToolRules behavior (gated tools, canUseTool callback construction, rule matching) should be deleted entirely.
 
@@ -238,7 +238,7 @@ These changes depend on Phase 1 (git-readonly exists) and Phase 2 (canUseToolRul
 
 #### Step 3.1: Guild Master loses Bash, gains git-readonly
 
-**Files**: `daemon/services/manager/worker.ts`
+**Files**: `apps/daemon/services/manager/worker.ts`
 **Addresses**: REQ-WTB-7, REQ-WTB-8
 
 In `createManagerPackage()`:
@@ -269,7 +269,7 @@ Dalton (`guild-hall-developer`) and Sable (`guild-hall-test-engineer`) retain Ba
 
 #### Step 3.5: Update manager/worker tests
 
-**Files**: `tests/daemon/services/manager/worker.test.ts`, `tests/daemon/services/manager-worker.test.ts`
+**Files**: `apps/daemon/tests/services/manager/worker.test.ts`, `apps/daemon/tests/services/manager-worker.test.ts`
 **Addresses**: REQ-WTB-7
 
 Update assertions:
@@ -284,7 +284,7 @@ Posture is the behavioral constraint for Bash-capable workers (REQ-WTB-9). The p
 
 #### Step 4.1: Guild Master posture
 
-**Files**: `daemon/services/manager/worker.ts`
+**Files**: `apps/daemon/services/manager/worker.ts`
 **Addresses**: REQ-WTB-10
 
 Add to `MANAGER_POSTURE_BASE`: "You must not implement changes yourself. When work needs doing, dispatch the worker who does it. You do not use Bash or write files to accomplish tasks directly."

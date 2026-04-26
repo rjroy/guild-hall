@@ -63,7 +63,7 @@ The existing internal toolbox model is useful inside daemon-managed worker execu
 In particular:
 
 - `base` stays internal.
-- `system` is a public root for daemon/runtime/application concerns.
+- `system` is a public root for apps/daemon/runtime/application concerns.
 - `workspace` is a public root for project-scoped work such as git/worktrees, lore artifacts, and other workspace-owned operations.
 - Existing public-facing domains such as `meeting` and `commission` remain sensible public roots, while role-shaped or mechanism-shaped names should be normalized into more durable public domains.
 - Domain capability sets become public roots in their own right when they expose application capabilities. They should not be hidden behind a generic `/domain/...` prefix unless there is a strong multi-tenant naming reason later.

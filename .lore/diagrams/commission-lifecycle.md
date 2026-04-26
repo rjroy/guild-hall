@@ -255,7 +255,7 @@ flowchart TB
 
 The state machine (first diagram) is the contract. All other flows are implementations of transitions in that state machine.
 
-The dispatch-to-completion sequence shows the "normal" case. Every participant maps to a specific module in `daemon/services/commission/`. The orchestrator is the only module that talks to all layers; layers never cross-reference each other.
+The dispatch-to-completion sequence shows the "normal" case. Every participant maps to a specific module in `apps/daemon/services/commission/`. The orchestrator is the only module that talks to all layers; layers never cross-reference each other.
 
 The failure flowchart shows that all failure paths converge: commit partial work, remove the worktree, keep the branch. This is deliberate. No work is ever silently lost.
 
@@ -279,7 +279,7 @@ The failure flowchart shows that all failure paths converge: commit partial work
 
 - `.lore/specs/commissions/guild-hall-commissions.md` for requirements and REQ IDs
 - `.lore/specs/infrastructure/guild-hall-system.md` for system-level architecture
-- `daemon/services/commission/orchestrator.ts` for Layer 4 implementation
-- `daemon/services/commission/lifecycle.ts` for the state machine
-- `daemon/services/commission/workspace.ts` for git isolation
-- `daemon/services/sdk-runner.ts` for the shared session infrastructure
+- `apps/daemon/services/commission/orchestrator.ts` for Layer 4 implementation
+- `apps/daemon/services/commission/lifecycle.ts` for the state machine
+- `apps/daemon/services/commission/workspace.ts` for git isolation
+- `apps/daemon/services/sdk-runner.ts` for the shared session infrastructure

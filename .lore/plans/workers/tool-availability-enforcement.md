@@ -26,11 +26,11 @@ Requirements addressed:
 
 ## Codebase Context
 
-**Toolbox resolver** (`daemon/services/toolbox-resolver.ts:134-143`): Builds `allowedTools` from `worker.builtInTools` + MCP server wildcards and returns `{ mcpServers, allowedTools }`. The `builtInTools` array is available in this function but only used as input to `allowedTools`. Passing it through as a separate field is a one-line addition.
+**Toolbox resolver** (`apps/daemon/services/toolbox-resolver.ts:134-143`): Builds `allowedTools` from `worker.builtInTools` + MCP server wildcards and returns `{ mcpServers, allowedTools }`. The `builtInTools` array is available in this function but only used as input to `allowedTools`. Passing it through as a separate field is a one-line addition.
 
-**SDK runner** (`daemon/lib/agent-sdk/sdk-runner.ts:384-398`): `prepareSdkSession` builds `SdkQueryOptions` from the activation result. It reads `activation.tools.allowedTools` and `activation.tools.mcpServers`. Adding `tools: activation.tools.builtInTools` is a one-line addition to the options object.
+**SDK runner** (`apps/daemon/lib/agent-sdk/sdk-runner.ts:384-398`): `prepareSdkSession` builds `SdkQueryOptions` from the activation result. It reads `activation.tools.allowedTools` and `activation.tools.mcpServers`. Adding `tools: activation.tools.builtInTools` is a one-line addition to the options object.
 
-**`SdkQueryOptions`** (`daemon/lib/agent-sdk/sdk-runner.ts:35-49`): The local type for SDK session options. Currently has `allowedTools?: string[]` but no `tools` field. The SDK accepts `tools?: string[] | { type: "preset"; preset: "claude_code" }`.
+**`SdkQueryOptions`** (`apps/daemon/lib/agent-sdk/sdk-runner.ts:35-49`): The local type for SDK session options. Currently has `allowedTools?: string[]` but no `tools` field. The SDK accepts `tools?: string[] | { type: "preset"; preset: "claude_code" }`.
 
 **`ResolvedToolSet`** (`lib/types.ts:175-178`): Shared type used by both the toolbox resolver (producer) and the SDK runner (consumer, via `ActivationResult.tools`). Currently has `mcpServers` and `allowedTools`. Adding `builtInTools` here makes it available throughout the activation chain without touching intermediate types.
 
@@ -38,13 +38,13 @@ Requirements addressed:
 
 | File | Fixture | Value for `builtInTools` |
 |------|---------|--------------------------|
-| `tests/daemon/services/sdk-runner.test.ts` | `mockResolvedTools` (line 374) | `["Read", "Write"]` |
-| `tests/daemon/services/sdk-runner.test.ts` | `mockResolvedTools` (line 1147) | `["Read", "Write"]` |
-| `tests/daemon/services/sdk-runner.test.ts` | inline `tools` override (line 591) | `[]` |
-| `tests/daemon/services/manager-worker.test.ts` | `defaultTools` (line 23) | `[]` |
-| `tests/daemon/services/manager-worker.test.ts` | inline `ResolvedToolSet` (line 211) | `[]` |
-| `tests/packages/worker-role-smoke.test.ts` | `makeResolvedTools()` (line 15) | `[]` |
-| `tests/packages/worker-activation.test.ts` | `makeResolvedTools()` (line 5) | `[]` |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | `mockResolvedTools` (line 374) | `["Read", "Write"]` |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | `mockResolvedTools` (line 1147) | `["Read", "Write"]` |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | inline `tools` override (line 591) | `[]` |
+| `apps/daemon/tests/services/manager-worker.test.ts` | `defaultTools` (line 23) | `[]` |
+| `apps/daemon/tests/services/manager-worker.test.ts` | inline `ResolvedToolSet` (line 211) | `[]` |
+| `packages/tests/worker-role-smoke.test.ts` | `makeResolvedTools()` (line 15) | `[]` |
+| `packages/tests/worker-activation.test.ts` | `makeResolvedTools()` (line 5) | `[]` |
 
 All fixtures outside `sdk-runner.test.ts` use `builtInTools: []` because they test activation mechanics, not tool enforcement. The `sdk-runner.test.ts` fixtures use values matching their test scenario.
 
@@ -54,7 +54,7 @@ All fixtures outside `sdk-runner.test.ts` use `builtInTools: []` because they te
 
 ### Step 1: Add `builtInTools` to `ResolvedToolSet` and toolbox resolver
 
-**Files**: `lib/types.ts`, `daemon/services/toolbox-resolver.ts`
+**Files**: `lib/types.ts`, `apps/daemon/services/toolbox-resolver.ts`
 **Addresses**: REQ-TAE-4, REQ-TAE-6
 
 In `lib/types.ts`, add `builtInTools: string[]` to `ResolvedToolSet`:
@@ -67,7 +67,7 @@ export interface ResolvedToolSet {
 }
 ```
 
-In `daemon/services/toolbox-resolver.ts`, add `builtInTools` to the return value at line 143:
+In `apps/daemon/services/toolbox-resolver.ts`, add `builtInTools` to the return value at line 143:
 
 ```typescript
 return { mcpServers, allowedTools, builtInTools: worker.builtInTools };
@@ -81,7 +81,7 @@ After this step, TypeScript will report errors wherever `ResolvedToolSet` is con
 
 ### Step 2: Add `tools` to `SdkQueryOptions` and `prepareSdkSession`
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-TAE-5, REQ-TAE-7, REQ-TAE-1, REQ-TAE-8, REQ-TAE-9
 
 Add `tools` to `SdkQueryOptions` (line 39, after `allowedTools`):
@@ -120,7 +120,7 @@ Key points from the spec:
 
 ### Step 3: Update toolbox resolver tests
 
-**Files**: `tests/daemon/toolbox-resolver.test.ts`
+**Files**: `apps/daemon/tests/toolbox-resolver.test.ts`
 **Addresses**: REQ-TAE-10 (tests 6-7), REQ-TAE-12
 
 Update existing test assertions to verify `builtInTools` in the resolver's return value. The tests already exercise `resolveToolSet` with various `builtInTools` inputs. Add assertions that the output's `builtInTools` field matches.
@@ -158,11 +158,11 @@ test("builtInTools excludes MCP server tools even when MCP servers are added", a
 });
 ```
 
-**Verification**: `bun test tests/daemon/toolbox-resolver.test.ts` passes.
+**Verification**: `bun test apps/daemon/tests/toolbox-resolver.test.ts` passes.
 
 ### Step 4: Update all test fixtures and add tool enforcement tests
 
-**Files**: `tests/daemon/services/sdk-runner.test.ts`, `tests/daemon/services/manager-worker.test.ts`, `tests/packages/worker-role-smoke.test.ts`, `tests/packages/worker-activation.test.ts`
+**Files**: `apps/daemon/tests/services/sdk-runner.test.ts`, `apps/daemon/tests/services/manager-worker.test.ts`, `packages/tests/worker-role-smoke.test.ts`, `packages/tests/worker-activation.test.ts`
 **Addresses**: REQ-TAE-10 (tests 1-5), REQ-TAE-12
 
 **Fixture updates** (REQ-TAE-12): All `ResolvedToolSet` constructions across the test suite need `builtInTools` added. See the fixture table in Codebase Context for the full list. For `sdk-runner.test.ts`:

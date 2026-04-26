@@ -3,7 +3,7 @@ title: "Project Grouping"
 date: 2026-03-31
 status: implemented
 tags: [config, projects, sidebar, dashboard, cli, organization]
-modules: [lib/types, lib/config, daemon/routes/admin, web/components/dashboard/WorkspaceSidebar, web/app/page, cli/index]
+modules: [lib/types, lib/config, apps/daemon/routes/admin, apps/web/components/dashboard/WorkspaceSidebar, apps/web/app/page, apps/cli/index]
 related:
   - .lore/brainstorm/project-list-management.md
   - .lore/issues/project-list-mgmt.md

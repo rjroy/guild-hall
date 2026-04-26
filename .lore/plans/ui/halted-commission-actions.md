@@ -58,8 +58,8 @@ Requirements addressed:
 ### Step 1: Add API proxy routes
 
 **Files**:
-- `web/app/api/commissions/[commissionId]/continue/route.ts` (new)
-- `web/app/api/commissions/[commissionId]/save/route.ts` (new)
+- `apps/web/app/api/commissions/[commissionId]/continue/route.ts` (new)
+- `apps/web/app/api/commissions/[commissionId]/save/route.ts` (new)
 
 **Addresses**: REQ-HCA-12, REQ-HCA-13
 
@@ -71,7 +71,7 @@ Note on the save route body: The spec says "if the textarea is empty, the body i
 
 ### Step 2: Modify `CommissionActions` component
 
-**Files**: `web/components/commission/CommissionActions.tsx`
+**Files**: `apps/web/components/commission/CommissionActions.tsx`
 
 **Addresses**: REQ-HCA-1, REQ-HCA-2, REQ-HCA-3, REQ-HCA-5, REQ-HCA-6, REQ-HCA-7, REQ-HCA-9, REQ-HCA-10, REQ-HCA-11, REQ-HCA-16
 
@@ -271,7 +271,7 @@ Key differences from Abandon's confirmation: the "Yes, Save" button has `disable
 
 ### Step 3: Add CSS classes
 
-**Files**: `web/components/commission/CommissionActions.module.css`
+**Files**: `apps/web/components/commission/CommissionActions.module.css`
 
 **Addresses**: REQ-HCA-4, REQ-HCA-8
 
@@ -309,7 +309,7 @@ Key differences from Abandon's confirmation: the "Yes, Save" button has `disable
 
 ### Step 4: Add tests
 
-**Files**: `tests/components/commission-actions.test.tsx` (new)
+**Files**: `apps/web/tests/components/commission-actions.test.tsx` (new)
 
 **Addresses**: All REQs (validation coverage)
 

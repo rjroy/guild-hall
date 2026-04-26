@@ -21,11 +21,11 @@ related:
 
 ### Decision recording (what exists today)
 
-`daemon/services/base-toolbox.ts:330-364` defines `makeRecordDecisionHandler`. It writes JSONL entries to `~/.guild-hall/state/{stateSubdir}/{contextId}/decisions.jsonl`. Each line is `{ timestamp, question, decision, reasoning }`. The `stateSubdir` parameter defaults to `"commissions"` and is set to `"meetings"` by the meeting toolbox. The state directory is deleted after activity completion, so decisions are currently lost.
+`apps/daemon/services/base-toolbox.ts:330-364` defines `makeRecordDecisionHandler`. It writes JSONL entries to `~/.guild-hall/state/{stateSubdir}/{contextId}/decisions.jsonl`. Each line is `{ timestamp, question, decision, reasoning }`. The `stateSubdir` parameter defaults to `"commissions"` and is set to `"meetings"` by the meeting toolbox. The state directory is deleted after activity completion, so decisions are currently lost.
 
 ### Commission completion path
 
-`daemon/services/commission/orchestrator.ts:681-736` defines `handleSuccessfulCompletion`. The sequence:
+`apps/daemon/services/commission/orchestrator.ts:681-736` defines `handleSuccessfulCompletion`. The sequence:
 
 1. `lifecycle.executionCompleted()` transitions artifact status to `completed`
 2. `workspace.finalize()` squash-merges the activity worktree to integration
@@ -36,7 +36,7 @@ The decisions hook needs to run **after** `lifecycle.executionCompleted()` (stat
 
 ### Meeting completion path
 
-`daemon/services/meeting/orchestrator.ts:1018-1197` defines `closeMeeting`. The sequence:
+`apps/daemon/services/meeting/orchestrator.ts:1018-1197` defines `closeMeeting`. The sequence:
 
 1. Abort SDK session, set status to `closed`
 2. Generate notes from transcript
@@ -61,7 +61,7 @@ The simplest approach: read the file, append the formatted decisions section to 
 
 ### Outcome triage service (already exists)
 
-`daemon/services/outcome-triage.ts` is implemented and wired. It subscribes to `commission_result` and `meeting_ended` events, reads artifacts, assembles triage input, and runs a Haiku session with memory tools. The `resultText` field in `TriageInput` carries the commission `summary` (from the event) or meeting `notesText` (from the artifact body).
+`apps/daemon/services/outcome-triage.ts` is implemented and wired. It subscribes to `commission_result` and `meeting_ended` events, reads artifacts, assembles triage input, and runs a Haiku session with memory tools. The `resultText` field in `TriageInput` carries the commission `summary` (from the event) or meeting `notesText` (from the artifact body).
 
 REQ-DSRF-12 says the decisions section (now part of the artifact body) should be included in the triage input. Since the meeting path already reads `parsed.content.trim()` as `notesText` (in `parseArtifact` at line 282), and the decisions section will be appended to the body, meeting triage will automatically see decisions. For commissions, the triage uses `summary` from the event (not the artifact body), so decisions are not automatically visible. The fix: after the decisions hook appends to the artifact body, the triage's `readArtifact` for commissions should also include the artifact body content containing the decisions section.
 
@@ -77,7 +77,7 @@ Create the pure functions for reading decisions JSONL and formatting them as mar
 
 **REQs:** REQ-DSRF-1, REQ-DSRF-2, REQ-DSRF-5
 
-#### Step 1.1: Create `daemon/services/decisions-persistence.ts`
+#### Step 1.1: Create `apps/daemon/services/decisions-persistence.ts`
 
 New file with three exports:
 
@@ -108,7 +108,7 @@ New file with three exports:
 
 #### Step 1.2: Tests for Phase 1
 
-Create `tests/daemon/services/decisions-persistence.test.ts`:
+Create `apps/daemon/tests/services/decisions-persistence.test.ts`:
 
 1. **`readDecisions` with no file**: Returns empty array.
 2. **`readDecisions` with empty file**: Returns empty array.
@@ -135,7 +135,7 @@ After `lifecycle.executionCompleted()` succeeds (line 683) and before `workspace
 // Persist decisions to artifact (REQ-DSRF-3)
 try {
   const { readDecisions, formatDecisionsSection, appendDecisionsToArtifact } =
-    await import("@/daemon/services/decisions-persistence");
+    await import("@/apps/daemon/services/decisions-persistence");
   const decisions = await readDecisions(guildHallHome, ctx.contextType, ctx.commissionId as string, "commissions");
   const section = formatDecisionsSection(decisions);
   if (section) {
@@ -160,7 +160,7 @@ Key details:
 
 #### Step 2.2: Tests for Phase 2
 
-Add integration tests to `tests/daemon/services/decisions-persistence.test.ts` (or a separate file if preferred):
+Add integration tests to `apps/daemon/tests/services/decisions-persistence.test.ts` (or a separate file if preferred):
 
 1. **Commission hook end-to-end**: Write decisions via `makeRecordDecisionHandler` to a temp state directory. Create a commission artifact with frontmatter and body. Call the hook. Verify the artifact now has a `## Decisions` section with the correct content.
 2. **Commission hook with no decisions**: Verify the artifact body is unchanged (REQ-DSRF-5).
@@ -181,7 +181,7 @@ After `closeArtifact()` (step 3, line 1056) and before the scope-aware finalizat
 // Persist decisions to artifact (REQ-DSRF-4)
 try {
   const { readDecisions, formatDecisionsSection, appendDecisionsToArtifact } =
-    await import("@/daemon/services/decisions-persistence");
+    await import("@/apps/daemon/services/decisions-persistence");
   const decisions = await readDecisions(ghHome, "meetings", meetingId as string, "meetings");
   const section = formatDecisionsSection(decisions);
   if (section) {
@@ -240,14 +240,14 @@ Option 2 is cleaner. The triage service imports `readDecisions` and calls it dir
 
 #### Step 4.1: Modify commission triage input assembly
 
-In `daemon/services/outcome-triage.ts`, in the `commission_result` handler (around line 336):
+In `apps/daemon/services/outcome-triage.ts`, in the `commission_result` handler (around line 336):
 
 After reading the artifact, also read decisions directly from state:
 
 ```typescript
 // Read decisions from state directory (still exists at this point)
 const { readDecisions, formatDecisionsSection } =
-  await import("@/daemon/services/decisions-persistence");
+  await import("@/apps/daemon/services/decisions-persistence");
 const decisions = await readDecisions(guildHallHome, "commissions", commissionId, "commissions");
 const decisionsText = formatDecisionsSection(decisions);
 
@@ -319,20 +319,20 @@ Fresh-context review agent (Thorne) reads the spec and all modified/created file
 
 | File | Phase | Change |
 |------|-------|--------|
-| `daemon/services/decisions-persistence.ts` | 1 | **New.** `readDecisions`, `formatDecisionsSection`, `appendDecisionsToArtifact`, `DecisionEntry` type |
-| `daemon/services/commission/orchestrator.ts` | 2 | Add decisions persistence hook in `handleSuccessfulCompletion` |
-| `daemon/services/meeting/orchestrator.ts` | 3 | Add decisions persistence hook in `closeMeeting` |
-| `daemon/services/outcome-triage.ts` | 4 | Include decisions in commission triage input assembly |
-| `daemon/services/base-toolbox.ts` | 5 | Update `record_decision` tool description |
-| `tests/daemon/services/decisions-persistence.test.ts` | 1, 2, 3 | **New.** Full test coverage for reader, formatter, and hooks |
-| `tests/daemon/services/outcome-triage.test.ts` | 4 | Add tests for decisions in triage input |
+| `apps/daemon/services/decisions-persistence.ts` | 1 | **New.** `readDecisions`, `formatDecisionsSection`, `appendDecisionsToArtifact`, `DecisionEntry` type |
+| `apps/daemon/services/commission/orchestrator.ts` | 2 | Add decisions persistence hook in `handleSuccessfulCompletion` |
+| `apps/daemon/services/meeting/orchestrator.ts` | 3 | Add decisions persistence hook in `closeMeeting` |
+| `apps/daemon/services/outcome-triage.ts` | 4 | Include decisions in commission triage input assembly |
+| `apps/daemon/services/base-toolbox.ts` | 5 | Update `record_decision` tool description |
+| `apps/daemon/tests/services/decisions-persistence.test.ts` | 1, 2, 3 | **New.** Full test coverage for reader, formatter, and hooks |
+| `apps/daemon/tests/services/outcome-triage.test.ts` | 4 | Add tests for decisions in triage input |
 
 ## What Stays
 
-- `daemon/lib/artifacts.ts`: Untouched. `spliceBody` replaces the body; we append to it. Different operation.
-- `daemon/services/meeting/record.ts`: Untouched. `closeArtifact` writes notes; decisions append after.
-- `daemon/services/commission/record.ts`: Untouched. `updateResult` writes the result body; decisions append later.
-- `daemon/services/commission/toolbox.ts`: Untouched. `submit_result` runs during the session; decisions persist after.
+- `apps/daemon/lib/artifacts.ts`: Untouched. `spliceBody` replaces the body; we append to it. Different operation.
+- `apps/daemon/services/meeting/record.ts`: Untouched. `closeArtifact` writes notes; decisions append after.
+- `apps/daemon/services/commission/record.ts`: Untouched. `updateResult` writes the result body; decisions append later.
+- `apps/daemon/services/commission/toolbox.ts`: Untouched. `submit_result` runs during the session; decisions persist after.
 - Worker posture files: Untouched per REQ-DSRF-15.
 
 ## Delegation Guide

@@ -29,11 +29,11 @@ Mockups open in a new tab rather than rendering inside the artifact detail view.
 
 ### Routing
 
-The catch-all route at `web/app/projects/[name]/artifacts/[...path]/page.tsx` branches on file extension at line 53-54. It checks `IMAGE_EXTENSIONS` (a local `Set` of image extensions). Files not matching `.md` or image extensions have no rendering path. An HTML file reaching this route would fall through to the document branch and attempt to parse it as markdown with gray-matter frontmatter, producing garbled output.
+The catch-all route at `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` branches on file extension at line 53-54. It checks `IMAGE_EXTENSIONS` (a local `Set` of image extensions). Files not matching `.md` or image extensions have no rendering path. An HTML file reaching this route would fall through to the document branch and attempt to parse it as markdown with gray-matter frontmatter, producing garbled output.
 
 ### Serving
 
-The daemon serves images via `GET /workspace/artifact/image/read` (`daemon/routes/artifacts.ts:194-244`) with validated MIME types from `IMAGE_MIME_TYPES` at `lib/artifacts.ts:14-21`. No equivalent route exists for HTML content. The Next.js proxy at `web/app/api/artifacts/image/route.ts` forwards binary image responses from the daemon to the browser. No HTML proxy exists.
+The daemon serves images via `GET /workspace/artifact/image/read` (`apps/daemon/routes/artifacts.ts:194-244`) with validated MIME types from `IMAGE_MIME_TYPES` at `lib/artifacts.ts:14-21`. No equivalent route exists for HTML content. The Next.js proxy at `apps/web/app/api/artifacts/image/route.ts` forwards binary image responses from the daemon to the browser. No HTML proxy exists.
 
 ## Entry Points
 
@@ -56,7 +56,7 @@ The daemon serves images via `GET /workspace/artifact/image/read` (`daemon/route
 - REQ-MKP-6: A daemon endpoint serves raw HTML content for a given project and relative path within `.lore/`. Route: `GET /workspace/artifact/mockup/read?projectName=X&path=Y`. Response is the file content with `Content-Type: text/html; charset=utf-8`.
 - REQ-MKP-7: The mockup serving endpoint validates the file extension is `.html`. Other extensions return 415 Unsupported Media Type.
 - REQ-MKP-8: The mockup serving endpoint validates the path stays within `.lore/` using the existing `validatePath()` function at `lib/artifacts.ts:40-47`. Path traversal attempts return 400.
-- REQ-MKP-9: The mockup serving endpoint resolves paths from the integration worktree, matching the image serving pattern at `daemon/routes/artifacts.ts:224`. Activity worktree resolution is not needed because HTML mockups are general artifacts, not meeting/commission-scoped outputs.
+- REQ-MKP-9: The mockup serving endpoint resolves paths from the integration worktree, matching the image serving pattern at `apps/daemon/routes/artifacts.ts:224`. Activity worktree resolution is not needed because HTML mockups are general artifacts, not meeting/commission-scoped outputs.
 
 ### Security
 
@@ -73,7 +73,7 @@ The daemon serves images via `GET /workspace/artifact/image/read` (`daemon/route
 
 ### New-Tab Preview
 
-- REQ-MKP-13: A Next.js API route proxies mockup requests from the browser to the daemon. Route: `GET /api/artifacts/mockup?project=X&path=Y`. This follows the same proxy pattern as the image route at `web/app/api/artifacts/image/route.ts`. The proxy forwards the daemon's response body and headers (Content-Type, CSP, Cache-Control) to the browser.
+- REQ-MKP-13: A Next.js API route proxies mockup requests from the browser to the daemon. Route: `GET /api/artifacts/mockup?project=X&path=Y`. This follows the same proxy pattern as the image route at `apps/web/app/api/artifacts/image/route.ts`. The proxy forwards the daemon's response body and headers (Content-Type, CSP, Cache-Control) to the browser.
 
 - REQ-MKP-14: When a user navigates to an HTML artifact via the catch-all route, the page renders a detail view with:
   - The standard `ArtifactProvenance` breadcrumb header

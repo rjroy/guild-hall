@@ -27,7 +27,7 @@ The artifact system is the shared library for reading, writing, and organizing `
 
 | Entry | Type | Handler |
 |-------|------|---------|
-| `PUT /api/artifacts` | Next.js API | `web/app/api/artifacts/route.ts` (not a daemon proxy, does real work) |
+| `PUT /api/artifacts` | Next.js API | `apps/web/app/api/artifacts/route.ts` (not a daemon proxy, does real work) |
 
 The library functions (`scanArtifacts`, `readArtifact`, etc.) are called directly by server components at render time. They have no HTTP entry points of their own.
 
@@ -40,7 +40,7 @@ The library functions (`scanArtifacts`, `readArtifact`, etc.) are called directl
 | `lib/artifacts.ts` | Core library: `scanArtifacts()` (recursive scan + frontmatter parse), `readArtifact()` (single file read with path validation), `writeArtifactContent()` (body splice preserving frontmatter), `recentArtifacts()` (top N by mtime). Internal helpers: `validatePath()` (traversal prevention), `parseMeta()` (gray-matter data to typed `ArtifactMeta`), `spliceBody()` (frontmatter-preserving write), `collectMarkdownFiles()` (recursive `.md` discovery). |
 | `lib/artifact-grouping.ts` | UI helpers: `buildArtifactTree()` (hierarchical `TreeNode[]` from flat list, recursive insertion with depth tracking), `groupArtifacts()` (flat `ArtifactGroup[]` by top-level directory), `groupKey()` (first path segment extraction), `displayTitle()` (frontmatter title or filename fallback), `capitalize()`. |
 | `lib/types.ts` | Type definitions: `ArtifactMeta` (title, date, status, tags, modules?, related?, extras?), `Artifact` (meta + filePath + relativePath + content + lastModified). |
-| `web/app/api/artifacts/route.ts` | Write endpoint: validates input, calls `writeArtifactContent()`, auto-commits to claude branch via `git.commitAll()`, triggers `POST /commissions/check-dependencies` on daemon. Commit and dependency check are both non-fatal. |
+| `apps/web/app/api/artifacts/route.ts` | Write endpoint: validates input, calls `writeArtifactContent()`, auto-commits to claude branch via `git.commitAll()`, triggers `POST /commissions/check-dependencies` on daemon. Commit and dependency check are both non-fatal. |
 
 ### Data
 
@@ -50,7 +50,7 @@ No data of its own. Operates on `.lore/` directories within integration worktree
 
 - Uses: gray-matter (frontmatter parsing)
 - Uses: `lib/paths.ts` (`projectLorePath` for `.lore/` directory resolution)
-- Uses: `daemon/lib/git.ts` (`createGitOps` for auto-commit in write endpoint)
+- Uses: `apps/daemon/lib/git.ts` (`createGitOps` for auto-commit in write endpoint)
 - Uses: `lib/daemon-client.ts` (`daemonFetch` for dependency check trigger in write endpoint)
 - Used by: [dashboard](./dashboard.md) (`recentArtifacts` for "Recent Scrolls" section)
 - Used by: [project-view](./project-view.md) (`scanArtifacts` for artifact tree, `readArtifact` for artifact viewer, `writeArtifactContent` via the write endpoint, `buildArtifactTree` for hierarchical display)

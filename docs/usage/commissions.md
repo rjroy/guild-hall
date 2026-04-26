@@ -66,9 +66,9 @@ Choose an audience when you expect a conversation rather than a handoff.
 
 ## Code references
 
-- Project commissions tab: [`web/app/projects/[name]/page.tsx`](../../web/app/projects/[name]/page.tsx)
-- Create commission button: [`web/components/commission/CreateCommissionButton.tsx`](../../web/components/commission/CreateCommissionButton.tsx)
-- Commission form: [`web/components/commission/CommissionForm.tsx`](../../web/components/commission/CommissionForm.tsx)
-- Commission detail route: [`web/app/projects/[name]/commissions/[id]/page.tsx`](../../web/app/projects/[name]/commissions/[id]/page.tsx)
-- Commission header: [`web/components/commission/CommissionHeader.tsx`](../../web/components/commission/CommissionHeader.tsx)
-- Commission live view: [`web/components/commission/CommissionView.tsx`](../../web/components/commission/CommissionView.tsx)
+- Project commissions tab: [`apps/web/app/projects/[name]/page.tsx`](../../apps/web/app/projects/[name]/page.tsx)
+- Create commission button: [`apps/web/components/commission/CreateCommissionButton.tsx`](../../apps/web/components/commission/CreateCommissionButton.tsx)
+- Commission form: [`apps/web/components/commission/CommissionForm.tsx`](../../apps/web/components/commission/CommissionForm.tsx)
+- Commission detail route: [`apps/web/app/projects/[name]/commissions/[id]/page.tsx`](../../apps/web/app/projects/[name]/commissions/[id]/page.tsx)
+- Commission header: [`apps/web/components/commission/CommissionHeader.tsx`](../../apps/web/components/commission/CommissionHeader.tsx)
+- Commission live view: [`apps/web/components/commission/CommissionView.tsx`](../../apps/web/components/commission/CommissionView.tsx)

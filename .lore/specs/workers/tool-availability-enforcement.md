@@ -106,7 +106,7 @@ const options: SdkQueryOptions = {
   }
   ```
 
-- REQ-TAE-5: `SdkQueryOptions` (in `daemon/lib/agent-sdk/sdk-runner.ts`) must add a `tools` field matching the SDK's type signature.
+- REQ-TAE-5: `SdkQueryOptions` (in `apps/daemon/lib/agent-sdk/sdk-runner.ts`) must add a `tools` field matching the SDK's type signature.
 
   Add:
   ```typescript
@@ -115,7 +115,7 @@ const options: SdkQueryOptions = {
 
 ### Toolbox Resolver Changes
 
-- REQ-TAE-6: The toolbox resolver (`daemon/services/toolbox-resolver.ts`) must include `builtInTools` in the returned `ResolvedToolSet`. The value is `worker.builtInTools` passed through unchanged.
+- REQ-TAE-6: The toolbox resolver (`apps/daemon/services/toolbox-resolver.ts`) must include `builtInTools` in the returned `ResolvedToolSet`. The value is `worker.builtInTools` passed through unchanged.
 
   ```typescript
   return { mcpServers, allowedTools, builtInTools: worker.builtInTools };
@@ -123,7 +123,7 @@ const options: SdkQueryOptions = {
 
 ### SDK Runner Changes
 
-- REQ-TAE-7: `prepareSdkSession` (`daemon/lib/agent-sdk/sdk-runner.ts`) must pass `tools: activation.tools.builtInTools` in the SDK options. This restricts the model's built-in tool set to exactly what the worker declares.
+- REQ-TAE-7: `prepareSdkSession` (`apps/daemon/lib/agent-sdk/sdk-runner.ts`) must pass `tools: activation.tools.builtInTools` in the SDK options. This restricts the model's built-in tool set to exactly what the worker declares.
 
   ```typescript
   const options: SdkQueryOptions = {
@@ -183,17 +183,17 @@ const options: SdkQueryOptions = {
 
 - REQ-TAE-11: This change is backward-compatible for worker packages. No changes to `package.json` metadata are required. The `builtInTools` field already contains the correct declarations. The fix is in how Guild Hall passes those declarations to the SDK.
 
-- REQ-TAE-12: Existing test fixtures that create mock `ResolvedToolSet` objects must be updated to include the new `builtInTools` field. In the existing test suite (`tests/daemon/services/sdk-runner.test.ts`), all `mockResolvedTools` objects should add `builtInTools: []` (or a specific list matching the test scenario).
+- REQ-TAE-12: Existing test fixtures that create mock `ResolvedToolSet` objects must be updated to include the new `builtInTools` field. In the existing test suite (`apps/daemon/tests/services/sdk-runner.test.ts`), all `mockResolvedTools` objects should add `builtInTools: []` (or a specific list matching the test scenario).
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
 | `lib/types.ts` | Add `builtInTools: string[]` to `ResolvedToolSet` |
-| `daemon/lib/agent-sdk/sdk-runner.ts` | Add `tools` to `SdkQueryOptions`; pass `tools: activation.tools.builtInTools` in `prepareSdkSession` |
-| `daemon/services/toolbox-resolver.ts` | Include `builtInTools: worker.builtInTools` in return value |
-| `tests/daemon/services/sdk-runner.test.ts` | Add `builtInTools` to mock fixtures; add test cases per REQ-TAE-10 |
-| `tests/daemon/toolbox-resolver.test.ts` | Add test cases per REQ-TAE-10 |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts` | Add `tools` to `SdkQueryOptions`; pass `tools: activation.tools.builtInTools` in `prepareSdkSession` |
+| `apps/daemon/services/toolbox-resolver.ts` | Include `builtInTools: worker.builtInTools` in return value |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | Add `builtInTools` to mock fixtures; add test cases per REQ-TAE-10 |
+| `apps/daemon/tests/toolbox-resolver.test.ts` | Add test cases per REQ-TAE-10 |
 
 ## Out of Scope
 

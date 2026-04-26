@@ -68,7 +68,7 @@ Out of scope:
 
 ### Session Loop: Map to GuildHallEvent
 
-- REQ-MCC-9: The `GuildHallEvent` union in `daemon/types.ts` gains a new variant:
+- REQ-MCC-9: The `GuildHallEvent` union in `apps/daemon/types.ts` gains a new variant:
 
   ```typescript
   | { type: "context_compacted"; trigger: "manual" | "auto"; preTokens: number; summary?: string }
@@ -109,7 +109,7 @@ Out of scope:
 
 ### Web UI Rendering
 
-- REQ-MCC-14: The `ChatInterface` component in `web/components/meeting/ChatInterface.tsx` handles the `context_compacted` SSE event. When received, it inserts a system message into the chat message list with a visual indicator that compaction occurred. The message shows:
+- REQ-MCC-14: The `ChatInterface` component in `apps/web/components/meeting/ChatInterface.tsx` handles the `context_compacted` SSE event. When received, it inserts a system message into the chat message list with a visual indicator that compaction occurred. The message shows:
   - A brief label: "Context was compressed" (with trigger type and token count).
   - If a summary is present: an expandable section (e.g., `<details>`) showing the compact summary text.
 

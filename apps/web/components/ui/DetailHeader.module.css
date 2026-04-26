@@ -1,0 +1,76 @@
+/* ============================================================
+   DetailHeader — collapsible page header (banner)
+   ----------------------------------------------------------
+   Replaces the border-image webp with a clean paper-raised
+   surface, doubled molding rule at the bottom, and warm
+   parchment shading. Same condensed/expanded behavior.
+   ============================================================ */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-8);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--rule);
+  transition: max-height 250ms var(--ease-out), padding 250ms var(--ease-out);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Doubled molding line below the banner — prints, not pixels */
+.header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 1px;
+  background: var(--rule);
+}
+
+.headerCondensed {
+  padding: var(--space-2) var(--space-5);
+  cursor: pointer;
+}
+
+/* --- Toggle button --- */
+
+.toggleButton {
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  color: var(--fg-2);
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 4px 8px;
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.toggleButton:hover {
+  color: var(--ember-700);
+  border-color: var(--ember-500);
+}
+
+:global([data-theme="dark"]) .toggleButton:hover {
+  color: var(--ember-300);
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 768px) {
+  .header {
+    padding: var(--space-4) var(--space-5);
+  }
+  .headerCondensed {
+    padding: var(--space-2) var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: var(--space-3) var(--space-4);
+  }
+}

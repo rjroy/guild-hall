@@ -3,7 +3,7 @@ title: "Plan: CLI Commission Commands"
 date: 2026-03-23
 status: executed
 tags: [cli, commissions, lifecycle, daemon-client, operations, formatting]
-modules: [cli, daemon/routes/commissions]
+modules: [cli, apps/daemon/routes/commissions]
 related:
   - .lore/specs/commissions/cli-commission-commands.md
   - .lore/specs/infrastructure/cli-progressive-discovery.md
@@ -47,7 +47,7 @@ These will pass automatically once the routes are added, since the action confir
 
 ### CLI Architecture
 
-The CLI (`cli/index.ts`) is a thin daemon client. It fetches all operation definitions from `GET /help/operations`, resolves user input against invocation paths via greedy longest-prefix match (`cli/resolve.ts:54-90`), maps positional arguments to declared parameters (`buildBody` for POST, `buildQueryString` for GET), and formats responses generically (`cli/format.ts:24-42`).
+The CLI (`apps/cli/index.ts`) is a thin daemon client. It fetches all operation definitions from `GET /help/operations`, resolves user input against invocation paths via greedy longest-prefix match (`apps/cli/resolve.ts:54-90`), maps positional arguments to declared parameters (`buildBody` for POST, `buildQueryString` for GET), and formats responses generically (`apps/cli/format.ts:24-42`).
 
 Three functions handle parameter mapping:
 - `buildQueryString` (`resolve.ts:95-109`): Maps positional args to `in: "query"` parameters. Currently sends all values including empty strings.
@@ -56,7 +56,7 @@ Three functions handle parameter mapping:
 
 ### Operation Definitions
 
-Commission operations are defined in `daemon/routes/commissions.ts:557-714`. Each `OperationDefinition` includes a `parameters` array of `OperationParameter` objects (`{ name, required, in }`). The spec identifies six operations with incomplete parameter declarations (REQ-CLI-COM-1). Verified against the route handlers:
+Commission operations are defined in `apps/daemon/routes/commissions.ts:557-714`. Each `OperationDefinition` includes a `parameters` array of `OperationParameter` objects (`{ name, required, in }`). The spec identifies six operations with incomplete parameter declarations (REQ-CLI-COM-1). Verified against the route handlers:
 
 | Operation | Currently declared | Missing (verified against route handler) |
 |-----------|-------------------|---------|
@@ -69,17 +69,17 @@ Commission operations are defined in `daemon/routes/commissions.ts:557-714`. Eac
 
 ### List Route Handler
 
-`daemon/routes/commissions.ts:430-453`. Currently accepts only `projectName` as a query parameter. Calls `scanCommissions()` which returns `CommissionMeta[]`. No filtering logic. Adding `status` and `worker` query parameter reads and array filtering is straightforward.
+`apps/daemon/routes/commissions.ts:430-453`. Currently accepts only `projectName` as a query parameter. Calls `scanCommissions()` which returns `CommissionMeta[]`. No filtering logic. Adding `status` and `worker` query parameter reads and array filtering is straightforward.
 
 ### Response Formatting
 
-`cli/format.ts` has four functions: `formatResponse` (generic dispatcher), `formatTable` (array-of-objects to aligned columns), `formatKeyValue` (object to `key: value` lines), and `formatHelpTree`/`formatOperationHelp` (help display). The generic `formatResponse` is called from `cli/index.ts:169`. No mechanism exists for operation-specific formatters.
+`apps/cli/format.ts` has four functions: `formatResponse` (generic dispatcher), `formatTable` (array-of-objects to aligned columns), `formatKeyValue` (object to `key: value` lines), and `formatHelpTree`/`formatOperationHelp` (help display). The generic `formatResponse` is called from `apps/cli/index.ts:169`. No mechanism exists for operation-specific formatters.
 
-The CLI entry point at `cli/index.ts:159-169` reads the response and calls `formatResponse(data, jsonMode)`. The formatter registry needs to intercept here, checking whether a custom formatter exists for the resolved operation before falling back to the generic path.
+The CLI entry point at `apps/cli/index.ts:159-169` reads the response and calls `formatResponse(data, jsonMode)`. The formatter registry needs to intercept here, checking whether a custom formatter exists for the resolved operation before falling back to the generic path.
 
 ### Error Handling
 
-`cli/index.ts:154-167` handles non-OK responses. It reads `error` from the response body and prints it to stderr. This covers REQ-CLI-COM-12 (404 already returns `Commission not found: <id>` from the daemon) and REQ-CLI-COM-13 (409 returns the transition error message). REQ-CLI-COM-14 (429 for capacity) isn't produced by any current commission route; the `continue` route would be the one to return it. REQ-CLI-COM-11 (daemon not running) is handled at `cli/index.ts:66-71`. REQ-CLI-COM-15 (stderr + exit code 1) is the existing pattern.
+`apps/cli/index.ts:154-167` handles non-OK responses. It reads `error` from the response body and prints it to stderr. This covers REQ-CLI-COM-12 (404 already returns `Commission not found: <id>` from the daemon) and REQ-CLI-COM-13 (409 returns the transition error message). REQ-CLI-COM-14 (429 for capacity) isn't produced by any current commission route; the `continue` route would be the one to return it. REQ-CLI-COM-11 (daemon not running) is handled at `apps/cli/index.ts:66-71`. REQ-CLI-COM-15 (stderr + exit code 1) is the existing pattern.
 
 Most error handling requirements are already satisfied by the existing CLI error flow. The only gap is REQ-CLI-COM-14 (429 message), which depends on the `continue` route existing.
 
@@ -87,12 +87,12 @@ Most error handling requirements are already satisfied by the existing CLI error
 
 ### Phase 1: Operation Parameter Completeness
 
-**Files**: `daemon/routes/commissions.ts`
+**Files**: `apps/daemon/routes/commissions.ts`
 **Addresses**: REQ-CLI-COM-1, REQ-CLI-COM-2, REQ-CLI-COM-16 (partially), REQ-CLI-COM-17 (partially)
 
 Fix the `parameters` arrays in the six operation definitions identified in the spec's gap table. Parameter order follows the spec's natural command phrasing (REQ-CLI-COM-2).
 
-Changes to the `operations` array in `daemon/routes/commissions.ts`:
+Changes to the `operations` array in `apps/daemon/routes/commissions.ts`:
 
 1. **`create`** (line 569): Change from `[{ name: "projectName", required: true, in: "body" }]` to:
    ```typescript
@@ -157,7 +157,7 @@ No route handler changes. This phase only fixes operation metadata so the CLI ca
 
 ### Phase 2: Server-side List Filtering
 
-**Files**: `daemon/routes/commissions.ts`, `cli/resolve.ts`
+**Files**: `apps/daemon/routes/commissions.ts`, `apps/cli/resolve.ts`
 **Addresses**: REQ-CLI-COM-3, REQ-CLI-COM-4, REQ-CLI-COM-5
 **Depends on**: Phase 1 (list operation needs `status` and `worker` parameters declared)
 
@@ -186,7 +186,7 @@ Filter by `status` against `CommissionMeta.status` and by `worker` against `Comm
 
 #### 2b. CLI empty-string filtering in buildQueryString (REQ-CLI-COM-4)
 
-In `cli/resolve.ts:95-109`, modify `buildQueryString` to skip empty string values:
+In `apps/cli/resolve.ts:95-109`, modify `buildQueryString` to skip empty string values:
 
 ```typescript
 for (let i = 0; i < params.length && i < positionalArgs.length; i++) {
@@ -213,7 +213,7 @@ This change is global to `buildQueryString`, affecting all GET operations. Verif
 
 ### Phase 3: Commission-specific Output Formatting
 
-**Files**: `cli/format.ts` (new functions), `cli/commission-format.ts` (new file), `cli/index.ts` (formatter registry integration)
+**Files**: `apps/cli/format.ts` (new functions), `apps/cli/commission-format.ts` (new file), `apps/cli/index.ts` (formatter registry integration)
 **Addresses**: REQ-CLI-COM-6 through REQ-CLI-COM-10, REQ-CLI-COM-18 through REQ-CLI-COM-21
 **Depends on**: Phase 1 (parameters must be correct for operations to return usable data)
 
@@ -224,7 +224,7 @@ Three sub-steps:
 Add a formatter registry to the CLI. A simple map from invocation path to formatter function:
 
 ```typescript
-// cli/commission-format.ts
+// apps/cli/commission-format.ts
 type ResponseFormatter = (data: unknown) => string;
 
 const COMMISSION_FORMATTERS: Record<string, ResponseFormatter> = {
@@ -243,7 +243,7 @@ const COMMISSION_ACTION_PATHS = new Set([
 ]);
 ```
 
-In `cli/index.ts`, modify the response handling at line 169. Before calling `formatResponse`, check the registry. The `positionalArgs` variable (destructured from `resolved.command` at line 119) provides the commission ID for action confirmations:
+In `apps/cli/index.ts`, modify the response handling at line 169. Before calling `formatResponse`, check the registry. The `positionalArgs` variable (destructured from `resolved.command` at line 119) provides the commission ID for action confirmations:
 
 ```typescript
 if (!jsonMode) {
@@ -324,11 +324,11 @@ For `dispatch` and `redispatch`, the commission ID comes from the response body 
 
 ### Phase 4: Error Formatting Verification
 
-**Files**: Mostly test-only. Potentially `cli/index.ts` for the 429 message.
+**Files**: Mostly test-only. Potentially `apps/cli/index.ts` for the 429 message.
 **Addresses**: REQ-CLI-COM-11 through REQ-CLI-COM-15a
 
-Most error handling already works through the existing CLI error flow at `cli/index.ts:154-167`:
-- **REQ-CLI-COM-11** (daemon not running): Handled at `cli/index.ts:66-71`. No change needed.
+Most error handling already works through the existing CLI error flow at `apps/cli/index.ts:154-167`:
+- **REQ-CLI-COM-11** (daemon not running): Handled at `apps/cli/index.ts:66-71`. No change needed.
 - **REQ-CLI-COM-12** (404 not found): Daemon returns `{ error: "Commission not found: <id>" }`. CLI prints it. No change needed.
 - **REQ-CLI-COM-13** (409 invalid transition): Daemon returns descriptive error. CLI prints it. No change needed.
 - **REQ-CLI-COM-14** (429 capacity): The existing error handler prints the daemon's error message for any non-OK response, but the spec wants a specific message: `At capacity, cannot continue commission. Try again later.` This requires checking `result.status === 429` in the error handler. However, no commission route currently returns 429. The `continue` route would be the one to return it (capacity check). This can be added when the `continue` route is implemented, or preemptively in the error handler.
@@ -375,16 +375,16 @@ Phase 1 must go first because Phases 2 and 3 depend on correct parameter declara
 
 3. **`scanCommissions` scans all commission files.** Filtering happens after the full scan. For projects with hundreds of commissions, this could be slow. The spec explicitly chooses server-side filtering over client-side (REQ-CLI-COM-5), which is correct architecturally, but the scan is still O(n) regardless of filter. This is acceptable for current scale and matches the web UI's behavior.
 
-4. **Terminal width for list table.** REQ-CLI-COM-6 says `TITLE` should truncate to fit terminal width. The current `formatTable` in `cli/format.ts` doesn't handle terminal width. The commission list formatter will need to read `process.stdout.columns` (or default to 80) and calculate available width after the fixed columns. This is a small amount of additional logic but worth calling out.
+4. **Terminal width for list table.** REQ-CLI-COM-6 says `TITLE` should truncate to fit terminal width. The current `formatTable` in `apps/cli/format.ts` doesn't handle terminal width. The commission list formatter will need to read `process.stdout.columns` (or default to 80) and calculate available width after the fixed columns. This is a small amount of additional logic but worth calling out.
 
 ## File Summary
 
 | File | Change type | Phase |
 |------|-------------|-------|
-| `daemon/routes/commissions.ts` | Edit (operation parameters + list filter) | 1, 2 |
-| `cli/resolve.ts` | Edit (skip empty strings in buildQueryString) | 2 |
-| `cli/commission-format.ts` | New (commission formatters) | 3 |
-| `cli/index.ts` | Edit (formatter registry integration) | 3 |
-| `tests/cli/commission-format.test.ts` | New (formatter tests) | 3 |
-| `tests/daemon/routes/commissions-filter.test.ts` | New or extend existing (filter tests) | 2 |
-| `tests/cli/resolve.test.ts` | Edit (buildQueryString empty string test) | 2 |
+| `apps/daemon/routes/commissions.ts` | Edit (operation parameters + list filter) | 1, 2 |
+| `apps/cli/resolve.ts` | Edit (skip empty strings in buildQueryString) | 2 |
+| `apps/cli/commission-format.ts` | New (commission formatters) | 3 |
+| `apps/cli/index.ts` | Edit (formatter registry integration) | 3 |
+| `apps/cli/tests/commission-format.test.ts` | New (formatter tests) | 3 |
+| `apps/daemon/tests/routes/commissions-filter.test.ts` | New or extend existing (filter tests) | 2 |
+| `apps/cli/tests/resolve.test.ts` | Edit (buildQueryString empty string test) | 2 |

@@ -1,0 +1,238 @@
+/* ============================================================
+   CommissionTimeline — chronicle of events
+   ============================================================ */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
+  margin: 0;
+}
+
+:global([data-theme="dark"]) .label {
+  color: var(--ember-300);
+}
+
+/* --- Tab bar --- */
+
+.tabBar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tab {
+  background: transparent;
+  border: 0;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--fg-2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
+}
+
+.tab:hover {
+  color: var(--fg-1);
+}
+
+.tabActive {
+  color: var(--ember-700);
+  border-bottom-color: var(--ember-500);
+}
+
+:global([data-theme="dark"]) .tabActive {
+  color: var(--ember-300);
+}
+
+.empty {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--fg-3);
+  margin: 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  transition: background var(--dur) var(--ease-out);
+}
+
+.item:hover {
+  background: var(--brand-soft);
+}
+
+/* --- Shared entry layout --- */
+
+.statusChange,
+.progress,
+.question,
+.result,
+.note,
+.managerNote,
+.generic {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  flex-wrap: wrap;
+}
+
+.time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  flex-shrink: 0;
+  min-width: 50px;
+}
+
+.eventContent {
+  align-items: center;
+  color: var(--fg);
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--space-2);
+}
+
+.eventContent ul {
+  padding: 0 20px;
+}
+
+.reason {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--fg-3);
+  width: 100%;
+  padding-left: 62px;
+}
+
+/* --- Status change --- */
+
+.statusText {
+  text-transform: capitalize;
+  font-weight: 600;
+  color: var(--fg-1);
+}
+
+.arrow {
+  color: var(--fg-muted);
+  margin: 0 var(--space-1);
+}
+
+/* --- Progress --- */
+
+.progressIcon {
+  color: var(--ember-700);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+:global([data-theme="dark"]) .progressIcon {
+  color: var(--ember-300);
+}
+
+/* --- Question --- */
+
+.question {
+  background: var(--warning-soft);
+  border-left: 2px solid var(--warning);
+  padding-left: var(--space-3);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.questionIcon {
+  color: var(--warning);
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+/* --- Result --- */
+
+.result {
+  background: var(--success-soft);
+  border-left: 2px solid var(--success);
+  padding-left: var(--space-3);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.resultIcon {
+  color: var(--success);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* --- User note --- */
+
+.note {
+  background: var(--brand-soft);
+  border-left: 2px solid var(--ember-500);
+  padding-left: var(--space-3);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.noteIcon {
+  color: var(--ember-700);
+  flex-shrink: 0;
+}
+
+:global([data-theme="dark"]) .noteIcon {
+  color: var(--ember-300);
+}
+
+/* --- Manager note (verdigris/rune accent) --- */
+
+.managerNote {
+  background: rgba(47, 110, 102, 0.08);
+  border-left: 2px solid var(--verdigris-500);
+  padding-left: var(--space-3);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+:global([data-theme="dark"]) .managerNote {
+  background: rgba(127, 224, 208, 0.08);
+}
+
+.managerNoteIcon {
+  color: var(--verdigris-500);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+:global([data-theme="dark"]) .managerNoteIcon {
+  color: var(--verdigris-300);
+}
+
+/* --- Generic fallback --- */
+
+.generic {
+  color: var(--fg-3);
+}

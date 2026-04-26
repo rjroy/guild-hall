@@ -1,0 +1,44 @@
+/* ============================================================
+   GemIndicator
+   ----------------------------------------------------------
+   Wax-seal status gem rendered in pure CSS. Inherits the
+   guild gem styling — radial highlight + ink rim + tonal glow.
+   ============================================================ */
+
+.gem {
+  display: inline-block;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  position: relative;
+  box-shadow:
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.55),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(26, 20, 14, 0.35),
+    0 0 6px var(--gem-glow, transparent);
+}
+
+/* ---- Sizes ---- */
+.sm { width: 12px; height: 12px; }
+.md { width: 16px; height: 16px; }
+
+/* ---- Status tones ---- */
+.active {
+  background: radial-gradient(circle at 35% 30%, #B7D38E, var(--moss-500) 70%);
+  --gem-glow: rgba(138, 164, 106, 0.55);
+}
+.pending {
+  background: radial-gradient(circle at 35% 30%, #F3DFA1, var(--brass-500) 70%);
+  --gem-glow: rgba(201, 162, 74, 0.5);
+}
+.blocked {
+  background: radial-gradient(circle at 35% 30%, #DD8E7A, var(--oxblood-500) 70%);
+  --gem-glow: rgba(156, 43, 27, 0.5);
+}
+.info {
+  background: radial-gradient(circle at 35% 30%, #95B0D8, var(--lapis-500) 70%);
+  --gem-glow: rgba(94, 123, 168, 0.45);
+}
+.inactive {
+  background: radial-gradient(circle at 35% 30%, #6B5840, var(--ink-700) 70%);
+  --gem-glow: transparent;
+}

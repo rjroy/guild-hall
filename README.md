@@ -37,7 +37,7 @@ bun run start:next             # start Next.js only (production)
 bun run lint                   # ESLint
 bun run typecheck              # TypeScript type checking
 bun test                       # run all tests
-bun test tests/lib/config.test.ts  # single test file
+bun test lib/tests/config.test.ts  # single test file
 bun run guild-hall register <name> <path>  # register a project
 bun run guild-hall validate                # validate config
 bun run guild-hall rebase [project-name]   # rebase claude onto master
@@ -48,15 +48,15 @@ bun run guild-hall sync [project-name]     # post-merge sync
 
 The repo is a monorepo with four top-level systems:
 
-- **`web/`** -- Next.js App Router UI (server components for reads, client components for interaction)
-- **`daemon/`** -- Hono server on a Unix socket (`~/.guild-hall/guild-hall.sock`), owns all write operations, meeting/commission sessions, and the EventBus
-- **`cli/`** -- Bun scripts for project registration, config validation, and git operations
+- **`apps/web/`** -- Next.js App Router UI (server components for reads, client components for interaction)
+- **`apps/daemon/`** -- Hono server on a Unix socket (`~/.guild-hall/guild-hall.sock`), owns all write operations, meeting/commission sessions, and the EventBus
+- **`apps/cli/`** -- Bun scripts for project registration, config validation, and git operations
 - **`packages/`** -- Worker and toolbox packages (developer, email, illuminator, replicate, researcher, reviewer, steward, visionary, writer, shared)
 
 Supporting directories:
 
 - **`lib/`** -- Shared business logic (artifacts, config, paths, types)
-- **`tests/`** -- Mirrors source structure
+- Tests live under each module's `tests/` subdirectory (e.g., `apps/cli/tests/`, `lib/tests/`, `packages/<worker>/tests/`, `packages/tests/`)
 
 Meetings and commissions run as Claude Agent SDK sessions inside the daemon. A three-tier git branch strategy (`master` / `claude` / activity branches) isolates AI work: the UI reads from integration worktrees on `claude`, active sessions get their own worktrees with sparse checkout. Workers communicate via a mail system with sleep/wake transitions and concurrency management. The Guild Master generates project briefings through the full SDK pipeline with caching. Worker packages can ship Claude Code domain plugins that extend worker capabilities.
 

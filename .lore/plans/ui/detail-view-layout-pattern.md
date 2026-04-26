@@ -49,9 +49,9 @@ Requirements addressed:
 
 The meeting view is the reference implementation. Key structural facts:
 
-**Page container** (`web/app/projects/[name]/meetings/[id]/page.module.css:1-11`): `.meetingView` uses `height: 100vh; height: 100dvh; overflow: hidden` with `flex-direction: column`. This is the viewport lock.
+**Page container** (`apps/web/app/projects/[name]/meetings/[id]/page.module.css:1-11`): `.meetingView` uses `height: 100vh; height: 100dvh; overflow: hidden` with `flex-direction: column`. This is the viewport lock.
 
-**MeetingHeader** (`web/components/meeting/MeetingHeader.tsx`): Client component with `condensed` state. Uses `useState(() => window.matchMedia("(max-width: 960px)").matches)` at line 36-38 for initial state, plus a `useEffect` at lines 43-48 for SSR safety. Toggle is a chevron button (Unicode `\u25BC`/`\u25B2`). The `headerCondensed` CSS class sets `max-height: 56px` with simplified border (no border-image).
+**MeetingHeader** (`apps/web/components/meeting/MeetingHeader.tsx`): Client component with `condensed` state. Uses `useState(() => window.matchMedia("(max-width: 960px)").matches)` at line 36-38 for initial state, plus a `useEffect` at lines 43-48 for SSR safety. Toggle is a chevron button (Unicode `\u25BC`/`\u25B2`). The `headerCondensed` CSS class sets `max-height: 56px` with simplified border (no border-image).
 
 **MeetingHeader CSS** (`MeetingHeader.module.css`): `.header` has `max-height: 300px; transition: max-height 250ms ease, padding 250ms ease; overflow: hidden`. The `.headerCondensed` class overrides to `max-height: 56px`, reduced padding, simple border-radius. The `border-image-source` on `.header` is inherited from the expanded state; condensed state's border-radius overrides the border-image visually but doesn't explicitly remove it.
 
@@ -59,7 +59,7 @@ The meeting view is the reference implementation. Key structural facts:
 
 ### Commission View (Target)
 
-**Page container** (`web/app/projects/[name]/commissions/[id]/page.module.css:1-9`): `.commissionView` uses `min-height: 100vh` (document scroll). This is what changes.
+**Page container** (`apps/web/app/projects/[name]/commissions/[id]/page.module.css:1-9`): `.commissionView` uses `min-height: 100vh` (document scroll). This is what changes.
 
 **Page structure** (`page.tsx:165-196`): The page renders `CommissionHeader` > `NeighborhoodGraph` > `CommissionView` as siblings inside `.commissionView`. The `NeighborhoodGraph` is a server component that conditionally renders (returns null if no neighbors). It sits between header and body in the DOM, which means it will naturally be in the fixed zone once the container is viewport-locked. No structural JSX change needed for the graph.
 
@@ -71,7 +71,7 @@ The meeting view is the reference implementation. Key structural facts:
 
 ### Artifact View (Target)
 
-**Page container** (`web/app/projects/[name]/artifacts/[...path]/page.module.css:1-8`): `.artifactView` uses `display: flex` (row, implicit), `min-height: 100vh`, `max-width: 1200px`. This is a flat row layout, not column-first. The structural change is larger here than for commissions.
+**Page container** (`apps/web/app/projects/[name]/artifacts/[...path]/page.module.css:1-8`): `.artifactView` uses `display: flex` (row, implicit), `min-height: 100vh`, `max-width: 1200px`. This is a flat row layout, not column-first. The structural change is larger here than for commissions.
 
 **Page structure** (`page.tsx:124-155`): The document artifact branch renders `.artifactView > .main > (ArtifactProvenance, meetingBanner, ArtifactContent)` alongside `.sidebar > MetadataSidebar`. The image artifact branch (lines 65-88) follows the same pattern: `.artifactView > .main > (ArtifactProvenance, ImageArtifactView)` alongside `.sidebar > ImageMetadataSidebar`.
 
@@ -111,7 +111,7 @@ Addresses REQ-DVL-1, REQ-DVL-2, REQ-DVL-3, REQ-DVL-4, REQ-DVL-11.
 
 #### Step 1: Lock the page container
 
-**File**: `web/app/projects/[name]/commissions/[id]/page.module.css`
+**File**: `apps/web/app/projects/[name]/commissions/[id]/page.module.css`
 
 Change `.commissionView`:
 - Replace `min-height: 100vh` with `height: 100vh; height: 100dvh` (vh line first as the older-browser fallback, dvh line second as the progressive enhancement for mobile viewports with dynamic toolbars).
@@ -122,7 +122,7 @@ No changes needed to the responsive breakpoints. The 768px and 480px media queri
 
 #### Step 2: Enable internal scrolling on main and sidebar
 
-**File**: `web/components/commission/CommissionView.module.css`
+**File**: `apps/web/components/commission/CommissionView.module.css`
 
 Add to `.main`:
 - `overflow-y: auto` so the prompt, timeline, and notes panels scroll internally.
@@ -143,7 +143,7 @@ Addresses REQ-DVL-5 through REQ-DVL-10.
 
 #### Step 1: Convert CommissionHeader to client component with condensed state
 
-**File**: `web/components/commission/CommissionHeader.tsx`
+**File**: `apps/web/components/commission/CommissionHeader.tsx`
 
 Add `"use client"` directive at top. Add imports: `useState`, `useEffect`, `startTransition` from React.
 
@@ -210,7 +210,7 @@ In expanded state, the toggle button uses `className={`${styles.toggleButton} ${
 
 #### Step 2: Add condensing CSS
 
-**File**: `web/components/commission/CommissionHeader.module.css`
+**File**: `apps/web/components/commission/CommissionHeader.module.css`
 
 Add to `.header`:
 - `max-height: 200px` (spec value; commission headers are shorter than meeting headers).
@@ -324,7 +324,7 @@ This is the most involved phase because it changes the artifact page's DOM struc
 
 #### Step 1: Restructure artifact page.tsx
 
-**File**: `web/app/projects/[name]/artifacts/[...path]/page.tsx`
+**File**: `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`
 
 **Document artifact branch** (currently lines 124-155): Change from flat row to column-first:
 
@@ -394,7 +394,7 @@ Image artifacts don't have a meetingBanner, so that conditional is only in the d
 
 #### Step 2: Update artifact CSS for viewport lock
 
-**File**: `web/app/projects/[name]/artifacts/[...path]/page.module.css`
+**File**: `apps/web/app/projects/[name]/artifacts/[...path]/page.module.css`
 
 Replace `.artifactView`:
 ```css
@@ -479,7 +479,7 @@ Addresses REQ-DVL-24 through REQ-DVL-29.
 
 #### Step 1: Convert ArtifactProvenance to client component with condensed state
 
-**File**: `web/components/artifact/ArtifactProvenance.tsx`
+**File**: `apps/web/components/artifact/ArtifactProvenance.tsx`
 
 Add `"use client"` directive. Add imports: `useState`, `useEffect`, `startTransition`.
 
@@ -532,7 +532,7 @@ Note on child component boundaries: `CopyPathButton` is already a client compone
 
 #### Step 2: Add condensing CSS
 
-**File**: `web/components/artifact/ArtifactProvenance.module.css`
+**File**: `apps/web/components/artifact/ArtifactProvenance.module.css`
 
 Add to `.provenance`:
 - `max-height: 150px` (spec value).
@@ -613,13 +613,13 @@ Each phase should be reviewed before proceeding to the next.
 
 | File | Phase | Change |
 |------|-------|--------|
-| `web/app/projects/[name]/commissions/[id]/page.module.css` | 1 | Viewport lock: replace `min-height` with `height: 100dvh; overflow: hidden` |
-| `web/components/commission/CommissionView.module.css` | 1 | Add `overflow-y: auto` to `.main` and `.sidebar`; update stacked breakpoint |
-| `web/components/commission/CommissionHeader.tsx` | 2 | Convert to client component; add condensed state, toggle, matchMedia |
-| `web/components/commission/CommissionHeader.module.css` | 2 | Add transition, condensed styles, toggle button, condensed row layout |
-| `web/app/projects/[name]/artifacts/[...path]/page.tsx` | 3 | Restructure: move provenance/banner out of `.main`, add `.artifactBody` wrapper |
-| `web/app/projects/[name]/artifacts/[...path]/page.module.css` | 3 | Viewport lock, column layout, add `.artifactBody`, update responsive queries |
-| `web/components/artifact/ArtifactProvenance.tsx` | 4 | Convert to client component; add condensed state, toggle, matchMedia |
-| `web/components/artifact/ArtifactProvenance.module.css` | 4 | Add transition, condensed styles, toggle button, condensed row layout |
+| `apps/web/app/projects/[name]/commissions/[id]/page.module.css` | 1 | Viewport lock: replace `min-height` with `height: 100dvh; overflow: hidden` |
+| `apps/web/components/commission/CommissionView.module.css` | 1 | Add `overflow-y: auto` to `.main` and `.sidebar`; update stacked breakpoint |
+| `apps/web/components/commission/CommissionHeader.tsx` | 2 | Convert to client component; add condensed state, toggle, matchMedia |
+| `apps/web/components/commission/CommissionHeader.module.css` | 2 | Add transition, condensed styles, toggle button, condensed row layout |
+| `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` | 3 | Restructure: move provenance/banner out of `.main`, add `.artifactBody` wrapper |
+| `apps/web/app/projects/[name]/artifacts/[...path]/page.module.css` | 3 | Viewport lock, column layout, add `.artifactBody`, update responsive queries |
+| `apps/web/components/artifact/ArtifactProvenance.tsx` | 4 | Convert to client component; add condensed state, toggle, matchMedia |
+| `apps/web/components/artifact/ArtifactProvenance.module.css` | 4 | Add transition, condensed styles, toggle button, condensed row layout |
 
 Eight files total, zero new files. Four phases, each independently verifiable.

@@ -26,21 +26,3 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 06:14 commission-Dalton-20260422-060917 result: ## MIN-1 — ARTIFACT_DOCUMENT_WRITE_OP workaround removed
-
-**Root cause identified.** The blocker was the `document_write_xss` rule in `security-guidance` plugin (`~/.claude/plugins/.../hooks/security_...
-
-- 06:14 commission-Dalton-20260422-060917 completed
-- 06:18 commission-Octavia-20260422-060944 result: Phase 6 back-propagation complete for `.lore/specs/infrastructure/cli-agent-surface.md`.
-
-- 06:18 commission-Octavia-20260422-060944 completed
-- 06:23 commission-Dalton-20260422-062101 result: Edits landed in both files. Validation clean: typecheck, lint, 3637 tests pass, build succeeds.
-
-- 06:23 commission-Dalton-20260422-062101 completed
-## Verbatim new material
-
-### soul.md — Character section (appended to the "You present everything you ...
-## Changes
-
-**Frontmatter**
-- `status: approved` → `status: implemented` (matches convention used across other...

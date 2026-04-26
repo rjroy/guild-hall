@@ -1,0 +1,379 @@
+/* ============================================================
+   ArtifactContent — markdown viewer / editor
+   Drops the ornate border-image frame in favor of the guild
+   card surface. Markdown body uses prose styling consistent
+   with the design system.
+   ============================================================ */
+
+/* --- Shared toolbar --- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.toolbarLabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.toolbarActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* --- Buttons --- */
+
+.editButton,
+.saveButton,
+.cancelButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease-out);
+}
+
+.editButton {
+  background: var(--bg-raised);
+  border-color: var(--rule-strong);
+  color: var(--fg);
+}
+
+.editButton:hover {
+  border-color: var(--ember-500);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .editButton:hover {
+  color: var(--ember-300);
+}
+
+.saveButton {
+  background: linear-gradient(180deg, var(--moss-300), var(--moss-500));
+  border-color: var(--moss-700);
+  color: var(--parchment-50);
+}
+
+.saveButton:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--moss-500), var(--moss-700));
+}
+
+.saveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancelButton {
+  background: transparent;
+  border-color: var(--rule);
+  color: var(--fg-2);
+}
+
+.cancelButton:hover:not(:disabled) {
+  border-color: var(--rule-strong);
+  color: var(--fg);
+}
+
+.cancelButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Error message --- */
+
+.error {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--danger);
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-4);
+  margin: 0;
+  background: var(--danger-soft);
+}
+
+/* --- View mode (markdown viewer) --- */
+
+.viewer {
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  height: calc(100% - 50px);
+  position: relative;
+  box-shadow: var(--shadow-sm);
+}
+
+.markdownContent {
+  padding: var(--space-6) var(--space-8);
+  position: relative;
+  line-height: var(--leading-relaxed);
+  overflow-y: auto;
+  height: 100%;
+  font-family: var(--font-body);
+  color: var(--fg);
+}
+
+/* Drop-cap on the first paragraph — illuminated manuscript voice */
+.markdownContent > p:first-child::first-letter {
+  font-family: var(--font-display);
+  font-size: 4.2em;
+  line-height: 0.85;
+  float: left;
+  padding: 0.08em 0.12em 0 0;
+  color: var(--ember-700);
+  font-weight: 400;
+}
+
+:global([data-theme="dark"]) .markdownContent > p:first-child::first-letter {
+  color: var(--ember-300);
+}
+
+/* --- Markdown element styles --- */
+
+.markdownContent h1,
+.markdownContent h2,
+.markdownContent h3,
+.markdownContent h4,
+.markdownContent h5,
+.markdownContent h6 {
+  color: var(--fg-1);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.markdownContent h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-3xl);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-tight);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: var(--space-2);
+}
+
+.markdownContent h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-snug);
+  border-bottom: 1px solid var(--rule-soft);
+  padding-bottom: var(--space-1);
+}
+
+.markdownContent h3 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+}
+
+.markdownContent h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: var(--text-lg);
+}
+
+.markdownContent p {
+  margin-bottom: 0.8em;
+}
+
+.markdownContent a {
+  color: var(--ember-700);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: color var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .markdownContent a {
+  color: var(--ember-300);
+}
+
+.markdownContent a:hover {
+  color: var(--ember-500);
+}
+
+.markdownContent strong {
+  color: var(--fg-1);
+  font-weight: 600;
+}
+
+.markdownContent em {
+  font-style: italic;
+}
+
+.markdownContent ul,
+.markdownContent ol {
+  margin-bottom: 0.8em;
+  padding-left: 1.5em;
+}
+
+.markdownContent li {
+  margin-bottom: 0.3em;
+}
+
+.markdownContent li > ul,
+.markdownContent li > ol {
+  margin-bottom: 0;
+}
+
+.markdownContent blockquote {
+  border-left: 3px solid var(--ember-500);
+  padding-left: var(--space-4);
+  margin: 0.8em 0;
+  color: var(--fg-2);
+  font-family: var(--font-serif);
+  font-style: italic;
+}
+
+.markdownContent code {
+  font-family: var(--font-mono);
+  background: var(--parchment-200);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  color: var(--ember-900);
+  border: 1px solid var(--rule);
+  font-size: 0.92em;
+}
+
+:global([data-theme="dark"]) .markdownContent code {
+  background: var(--bg-sunken);
+  color: var(--ember-100);
+}
+
+.markdownContent pre {
+  font-family: var(--font-mono);
+  background: var(--ink-900);
+  color: var(--parchment-50);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin: 0.8em 0;
+  line-height: var(--leading-snug);
+  border: 1px solid var(--ink-700);
+  box-shadow: var(--shadow-inset);
+}
+
+.markdownContent pre code {
+  background: transparent;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  font-size: 0.85rem;
+}
+
+.markdownContent table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.8em 0;
+}
+
+.markdownContent th,
+.markdownContent td {
+  border: 1px solid var(--rule);
+  padding: var(--space-2);
+  text-align: left;
+}
+
+.markdownContent th {
+  background: var(--parchment-200);
+  color: var(--fg-1);
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: var(--tracking-wide);
+}
+
+:global([data-theme="dark"]) .markdownContent th {
+  background: var(--bg-sunken);
+}
+
+.markdownContent hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 1.5em 0;
+}
+
+.markdownContent img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+}
+
+.inlineImage {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  margin: 0.5em 0;
+  display: block;
+}
+
+/* Fallback for frontmatter-only artifacts with no markdown body */
+.rawFallback {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--fg-2);
+  background: var(--bg-sunken);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+}
+
+/* --- Edit mode (textarea) --- */
+
+.editor {
+  background: var(--bg-raised);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rule);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  height: calc(100% - 50px);
+  box-shadow: var(--shadow-sm);
+}
+
+.textarea {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--fg);
+  background: var(--parchment-50);
+  border: 0;
+  padding: var(--space-4);
+  width: 100%;
+  height: 100%;
+  resize: none;
+  outline: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+:global([data-theme="dark"]) .textarea {
+  background: var(--bg-sunken);
+}
+
+.textarea:focus {
+  box-shadow: inset 0 0 0 2px var(--ember-500);
+}
+
+.textarea:disabled {
+  opacity: 0.5;
+}

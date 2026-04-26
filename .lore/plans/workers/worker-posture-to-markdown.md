@@ -15,7 +15,7 @@ Move worker posture text from `guildHall.posture` strings in `package.json` to s
 
 The loader gains backward compatibility: `posture.md` takes precedence, `guildHall.posture` in `package.json` serves as fallback for packages that haven't migrated yet. Fallback removal is a separate future cleanup.
 
-The Guild Master is excluded. It's a built-in worker with no filesystem package directory; its posture is a TypeScript constant in `daemon/services/manager/worker.ts` that already has proper formatting. Moving it would require a different pattern and can be addressed separately.
+The Guild Master is excluded. It's a built-in worker with no filesystem package directory; its posture is a TypeScript constant in `apps/daemon/services/manager/worker.ts` that already has proper formatting. Moving it would require a different pattern and can be addressed separately.
 
 ## Codebase Context
 
@@ -24,12 +24,12 @@ The Guild Master is excluded. It's a built-in worker with no filesystem package 
 **Key files:**
 - `lib/packages.ts` (lines 47-56): `workerMetadataSchema` with `posture: z.string()`
 - `lib/types.ts` (lines 62-71): `WorkerMetadata` interface with `posture: string`
-- `daemon/lib/agent-sdk/sdk-runner.ts` (line 236): `posture: workerMeta.posture` wiring
+- `apps/daemon/lib/agent-sdk/sdk-runner.ts` (line 236): `posture: workerMeta.posture` wiring
 - `packages/shared/worker-activation.ts` (line 4): `context.posture` usage
-- `daemon/services/manager/worker.ts` (lines 16-29, 45): Guild Master posture constant
-- `tests/lib/packages.test.ts`: 27 discovery tests, validates posture extraction
-- `tests/packages/worker-roster.test.ts`: Reads posture directly from `package.json` (bypasses discovery)
-- `tests/packages/worker-role-smoke.test.ts`: Reads posture directly from `package.json` (bypasses discovery)
+- `apps/daemon/services/manager/worker.ts` (lines 16-29, 45): Guild Master posture constant
+- `lib/tests/packages.test.ts`: 27 discovery tests, validates posture extraction
+- `packages/tests/worker-roster.test.ts`: Reads posture directly from `package.json` (bypasses discovery)
+- `packages/tests/worker-role-smoke.test.ts`: Reads posture directly from `package.json` (bypasses discovery)
 
 **Five workers affected:**
 - `packages/guild-hall-developer/package.json`
@@ -93,23 +93,23 @@ The loader's fallback (step 3) ensures that installed packages in `~/.guild-hall
 
 ### Step 5: Update tests
 
-**Files**: `tests/lib/packages.test.ts`, `tests/packages/worker-roster.test.ts`, `tests/packages/worker-role-smoke.test.ts`
+**Files**: `lib/tests/packages.test.ts`, `packages/tests/worker-roster.test.ts`, `packages/tests/worker-role-smoke.test.ts`
 
 Three test files need changes. Two of them (`worker-roster.test.ts` and `worker-role-smoke.test.ts`) read posture directly from `package.json` via `packageJson.guildHall.posture`, bypassing `discoverPackages()` entirely. They will break when Step 4 removes the JSON field.
 
-**`tests/lib/packages.test.ts` -- new tests:**
+**`lib/tests/packages.test.ts` -- new tests:**
 - `discovers posture from posture.md file`: Write a `posture.md` file in the test package directory, verify it's used as the posture
 - `posture.md takes precedence over guildHall.posture`: Write both a `posture.md` file and a `guildHall.posture` field, verify the file wins
 - `falls back to guildHall.posture when no posture.md`: Write only `guildHall.posture` in JSON (no file), verify fallback works
 - `skips worker package with no posture source`: Write a worker package with no `guildHall.posture` and no `posture.md`, verify it's skipped with a warning
 
-**`tests/lib/packages.test.ts` -- updated tests:**
+**`lib/tests/packages.test.ts` -- updated tests:**
 - Keep `validWorkerGuildHall()` factory with its `posture` field for backward-compat fallback tests. Add a `writePackageWithPosture(scanDir, dirName, pkgJson, postureContent)` helper that writes both `package.json` and `posture.md` for file-based tests.
 - `skips packages with missing required fields` (line 339): This test deletes `posture` from metadata. Update it to also ensure no `posture.md` exists, confirming the package is skipped for having no posture source at all.
 
-**`tests/packages/worker-role-smoke.test.ts`:** Update the `readWorkerMetadata()` helper to read posture from `posture.md` in the package directory instead of `packageJson.guildHall.posture`. These tests operate on real packages in `packages/`, not temp directories.
+**`packages/tests/worker-role-smoke.test.ts`:** Update the `readWorkerMetadata()` helper to read posture from `posture.md` in the package directory instead of `packageJson.guildHall.posture`. These tests operate on real packages in `packages/`, not temp directories.
 
-**`tests/packages/worker-roster.test.ts`:** Update the two posture tests that read `packageJson.guildHall.posture` directly. Change them to read `posture.md` from the package directory instead. The `extractPostureSections()` call and guardrail assertions remain the same, only the source of the posture string changes.
+**`packages/tests/worker-roster.test.ts`:** Update the two posture tests that read `packageJson.guildHall.posture` directly. Change them to read `posture.md` from the package directory instead. The `extractPostureSections()` call and guardrail assertions remain the same, only the source of the posture string changes.
 
 ### Step 6: Validate against goal
 
@@ -131,7 +131,7 @@ No specialized expertise is needed for this change. It's a straightforward refac
 
 After implementation, run a fresh-eyes review agent to verify:
 - The posture resolution is wired end-to-end (retro lesson: DI wiring gaps)
-- No stale references to `guildHall.posture` remain in code comments or docs (retro lesson: grep for old terminology). Specifically check `tests/packages/worker-roster.test.ts` and `tests/packages/worker-role-smoke.test.ts` which had direct `packageJson.guildHall.posture` reads.
+- No stale references to `guildHall.posture` remain in code comments or docs (retro lesson: grep for old terminology). Specifically check `packages/tests/worker-roster.test.ts` and `packages/tests/worker-role-smoke.test.ts` which had direct `packageJson.guildHall.posture` reads.
 - The fallback path actually works with both local and installed package layouts
 
 ## Open Questions

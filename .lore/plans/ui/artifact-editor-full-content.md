@@ -19,13 +19,13 @@ The artifact editor at `/projects/[name]/artifacts/[...path]` should display and
 **Current data flow (read path):**
 
 1. `readArtifact()` in `lib/artifacts.ts:131` reads the file, parses with `gray-matter`, returns `content` (body only) and `meta` (parsed frontmatter). The raw file string is available as a local variable but discarded.
-2. The artifact page (`web/app/projects/[name]/artifacts/[...path]/page.tsx:67`) calls `readArtifact()`, passes `artifact.content` as the `body` prop to `ArtifactContent`.
-3. `web/components/artifact/ArtifactContent.tsx:9` shows `body` in both view mode (ReactMarkdown) and edit mode (textarea). For frontmatter-only files, `body` is empty or whitespace.
+2. The artifact page (`apps/web/app/projects/[name]/artifacts/[...path]/page.tsx:67`) calls `readArtifact()`, passes `artifact.content` as the `body` prop to `ArtifactContent`.
+3. `apps/web/components/artifact/ArtifactContent.tsx:9` shows `body` in both view mode (ReactMarkdown) and edit mode (textarea). For frontmatter-only files, `body` is empty or whitespace.
 
 **Current data flow (write path):**
 
 1. `ArtifactContent.tsx` POSTs `{ projectName, artifactPath, content: editContent }` to `PUT /api/artifacts`. `editContent` is the body-only text.
-2. `PUT /api/artifacts` (`web/app/api/artifacts/route.ts`) calls `writeArtifactContent()`.
+2. `PUT /api/artifacts` (`apps/web/app/api/artifacts/route.ts`) calls `writeArtifactContent()`.
 3. `writeArtifactContent()` in `lib/artifacts.ts:170` uses `spliceBody()` to find the frontmatter delimiters in the existing file and replace only the body portion, preserving raw frontmatter bytes.
 
 **Key types:**
@@ -33,7 +33,7 @@ The artifact editor at `/projects/[name]/artifacts/[...path]` should display and
 | Location | Type | Relevant fields |
 |----------|------|-----------------|
 | `lib/types.ts:31` | `Artifact` | `content: string` (body only), `meta: ArtifactMeta` |
-| `web/components/artifact/ArtifactContent.tsx:9` | `ArtifactContentProps` | `body: string` (body only) |
+| `apps/web/components/artifact/ArtifactContent.tsx:9` | `ArtifactContentProps` | `body: string` (body only) |
 
 **Consumers of `readArtifact`:** The artifact page and the meeting page. The meeting page reads `meta` fields from the artifact but does not use `content` for editing. Changes to `readArtifact` won't affect it.
 
@@ -87,7 +87,7 @@ This is the simplest possible write function. Path validation guards against tra
 
 ### Step 4: Update the API route to write raw content
 
-**File:** `web/app/api/artifacts/route.ts`
+**File:** `apps/web/app/api/artifacts/route.ts`
 
 Replace the call to `writeArtifactContent` with `writeRawArtifactContent`. The `content` field in the request body now carries the full raw file text instead of just the body.
 
@@ -95,7 +95,7 @@ No changes to the request schema (`{ projectName, artifactPath, content }`). The
 
 ### Step 5: Update `ArtifactContent` to show full raw content
 
-**File:** `web/components/artifact/ArtifactContent.tsx`
+**File:** `apps/web/components/artifact/ArtifactContent.tsx`
 
 This is the core UI change. One new prop, behavior changes in both modes.
 
@@ -129,7 +129,7 @@ The `handleSave` function already sends `editContent` as `content`. Since `editC
 
 ### Step 6: Update the artifact page to pass `rawContent`
 
-**File:** `web/app/projects/[name]/artifacts/[...path]/page.tsx`
+**File:** `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`
 
 Pass the new prop from the `readArtifact` result.
 
@@ -146,13 +146,13 @@ The fallback to `""` handles the theoretical case where `rawContent` is undefine
 
 ### Step 7: Update tests
 
-**Files:** `tests/lib/artifacts.test.ts`, `tests/api/artifacts-route.test.ts`
+**Files:** `lib/tests/artifacts.test.ts`, `apps/web/tests/api/artifacts-route.test.ts`
 
-**7a. `readArtifact` tests** (`tests/lib/artifacts.test.ts`):
+**7a. `readArtifact` tests** (`lib/tests/artifacts.test.ts`):
 
 Add assertions to the existing `readArtifact` describe block verifying `rawContent` contains the full file including frontmatter delimiters. Add a dedicated test for a frontmatter-only file (no body) confirming `rawContent` has the frontmatter and `content` is empty/whitespace.
 
-**7b. `writeRawArtifactContent` tests** (`tests/lib/artifacts.test.ts`):
+**7b. `writeRawArtifactContent` tests** (`lib/tests/artifacts.test.ts`):
 
 New describe block for `writeRawArtifactContent`:
 - Writes full raw content including frontmatter and body, then reads back and verifies exact match.
@@ -160,7 +160,7 @@ New describe block for `writeRawArtifactContent`:
 - Path traversal rejection (same as existing `writeArtifactContent` test).
 - Handles files with no frontmatter (writes raw text directly).
 
-**7c. API route tests** (`tests/api/artifacts-route.test.ts`):
+**7c. API route tests** (`apps/web/tests/api/artifacts-route.test.ts`):
 
 Update the existing "saves artifact content preserving frontmatter" test. The request body's `content` field should now contain full raw text (frontmatter + body). After save, read the file back and verify it matches the sent content exactly. Add a test case for saving a frontmatter-only file (verifies round-trip: read raw, edit frontmatter, save, read back).
 

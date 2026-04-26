@@ -21,9 +21,9 @@ Fix artifact sort order across seven display surfaces so each surface sorts acco
 - `lib/artifacts.ts:251-257`: `recentArtifacts()` delegates to `scanArtifacts()` which uses `compareArtifacts()`. The dashboard "Recent Scrolls" sorts by status-then-date instead of by modification time.
 - `lib/artifact-grouping.ts:141-152`: `sortTreeLevel()` sorts all nodes (directories and leaves) alphabetically by name. No status-aware sorting for leaf nodes.
 - `lib/commissions.ts:237-267`: `sortCommissions()` is correct. Four-group model with directional date sorting.
-- `web/components/dashboard/DependencyMap.tsx:20-44`: Duplicate `sortCommissions()` with a simpler three-bucket model. Should import from `lib/commissions.ts`.
-- `web/app/projects/[name]/page.tsx:54-60`: Inline meeting sort (open first, then date desc). Correct logic, wrong location.
-- `web/app/page.tsx:52-66`: Inline meeting request sort (non-deferred first, deferred by `deferred_until` asc, then date desc). Correct logic, wrong location.
+- `apps/web/components/dashboard/DependencyMap.tsx:20-44`: Duplicate `sortCommissions()` with a simpler three-bucket model. Should import from `lib/commissions.ts`.
+- `apps/web/app/projects/[name]/page.tsx:54-60`: Inline meeting sort (open first, then date desc). Correct logic, wrong location.
+- `apps/web/app/page.tsx:52-66`: Inline meeting request sort (non-deferred first, deferred by `deferred_until` asc, then date desc). Correct logic, wrong location.
 
 **Status vocabulary (from `lib/types.ts:152-172`):**
 - `ACTIVE_STATUSES`: approved, active, current, complete, resolved, in_progress, dispatched
@@ -33,10 +33,10 @@ Fix artifact sort order across seven display surfaces so each surface sorts acco
 The spec regroups these for browsing priority (REQ-SORT-4), which differs from the gem color grouping.
 
 **Existing test coverage:**
-- `tests/lib/artifacts.test.ts`: Tests for `compareArtifacts()` using the old three-bucket model. Tests for `recentArtifacts()` that assert status-based ordering. Both must be updated.
-- `tests/lib/artifact-grouping.test.ts`: Tests for `buildArtifactTree()` and `sortTreeLevel()`. The "children within a directory sort alphabetically" test will need updating to verify status-then-title sorting.
-- `tests/lib/commissions.test.ts`: Existing. Commission sort tests should remain unchanged.
-- `tests/lib/meetings.test.ts`: Existing. No sort function tests (sorting was inline in page components).
+- `lib/tests/artifacts.test.ts`: Tests for `compareArtifacts()` using the old three-bucket model. Tests for `recentArtifacts()` that assert status-based ordering. Both must be updated.
+- `lib/tests/artifact-grouping.test.ts`: Tests for `buildArtifactTree()` and `sortTreeLevel()`. The "children within a directory sort alphabetically" test will need updating to verify status-then-title sorting.
+- `lib/tests/commissions.test.ts`: Existing. Commission sort tests should remain unchanged.
+- `lib/tests/meetings.test.ts`: Existing. No sort function tests (sorting was inline in page components).
 
 ## Implementation Steps
 
@@ -122,7 +122,7 @@ Check for circular imports: `lib/artifact-grouping.ts` currently imports only fr
 
 #### Step 4: Add `sortMeetingArtifacts()` to `lib/meetings.ts`
 
-**Files:** `lib/meetings.ts`, `web/app/projects/[name]/page.tsx`
+**Files:** `lib/meetings.ts`, `apps/web/app/projects/[name]/page.tsx`
 **REQ IDs:** REQ-SORT-10, REQ-SORT-2
 **Risk:** Low. Extracting existing logic; no behavior change.
 
@@ -139,14 +139,14 @@ export function sortMeetingArtifacts(meetings: Artifact[]): Artifact[] {
 }
 ```
 
-This is the exact logic from `web/app/projects/[name]/page.tsx:54-60`. The function takes `Artifact[]` (not `MeetingMeta[]`) because meetings on the project page are scanned via `scanArtifacts()` on the meetings subdirectory.
+This is the exact logic from `apps/web/app/projects/[name]/page.tsx:54-60`. The function takes `Artifact[]` (not `MeetingMeta[]`) because meetings on the project page are scanned via `scanArtifacts()` on the meetings subdirectory.
 
-Update `web/app/projects/[name]/page.tsx` to import `sortMeetingArtifacts` and replace the inline `.sort()` call at lines 54-60 with `sortMeetingArtifacts(mergedMeetings)`.
+Update `apps/web/app/projects/[name]/page.tsx` to import `sortMeetingArtifacts` and replace the inline `.sort()` call at lines 54-60 with `sortMeetingArtifacts(mergedMeetings)`.
 
 Note: `lib/meetings.ts` currently imports from `lib/types` (for `isNodeError`). Adding an import of the `Artifact` type from `lib/types` is straightforward since it's already in that module.
 
 **Test strategy:**
-- Add tests in `tests/lib/meetings.test.ts` for `sortMeetingArtifacts()`:
+- Add tests in `lib/tests/meetings.test.ts` for `sortMeetingArtifacts()`:
   - Open meetings sort before non-open meetings.
   - Within the same status group, newer dates sort first.
   - Missing dates sort after present dates.
@@ -154,7 +154,7 @@ Note: `lib/meetings.ts` currently imports from `lib/types` (for `isNodeError`). 
 
 #### Step 5: Add `sortMeetingRequests()` to `lib/meetings.ts`
 
-**Files:** `lib/meetings.ts`, `web/app/page.tsx`
+**Files:** `lib/meetings.ts`, `apps/web/app/page.tsx`
 **REQ IDs:** REQ-SORT-11, REQ-SORT-2
 **Risk:** Low. Extracting existing logic; no behavior change.
 
@@ -179,10 +179,10 @@ export function sortMeetingRequests(requests: MeetingMeta[]): MeetingMeta[] {
 }
 ```
 
-This is the exact logic from `web/app/page.tsx:53-66`. Update `web/app/page.tsx` to import `sortMeetingRequests` from `lib/meetings` and replace the inline `allRequests.sort(...)` block with `const sortedRequests = sortMeetingRequests(allRequests)`. Pass `sortedRequests` to the `PendingAudiences` component instead of `allRequests`.
+This is the exact logic from `apps/web/app/page.tsx:53-66`. Update `apps/web/app/page.tsx` to import `sortMeetingRequests` from `lib/meetings` and replace the inline `allRequests.sort(...)` block with `const sortedRequests = sortMeetingRequests(allRequests)`. Pass `sortedRequests` to the `PendingAudiences` component instead of `allRequests`.
 
 **Test strategy:**
-- Add tests in `tests/lib/meetings.test.ts` for `sortMeetingRequests()`:
+- Add tests in `lib/tests/meetings.test.ts` for `sortMeetingRequests()`:
   - Non-deferred requests sort before deferred requests.
   - Deferred requests sort by `deferred_until` ascending.
   - Within the same deferred group, newer dates sort first.
@@ -192,7 +192,7 @@ This is the exact logic from `web/app/page.tsx:53-66`. Update `web/app/page.tsx`
 
 #### Step 6: Remove duplicate `sortCommissions()` from DependencyMap
 
-**Files:** `web/components/dashboard/DependencyMap.tsx`
+**Files:** `apps/web/components/dashboard/DependencyMap.tsx`
 **REQ IDs:** REQ-SORT-8, REQ-SORT-9
 **Risk:** Low. The `lib/commissions.ts` version is more correct (four-group model with directional date sorting). The DependencyMap's three-bucket model is a simplification that loses information.
 
@@ -200,10 +200,10 @@ Remove the local `STATUS_PRIORITY`, `statusPriority()`, and `sortCommissions()` 
 
 The `commissionHref` function (lines 49-54) stays, as it's view-specific.
 
-Note that `DependencyMap` receives `commissions` already sorted by `lib/commissions.ts` (via `scanCommissions()` in `web/app/page.tsx:37-41`). The local `sortCommissions` call at line 62 is redundant with the pre-sorted input. After switching to the `lib/` import, the sort call is still safe (re-sorting an already-sorted array with the same comparator is a no-op) but could be removed entirely. The spec says to consolidate, not remove, so keep the import and call for clarity. If the `DependencyMap` ever receives unsorted input (e.g., from a different page), the sort call protects against that.
+Note that `DependencyMap` receives `commissions` already sorted by `lib/commissions.ts` (via `scanCommissions()` in `apps/web/app/page.tsx:37-41`). The local `sortCommissions` call at line 62 is redundant with the pre-sorted input. After switching to the `lib/` import, the sort call is still safe (re-sorting an already-sorted array with the same comparator is a no-op) but could be removed entirely. The spec says to consolidate, not remove, so keep the import and call for clarity. If the `DependencyMap` ever receives unsorted input (e.g., from a different page), the sort call protects against that.
 
 **Test strategy:**
-- The commission sort logic itself is already tested in `tests/lib/commissions.test.ts`. No new sort tests needed.
+- The commission sort logic itself is already tested in `lib/tests/commissions.test.ts`. No new sort tests needed.
 - Verify `DependencyMap` no longer has a local `sortCommissions` (code review / grep).
 - Verify `DependencyMap` imports from `@/lib/commissions`.
 - Commission sort deduplication test (from spec AI Validation): confirm `DependencyMap` and `CommissionList` both consume the same sort function.
@@ -216,7 +216,7 @@ Note that `DependencyMap` receives `commissions` already sorted by `lib/commissi
 **REQ IDs:** REQ-SORT-12
 **Risk:** None.
 
-Commission linked artifacts (`web/app/projects/[name]/commissions/[id]/page.tsx:22-49`) render in frontmatter array order. The spec explicitly says no sorting function is needed. Verify by reading the code (already confirmed in the spec analysis above). No code changes.
+Commission linked artifacts (`apps/web/app/projects/[name]/commissions/[id]/page.tsx:22-49`) render in frontmatter array order. The spec explicitly says no sorting function is needed. Verify by reading the code (already confirmed in the spec analysis above). No code changes.
 
 #### Step 8: Full test suite and review
 

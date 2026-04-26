@@ -1,0 +1,33 @@
+/* ============================================================
+   ImageArtifactView — framed image plate
+   Drops the ornate border-image webp; uses the .plate
+   convention from guild.css (subtle inset highlight + ink rim).
+   ============================================================ */
+
+.viewer {
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-2);
+  position: relative;
+}
+
+.imageContainer {
+  padding: var(--space-6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  background: var(--bg-sunken);
+  border-radius: var(--radius);
+}
+
+.image {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), inset 0 0 0 1px rgba(26, 20, 14, 0.15);
+}

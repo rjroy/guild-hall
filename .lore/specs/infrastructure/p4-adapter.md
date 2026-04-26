@@ -28,15 +28,15 @@ This approach was chosen over four alternatives evaluated in `.lore/research/per
 
 ## Architecture Boundary
 
-- REQ-P4A-1: The adapter lives in `p4-adapter/` at the guild-hall repo root. It is a sibling to `cli/`, `daemon/`, `web/`, and `packages/`. It has its own entry point, its own tests, and its own `package.json`.
+- REQ-P4A-1: The adapter lives in `lib/p4-adapter/` within the guild-hall repo. It sits alongside other `lib/` modules but maintains its own entry point, its own tests, and its own `package.json`. Despite its location under `lib/`, it is not imported by other `lib/` modules or by apps.
 
-- REQ-P4A-2: The adapter must not import from `daemon/`, `web/`, `lib/`, or `packages/`. None of those systems import from `p4-adapter/`. The adapter is colocated in the repo for convenience, not coupled to Guild Hall's runtime. It can be extracted to a standalone repo without code changes.
+- REQ-P4A-2: The adapter must not import from `apps/daemon/`, `apps/web/`, `apps/cli/`, other `lib/` modules, or `packages/`. None of those systems import from `lib/p4-adapter/`. The adapter is colocated in the repo for convenience, not coupled to Guild Hall's runtime. It can be extracted to a standalone repo without code changes.
 
 - REQ-P4A-3: Guild Hall's daemon, web UI, CLI, and worker packages must not reference P4, Perforce, or the adapter in any way. Guild Hall sees a git repo. That is the full extent of its knowledge. The adapter is the only artifact in the system that knows Perforce exists.
 
 - REQ-P4A-36: The adapter must never call `p4 submit`. Its P4 write surface is limited to `p4 add`, `p4 edit`, `p4 delete`, `p4 shelve`, and `p4 revert`. Submitting changes to the depot is a human decision made through Swarm review, not an adapter operation. This is a safety constraint, not a current limitation. If a future feature needs depot submission, it requires a deliberate spec change with its own review.
 
-- REQ-P4A-4: The adapter is a Bun CLI script. It follows the same pattern as `cli/index.ts`: a standalone entry point that can be run with `bun run p4-adapter/index.ts <command>`. No framework required.
+- REQ-P4A-4: The adapter is a Bun CLI script. It follows the same pattern as `apps/cli/index.ts`: a standalone entry point that can be run with `bun run lib/p4-adapter/index.ts <command>`. No framework required.
 
 ## The Cycle
 
@@ -287,7 +287,7 @@ Reset is not a separate command. Running `init` on an existing workspace destroy
 
 ## Testing
 
-- REQ-P4A-33: The adapter has its own test suite in `p4-adapter/tests/`. Tests do not depend on a live P4 server. P4 commands are injected as a dependency (function parameter or configuration object) so tests can substitute mock implementations.
+- REQ-P4A-33: The adapter has its own test suite in `lib/tests/p4-adapter/`. Tests do not depend on a live P4 server. P4 commands are injected as a dependency (function parameter or configuration object) so tests can substitute mock implementations.
 
 - REQ-P4A-34: Tests must cover:
 
@@ -330,17 +330,17 @@ Reset is not a separate command. Running `init` on an existing workspace destroy
 
 | Path | Purpose |
 |------|---------|
-| `p4-adapter/index.ts` | CLI entry point, argument parsing, command dispatch |
-| `p4-adapter/init.ts` | `init` command implementation |
-| `p4-adapter/shelve.ts` | `shelve` command implementation |
-| `p4-adapter/p4.ts` | P4 subprocess wrapper (injectable for testing) |
-| `p4-adapter/gitignore.ts` | `.gitignore` whitelist validation (parent chain check) |
-| `p4-adapter/state.ts` | `.p4-adapter.json` read/write |
-| `p4-adapter/package.json` | Package definition, no dependencies on guild-hall packages |
-| `p4-adapter/tsconfig.json` | TypeScript config, standalone (does not extend root) |
-| `p4-adapter/tests/init.test.ts` | `init` command tests |
-| `p4-adapter/tests/shelve.test.ts` | `shelve` command tests |
-| `p4-adapter/tests/gitignore.test.ts` | Whitelist validation tests |
+| `lib/p4-adapter/index.ts` | CLI entry point, argument parsing, command dispatch |
+| `lib/p4-adapter/init.ts` | `init` command implementation |
+| `lib/p4-adapter/shelve.ts` | `shelve` command implementation |
+| `lib/p4-adapter/p4.ts` | P4 subprocess wrapper (injectable for testing) |
+| `lib/p4-adapter/gitignore.ts` | `.gitignore` whitelist validation (parent chain check) |
+| `lib/p4-adapter/state.ts` | `.p4-adapter.json` read/write |
+| `lib/p4-adapter/package.json` | Package definition, no dependencies on guild-hall packages |
+| `lib/p4-adapter/tsconfig.json` | TypeScript config, standalone (does not extend root) |
+| `lib/tests/p4-adapter/init.test.ts` | `init` command tests |
+| `lib/tests/p4-adapter/shelve.test.ts` | `shelve` command tests |
+| `lib/tests/p4-adapter/gitignore.test.ts` | Whitelist validation tests |
 
 ## Out of Scope
 
@@ -367,7 +367,7 @@ Reset is not a separate command. Running `init` on an existing workspace destroy
 - [ ] `p4-adapter shelve` runs conflict detection against baseline changelist
 - [ ] `p4-adapter shelve` creates a standard P4 shelved changelist
 - [ ] `p4-adapter shelve` cleans up on failure (revert, delete pending changelist)
-- [ ] Adapter has no imports from `daemon/`, `web/`, `lib/`, or `packages/`
+- [ ] Adapter has no imports from `apps/daemon/`, `apps/web/`, `apps/cli/`, other `lib/` modules, or `packages/`
 - [ ] `p4-adapter init` fails when active git worktrees exist
 - [ ] `p4-adapter shelve` fails when active git worktrees exist
 - [ ] `p4-adapter shelve --force` proceeds with a warning when conflicts are detected
@@ -375,3 +375,7 @@ Reset is not a separate command. Running `init` on an existing workspace destroy
 - [ ] All tests pass per REQ-P4A-34
 - [ ] Adapter never calls `p4 submit` (REQ-P4A-36)
 - [ ] P4 triggers and Swarm reviews work normally against adapter-created shelves
+
+## Location History
+
+Location updated per `.lore/specs/infrastructure/repository-layout.md`; initial move committed in `4b7ded40`, path references reconciled in this repository-layout refactor.

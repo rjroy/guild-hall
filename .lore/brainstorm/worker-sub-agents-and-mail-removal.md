@@ -23,7 +23,7 @@ The mail system should be removed. In its place, two simpler patterns cover the 
 
 ### Evidence
 
-The mail system (`daemon/services/mail/`) implements sleep/wake commission orchestration, a mail reader activation pipeline, capacity management, and recovery logic. It touches the commission toolbox (`send_mail` tool), a dedicated mail toolbox (`reply` tool), the context type registry (`"mail"` context), the commission lifecycle (`sleeping` status), capacity management (`maxConcurrentMailReaders`), the event bus (`commission_mail_sent`, `mail_reply_received`), and config schema. Approximately 500 lines of implementation, 200 lines of infrastructure integration, and 135K of orchestrator tests.
+The mail system (`apps/daemon/services/mail/`) implements sleep/wake commission orchestration, a mail reader activation pipeline, capacity management, and recovery logic. It touches the commission toolbox (`send_mail` tool), a dedicated mail toolbox (`reply` tool), the context type registry (`"mail"` context), the commission lifecycle (`sleeping` status), capacity management (`maxConcurrentMailReaders`), the event bus (`commission_mail_sent`, `mail_reply_received`), and config schema. Approximately 500 lines of implementation, 200 lines of infrastructure integration, and 135K of orchestrator tests.
 
 No commission in the project's history has used `send_mail`. The pattern assumes voluntary delegation, which contradicts how action-biased agents behave.
 
@@ -31,7 +31,7 @@ No commission in the project's history has used `send_mail`. The pattern assumes
 
 Remove the mail system entirely:
 
-1. Delete `daemon/services/mail/` (orchestrator, toolbox, record, types)
+1. Delete `apps/daemon/services/mail/` (orchestrator, toolbox, record, types)
 2. Remove `send_mail` from commission toolbox, `reply` from mail toolbox
 3. Remove `"mail"` context type from context-type-registry
 4. Remove `sleeping` status from commission lifecycle state machine
@@ -121,7 +121,7 @@ The `halted` state (added in #117) comes closest but means "ran out of turns," n
 
 Add an `incomplete` terminal status to the commission lifecycle:
 
-1. Add `"incomplete"` to `CommissionStatus` in `daemon/types.ts`
+1. Add `"incomplete"` to `CommissionStatus` in `apps/daemon/types.ts`
 2. Add transition `in_progress -> incomplete` to the lifecycle state machine
 3. Add a `submit_incomplete` tool to the commission toolbox, alongside `submit_result`:
    - Parameters: `summary` (what was accomplished), `reason` (why the worker stopped), `annotation` (what should happen next, for the Guild Master)

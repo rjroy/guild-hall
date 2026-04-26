@@ -46,9 +46,9 @@ Steps 1 and 2 are shared. Step 3 is MCP-specific. The refactor extracts 1+2 into
 
 The daemon already supports `operationFactory` as a package export:
 
-- **`daemon/services/operation-types.ts`**: Defines `OperationFactory`, `OperationFactoryDeps`, `PackageOperation`, `OperationHandlerResult`, `OperationHandlerError`, `OperationHandlerContext`.
-- **`daemon/services/operations-loader.ts`**: `loadPackageOperations()` iterates discovered packages, imports entry points, calls `operationFactory` if present, validates output.
-- **`daemon/routes/package-operations.ts`**: `createPackageOperationRoutes()` generates Hono routes from `PackageOperation[]` with context validation, parameter extraction, error handling.
+- **`apps/daemon/services/operation-types.ts`**: Defines `OperationFactory`, `OperationFactoryDeps`, `PackageOperation`, `OperationHandlerResult`, `OperationHandlerError`, `OperationHandlerContext`.
+- **`apps/daemon/services/operations-loader.ts`**: `loadPackageOperations()` iterates discovered packages, imports entry points, calls `operationFactory` if present, validates output.
+- **`apps/daemon/routes/package-operations.ts`**: `createPackageOperationRoutes()` generates Hono routes from `PackageOperation[]` with context validation, parameter extraction, error handling.
 - Tests exist for both the loader (10 tests) and routes (18 tests).
 
 No package currently exports `operationFactory`. The email package will be the first.
@@ -57,7 +57,7 @@ No package currently exports `operationFactory`. The email package will be the f
 
 An earlier issue proposed deriving `operationFactory` from `toolboxFactory` (auto-generating REST handlers from MCP tool definitions). A Dalton commission attempted this and abandoned it with the note "this was a bad idea." REQ-DAB-20 confirms the correct approach: independent factories, shared core. This plan follows that.
 
-**Terminology note:** The design document at `.lore/design/package-operation-handler.md` uses the old "skill" terminology throughout (`SkillFactory`, `SkillHandlerContext`, etc.). It has a rename note at the top. Use `daemon/services/operation-types.ts` as the authoritative source for current type names.
+**Terminology note:** The design document at `.lore/design/package-operation-handler.md` uses the old "skill" terminology throughout (`SkillFactory`, `SkillHandlerContext`, etc.). It has a rename note at the top. Use `apps/daemon/services/operation-types.ts` as the authoritative source for current type names.
 
 ## Implementation Steps
 
@@ -154,7 +154,7 @@ These schemas serve double duty: they validate REST parameters and they document
 
 ### Step 6: Write tests for core functions
 
-**Files**: `tests/packages/guild-hall-email/core.test.ts` (new)
+**Files**: `packages/guild-hall-email/tests/core.test.ts` (new)
 
 Test each core function in isolation with a mocked `JmapClient`:
 
@@ -167,7 +167,7 @@ These tests verify the domain logic that was previously only testable through th
 
 ### Step 7: Write tests for operation handlers
 
-**Files**: `tests/packages/guild-hall-email/operations.test.ts` (new)
+**Files**: `packages/guild-hall-email/tests/operations.test.ts` (new)
 
 Test the `operationFactory` output:
 
@@ -179,7 +179,7 @@ Test the `operationFactory` output:
 
 ### Step 8: Update existing MCP tool tests
 
-**Files**: `tests/packages/guild-hall-email/tools.test.ts` (existing, if any)
+**Files**: `packages/guild-hall-email/tests/tools.test.ts` (existing, if any)
 
 Verify existing tests still pass after the `tools.ts` refactor. If the test file calls maker functions directly, the tests should work without changes since the external interface (`makeXxxHandler` returning `Promise<ToolResult>`) is unchanged.
 
@@ -188,7 +188,7 @@ Verify existing tests still pass after the `tools.ts` refactor. If the test file
 Launch a sub-agent that reads this plan's Goal section, reviews the implementation, and flags anything that doesn't match. Specifically verify:
 
 - Both `toolboxFactory` and `operationFactory` are exported from `index.ts`
-- Core logic in `core.ts` has no imports from `@/daemon/types` (no MCP types) or `operation-types` (no REST types)
+- Core logic in `core.ts` has no imports from `@/apps/daemon/types` (no MCP types) or `operation-types` (no REST types)
 - `tools.ts` and `operations.ts` are thin wrappers (each handler body is under ~10 lines)
 - The `operations-loader` successfully discovers and loads the email package's `operationFactory`
 - All tests pass
@@ -197,7 +197,7 @@ Launch a sub-agent that reads this plan's Goal section, reviews the implementati
 
 Steps 1-5 are straightforward refactoring. No specialized expertise needed beyond familiarity with the codebase patterns.
 
-- **Steps 6-7** (tests): Standard test writing. The implementer should use the mock `JmapClient` pattern from existing email package tests at `tests/packages/guild-hall-email/`.
+- **Steps 6-7** (tests): Standard test writing. The implementer should use the mock `JmapClient` pattern from existing email package tests at `packages/guild-hall-email/tests/`.
 - **Step 9** (validation): Use a fresh-context sub-agent to verify. Consult `.lore/lore-agents.md` if available; otherwise use a general-purpose code review agent.
 
 ## Open Questions

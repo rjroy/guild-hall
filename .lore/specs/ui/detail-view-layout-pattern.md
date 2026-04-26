@@ -161,10 +161,10 @@ The commission view has no fixed footer. The notes input (`CommissionNotes`) is 
 
 | File | Change |
 |------|--------|
-| `web/app/projects/[name]/commissions/[id]/page.module.css` | `.commissionView`: replace `min-height: 100vh` with `height: 100vh; height: 100dvh; overflow: hidden` |
-| `web/components/commission/CommissionHeader.tsx` | Add `"use client"`. Add `condensed` state, toggle button, matchMedia default. Render expanded or condensed layout. |
-| `web/components/commission/CommissionHeader.module.css` | Add `.headerCondensed` (simple border, compact single-row), `.toggleButton`, `max-height` transition on `.header`. Restructure expanded content for flex row in condensed state. |
-| `web/components/commission/CommissionView.module.css` | `.main`: add `overflow-y: auto`. `.sidebar`: add `overflow-y: auto`. At 768px stacked breakpoint: both get `flex: 1; min-height: 200px`. |
+| `apps/web/app/projects/[name]/commissions/[id]/page.module.css` | `.commissionView`: replace `min-height: 100vh` with `height: 100vh; height: 100dvh; overflow: hidden` |
+| `apps/web/components/commission/CommissionHeader.tsx` | Add `"use client"`. Add `condensed` state, toggle button, matchMedia default. Render expanded or condensed layout. |
+| `apps/web/components/commission/CommissionHeader.module.css` | Add `.headerCondensed` (simple border, compact single-row), `.toggleButton`, `max-height` transition on `.header`. Restructure expanded content for flex row in condensed state. |
+| `apps/web/components/commission/CommissionView.module.css` | `.main`: add `overflow-y: auto`. `.sidebar`: add `overflow-y: auto`. At 768px stacked breakpoint: both get `flex: 1; min-height: 200px`. |
 
 ## Artifact Detail View
 
@@ -248,10 +248,10 @@ The artifact view has no input area or action bar. No footer zone is needed.
 
 | File | Change |
 |------|--------|
-| `web/app/projects/[name]/artifacts/[...path]/page.tsx` | Move `ArtifactProvenance` and `meetingBanner` out of `.main`. Wrap remaining main+sidebar in a new `.artifactBody` div. Same restructure for the image artifact branch. |
-| `web/app/projects/[name]/artifacts/[...path]/page.module.css` | `.artifactView`: change to column layout with viewport lock. Add `.artifactBody` (flex row, flex: 1, min-height: 0). `.main`: add `overflow-y: auto`. `.sidebar`: add `overflow-y: auto`. |
-| `web/components/artifact/ArtifactProvenance.tsx` | Add `"use client"`. Add `condensed` state, toggle button, matchMedia default. Render expanded or condensed layout. |
-| `web/components/artifact/ArtifactProvenance.module.css` | Add `.provenanceCondensed` (simple border, compact single-row), `.toggleButton`, `max-height` transition on `.provenance`. |
+| `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` | Move `ArtifactProvenance` and `meetingBanner` out of `.main`. Wrap remaining main+sidebar in a new `.artifactBody` div. Same restructure for the image artifact branch. |
+| `apps/web/app/projects/[name]/artifacts/[...path]/page.module.css` | `.artifactView`: change to column layout with viewport lock. Add `.artifactBody` (flex row, flex: 1, min-height: 0). `.main`: add `overflow-y: auto`. `.sidebar`: add `overflow-y: auto`. |
+| `apps/web/components/artifact/ArtifactProvenance.tsx` | Add `"use client"`. Add `condensed` state, toggle button, matchMedia default. Render expanded or condensed layout. |
+| `apps/web/components/artifact/ArtifactProvenance.module.css` | Add `.provenanceCondensed` (simple border, compact single-row), `.toggleButton`, `max-height` transition on `.provenance`. |
 
 ## Breakpoint Summary
 

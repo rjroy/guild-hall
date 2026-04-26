@@ -305,8 +305,8 @@ A package that contributes both agent tools and public skills exports both:
 ```typescript
 // packages/guild-hall-writer/index.ts
 
-import type { ToolboxFactory } from "@/daemon/services/toolbox-types";
-import type { SkillFactory } from "@/daemon/services/skill-types";
+import type { ToolboxFactory } from "@/apps/daemon/services/toolbox-types";
+import type { SkillFactory } from "@/apps/daemon/services/skill-types";
 
 export const toolboxFactory: ToolboxFactory = (deps) => { /* MCP tools */ };
 export const skillFactory: SkillFactory = (deps) => { /* public skills */ };

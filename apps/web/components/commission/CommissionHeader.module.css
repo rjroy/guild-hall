@@ -1,0 +1,113 @@
+/* ============================================================
+   CommissionHeader — guild charter banner
+   ============================================================ */
+
+/* --- Condensed row layout --- */
+
+.condensedRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  overflow: hidden;
+}
+
+.condensedContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.condensedTitle {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.condensedTrailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.condensedStatus {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .condensedStatus {
+  color: var(--ember-300);
+}
+
+.condensedModel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.expandedToggle {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-4);
+}
+
+/* --- Title row --- */
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-snug);
+  color: var(--fg-1);
+  margin: 0;
+}
+
+/* --- Metadata row --- */
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+}
+
+.statusBadge {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .statusBadge {
+  color: var(--ember-300);
+}
+
+.workerLabel {
+  color: var(--fg-2);
+  font-style: italic;
+}
+
+.modelLabel {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-3);
+}

@@ -47,12 +47,12 @@ Requirements addressed:
 
 ### EventBus and event types
 
-`daemon/lib/event-bus.ts` defines 13 `SystemEvent` variants. The two we care about:
+`apps/daemon/lib/event-bus.ts` defines 13 `SystemEvent` variants. The two we care about:
 
-- `commission_result`: carries `commissionId`, `summary`, and optional `artifacts[]`. Emitted by the commission toolbox factory (`daemon/services/commission/toolbox.ts:328-333`) when the worker calls `submit_result`. Does **not** carry `projectName`.
-- `meeting_ended`: carries only `meetingId`. Emitted by the meeting orchestrator (`daemon/services/meeting/orchestrator.ts:1194, 1234, 1361`) after notes are written and the state file is deleted.
+- `commission_result`: carries `commissionId`, `summary`, and optional `artifacts[]`. Emitted by the commission toolbox factory (`apps/daemon/services/commission/toolbox.ts:328-333`) when the worker calls `submit_result`. Does **not** carry `projectName`.
+- `meeting_ended`: carries only `meetingId`. Emitted by the meeting orchestrator (`apps/daemon/services/meeting/orchestrator.ts:1194, 1234, 1361`) after notes are written and the state file is deleted.
 
-The EventBus subscription pattern is synchronous (`eventBus.subscribe(callback)`) returning an unsubscribe callback. The Event Router (`daemon/services/event-router.ts:91-130`) is the existing reference for this pattern: subscribe in a factory, dispatch asynchronously, return the unsubscribe function.
+The EventBus subscription pattern is synchronous (`eventBus.subscribe(callback)`) returning an unsubscribe callback. The Event Router (`apps/daemon/services/event-router.ts:91-130`) is the existing reference for this pattern: subscribe in a factory, dispatch asynchronously, return the unsubscribe function.
 
 ### Activity artifacts and project resolution
 
@@ -62,17 +62,17 @@ The triage service needs to reverse-lookup `projectName` from a commission/meeti
 
 Commission artifacts have YAML frontmatter with `worker`, `task`, `status`, and `linked_artifacts` fields. Meeting artifacts have `worker`, `agenda`, `status`, and `linked_artifacts`. Both are gray-matter parseable.
 
-Meeting notes are written to the artifact body (below the frontmatter closing `---`). The notes generator runs before `meeting_ended` fires (`daemon/services/meeting/orchestrator.ts:1172-1194`), so the body content is available when triage reads the artifact.
+Meeting notes are written to the artifact body (below the frontmatter closing `---`). The notes generator runs before `meeting_ended` fires (`apps/daemon/services/meeting/orchestrator.ts:1172-1194`), so the body content is available when triage reads the artifact.
 
 ### Memory system
 
-`daemon/services/base-toolbox.ts` exports `makeReadMemoryHandler` and `makeEditMemoryHandler`. Both take `guildHallHome`, `workerName`, `projectName`, and a shared `readScopes: Set<string>`. The read-before-write guard (REQ-MEM-27) uses this set to enforce that `read_memory` is called before `edit_memory` for a scope.
+`apps/daemon/services/base-toolbox.ts` exports `makeReadMemoryHandler` and `makeEditMemoryHandler`. Both take `guildHallHome`, `workerName`, `projectName`, and a shared `readScopes: Set<string>`. The read-before-write guard (REQ-MEM-27) uses this set to enforce that `read_memory` is called before `edit_memory` for a scope.
 
-`daemon/services/memory-injector.ts` exports `memoryScopeFile` for resolving file paths per scope. The triage service doesn't inject memory into the prompt. Instead, it gives the model `read_memory` and `edit_memory` tools, and the prompt instructs the model to read first.
+`apps/daemon/services/memory-injector.ts` exports `memoryScopeFile` for resolving file paths per scope. The triage service doesn't inject memory into the prompt. Instead, it gives the model `read_memory` and `edit_memory` tools, and the prompt instructs the model to read first.
 
 ### SDK session creation
 
-The spec explicitly says the triage call does **not** use the full `runSdkSession`/`prepareSdkSession` pipeline from `daemon/lib/agent-sdk/sdk-runner.ts`. That pipeline handles worktree resolution, toolbox composition, memory injection, worker activation, domain plugins, sandbox settings, and model resolution. The triage call needs none of that. It needs:
+The spec explicitly says the triage call does **not** use the full `runSdkSession`/`prepareSdkSession` pipeline from `apps/daemon/lib/agent-sdk/sdk-runner.ts`. That pipeline handles worktree resolution, toolbox composition, memory injection, worker activation, domain plugins, sandbox settings, and model resolution. The triage call needs none of that. It needs:
 
 1. A `query` function from the Claude Agent SDK.
 2. A system prompt (the triage template).
@@ -81,16 +81,16 @@ The spec explicitly says the triage call does **not** use the full `runSdkSessio
 5. A model ID (`claude-haiku-4-5-20251001`).
 6. A turn limit (10).
 
-The SDK's `query` function is already dynamically imported in `daemon/app.ts:272-281`. The triage service receives it as a dependency.
+The SDK's `query` function is already dynamically imported in `apps/daemon/app.ts:272-281`. The triage service receives it as a dependency.
 
 ### Production wiring
 
-`daemon/app.ts:createProductionApp()` creates services in dependency order: EventBus → config → git → packages → commissions → meetings → scheduler → briefing → event router. The outcome triage service fits after the event router, using the same EventBus and config. It's added to the `shutdown` function alongside `unsubscribeRouter()`.
+`apps/daemon/app.ts:createProductionApp()` creates services in dependency order: EventBus → config → git → packages → commissions → meetings → scheduler → briefing → event router. The outcome triage service fits after the event router, using the same EventBus and config. It's added to the `shutdown` function alongside `unsubscribeRouter()`.
 
 ### Existing test patterns
 
-- Event router tests (`tests/daemon/services/event-router.test.ts`) use `createEventBus(nullLog())` and injected mock dispatch functions.
-- Base toolbox tests (`tests/daemon/base-toolbox.test.ts`) create `readScopes` sets and call handler factories directly.
+- Event router tests (`apps/daemon/tests/services/event-router.test.ts`) use `createEventBus(nullLog())` and injected mock dispatch functions.
+- Base toolbox tests (`apps/daemon/tests/base-toolbox.test.ts`) create `readScopes` sets and call handler factories directly.
 - SDK runner tests mock `queryFn` with async generators that yield `SDKMessage` objects.
 
 ## Implementation Steps
@@ -103,7 +103,7 @@ Define the service module with prompt template, input assembly, artifact reading
 
 **Risk:** Low. New file, new types. No existing code modified.
 
-#### Step 1.1: Create `daemon/services/outcome-triage.ts`
+#### Step 1.1: Create `apps/daemon/services/outcome-triage.ts`
 
 Define the module with these exports:
 
@@ -160,7 +160,7 @@ This function does filesystem I/O but is injectable for testing (the `readArtifa
 
 #### Step 1.3: Tests for Phase 1
 
-Create `tests/daemon/services/outcome-triage.test.ts`:
+Create `apps/daemon/tests/services/outcome-triage.test.ts`:
 
 1. **Prompt assembly**: `assemblePrompt` correctly interpolates all six placeholders.
 2. **Prompt template**: The constant matches the spec text (REQ-OTMEM-9). A structural check: contains all six placeholder strings.
@@ -171,7 +171,7 @@ Create `tests/daemon/services/outcome-triage.test.ts`:
 7. **`createArtifactReader`**: Returns `null` when no project contains the artifact.
 8. **`createArtifactReader` commission fallback**: Given a commission artifact that exists only in an activity worktree (not in any integration worktree), with a corresponding state file at `state/commissions/{id}/state.json`, correctly finds and reads the artifact from the activity worktree path.
 
-Run `bun test tests/daemon/services/outcome-triage.test.ts`.
+Run `bun test apps/daemon/tests/services/outcome-triage.test.ts`.
 
 ### Phase 2: Triage Session and Factory
 
@@ -208,7 +208,7 @@ The factory function:
    - All other event types: ignored (the callback checks `event.type` first).
 3. Returns the unsubscribe callback.
 
-The fire-and-forget pattern: wrap the async work in `void (async () => { try { ... } catch (err) { log.warn(...) } })()`. Same pattern as the Event Router's dispatch (`daemon/services/event-router.ts:111-125`).
+The fire-and-forget pattern: wrap the async work in `void (async () => { try { ... } catch (err) { log.warn(...) } })()`. Same pattern as the Event Router's dispatch (`apps/daemon/services/event-router.ts:111-125`).
 
 **Log messages (REQ-OTMEM-19):**
 - `info`: `"triage initiated for commission {id}"`, `"triage initiated for meeting {id}"`, `"triage completed for {type} {id}"` (include whether memory was written, detectable by checking if any `edit_memory` tool calls occurred, though the simple version just logs completion).
@@ -217,7 +217,7 @@ The fire-and-forget pattern: wrap the async work in `void (async () => { try { .
 
 #### Step 2.3: Tests for Phase 2
 
-Add to `tests/daemon/services/outcome-triage.test.ts`:
+Add to `apps/daemon/tests/services/outcome-triage.test.ts`:
 
 **Factory behavior:**
 1. `createOutcomeTriage` subscribes to EventBus (verify subscriber count increases).
@@ -244,7 +244,7 @@ Add to `tests/daemon/services/outcome-triage.test.ts`:
 12. `createTriageSessionRunner` calls the mock `queryFn` with the correct system prompt, model, maxTurns, and MCP servers.
 13. The mock `queryFn` returning a generator that yields tool_use messages and then stops produces a clean completion.
 
-Run `bun test tests/daemon/services/outcome-triage.test.ts`.
+Run `bun test apps/daemon/tests/services/outcome-triage.test.ts`.
 
 ### Phase 3: Production Wiring
 
@@ -254,13 +254,13 @@ Wire the triage service into `createProductionApp` and add it to the shutdown se
 
 **Risk:** Low. Adding a new service to the existing initialization chain. Follows the Event Router wiring pattern exactly.
 
-#### Step 3.1: Wire in `daemon/app.ts`
+#### Step 3.1: Wire in `apps/daemon/app.ts`
 
 After the Event Router creation (around line 556), add:
 
 ```typescript
 const { createOutcomeTriage, createArtifactReader, createTriageSessionRunner } = await import(
-  "@/daemon/services/outcome-triage"
+  "@/apps/daemon/services/outcome-triage"
 );
 const unsubscribeTriage = createOutcomeTriage({
   eventBus,
@@ -296,7 +296,7 @@ bun run lint
 bun test
 ```
 
-The existing `tests/daemon/app.test.ts` (if it exists) or integration tests exercise `createProductionApp`. The triage service is inert if no `commission_result` or `meeting_ended` events fire during tests, so it won't interfere.
+The existing `apps/daemon/tests/app.test.ts` (if it exists) or integration tests exercise `createProductionApp`. The triage service is inert if no `commission_result` or `meeting_ended` events fire during tests, so it won't interfere.
 
 ### Phase 4: Validation
 
@@ -309,8 +309,8 @@ Run `bun test` and confirm all tests pass, including the new triage service test
 Launch a fresh-context review agent (Thorne). The agent reads the spec at `.lore/specs/infrastructure/commission-outcomes-to-memory.md` and all modified/created files, then verifies:
 
 - Every REQ-OTMEM has at least one test covering it.
-- The triage factory is wired in `createProductionApp()` (`daemon/app.ts`).
-- The triage service uses `Log` from `daemon/lib/log.ts`, not direct `console` calls.
+- The triage factory is wired in `createProductionApp()` (`apps/daemon/app.ts`).
+- The triage service uses `Log` from `apps/daemon/lib/log.ts`, not direct `console` calls.
 - Memory tools are constructed via `makeReadMemoryHandler`/`makeEditMemoryHandler` (same factories as base toolbox).
 - The triage session uses the Claude Agent SDK's `query` function directly, not `runSdkSession` or `prepareSdkSession`.
 - The prompt template matches the spec text exactly (REQ-OTMEM-9).
@@ -324,16 +324,16 @@ Launch a fresh-context review agent (Thorne). The agent reads the spec at `.lore
 
 | File | Phase | Change |
 |------|-------|--------|
-| `daemon/services/outcome-triage.ts` | 1, 2 | **New.** Triage service: prompt template, input assembly, artifact reader, memory tool builder, session runner, factory |
-| `daemon/app.ts` | 3 | Wire `createOutcomeTriage` into `createProductionApp`, add to shutdown |
-| `tests/daemon/services/outcome-triage.test.ts` | 1, 2 | **New.** Full test coverage for the triage service |
+| `apps/daemon/services/outcome-triage.ts` | 1, 2 | **New.** Triage service: prompt template, input assembly, artifact reader, memory tool builder, session runner, factory |
+| `apps/daemon/app.ts` | 3 | Wire `createOutcomeTriage` into `createProductionApp`, add to shutdown |
+| `apps/daemon/tests/services/outcome-triage.test.ts` | 1, 2 | **New.** Full test coverage for the triage service |
 
 ## What Stays
 
-- `daemon/lib/agent-sdk/sdk-runner.ts`: Untouched. The triage session deliberately bypasses this pipeline.
-- `daemon/services/base-toolbox.ts`: Untouched. The triage service imports `makeReadMemoryHandler` and `makeEditMemoryHandler` but doesn't modify them.
-- `daemon/services/memory-injector.ts`: Untouched. The triage service imports `memoryScopeFile` and `migrateIfNeeded` but doesn't modify them.
-- `daemon/lib/event-bus.ts`: Untouched. No new event types needed.
+- `apps/daemon/lib/agent-sdk/sdk-runner.ts`: Untouched. The triage session deliberately bypasses this pipeline.
+- `apps/daemon/services/base-toolbox.ts`: Untouched. The triage service imports `makeReadMemoryHandler` and `makeEditMemoryHandler` but doesn't modify them.
+- `apps/daemon/services/memory-injector.ts`: Untouched. The triage service imports `memoryScopeFile` and `migrateIfNeeded` but doesn't modify them.
+- `apps/daemon/lib/event-bus.ts`: Untouched. No new event types needed.
 - Commission and meeting orchestrators: Untouched. They already emit the events the triage service subscribes to.
 - The `submit_result` tool contract: Untouched. The triage service reads the event payload, not the tool interface.
 

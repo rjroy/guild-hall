@@ -3,7 +3,7 @@ title: Read-Only Verification Tools
 date: 2026-04-12
 status: parked
 tags: [toolbox, verification, mcp-tools, worker-boundaries, infrastructure]
-modules: [daemon/services/verification-toolbox, daemon/lib/project-checks, daemon/routes/admin, daemon/app, daemon/routes/workspace-issue]
+modules: [apps/daemon/services/verification-toolbox, apps/daemon/lib/project-checks, apps/daemon/routes/admin, apps/daemon/app, apps/daemon/routes/workspace-issue]
 related:
   - .lore/specs/workers/worker-tool-boundaries.md
   - .lore/specs/infrastructure/token-efficient-git-tools.md
@@ -28,22 +28,22 @@ Because the motivating worker cannot create the config file itself, the spec als
 
 - Worker packages declare `systemToolboxes: ["verification"]` to opt in
 - `.lore/guild-hall-config.yaml` in the project repo defines the check commands
-- `daemon/services/toolbox-resolver.ts` registers the factory in `SYSTEM_TOOLBOX_REGISTRY`
+- `apps/daemon/services/toolbox-resolver.ts` registers the factory in `SYSTEM_TOOLBOX_REGISTRY`
 - Commission and meeting sessions provide `workingDirectory` through `GuildHallToolboxDeps`
-- `daemon/routes/admin.ts` registration handler writes the template config and files the bootstrap issue on project registration
-- `daemon/app.ts` `createProductionApp()` reconciles registered projects on startup, writing missing templates and filing missing issues
+- `apps/daemon/routes/admin.ts` registration handler writes the template config and files the bootstrap issue on project registration
+- `apps/daemon/app.ts` `createProductionApp()` reconciles registered projects on startup, writing missing templates and filing missing issues
 
 ## Decision 1: System Toolbox, Not Domain Package
 
 ### Motivation
 
-The git-readonly toolbox is a system toolbox: it lives in `daemon/services/`, is registered in `SYSTEM_TOOLBOX_REGISTRY`, and is available to any worker via `systemToolboxes: ["git-readonly"]`. Domain toolboxes live in `packages/` and are loaded via dynamic import.
+The git-readonly toolbox is a system toolbox: it lives in `apps/daemon/services/`, is registered in `SYSTEM_TOOLBOX_REGISTRY`, and is available to any worker via `systemToolboxes: ["git-readonly"]`. Domain toolboxes live in `packages/` and are loaded via dynamic import.
 
 Verification tools have the same characteristics as git-readonly: general-purpose, no worker-specific logic, no domain knowledge. They run subprocess commands and return output. The implementation is small (one file plus a config loader). Putting this in a domain package would add a `packages/guild-hall-verification/` directory, a `package.json`, and an `index.ts` that just re-exports a factory, all for a single-file toolbox.
 
 ### Decision
 
-System toolbox registered as `"verification"` in `SYSTEM_TOOLBOX_REGISTRY`. Implementation lives in `daemon/services/verification-toolbox.ts`. Config parsing lives in `daemon/lib/project-checks.ts`.
+System toolbox registered as `"verification"` in `SYSTEM_TOOLBOX_REGISTRY`. Implementation lives in `apps/daemon/services/verification-toolbox.ts`. Config parsing lives in `apps/daemon/lib/project-checks.ts`.
 
 ## Decision 2: Project-Local Configuration
 
@@ -109,7 +109,7 @@ The tools execute shell commands as subprocesses. The key questions are: what sh
 
 - REQ-VFY-7: The working directory for command execution is the session's `workingDirectory` from `GuildHallToolboxDeps`. This is the worktree root where the project code lives. The same path that git-readonly uses for its git commands.
 
-- REQ-VFY-8: Commands inherit a clean environment from the daemon process. No `GIT_DIR`, `GIT_WORK_TREE`, or `GIT_INDEX_FILE` leakage. Use `cleanGitEnv()` from `daemon/lib/git.ts` (same as git-readonly) to strip inherited git environment variables.
+- REQ-VFY-8: Commands inherit a clean environment from the daemon process. No `GIT_DIR`, `GIT_WORK_TREE`, or `GIT_INDEX_FILE` leakage. Use `cleanGitEnv()` from `apps/daemon/lib/git.ts` (same as git-readonly) to strip inherited git environment variables.
 
 - REQ-VFY-9: Each command has a configurable timeout. Default: 300 seconds (5 minutes). The timeout is a constant in the toolbox module, not per-tool or per-project configurable in this iteration. If the command exceeds the timeout, the process is killed and the tool returns an error indicating timeout.
 
@@ -155,7 +155,7 @@ The text content is a JSON object with `exitCode`, `stdout`, and `stderr` fields
 
 ### Requirements
 
-- REQ-VFY-17: The toolbox factory is registered in `SYSTEM_TOOLBOX_REGISTRY` in `daemon/services/toolbox-resolver.ts` under the key `"verification"`.
+- REQ-VFY-17: The toolbox factory is registered in `SYSTEM_TOOLBOX_REGISTRY` in `apps/daemon/services/toolbox-resolver.ts` under the key `"verification"`.
 
 ```typescript
 const SYSTEM_TOOLBOX_REGISTRY: Record<string, ToolboxFactory> = {
@@ -222,15 +222,15 @@ The issue is the gap's persistent record. It lives in `.lore/issues/` under the 
 
 ### New files
 
-- `daemon/lib/project-checks.ts`: Config file parsing. Exports `loadProjectChecks(workingDirectory: string): Promise<ProjectChecks>` where `ProjectChecks` is `{ test?: string; typecheck?: string; lint?: string; build?: string }`. Handles missing file (returns empty object), parse errors (throws with clear message), and schema validation.
+- `apps/daemon/lib/project-checks.ts`: Config file parsing. Exports `loadProjectChecks(workingDirectory: string): Promise<ProjectChecks>` where `ProjectChecks` is `{ test?: string; typecheck?: string; lint?: string; build?: string }`. Handles missing file (returns empty object), parse errors (throws with clear message), and schema validation.
 
-- `daemon/services/verification-toolbox.ts`: MCP server factory. Exports `createVerificationTools()` (for direct testing, matching git-readonly pattern), `createVerificationToolbox()`, and `verificationToolboxFactory`. Each tool calls `loadProjectChecks()`, checks if its key exists, and either runs the command or returns the "not configured" message.
+- `apps/daemon/services/verification-toolbox.ts`: MCP server factory. Exports `createVerificationTools()` (for direct testing, matching git-readonly pattern), `createVerificationToolbox()`, and `verificationToolboxFactory`. Each tool calls `loadProjectChecks()`, checks if its key exists, and either runs the command or returns the "not configured" message.
 
 ### Modified files
 
-- `daemon/services/toolbox-resolver.ts`: Import `verificationToolboxFactory`, add to `SYSTEM_TOOLBOX_REGISTRY`.
-- `daemon/routes/admin.ts`: Extend the register handler at `POST /system/config/project/register` to write the template config file and file the bootstrap issue after the integration worktree is created but before the success response is returned. Reuse the issue-creation logic from `daemon/routes/workspace-issue.ts` (extract a shared helper if needed).
-- `daemon/app.ts`: Extend `createProductionApp()` to perform startup reconciliation per REQ-VFY-25. The reconciliation step iterates `config.projects`, checks each integration worktree for the config file, writes the template + files the issue where missing, and commits to the `claude` branch. Failures are logged and do not block daemon startup.
+- `apps/daemon/services/toolbox-resolver.ts`: Import `verificationToolboxFactory`, add to `SYSTEM_TOOLBOX_REGISTRY`.
+- `apps/daemon/routes/admin.ts`: Extend the register handler at `POST /system/config/project/register` to write the template config file and file the bootstrap issue after the integration worktree is created but before the success response is returned. Reuse the issue-creation logic from `apps/daemon/routes/workspace-issue.ts` (extract a shared helper if needed).
+- `apps/daemon/app.ts`: Extend `createProductionApp()` to perform startup reconciliation per REQ-VFY-25. The reconciliation step iterates `config.projects`, checks each integration worktree for the config file, writes the template + files the issue where missing, and commits to the `claude` branch. Failures are logged and do not block daemon startup.
 
 ### Worker package changes (not part of this spec's implementation)
 
@@ -246,10 +246,10 @@ The issue is the gap's persistent record. It lives in `.lore/issues/` under the 
 
 ## Success Criteria
 
-- [ ] `daemon/lib/project-checks.ts` parses `.lore/guild-hall-config.yaml` and returns typed check commands
+- [ ] `apps/daemon/lib/project-checks.ts` parses `.lore/guild-hall-config.yaml` and returns typed check commands
 - [ ] Missing config file returns empty checks (no error)
 - [ ] Malformed config file returns a clear error message
-- [ ] `daemon/services/verification-toolbox.ts` creates four MCP tools
+- [ ] `apps/daemon/services/verification-toolbox.ts` creates four MCP tools
 - [ ] Each tool runs the configured command and returns exit code, stdout, stderr as JSON
 - [ ] Unconfigured check returns informational message, not an error
 - [ ] Command timeout kills the process and returns timeout error

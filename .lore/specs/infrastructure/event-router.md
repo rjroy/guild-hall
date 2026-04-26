@@ -33,7 +33,7 @@ The architecture supports additional consumers without changing the router. Trig
 - Growth Surface brainstorm (`.lore/brainstorm/growth-surface-2026-03-17.md`) identified notifications as the highest-value external integration.
 - Event Router brainstorm (`.lore/brainstorm/event-router.md`) resolved six design questions.
 - Triggered Commissions brainstorm (`.lore/brainstorm/triggered-commissions.md`) identified the coupling between matching and dispatch as a blocker. This revision addresses that.
-- EventBus (`daemon/lib/event-bus.ts`) already broadcasts `SystemEvent` to SSE subscribers. The router is a structured layer on top of that broadcast.
+- EventBus (`apps/daemon/lib/event-bus.ts`) already broadcasts `SystemEvent` to SSE subscribers. The router is a structured layer on top of that broadcast.
 
 ## Requirements
 
@@ -167,7 +167,7 @@ The notification service is the first consumer of the Event Router. It dispatche
 
 ## Implementation Note
 
-The current implementation (`daemon/services/event-router.ts`) fuses matching and channel dispatch into a single `createEventRouter` function. This revision separates them: `createEventRouter` becomes the generic matching layer, and a new `createNotificationService` becomes the channel dispatch consumer. The refactor preserves all existing behavior while making the matching logic available to other consumers.
+The current implementation (`apps/daemon/services/event-router.ts`) fuses matching and channel dispatch into a single `createEventRouter` function. This revision separates them: `createEventRouter` becomes the generic matching layer, and a new `createNotificationService` becomes the channel dispatch consumer. The refactor preserves all existing behavior while making the matching logic available to other consumers.
 
 ## Explicit Non-Goals
 
@@ -215,12 +215,12 @@ The current implementation (`daemon/services/event-router.ts`) fuses matching an
 - Run `bun test` and confirm all tests pass before declaring work complete.
 
 **Structural checks:**
-- Confirm `createEventRouter` in `daemon/services/event-router.ts` returns an `EventRouter` instance with a `subscribe` method, not a cleanup function that fuses matching with dispatch.
+- Confirm `createEventRouter` in `apps/daemon/services/event-router.ts` returns an `EventRouter` instance with a `subscribe` method, not a cleanup function that fuses matching with dispatch.
 - Confirm `createNotificationService` exists as a separate factory that consumes the Event Router.
 - Confirm `appConfigSchema` in `lib/config.ts` includes channel and notification schemas with cross-reference validation.
 - Confirm `AppConfig` in `lib/types.ts` includes the optional `channels` and `notifications` fields.
-- Confirm both factories are wired in `createProductionApp()` (`daemon/app.ts`), with the router created before the notification service.
-- Confirm both services use `Log` from `daemon/lib/log.ts`, not direct `console` calls.
+- Confirm both factories are wired in `createProductionApp()` (`apps/daemon/app.ts`), with the router created before the notification service.
+- Confirm both services use `Log` from `apps/daemon/lib/log.ts`, not direct `console` calls.
 
 **Behavioral checks:**
 - Test that `eventRouter.subscribe(rule, handler)` invokes the handler when a matching event is emitted.

@@ -24,13 +24,13 @@ Move `result_summary` from commission artifact frontmatter to the markdown body.
 
 ### Commission Artifacts
 
-**Template**: `daemon/services/commission/orchestrator.ts` creates commission artifacts with `result_summary: ""` as a frontmatter field.
+**Template**: `apps/daemon/services/commission/orchestrator.ts` creates commission artifacts with `result_summary: ""` as a frontmatter field.
 
-**Write path**: `daemon/services/commission/record.ts` `updateResult()` replaces the YAML field via `replaceYamlField()` with a double-quoted, escaped string value. Called from the orchestrator on commission completion and from the `submit_result` tool callback.
+**Write path**: `apps/daemon/services/commission/record.ts` `updateResult()` replaces the YAML field via `replaceYamlField()` with a double-quoted, escaped string value. Called from the orchestrator on commission completion and from the `submit_result` tool callback.
 
 **Read paths**:
 - `lib/commissions.ts` `parseCommissionData()`: reads `data.result_summary` from gray-matter parsed frontmatter into `CommissionMeta.result_summary`
-- `daemon/services/manager-context.ts` `buildCommissionsSection()`: reads `c.result_summary` from `CommissionMeta` for manager briefing context
+- `apps/daemon/services/manager-context.ts` `buildCommissionsSection()`: reads `c.result_summary` from `CommissionMeta` for manager briefing context
 
 **UI display**: No component directly renders `result_summary`. The commission timeline shows the result via the `result_submitted` timeline entry's `reason` field.
 
@@ -42,13 +42,13 @@ Move `result_summary` from commission artifact frontmatter to the markdown body.
 
 ### Step 1: Remove `result_summary` from commission artifact template
 
-**File**: `daemon/services/commission/orchestrator.ts`
+**File**: `apps/daemon/services/commission/orchestrator.ts`
 
 Remove the `result_summary: ""` line from the commission artifact template. The body after `---` remains empty (result is written on completion).
 
 ### Step 2: Rewrite `updateResult` to write body instead of frontmatter
 
-**File**: `daemon/services/commission/record.ts`
+**File**: `apps/daemon/services/commission/record.ts`
 
 Replace the `replaceYamlField(raw, "result_summary", ...)` call with the splice approach: find the closing `---` delimiter, replace everything after it with the summary text (preceded by a blank line). Handle `artifacts` parameter the same way (call `addLinkedArtifact` for each).
 
@@ -56,7 +56,7 @@ The `replaceYamlField` helper stays (still used by `updateProgress`). Remove `es
 
 ### Step 3: Verify `appendTimelineEntry` positional anchor
 
-**File**: `daemon/services/commission/record.ts`
+**File**: `apps/daemon/services/commission/record.ts`
 
 `appendTimelineEntry()` uses `current_progress:` as a positional anchor. With `result_summary` removed, `current_progress:` becomes the last frontmatter field before the closing `---`. This should still work because `current_progress` remains in frontmatter. Verify, no code change expected.
 
@@ -70,13 +70,13 @@ Backward compatibility: if `parsed.content` is empty but `data.result_summary` e
 
 ### Step 5: Manager context (no changes)
 
-`daemon/services/manager-context.ts` reads `c.result_summary` from `CommissionMeta`. Since `parseCommissionData()` populates it (updated in Step 4), no changes needed here.
+`apps/daemon/services/manager-context.ts` reads `c.result_summary` from `CommissionMeta`. Since `parseCommissionData()` populates it (updated in Step 4), no changes needed here.
 
 ### Step 6: Migration of existing artifacts
 
 **Approach**: Lazy migration with backward-compatible reads (Step 4).
 
-Optional one-time CLI script at `cli/migrate-content-to-body.ts`:
+Optional one-time CLI script at `apps/cli/migrate-content-to-body.ts`:
 1. Scan all projects' `.lore/commissions/` directories
 2. For each artifact with `result_summary` in frontmatter and empty body: move value to body, remove frontmatter field
 3. Write back using raw frontmatter splice (not gray-matter stringify)
@@ -88,23 +88,23 @@ The migration script should only run when the daemon is stopped.
 ### Existing tests that need updating
 
 **Template assertions** (remove `result_summary: ""` expectations):
-- `tests/daemon/services/commission/orchestrator.test.ts`
-- `tests/daemon/services/commission/record.test.ts`
-- `tests/daemon/services/manager-toolbox.test.ts`
-- `tests/daemon/services/manager-context.test.ts`
-- `tests/daemon/commission-toolbox.test.ts`
-- `tests/daemon/lib/record-utils.test.ts`
-- `tests/lib/commissions.test.ts`
-- `tests/lib/workspace-scoping.test.ts`
-- `tests/lib/dependency-graph.test.ts`
-- `tests/integration/navigation.test.ts`
-- `tests/components/commission-form.test.tsx`
-- `tests/components/dashboard-commissions.test.ts`
-- `tests/components/metadata-sidebar.test.ts`
+- `apps/daemon/tests/services/commission/orchestrator.test.ts`
+- `apps/daemon/tests/services/commission/record.test.ts`
+- `apps/daemon/tests/services/manager-toolbox.test.ts`
+- `apps/daemon/tests/services/manager-context.test.ts`
+- `apps/daemon/tests/commission-toolbox.test.ts`
+- `apps/daemon/lib/tests/record-utils.test.ts`
+- `lib/tests/commissions.test.ts`
+- `lib/tests/workspace-scoping.test.ts`
+- `lib/tests/dependency-graph.test.ts`
+- `apps/web/tests/integration/navigation.test.ts`
+- `apps/web/tests/components/commission-form.test.tsx`
+- `apps/web/tests/components/dashboard-commissions.test.ts`
+- `apps/web/tests/components/metadata-sidebar.test.ts`
 
 **Behavioral assertions** (change what's asserted):
-- `tests/daemon/services/commission/record.test.ts`: `updateResult` tests should assert the result appears in the body, not in a frontmatter field.
-- `tests/lib/commissions.test.ts`: `readCommissionMeta` tests should verify `result_summary` is read from the body. Add a backward compatibility test (reading from frontmatter when body is empty).
+- `apps/daemon/tests/services/commission/record.test.ts`: `updateResult` tests should assert the result appears in the body, not in a frontmatter field.
+- `lib/tests/commissions.test.ts`: `readCommissionMeta` tests should verify `result_summary` is read from the body. Add a backward compatibility test (reading from frontmatter when body is empty).
 
 ### New tests
 
@@ -116,10 +116,10 @@ The migration script should only run when the daemon is stopped.
 
 | File | Change |
 |------|--------|
-| `daemon/services/commission/orchestrator.ts` | Remove `result_summary: ""` from template |
-| `daemon/services/commission/record.ts` | Rewrite `updateResult` to write body |
+| `apps/daemon/services/commission/orchestrator.ts` | Remove `result_summary: ""` from template |
+| `apps/daemon/services/commission/record.ts` | Rewrite `updateResult` to write body |
 | `lib/commissions.ts` | Read `result_summary` from body with frontmatter fallback |
-| `cli/migrate-content-to-body.ts` | New file: one-time migration script (optional) |
+| `apps/cli/migrate-content-to-body.ts` | New file: one-time migration script (optional) |
 | ~13 test files | Update artifact fixtures and assertions |
 
 ## Risks

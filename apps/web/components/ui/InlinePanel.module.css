@@ -1,0 +1,53 @@
+/* Collapsible inline panel for relocated sidebar content on mobile viewports */
+
+.inlinePanel {
+  border-top: 1px solid var(--rule);
+  padding-top: var(--space-3);
+  flex-shrink: 0;
+}
+
+.handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
+}
+
+.handle:hover {
+  border-color: var(--ember-500);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .handle:hover {
+  color: var(--ember-300);
+}
+
+.chevron {
+  font-size: 0.65rem;
+  transition: transform 0.2s var(--ease-out);
+  color: var(--fg-3);
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  max-height: 40vh;
+  overflow-y: auto;
+}

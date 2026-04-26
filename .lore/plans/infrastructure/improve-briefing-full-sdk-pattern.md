@@ -10,7 +10,7 @@ modules: [briefing-generator, sdk-runner]
 
 ## Context
 
-The briefing generator (`daemon/services/briefing-generator.ts`) pre-digests project state via `buildManagerContext()` into a markdown string, then asks a single-turn LLM to summarize it. This defeats the purpose of using an LLM: it can't explore files, use tools, or reason about what it finds. The result is a glorified template engine.
+The briefing generator (`apps/daemon/services/briefing-generator.ts`) pre-digests project state via `buildManagerContext()` into a markdown string, then asks a single-turn LLM to summarize it. This defeats the purpose of using an LLM: it can't explore files, use tools, or reason about what it finds. The result is a glorified template engine.
 
 The fix: wire the briefing generator through the same SDK infrastructure that meetings and commissions use. Activate the Guild Master worker (with its SOUL/POSTURE/memory), give it read-only tools, set `maxTurns: 30`, and let it explore project state before producing a briefing.
 
@@ -23,9 +23,9 @@ Use `prepareSdkSession()` + `runSdkSession()` from the existing SDK runner infra
 ### 1. Add `"briefing"` context type
 
 **Files:**
-- `daemon/lib/agent-sdk/sdk-runner.ts` (lines 58, 80)
-- `daemon/services/toolbox-resolver.ts` (line 37)
-- `daemon/services/toolbox-types.ts` (if `GuildHallToolboxDeps.contextType` is typed there)
+- `apps/daemon/lib/agent-sdk/sdk-runner.ts` (lines 58, 80)
+- `apps/daemon/services/toolbox-resolver.ts` (line 37)
+- `apps/daemon/services/toolbox-types.ts` (if `GuildHallToolboxDeps.contextType` is typed there)
 
 Add `"briefing"` to the `contextType` union in `SessionPrepSpec`, `SessionPrepDeps` context arg, and `ToolboxResolverContext`.
 
@@ -65,7 +65,7 @@ This keeps the change contained to the briefing generator without modifying the 
 
 ### 3. Add `collectRunnerText()` helper
 
-**File:** `daemon/lib/sdk-text.ts`
+**File:** `apps/daemon/lib/sdk-text.ts`
 
 `runSdkSession` yields `SdkRunnerEvent`, not `SDKMessage`. We need a text collector for the runner event stream:
 
@@ -85,7 +85,7 @@ export async function collectRunnerText(
 
 ### 4. Refactor `BriefingGeneratorDeps` and `generateBriefing()`
 
-**File:** `daemon/services/briefing-generator.ts`
+**File:** `apps/daemon/services/briefing-generator.ts`
 
 New deps shape:
 
@@ -138,7 +138,7 @@ The heavy lifting (project state, commissions, meetings, workers) is already in 
 
 ### 5. Update production wiring
 
-**File:** `daemon/app.ts` (lines 287-295)
+**File:** `apps/daemon/app.ts` (lines 287-295)
 
 Pass `prepDeps` to the briefing generator:
 
@@ -154,7 +154,7 @@ const briefingGenerator = makeBriefingGenerator({
 
 ### 6. Update tests
 
-**File:** `tests/daemon/services/briefing-generator.test.ts`
+**File:** `apps/daemon/tests/services/briefing-generator.test.ts`
 
 - Add mock `SessionPrepDeps` (mock `resolveToolSet`, `loadMemories`, `activateWorker`)
 - Update `makeDeps()` to include `prepDeps`
@@ -168,27 +168,27 @@ const briefingGenerator = makeBriefingGenerator({
 
 | File | Change |
 |------|--------|
-| `daemon/lib/agent-sdk/sdk-runner.ts` | Add `"briefing"` to contextType unions (lines 58, 80) |
-| `daemon/services/toolbox-resolver.ts` | Guard context factory lookup (line 95-96), add `"briefing"` to context type (line 37) |
-| `daemon/services/toolbox-types.ts` | Add `"briefing"` to `GuildHallToolboxDeps.contextType` (line 19) |
-| `daemon/services/base-toolbox.ts` | Add `"briefing"` to contextType unions (lines 21, 96), handle `"briefing"` in stateSubdir ternary (line 98) |
-| `daemon/lib/sdk-text.ts` | Add `collectRunnerText()` for SdkRunnerEvent streams |
-| `daemon/services/briefing-generator.ts` | Refactor to use full SDK pattern |
-| `daemon/app.ts` | Pass `prepDeps` to briefing generator (line 290) |
-| `tests/daemon/services/briefing-generator.test.ts` | Update for new deps and multi-turn pattern |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts` | Add `"briefing"` to contextType unions (lines 58, 80) |
+| `apps/daemon/services/toolbox-resolver.ts` | Guard context factory lookup (line 95-96), add `"briefing"` to context type (line 37) |
+| `apps/daemon/services/toolbox-types.ts` | Add `"briefing"` to `GuildHallToolboxDeps.contextType` (line 19) |
+| `apps/daemon/services/base-toolbox.ts` | Add `"briefing"` to contextType unions (lines 21, 96), handle `"briefing"` in stateSubdir ternary (line 98) |
+| `apps/daemon/lib/sdk-text.ts` | Add `collectRunnerText()` for SdkRunnerEvent streams |
+| `apps/daemon/services/briefing-generator.ts` | Refactor to use full SDK pattern |
+| `apps/daemon/app.ts` | Pass `prepDeps` to briefing generator (line 290) |
+| `apps/daemon/tests/services/briefing-generator.test.ts` | Update for new deps and multi-turn pattern |
 
 ## What Stays
 
 - File-based cache with 1-hour TTL
 - Template fallback when SDK is unavailable
 - `generateTemplateBriefing()` helper (used for fallback)
-- Route handler (`daemon/routes/briefing.ts`) unchanged
+- Route handler (`apps/daemon/routes/briefing.ts`) unchanged
 - `BriefingResult` type unchanged
 - `invalidateCache()` unchanged
 
 ## Verification
 
-1. `bun test tests/daemon/services/briefing-generator.test.ts` passes
+1. `bun test apps/daemon/tests/services/briefing-generator.test.ts` passes
 2. `bun run typecheck` passes
 3. `bun run lint` passes
 4. `bun test` (full suite) passes

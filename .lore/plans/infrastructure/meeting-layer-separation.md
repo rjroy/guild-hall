@@ -3,7 +3,7 @@ title: "Meeting Layer Separation"
 date: 2026-03-19
 status: executed
 tags: [architecture, meetings, refactor, layer-separation, orchestrator]
-modules: [daemon/services/meeting/orchestrator, daemon/services/meeting/session-loop, daemon/routes/meetings, daemon/services/meeting/notes-generator, daemon/services/briefing-generator]
+modules: [apps/daemon/services/meeting/orchestrator, apps/daemon/services/meeting/session-loop, apps/daemon/routes/meetings, apps/daemon/services/meeting/notes-generator, apps/daemon/services/briefing-generator]
 related:
   - .lore/specs/infrastructure/meeting-layer-separation.md
   - .lore/brainstorm/meeting-layer-separation.md
@@ -15,29 +15,29 @@ related:
 
 ## Context
 
-The meeting orchestrator (`daemon/services/meeting/orchestrator.ts`, 1,552 lines) exceeds the project's 800-line investigation threshold. The approved spec at `.lore/specs/infrastructure/meeting-layer-separation.md` defines three targeted extractions that resolve real coupling issues (implicit return type, re-export drift, closure-captured session loop) without mirroring the commission system's five-layer decomposition.
+The meeting orchestrator (`apps/daemon/services/meeting/orchestrator.ts`, 1,552 lines) exceeds the project's 800-line investigation threshold. The approved spec at `.lore/specs/infrastructure/meeting-layer-separation.md` defines three targeted extractions that resolve real coupling issues (implicit return type, re-export drift, closure-captured session loop) without mirroring the commission system's five-layer decomposition.
 
 ### Current Implementation Surface
 
 | File | Role | Lines |
 |------|------|-------|
-| `daemon/services/meeting/orchestrator.ts` | Factory closure: all meeting lifecycle operations, session loop, helpers | ~1,552 |
-| `daemon/routes/meetings.ts` | Route layer, defines incomplete `MeetingSessionForRoutes` interface (lines 26-47) | ~430 |
-| `daemon/services/meeting/notes-generator.ts` | Post-close notes generation, imports `QueryOptions` from orchestrator | ~216 |
-| `daemon/services/briefing-generator.ts` | Project briefings, imports `QueryOptions` from orchestrator | ~330 |
-| `daemon/app.ts` | Production wiring, imports `MeetingSessionForRoutes` from routes, uses `MeetingSessionDeps` from orchestrator | ~420 |
+| `apps/daemon/services/meeting/orchestrator.ts` | Factory closure: all meeting lifecycle operations, session loop, helpers | ~1,552 |
+| `apps/daemon/routes/meetings.ts` | Route layer, defines incomplete `MeetingSessionForRoutes` interface (lines 26-47) | ~430 |
+| `apps/daemon/services/meeting/notes-generator.ts` | Post-close notes generation, imports `QueryOptions` from orchestrator | ~216 |
+| `apps/daemon/services/briefing-generator.ts` | Project briefings, imports `QueryOptions` from orchestrator | ~330 |
+| `apps/daemon/app.ts` | Production wiring, imports `MeetingSessionForRoutes` from routes, uses `MeetingSessionDeps` from orchestrator | ~420 |
 
 ### Existing Test Coverage
 
 | File | Lines | Focus |
 |------|-------|-------|
-| `tests/daemon/meeting-session.test.ts` | ~3,450 | Full lifecycle, multi-turn, renewal, recovery, error paths |
-| `tests/daemon/meeting-project-scope.test.ts` | ~929 | Project-scoped meetings (no worktree) |
-| `tests/daemon/services/meeting/recovery.test.ts` | varies | Recovery from daemon restart |
-| `tests/daemon/routes/meetings.test.ts` | ~835 | API routes |
-| `tests/daemon/routes/meetings-read.test.ts` | ~269 | Read routes |
-| `tests/daemon/routes/meetings-actions.test.ts` | ~152 | Action routes |
-| `tests/daemon/services/meeting/meeting-toolbox.test.ts` | ~405 | Tool handlers |
+| `apps/daemon/tests/meeting-session.test.ts` | ~3,450 | Full lifecycle, multi-turn, renewal, recovery, error paths |
+| `apps/daemon/tests/meeting-project-scope.test.ts` | ~929 | Project-scoped meetings (no worktree) |
+| `apps/daemon/tests/services/meeting/recovery.test.ts` | varies | Recovery from daemon restart |
+| `apps/daemon/tests/routes/meetings.test.ts` | ~835 | API routes |
+| `apps/daemon/tests/routes/meetings-read.test.ts` | ~269 | Read routes |
+| `apps/daemon/tests/routes/meetings-actions.test.ts` | ~152 | Action routes |
+| `apps/daemon/tests/services/meeting/meeting-toolbox.test.ts` | ~405 | Tool handlers |
 
 All 7,107+ lines of meeting tests are the regression safety net. Every phase runs the full suite before proceeding.
 
@@ -45,14 +45,14 @@ All 7,107+ lines of meeting tests are the regression safety net. Every phase run
 
 ```
 MeetingSessionForRoutes (currently in routes/meetings.ts)
-  ← daemon/app.ts (AppDeps type)
-  ← tests/daemon/routes/meetings.test.ts (mock construction)
-  ← tests/daemon/routes/meetings-read.test.ts (mock construction)
+  ← apps/daemon/app.ts (AppDeps type)
+  ← apps/daemon/tests/routes/meetings.test.ts (mock construction)
+  ← apps/daemon/tests/routes/meetings-read.test.ts (mock construction)
 
 QueryOptions re-export (orchestrator.ts:99)
-  ← daemon/services/meeting/notes-generator.ts:18
-  ← daemon/services/briefing-generator.ts:24
-  ← tests/daemon/notes-generator.test.ts:10
+  ← apps/daemon/services/meeting/notes-generator.ts:18
+  ← apps/daemon/services/briefing-generator.ts:24
+  ← apps/daemon/tests/notes-generator.test.ts:10
 
 ActiveMeetingEntry re-export (orchestrator.ts:98)
   ← zero external consumers (all import from registry directly)
@@ -78,7 +78,7 @@ Phase 1 and 2 are type-only changes (zero runtime behavior change). Phase 3 is a
 
 ### Step 1.1: Define `MeetingSessionForRoutes` in the orchestrator
 
-Add the interface to `daemon/services/meeting/orchestrator.ts` after the `MeetingSessionDeps` type (around line 188, before the factory function). The interface must include every method the factory currently returns (orchestrator.ts:1539-1551):
+Add the interface to `apps/daemon/services/meeting/orchestrator.ts` after the `MeetingSessionDeps` type (around line 188, before the factory function). The interface must include every method the factory currently returns (orchestrator.ts:1539-1551):
 
 ```typescript
 export interface MeetingSessionForRoutes {
@@ -129,9 +129,9 @@ The compiler will verify the returned object literal satisfies the interface. If
 
 ### Step 1.3: Remove the duplicate interface from routes
 
-In `daemon/routes/meetings.ts`:
+In `apps/daemon/routes/meetings.ts`:
 - Delete the `MeetingSessionForRoutes` interface (lines 26-47)
-- Add an import: `import type { MeetingSessionForRoutes } from "@/daemon/services/meeting/orchestrator";`
+- Add an import: `import type { MeetingSessionForRoutes } from "@/apps/daemon/services/meeting/orchestrator";`
 - The `MeetingRoutesDeps` type (line 49-57) continues using the imported type unchanged
 
 ### Step 1.4: Update consumer imports
@@ -140,18 +140,18 @@ Three files import `MeetingSessionForRoutes` from routes. Redirect them to the o
 
 | File | Current import | New import |
 |------|---------------|------------|
-| `daemon/app.ts:7` | `type MeetingSessionForRoutes` from `@/daemon/routes/meetings` | from `@/daemon/services/meeting/orchestrator` |
-| `tests/daemon/routes/meetings.test.ts:3` | `type MeetingSessionForRoutes` from `@/daemon/routes/meetings` | from `@/daemon/services/meeting/orchestrator` |
-| `tests/daemon/routes/meetings-read.test.ts:7` | `type MeetingSessionForRoutes` from `@/daemon/routes/meetings` | from `@/daemon/services/meeting/orchestrator` |
+| `apps/daemon/app.ts:7` | `type MeetingSessionForRoutes` from `@/apps/daemon/routes/meetings` | from `@/apps/daemon/services/meeting/orchestrator` |
+| `apps/daemon/tests/routes/meetings.test.ts:3` | `type MeetingSessionForRoutes` from `@/apps/daemon/routes/meetings` | from `@/apps/daemon/services/meeting/orchestrator` |
+| `apps/daemon/tests/routes/meetings-read.test.ts:7` | `type MeetingSessionForRoutes` from `@/apps/daemon/routes/meetings` | from `@/apps/daemon/services/meeting/orchestrator` |
 
-Note: `daemon/app.ts` already imports `MeetingSessionDeps` from the orchestrator (line 25), so the new `MeetingSessionForRoutes` import can merge into the same import statement.
+Note: `apps/daemon/app.ts` already imports `MeetingSessionDeps` from the orchestrator (line 25), so the new `MeetingSessionForRoutes` import can merge into the same import statement.
 
 ### Step 1.5: Update test mock types for completeness
 
 The test files `meetings.test.ts` and `meetings-read.test.ts` construct mock `MeetingSessionForRoutes` objects. The mocks currently lack `createMeetingRequest` and `getOpenMeetingsForProject` because the old interface omitted them. Now that the interface includes them, the mocks need stubs:
 
-- In `tests/daemon/routes/meetings.test.ts`, add `createMeetingRequest: vi.fn()` and `getOpenMeetingsForProject: vi.fn()` (or equivalent) to the mock factory
-- Same in `tests/daemon/routes/meetings-read.test.ts`
+- In `apps/daemon/tests/routes/meetings.test.ts`, add `createMeetingRequest: vi.fn()` and `getOpenMeetingsForProject: vi.fn()` (or equivalent) to the mock factory
+- Same in `apps/daemon/tests/routes/meetings-read.test.ts`
 
 These are type-satisfaction stubs. The route tests never call these methods (the routes don't expose them), so the stubs are never exercised.
 
@@ -177,18 +177,18 @@ Zero test file behavior changes expected. The only test modifications are mock t
 
 ### Step 2.1: Remove `ActiveMeetingEntry` re-export
 
-Delete line 98 from `daemon/services/meeting/orchestrator.ts`:
+Delete line 98 from `apps/daemon/services/meeting/orchestrator.ts`:
 ```typescript
-export type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
+export type { ActiveMeetingEntry } from "@/apps/daemon/services/meeting/registry";
 ```
 
-Confirmed zero external consumers. The only import of `ActiveMeetingEntry` outside the orchestrator comes from `tests/daemon/services/meeting/registry.test.ts`, which already imports from `@/daemon/services/meeting/registry` directly (REQ-MTGL-10).
+Confirmed zero external consumers. The only import of `ActiveMeetingEntry` outside the orchestrator comes from `apps/daemon/tests/services/meeting/registry.test.ts`, which already imports from `@/apps/daemon/services/meeting/registry` directly (REQ-MTGL-10).
 
 ### Step 2.2: Remove `QueryOptions` re-export
 
-Delete line 99 (and the explanatory comment at lines 93-97) from `daemon/services/meeting/orchestrator.ts`:
+Delete line 99 (and the explanatory comment at lines 93-97) from `apps/daemon/services/meeting/orchestrator.ts`:
 ```typescript
-export type { SdkQueryOptions as QueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner";
+export type { SdkQueryOptions as QueryOptions } from "@/apps/daemon/lib/agent-sdk/sdk-runner";
 ```
 
 ### Step 2.3: Migrate `QueryOptions` consumers to `SdkQueryOptions`
@@ -197,9 +197,9 @@ Three consumers import `QueryOptions` from the orchestrator. Update each to impo
 
 | File | Line | Change |
 |------|------|--------|
-| `daemon/services/meeting/notes-generator.ts` | 18 | `import type { SdkQueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner"` |
-| `daemon/services/briefing-generator.ts` | 24 | `import type { SdkQueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner"` |
-| `tests/daemon/notes-generator.test.ts` | 10 | `import type { SdkQueryOptions } from "@/daemon/lib/agent-sdk/sdk-runner"` |
+| `apps/daemon/services/meeting/notes-generator.ts` | 18 | `import type { SdkQueryOptions } from "@/apps/daemon/lib/agent-sdk/sdk-runner"` |
+| `apps/daemon/services/briefing-generator.ts` | 24 | `import type { SdkQueryOptions } from "@/apps/daemon/lib/agent-sdk/sdk-runner"` |
+| `apps/daemon/tests/notes-generator.test.ts` | 10 | `import type { SdkQueryOptions } from "@/apps/daemon/lib/agent-sdk/sdk-runner"` |
 
 At each site, rename `QueryOptions` to `SdkQueryOptions` in type annotations:
 - `notes-generator.ts:34`: `options: SdkQueryOptions` (was `options: QueryOptions`)
@@ -224,7 +224,7 @@ Zero test behavior changes. The only test file modification is the import path i
 
 ## Phase 3: Extract Session Loop
 
-**Goal:** Extract `iterateSession` and `startSession` into `daemon/services/meeting/session-loop.ts`. Convert closure-captured variables to explicit parameters.
+**Goal:** Extract `iterateSession` and `startSession` into `apps/daemon/services/meeting/session-loop.ts`. Convert closure-captured variables to explicit parameters.
 
 **REQs:** REQ-MTGL-11, REQ-MTGL-12, REQ-MTGL-13, REQ-MTGL-14, REQ-MTGL-15, REQ-MTGL-16
 
@@ -232,15 +232,15 @@ Zero test behavior changes. The only test file modification is the import path i
 
 ### Step 3.1: Define `SessionLoopDeps`
 
-Create `daemon/services/meeting/session-loop.ts` with a deps type that captures what the extracted functions actually use. REQ-MTGL-12 lists eight closure-captured variables. Some of these (`deps.packages`, `deps.config`, `deps.commissionSession`, `registry`, `eventBus`) are consumed indirectly through `buildMeetingPrepSpec` and `prepDeps`, which the orchestrator constructs before calling the extracted functions. The spec allows "a `SessionLoopDeps` type (or equivalent)" to thread these through. The "or equivalent" is satisfied by a combination of `SessionLoopDeps` fields (for direct consumers) and callback parameters on `startSession` (for orchestrator-internal logic).
+Create `apps/daemon/services/meeting/session-loop.ts` with a deps type that captures what the extracted functions actually use. REQ-MTGL-12 lists eight closure-captured variables. Some of these (`deps.packages`, `deps.config`, `deps.commissionSession`, `registry`, `eventBus`) are consumed indirectly through `buildMeetingPrepSpec` and `prepDeps`, which the orchestrator constructs before calling the extracted functions. The spec allows "a `SessionLoopDeps` type (or equivalent)" to thread these through. The "or equivalent" is satisfied by a combination of `SessionLoopDeps` fields (for direct consumers) and callback parameters on `startSession` (for orchestrator-internal logic).
 
 ```typescript
-import type { Log } from "@/daemon/lib/log";
+import type { Log } from "@/apps/daemon/lib/log";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { SdkQueryOptions, SessionPrepDeps, SessionPrepSpec } from "@/daemon/lib/agent-sdk/sdk-runner";
-import type { GuildHallEvent, MeetingId, SdkSessionId } from "@/daemon/types";
+import type { SdkQueryOptions, SessionPrepDeps, SessionPrepSpec } from "@/apps/daemon/lib/agent-sdk/sdk-runner";
+import type { GuildHallEvent, MeetingId, SdkSessionId } from "@/apps/daemon/types";
 import type { ResolvedModel } from "@/lib/types";
-import type { ActiveMeetingEntry } from "@/daemon/services/meeting/registry";
+import type { ActiveMeetingEntry } from "@/apps/daemon/services/meeting/registry";
 
 export type SessionLoopDeps = {
   /** The SDK query function for running sessions. */
@@ -299,8 +299,8 @@ The function body stays identical except:
 - `ghHome` becomes `deps.guildHallHome`
 - `log` becomes `deps.log`
 - `runSdkSession`, `asSdkSessionId`, `isSessionExpiryError`, `prefixLocalModelError` are imported directly (they were already imported at the top of the orchestrator; the session-loop file imports them independently)
-- `appendAssistantTurnSafe` is imported from `@/daemon/services/meeting/transcript`
-- The `ToolUseEntry` type is imported from `@/daemon/services/meeting/transcript`
+- `appendAssistantTurnSafe` is imported from `@/apps/daemon/services/meeting/transcript`
+- The `ToolUseEntry` type is imported from `@/apps/daemon/services/meeting/transcript`
 
 The generator yield type, return type, and all behavioral details (session ID capture, text accumulation, tool use pairing, error detection, transcript append) are preserved exactly (REQ-MTGL-13).
 
@@ -344,7 +344,7 @@ All behavioral details preserved exactly (REQ-MTGL-14).
 
 ### Step 3.4: Wire the orchestrator to the extracted functions
 
-In `daemon/services/meeting/orchestrator.ts`:
+In `apps/daemon/services/meeting/orchestrator.ts`:
 
 1. Import `iterateSession` and `startSession` from `./session-loop`
 2. Delete the original function bodies (orchestrator.ts:493-615)
@@ -369,11 +369,11 @@ const sessionLoopDeps: SessionLoopDeps = {
 ### Step 3.5: Verify no circular dependencies
 
 `session-loop.ts` must not import from `orchestrator.ts`. Verify:
-- It imports from `@/daemon/lib/agent-sdk/sdk-runner` (canonical)
-- It imports from `@/daemon/services/meeting/transcript` (canonical)
-- It imports from `@/daemon/services/meeting/registry` (types only)
-- It imports from `@/daemon/types` and `@/lib/types` (shared types)
-- It does NOT import from `@/daemon/services/meeting/orchestrator`
+- It imports from `@/apps/daemon/lib/agent-sdk/sdk-runner` (canonical)
+- It imports from `@/apps/daemon/services/meeting/transcript` (canonical)
+- It imports from `@/apps/daemon/services/meeting/registry` (types only)
+- It imports from `@/apps/daemon/types` and `@/lib/types` (shared types)
+- It does NOT import from `@/apps/daemon/services/meeting/orchestrator`
 
 `MEETING_GREETING_PROMPT` moves to `session-loop.ts` since it's a session-level concern. The orchestrator re-exports it (`export { MEETING_GREETING_PROMPT } from "./session-loop"`) to preserve backward compatibility for any external consumers. This avoids a circular dependency: `session-loop.ts` defines the constant it uses, and the orchestrator imports from `session-loop.ts` (not the reverse).
 
@@ -393,15 +393,15 @@ Per REQ-MTGL-16, no test file changes should be required. The extraction is inte
 
 | File | Phase | Change |
 |------|-------|--------|
-| `daemon/services/meeting/orchestrator.ts` | 1, 2, 3 | Add interface (P1), remove re-exports (P2), extract session loop (P3) |
-| `daemon/routes/meetings.ts` | 1 | Remove duplicate interface, import from orchestrator |
-| `daemon/app.ts` | 1 | Redirect `MeetingSessionForRoutes` import |
-| `daemon/services/meeting/notes-generator.ts` | 2 | Import `SdkQueryOptions` from canonical source |
-| `daemon/services/briefing-generator.ts` | 2 | Import `SdkQueryOptions` from canonical source |
-| `daemon/services/meeting/session-loop.ts` | 3 | **New.** `SessionLoopDeps`, `iterateSession`, `startSession` |
-| `tests/daemon/routes/meetings.test.ts` | 1 | Redirect import, add missing mock stubs |
-| `tests/daemon/routes/meetings-read.test.ts` | 1 | Redirect import, add missing mock stubs |
-| `tests/daemon/notes-generator.test.ts` | 2 | Redirect `QueryOptions` import to `SdkQueryOptions` |
+| `apps/daemon/services/meeting/orchestrator.ts` | 1, 2, 3 | Add interface (P1), remove re-exports (P2), extract session loop (P3) |
+| `apps/daemon/routes/meetings.ts` | 1 | Remove duplicate interface, import from orchestrator |
+| `apps/daemon/app.ts` | 1 | Redirect `MeetingSessionForRoutes` import |
+| `apps/daemon/services/meeting/notes-generator.ts` | 2 | Import `SdkQueryOptions` from canonical source |
+| `apps/daemon/services/briefing-generator.ts` | 2 | Import `SdkQueryOptions` from canonical source |
+| `apps/daemon/services/meeting/session-loop.ts` | 3 | **New.** `SessionLoopDeps`, `iterateSession`, `startSession` |
+| `apps/daemon/tests/routes/meetings.test.ts` | 1 | Redirect import, add missing mock stubs |
+| `apps/daemon/tests/routes/meetings-read.test.ts` | 1 | Redirect import, add missing mock stubs |
+| `apps/daemon/tests/notes-generator.test.ts` | 2 | Redirect `QueryOptions` import to `SdkQueryOptions` |
 
 ## What Stays
 

@@ -22,25 +22,25 @@ Source: `.lore/brainstorm/worker-sub-agents-and-mail-removal.md`, Proposal 1.
 
 ## Codebase Context
 
-**Mail service** (`daemon/services/mail/`): Four files (orchestrator.ts, toolbox.ts, record.ts, types.ts). The orchestrator handles sleep/wake flows, reader activation, capacity management, and daemon restart recovery. The toolbox provides the `reply` tool for mail readers. The record module handles mail file I/O. Total: ~500 lines of implementation.
+**Mail service** (`apps/daemon/services/mail/`): Four files (orchestrator.ts, toolbox.ts, record.ts, types.ts). The orchestrator handles sleep/wake flows, reader activation, capacity management, and daemon restart recovery. The toolbox provides the `reply` tool for mail readers. The record module handles mail file I/O. Total: ~500 lines of implementation.
 
-**Commission orchestrator** (`daemon/services/commission/orchestrator.ts`): Imports `createMailOrchestrator` and `SleepingCommissionState`. Uses the mail orchestrator for: sleep handling on `commission_mail_sent` events (lines 2104-2178), sleeping commission recovery during startup (lines 1187-1248), `cancelSleepingCommission` helper for cancel/abandon flows (lines 860-935), and shutdown (line 2848). The cancel flow (line 2624) and abandon flow (line 2694) both branch on `sleeping` status.
+**Commission orchestrator** (`apps/daemon/services/commission/orchestrator.ts`): Imports `createMailOrchestrator` and `SleepingCommissionState`. Uses the mail orchestrator for: sleep handling on `commission_mail_sent` events (lines 2104-2178), sleeping commission recovery during startup (lines 1187-1248), `cancelSleepingCommission` helper for cancel/abandon flows (lines 860-935), and shutdown (line 2848). The cancel flow (line 2624) and abandon flow (line 2694) both branch on `sleeping` status.
 
-**Commission toolbox** (`daemon/services/commission/toolbox.ts`): Exports `send_mail` tool, `makeSendMailHandler`, `SessionState.mailSent` flag, `SessionCallbacks.onMailSent` callback, and `MailRecordOps` import. The `submit_result` handler checks `sessionState.mailSent` for mutual exclusion.
+**Commission toolbox** (`apps/daemon/services/commission/toolbox.ts`): Exports `send_mail` tool, `makeSendMailHandler`, `SessionState.mailSent` flag, `SessionCallbacks.onMailSent` callback, and `MailRecordOps` import. The `submit_result` handler checks `sessionState.mailSent` for mutual exclusion.
 
-**Commission lifecycle** (`daemon/services/commission/lifecycle.ts`): `TRANSITIONS` table includes `sleeping` as both a source and target state. `in_progress` can transition to `sleeping`; `sleeping` can transition to `in_progress`, `cancelled`, `abandoned`, `failed`.
+**Commission lifecycle** (`apps/daemon/services/commission/lifecycle.ts`): `TRANSITIONS` table includes `sleeping` as both a source and target state. `in_progress` can transition to `sleeping`; `sleeping` can transition to `in_progress`, `cancelled`, `abandoned`, `failed`.
 
-**Commission capacity** (`daemon/services/commission/capacity.ts`): `isMailReaderAtCapacity()` and `DEFAULT_MAIL_READER_CAP` (lines 59-69).
+**Commission capacity** (`apps/daemon/services/commission/capacity.ts`): `isMailReaderAtCapacity()` and `DEFAULT_MAIL_READER_CAP` (lines 59-69).
 
-**Context type registry** (`daemon/services/context-type-registry.ts`): Registers `"mail"` context type with `mailToolboxFactory` (lines 20-24). `ContextTypeName` union includes `"mail"`.
+**Context type registry** (`apps/daemon/services/context-type-registry.ts`): Registers `"mail"` context type with `mailToolboxFactory` (lines 20-24). `ContextTypeName` union includes `"mail"`.
 
-**Toolbox types** (`daemon/services/toolbox-types.ts`): `GuildHallToolboxDeps` has `mailFilePath?` and `commissionId?` fields (lines 26-27).
+**Toolbox types** (`apps/daemon/services/toolbox-types.ts`): `GuildHallToolboxDeps` has `mailFilePath?` and `commissionId?` fields (lines 26-27).
 
-**Toolbox resolver** (`daemon/services/toolbox-resolver.ts`): `ToolboxResolverContext` has `mailFilePath?` and `commissionId?` fields (lines 41-43). These are passed through to `GuildHallToolboxDeps` (lines 98-99).
+**Toolbox resolver** (`apps/daemon/services/toolbox-resolver.ts`): `ToolboxResolverContext` has `mailFilePath?` and `commissionId?` fields (lines 41-43). These are passed through to `GuildHallToolboxDeps` (lines 98-99).
 
-**SDK runner** (`daemon/lib/agent-sdk/sdk-runner.ts`): `SessionPrepSpec` has `mailFilePath?` and `commissionId?` (lines 100-103). `SessionPrepDeps.resolveToolSet` context parameter includes them (lines 119-120). Both are passed to the toolbox resolver at lines 347-348.
+**SDK runner** (`apps/daemon/lib/agent-sdk/sdk-runner.ts`): `SessionPrepSpec` has `mailFilePath?` and `commissionId?` (lines 100-103). `SessionPrepDeps.resolveToolSet` context parameter includes them (lines 119-120). Both are passed to the toolbox resolver at lines 347-348.
 
-**Event bus** (`daemon/lib/event-bus.ts`): `SystemEvent` union includes `commission_mail_sent` and `mail_reply_received` variants (lines 22-23).
+**Event bus** (`apps/daemon/lib/event-bus.ts`): `SystemEvent` union includes `commission_mail_sent` and `mail_reply_received` variants (lines 22-23).
 
 **Shared types** (`lib/types.ts`): `AppConfig.maxConcurrentMailReaders?` (line 41). `ActivationContext.mailContext?` (line 281). `SYSTEM_EVENT_TYPES` includes `"commission_mail_sent"` and `"mail_reply_received"` (lines 365-366).
 
@@ -48,19 +48,19 @@ Source: `.lore/brainstorm/worker-sub-agents-and-mail-removal.md`, Proposal 1.
 
 **Commission sorting** (`lib/commissions.ts`): `STATUS_GROUP` maps `sleeping` to group 1 (line 256). `extractRelevantDate` maps `sleeping` to `status_sleeping` (line 304).
 
-**Manager context** (`daemon/services/manager/context.ts`): `buildCommissionSection` filters for `sleeping` as active (line 150).
+**Manager context** (`apps/daemon/services/manager/context.ts`): `buildCommissionSection` filters for `sleeping` as active (line 150).
 
-**Manager toolbox** (`daemon/services/manager/toolbox.ts`): `SUMMARY_GROUP` maps `sleeping` to `"active"` (line 1061).
+**Manager toolbox** (`apps/daemon/services/manager/toolbox.ts`): `SUMMARY_GROUP` maps `sleeping` to `"active"` (line 1061).
 
-**Scheduler** (`daemon/services/scheduler/index.ts`): `isSpawnedCommissionActive` treats `sleeping` as active (line 519).
+**Scheduler** (`apps/daemon/services/scheduler/index.ts`): `isSpawnedCommissionActive` treats `sleeping` as active (line 519).
 
-**Commission filter** (`web/components/commission/commission-filter.ts`): `DEFAULT_STATUSES` includes `"sleeping"` (line 9). `FILTER_GROUPS` Active group includes `"sleeping"` (line 19).
+**Commission filter** (`apps/web/components/commission/commission-filter.ts`): `DEFAULT_STATUSES` includes `"sleeping"` (line 9). `FILTER_GROUPS` Active group includes `"sleeping"` (line 19).
 
-**Base toolbox** (`daemon/services/base-toolbox.ts`): `list_guild_capabilities` tool description mentions `send_mail` (line 441).
+**Base toolbox** (`apps/daemon/services/base-toolbox.ts`): `list_guild_capabilities` tool description mentions `send_mail` (line 441).
 
 **Worker packages**: `packages/guild-hall-steward/posture.md` (line 81) and `packages/guild-hall-illuminator/posture.md` (line 64) reference `send_mail` in their posture text.
 
-**Daemon types** (`daemon/types.ts`): `CommissionStatus` union includes `"sleeping"` (line 44).
+**Daemon types** (`apps/daemon/types.ts`): `CommissionStatus` union includes `"sleeping"` (line 44).
 
 ## Scope of Deletion
 
@@ -68,13 +68,13 @@ Source: `.lore/brainstorm/worker-sub-agents-and-mail-removal.md`, Proposal 1.
 
 | File | Reason |
 |------|--------|
-| `daemon/services/mail/orchestrator.ts` | Mail orchestration |
-| `daemon/services/mail/toolbox.ts` | Mail reader toolbox (reply tool) |
-| `daemon/services/mail/record.ts` | Mail file I/O |
-| `daemon/services/mail/types.ts` | Mail types (PendingMail, SleepingCommissionState, etc.) |
-| `tests/daemon/services/mail/orchestrator.test.ts` | Mail orchestrator tests (~124K) |
-| `tests/daemon/services/mail/record.test.ts` | Mail record tests |
-| `tests/daemon/services/mail/toolbox.test.ts` | Mail toolbox tests |
+| `apps/daemon/services/mail/orchestrator.ts` | Mail orchestration |
+| `apps/daemon/services/mail/toolbox.ts` | Mail reader toolbox (reply tool) |
+| `apps/daemon/services/mail/record.ts` | Mail file I/O |
+| `apps/daemon/services/mail/types.ts` | Mail types (PendingMail, SleepingCommissionState, etc.) |
+| `apps/daemon/tests/services/mail/orchestrator.test.ts` | Mail orchestrator tests (~124K) |
+| `apps/daemon/tests/services/mail/record.test.ts` | Mail record tests |
+| `apps/daemon/tests/services/mail/toolbox.test.ts` | Mail toolbox tests |
 | `.lore/specs/workers/worker-communication.md` | Mail spec (archive, status: removed) |
 | `.lore/specs/workers/guild-hall-mail-reader-toolbox.md` | Mail reader toolbox spec (archive, status: removed) |
 | `.lore/plans/workers/worker-communication.md` | Mail implementation plan (archive, status: removed) |
@@ -86,7 +86,7 @@ Source: `.lore/brainstorm/worker-sub-agents-and-mail-removal.md`, Proposal 1.
 
 | File | Change |
 |------|--------|
-| `daemon/types.ts:44` | Remove `"sleeping"` from `CommissionStatus` |
+| `apps/daemon/types.ts:44` | Remove `"sleeping"` from `CommissionStatus` |
 | `lib/types.ts:41` | Remove `maxConcurrentMailReaders?` from `AppConfig` |
 | `lib/types.ts:281-285` | Remove `mailContext?` from `ActivationContext` |
 | `lib/types.ts:365-366` | Remove `"commission_mail_sent"` and `"mail_reply_received"` from `SYSTEM_EVENT_TYPES` |
@@ -96,23 +96,23 @@ Source: `.lore/brainstorm/worker-sub-agents-and-mail-removal.md`, Proposal 1.
 
 | File | Change |
 |------|--------|
-| `daemon/lib/event-bus.ts:22-23` | Remove `commission_mail_sent` and `mail_reply_received` from `SystemEvent` union |
+| `apps/daemon/lib/event-bus.ts:22-23` | Remove `commission_mail_sent` and `mail_reply_received` from `SystemEvent` union |
 
 **Context type registry:**
 
 | File | Change |
 |------|--------|
-| `daemon/services/context-type-registry.ts:4` | Remove `mailToolboxFactory` import |
-| `daemon/services/context-type-registry.ts:6` | Remove `"mail"` from `ContextTypeName` |
-| `daemon/services/context-type-registry.ts:20-24` | Remove `"mail"` registration block |
+| `apps/daemon/services/context-type-registry.ts:4` | Remove `mailToolboxFactory` import |
+| `apps/daemon/services/context-type-registry.ts:6` | Remove `"mail"` from `ContextTypeName` |
+| `apps/daemon/services/context-type-registry.ts:20-24` | Remove `"mail"` registration block |
 
 **Toolbox types and resolver:**
 
 | File | Change |
 |------|--------|
-| `daemon/services/toolbox-types.ts:26-27` | Remove `mailFilePath?` and `commissionId?` from `GuildHallToolboxDeps` |
-| `daemon/services/toolbox-resolver.ts:40-43` | Remove `mailFilePath?` and `commissionId?` (and their comments) from `ToolboxResolverContext` |
-| `daemon/services/toolbox-resolver.ts:98-99` | Remove `mailFilePath` and `commissionId` from deps object construction |
+| `apps/daemon/services/toolbox-types.ts:26-27` | Remove `mailFilePath?` and `commissionId?` from `GuildHallToolboxDeps` |
+| `apps/daemon/services/toolbox-resolver.ts:40-43` | Remove `mailFilePath?` and `commissionId?` (and their comments) from `ToolboxResolverContext` |
+| `apps/daemon/services/toolbox-resolver.ts:98-99` | Remove `mailFilePath` and `commissionId` from deps object construction |
 
 **Worker activation:**
 
@@ -124,53 +124,53 @@ Source: `.lore/brainstorm/worker-sub-agents-and-mail-removal.md`, Proposal 1.
 
 | File | Change |
 |------|--------|
-| `daemon/lib/agent-sdk/sdk-runner.ts:100-103` | Remove `mailFilePath?` and `commissionId?` from `SessionPrepSpec` |
-| `daemon/lib/agent-sdk/sdk-runner.ts:119-120` | Remove from `SessionPrepDeps.resolveToolSet` context parameter |
-| `daemon/lib/agent-sdk/sdk-runner.ts:347-348` | Remove from toolbox resolver call site |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts:100-103` | Remove `mailFilePath?` and `commissionId?` from `SessionPrepSpec` |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts:119-120` | Remove from `SessionPrepDeps.resolveToolSet` context parameter |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts:347-348` | Remove from toolbox resolver call site |
 
 **Commission toolbox:**
 
 | File | Change |
 |------|--------|
-| `daemon/services/commission/toolbox.ts:7` | Update module doc: remove `send_mail` from tool list, remove mutual exclusion note |
-| `daemon/services/commission/toolbox.ts:30-31` | Remove `createMailRecordOps` and `MailRecordOps` imports |
-| `daemon/services/commission/toolbox.ts:44` | Remove `onMailSent?` from `SessionCallbacks` |
-| `daemon/services/commission/toolbox.ts:51-54` | Simplify `SessionState`: remove `mailSent`, keep only `resultSubmitted` (or inline the boolean) |
-| `daemon/services/commission/toolbox.ts:72-73,79` | Remove `mailRecordOps` from `ToolboxResources` and its creation |
-| `daemon/services/commission/toolbox.ts:117,139-149` | Remove `mailSent` check from `makeSubmitResultHandler` |
-| `daemon/services/commission/toolbox.ts:182-253` | Delete `makeSendMailHandler` entirely |
-| `daemon/services/commission/toolbox.ts:271,275` | Remove `sessionState.mailSent` init and `sendMail` handler creation |
-| `daemon/services/commission/toolbox.ts:297-306` | Remove `send_mail` tool registration |
-| `daemon/services/commission/toolbox.ts:334-341` | Remove `onMailSent` callback from `commissionToolboxFactory` |
+| `apps/daemon/services/commission/toolbox.ts:7` | Update module doc: remove `send_mail` from tool list, remove mutual exclusion note |
+| `apps/daemon/services/commission/toolbox.ts:30-31` | Remove `createMailRecordOps` and `MailRecordOps` imports |
+| `apps/daemon/services/commission/toolbox.ts:44` | Remove `onMailSent?` from `SessionCallbacks` |
+| `apps/daemon/services/commission/toolbox.ts:51-54` | Simplify `SessionState`: remove `mailSent`, keep only `resultSubmitted` (or inline the boolean) |
+| `apps/daemon/services/commission/toolbox.ts:72-73,79` | Remove `mailRecordOps` from `ToolboxResources` and its creation |
+| `apps/daemon/services/commission/toolbox.ts:117,139-149` | Remove `mailSent` check from `makeSubmitResultHandler` |
+| `apps/daemon/services/commission/toolbox.ts:182-253` | Delete `makeSendMailHandler` entirely |
+| `apps/daemon/services/commission/toolbox.ts:271,275` | Remove `sessionState.mailSent` init and `sendMail` handler creation |
+| `apps/daemon/services/commission/toolbox.ts:297-306` | Remove `send_mail` tool registration |
+| `apps/daemon/services/commission/toolbox.ts:334-341` | Remove `onMailSent` callback from `commissionToolboxFactory` |
 
 **Commission orchestrator:**
 
 | File | Change |
 |------|--------|
-| `daemon/services/commission/orchestrator.ts:84-85` | Remove `createMailOrchestrator` and `MailOrchestrator` imports |
-| `daemon/services/commission/orchestrator.ts:86` | Remove `SleepingCommissionState` import |
-| `daemon/services/commission/orchestrator.ts:189-191` | Remove `mailOrchestrator` from deps interface |
-| `daemon/services/commission/orchestrator.ts:239-241` | Remove `mailOrchestrator` variable declaration |
-| `daemon/services/commission/orchestrator.ts:365-377` | Remove mail orchestrator creation |
-| `daemon/services/commission/orchestrator.ts:860-935` | Delete `cancelSleepingCommission` helper entirely |
-| `daemon/services/commission/orchestrator.ts:1187-1248` | Remove sleeping commission recovery block from startup |
-| `daemon/services/commission/orchestrator.ts:2104-2178` | Remove `commission_mail_sent` event handler and sleep flow from session completion |
-| `daemon/services/commission/orchestrator.ts:2624-2625` | Remove `sleeping` branch from cancel flow |
-| `daemon/services/commission/orchestrator.ts:2694-2695` | Remove `sleeping` branch from abandon flow |
-| `daemon/services/commission/orchestrator.ts:2848` | Remove `mailOrchestrator.shutdownReaders()` from shutdown |
+| `apps/daemon/services/commission/orchestrator.ts:84-85` | Remove `createMailOrchestrator` and `MailOrchestrator` imports |
+| `apps/daemon/services/commission/orchestrator.ts:86` | Remove `SleepingCommissionState` import |
+| `apps/daemon/services/commission/orchestrator.ts:189-191` | Remove `mailOrchestrator` from deps interface |
+| `apps/daemon/services/commission/orchestrator.ts:239-241` | Remove `mailOrchestrator` variable declaration |
+| `apps/daemon/services/commission/orchestrator.ts:365-377` | Remove mail orchestrator creation |
+| `apps/daemon/services/commission/orchestrator.ts:860-935` | Delete `cancelSleepingCommission` helper entirely |
+| `apps/daemon/services/commission/orchestrator.ts:1187-1248` | Remove sleeping commission recovery block from startup |
+| `apps/daemon/services/commission/orchestrator.ts:2104-2178` | Remove `commission_mail_sent` event handler and sleep flow from session completion |
+| `apps/daemon/services/commission/orchestrator.ts:2624-2625` | Remove `sleeping` branch from cancel flow |
+| `apps/daemon/services/commission/orchestrator.ts:2694-2695` | Remove `sleeping` branch from abandon flow |
+| `apps/daemon/services/commission/orchestrator.ts:2848` | Remove `mailOrchestrator.shutdownReaders()` from shutdown |
 
 **Commission lifecycle:**
 
 | File | Change |
 |------|--------|
-| `daemon/services/commission/lifecycle.ts:53` | Remove `"sleeping"` from `in_progress` transitions |
-| `daemon/services/commission/lifecycle.ts:54` | Delete the `sleeping` entry from `TRANSITIONS` table |
+| `apps/daemon/services/commission/lifecycle.ts:53` | Remove `"sleeping"` from `in_progress` transitions |
+| `apps/daemon/services/commission/lifecycle.ts:54` | Delete the `sleeping` entry from `TRANSITIONS` table |
 
 **Commission capacity:**
 
 | File | Change |
 |------|--------|
-| `daemon/services/commission/capacity.ts:59-69` | Delete `DEFAULT_MAIL_READER_CAP` and `isMailReaderAtCapacity` |
+| `apps/daemon/services/commission/capacity.ts:59-69` | Delete `DEFAULT_MAIL_READER_CAP` and `isMailReaderAtCapacity` |
 
 **Commission sorting and helpers:**
 
@@ -183,27 +183,27 @@ Source: `.lore/brainstorm/worker-sub-agents-and-mail-removal.md`, Proposal 1.
 
 | File | Change |
 |------|--------|
-| `daemon/services/manager/context.ts:150` | Remove `sleeping` from active commission filter |
-| `daemon/services/manager/toolbox.ts:1061` | Remove `sleeping: "active"` from `SUMMARY_GROUP` |
+| `apps/daemon/services/manager/context.ts:150` | Remove `sleeping` from active commission filter |
+| `apps/daemon/services/manager/toolbox.ts:1061` | Remove `sleeping: "active"` from `SUMMARY_GROUP` |
 
 **Scheduler:**
 
 | File | Change |
 |------|--------|
-| `daemon/services/scheduler/index.ts:519` | Remove `sleeping` from `isSpawnedCommissionActive` check |
+| `apps/daemon/services/scheduler/index.ts:519` | Remove `sleeping` from `isSpawnedCommissionActive` check |
 
 **Web components:**
 
 | File | Change |
 |------|--------|
-| `web/components/commission/commission-filter.ts:9` | Remove `"sleeping"` from `DEFAULT_STATUSES` |
-| `web/components/commission/commission-filter.ts:19` | Remove `"sleeping"` from Active filter group |
+| `apps/web/components/commission/commission-filter.ts:9` | Remove `"sleeping"` from `DEFAULT_STATUSES` |
+| `apps/web/components/commission/commission-filter.ts:19` | Remove `"sleeping"` from Active filter group |
 
 **Base toolbox:**
 
 | File | Change |
 |------|--------|
-| `daemon/services/base-toolbox.ts:441` | Update `list_guild_capabilities` description: remove "via send_mail" reference. Change to something like "Use this to discover who can be consulted." |
+| `apps/daemon/services/base-toolbox.ts:441` | Update `list_guild_capabilities` description: remove "via send_mail" reference. Change to something like "Use this to discover who can be consulted." |
 
 **Worker packages:**
 
@@ -226,16 +226,16 @@ Source: `.lore/brainstorm/worker-sub-agents-and-mail-removal.md`, Proposal 1.
 
 | File | Change |
 |------|--------|
-| `tests/daemon/commission-toolbox.test.ts:445-607` | Delete `send_mail` tool tests and mutual exclusion tests. Keep `report_progress` and `submit_result` tests. Simplify `SessionState` usage in remaining tests. |
-| `tests/daemon/services/commission/lifecycle.test.ts:825-906` | Delete sleeping state transition tests (sleep/wake/wake and sleeping-to-cancelled/abandoned/failed) |
-| `tests/daemon/services/commission/capacity.test.ts:2,110-134` | Delete mail reader capacity tests and `isMailReaderAtCapacity` import |
-| `tests/daemon/toolbox-resolver.test.ts:260-375` | Delete mail context toolbox resolution tests |
-| `tests/daemon/services/sdk-runner.test.ts:570-589` | Delete `mailFilePath` and `commissionId` session parameter tests |
-| `tests/packages/worker-activation.test.ts` | Delete mail context rendering test suites (the `describe("mail context rendering")` blocks). Note: this block appears duplicated in the test file. Delete both instances. |
-| `tests/lib/types.test.ts:31` | Remove `sleeping` from status sorting test data (if it appears in test fixtures) |
-| `tests/lib/commissions.test.ts:268-300` | Remove `sleeping` from commission sorting test data |
-| `tests/components/commission-list.test.tsx:43` | Remove `sleeping` status from test fixture |
-| `tests/packages/guild-hall-steward/integration.test.ts:216` | Update or remove the test that checks posture contains `send_mail` |
+| `apps/daemon/tests/commission-toolbox.test.ts:445-607` | Delete `send_mail` tool tests and mutual exclusion tests. Keep `report_progress` and `submit_result` tests. Simplify `SessionState` usage in remaining tests. |
+| `apps/daemon/tests/services/commission/lifecycle.test.ts:825-906` | Delete sleeping state transition tests (sleep/wake/wake and sleeping-to-cancelled/abandoned/failed) |
+| `apps/daemon/tests/services/commission/capacity.test.ts:2,110-134` | Delete mail reader capacity tests and `isMailReaderAtCapacity` import |
+| `apps/daemon/tests/toolbox-resolver.test.ts:260-375` | Delete mail context toolbox resolution tests |
+| `apps/daemon/tests/services/sdk-runner.test.ts:570-589` | Delete `mailFilePath` and `commissionId` session parameter tests |
+| `packages/tests/worker-activation.test.ts` | Delete mail context rendering test suites (the `describe("mail context rendering")` blocks). Note: this block appears duplicated in the test file. Delete both instances. |
+| `lib/tests/types.test.ts:31` | Remove `sleeping` from status sorting test data (if it appears in test fixtures) |
+| `lib/tests/commissions.test.ts:268-300` | Remove `sleeping` from commission sorting test data |
+| `apps/web/tests/components/commission-list.test.tsx:43` | Remove `sleeping` status from test fixture |
+| `packages/guild-hall-steward/tests/integration.test.ts:216` | Update or remove the test that checks posture contains `send_mail` |
 
 ### Lore docs requiring surgical edits
 
@@ -287,16 +287,16 @@ These specs and plans mention mail in passing (a status list, a context type enu
 
 ### Phase 1: Delete mail service and tests
 
-**Files**: Delete `daemon/services/mail/` (4 files) and `tests/daemon/services/mail/` (3 files).
+**Files**: Delete `apps/daemon/services/mail/` (4 files) and `apps/daemon/tests/services/mail/` (3 files).
 
-No other file imports from `daemon/services/mail/` except:
-- `daemon/services/commission/orchestrator.ts` (imports `createMailOrchestrator`, `MailOrchestrator`, `SleepingCommissionState`)
-- `daemon/services/commission/toolbox.ts` (imports `createMailRecordOps`, `MailRecordOps`)
-- `daemon/services/context-type-registry.ts` (imports `mailToolboxFactory`)
+No other file imports from `apps/daemon/services/mail/` except:
+- `apps/daemon/services/commission/orchestrator.ts` (imports `createMailOrchestrator`, `MailOrchestrator`, `SleepingCommissionState`)
+- `apps/daemon/services/commission/toolbox.ts` (imports `createMailRecordOps`, `MailRecordOps`)
+- `apps/daemon/services/context-type-registry.ts` (imports `mailToolboxFactory`)
 
 These three consumer files must be edited in the same phase to keep the build passing.
 
-**Edits in commission orchestrator** (`daemon/services/commission/orchestrator.ts`):
+**Edits in commission orchestrator** (`apps/daemon/services/commission/orchestrator.ts`):
 1. Remove `createMailOrchestrator` and `MailOrchestrator` imports.
 2. Remove `SleepingCommissionState` import.
 3. Remove `mailOrchestrator` from deps type, local variable, and creation.
@@ -306,7 +306,7 @@ These three consumer files must be edited in the same phase to keep the build pa
 7. Remove the `sleeping` branch from cancel and abandon flows. These become dead paths since nothing enters `sleeping`.
 8. Remove `mailOrchestrator.shutdownReaders()` from the shutdown function.
 
-**Edits in commission toolbox** (`daemon/services/commission/toolbox.ts`):
+**Edits in commission toolbox** (`apps/daemon/services/commission/toolbox.ts`):
 1. Remove `createMailRecordOps` and `MailRecordOps` imports.
 2. Remove `onMailSent?` from `SessionCallbacks`.
 3. Remove `mailSent` from `SessionState`. If `resultSubmitted` is the only remaining field, consider inlining it as a boolean rather than keeping the type.
@@ -317,7 +317,7 @@ These three consumer files must be edited in the same phase to keep the build pa
 8. Remove `onMailSent` callback from `commissionToolboxFactory`.
 9. Update the module doc comment to reflect two tools, not three.
 
-**Edits in context type registry** (`daemon/services/context-type-registry.ts`):
+**Edits in context type registry** (`apps/daemon/services/context-type-registry.ts`):
 1. Remove `mailToolboxFactory` import.
 2. Remove `"mail"` from `ContextTypeName` union.
 3. Remove the `registry.set("mail", ...)` block.
@@ -326,23 +326,23 @@ These three consumer files must be edited in the same phase to keep the build pa
 
 ### Phase 2: Remove sleeping status from types and lifecycle
 
-**Files**: `daemon/types.ts`, `daemon/services/commission/lifecycle.ts`
+**Files**: `apps/daemon/types.ts`, `apps/daemon/services/commission/lifecycle.ts`
 
-**Edits in daemon/types.ts**:
+**Edits in apps/daemon/types.ts**:
 1. Remove `"sleeping"` from `CommissionStatus` union.
 
 **Edits in lifecycle.ts**:
 1. Remove `"sleeping"` from the `in_progress` transition targets.
 2. Delete the `sleeping` entry from `TRANSITIONS`.
 
-**Edits in lifecycle tests** (`tests/daemon/services/commission/lifecycle.test.ts`):
+**Edits in lifecycle tests** (`apps/daemon/tests/services/commission/lifecycle.test.ts`):
 1. Delete all sleeping transition tests (the block testing `in_progress -> sleeping`, `sleeping -> in_progress`, `sleeping -> cancelled`, `sleeping -> abandoned`, `sleeping -> failed`).
 
 **Verification**: `bun run typecheck && bun test`. TypeScript will surface any remaining `"sleeping"` references via type narrowing failures.
 
 ### Phase 3: Remove mail fields from shared types and config
 
-**Files**: `lib/types.ts`, `lib/config.ts`, `daemon/lib/event-bus.ts`, `daemon/services/toolbox-types.ts`, `daemon/services/toolbox-resolver.ts`, `daemon/lib/agent-sdk/sdk-runner.ts`, `daemon/services/commission/capacity.ts`, `packages/shared/worker-activation.ts`
+**Files**: `lib/types.ts`, `lib/config.ts`, `apps/daemon/lib/event-bus.ts`, `apps/daemon/services/toolbox-types.ts`, `apps/daemon/services/toolbox-resolver.ts`, `apps/daemon/lib/agent-sdk/sdk-runner.ts`, `apps/daemon/services/commission/capacity.ts`, `packages/shared/worker-activation.ts`
 
 **Edits in lib/types.ts**:
 1. Remove `maxConcurrentMailReaders?` from `AppConfig`.
@@ -352,17 +352,17 @@ These three consumer files must be edited in the same phase to keep the build pa
 **Edits in lib/config.ts**:
 1. Remove `maxConcurrentMailReaders` from `appConfigSchema`.
 
-**Edits in daemon/lib/event-bus.ts**:
+**Edits in apps/daemon/lib/event-bus.ts**:
 1. Remove `commission_mail_sent` and `mail_reply_received` from `SystemEvent` union.
 
-**Edits in daemon/services/toolbox-types.ts**:
+**Edits in apps/daemon/services/toolbox-types.ts**:
 1. Remove `mailFilePath?` and `commissionId?` from `GuildHallToolboxDeps`.
 
-**Edits in daemon/services/toolbox-resolver.ts**:
+**Edits in apps/daemon/services/toolbox-resolver.ts**:
 1. Remove `mailFilePath?` and `commissionId?` from `ToolboxResolverContext`.
 2. Remove their passthrough in the deps construction (lines 98-99).
 
-**Edits in daemon/lib/agent-sdk/sdk-runner.ts**:
+**Edits in apps/daemon/lib/agent-sdk/sdk-runner.ts**:
 1. Remove `mailFilePath?` and `commissionId?` from `SessionPrepSpec`.
 2. Remove them from the `SessionPrepDeps.resolveToolSet` context type.
 3. Remove them from the call site that passes context to `resolveToolSet`.
@@ -370,46 +370,46 @@ These three consumer files must be edited in the same phase to keep the build pa
 **Edits in packages/shared/worker-activation.ts**:
 1. Remove the `if (context.mailContext) { ... }` block from `buildSystemPrompt` (lines 36-52). This block renders the mail consultation prompt sections. Without it, the `mailContext` type removal in `lib/types.ts` would break the build.
 
-**Edits in daemon/services/commission/capacity.ts**:
+**Edits in apps/daemon/services/commission/capacity.ts**:
 1. Delete `DEFAULT_MAIL_READER_CAP` and `isMailReaderAtCapacity`.
 
 **Test edits** (surgical):
-- `tests/daemon/services/commission/capacity.test.ts`: Delete mail reader capacity tests. Keep commission capacity tests.
-- `tests/daemon/toolbox-resolver.test.ts`: Delete mail context resolution tests. Keep commission and meeting context tests.
-- `tests/daemon/services/sdk-runner.test.ts`: Delete `mailFilePath`/`commissionId` session parameter tests.
-- `tests/packages/worker-activation.test.ts`: Delete the `describe("mail context rendering")` suites. Note: this block is duplicated in the file. Delete both instances.
-- `tests/lib/types.test.ts`: Remove `sleeping` from any test fixtures.
-- `tests/daemon/commission-toolbox.test.ts`: Delete `send_mail` tests and mutual exclusion tests. Simplify `SessionState` in remaining tests to remove `mailSent`.
+- `apps/daemon/tests/services/commission/capacity.test.ts`: Delete mail reader capacity tests. Keep commission capacity tests.
+- `apps/daemon/tests/toolbox-resolver.test.ts`: Delete mail context resolution tests. Keep commission and meeting context tests.
+- `apps/daemon/tests/services/sdk-runner.test.ts`: Delete `mailFilePath`/`commissionId` session parameter tests.
+- `packages/tests/worker-activation.test.ts`: Delete the `describe("mail context rendering")` suites. Note: this block is duplicated in the file. Delete both instances.
+- `lib/tests/types.test.ts`: Remove `sleeping` from any test fixtures.
+- `apps/daemon/tests/commission-toolbox.test.ts`: Delete `send_mail` tests and mutual exclusion tests. Simplify `SessionState` in remaining tests to remove `mailSent`.
 
 **Verification**: `bun run typecheck && bun test`.
 
 ### Phase 4: Remove sleeping from downstream consumers
 
-**Files**: `lib/commissions.ts`, `daemon/services/manager/context.ts`, `daemon/services/manager/toolbox.ts`, `daemon/services/scheduler/index.ts`, `web/components/commission/commission-filter.ts`, `daemon/services/base-toolbox.ts`
+**Files**: `lib/commissions.ts`, `apps/daemon/services/manager/context.ts`, `apps/daemon/services/manager/toolbox.ts`, `apps/daemon/services/scheduler/index.ts`, `apps/web/components/commission/commission-filter.ts`, `apps/daemon/services/base-toolbox.ts`
 
 **Edits in lib/commissions.ts**:
 1. Remove `sleeping: 1` from `STATUS_GROUP`.
 2. Remove `sleeping: "status_sleeping"` from `targetEvent`.
 
-**Edits in daemon/services/manager/context.ts**:
+**Edits in apps/daemon/services/manager/context.ts**:
 1. Remove `c.status === "sleeping"` from the active commission filter condition.
 
-**Edits in daemon/services/manager/toolbox.ts**:
+**Edits in apps/daemon/services/manager/toolbox.ts**:
 1. Remove `sleeping: "active"` from `SUMMARY_GROUP`.
 
-**Edits in daemon/services/scheduler/index.ts**:
+**Edits in apps/daemon/services/scheduler/index.ts**:
 1. Remove `status === "sleeping"` from `isSpawnedCommissionActive`.
 
-**Edits in web/components/commission/commission-filter.ts**:
+**Edits in apps/web/components/commission/commission-filter.ts**:
 1. Remove `"sleeping"` from `DEFAULT_STATUSES`.
 2. Remove `"sleeping"` from the Active group in `FILTER_GROUPS`.
 
-**Edits in daemon/services/base-toolbox.ts**:
+**Edits in apps/daemon/services/base-toolbox.ts**:
 1. Change `list_guild_capabilities` description from "Use this to discover who you can contact via send_mail" to "List all guild workers with their titles and capabilities. Use this to discover available workers. Returns names, titles, and descriptions. Read-only."
 
 **Test edits** (surgical):
-- `tests/lib/commissions.test.ts`: Remove `sleeping` from test fixtures and sorting tests.
-- `tests/components/commission-list.test.tsx`: Remove `sleeping` from test fixture data.
+- `lib/tests/commissions.test.ts`: Remove `sleeping` from test fixtures and sorting tests.
+- `apps/web/tests/components/commission-list.test.tsx`: Remove `sleeping` from test fixture data.
 
 **Verification**: `bun run typecheck && bun test`.
 
@@ -424,7 +424,7 @@ Remove the paragraph instructing the worker to send mail to the Guild Master via
 Remove `send_mail` reference. Replace the escalation guidance with: "Document the issue in your commission result for the Guild Master."
 
 **Test edits**:
-- `tests/packages/guild-hall-steward/integration.test.ts:216`: Update the test that checks posture contains `send_mail`. Change the assertion to match the new escalation text (e.g., check for "commission result" or "Guild Master").
+- `packages/guild-hall-steward/tests/integration.test.ts:216`: Update the test that checks posture contains `send_mail`. Change the assertion to match the new escalation text (e.g., check for "commission result" or "Guild Master").
 
 **Verification**: `bun run typecheck && bun test`.
 

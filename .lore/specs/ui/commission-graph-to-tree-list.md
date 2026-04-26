@@ -3,7 +3,7 @@ title: Commission graph to tree list
 date: 2026-03-14
 status: implemented
 tags: [ui, commissions, visualization, dashboard, dependency-graph, tree-list, css]
-modules: [web/components/dashboard/DependencyMap, web/components/commission/NeighborhoodGraph, web/app/projects, lib/dependency-graph]
+modules: [apps/web/components/dashboard/DependencyMap, apps/web/components/commission/NeighborhoodGraph, apps/web/app/projects, lib/dependency-graph]
 related:
   - .lore/brainstorm/commission-graph-to-tree-list.md
   - .lore/specs/ui/guild-hall-views.md
@@ -29,7 +29,7 @@ Source decisions: `.lore/brainstorm/commission-graph-to-tree-list.md` (status: r
 ## Entry Points
 
 - Dashboard "Task Dependency Map" panel (from `DependencyMap.tsx`, per REQ-VIEW-14)
-- Project page Commissions tab (from `web/app/projects/[name]/page.tsx`, per REQ-VIEW-18)
+- Project page Commissions tab (from `apps/web/app/projects/[name]/page.tsx`, per REQ-VIEW-18)
 - Commission detail page "Dependencies" section (from `NeighborhoodGraph.tsx`, per REQ-VIEW-22)
 
 ## Requirements
@@ -60,7 +60,7 @@ Source decisions: `.lore/brainstorm/commission-graph-to-tree-list.md` (status: r
 
 ### Project page cleanup
 
-- REQ-CTREE-28: The Project page (`web/app/projects/[name]/page.tsx`) currently imports and renders `CommissionGraph` in compact mode on the Commissions tab (lines 9, 84-89). This import and usage must be removed when `CommissionGraph.tsx` is deleted. The Project page already has `CommissionList` for its commission display; removing the compact graph is sufficient. No replacement graph or tree is needed on the Project page because `CommissionList` (with filtering per the commission-list-filtering spec) serves that view.
+- REQ-CTREE-28: The Project page (`apps/web/app/projects/[name]/page.tsx`) currently imports and renders `CommissionGraph` in compact mode on the Commissions tab (lines 9, 84-89). This import and usage must be removed when `CommissionGraph.tsx` is deleted. The Project page already has `CommissionList` for its commission display; removing the compact graph is sufficient. No replacement graph or tree is needed on the Project page because `CommissionList` (with filtering per the commission-list-filtering spec) serves that view.
 
 ### Commission detail neighborhood replacement
 
@@ -89,10 +89,10 @@ Source decisions: `.lore/brainstorm/commission-graph-to-tree-list.md` (status: r
 ### Deletion inventory
 
 - REQ-CTREE-17: The following files are deleted entirely:
-  - `web/components/dashboard/CommissionGraph.tsx` (247 lines)
-  - `web/components/dashboard/CommissionGraph.module.css` (72 lines)
-  - `web/components/commission/NeighborhoodGraph.tsx` (44 lines)
-  - `web/components/commission/NeighborhoodGraph.module.css` (9 lines)
+  - `apps/web/components/dashboard/CommissionGraph.tsx` (247 lines)
+  - `apps/web/components/dashboard/CommissionGraph.module.css` (72 lines)
+  - `apps/web/components/commission/NeighborhoodGraph.tsx` (44 lines)
+  - `apps/web/components/commission/NeighborhoodGraph.module.css` (9 lines)
 
 - REQ-CTREE-18: The following exports are removed from `lib/dependency-graph.ts`:
   - `layoutGraph()` function (lines 442-513)

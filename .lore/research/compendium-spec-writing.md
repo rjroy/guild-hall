@@ -178,7 +178,7 @@ This section synthesizes findings from multiple sources on what makes specs effe
 Agents have no institutional memory, no hallway conversations, no "everyone knows that." Every assumption must be on the page.
 
 - **Name the actor.** Not "validation occurs" but "the toolbox-resolver validates during `prepareSdkSession`."
-- **Name the file.** Not "in the appropriate module" but "in `daemon/services/toolbox-resolver.ts`."
+- **Name the file.** Not "in the appropriate module" but "in `apps/daemon/services/toolbox-resolver.ts`."
 - **Name the consequence.** Not "handle errors appropriately" but "throw a `ToolboxResolutionError` with the missing package name."
 
 ### Concrete Over Abstract
@@ -211,7 +211,7 @@ Osmani's article cites research showing that as the number of instructions incre
 
 Tell the agent how to check its own work. This maps to the "success criteria" pattern, but made agent-actionable:
 
-- "Run `bun test tests/lib/packages.test.ts` to verify schema changes"
+- "Run `bun test lib/tests/packages.test.ts` to verify schema changes"
 - "The new type should not appear in `getWorkers()` output (verifiable by inspecting the existing test file)"
 - "Commit should pass the pre-commit hook (typecheck, lint, tests, build)"
 

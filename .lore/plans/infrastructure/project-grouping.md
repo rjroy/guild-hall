@@ -3,7 +3,7 @@ title: "Plan: Project Grouping"
 date: 2026-04-02
 status: executed
 tags: [config, projects, sidebar, dashboard, cli, organization]
-modules: [lib/types, lib/config, daemon/routes/admin, web/components/dashboard/WorkspaceSidebar, web/app/page, cli/index]
+modules: [lib/types, lib/config, apps/daemon/routes/admin, apps/web/components/dashboard/WorkspaceSidebar, apps/web/app/page, apps/cli/index]
 related:
   - .lore/specs/infrastructure/project-grouping.md
   - .lore/brainstorm/project-list-management.md
@@ -65,8 +65,8 @@ Five sequential phases: (1) foundation types/schema, (2) daemon routes, (3) CLI 
 ## Key Patterns
 
 - **Config mutation**: write disk first via `writeConfig()`, then mutate in-memory `deps.config.projects` in-place
-- **Active session check**: `hasActiveActivities(ghHome, projectName)` from `daemon/services/git-admin.ts`
-- **Git env**: `cleanGitEnv()` from `daemon/lib/git.ts` when shelling `git worktree remove`
+- **Active session check**: `hasActiveActivities(ghHome, projectName)` from `apps/daemon/services/git-admin.ts`
+- **Git env**: `cleanGitEnv()` from `apps/daemon/lib/git.ts` when shelling `git worktree remove`
 - **CSS**: only `var(--color-*)` tokens; `-webkit-backdrop-filter` before `backdrop-filter`
 - **No `mock.module()`**: all tests use DI and `app.request()`
 

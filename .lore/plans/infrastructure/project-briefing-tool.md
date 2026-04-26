@@ -21,21 +21,21 @@ This addresses the worker awareness gap: workers currently operate blind to what
 
 ## Codebase Context
 
-**Briefing generator** (`daemon/services/briefing-generator.ts`): Factory function `createBriefingGenerator(deps)` returns an object with `getCachedBriefing(projectName): Promise<BriefingResult | null>`. This is a cache-only read. Returns `null` if no cached briefing exists. `BriefingResult` is `{ briefing: string, generatedAt: string, cached: boolean }`. The background refresh service (`daemon/services/briefing-refresh.ts`) keeps the cache warm, so `getCachedBriefing` should return data under normal operation.
+**Briefing generator** (`apps/daemon/services/briefing-generator.ts`): Factory function `createBriefingGenerator(deps)` returns an object with `getCachedBriefing(projectName): Promise<BriefingResult | null>`. This is a cache-only read. Returns `null` if no cached briefing exists. `BriefingResult` is `{ briefing: string, generatedAt: string, cached: boolean }`. The background refresh service (`apps/daemon/services/briefing-refresh.ts`) keeps the cache warm, so `getCachedBriefing` should return data under normal operation.
 
-**Base toolbox** (`daemon/services/base-toolbox.ts`): `createBaseToolbox(deps: BaseToolboxDeps)` builds an MCP server with 4 tools. `BaseToolboxDeps` is a slim interface: `contextId`, `contextType`, `workerName`, `projectName`, `guildHallHome`. The `baseToolboxFactory` in the same file narrows from `GuildHallToolboxDeps` to `BaseToolboxDeps`.
+**Base toolbox** (`apps/daemon/services/base-toolbox.ts`): `createBaseToolbox(deps: BaseToolboxDeps)` builds an MCP server with 4 tools. `BaseToolboxDeps` is a slim interface: `contextId`, `contextType`, `workerName`, `projectName`, `guildHallHome`. The `baseToolboxFactory` in the same file narrows from `GuildHallToolboxDeps` to `BaseToolboxDeps`.
 
-**Toolbox types** (`daemon/services/toolbox-types.ts`): `GuildHallToolboxDeps` includes `config` and `eventBus` but not `briefingGenerator`. This is the type all toolbox factories receive from the resolver.
+**Toolbox types** (`apps/daemon/services/toolbox-types.ts`): `GuildHallToolboxDeps` includes `config` and `eventBus` but not `briefingGenerator`. This is the type all toolbox factories receive from the resolver.
 
-**Production wiring** (`daemon/app.ts`): The `briefingGenerator` is created at app startup (line 425) and passed to routes and the refresh service. It is not currently passed to the toolbox resolver or session prep.
+**Production wiring** (`apps/daemon/app.ts`): The `briefingGenerator` is created at app startup (line 425) and passed to routes and the refresh service. It is not currently passed to the toolbox resolver or session prep.
 
-**Existing tests** (`tests/daemon/base-toolbox.test.ts`): Tests use `mkdtemp` for isolation, call exported handler factories directly (e.g., `makeReadMemoryHandler`), and verify return shapes. No mocking of external services.
+**Existing tests** (`apps/daemon/tests/base-toolbox.test.ts`): Tests use `mkdtemp` for isolation, call exported handler factories directly (e.g., `makeReadMemoryHandler`), and verify return shapes. No mocking of external services.
 
 ## Implementation Steps
 
 ### Step 1: Add getCachedBriefing callback to both deps interfaces
 
-**Files**: `daemon/services/base-toolbox.ts`, `daemon/services/toolbox-types.ts`
+**Files**: `apps/daemon/services/base-toolbox.ts`, `apps/daemon/services/toolbox-types.ts`
 
 Add an optional `getCachedBriefing` callback to both interfaces. The callback type is `(projectName: string) => Promise<BriefingResult | null>`. Add `import type { BriefingResult } from "./briefing-generator"` to `base-toolbox.ts` (new cross-service import, acceptable because the dependency direction is base-toolbox -> briefing-generator, not circular).
 
@@ -59,16 +59,16 @@ Both are optional. Existing callers (tests, briefing context sessions) don't nee
 
 ### Step 2: Wire getCachedBriefing through the toolbox resolver
 
-**Files**: `daemon/services/toolbox-resolver.ts`, `daemon/app.ts`
+**Files**: `apps/daemon/services/toolbox-resolver.ts`, `apps/daemon/app.ts`
 
 The `GuildHallToolboxDeps` object is assembled inside `toolbox-resolver.ts` (around line 71-86), not in `app.ts`. The wiring path is:
 
 1. `toolbox-resolver.ts`: The resolver builds `GuildHallToolboxDeps` from its context. Add `getCachedBriefing` to the context type the resolver accepts and forward it into the `GuildHallToolboxDeps` object it constructs.
-2. `daemon/app.ts`: Where `prepDeps` is assembled (around line 321-331), the briefing generator is already in scope. Pass `briefingGenerator.getCachedBriefing` into the resolver's context so it flows through to `GuildHallToolboxDeps` and down to `baseToolboxFactory`.
+2. `apps/daemon/app.ts`: Where `prepDeps` is assembled (around line 321-331), the briefing generator is already in scope. Pass `briefingGenerator.getCachedBriefing` into the resolver's context so it flows through to `GuildHallToolboxDeps` and down to `baseToolboxFactory`.
 
 ### Step 3: Implement the project_briefing tool
 
-**Files**: `daemon/services/base-toolbox.ts`
+**Files**: `apps/daemon/services/base-toolbox.ts`
 
 Add the tool to the `createBaseToolbox` function's tools array. Follow the `read_memory` pattern: a `makeProjectBriefingHandler` factory that closes over the callback and project name.
 
@@ -91,7 +91,7 @@ Steps 1 and 2 handle the type changes and `app.ts` wiring. This step is a checkp
 
 ### Step 5: Tests
 
-**Files**: `tests/daemon/base-toolbox.test.ts`
+**Files**: `apps/daemon/tests/base-toolbox.test.ts`
 
 Add a `describe("project_briefing", ...)` block. Test cases:
 

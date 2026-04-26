@@ -45,9 +45,9 @@ Requirements addressed:
 
 The skill contract system is fully implemented. All 11 route factories return `RouteModule` with `SkillDefinition[]`. The `SkillRegistry` builds a navigation tree, supports `forTier()` filtering, and drives `GET /help/skills` plus hierarchy help endpoints. The CLI fetches the flat skill list and resolves commands via greedy longest-prefix match against invocation path segments. No CLI changes are needed for package skills because they enter the same registry and appear in the same flat catalog.
 
-Package discovery (`lib/packages.ts` `discoverPackages()`) already scans directories for `package.json` with a `guildHall` key, validates package names, and loads posture/soul/plugin metadata. Domain toolboxes are loaded via `toolboxFactory` export in `daemon/services/toolbox-resolver.ts` using dynamic import. The `skillFactory` pattern mirrors this exactly.
+Package discovery (`lib/packages.ts` `discoverPackages()`) already scans directories for `package.json` with a `guildHall` key, validates package names, and loads posture/soul/plugin metadata. Domain toolboxes are loaded via `toolboxFactory` export in `apps/daemon/services/toolbox-resolver.ts` using dynamic import. The `skillFactory` pattern mirrors this exactly.
 
-`createApp()` in `daemon/app.ts` collects `RouteModule` results from all route factories, aggregates their skills, and passes them to `createSkillRegistry()`. Package skills will enter as an additional `RouteModule` from a new `createPackageSkillRoutes()` factory. The registry's existing duplicate detection covers package-vs-built-in collisions.
+`createApp()` in `apps/daemon/app.ts` collects `RouteModule` results from all route factories, aggregates their skills, and passes them to `createSkillRegistry()`. Package skills will enter as an additional `RouteModule` from a new `createPackageSkillRoutes()` factory. The registry's existing duplicate detection covers package-vs-built-in collisions.
 
 Context validation in built-in routes is ad-hoc: each route handler checks for project/commission existence and returns 404 on failure. Package skill routes need a shared validation layer that applies the same checks consistently before invoking the handler.
 
@@ -57,10 +57,10 @@ Context validation in built-in routes is ad-hoc: each route handler checks for p
 
 ### Step 1: Add package skill handler types
 
-**Files**: `daemon/services/skill-types.ts` (new), `lib/types.ts`
+**Files**: `apps/daemon/services/skill-types.ts` (new), `lib/types.ts`
 **Addresses**: REQ-CLI-PD-1, REQ-CLI-PD-11, REQ-CLI-PD-12, REQ-CLI-PD-13, REQ-CLI-PD-17
 
-Create `daemon/services/skill-types.ts` with the types from the handler design doc:
+Create `apps/daemon/services/skill-types.ts` with the types from the handler design doc:
 - `SkillHandlerContext` (params as `Record<string, unknown>` + resolved context fields). The design doc shows `Record<string, string>`, but `SkillDefinition.requestSchema` is `ZodTypeAny` and may parse values to non-string types (numbers, booleans). Use `Record<string, unknown>` so parsed Zod output passes through without losing type information. Handlers that need strings can narrow.
 - `SkillHandlerResult` (data + optional status)
 - `SkillHandlerError` (extends Error with status code)
@@ -79,7 +79,7 @@ Tests: Unit tests for `SkillHandlerError` (status code, name, message). Type-lev
 
 ### Step 2: Package skill loading
 
-**Files**: `daemon/services/skill-loader.ts` (new)
+**Files**: `apps/daemon/services/skill-loader.ts` (new)
 **Addresses**: REQ-CLI-PD-5, REQ-CLI-PD-6, REQ-CLI-PD-14
 
 Create `loadPackageSkills()` that:
@@ -116,7 +116,7 @@ Tests:
 
 ### Step 3: Generic package skill route factory with context validation
 
-**Files**: `daemon/routes/package-skills.ts` (new)
+**Files**: `apps/daemon/routes/package-skills.ts` (new)
 **Addresses**: REQ-CLI-PD-8, REQ-CLI-PD-9, REQ-CLI-PD-10, REQ-CLI-PD-11, REQ-CLI-PD-13
 
 Create `createPackageSkillRoutes(packageSkills, deps)` returning `RouteModule`:
@@ -161,7 +161,7 @@ Tests:
 
 ### Step 4: Wire into daemon app
 
-**Files**: `daemon/app.ts`
+**Files**: `apps/daemon/app.ts`
 **Addresses**: REQ-CLI-PD-5, REQ-CLI-PD-7
 
 Changes to `createApp()`:
@@ -186,7 +186,7 @@ Tests:
 
 ### Step 5: Help endpoint attribution
 
-**Files**: `daemon/routes/help.ts`
+**Files**: `apps/daemon/routes/help.ts`
 **Addresses**: REQ-CLI-PD-16, REQ-CLI-PD-17
 
 Two changes:
@@ -220,7 +220,7 @@ Launch a sub-agent that reads the spec at `.lore/specs/infrastructure/cli-progre
 
 Steps requiring specialized expertise:
 
-- **Step 3** (context validation): Review the commission and meeting state checking logic to ensure terminal state detection matches the actual state machine. Consult `daemon/services/commission/lifecycle.ts` and `daemon/services/meeting/orchestrator.ts` for the canonical state transitions.
+- **Step 3** (context validation): Review the commission and meeting state checking logic to ensure terminal state detection matches the actual state machine. Consult `apps/daemon/services/commission/lifecycle.ts` and `apps/daemon/services/meeting/orchestrator.ts` for the canonical state transitions.
 - **Step 4** (production wiring): Fresh-eyes review after wiring to catch DI seams that are defined but not connected. This is the class of bug caught in past retros (DI factories need production wiring).
 - **Step 6** (spec validation): Must be a fresh-context sub-agent with no implementation assumptions.
 
@@ -228,8 +228,8 @@ Consult `.lore/lore-agents.md` for available domain-specific agents.
 
 ## Open Questions
 
-- **Commission/meeting session interfaces for context validation.** Step 3 needs to check whether a commission or meeting exists and is in a non-terminal state. The `commissionSession` and `meetingSession` objects exist and have read methods, but the exact method signatures for "does this ID exist and is it in state X" need to be verified during implementation. The commission record layer (`daemon/services/commission/record.ts`) has `readCommission()`. The meeting registry has `getMeeting()`. Both return enough state to check terminal status. If the interfaces are awkward for this use case, a thin wrapper in the route factory is sufficient. Don't add new methods to the session/lifecycle layers just for validation.
+- **Commission/meeting session interfaces for context validation.** Step 3 needs to check whether a commission or meeting exists and is in a non-terminal state. The `commissionSession` and `meetingSession` objects exist and have read methods, but the exact method signatures for "does this ID exist and is it in state X" need to be verified during implementation. The commission record layer (`apps/daemon/services/commission/record.ts`) has `readCommission()`. The meeting registry has `getMeeting()`. Both return enough state to check terminal status. If the interfaces are awkward for this use case, a thin wrapper in the route factory is sufficient. Don't add new methods to the session/lifecycle layers just for validation.
 
 - **Transition function wiring.** The `transitionCommission` and `transitionMeeting` deps on `SkillFactoryDeps` need concrete implementations. The commission lifecycle's `transition()` method and the meeting session's state transition methods are the natural sources. The exact function signatures may need a thin adapter to match `CommissionTransitionFn` / `MeetingTransitionFn`. Resolve during Step 2 implementation. Step 4's integration test for guard passthrough will verify the adapter works end-to-end.
 
-- **Package import of daemon types.** `daemon/services/skill-types.ts` will be imported by packages via `@/daemon/services/skill-types`. This is the established pattern (`ToolboxFactory` also imports from daemon), but verify during Step 1 that the `@/` path alias resolves correctly from within a worker package at both dev (`packages/`) and installed (`~/.guild-hall/packages/`) paths.
+- **Package import of daemon types.** `apps/daemon/services/skill-types.ts` will be imported by packages via `@/apps/daemon/services/skill-types`. This is the established pattern (`ToolboxFactory` also imports from daemon), but verify during Step 1 that the `@/` path alias resolves correctly from within a worker package at both dev (`packages/`) and installed (`~/.guild-hall/packages/`) paths.

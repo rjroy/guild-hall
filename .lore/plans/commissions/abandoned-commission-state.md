@@ -12,7 +12,7 @@ related: [.lore/specs/commissions/guild-hall-commissions.md]
 
 ## Status
 
-**Type and state machine are done.** `"abandoned"` exists in `CommissionStatus` (daemon/types.ts), the `TRANSITIONS` map in `CommissionLifecycle` includes all valid edges, and `lifecycle.abandon()` is implemented and tested. The infrastructure to transition a commission to abandoned status works at Layer 2.
+**Type and state machine are done.** `"abandoned"` exists in `CommissionStatus` (apps/daemon/types.ts), the `TRANSITIONS` map in `CommissionLifecycle` includes all valid edges, and `lifecycle.abandon()` is implemented and tested. The infrastructure to transition a commission to abandoned status works at Layer 2.
 
 **Everything above Layer 2 is missing.** There is no way for a user or the Guild Master to trigger an abandon. The orchestrator, daemon routes, Next.js proxy, UI, and manager toolbox all lack abandon support. The `lifecycle.abandon()` signature also hardcodes the reason string, which needs to accept a caller-supplied reason.
 
@@ -37,7 +37,7 @@ Wire abandon from the lifecycle layer up through all consumer layers so users ca
 | Layer 5 | `abandonCommission()` on `CommissionSessionForRoutes` interface | Missing |
 | Layer 5 | `abandonCommission()` implementation in orchestrator | Missing |
 | Routes | `POST /commissions/:id/abandon` daemon route | Missing |
-| Proxy | `web/app/api/commissions/[commissionId]/abandon/route.ts` | Missing |
+| Proxy | `apps/web/app/api/commissions/[commissionId]/abandon/route.ts` | Missing |
 | UI | Abandon button + reason textarea in `CommissionActions.tsx` | Missing |
 | Manager | `abandon_commission` tool in `manager-toolbox.ts` | Missing |
 | Display | `"abandoned"` in `BLOCKED_STATUSES` (lib/types.ts) | Missing |
@@ -56,7 +56,7 @@ Wire abandon from the lifecycle layer up through all consumer layers so users ca
 
 ### Step 1: Add reason parameter to `lifecycle.abandon()`
 
-**File:** `daemon/services/commission/lifecycle.ts:149`
+**File:** `apps/daemon/services/commission/lifecycle.ts:149`
 
 Change the signature from `abandon(id: CommissionId)` to `abandon(id: CommissionId, reason: string)` and pass it through to `this.transition()`:
 
@@ -76,7 +76,7 @@ Add `"abandoned"` to the `BLOCKED_STATUSES` set so `statusToGem("abandoned")` re
 
 ### Step 3: Add `abandonCommission` to orchestrator interface and implementation
 
-**File:** `daemon/services/commission/orchestrator.ts`
+**File:** `apps/daemon/services/commission/orchestrator.ts`
 
 Add to the `CommissionSessionForRoutes` interface (line 88):
 
@@ -112,7 +112,7 @@ Add `abandonCommission` to the returned `result` object (line 1613).
 
 ### Step 4: Daemon route
 
-**File:** `daemon/routes/commissions.ts`
+**File:** `apps/daemon/routes/commissions.ts`
 
 Add after the redispatch route, following the same error-handling pattern:
 
@@ -159,7 +159,7 @@ Update the route comment block at the top to include the new endpoint.
 
 ### Step 5: Next.js proxy route
 
-**New file:** `web/app/api/commissions/[commissionId]/abandon/route.ts`
+**New file:** `apps/web/app/api/commissions/[commissionId]/abandon/route.ts`
 
 Standard proxy pattern matching `redispatch/route.ts`:
 
@@ -202,7 +202,7 @@ export async function POST(
 
 ### Step 6: UI button with reason input
 
-**File:** `web/components/commission/CommissionActions.tsx`
+**File:** `apps/web/components/commission/CommissionActions.tsx`
 
 Expand the `confirming` state type:
 
@@ -275,13 +275,13 @@ The confirmation dialog includes a textarea for the reason. The "Yes, Abandon" b
 )}
 ```
 
-**File:** `web/components/commission/CommissionActions.module.css`
+**File:** `apps/web/components/commission/CommissionActions.module.css`
 
 Add styles for `.abandonButton` (same muted/destructive pattern as `.cancelButton`), `.abandonReason` (textarea with parchment background, brass border, body font), and `.confirmButtons` (flex row for the buttons below the textarea).
 
 ### Step 7: Guild Master tool
 
-**File:** `daemon/services/manager-toolbox.ts`
+**File:** `apps/daemon/services/manager-toolbox.ts`
 
 Add `makeAbandonCommissionHandler(deps)` factory following the `makeCancelCommissionHandler` pattern (line 434). The handler calls `deps.commissionSession.abandonCommission(cid, args.reason)`.
 
@@ -303,7 +303,7 @@ tool(
 
 ### Step 8: SSE handler verification
 
-**File:** `web/components/commission/CommissionView.tsx`
+**File:** `apps/web/components/commission/CommissionView.tsx`
 
 The existing SSE handler processes `commission_status` events generically: `setStatus(data.status)`. When it receives `status: "abandoned"`, it updates local state. No changes needed. Verify this works.
 
@@ -311,31 +311,31 @@ The existing SSE handler processes `commission_status` events generically: `setS
 
 | File | Change | New? |
 |------|--------|------|
-| `daemon/services/commission/lifecycle.ts` | Add `reason` parameter to `abandon()` | No |
+| `apps/daemon/services/commission/lifecycle.ts` | Add `reason` parameter to `abandon()` | No |
 | `lib/types.ts` | Add `"abandoned"` to `BLOCKED_STATUSES` | No |
-| `daemon/services/commission/orchestrator.ts` | Add `abandonCommission` to interface and implementation | No |
-| `daemon/routes/commissions.ts` | Add `POST /commissions/:id/abandon` route | No |
-| `web/app/api/commissions/[commissionId]/abandon/route.ts` | Proxy route to daemon | Yes |
-| `web/components/commission/CommissionActions.tsx` | Add abandon button, reason textarea, handler | No |
-| `web/components/commission/CommissionActions.module.css` | Add abandon button and textarea styles | No |
-| `daemon/services/manager-toolbox.ts` | Add `abandon_commission` tool | No |
-| `web/components/commission/CommissionView.tsx` | Verify SSE handler works (likely no changes) | No |
+| `apps/daemon/services/commission/orchestrator.ts` | Add `abandonCommission` to interface and implementation | No |
+| `apps/daemon/routes/commissions.ts` | Add `POST /commissions/:id/abandon` route | No |
+| `apps/web/app/api/commissions/[commissionId]/abandon/route.ts` | Proxy route to daemon | Yes |
+| `apps/web/components/commission/CommissionActions.tsx` | Add abandon button, reason textarea, handler | No |
+| `apps/web/components/commission/CommissionActions.module.css` | Add abandon button and textarea styles | No |
+| `apps/daemon/services/manager-toolbox.ts` | Add `abandon_commission` tool | No |
+| `apps/web/components/commission/CommissionView.tsx` | Verify SSE handler works (likely no changes) | No |
 
 ## Files That Need No Changes
 
 These work generically with any status string:
 
-- `daemon/services/commission/record.ts`: `writeStatusAndTimeline()` accepts arbitrary status strings.
-- `daemon/services/event-bus.ts`: The `commission_status` event carries a string status field.
+- `apps/daemon/services/commission/record.ts`: `writeStatusAndTimeline()` accepts arbitrary status strings.
+- `apps/daemon/services/event-bus.ts`: The `commission_status` event carries a string status field.
 - `lib/commissions.ts`: `parseActivityTimeline()` parses any event string.
-- `web/components/commission/CommissionTimeline.tsx`: The `status_change` renderer shows from/to gems via `statusToGem()`. The `abandoned` status will render correctly with the red gem from step 2.
-- `web/components/commission/CommissionHeader.tsx`, `CommissionList.tsx`: Use `statusToGem()` generically.
+- `apps/web/components/commission/CommissionTimeline.tsx`: The `status_change` renderer shows from/to gems via `statusToGem()`. The `abandoned` status will render correctly with the red gem from step 2.
+- `apps/web/components/commission/CommissionHeader.tsx`, `CommissionList.tsx`: Use `statusToGem()` generically.
 
 ## Test Strategy
 
 ### Unit tests for lifecycle (update existing)
 
-**File:** `tests/daemon/services/commission/lifecycle.test.ts`
+**File:** `apps/daemon/tests/services/commission/lifecycle.test.ts`
 
 The transition tests should already cover abandoned edges since they're in `TRANSITIONS`. If not, add:
 - Valid: pending/blocked/failed/cancelled -> abandoned
@@ -345,7 +345,7 @@ The transition tests should already cover abandoned edges since they're in `TRAN
 
 ### Unit tests for orchestrator
 
-**File:** `tests/daemon/services/commission/orchestrator.test.ts`
+**File:** `apps/daemon/tests/services/commission/orchestrator.test.ts`
 
 New describe block `"abandonCommission"`:
 1. Abandons a pending commission (never dispatched)
@@ -356,7 +356,7 @@ New describe block `"abandonCommission"`:
 
 ### Route tests
 
-**File:** `tests/daemon/routes/commissions.test.ts`
+**File:** `apps/daemon/tests/routes/commissions.test.ts`
 
 New describe block `"POST /commissions/:id/abandon"`:
 1. Returns 200 on success with `{ reason: "Work done elsewhere" }`
@@ -368,7 +368,7 @@ New describe block `"POST /commissions/:id/abandon"`:
 
 ### Manager toolbox tests
 
-**File:** `tests/daemon/services/manager-toolbox.test.ts`
+**File:** `apps/daemon/tests/services/manager-toolbox.test.ts`
 
 New describe block `"abandon_commission"`:
 1. Abandons commission with reason, verify success response
@@ -377,7 +377,7 @@ New describe block `"abandon_commission"`:
 
 ### Gem mapping tests
 
-**File:** `tests/lib/types.test.ts`
+**File:** `lib/tests/types.test.ts`
 
 Verify `statusToGem("abandoned")` returns `"blocked"` (red gem).
 

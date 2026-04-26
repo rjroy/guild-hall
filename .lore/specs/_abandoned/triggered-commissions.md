@@ -25,7 +25,7 @@ Triggers live as commission artifacts with `type: triggered` in `.lore/commissio
 
 Triggers are reactions ("when X happens, also do Y"), not sequencing tools. Sequencing belongs to dependency chains defined at plan time. A trigger with `approval: auto` fires without human intervention. A trigger with `approval: confirm` creates the commission in `pending` for human review before dispatch.
 
-Event matching is delegated entirely to the Event Router (`daemon/services/event-router.ts`). The trigger evaluator service calls `router.subscribe(rule, handler)` for each active trigger, using the same `EventMatchRule` shape that the notification service uses. The router provides type matching, projectName matching, and field-level glob matching via micromatch. The triggered commissions spec does not define any matching logic.
+Event matching is delegated entirely to the Event Router (`apps/daemon/services/event-router.ts`). The trigger evaluator service calls `router.subscribe(rule, handler)` for each active trigger, using the same `EventMatchRule` shape that the notification service uses. The router provides type matching, projectName matching, and field-level glob matching via micromatch. The triggered commissions spec does not define any matching logic.
 
 ## Entry Points
 
@@ -38,7 +38,7 @@ Event matching is delegated entirely to the Event Router (`daemon/services/event
 
 ### Trigger Artifact
 
-- REQ-TRIG-1: `"triggered"` is added to the `CommissionType` union in `daemon/types.ts` alongside `"one-shot"` and `"scheduled"`. A triggered commission is a commission artifact in `.lore/commissions/` with `type: triggered`. It follows the same base frontmatter schema as other commissions (REQ-COM-1, REQ-COM-2) with additional trigger-specific fields in a `trigger` block:
+- REQ-TRIG-1: `"triggered"` is added to the `CommissionType` union in `apps/daemon/types.ts` alongside `"one-shot"` and `"scheduled"`. A triggered commission is a commission artifact in `.lore/commissions/` with `type: triggered`. It follows the same base frontmatter schema as other commissions (REQ-COM-1, REQ-COM-2) with additional trigger-specific fields in a `trigger` block:
 
   ```yaml
   ---
@@ -78,7 +78,7 @@ Event matching is delegated entirely to the Event Router (`daemon/services/event
   | `last_triggered` | No | ISO 8601 timestamp or null | When this trigger last fired. |
   | `last_spawned_id` | No | string or null | Commission ID of the most recently spawned one-shot. |
 
-- REQ-TRIG-3: The `match` field in the trigger block is an `EventMatchRule` as defined in `daemon/services/event-router.ts`. It has the same shape used by notification rules:
+- REQ-TRIG-3: The `match` field in the trigger block is an `EventMatchRule` as defined in `apps/daemon/services/event-router.ts`. It has the same shape used by notification rules:
 
   | Field | Required | Purpose |
   |-------|----------|---------|
@@ -178,7 +178,7 @@ Event matching is delegated entirely to the Event Router (`daemon/services/event
 
 ### Trigger Creation and Management Tools
 
-- REQ-TRIG-25a: A `create_triggered_commission` tool is added to the manager toolbox (`daemon/services/manager/toolbox.ts`). It writes the trigger artifact to `.lore/commissions/` and registers the subscription on the Event Router. Parameters mirror the trigger artifact structure:
+- REQ-TRIG-25a: A `create_triggered_commission` tool is added to the manager toolbox (`apps/daemon/services/manager/toolbox.ts`). It writes the trigger artifact to `.lore/commissions/` and registers the subscription on the Event Router. Parameters mirror the trigger artifact structure:
 
   | Parameter | Required | Type | Purpose |
   |-----------|----------|------|---------|
@@ -281,7 +281,7 @@ Event matching is delegated entirely to the Event Router (`daemon/services/event
   }
   ```
 
-  `EventMatchRule` is imported from `daemon/services/event-router.ts`. The trigger evaluator reads this from the artifact frontmatter and passes `match` directly to `router.subscribe()`.
+  `EventMatchRule` is imported from `apps/daemon/services/event-router.ts`. The trigger evaluator reads this from the artifact frontmatter and passes `match` directly to `router.subscribe()`.
 
 ### Web UI
 
@@ -392,7 +392,7 @@ This means you cannot write a trigger match that says "when a Dalton commission 
 1. **CommissionId patterns.** The naming convention `commission-{worker}-{timestamp}` is stable enough for glob matching. `commissionId: "commission-Dalton-*"` matches any Dalton commission.
 2. **Smart prompts.** The triggered commission's prompt says "Review {{commissionId}}." The worker reads that commission's artifact, discovers the worker, and proceeds. The trigger creates enough context for the worker to take it from there.
 
-**Flagged for follow-up:** If trigger usage reveals that commissionId patterns are too fragile, a follow-up spec should add optional `workerName` and `projectName` fields to `commission_status` and `commission_result` events. This is additive (new fields on `SystemEvent` variants, changes to emit sites in `daemon/services/commission/lifecycle.ts` and `daemon/services/commission/toolbox.ts`). The router's generic field matching picks up any new event fields automatically.
+**Flagged for follow-up:** If trigger usage reveals that commissionId patterns are too fragile, a follow-up spec should add optional `workerName` and `projectName` fields to `commission_status` and `commission_result` events. This is additive (new fields on `SystemEvent` variants, changes to emit sites in `apps/daemon/services/commission/lifecycle.ts` and `apps/daemon/services/commission/toolbox.ts`). The router's generic field matching picks up any new event fields automatically.
 
 ## Explicit Non-Goals
 
@@ -435,7 +435,7 @@ This means you cannot write a trigger match that says "when a Dalton commission 
 - [ ] Non-commission event sources (e.g., `meeting_ended`) produce depth 1 without attempting artifact read
 - [ ] Trigger artifact state is updated after each firing (runs_completed, last_triggered, last_spawned_id)
 - [ ] Trigger dispatch failures are logged at `warn` and don't affect other dispatches
-- [ ] `CommissionType` in `daemon/types.ts` includes `"triggered"`
+- [ ] `CommissionType` in `apps/daemon/types.ts` includes `"triggered"`
 - [ ] `create_triggered_commission` tool in the manager toolbox creates trigger artifacts and registers subscriptions without daemon restart
 - [ ] `update_trigger` tool modifies trigger configuration and manages subscriptions (pause removes, resume re-registers)
 - [ ] Both tools validate inputs (event type against `SYSTEM_EVENT_TYPES`, worker against discovered packages, status transitions)
@@ -456,17 +456,17 @@ This means you cannot write a trigger match that says "when a Dalton commission 
 - Run `bun test` and confirm all tests pass before declaring work complete.
 
 **Structural checks:**
-- Confirm a `createTriggerEvaluator` factory exists in a new file (e.g., `daemon/services/trigger-evaluator.ts`).
+- Confirm a `createTriggerEvaluator` factory exists in a new file (e.g., `apps/daemon/services/trigger-evaluator.ts`).
 - Confirm the trigger evaluator receives an `EventRouter` instance and calls `router.subscribe()` for each active trigger.
-- Confirm `createCommission` in `daemon/services/commission/orchestrator.ts` supports `sourceTrigger` (with `triggerArtifact`, `sourceId`, `depth`) in options and writes `triggered_by` frontmatter.
-- Confirm `CommissionType` in `daemon/types.ts` includes `"triggered"` alongside `"one-shot"` and `"scheduled"`.
-- Confirm the trigger evaluator is wired in `createProductionApp()` (`daemon/app.ts`), created after the Event Router.
-- Confirm the trigger evaluator uses `Log` from `daemon/lib/log.ts`, not direct `console` calls.
+- Confirm `createCommission` in `apps/daemon/services/commission/orchestrator.ts` supports `sourceTrigger` (with `triggerArtifact`, `sourceId`, `depth`) in options and writes `triggered_by` frontmatter.
+- Confirm `CommissionType` in `apps/daemon/types.ts` includes `"triggered"` alongside `"one-shot"` and `"scheduled"`.
+- Confirm the trigger evaluator is wired in `createProductionApp()` (`apps/daemon/app.ts`), created after the Event Router.
+- Confirm the trigger evaluator uses `Log` from `apps/daemon/lib/log.ts`, not direct `console` calls.
 - Confirm no matching logic exists in the trigger evaluator. All matching is in the Event Router.
-- Confirm `makeCreateTriggeredCommissionHandler` and `makeUpdateTriggerHandler` exist in `daemon/services/manager/toolbox.ts` following the `make*Handler(deps: ManagerToolboxDeps)` pattern.
+- Confirm `makeCreateTriggeredCommissionHandler` and `makeUpdateTriggerHandler` exist in `apps/daemon/services/manager/toolbox.ts` following the `make*Handler(deps: ManagerToolboxDeps)` pattern.
 - Confirm both tools are registered in the manager MCP server's tool list with Zod schemas for parameter validation.
 - Confirm the trigger evaluator exposes `registerTrigger(artifactPath)` and `unregisterTrigger(commissionId)` methods for dynamic subscription management.
-- Confirm `TriggerInfo` and `TriggerActions` components exist in `web/components/commission/`.
+- Confirm `TriggerInfo` and `TriggerActions` components exist in `apps/web/components/commission/`.
 - Confirm `CommissionView.tsx` conditionally renders trigger panels when `commissionType === "triggered"`.
 - Confirm a `POST /api/commissions/[commissionId]/trigger-status` Next.js API route exists and proxies to the daemon.
 
@@ -515,7 +515,7 @@ This means you cannot write a trigger match that says "when a Dalton commission 
 - Advanced matching brainstorm: `.lore/brainstorm/event-router-advanced-matching.md` (led to field matching spec)
 - Event router spec: `.lore/specs/infrastructure/event-router.md` (the generic matching layer)
 - Field matching spec: `.lore/specs/infrastructure/event-router-field-matching.md` (glob pattern matching on fields)
-- Event router implementation: `daemon/services/event-router.ts` (provides `subscribe(rule, handler)`)
-- Notification service implementation: `daemon/services/notification-service.ts` (the first router consumer; trigger evaluator follows the same pattern)
+- Event router implementation: `apps/daemon/services/event-router.ts` (provides `subscribe(rule, handler)`)
+- Notification service implementation: `apps/daemon/services/notification-service.ts` (the first router consumer; trigger evaluator follows the same pattern)
 - Scheduled commissions spec: `.lore/specs/commissions/guild-hall-scheduled-commissions.md` (the pattern triggers follow for artifact structure and state tracking)
-- Commission orchestrator: `daemon/services/commission/orchestrator.ts` (createCommission API)
+- Commission orchestrator: `apps/daemon/services/commission/orchestrator.ts` (createCommission API)

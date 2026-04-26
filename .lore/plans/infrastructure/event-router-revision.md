@@ -15,7 +15,7 @@ related:
 
 ## Goal
 
-Separate the Event Router from notification dispatch. The current implementation (`daemon/services/event-router.ts`) fuses event matching with channel dispatch into a single factory. The revised spec splits these into two services: a generic `EventRouter` that matches events and invokes handlers, and a `NotificationService` that consumes the router for channel dispatch. This makes the matching layer reusable for triggered commissions and other future consumers without the router knowing about channels, webhooks, or shell commands.
+Separate the Event Router from notification dispatch. The current implementation (`apps/daemon/services/event-router.ts`) fuses event matching with channel dispatch into a single factory. The revised spec splits these into two services: a generic `EventRouter` that matches events and invokes handlers, and a `NotificationService` that consumes the router for channel dispatch. This makes the matching layer reusable for triggered commissions and other future consumers without the router knowing about channels, webhooks, or shell commands.
 
 This plan implements the revised spec at `.lore/specs/infrastructure/event-router.md` (REQ-EVRT-1 through REQ-EVRT-30).
 
@@ -23,25 +23,25 @@ This plan implements the revised spec at `.lore/specs/infrastructure/event-route
 
 **What already exists and stays.** The config layer is complete. `lib/config.ts` already has `channelSchema`, `notificationRuleSchema`, `appConfigSchema` with `channels` and `notifications` fields, and `superRefine` cross-reference validation (REQ-EVRT-10 through REQ-EVRT-18). `lib/types.ts` has `ChannelConfig`, `NotificationRule`, `SystemEventType`, `SYSTEM_EVENT_TYPES`, and the `AppConfig` fields. These satisfy the config requirements and do not change.
 
-**What changes.** The single `createEventRouter` function in `daemon/services/event-router.ts` currently accepts channels, notifications, and dispatch stubs alongside the EventBus. It returns a bare cleanup function. The revised spec requires it to return an `EventRouter` interface with a `subscribe` method and no knowledge of channels. Channel dispatch moves to a new `createNotificationService` factory that consumes the router.
+**What changes.** The single `createEventRouter` function in `apps/daemon/services/event-router.ts` currently accepts channels, notifications, and dispatch stubs alongside the EventBus. It returns a bare cleanup function. The revised spec requires it to return an `EventRouter` interface with a `subscribe` method and no knowledge of channels. Channel dispatch moves to a new `createNotificationService` factory that consumes the router.
 
-**Production wiring** (`daemon/app.ts`, lines 548-554): Currently creates the fused router with `config.channels` and `config.notifications`. This rewires to create the generic router first, then the notification service.
+**Production wiring** (`apps/daemon/app.ts`, lines 548-554): Currently creates the fused router with `config.channels` and `config.notifications`. This rewires to create the generic router first, then the notification service.
 
-**Tests** (`tests/daemon/services/event-router.test.ts`): 416 lines covering matching, dispatch, failure handling, inert behavior, and cleanup. These tests test the right behaviors but through the wrong interface. They'll be restructured to test the router and notification service separately.
+**Tests** (`apps/daemon/tests/services/event-router.test.ts`): 416 lines covering matching, dispatch, failure handling, inert behavior, and cleanup. These tests test the right behaviors but through the wrong interface. They'll be restructured to test the router and notification service separately.
 
-**EventBus** (`daemon/lib/event-bus.ts`): Unchanged. The router subscribes to it; the notification service doesn't touch it directly.
+**EventBus** (`apps/daemon/lib/event-bus.ts`): Unchanged. The router subscribes to it; the notification service doesn't touch it directly.
 
-**Log** (`daemon/lib/log.ts`): Unchanged. The router uses tag `"event-router"`, the notification service uses tag `"notification-service"` (REQ-EVRT-27).
+**Log** (`apps/daemon/lib/log.ts`): Unchanged. The router uses tag `"event-router"`, the notification service uses tag `"notification-service"` (REQ-EVRT-27).
 
 ## Implementation Steps
 
 ### Phase 1: Rewrite the Event Router
 
-Replaces the existing `daemon/services/event-router.ts` with the generic matching layer. This is the foundation everything else depends on.
+Replaces the existing `apps/daemon/services/event-router.ts` with the generic matching layer. This is the foundation everything else depends on.
 
 #### Step 1: Define the EventRouter interface and rewrite the factory
 
-**Files**: `daemon/services/event-router.ts`
+**Files**: `apps/daemon/services/event-router.ts`
 **Addresses**: REQ-EVRT-1, REQ-EVRT-2, REQ-EVRT-3, REQ-EVRT-4, REQ-EVRT-5, REQ-EVRT-6, REQ-EVRT-8, REQ-EVRT-9, REQ-EVRT-27, REQ-EVRT-29
 
 Replace the current file contents entirely. The new module exports:
@@ -82,7 +82,7 @@ The `camelToScreamingSnake` helper moves to the notification service (Phase 2). 
 
 #### Step 2: Tests for the generic Event Router
 
-**Files**: `tests/daemon/services/event-router.test.ts`
+**Files**: `apps/daemon/tests/services/event-router.test.ts`
 **Addresses**: REQ-EVRT-1 through REQ-EVRT-9, REQ-EVRT-27, REQ-EVRT-28, REQ-EVRT-29
 
 Replace the existing test file. Tests focus on the generic subscribe/match/handler contract:
@@ -113,7 +113,7 @@ Replace the existing test file. Tests focus on the generic subscribe/match/handl
 **Logging:**
 14. Info log emitted when a subscription matches (REQ-EVRT-28).
 
-Run: `bun test tests/daemon/services/event-router.test.ts`
+Run: `bun test apps/daemon/tests/services/event-router.test.ts`
 
 ### Phase 2: Create the Notification Service
 
@@ -121,7 +121,7 @@ Extracts channel dispatch from the old router into a standalone consumer of the 
 
 #### Step 3: Create the notification service factory
 
-**Files**: `daemon/services/notification-service.ts` (new)
+**Files**: `apps/daemon/services/notification-service.ts` (new)
 **Addresses**: REQ-EVRT-10, REQ-EVRT-11, REQ-EVRT-12, REQ-EVRT-13, REQ-EVRT-19, REQ-EVRT-20, REQ-EVRT-21, REQ-EVRT-22, REQ-EVRT-23, REQ-EVRT-24, REQ-EVRT-25, REQ-EVRT-26, REQ-EVRT-27, REQ-EVRT-30
 
 The module exports:
@@ -159,7 +159,7 @@ Move these functions from the current `event-router.ts` into this file:
 
 #### Step 4: Tests for the notification service
 
-**Files**: `tests/daemon/services/notification-service.test.ts` (new)
+**Files**: `apps/daemon/tests/services/notification-service.test.ts` (new)
 **Addresses**: REQ-EVRT-10 through REQ-EVRT-26, REQ-EVRT-28, REQ-EVRT-30
 
 The notification service tests need a real `EventRouter` (from Phase 1) since the notification service is a consumer. Create a helper that sets up an EventBus, an EventRouter, and a NotificationService with mock dispatchers.
@@ -197,25 +197,25 @@ These are structural checks that the timeout survived the move. The actual timeo
 **Integration (end-to-end through router):**
 17. Emit event on EventBus, verify it flows through router matching to notification dispatch. This is the existing integration test from the old file, adapted to the two-service architecture.
 
-Run: `bun test tests/daemon/services/notification-service.test.ts`
+Run: `bun test apps/daemon/tests/services/notification-service.test.ts`
 
 ### Phase 3: Production Wiring
 
 #### Step 5: Rewire createProductionApp
 
-**Files**: `daemon/app.ts`
+**Files**: `apps/daemon/app.ts`
 **Addresses**: REQ-EVRT-1, REQ-EVRT-19, REQ-EVRT-29, REQ-EVRT-30
 
 Replace the current event router wiring (lines 548-554) with:
 
 ```typescript
-const { createEventRouter } = await import("@/daemon/services/event-router");
+const { createEventRouter } = await import("@/apps/daemon/services/event-router");
 const { router: eventRouter, cleanup: cleanupRouter } = createEventRouter({
   eventBus,
   log: createLog("event-router"),
 });
 
-const { createNotificationService } = await import("@/daemon/services/notification-service");
+const { createNotificationService } = await import("@/apps/daemon/services/notification-service");
 const cleanupNotifications = createNotificationService({
   router: eventRouter,
   channels: config.channels ?? {},
@@ -260,7 +260,7 @@ Launch a sub-agent with fresh context to verify against the spec. The agent read
 - Channel failures in the notification service are logged but don't propagate.
 - Empty config produces an inert notification service with no subscriptions.
 - The `shutdown` function in `createProductionApp` calls both `cleanupNotifications()` and `cleanupRouter()`.
-- The `SYSTEM_EVENT_TYPES` array in `lib/types.ts` still has 11 entries matching the `SystemEvent` union in `daemon/lib/event-bus.ts` (sync test in `tests/lib/config.test.ts` guards this, but verify it still passes).
+- The `SYSTEM_EVENT_TYPES` array in `lib/types.ts` still has 11 entries matching the `SystemEvent` union in `apps/daemon/lib/event-bus.ts` (sync test in `lib/tests/config.test.ts` guards this, but verify it still passes).
 - Every REQ ID has at least one test.
 
 ## REQ Coverage Matrix
@@ -304,7 +304,7 @@ All four phases are standard daemon service work. Commission to Dalton.
 
 **Phase 1 and Phase 2** are the core work and should be done together in one commission. The notification service depends on the router types, so sequential execution within a single session avoids coordination overhead. Expected scope: delete the old file, write the new router, write the notification service, write both test files, confirm both pass.
 
-**Phase 3** is a wiring change (5 lines in `daemon/app.ts`). It can be part of the same commission as Phases 1-2, or split if the commission is getting long. If split, it should run second since it depends on the new exports.
+**Phase 3** is a wiring change (5 lines in `apps/daemon/app.ts`). It can be part of the same commission as Phases 1-2, or split if the commission is getting long. If split, it should run second since it depends on the new exports.
 
 **Phase 4** validation uses a fresh-context sub-agent (Thorne or a reviewer). The implementing agent should run `bun test` before declaring complete. The fresh-context review is a follow-up commission.
 
@@ -312,6 +312,6 @@ All four phases are standard daemon service work. Commission to Dalton.
 
 **Should the router store subscriptions in a Set or an Array?** Array. Subscriptions need stable iteration order and support for duplicates (two identical rules are two subscriptions). The unsubscribe callback removes by reference, not by value, so duplicates don't collide.
 
-**Should EventMatchRule and EventRouter types live in lib/types.ts or daemon/services/event-router.ts?** In `daemon/services/event-router.ts`. These types are daemon-internal (only the router and its consumers use them). They don't need to cross the lib/daemon boundary. Config types (`ChannelConfig`, `NotificationRule`) stay in `lib/types.ts` because config validation runs in `lib/`.
+**Should EventMatchRule and EventRouter types live in lib/types.ts or apps/daemon/services/event-router.ts?** In `apps/daemon/services/event-router.ts`. These types are daemon-internal (only the router and its consumers use them). They don't need to cross the lib/daemon boundary. Config types (`ChannelConfig`, `NotificationRule`) stay in `lib/types.ts` because config validation runs in `lib/`.
 
-**What happens to tests that import `camelToScreamingSnake` from the old location?** The import path changes to `daemon/services/notification-service.ts`. The function moves with the dispatch logic it serves.
+**What happens to tests that import `camelToScreamingSnake` from the old location?** The import path changes to `apps/daemon/services/notification-service.ts`. The function moves with the dispatch logic it serves.

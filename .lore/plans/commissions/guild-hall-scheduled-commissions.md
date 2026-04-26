@@ -57,15 +57,15 @@ Cross-cutting from [Plan: Model Selection](.lore/plans/infrastructure/model-sele
 
 ## Codebase Context
 
-**Commission layer** (`daemon/services/commission/`): Four layers per REQ-CLS-26. Layer 1 (`record.ts`) handles YAML I/O with regex-based field replacement. Layer 2 (`lifecycle.ts`) owns the one-shot state machine with per-entry promise chains for concurrency. Layer 4 (`orchestrator.ts`, 1912 lines) coordinates everything and implements `CommissionSessionForRoutes`.
+**Commission layer** (`apps/daemon/services/commission/`): Four layers per REQ-CLS-26. Layer 1 (`record.ts`) handles YAML I/O with regex-based field replacement. Layer 2 (`lifecycle.ts`) owns the one-shot state machine with per-entry promise chains for concurrency. Layer 4 (`orchestrator.ts`, 1912 lines) coordinates everything and implements `CommissionSessionForRoutes`.
 
-**Daemon startup** (`daemon/app.ts`): `createProductionApp()` assembles all services via DI factories. Commission layers are built sequentially (L1 -> L2 -> L3 -> L4). The orchestrator receives all deps including `createMeetingRequestFn` for escalation. Signal handlers clean up on SIGINT/SIGTERM.
+**Daemon startup** (`apps/daemon/app.ts`): `createProductionApp()` assembles all services via DI factories. Commission layers are built sequentially (L1 -> L2 -> L3 -> L4). The orchestrator receives all deps including `createMeetingRequestFn` for escalation. Signal handlers clean up on SIGINT/SIGTERM.
 
-**Manager toolbox** (`daemon/services/manager/toolbox.ts`): Eight tools registered via `createSdkMcpServer()`. Each tool has a `make*Handler` factory returning `(args) => Promise<ToolResult>`. Uses Zod schemas inline in the `tool()` calls. The factory pattern with `ManagerToolboxDeps` provides testability.
+**Manager toolbox** (`apps/daemon/services/manager/toolbox.ts`): Eight tools registered via `createSdkMcpServer()`. Each tool has a `make*Handler` factory returning `(args) => Promise<ToolResult>`. Uses Zod schemas inline in the `tool()` calls. The factory pattern with `ManagerToolboxDeps` provides testability.
 
 **Artifact creation** (`orchestrator.ts:1159-1244`): `createCommission()` validates project/worker, generates the commission ID, writes YAML to the integration worktree, and returns `{ commissionId }`. Commission IDs follow `commission-<sanitized-worker-name>-<timestamp>`. The function escapes YAML values and builds the frontmatter as a template string.
 
-**Event system** (`daemon/lib/event-bus.ts`): `SystemEvent` union type with `emit`/`subscribe`. Commission events include `commission_status`, `commission_progress`, `commission_result`. SSE endpoint at `GET /events` broadcasts to UI subscribers.
+**Event system** (`apps/daemon/lib/event-bus.ts`): `SystemEvent` union type with `emit`/`subscribe`. Commission events include `commission_status`, `commission_progress`, `commission_result`. SSE endpoint at `GET /events` broadcasts to UI subscribers.
 
 **No existing timer pattern**: The daemon currently has zero timer-based services. The scheduler will be the first, establishing the pattern for future periodic services.
 
@@ -75,30 +75,30 @@ Cross-cutting from [Plan: Model Selection](.lore/plans/infrastructure/model-sele
 
 ### Step 1: Type system extensions
 
-**Files**: `daemon/types.ts`, `daemon/lib/event-bus.ts`
+**Files**: `apps/daemon/types.ts`, `apps/daemon/lib/event-bus.ts`
 **Addresses**: REQ-SCOM-1, REQ-SCOM-2
 
 Add the types that the rest of the implementation depends on.
 
-In `daemon/types.ts`:
+In `apps/daemon/types.ts`:
 - Add `CommissionType = "one-shot" | "scheduled"`.
 - Add `ScheduledCommissionStatus = "active" | "paused" | "completed" | "failed"` as a separate type from `CommissionStatus`. The two status sets do not overlap (REQ-SCOM-2).
 - The branded `CommissionId` type works for both one-shot and scheduled commissions (same ID format, same directory).
 
-In `daemon/lib/event-bus.ts`:
+In `apps/daemon/lib/event-bus.ts`:
 - Add a `schedule_spawned` event to `SystemEvent`: `{ type: "schedule_spawned"; scheduleId: string; spawnedId: string; projectName: string; runNumber: number }`. This lets the SSE endpoint push schedule activity to the UI.
 
 Tests: Type-level only, no runtime tests needed for this step.
 
 ### Step 2: Commission artifact schema extensions
 
-**Files**: `daemon/services/commission/orchestrator.ts` (createCommission), `daemon/services/commission/record.ts`
+**Files**: `apps/daemon/services/commission/orchestrator.ts` (createCommission), `apps/daemon/services/commission/record.ts`
 **Addresses**: REQ-SCOM-1, REQ-SCOM-3, REQ-SCOM-8, REQ-SCOM-26
 
 Extend the commission artifact to support the new fields.
 
 In `orchestrator.ts`, modify `createCommission()`:
-- Add a trailing options parameter: `options?: { type?: CommissionType; sourceSchedule?: string }`. Default `type` to `"one-shot"`. This approach is backward-compatible: all existing callers (`daemon/routes/commissions.ts`, `daemon/services/manager/toolbox.ts`, tests) continue to work without modification because the options parameter is optional with safe defaults.
+- Add a trailing options parameter: `options?: { type?: CommissionType; sourceSchedule?: string }`. Default `type` to `"one-shot"`. This approach is backward-compatible: all existing callers (`apps/daemon/routes/commissions.ts`, `apps/daemon/services/manager/toolbox.ts`, tests) continue to work without modification because the options parameter is optional with safe defaults.
 - When `sourceSchedule` is provided, write `source_schedule: <value>` into the frontmatter. This is how spawned commissions reference their parent schedule.
 - The artifact content template string adds `type: one-shot` (or `type: scheduled`) as a new frontmatter field. Existing commissions without `type` are treated as `one-shot` by any code that reads the field (REQ-SCOM-1).
 
@@ -126,7 +126,7 @@ Tests:
 
 ### Step 3: Schedule lifecycle
 
-**Files**: `daemon/services/scheduler/schedule-lifecycle.ts` (new)
+**Files**: `apps/daemon/services/scheduler/schedule-lifecycle.ts` (new)
 **Addresses**: REQ-SCOM-4, REQ-SCOM-5, REQ-SCOM-6
 
 Create a state machine for scheduled commission status transitions, following the same pattern as `CommissionLifecycle` but with the four-state graph.
@@ -152,7 +152,7 @@ Tests:
 
 ### Step 4: Schedule record operations
 
-**Files**: `daemon/services/commission/record.ts` (extend existing Layer 1)
+**Files**: `apps/daemon/services/commission/record.ts` (extend existing Layer 1)
 **Addresses**: REQ-SCOM-3a, REQ-SCOM-6, REQ-SCOM-16
 
 **Layer boundary decision**: Schedule artifacts live in `.lore/commissions/` and are commission artifacts. Per REQ-CLS-4, "All commission artifact writes go through Layer 1." Rather than creating a parallel `ScheduleRecordOps` module (which would violate the layer separation spec), extend the existing `CommissionRecordOps` in `record.ts` with schedule-aware methods. This keeps all artifact I/O in one Layer 1.
@@ -174,7 +174,7 @@ Tests:
 
 ### Step 5: Manager toolbox extensions
 
-**Files**: `daemon/services/manager/toolbox.ts`
+**Files**: `apps/daemon/services/manager/toolbox.ts`
 **Addresses**: REQ-SCOM-19, REQ-SCOM-20, REQ-SCOM-21
 
 Add two new tools to the manager toolbox.
@@ -221,17 +221,17 @@ Tests:
 
 ### Step 6: Scheduler service
 
-**Files**: `daemon/services/scheduler/index.ts` (new), `daemon/services/scheduler/cron.ts` (new)
+**Files**: `apps/daemon/services/scheduler/index.ts` (new), `apps/daemon/services/scheduler/cron.ts` (new)
 **Addresses**: REQ-SCOM-12, REQ-SCOM-13, REQ-SCOM-15, REQ-SCOM-7, REQ-SCOM-8, REQ-SCOM-9, REQ-SCOM-10, REQ-SCOM-11, REQ-SCOM-16, REQ-SCOM-17, REQ-SCOM-18
 
 This is the core new service. It runs on a 60-second timer within the daemon process.
 
-**`daemon/services/scheduler/cron.ts`**: Thin wrapper around the cron library.
+**`apps/daemon/services/scheduler/cron.ts`**: Thin wrapper around the cron library.
 - `nextOccurrence(cronExpr: string, after: Date): Date | null`: Returns the next time the cron expression fires after the given timestamp.
 - `isValidCron(cronExpr: string): boolean`: Validates a cron expression (used by manager toolbox validation).
 - `intervalSeconds(cronExpr: string): number`: Returns the approximate interval in seconds between occurrences (used for stuck run threshold calculation).
 
-**`daemon/services/scheduler/index.ts`**: The `SchedulerService` class.
+**`apps/daemon/services/scheduler/index.ts`**: The `SchedulerService` class.
 
 Constructor deps (DI pattern):
 ```typescript
@@ -255,11 +255,11 @@ interface SchedulerDeps {
 2. For each active schedule:
    a. Read schedule metadata (`cron`, `last_run`, `last_spawned_id`, `runs_completed`, `repeat`).
    b. Compute next occurrence: `nextOccurrence(cron, last_run ?? schedule_creation_date)`. If `now < nextOccurrence`, skip.
-   c. **Overlap check** (REQ-SCOM-12 step 3): If `last_spawned_id` is set, read the spawned commission's status via `recordOps.readStatus()` from the same `.lore/commissions/` directory. A commission is "still active" if its status is `dispatched` or `in_progress` (these `CommissionStatus` values from `daemon/types.ts`). If still active:
+   c. **Overlap check** (REQ-SCOM-12 step 3): If `last_spawned_id` is set, read the spawned commission's status via `recordOps.readStatus()` from the same `.lore/commissions/` directory. A commission is "still active" if its status is `dispatched` or `in_progress` (these `CommissionStatus` values from `apps/daemon/types.ts`). If still active:
       - **Stuck run check** (REQ-SCOM-17): Compute the cadence interval from the cron expression. If the spawned commission has been active for more than 2x the interval, and we haven't already escalated for this `last_spawned_id` (tracked in-memory via a `Set<string>`), escalate by calling `createMeetingRequestFn` with a descriptive reason. Append `escalation_created` timeline entry. Mark as escalated in the in-memory set.
       - Skip this schedule for this tick (no overlapping runs).
    d. **Spawn** (REQ-SCOM-12 steps 4-7): Create a one-shot commission by calling `commissionSession.createCommission()` with the schedule's `workerName` (the `worker` field from the artifact maps to the `workerName` parameter), `prompt`, `dependencies`, `tags`, and `resourceOverrides` (REQ-SCOM-11). The `resourceOverrides` object is copied in full from the schedule template, including `model` if present (REQ-MODEL-10). The spawned commission inherits the model through the standard commission override flow (REQ-MODEL-9: commission `resource_overrides.model` > worker default > fallback "opus"). Pass `options: { type: "one-shot", sourceSchedule: scheduleId }`. Tags on the spawned commission should be `[commission]` (standard one-shot tag), not `[commission, scheduled]`. This reuses the existing commission creation path, including worker validation and artifact writing.
-   e. **Dispatch**: The spawned commission ID comes back from `createCommission()` as `{ commissionId: string }` (unbranded). Cast to branded type via `asCommissionId(commissionId)` from `@/daemon/types` before calling `commissionSession.dispatchCommission()`. This respects concurrent limits (REQ-SCOM-15). If at capacity, the commission stays `pending` and queues for auto-dispatch. The schedule artifact still records the spawn.
+   e. **Dispatch**: The spawned commission ID comes back from `createCommission()` as `{ commissionId: string }` (unbranded). Cast to branded type via `asCommissionId(commissionId)` from `@/apps/daemon/types` before calling `commissionSession.dispatchCommission()`. This respects concurrent limits (REQ-SCOM-15). If at capacity, the commission stays `pending` and queues for auto-dispatch. The schedule artifact still records the spawn.
    f. **Update schedule artifact**: Increment `runs_completed`, set `last_run` to now, set `last_spawned_id` to the new commission ID. Write via `recordOps.writeScheduleFields()` (extended Layer 1 from Step 4).
    g. **Timeline**: Append `commission_spawned` event with `spawned_id`, `run_number`, and `previous_run_outcome`.
    h. **Emit event**: `schedule_spawned` via EventBus.
@@ -277,7 +277,7 @@ Tests (per spec's AI Validation section):
 
 ### Step 7: Startup catch-up
 
-**Files**: `daemon/services/scheduler/index.ts` (extends Step 6)
+**Files**: `apps/daemon/services/scheduler/index.ts` (extends Step 6)
 **Addresses**: REQ-SCOM-14
 
 Add a `catchUp()` method to `SchedulerService`, called once during daemon startup after commission recovery completes.
@@ -295,14 +295,14 @@ Tests:
 
 ### Step 8: Daemon wiring
 
-**Files**: `daemon/app.ts`, `daemon/index.ts`
+**Files**: `apps/daemon/app.ts`, `apps/daemon/index.ts`
 **Addresses**: (wiring, no spec requirement directly, but essential for production)
 
 Wire the scheduler into the daemon's production startup sequence.
 
-In `daemon/app.ts` (`createProductionApp`):
+In `apps/daemon/app.ts` (`createProductionApp`):
 
-Currently `createProductionApp` returns `Promise<Hono>`. The scheduler needs a shutdown path. Change the return type to `Promise<{ app: Hono; shutdown: () => void }>`. Update the single caller in `daemon/index.ts` (line ~39) to destructure: `const { app, shutdown } = await createProductionApp(...)`.
+Currently `createProductionApp` returns `Promise<Hono>`. The scheduler needs a shutdown path. Change the return type to `Promise<{ app: Hono; shutdown: () => void }>`. Update the single caller in `apps/daemon/index.ts` (line ~39) to destructure: `const { app, shutdown } = await createProductionApp(...)`.
 
 Assembly sequence (after commission recovery at line ~282):
 1. Create the schedule lifecycle (uses existing `recordOps` from Layer 1):
@@ -328,7 +328,7 @@ Assembly sequence (after commission recovery at line ~282):
 4. Start the timer: `scheduler.start()`.
 5. Return `{ app: createApp(deps), shutdown: () => scheduler.stop() }`.
 
-In `daemon/index.ts`:
+In `apps/daemon/index.ts`:
 - Destructure the return value: `const { app, shutdown } = await createProductionApp(...)`.
 - In the SIGINT/SIGTERM handler, call `shutdown()` before `server.stop()`. This clears the scheduler interval and prevents ticks from firing during shutdown.
 
@@ -340,7 +340,7 @@ Tests:
 
 ### Step 9: UI updates
 
-**Files**: `web/app/projects/[name]/`, `web/components/`, `web/app/dashboard/`
+**Files**: `apps/web/app/projects/[name]/`, `apps/web/components/`, `apps/web/app/dashboard/`
 **Addresses**: REQ-SCOM-22, REQ-SCOM-23, REQ-SCOM-24, REQ-SCOM-25
 
 This step is the largest in surface area but has no backend dependencies beyond the artifact format established in earlier steps.
@@ -378,7 +378,7 @@ Tests:
 
 ### Step 10: Cron library integration
 
-**Files**: `package.json`, `daemon/services/scheduler/cron.ts`
+**Files**: `package.json`, `apps/daemon/services/scheduler/cron.ts`
 **Addresses**: REQ-SCOM-12 (cron evaluation)
 
 This step can run in parallel with Steps 1-4 since it's a dependency with a clear interface.
@@ -389,7 +389,7 @@ This step can run in parallel with Steps 1-4 since it's a dependency with a clea
 
 Selection criteria: must work with bun, must support standard 5-field cron, must have `nextRun(after)` or equivalent, must have active maintenance. Test the selected library with bun before committing.
 
-**Integration**: Wrap the library in `daemon/services/scheduler/cron.ts` (defined in Step 6). The wrapper isolates the third-party dependency so a library swap requires changing one file.
+**Integration**: Wrap the library in `apps/daemon/services/scheduler/cron.ts` (defined in Step 6). The wrapper isolates the third-party dependency so a library swap requires changing one file.
 
 Tests:
 - Standard cron expressions parse correctly: `0 9 * * 1` (Monday 9am), `0 0 1 * *` (1st of month), `*/5 * * * *` (every 5 min).

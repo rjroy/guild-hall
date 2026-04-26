@@ -1,0 +1,97 @@
+/* ============================================================
+   Artifact Detail layout
+   AppBar → ArtifactProvenance (banner) → main + sidebar
+   ============================================================ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.artifactView {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.artifactBody {
+  display: flex;
+  gap: var(--space-6);
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-6) var(--space-8);
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.desktopSidebar {
+  /* CollapsibleSidebar handles width, overflow, and collapse */
+}
+
+.mobileSidebar {
+  display: none;
+}
+
+.meetingBanner {
+  flex-shrink: 0;
+  margin: 0 var(--space-8);
+  padding: var(--space-3) var(--space-4);
+  background: var(--brand-soft);
+  border: 1px solid var(--ember-500);
+  border-radius: var(--radius);
+}
+
+.meetingBannerLink {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
+  text-decoration: none;
+}
+
+:global([data-theme="dark"]) .meetingBannerLink {
+  color: var(--ember-300);
+}
+
+.meetingBannerLink:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .desktopSidebar {
+    display: none;
+  }
+
+  .mobileSidebar {
+    display: block;
+    padding: 0 var(--space-4) var(--space-4);
+  }
+
+  .artifactBody {
+    padding: var(--space-4);
+    gap: var(--space-4);
+  }
+
+  .meetingBanner {
+    margin: 0 var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .artifactBody {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+}

@@ -154,7 +154,7 @@ These were open questions in the original brainstorm. Resolved in meeting 2026-0
 
 4. **P4 triggers and review tools:** Composes cleanly. `p4 reconcile` + `p4 shelve` produces a standard shelf. Swarm reviews it normally. Triggers fire normally. The provenance of the edits (git worktree vs. IDE) is invisible to P4. Studio-specific trigger quirks (e.g., triggers that expect `p4 edit` before modification) are a deployment note, not a design concern.
 
-5. **Separate tool?** Yes. The adapter lives in the guild-hall repo as a sibling directory (e.g., `p4-adapter/`). It has its own entry point and tests. No imports from `daemon/` or `web/`, and neither imports from it. Colocated, not coupled. Same pattern as `cli/`. Guild Hall remains "git is the world." The adapter is the only thing that knows P4 exists.
+5. **Separate tool?** Yes. The adapter lives inside the guild-hall repo at `lib/p4-adapter/` (a colocated, self-contained module). It has its own entry point and tests. No imports from `apps/daemon/` or `apps/web/`, and neither imports from it. Colocated, not coupled. Guild Hall remains "git is the world." The adapter is the only thing that knows P4 exists.
 
 ## Next Steps
 

@@ -152,7 +152,7 @@ This requires one infrastructure change: the package discovery system currently 
 - REQ-CMP-24: One worker package does not declare the compendium:
   - `guild-hall-researcher` (Verity): produces knowledge, does not consume craft guidance. She researches domains from scratch rather than consulting standing reference.
 
-- REQ-CMP-25: The Guild Master is a built-in worker (not a package). Adding compendium access to the Guild Master would require changes to its session preparation in `daemon/services/manager/`. This is out of scope for this spec.
+- REQ-CMP-25: The Guild Master is a built-in worker (not a package). Adding compendium access to the Guild Master would require changes to its session preparation in `apps/daemon/services/manager/`. This is out of scope for this spec.
 
 ### Initial Content
 

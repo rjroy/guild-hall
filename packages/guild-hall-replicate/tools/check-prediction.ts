@@ -7,7 +7,7 @@
 
 import type { ReplicateClient } from "../replicate-client";
 import { ReplicateApiError, ReplicateNetworkError } from "../replicate-client";
-import type { ToolResult } from "@/daemon/types";
+import type { ToolResult } from "@/apps/daemon/types";
 
 export interface CheckPredictionArgs {
   prediction_id: string;

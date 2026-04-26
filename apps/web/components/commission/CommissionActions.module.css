@@ -1,0 +1,223 @@
+/* ============================================================
+   CommissionActions — dispatch / save / cancel / re-dispatch /
+   abandon / queued / confirm row
+   ============================================================ */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* --- Shared button base --- */
+
+.dispatchButton,
+.continueButton,
+.saveButton,
+.cancelButton,
+.redispatchButton,
+.abandonButton,
+.confirmYes,
+.confirmNo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease-out);
+  border: 1px solid transparent;
+}
+
+.dispatchButton:disabled,
+.continueButton:disabled,
+.saveButton:disabled,
+.cancelButton:disabled,
+.redispatchButton:disabled,
+.abandonButton:disabled,
+.confirmYes:disabled,
+.confirmNo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Dispatch (primary action) --- */
+
+.dispatchButton,
+.continueButton {
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  border-color: var(--ember-700);
+  color: var(--fg-on-ember);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.dispatchButton:hover:not(:disabled),
+.continueButton:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+  box-shadow: var(--shadow), var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+:global([data-theme="dark"]) .dispatchButton,
+:global([data-theme="dark"]) .continueButton {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
+}
+
+/* --- Save / Re-dispatch (secondary ghost) --- */
+
+.saveButton,
+.redispatchButton {
+  background: var(--bg-raised);
+  border-color: var(--rule-strong);
+  color: var(--fg);
+}
+
+.saveButton:hover:not(:disabled),
+.redispatchButton:hover:not(:disabled) {
+  border-color: var(--ember-500);
+  color: var(--ember-700);
+}
+
+:global([data-theme="dark"]) .saveButton:hover:not(:disabled),
+:global([data-theme="dark"]) .redispatchButton:hover:not(:disabled) {
+  color: var(--ember-300);
+}
+
+/* --- Cancel / Confirm-yes (danger) --- */
+
+.cancelButton,
+.confirmYes {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.cancelButton:hover:not(:disabled),
+.confirmYes:hover:not(:disabled) {
+  background: var(--danger);
+  color: var(--parchment-50);
+}
+
+/* --- Abandon (muted danger) --- */
+
+.abandonButton {
+  background: transparent;
+  border-color: var(--rule);
+  color: var(--fg-3);
+}
+
+.abandonButton:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* --- Confirm-no (quiet) --- */
+
+.confirmNo {
+  background: transparent;
+  border-color: var(--rule);
+  color: var(--fg-2);
+}
+
+.confirmNo:hover:not(:disabled) {
+  border-color: var(--rule-strong);
+  color: var(--fg);
+}
+
+/* --- Queued indicator --- */
+
+.queuedIndicator {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+}
+
+.queuedLabel {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--warning);
+}
+
+.queuedText {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xs);
+  color: var(--fg-3);
+}
+
+/* --- Confirmation row --- */
+
+.confirmRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+}
+
+.confirmText {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  flex: 1 1 100%;
+}
+
+.confirmButtons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* --- Action reason textarea --- */
+
+.actionReason {
+  width: 100%;
+  min-height: 3rem;
+  padding: 9px 12px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  background: var(--parchment-50);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-inset);
+  resize: vertical;
+  transition: border-color var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .actionReason {
+  background: var(--bg-sunken);
+}
+
+.actionReason:focus {
+  outline: none;
+  border-color: var(--ember-500);
+}
+
+.actionReason::placeholder {
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+/* --- Error --- */
+
+.error {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--danger);
+  margin: 0;
+}

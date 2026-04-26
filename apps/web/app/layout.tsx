@@ -1,0 +1,33 @@
+import type { Metadata, Viewport } from "next";
+import DaemonStatus from "@/apps/web/components/ui/DaemonStatus";
+import "./globals.css";
+import "./guild.css";
+
+export const metadata: Metadata = {
+  title: "Guild Hall",
+  description: "Multi-agent workspace for delegating work to AI specialists",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  maximumScale: 1,
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en" data-theme="dark">
+      <body>
+        <DaemonStatus>
+          <div style={{ minHeight: "100vh" }}>{children}</div>
+        </DaemonStatus>
+      </body>
+    </html>
+  );
+}

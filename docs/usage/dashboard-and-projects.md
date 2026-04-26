@@ -76,10 +76,10 @@ Open the project hub when you want to:
 
 ## Code references
 
-- Dashboard route: [`web/app/page.tsx`](../../web/app/page.tsx)
-- Pending audiences panel: [`web/components/dashboard/PendingAudiences.tsx`](../../web/components/dashboard/PendingAudiences.tsx)
-- Project hub route: [`web/app/projects/[name]/page.tsx`](../../web/app/projects/[name]/page.tsx)
-- Project tabs: [`web/components/project/ProjectTabs.tsx`](../../web/components/project/ProjectTabs.tsx)
-- Artifact list: [`web/components/project/ArtifactList.tsx`](../../web/components/project/ArtifactList.tsx)
-- Artifact detail route: [`web/app/projects/[name]/artifacts/[...path]/page.tsx`](../../web/app/projects/[name]/artifacts/[...path]/page.tsx)
-- Metadata sidebar: [`web/components/artifact/MetadataSidebar.tsx`](../../web/components/artifact/MetadataSidebar.tsx)
+- Dashboard route: [`apps/web/app/page.tsx`](../../apps/web/app/page.tsx)
+- Pending audiences panel: [`apps/web/components/dashboard/PendingAudiences.tsx`](../../apps/web/components/dashboard/PendingAudiences.tsx)
+- Project hub route: [`apps/web/app/projects/[name]/page.tsx`](../../apps/web/app/projects/[name]/page.tsx)
+- Project tabs: [`apps/web/components/project/ProjectTabs.tsx`](../../apps/web/components/project/ProjectTabs.tsx)
+- Artifact list: [`apps/web/components/project/ArtifactList.tsx`](../../apps/web/components/project/ArtifactList.tsx)
+- Artifact detail route: [`apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`](../../apps/web/app/projects/[name]/artifacts/[...path]/page.tsx)
+- Metadata sidebar: [`apps/web/components/artifact/MetadataSidebar.tsx`](../../apps/web/components/artifact/MetadataSidebar.tsx)

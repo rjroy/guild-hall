@@ -1,0 +1,42 @@
+/* CreateMeetingButton — primary CTA for the meetings tab */
+
+.createButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: var(--tracking-wider);
+  padding: 9px 18px;
+  background: linear-gradient(180deg, var(--ember-300), var(--ember-500));
+  color: var(--fg-on-ember);
+  border: 1px solid var(--ember-700);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease-out);
+}
+
+.createButton:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--ember-500), var(--ember-700));
+  box-shadow: var(--shadow), var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.createButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+:global([data-theme="dark"]) .createButton {
+  background: linear-gradient(180deg, var(--ember-100), var(--ember-300));
+  color: var(--ink-900);
+}
+
+:global([data-theme="dark"]) .createButton:hover:not(:disabled) {
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+}
+
+.createButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

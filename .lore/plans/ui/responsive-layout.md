@@ -16,8 +16,8 @@ Make the Guild Hall UI usable on tablet (~768px) and phone (~480px) viewports. T
 ## Codebase Context
 
 **Current layout state:**
-- Dashboard (`web/app/page.module.css`) uses a fixed 3-column CSS Grid: `260px 1fr 320px` with named areas (sidebar, briefing, depMap, recent, audiences). Zero media queries. This is the most fragile layout. Note: the CSS class is `.recentArtifacts` but the grid area name is `recent`.
-- Project page (`web/app/projects/[name]/page.module.css`) uses flexbox column with `max-width: 960px`. Already vertically stacked but has no responsive padding/spacing adjustments.
+- Dashboard (`apps/web/app/page.module.css`) uses a fixed 3-column CSS Grid: `260px 1fr 320px` with named areas (sidebar, briefing, depMap, recent, audiences). Zero media queries. This is the most fragile layout. Note: the CSS class is `.recentArtifacts` but the grid area name is `recent`.
+- Project page (`apps/web/app/projects/[name]/page.module.css`) uses flexbox column with `max-width: 960px`. Already vertically stacked but has no responsive padding/spacing adjustments.
 - Meeting, Commission, and Artifact views use a flex-row layout with fixed-width sidebars (260-280px) that already stack at 768px via existing media queries.
 
 **Existing breakpoint pattern:**
@@ -47,7 +47,7 @@ Work is organized in three phases by impact. Each phase is independently shippab
 
 #### Step 1: Add breakpoint tokens to globals.css
 
-**Files**: `web/app/globals.css`
+**Files**: `apps/web/app/globals.css`
 **Expertise**: none
 
 Add CSS custom properties for the two standard breakpoints. These are documentation, not functional (CSS custom properties can't be used in media query conditions), but they establish the convention and make the values grep-able.
@@ -63,7 +63,7 @@ Add to the `:root` block after the spacing scale.
 
 #### Step 2: Dashboard tablet breakpoint (768px)
 
-**Files**: `web/app/page.module.css`
+**Files**: `apps/web/app/page.module.css`
 **Expertise**: none
 
 At `max-width: 768px`, collapse the three-column grid to a single column. The named grid areas make this straightforward: redefine the template to stack areas vertically in a sensible reading order.
@@ -90,7 +90,7 @@ Reading order rationale: sidebar (navigation) first, then briefing (primary cont
 
 #### Step 3: Dashboard phone breakpoint (480px)
 
-**Files**: `web/app/page.module.css`
+**Files**: `apps/web/app/page.module.css`
 **Expertise**: none
 
 At `max-width: 480px`, reduce padding further and tighten the gap.
@@ -108,7 +108,7 @@ At `max-width: 480px`, reduce padding further and tighten the gap.
 
 #### Step 4: Project and route page responsive adjustments
 
-**Files**: `web/app/projects/[name]/page.module.css`, `web/app/projects/[name]/commissions/[id]/page.module.css`, `web/app/projects/[name]/meetings/[id]/page.module.css`
+**Files**: `apps/web/app/projects/[name]/page.module.css`, `apps/web/app/projects/[name]/commissions/[id]/page.module.css`, `apps/web/app/projects/[name]/meetings/[id]/page.module.css`
 **Expertise**: none
 
 The project page and its child route pages (commission detail, meeting detail) all use the same structure: flex column with `max-width: 960px`, `padding: var(--space-lg)`, and no media queries. The project page is already single-column, so the issue's "single-column fallback" requirement is met. The work here is padding/spacing adjustments for smaller viewports and removing the max-width constraint on phones where gutter space is wasted.
@@ -131,11 +131,11 @@ Apply to all three page files:
 }
 ```
 
-Verify that the list components inside the project page (`ArtifactList`, `MeetingList`, `CommissionList` in `web/components/project/`) don't have fixed widths or horizontal layouts that would break at narrow viewports. If they do, add them to this step. If they use flex-wrap or are already vertical, no changes needed.
+Verify that the list components inside the project page (`ArtifactList`, `MeetingList`, `CommissionList` in `apps/web/components/project/`) don't have fixed widths or horizontal layouts that would break at narrow viewports. If they do, add them to this step. If they use flex-wrap or are already vertical, no changes needed.
 
 #### Step 5: Align existing view breakpoints
 
-**Files**: `web/components/meeting/MeetingView.module.css`, `web/components/meeting/MeetingHeader.module.css`, `web/components/commission/CommissionView.module.css`, `web/components/commission/CommissionHeader.module.css`, `web/app/projects/[name]/artifacts/[...path]/page.module.css`
+**Files**: `apps/web/components/meeting/MeetingView.module.css`, `apps/web/components/meeting/MeetingHeader.module.css`, `apps/web/components/commission/CommissionView.module.css`, `apps/web/components/commission/CommissionHeader.module.css`, `apps/web/app/projects/[name]/artifacts/[...path]/page.module.css`
 **Expertise**: none
 
 The existing media queries are already correct (768px for layout, 600px for header details). No structural changes needed. Add the 480px phone breakpoint to reduce padding and gap for the content areas within these views.
@@ -164,7 +164,7 @@ For each header with a 600px breakpoint, no additional change needed (600px alre
 
 #### Step 6: Scale border-image widths at phone size
 
-**Files**: `web/components/ui/Panel.module.css`, `web/components/meeting/MeetingHeader.module.css`, `web/components/commission/CommissionHeader.module.css`, `web/components/meeting/ChatInterface.module.css`, `web/components/artifact/ArtifactContent.module.css`
+**Files**: `apps/web/components/ui/Panel.module.css`, `apps/web/components/meeting/MeetingHeader.module.css`, `apps/web/components/commission/CommissionHeader.module.css`, `apps/web/components/meeting/ChatInterface.module.css`, `apps/web/components/artifact/ArtifactContent.module.css`
 **Expertise**: none
 
 At 480px, the 30-50px border-image widths consume too much screen space. Scale them down proportionally. The `border-image-slice` stays the same (it's a unitless pixel value into the source image); only `border-image-width` changes. The `border` property (the underlying transparent border that establishes clipping geometry) may also need to scale to avoid visual artifacts where the border image and border region mismatch.

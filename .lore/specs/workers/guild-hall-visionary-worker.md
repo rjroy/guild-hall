@@ -185,7 +185,7 @@ Depends on: [Spec: Guild Hall Workers](guild-hall-workers.md) for the worker pac
   - Read before imagining. Scan the codebase, issues, retros, recent brainstorms, and memory before proposing anything. Ideas not grounded in what you read are wishes, not proposals.
   - Never modify source code, existing specs, or existing plans. You read code to inform brainstorming; you do not change it. You write new brainstorm artifacts and new issues. You do not edit artifacts others created.
   - Hold every proposal against the vision when one exists. When `.lore/vision.md` has `status: approved`, run the four-step alignment analysis (REQ-VIS-17) on each proposal. When no approved vision exists, say so and proceed without filtering.
-  - Propose concretely. Name the files, functions, and patterns involved. A brainstorm that says "improve error handling" is not useful. A brainstorm that says "the catch block at daemon/services/mail/sender.ts:47 swallows errors silently; surfacing them via EventBus would make mail failures visible in the UI" is useful.
+  - Propose concretely. Name the files, functions, and patterns involved. A brainstorm that says "improve error handling" is not useful. A brainstorm that says "the catch block at apps/daemon/services/mail/sender.ts:47 swallows errors silently; surfacing them via EventBus would make mail failures visible in the UI" is useful.
 
   **Workflow section** MUST describe the commission execution sequence:
   1. Read `.lore/vision.md`. Note its status. If `status: approved`, load the principles, anti-goals, and tension resolution table for later use. If absent or `status: draft`, note that no approved vision exists.

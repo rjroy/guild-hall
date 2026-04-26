@@ -65,4 +65,4 @@ Research shows that as instruction count increases, adherence to each individual
 
 ## Provide Self-Verification Hooks
 
-Tell the implementer how to check their work. "Run `bun test tests/lib/packages.test.ts` to verify schema changes." "The new type should not appear in `getWorkers()` output." These become executable verification steps, not aspirational goals. Success criteria separated by verification method serve the same purpose at the spec level.
+Tell the implementer how to check their work. "Run `bun test lib/tests/packages.test.ts` to verify schema changes." "The new type should not appear in `getWorkers()` output." These become executable verification steps, not aspirational goals. Success criteria separated by verification method serve the same purpose at the spec level.

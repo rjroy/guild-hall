@@ -38,7 +38,7 @@ type SDKCompactBoundaryMessage = {
 
 This message appears in the `SDKMessage` stream. It is part of the `SDKMessage` union type (`sdk.d.ts:1997`). The `trigger` field distinguishes user-initiated compaction (`manual`) from automatic compaction when context limits are hit (`auto`). `pre_tokens` indicates the token count before compaction.
 
-**Verified:** The event translator at `daemon/lib/agent-sdk/event-translator.ts:200-204` explicitly drops this message:
+**Verified:** The event translator at `apps/daemon/lib/agent-sdk/event-translator.ts:200-204` explicitly drops this message:
 
 ```typescript
 // The SDK uses "system" for multiple subtypes. Only "init" maps to a

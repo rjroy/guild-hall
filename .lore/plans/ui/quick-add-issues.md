@@ -3,7 +3,7 @@ title: "Quick Add Issues"
 date: 2026-03-29
 status: executed
 tags: [ui, issues, web-ui, cli, daemon, artifacts]
-modules: [daemon/routes/workspace-issue, daemon/app, "web/app/projects/[name]/page", web/components/project/NewIssueButton, web/app/api/issues/create, cli/index]
+modules: [apps/daemon/routes/workspace-issue, apps/daemon/app, "apps/web/app/projects/[name]/page", apps/web/components/project/NewIssueButton, apps/web/app/api/issues/create, apps/cli/index]
 related:
   - .lore/specs/ui/quick-add-issues.md
   - .lore/plans/ui/commit-lore-from-web.md
@@ -20,35 +20,35 @@ Add a one-gesture issue capture path on three surfaces. The daemon gets `POST /w
 
 These were discovered during code review and affect the implementation.
 
-**Gap 1 — Missing Next.js API proxy route.** The spec's exit points list `web/components/project/NewIssueButton.tsx` but not a Next.js API route. Client components cannot call the daemon directly (Unix socket, server-only). A proxy at `web/app/api/issues/create/route.ts` is architecturally required, following the `web/app/api/git/lore/commit/route.ts` pattern established by `commit-lore-from-web`. Phase 3 adds it.
+**Gap 1 — Missing Next.js API proxy route.** The spec's exit points list `apps/web/components/project/NewIssueButton.tsx` but not a Next.js API route. Client components cannot call the daemon directly (Unix socket, server-only). A proxy at `apps/web/app/api/issues/create/route.ts` is architecturally required, following the `apps/web/app/api/git/lore/commit/route.ts` pattern established by `commit-lore-from-web`. Phase 3 adds it.
 
 **Gap 2 — `context` field missing from REQ-QAI-10.** Every existing project-scoped `OperationDefinition` includes `context: { project: true }`. REQ-QAI-10 doesn't mention this field. Without it the CLI's context-aware help won't flag `projectName` correctly. The plan adds `context: { project: true }` to the operation definition.
 
-**Gap 3 — REQ-QAI-21 and REQ-QAI-22 are in tension.** REQ-QAI-21 says "no CLI-specific code is required." REQ-QAI-22 requires `--body -` to read from stdin. The current `cli/index.ts` has no stdin reading and `buildBody` in `cli/resolve.ts` maps positional args by index with no special treatment of `-`. REQ-QAI-22 needs a small targeted change in the CLI command handler: before building the request, detect when the `body` arg value is the literal `-` string and replace it with `process.stdin` content. Phase 7 covers this.
+**Gap 3 — REQ-QAI-21 and REQ-QAI-22 are in tension.** REQ-QAI-21 says "no CLI-specific code is required." REQ-QAI-22 requires `--body -` to read from stdin. The current `apps/cli/index.ts` has no stdin reading and `buildBody` in `apps/cli/resolve.ts` maps positional args by index with no special treatment of `-`. REQ-QAI-22 needs a small targeted change in the CLI command handler: before building the request, detect when the `body` arg value is the literal `-` string and replace it with `process.stdin` content. Phase 7 covers this.
 
 **Gap 4 — Named flag syntax vs. positional CLI.** REQ-QAI-21 shows `--title "Title text"` as the CLI invocation. The current CLI uses positional args mapped by index, not named flags. The positional form works automatically: `guild-hall workspace issue create <project> <title> [body]`. The `--title` flag form requires a larger CLI refactor outside this spec's scope. The plan uses the positional form. The spec examples should be read as illustrative, not prescriptive — the generated CLI shape follows the parameter order in the `OperationDefinition`.
 
 ## Codebase Context
 
-**`commitAll` is the right method.** REQ-QAI-9 says to use `gitOps.commitAll`. The implementation at `daemon/lib/git.ts:252-263` does `git add -A && git commit --no-verify`. Integration worktrees are sparse checkouts of `.lore/` only — `git add -A` on them stages only `.lore/` files, making the boundary safe. The `artifacts.ts` write handler at line 175-180 uses exactly this pattern (non-fatal commit after write). Follow it.
+**`commitAll` is the right method.** REQ-QAI-9 says to use `gitOps.commitAll`. The implementation at `apps/daemon/lib/git.ts:252-263` does `git add -A && git commit --no-verify`. Integration worktrees are sparse checkouts of `.lore/` only — `git add -A` on them stages only `.lore/` files, making the boundary safe. The `artifacts.ts` write handler at line 175-180 uses exactly this pattern (non-fatal commit after write). Follow it.
 
-**`artifacts.ts` is the DO NOT extend model.** `POST /workspace/artifact/document/write` at `daemon/routes/artifacts.ts:138` is a low-level write with no semantic understanding. The new route lives in a separate file and does not call `writeRawArtifactContent` or any artifact lib function. It uses `node:fs/promises` directly.
+**`artifacts.ts` is the DO NOT extend model.** `POST /workspace/artifact/document/write` at `apps/daemon/routes/artifacts.ts:138` is a low-level write with no semantic understanding. The new route lives in a separate file and does not call `writeRawArtifactContent` or any artifact lib function. It uses `node:fs/promises` directly.
 
-**`AppDeps` optional field pattern.** `daemon/app.ts:32-50` defines `AppDeps`. Twelve optional fields already exist (`meetingSession?`, `admin?`, `artifacts?`, `gitLore?`, etc.) and are conditionally mounted via `if (deps.X)` at lines 81-136. Add `workspaceIssue?: IssueRouteDeps` after `gitLore?` and mount it the same way.
+**`AppDeps` optional field pattern.** `apps/daemon/app.ts:32-50` defines `AppDeps`. Twelve optional fields already exist (`meetingSession?`, `admin?`, `artifacts?`, `gitLore?`, etc.) and are conditionally mounted via `if (deps.X)` at lines 81-136. Add `workspaceIssue?: IssueRouteDeps` after `gitLore?` and mount it the same way.
 
 **`createProductionApp` wiring.** The `createApp(...)` call at line 600 wires all deps. The `admin`, `artifacts`, and `gitLore` entries (lines 612-630) use the same `config`, `guildHallHome`, and `git` instances. No new infrastructure needed for `workspaceIssue`.
 
-**`CommitLoreButton` is the component model.** The inline form pattern at `web/components/project/CommitLoreButton.tsx` is exactly what `NewIssueButton` follows: `"use client"`, `showForm` toggle, submit with loading state, collapse on success with timed confirmation, stay open on failure. The state model maps directly.
+**`CommitLoreButton` is the component model.** The inline form pattern at `apps/web/components/project/CommitLoreButton.tsx` is exactly what `NewIssueButton` follows: `"use client"`, `showForm` toggle, submit with loading state, collapse on success with timed confirmation, stay open on failure. The state model maps directly.
 
 **Turbopack does not support CSS Modules `composes`.** The CLAUDE.md documents this explicitly. Use TSX-side class composition (`className={`${styles.base} ${styles.extra}`}`) for any variant styling, not `composes:`.
 
-**Page already has `artifactActions`.** `web/app/projects/[name]/page.tsx:62-68` already has the `<div className={styles.artifactActions}>` container with `CommitLoreButton` inside it. Adding `NewIssueButton` is a one-line insertion before `CommitLoreButton`. No new CSS wrapper needed.
+**Page already has `artifactActions`.** `apps/web/app/projects/[name]/page.tsx:62-68` already has the `<div className={styles.artifactActions}>` container with `CommitLoreButton` inside it. Adding `NewIssueButton` is a one-line insertion before `CommitLoreButton`. No new CSS wrapper needed.
 
 ## Implementation Phases
 
-### Phase 1: Daemon route (`daemon/routes/workspace-issue.ts`)
+### Phase 1: Daemon route (`apps/daemon/routes/workspace-issue.ts`)
 
-**New file:** `daemon/routes/workspace-issue.ts`
+**New file:** `apps/daemon/routes/workspace-issue.ts`
 
 REQs covered: QAI-1, QAI-2, QAI-5, QAI-6, QAI-7, QAI-8, QAI-9, QAI-10, QAI-11
 
@@ -58,10 +58,10 @@ Follow `git-lore.ts` exactly:
 
 ```ts
 import { Hono } from "hono";
-import { errorMessage } from "@/daemon/lib/toolbox-utils";
-import { nullLog } from "@/daemon/lib/log";
-import type { Log } from "@/daemon/lib/log";
-import type { GitOps } from "@/daemon/lib/git";
+import { errorMessage } from "@/apps/daemon/lib/toolbox-utils";
+import { nullLog } from "@/apps/daemon/lib/log";
+import type { Log } from "@/apps/daemon/lib/log";
+import type { GitOps } from "@/apps/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import * as fs from "node:fs/promises";
@@ -224,13 +224,13 @@ Note: `hierarchy` uses `{ root: "workspace", feature: "issue", object: "create" 
 
 ---
 
-### Phase 2: Wire into `daemon/app.ts`
+### Phase 2: Wire into `apps/daemon/app.ts`
 
 REQs covered: QAI-3, QAI-4
 
 **Step 2a — Add import and `AppDeps` field.**
 
-In `daemon/app.ts`, add after the `gitLore` import:
+In `apps/daemon/app.ts`, add after the `gitLore` import:
 
 ```ts
 import { createWorkspaceIssueRoutes, type IssueRouteDeps } from "./routes/workspace-issue";
@@ -266,7 +266,7 @@ workspaceIssue: {
 
 ### Phase 3: Next.js API proxy route
 
-**New file:** `web/app/api/issues/create/route.ts`
+**New file:** `apps/web/app/api/issues/create/route.ts`
 
 This is a spec gap (see above). Client components need a Next.js API route to reach the daemon. The proxy is thin — validate, forward, return.
 
@@ -327,7 +327,7 @@ Note: the proxy enforces the 100-character client limit, not the 200-character d
 
 REQs covered: QAI-13, QAI-14, QAI-15, QAI-16, QAI-17, QAI-18, QAI-19, QAI-20
 
-**New file:** `web/components/project/NewIssueButton.tsx`
+**New file:** `apps/web/components/project/NewIssueButton.tsx`
 
 Follow `CommitLoreButton.tsx` as the structural model. Key differences:
 - Two inputs (title + optional body), not one
@@ -477,7 +477,7 @@ export default function NewIssueButton({ projectName }: NewIssueButtonProps) {
 }
 ```
 
-**New file:** `web/components/project/NewIssueButton.module.css`
+**New file:** `apps/web/components/project/NewIssueButton.module.css`
 
 Follow the `CommitLoreButton.module.css` palette (brass tones, dark background inputs). Key classes: `.newIssueButton`, `.form`, `.fieldGroup`, `.label`, `.titleInput`, `.bodyTextarea`, `.validationError`, `.formActions`, `.submitButton`, `.cancelLink`, `.resultText`, `.resultError`.
 
@@ -491,12 +491,12 @@ Use TSX-side class composition for any variants — no `composes:` directives (T
 
 REQs covered: QAI-12
 
-**Modified file:** `web/app/projects/[name]/page.tsx`
+**Modified file:** `apps/web/app/projects/[name]/page.tsx`
 
 **5a — Add import** at the top with the other project component imports:
 
 ```ts
-import NewIssueButton from "@/web/components/project/NewIssueButton";
+import NewIssueButton from "@/apps/web/components/project/NewIssueButton";
 ```
 
 **5b — Insert `NewIssueButton` into the `artifactActions` bar** (currently lines 62-67). The bar is already a `<div className={styles.artifactActions}>`. Insert `NewIssueButton` before `CommitLoreButton`:
@@ -520,9 +520,9 @@ No other page changes needed. `NewIssueButton` takes only `projectName`, which i
 
 ### Phase 6: Tests
 
-**New file:** `tests/daemon/routes/workspace-issue.test.ts`
+**New file:** `apps/daemon/tests/routes/workspace-issue.test.ts`
 
-Use the same structure as `tests/daemon/routes/git-lore.test.ts` and `tests/daemon/routes/artifacts.test.ts`: mock `GitOps`, wire through `createApp`, use `app.request()`.
+Use the same structure as `apps/daemon/tests/routes/git-lore.test.ts` and `apps/daemon/tests/routes/artifacts.test.ts`: mock `GitOps`, wire through `createApp`, use `app.request()`.
 
 **Required unit tests (slug and conflict resolution):**
 
@@ -556,7 +556,7 @@ All route tests use a real temp directory for the integration worktree (the hand
 
 If JSDOM is not wired in the test suite, document these as manual verification items and add a comment in `NewIssueButton.tsx` listing expected behaviors.
 
-**Verify after Phase 6:** `bun test tests/daemon/routes/workspace-issue.test.ts` passes. `bun test` full suite passes.
+**Verify after Phase 6:** `bun test apps/daemon/tests/routes/workspace-issue.test.ts` passes. `bun test` full suite passes.
 
 ---
 
@@ -564,7 +564,7 @@ If JSDOM is not wired in the test suite, document these as manual verification i
 
 REQs covered: QAI-21 (auto-inherited, no work), QAI-22 (small CLI change)
 
-**Modified file:** `cli/index.ts`
+**Modified file:** `apps/cli/index.ts`
 
 In the `case "command"` handler, after building `resolvedArgs` and before calling `buildBody`, add a stdin-reading step. When a body parameter has the literal value `"-"`, replace it with content read from stdin:
 
@@ -611,7 +611,7 @@ guild-hall workspace issue create <project> <title> -
 
 The stdin form passes `-` as the body positional argument. This differs from the `--body -` syntax in the spec, which requires named flag support. The spec's named flag form is out of scope here — document this in a CLAUDE.md note or retro.
 
-**Verify after Phase 7:** `bun run typecheck` passes. `echo "body content" | bun run cli/index.ts workspace issue create test-project "Test title" -` routes stdin correctly (manual verification).
+**Verify after Phase 7:** `bun run typecheck` passes. `echo "body content" | bun run apps/cli/index.ts workspace issue create test-project "Test title" -` routes stdin correctly (manual verification).
 
 ---
 
@@ -640,19 +640,19 @@ The stdin form passes `-` as the body positional argument. This differs from the
 | Phase | Who | Notes |
 |-------|-----|-------|
 | Phase 1 | Implementation agent | Pure TypeScript; no UI. Export `slugify` and `resolveSlug` for testability. |
-| Phase 2 | Implementation agent | Three-line change to `daemon/app.ts`. |
+| Phase 2 | Implementation agent | Three-line change to `apps/daemon/app.ts`. |
 | Phase 3 | Implementation agent | Thin proxy, follows `git/lore/commit/route.ts` exactly. |
 | Phase 4 | Implementation agent | Client component + CSS. Mirror `CommitLoreButton` structure. No `composes:` in CSS. |
 | Phase 5 | Implementation agent | One import, one JSX line. |
 | Phase 6 | Implementation agent | Daemon route tests use real temp dir for file writes; mock `gitOps`. Component tests mark as manual if JSDOM is absent. |
-| Phase 7 | Implementation agent | Targeted addition to `cli/index.ts`; document the positional-vs-named-flag divergence. |
+| Phase 7 | Implementation agent | Targeted addition to `apps/cli/index.ts`; document the positional-vs-named-flag divergence. |
 | Phase 8 | Fresh-eyes review agent | Verify spec compliance, file content correctness, commit message format, error states. |
 
 ## Constraints and Decisions
 
 - **`commitAll` uses `git add -A`.** Safe for integration worktrees because they are sparse checkouts of `.lore/` only. No new `GitOps` method is needed. The artifacts write handler confirms this is the established pattern.
 
-- **`workspace.issue` descriptions entry does not register `workspace`.** The `workspace` key is owned by `daemon/routes/artifacts.ts`. Only register `"workspace.issue"`.
+- **`workspace.issue` descriptions entry does not register `workspace`.** The `workspace` key is owned by `apps/daemon/routes/artifacts.ts`. Only register `"workspace.issue"`.
 
 - **Title is always quoted in YAML frontmatter.** The spec's example shows `title: "<title>"`. Always quote. Titles containing `"` must have the quote escaped as `\"`. Titles containing `:` would also break unquoted YAML — quoting everything avoids the edge case.
 

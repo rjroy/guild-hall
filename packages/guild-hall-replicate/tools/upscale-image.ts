@@ -11,8 +11,8 @@ import { ReplicateApiError, ReplicateNetworkError } from "../replicate-client";
 import type { OutputDeps } from "../output";
 import { resolveOutputDir, generateFilename, detectExtension, validateInputFile } from "../output";
 import { getDefaultModel, getCostEstimate } from "../model-registry";
-import type { EventBus } from "@/daemon/lib/event-bus";
-import type { ToolResult } from "@/daemon/types";
+import type { EventBus } from "@/apps/daemon/lib/event-bus";
+import type { ToolResult } from "@/apps/daemon/types";
 
 export interface UpscaleImageArgs {
   image: string;

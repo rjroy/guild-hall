@@ -3,7 +3,7 @@ title: Triggered commission creation UX
 date: 2026-03-23
 status: executed
 tags: [ui, commissions, triggers, form, client-component, plan]
-modules: [web/components/commission/CommissionForm]
+modules: [apps/web/components/commission/CommissionForm]
 related:
   - .lore/specs/ui/triggered-commission-creation-ux.md
   - .lore/plans/commissions/triggered-commissions-ui.md
@@ -43,11 +43,11 @@ The form currently imports `SYSTEM_EVENT_TYPES` nowhere. It will need to import 
 
 **`CommissionForm.module.css`** (301 lines): Has `.scheduleFields` (lines 143-151) which provides the template for `.triggerFields`. Has `.fieldHint` (lines 153-157) for small muted hints. Has `.overridesSection` (lines 189-194) where the max chain depth input will go. Has `.numberInput` (lines 213-228) already styled for number fields.
 
-**`tests/components/commission-form.test.tsx`** (211 lines): Uses type-contract testing since the component requires React render context. Tests verify module exports, prop shapes, and payload format logic. The scheduled payload tests (lines 154-181) show the exact pattern for triggered payload tests.
+**`apps/web/tests/components/commission-form.test.tsx`** (211 lines): Uses type-contract testing since the component requires React render context. Tests verify module exports, prop shapes, and payload format logic. The scheduled payload tests (lines 154-181) show the exact pattern for triggered payload tests.
 
 **`lib/types.ts`** (line 323): `SYSTEM_EVENT_TYPES` is an 11-element `as const` array. Already exported.
 
-**No daemon or API proxy changes needed.** The creation route at `daemon/routes/commissions.ts:104-121` handles `type: "triggered"`. The web API proxy at `web/app/api/commissions/route.ts` passes the full body through.
+**No daemon or API proxy changes needed.** The creation route at `apps/daemon/routes/commissions.ts:104-121` handles `type: "triggered"`. The web API proxy at `apps/web/app/api/commissions/route.ts` passes the full body through.
 
 ## File Size Consideration
 
@@ -61,13 +61,13 @@ The spec says the implementer should use judgment: if the file stays under ~300 
 
 This keeps CommissionForm.tsx focused on rendering and state, and makes the data structures and logic independently testable. The test file can import from the utility file directly, bypassing the React context limitation.
 
-**Decision**: Extract `trigger-form-data.ts` into `web/components/commission/`. The form file stays as the single rendering component. Tests target the utility functions for logic coverage and the form module for type-contract tests.
+**Decision**: Extract `trigger-form-data.ts` into `apps/web/components/commission/`. The form file stays as the single rendering component. Tests target the utility functions for logic coverage and the form module for type-contract tests.
 
 ## Implementation Steps
 
 ### Step 1: State and type toggle expansion
 
-**Files**: `web/components/commission/CommissionForm.tsx`
+**Files**: `apps/web/components/commission/CommissionForm.tsx`
 
 **Changes**:
 
@@ -107,7 +107,7 @@ This keeps CommissionForm.tsx focused on rendering and state, and makes the data
 
 ### Step 2: Trigger section and CSS
 
-**Files**: `web/components/commission/CommissionForm.tsx`, `web/components/commission/CommissionForm.module.css`, `web/components/commission/trigger-form-data.ts` (new)
+**Files**: `apps/web/components/commission/CommissionForm.tsx`, `apps/web/components/commission/CommissionForm.module.css`, `apps/web/components/commission/trigger-form-data.ts` (new)
 
 **Changes in `trigger-form-data.ts`**:
 
@@ -163,7 +163,7 @@ This keeps CommissionForm.tsx focused on rendering and state, and makes the data
 
 ### Step 3: Template hints, max depth, match summary, remaining CSS
 
-**Files**: `web/components/commission/CommissionForm.tsx`, `web/components/commission/CommissionForm.module.css`
+**Files**: `apps/web/components/commission/CommissionForm.tsx`, `apps/web/components/commission/CommissionForm.module.css`
 
 **Changes in `CommissionForm.tsx`**:
 
@@ -200,7 +200,7 @@ This keeps CommissionForm.tsx focused on rendering and state, and makes the data
 
 ### Step 4: Validation, submission, and dependency wiring
 
-**Files**: `web/components/commission/CommissionForm.tsx`
+**Files**: `apps/web/components/commission/CommissionForm.tsx`
 
 **Changes**:
 
@@ -236,7 +236,7 @@ This keeps CommissionForm.tsx focused on rendering and state, and makes the data
 
 ### Step 5: Tests
 
-**Files**: `tests/components/commission-form.test.tsx`, `tests/components/trigger-form-data.test.ts` (new)
+**Files**: `apps/web/tests/components/commission-form.test.tsx`, `apps/web/tests/components/trigger-form-data.test.ts` (new)
 
 **New test file `trigger-form-data.test.ts`**:
 
@@ -282,7 +282,7 @@ Following the existing pattern (type-contract and payload format tests):
 
 3. **Type toggle persistence test**: Verify that trigger state variables are declared at component scope (not inside a conditional block), confirming they persist across type toggle switches. This is a structural guarantee from React's hooks model: `useState` at the top of the component retains its value regardless of which conditional branch renders. A type-contract test that verifies the state variables exist in the module's source or that the component exports are stable covers this.
 
-**Note on behavioral/render tests**: The spec's AI Validation section lists 10 behavioral checks that require mounting the component (render test, event type selection, template variable hints, field pattern add/remove, etc.). The project's testing infrastructure uses bun test without a DOM environment (no jsdom/happy-dom), so client components cannot be rendered in tests. The existing test pattern (`tests/components/commission-form.test.tsx`) works around this with type-contract tests.
+**Note on behavioral/render tests**: The spec's AI Validation section lists 10 behavioral checks that require mounting the component (render test, event type selection, template variable hints, field pattern add/remove, etc.). The project's testing infrastructure uses bun test without a DOM environment (no jsdom/happy-dom), so client components cannot be rendered in tests. The existing test pattern (`apps/web/tests/components/commission-form.test.tsx`) works around this with type-contract tests.
 
 The pure-function extraction into `trigger-form-data.ts` compensates for the render gap: `buildMatchSummaryParts`, `buildTriggerPayloadFields`, and `EVENT_TYPE_FIELDS` cover the logic that the behavioral tests would exercise. What remains uncovered are the JSX wiring questions (does selecting "Trigger" actually render the section? does the event type dropdown actually list all options?). These are verified through the review commission (Step 6) and manual testing during development, not automated render tests.
 
@@ -290,17 +290,17 @@ If DOM testing infrastructure is added to the project in the future, the behavio
 
 **REQs validated**: All 16 REQs are covered through the combination of pure-function tests (data and logic), type-contract tests (payload shape), and review verification (JSX wiring).
 
-**Verify**: `bun test tests/components/commission-form.test.tsx tests/components/trigger-form-data.test.ts` passes.
+**Verify**: `bun test apps/web/tests/components/commission-form.test.tsx apps/web/tests/components/trigger-form-data.test.ts` passes.
 
 ### Step 6: Review
 
-Dispatch a review commission (Thorne) targeting `web/components/commission/CommissionForm.tsx`, `web/components/commission/CommissionForm.module.css`, `web/components/commission/trigger-form-data.ts`, and the two test files. The review should check:
+Dispatch a review commission (Thorne) targeting `apps/web/components/commission/CommissionForm.tsx`, `apps/web/components/commission/CommissionForm.module.css`, `apps/web/components/commission/trigger-form-data.ts`, and the two test files. The review should check:
 
 - All 16 REQs are addressed
 - Field pattern add/remove logic handles edge cases (empty array, rapid add/remove)
 - Template variable hint text matches spec format exactly
 - Match summary format matches spec examples exactly
-- Payload shape matches what `daemon/routes/commissions.ts:104-121` expects
+- Payload shape matches what `apps/daemon/routes/commissions.ts:104-121` expects
 - No daemon or API proxy files were modified
 - CSS classes don't collide with existing styles
 - `useCallback` dependency array includes all trigger state variables

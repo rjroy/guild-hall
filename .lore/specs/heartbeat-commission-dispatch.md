@@ -18,7 +18,7 @@ req-prefix: HBT
 
 ## Overview
 
-The heartbeat replaces both the scheduled commission system (~900 lines in `daemon/services/scheduler/`) and the triggered commission system (~300 lines in `daemon/services/trigger-evaluator.ts`) with a single mechanism: a per-project markdown file of standing instructions evaluated by a Guild Master session on Haiku at a configurable interval.
+The heartbeat replaces both the scheduled commission system (~900 lines in `apps/daemon/services/scheduler/`) and the triggered commission system (~300 lines in `apps/daemon/services/trigger-evaluator.ts`) with a single mechanism: a per-project markdown file of standing instructions evaluated by a Guild Master session on Haiku at a configurable interval.
 
 Instead of cron expressions and event-match rules frozen in YAML schemas, the user writes natural-language standing orders in `.lore/heartbeat.md`. Between ticks, the daemon appends condensed activity summaries from the EventBus. On each tick, Haiku reads the standing orders plus recent activity and decides which orders warrant new commissions. The GM session has access to the standard coordination tools (`create_commission`, `dispatch_commission`, `initiate_meeting`), so standing orders can express any intent the GM can act on. Any worker can add entries to the heartbeat file during their own sessions via `add_heartbeat_entry`.
 
@@ -74,7 +74,7 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
   3. Runs a Guild Master session on Haiku with standard coordination tools (REQ-HBT-8, REQ-HBT-10). The GM creates commissions, dispatches them, and starts meetings directly during the session.
   4. Clears the `## Recent Activity` section (REQ-HBT-20).
 
-- REQ-HBT-5: The loop uses post-completion scheduling (same pattern as `createBriefingRefreshService` in `daemon/services/briefing-refresh.ts`). After all projects are evaluated, the next tick is scheduled after the configured interval. This prevents pile-up if a tick takes longer than the interval.
+- REQ-HBT-5: The loop uses post-completion scheduling (same pattern as `createBriefingRefreshService` in `apps/daemon/services/briefing-refresh.ts`). After all projects are evaluated, the next tick is scheduled after the configured interval. This prevents pile-up if a tick takes longer than the interval.
 
 - REQ-HBT-6: Error handling per project: if the heartbeat session fails for a project with a non-rate-limit error (SDK error, timeout), the daemon logs the error at `warn` level and moves to the next project. No retry. The `## Recent Activity` section is NOT cleared on failure, so the context is preserved for the next tick.
 
@@ -84,7 +84,7 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 
 ### Heartbeat GM Session
 
-- REQ-HBT-8: The heartbeat session uses the Guild Master worker identity, activated through the standard `prepareSdkSession` + `runSdkSession` pipeline (same pattern as `generateWithFullSdk` in `daemon/services/briefing-generator.ts`). The model is Haiku (configurable via `systemModels.heartbeat` in `~/.guild-hall/config.yaml`, defaulting to `"haiku"`).
+- REQ-HBT-8: The heartbeat session uses the Guild Master worker identity, activated through the standard `prepareSdkSession` + `runSdkSession` pipeline (same pattern as `generateWithFullSdk` in `apps/daemon/services/briefing-generator.ts`). The model is Haiku (configurable via `systemModels.heartbeat` in `~/.guild-hall/config.yaml`, defaulting to `"haiku"`).
 
 - REQ-HBT-9: The session's system prompt constrains the GM to heartbeat dispatcher mode:
   - Read the standing orders and recent activity.
@@ -223,71 +223,71 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 - REQ-HBT-32: The following files are removed entirely:
 
   **Daemon services:**
-  - `daemon/services/scheduler/index.ts` (SchedulerService class)
-  - `daemon/services/scheduler/cron.ts` (cron parsing and next-occurrence logic)
-  - `daemon/services/scheduler/schedule-lifecycle.ts` (schedule status transitions)
+  - `apps/daemon/services/scheduler/index.ts` (SchedulerService class)
+  - `apps/daemon/services/scheduler/cron.ts` (cron parsing and next-occurrence logic)
+  - `apps/daemon/services/scheduler/schedule-lifecycle.ts` (schedule status transitions)
 
   **Tests:**
-  - `tests/daemon/services/scheduler/scheduler.test.ts`
-  - `tests/daemon/services/scheduler/cron.test.ts`
-  - `tests/daemon/services/scheduler/schedule-lifecycle.test.ts`
+  - `apps/daemon/tests/services/scheduler/scheduler.test.ts`
+  - `apps/daemon/tests/services/scheduler/cron.test.ts`
+  - `apps/daemon/tests/services/scheduler/schedule-lifecycle.test.ts`
 
   **Web components:**
-  - `web/components/commission/CommissionScheduleInfo.tsx`
-  - `web/components/commission/CommissionScheduleInfo.module.css`
-  - `web/components/commission/CommissionScheduleActions.tsx`
-  - `web/components/commission/CommissionScheduleActions.module.css`
+  - `apps/web/components/commission/CommissionScheduleInfo.tsx`
+  - `apps/web/components/commission/CommissionScheduleInfo.module.css`
+  - `apps/web/components/commission/CommissionScheduleActions.tsx`
+  - `apps/web/components/commission/CommissionScheduleActions.module.css`
 
   **API routes:**
-  - `web/app/api/commissions/[commissionId]/schedule-status/route.ts`
+  - `apps/web/app/api/commissions/[commissionId]/schedule-status/route.ts`
 
 ### Removal: Trigger Infrastructure
 
 - REQ-HBT-33: The following files are removed entirely:
 
   **Daemon services:**
-  - `daemon/services/trigger-evaluator.ts`
-  - `daemon/services/commission/trigger-lifecycle.ts`
+  - `apps/daemon/services/trigger-evaluator.ts`
+  - `apps/daemon/services/commission/trigger-lifecycle.ts`
 
   **Tests:**
-  - `tests/daemon/services/trigger-evaluator.test.ts`
-  - `tests/daemon/services/trigger-evaluator-service.test.ts`
-  - `tests/components/trigger-form-data.test.ts`
+  - `apps/daemon/tests/services/trigger-evaluator.test.ts`
+  - `apps/daemon/tests/services/trigger-evaluator-service.test.ts`
+  - `apps/web/tests/components/trigger-form-data.test.ts`
 
   **Web components:**
-  - `web/components/commission/TriggerInfo.tsx`
-  - `web/components/commission/TriggerInfo.module.css`
-  - `web/components/commission/TriggerActions.tsx`
-  - `web/components/commission/TriggerActions.module.css`
-  - `web/components/commission/trigger-form-data.ts`
+  - `apps/web/components/commission/TriggerInfo.tsx`
+  - `apps/web/components/commission/TriggerInfo.module.css`
+  - `apps/web/components/commission/TriggerActions.tsx`
+  - `apps/web/components/commission/TriggerActions.module.css`
+  - `apps/web/components/commission/trigger-form-data.ts`
 
   **API routes:**
-  - `web/app/api/commissions/[commissionId]/trigger-status/route.ts`
+  - `apps/web/app/api/commissions/[commissionId]/trigger-status/route.ts`
 
 ### Removal: Shared Infrastructure
 
-- REQ-HBT-34: The following types and interfaces are removed from `daemon/types.ts`:
+- REQ-HBT-34: The following types and interfaces are removed from `apps/daemon/types.ts`:
   - `CommissionType` union (REQ-HBT-42 explains the simplification)
   - `TriggeredBy` interface
   - `TriggerBlock` interface
   - `ScheduledCommissionStatus` type
 
-- REQ-HBT-35: The following are removed from `daemon/services/commission/record.ts`:
+- REQ-HBT-35: The following are removed from `apps/daemon/services/commission/record.ts`:
   - `ScheduleMetadata` interface
   - `readScheduleMetadata` method and implementation
   - `writeScheduleFields` method and implementation
   - `readTriggerMetadata` method and implementation
   - `writeTriggerFields` method and implementation
   - `readTriggeredBy` method and implementation
-  - The import of `TriggerBlock` and `TriggeredBy` from `daemon/types`
+  - The import of `TriggerBlock` and `TriggeredBy` from `apps/daemon/types`
 
-- REQ-HBT-36: The following are removed from manager toolbox (`daemon/services/manager/toolbox.ts`):
+- REQ-HBT-36: The following are removed from manager toolbox (`apps/daemon/services/manager/toolbox.ts`):
   - `create_scheduled_commission` tool handler and schema
   - `update_schedule` tool handler and schema
   - `create_triggered_commission` tool handler and schema
   - `update_trigger` tool handler and schema
 
-- REQ-HBT-37: The following are removed from `daemon/app.ts`:
+- REQ-HBT-37: The following are removed from `apps/daemon/app.ts`:
   - `scheduleLifecycleRef` and its wiring
   - `triggerEvaluatorRef` and its wiring
   - Dynamic imports of `scheduler/schedule-lifecycle`, `scheduler/index`, and `trigger-evaluator`
@@ -295,23 +295,23 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
   - `triggerEvaluator.initialize()`, `triggerEvaluator.shutdown()` calls
   - The `createScheduledCommission` and `createTriggeredCommission` methods on `CommissionSessionForRoutes`
 
-- REQ-HBT-38: The following are removed from `daemon/routes/commissions.ts`:
+- REQ-HBT-38: The following are removed from `apps/daemon/routes/commissions.ts`:
   - `POST /commission/schedule/commission/update` route
   - `POST /commission/trigger/commission/update` route
   - Schedule info parsing block (the `scheduleInfo` variable and its population from `parsed.data.schedule`)
   - Trigger info parsing block (the `triggerInfo` variable and its population from `parsed.data.trigger`)
-  - The import of `nextOccurrence` from `daemon/services/scheduler/cron`
+  - The import of `nextOccurrence` from `apps/daemon/services/scheduler/cron`
   - Commission creation branches for `type === "scheduled"` and `type === "triggered"` in the POST handler
 
-- REQ-HBT-39: The following are removed from `daemon/services/commission/orchestrator.ts`:
+- REQ-HBT-39: The following are removed from `apps/daemon/services/commission/orchestrator.ts`:
   - `createScheduledCommission` method and its YAML template
   - `createTriggeredCommission` method and its YAML template
   - `sourceSchedule` and `sourceTrigger` from the `createCommission` options type (replaced by `source`, REQ-HBT-21)
   - The `sourceScheduleLine` and `triggeredByBlock` construction in `createCommission`
-  - The import of `isValidCron` from `daemon/services/scheduler/cron`
-  - The import of `TRIGGER_STATUS_TRANSITIONS` from `daemon/services/commission/trigger-lifecycle`
+  - The import of `isValidCron` from `apps/daemon/services/scheduler/cron`
+  - The import of `TRIGGER_STATUS_TRANSITIONS` from `apps/daemon/services/commission/trigger-lifecycle`
 
-- REQ-HBT-40: The `schedule_spawned` event type is removed from `SystemEvent` in `daemon/lib/event-bus.ts` and from `SYSTEM_EVENT_TYPES` in `lib/types.ts`. No new event types are added. The heartbeat creates commissions through the existing `createCommission` path, which already emits `commission_status` events.
+- REQ-HBT-40: The `schedule_spawned` event type is removed from `SystemEvent` in `apps/daemon/lib/event-bus.ts` and from `SYSTEM_EVENT_TYPES` in `lib/types.ts`. No new event types are added. The heartbeat creates commissions through the existing `createCommission` path, which already emits `commission_status` events.
 
 - REQ-HBT-41: The following are modified in web components:
   - `CommissionView.tsx`: remove conditional rendering of `CommissionScheduleInfo`, `CommissionScheduleActions`, `TriggerInfo`, and `TriggerActions` panels.
@@ -327,14 +327,14 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
   - Remove parsing of `source_schedule` and `triggered_by` frontmatter fields.
   - Add `source` field (type `{ description: string } | null`) and parse it from `source` frontmatter.
 
-- REQ-HBT-41b: The commission detail page at `web/app/projects/[name]/commissions/[id]/page.tsx` is modified:
+- REQ-HBT-41b: The commission detail page at `apps/web/app/projects/[name]/commissions/[id]/page.tsx` is modified:
   - Remove the `scheduleInfo` and `triggerInfo` build blocks.
   - Remove conditional rendering that passes these to `CommissionScheduleInfo`, `CommissionScheduleActions`, `TriggerInfo`, and `TriggerActions`.
   - Optionally add display of `source.description` if the commission has one.
 
 ### CommissionType Simplification
 
-- REQ-HBT-42: The `CommissionType` union in `daemon/types.ts` (`"one-shot" | "scheduled" | "triggered"`) is removed entirely. All commissions are one-shot. The `type` field in commission artifact frontmatter becomes unnecessary: existing artifacts with `type: one-shot` continue to parse correctly (the field is ignored), and new commissions omit it.
+- REQ-HBT-42: The `CommissionType` union in `apps/daemon/types.ts` (`"one-shot" | "scheduled" | "triggered"`) is removed entirely. All commissions are one-shot. The `type` field in commission artifact frontmatter becomes unnecessary: existing artifacts with `type: one-shot` continue to parse correctly (the field is ignored), and new commissions omit it.
 
 - REQ-HBT-43: The `readType` method on `CommissionRecordOps` is removed. Any code that branches on commission type (`if (type === "scheduled")`, `if (type === "triggered")`) is simplified to remove the dead branches.
 
@@ -390,7 +390,7 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 
 ### Daemon Wiring
 
-- REQ-HBT-49: The heartbeat service is wired in `createProductionApp()` in `daemon/app.ts`. It is constructed after the briefing refresh service and before the outcome triage service. It receives:
+- REQ-HBT-49: The heartbeat service is wired in `createProductionApp()` in `apps/daemon/app.ts`. It is constructed after the briefing refresh service and before the outcome triage service. It receives:
   - The SDK `queryFn` and `prepDeps` (for running GM sessions)
   - All discovered packages (for worker validation)
   - The `AppConfig` (for interval and model config)
@@ -427,11 +427,11 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 - [ ] `GET /heartbeat/{projectName}/status` returns file content status, standing order count, last tick timestamp, and interval
 - [ ] `add_heartbeat_entry` tool is available to all workers and appends entries to the correct section
 - [ ] The heartbeat GM session has access to `create_commission`, `dispatch_commission`, and `initiate_meeting`
-- [ ] All scheduler files are removed: `daemon/services/scheduler/` (3 files), tests (3 files), UI (4 files), API route (1 file)
-- [ ] All trigger files are removed: `daemon/services/trigger-evaluator.ts`, `trigger-lifecycle.ts`, tests (3 files), UI (5 files), API route (1 file)
+- [ ] All scheduler files are removed: `apps/daemon/services/scheduler/` (3 files), tests (3 files), UI (4 files), API route (1 file)
+- [ ] All trigger files are removed: `apps/daemon/services/trigger-evaluator.ts`, `trigger-lifecycle.ts`, tests (3 files), UI (5 files), API route (1 file)
 - [ ] `lib/commissions.ts` `sourceSchedule`/`sourceTrigger` fields replaced with `source`
-- [ ] `CommissionType`, `TriggeredBy`, `TriggerBlock`, `ScheduledCommissionStatus` are removed from `daemon/types.ts`
-- [ ] Schedule/trigger record operations are removed from `daemon/services/commission/record.ts`
+- [ ] `CommissionType`, `TriggeredBy`, `TriggerBlock`, `ScheduledCommissionStatus` are removed from `apps/daemon/types.ts`
+- [ ] Schedule/trigger record operations are removed from `apps/daemon/services/commission/record.ts`
 - [ ] Schedule/trigger manager toolbox tools are removed
 - [ ] `schedule_spawned` event type is removed from EventBus and `SYSTEM_EVENT_TYPES`
 - [ ] Commission creation no longer accepts `sourceSchedule` or `sourceTrigger` options
@@ -478,5 +478,5 @@ Depends on: [Spec: Guild Hall Commissions](commissions/guild-hall-commissions.md
 - [Spec: Triggered Commissions](.lore/specs/commissions/triggered-commissions.md): superseded by this spec. 42 requirements (TRIG) across event matching, template expansion, provenance, loop prevention, and lifecycle management.
 - [Spec: Guild Hall Commissions](.lore/specs/commissions/guild-hall-commissions.md): the one-shot commission lifecycle. Heartbeat-created commissions follow this lifecycle in full.
 - [Spec: Event Router](.lore/specs/infrastructure/event-router.md): retained for notification dispatch. The heartbeat's event condensation subscribes directly to the EventBus, not through the router.
-- Briefing generator pattern (`daemon/services/briefing-generator.ts`): the heartbeat follows the same `prepareSdkSession` + `runSdkSession` pattern for GM sessions.
-- Briefing refresh pattern (`daemon/services/briefing-refresh.ts`): the heartbeat loop follows the same post-completion scheduling pattern.
+- Briefing generator pattern (`apps/daemon/services/briefing-generator.ts`): the heartbeat follows the same `prepareSdkSession` + `runSdkSession` pattern for GM sessions.
+- Briefing refresh pattern (`apps/daemon/services/briefing-refresh.ts`): the heartbeat loop follows the same post-completion scheduling pattern.

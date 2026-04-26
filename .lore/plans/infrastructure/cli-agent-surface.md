@@ -1,15 +1,15 @@
 ---
 title: "Plan: CLI Agent-First Surface"
 date: 2026-04-20
-status: approved
+status: executed
 tags: [cli, daemon, progressive-discovery, agent-first, operations, ux, plan]
 modules:
   - cli
-  - daemon/routes/admin
-  - daemon/routes/meetings
-  - daemon/routes/workspace-issue
-  - daemon/routes/help
-  - daemon/app
+  - apps/daemon/routes/admin
+  - apps/daemon/routes/meetings
+  - apps/daemon/routes/workspace-issue
+  - apps/daemon/routes/help
+  - apps/daemon/app
   - lib/types
 related:
   - .lore/specs/infrastructure/cli-agent-surface.md
@@ -23,7 +23,7 @@ related:
 
 ## Changelog
 
-- **2026-04-20 (v2):** Reworked against revised spec. Coverage of REQ-CLI-AGENT-26 added (daemon `/help` surface removal is now in scope). Phase 3 expanded to remove `daemon/routes/help.ts` and the mount in `daemon/app.ts`; Phase 4 no longer depends on a REST catalog endpoint; Phase 5's CLI↔catalog consistency check runs in-process through the factory DI seam. Package-op fallback narrowed: no runtime catalog listing; invokes any registered daemon operation by ID.
+- **2026-04-20 (v2):** Reworked against revised spec. Coverage of REQ-CLI-AGENT-26 added (daemon `/help` surface removal is now in scope). Phase 3 expanded to remove `apps/daemon/routes/help.ts` and the mount in `apps/daemon/app.ts`; Phase 4 no longer depends on a REST catalog endpoint; Phase 5's CLI↔catalog consistency check runs in-process through the factory DI seam. Package-op fallback narrowed: no runtime catalog listing; invokes any registered daemon operation by ID.
 - **2026-04-19 (v1):** Initial plan following spec review round 1.
 
 ## Spec Reference
@@ -36,7 +36,7 @@ This plan does not subsume `.lore/specs/commissions/cli-commission-commands.md` 
 
 | REQ | Phase | Notes |
 |-----|-------|-------|
-| REQ-CLI-AGENT-1 | 2 | Surface data lives in `cli/surface.ts`; daemon has no CLI metadata. |
+| REQ-CLI-AGENT-1 | 2 | Surface data lives in `apps/cli/surface.ts`; daemon has no CLI metadata. |
 | REQ-CLI-AGENT-2 | 2 | `cliPath` is already absent from `OperationDefinition`. Phase 2 adds a compile-time assertion that guards against the field being added. |
 | REQ-CLI-AGENT-3 | 4 | Resolver enforces one leaf → one daemon call; aggregation exceptions pass an explicit flag. |
 | REQ-CLI-AGENT-4 | — | Constraint respected throughout; no phase modifies daemon grammar. Help-surface routes handled via REQ-CLI-AGENT-26 (Phase 3). |
@@ -53,7 +53,7 @@ This plan does not subsume `.lore/specs/commissions/cli-commission-commands.md` 
 | REQ-CLI-AGENT-14 | 3 | Root help shape defined in Phase 3 §Help JSON Schema. |
 | REQ-CLI-AGENT-15 | 3 | Group/sub-group help shape. |
 | REQ-CLI-AGENT-16 | 3 | Leaf help shape. |
-| REQ-CLI-AGENT-17 | 3 | Human + JSON; TTY detection preserved from `cli/format.ts`. |
+| REQ-CLI-AGENT-17 | 3 | Human + JSON; TTY detection preserved from `apps/cli/format.ts`. |
 | REQ-CLI-AGENT-18 | 3 | JSON includes node kind + children/arguments. |
 | REQ-CLI-AGENT-19 | 5 | Skill-builder walks tree via `--json`; no extra sources consulted. |
 | REQ-CLI-AGENT-20 | 5 | Verification test emits skill rep for every leaf. |
@@ -62,8 +62,8 @@ This plan does not subsume `.lore/specs/commissions/cli-commission-commands.md` 
 | REQ-CLI-AGENT-22a | 1 | `workspace.issue.{list,read}` follow three-segment `workspace.issue.create` pattern. |
 | REQ-CLI-AGENT-23 | 1 + 2 | Filters declared on new daemon leaves; exposed via surface. |
 | REQ-CLI-AGENT-24 | 3 | TTY detection unchanged. |
-| REQ-CLI-AGENT-25 | 4 | Formatter registry keyed by `operationId`; `cli/commission-format.ts` refactored. |
-| REQ-CLI-AGENT-26 | 3 | `daemon/routes/help.ts` deleted and unmounted; CLI stops calling `/help/operations` and `/{segments}/help`. In-process registry access via factory DI seam replaces REST catalog lookups. Removal test in Phase 5. |
+| REQ-CLI-AGENT-25 | 4 | Formatter registry keyed by `operationId`; `apps/cli/commission-format.ts` refactored. |
+| REQ-CLI-AGENT-26 | 3 | `apps/daemon/routes/help.ts` deleted and unmounted; CLI stops calling `/help/operations` and `/{segments}/help`. In-process registry access via factory DI seam replaces REST catalog lookups. Removal test in Phase 5. |
 
 All 27 requirements covered.
 
@@ -71,13 +71,13 @@ All 27 requirements covered.
 
 ### Current CLI resolution
 
-`cli/index.ts:33` fetches the flat operation catalog from `GET /help/operations`. `cli/resolve.ts:54-90` resolves argv against invocation paths (`pathSegments` on each skill, greedy longest-prefix match). Help fetching at `cli/index.ts:44-55` calls daemon `/{segments}/help` endpoints. The resolver currently assumes argv segments equal daemon invocation path segments — this is the coupling the spec removes.
+`apps/cli/index.ts:33` fetches the flat operation catalog from `GET /help/operations`. `apps/cli/resolve.ts:54-90` resolves argv against invocation paths (`pathSegments` on each skill, greedy longest-prefix match). Help fetching at `apps/cli/index.ts:44-55` calls daemon `/{segments}/help` endpoints. The resolver currently assumes argv segments equal daemon invocation path segments — this is the coupling the spec removes.
 
 **Implication:** `resolve.ts` needs a rewrite that walks a CLI-owned surface tree instead. `index.ts` drops both the `GET /help/operations` fetch and the `fetchHelpTree()` call. Under REQ-CLI-AGENT-26 there is no replacement REST endpoint; the CLI consults no daemon help surface at all.
 
 ### Current daemon help surface
 
-`daemon/routes/help.ts` (207 lines, based on header inspection) registers six routes, mounted from `daemon/app.ts:153-154`:
+`apps/daemon/routes/help.ts` (207 lines, based on header inspection) registers six routes, mounted from `apps/daemon/app.ts:153-154`:
 
 - `GET /help`
 - `GET /:root/help`
@@ -86,15 +86,15 @@ All 27 requirements covered.
 - `GET /:root/:feature/:object/:operation/help`
 - `GET /help/operations`
 
-REQ-CLI-AGENT-26 removes all six. Phase 3 deletes the file, the import in `daemon/app.ts`, and the `app.route("/", createHelpRoutes(registry))` mount. Existing tests under `tests/daemon/routes/help.test.ts` (if any) either pivot to asserting 404 or are deleted; Phase 5's structural suite adds the explicit 404 guard.
+REQ-CLI-AGENT-26 removes all six. Phase 3 deletes the file, the import in `apps/daemon/app.ts`, and the `app.route("/", createHelpRoutes(registry))` mount. Existing tests under `apps/daemon/tests/routes/help.test.ts` (if any) either pivot to asserting 404 or are deleted; Phase 5's structural suite adds the explicit 404 guard.
 
 ### Current formatter registry
 
-`cli/commission-format.ts:5-8` keys formatters by invocation path string (`"/commission/request/commission/list"`). REQ-CLI-AGENT-25 supersedes this: key by `operationId` (`"commission.request.commission.list"`). The lookup site is `cli/index.ts:199-208`. Changing the map key and the lookup call (`getCommissionFormatter(skill.operationId)`) is the mechanical part. `isCommissionAction` and `ACTION_VERBS` follow the same rewrite. Dead entries for `/commission/run/continue` and `/commission/run/save` are deleted at this step.
+`apps/cli/commission-format.ts:5-8` keys formatters by invocation path string (`"/commission/request/commission/list"`). REQ-CLI-AGENT-25 supersedes this: key by `operationId` (`"commission.request.commission.list"`). The lookup site is `apps/cli/index.ts:199-208`. Changing the map key and the lookup call (`getCommissionFormatter(skill.operationId)`) is the mechanical part. `isCommissionAction` and `ACTION_VERBS` follow the same rewrite. Dead entries for `/commission/run/continue` and `/commission/run/save` are deleted at this step.
 
 ### Existing operation ID coverage
 
-Enumerated from `grep "operationId:" daemon/routes/*.ts`:
+Enumerated from `grep "operationId:" apps/daemon/routes/*.ts`:
 
 - `commission.*`: `request.commission.{create,update,note,list,read}`, `run.{dispatch,redispatch,cancel,abandon}`, `dependency.project.{check,graph}`
 - `meeting.*`: `request.meeting.{create,accept,decline,defer,list,read}`, `session.{message.send,generation.interrupt,meeting.close}`
@@ -107,11 +107,11 @@ Four new ops from this spec: `system.config.project.list`, `meeting.session.meet
 
 ### Factory DI seam for in-process registry
 
-`daemon/app.ts` exposes `createProductionApp()` and factory variants used in tests. REQ-CLI-AGENT-26 mandates validation of CLI↔catalog consistency against the `OperationsRegistry` obtained in-process from this factory, not via REST. Phase 5 tests import the factory, spin up a registry, and walk `CLI_SURFACE` against it.
+`apps/daemon/app.ts` exposes `createProductionApp()` and factory variants used in tests. REQ-CLI-AGENT-26 mandates validation of CLI↔catalog consistency against the `OperationsRegistry` obtained in-process from this factory, not via REST. Phase 5 tests import the factory, spin up a registry, and walk `CLI_SURFACE` against it.
 
 ### Existing test patterns
 
-Daemon tests (Phase 1) use `app.request()` with injected DI deps (`tests/daemon/routes/*.test.ts`). CLI tests (Phases 2-5) use temp dirs via `fs.mkdtemp()` and a mocked daemon fetcher (dependency-injection pattern — no `mock.module()`). The existing `cli/resolve.ts` has no dedicated test file today; Phase 2 adds one.
+Daemon tests (Phase 1) use `app.request()` with injected DI deps (`apps/daemon/tests/routes/*.test.ts`). CLI tests (Phases 2-5) use temp dirs via `fs.mkdtemp()` and a mocked daemon fetcher (dependency-injection pattern — no `mock.module()`). The existing `apps/cli/resolve.ts` has no dedicated test file today; Phase 2 adds one.
 
 ### Constraint: no `mock.module()`
 
@@ -219,25 +219,25 @@ Six phases. Two review gates, plus a final review.
 
 **Deliverables:**
 
-1. **`system.config.project.list`** in `daemon/routes/admin.ts` (alongside `system.config.project.read/register/deregister/group`).
+1. **`system.config.project.list`** in `apps/daemon/routes/admin.ts` (alongside `system.config.project.read/register/deregister/group`).
    - Route: `GET /system/config/project/list` — path consistent with neighbours.
    - Response: `{ projects: Array<{ name, path, group, status }> }` where `status` is "registered" (present in config) or any derivable state already tracked.
    - No path params, no filter (global scope).
    - Zod request: `z.object({})`. Zod response: typed project record array.
 
-2. **`meeting.session.meeting.list`** in `daemon/routes/meetings.ts`.
+2. **`meeting.session.meeting.list`** in `apps/daemon/routes/meetings.ts`.
    - Route: `GET /meeting/session/meeting/list`.
    - Response: `{ sessions: Array<{ meetingId, projectName, workerName, startedAt, status }> }`. Project per row (REQ-CLI-AGENT-22 table).
    - Source: active meeting sessions from `meetingSession` dep.
    - No filter; caller can intersect with the aggregated `meeting list` filter client-side.
 
-3. **`workspace.issue.list`** in `daemon/routes/workspace-issue.ts`.
+3. **`workspace.issue.list`** in `apps/daemon/routes/workspace-issue.ts`.
    - Route: `GET /workspace/issue/list` (three-segment, REQ-CLI-AGENT-22a).
    - Query params: `projectName` (required), `status` (optional).
    - Response: `{ issues: Array<{ slug, title, status, date }> }`.
    - Scans `.lore/issues/*.md` in the project's integration worktree; parses frontmatter.
 
-4. **`workspace.issue.read`** in `daemon/routes/workspace-issue.ts`.
+4. **`workspace.issue.read`** in `apps/daemon/routes/workspace-issue.ts`.
    - Route: `GET /workspace/issue/read` (three-segment).
    - Query params: `projectName` (required), `slug` (required).
    - Response: `{ slug, title, status, date, body }`.
@@ -249,9 +249,9 @@ Six phases. Two review gates, plus a final review.
 
 **Tests** (mandatory, alongside implementation):
 
-- `tests/daemon/routes/admin.test.ts`: `system.config.project.list` returns all registered projects; response shape matches schema.
-- `tests/daemon/routes/meetings.test.ts`: `meeting.session.meeting.list` returns current sessions; empty result when no active sessions; each row carries `projectName`.
-- `tests/daemon/routes/workspace-issue.test.ts`: `list` returns issue frontmatter rows; filters by status; returns empty when `.lore/issues/` absent. `read` returns body; returns 404 when slug not found.
+- `apps/daemon/tests/routes/admin.test.ts`: `system.config.project.list` returns all registered projects; response shape matches schema.
+- `apps/daemon/tests/routes/meetings.test.ts`: `meeting.session.meeting.list` returns current sessions; empty result when no active sessions; each row carries `projectName`.
+- `apps/daemon/tests/routes/workspace-issue.test.ts`: `list` returns issue frontmatter rows; filters by status; returns empty when `.lore/issues/` absent. `read` returns body; returns 404 when slug not found.
 
 **Acceptance:** `bun test` passes; `bun run typecheck`, `bun run lint`, `bun run build` green.
 
@@ -265,7 +265,7 @@ Six phases. Two review gates, plus a final review.
 
 **Deliverables:**
 
-1. **New file `cli/surface.ts`** — single source of truth for the agent-first layout.
+1. **New file `apps/cli/surface.ts`** — single source of truth for the agent-first layout.
 
    ```
    type CliNode = CliGroupNode | CliLeafNode;
@@ -296,7 +296,7 @@ Six phases. Two review gates, plus a final review.
 
    The tree encodes §Top-Level Layout. Aggregation (`meeting list`) uses `operationId: "__aggregate__"` + `aggregate.operationIds` + one-line `justification` (REQ-CLI-AGENT-10, 10a). The package-op fallback uses `operationId: "__package_op__"` — a sentinel the resolver interprets as "forward the first positional argument as the target operationId."
 
-2. **`cli/surface-utils.ts`** — helpers consumed by Phases 3-5.
+2. **`apps/cli/surface-utils.ts`** — helpers consumed by Phases 3-5.
    - `findNodeByPath(segments: string[]): CliNode | undefined`
    - `leafNodes(): CliLeafNode[]`
    - `pathForNode(node: CliNode): string[]`
@@ -306,7 +306,7 @@ Six phases. Two review gates, plus a final review.
 
 4. **Package-op fallback:** `CLI_SURFACE.children` includes a `package-op` group with a single leaf using the `__package_op__` sentinel. Help output is a static description; no catalog enumeration.
 
-**Tests** (new file `tests/cli/surface.test.ts`):
+**Tests** (new file `apps/cli/tests/surface.test.ts`):
 
 - Structural invariants (wave one, asserts hold statically):
   - No segment repeats parent.
@@ -328,7 +328,7 @@ Six phases. Two review gates, plus a final review.
 **Scope:** Foundation before the fan-out of Phases 3-5. Thorne reads:
 
 - Four new route handlers and their tests.
-- `cli/surface.ts`, `cli/surface-utils.ts`, and `tests/cli/surface.test.ts`.
+- `apps/cli/surface.ts`, `apps/cli/surface-utils.ts`, and `apps/cli/tests/surface.test.ts`.
 - Verifies: operation metadata complete; schemas correct; structural invariants in the test actually exercise every case; no regressions in existing route tests.
 - Verifies: compile-time `cliPath` assertion is present and meaningful (REQ-CLI-AGENT-2).
 - Verifies: `package-op` fallback does not list the catalog at runtime (aligns with REQ-CLI-AGENT-26).
@@ -345,9 +345,9 @@ Fix commission dispatched to Dalton if findings land. No Phase 3+ work begins un
 
 **Deliverables:**
 
-1. **Rewrite `cli/format.ts` help functions** — `formatHelpTree` and `formatOperationHelp` operate on `CliNode` instead of the daemon's `HelpNode`. Drop the `HelpNode` import. Delete the `HelpNode` type alias and its comment describing "`/help` hierarchy endpoints".
+1. **Rewrite `apps/cli/format.ts` help functions** — `formatHelpTree` and `formatOperationHelp` operate on `CliNode` instead of the daemon's `HelpNode`. Drop the `HelpNode` import. Delete the `HelpNode` type alias and its comment describing "`/help` hierarchy endpoints".
 
-2. **New `cli/help.ts`** — pure helpers:
+2. **New `apps/cli/help.ts`** — pure helpers:
    - `renderRootHelp(surface): { text: string; json: object }`
    - `renderGroupHelp(node): { text; json }`
    - `renderLeafHelp(node): { text; json }`
@@ -365,17 +365,17 @@ Fix commission dispatched to Dalton if findings land. No Phase 3+ work begins un
      example, outputShape }
    ```
 
-4. **Update `cli/index.ts`** — the `help` case resolves `resolved.help.segments` against `CLI_SURFACE` (not the daemon). Drop the `fetchHelpTree` path entirely. Drop the `daemonFetch("/help/operations")` call at `cli/index.ts:33`. The CLI issues no help-related daemon requests.
+4. **Update `apps/cli/index.ts`** — the `help` case resolves `resolved.help.segments` against `CLI_SURFACE` (not the daemon). Drop the `fetchHelpTree` path entirely. Drop the `daemonFetch("/help/operations")` call at `apps/cli/index.ts:33`. The CLI issues no help-related daemon requests.
 
 5. **Remove daemon help surface** (REQ-CLI-AGENT-26):
-   - Delete `daemon/routes/help.ts`.
-   - Remove `import { createHelpRoutes } from "./routes/help";` at `daemon/app.ts:18`.
-   - Remove `app.route("/", createHelpRoutes(registry));` at `daemon/app.ts:153-154`.
-   - Delete `tests/daemon/routes/help.test.ts` if present, or rewrite to assert the routes return 404 (Phase 5 owns the authoritative 404 guard).
+   - Delete `apps/daemon/routes/help.ts`.
+   - Remove `import { createHelpRoutes } from "./routes/help";` at `apps/daemon/app.ts:18`.
+   - Remove `app.route("/", createHelpRoutes(registry));` at `apps/daemon/app.ts:153-154`.
+   - Delete `apps/daemon/tests/routes/help.test.ts` if present, or rewrite to assert the routes return 404 (Phase 5 owns the authoritative 404 guard).
 
-6. **TTY detection** preserved: existing `shouldOutputJson(options)` at `cli/format.ts` is reused unchanged. `--json` forces JSON; `--tty` forces human.
+6. **TTY detection** preserved: existing `shouldOutputJson(options)` at `apps/cli/format.ts` is reused unchanged. `--json` forces JSON; `--tty` forces human.
 
-**Tests** (`tests/cli/help.test.ts`):
+**Tests** (`apps/cli/tests/help.test.ts`):
 
 - Root help contains: the CLI description, each top-level group + one-line description, one example invocation (REQ-CLI-AGENT-14).
 - Group help contains: group name, description, each direct child + description, invocation path for each child (REQ-CLI-AGENT-15).
@@ -384,7 +384,7 @@ Fix commission dispatched to Dalton if findings land. No Phase 3+ work begins un
 - `shouldOutputJson` contract unchanged; non-TTY stdout returns JSON automatically (REQ-CLI-AGENT-17, 24).
 - **No daemon help calls:** a test using a fake `daemonFetch` spy asserts the CLI's `help` path makes zero fetches to `/help`, `/help/operations`, or `/:root/help` variants. (Phase 5 adds the symmetric daemon-side 404 guard.)
 
-**Acceptance:** help tests pass; existing `tests/cli/format.test.ts` updated where it tested the old `HelpNode` path; `daemon/routes/help.ts` deleted; daemon test suite still green with the help routes gone.
+**Acceptance:** help tests pass; existing `apps/cli/tests/format.test.ts` updated where it tested the old `HelpNode` path; `apps/daemon/routes/help.ts` deleted; daemon test suite still green with the help routes gone.
 
 **Dependencies:** Phase 2 landed + Review Gate 1 clean.
 
@@ -396,21 +396,21 @@ Fix commission dispatched to Dalton if findings land. No Phase 3+ work begins un
 
 **Deliverables:**
 
-1. **Rewrite `cli/resolve.ts`**:
+1. **Rewrite `apps/cli/resolve.ts`**:
    - `resolveCommand(segments, surface: CliGroupNode): ResolveResult` — walks the CLI surface instead of daemon paths.
    - Result shape adds two branches beyond the regular leaf case:
      - `{ type: "aggregate"; ops: CliOperation[]; args; flags }` for `meeting list`.
      - `{ type: "package-op"; targetOperationId: string; args; flags }` for the fallback leaf.
    - `buildQueryString` / `buildBody` / `validateArgs` continue to operate on `{ parameters }` — unchanged from today.
-   - Delete the `/** Operation metadata as returned by GET /help/operations. */` doc comment at `cli/resolve.ts:3` along with any types that existed solely to model the removed endpoint's response shape.
+   - Delete the `/** Operation metadata as returned by GET /help/operations. */` doc comment at `apps/cli/resolve.ts:3` along with any types that existed solely to model the removed endpoint's response shape.
 
-2. **Rewrite `cli/index.ts` `command` case**:
+2. **Rewrite `apps/cli/index.ts` `command` case**:
    - For a regular leaf: same flow as today (`buildBody`, `daemonFetch`, format).
    - For an aggregate leaf: fan out to each `operationId`, collect results, merge per the aggregate's `merge` function declared in `surface.ts`. The `meeting list` merge concatenates `meetings[]` arrays, sorts by date, and applies the `--state` filter.
    - For a package-op leaf: treat the first positional argument as the target `operationId`, resolve the operation's parameter schema from an in-process registry handle (provided at `main()` time via DI — see item 4), and invoke. If the target ID is not registered, fail with a structured error.
    - The resolver passes `operationId` to the formatter, not the invocation path (REQ-CLI-AGENT-25).
 
-3. **Refactor `cli/commission-format.ts`**:
+3. **Refactor `apps/cli/commission-format.ts`**:
    - Key `COMMISSION_FORMATTERS` and `COMMISSION_ACTION_PATHS` / `ACTION_VERBS` maps by `operationId`.
    - Rename `getCommissionFormatter(path)` → `getCommissionFormatter(operationId)`.
    - Delete stale entries for `/commission/run/continue` and `/commission/run/save` (residual halted-continuation dead code).
@@ -422,11 +422,11 @@ Fix commission dispatched to Dalton if findings land. No Phase 3+ work begins un
 
 **Tests**:
 
-- `tests/cli/resolve.test.ts`: resolver handles group, leaf, aggregate, package-op, unknown. Surface-walking matches every path from §Top-Level Layout.
-- `tests/cli/meeting-list-aggregation.test.ts`: verifies `meeting list` with `--state=requested`, `--state=active`, `--state=all` (default). Mock `daemonFetch` returns canned responses from both daemon ops; assert merged output.
-- `tests/cli/commission-format.test.ts`: rename keys to operationIds, assert lookup by operationId succeeds, lookup by old path returns nothing. Formatter output unchanged.
-- `tests/cli/no-continue-save.test.ts`: assert the removed formatter keys are absent (guards against re-introduction).
-- `tests/cli/package-op.test.ts`: `package-op commission.request.commission.list` resolves to the correct operation and forwards args; unknown `operationId` returns a structured error.
+- `apps/cli/tests/resolve.test.ts`: resolver handles group, leaf, aggregate, package-op, unknown. Surface-walking matches every path from §Top-Level Layout.
+- `apps/cli/tests/meeting-list-aggregation.test.ts`: verifies `meeting list` with `--state=requested`, `--state=active`, `--state=all` (default). Mock `daemonFetch` returns canned responses from both daemon ops; assert merged output.
+- `apps/cli/tests/commission-format.test.ts`: rename keys to operationIds, assert lookup by operationId succeeds, lookup by old path returns nothing. Formatter output unchanged.
+- `apps/cli/tests/no-continue-save.test.ts`: assert the removed formatter keys are absent (guards against re-introduction).
+- `apps/cli/tests/package-op.test.ts`: `package-op commission.request.commission.list` resolves to the correct operation and forwards args; unknown `operationId` returns a structured error.
 
 **Acceptance:** All CLI tests green. Commission operations continue to invoke correctly. No regression in existing commission UX (list table, detail view, action confirmations) — verified via snapshot tests.
 
@@ -443,7 +443,7 @@ Fix commission dispatched to Dalton if findings land. No Phase 3+ work begins un
 - Aggregation merge logic.
 - Formatter registry refactor preserved existing commission formatting behaviour.
 - Dead-code removal of `/commission/run/continue` and `/commission/run/save` formatter entries.
-- Daemon help surface fully removed (`daemon/routes/help.ts` deleted, app wiring cleaned, no dangling imports).
+- Daemon help surface fully removed (`apps/daemon/routes/help.ts` deleted, app wiring cleaned, no dangling imports).
 - CLI issues no requests to removed help endpoints.
 
 Fix commission to Dalton if findings land. No Phase 5 until gate is clean.
@@ -456,13 +456,13 @@ Fix commission to Dalton if findings land. No Phase 5 until gate is clean.
 
 **Deliverables:**
 
-1. **Skill-builder test harness** (`tests/cli/skill-build.test.ts`):
+1. **Skill-builder test harness** (`apps/cli/tests/skill-build.test.ts`):
    - Spins up a test daemon using `createProductionApp` (factory DI seam). Walks the CLI tree: invoke `guild-hall --json help` at root, recurse into every group and leaf. Harness only reads `--json help` output — no source reading, no separate catalog call, no REST help request.
    - Emits a skill representation: array of `{ path, description, args, flags, example, outputShape }` per leaf.
    - Verifies every leaf in `CLI_SURFACE` appears in the emitted rep with all required fields populated (REQ-CLI-AGENT-20).
    - If any field is missing, the test fails with a diagnostic naming the leaf and the missing field.
 
-2. **Structural test suite** (`tests/cli/surface-structural.test.ts`) — implements the spec's AI Validation items:
+2. **Structural test suite** (`apps/cli/tests/surface-structural.test.ts`) — implements the spec's AI Validation items:
    - **Path-rule tests:** no repeated parent segments; no phase-label intermediate segments; every intermediate node has help; every listable-noun group has `list`; every identified noun has `read`; sub-grouping consistency (REQ-CLI-AGENT-12).
    - **Help-completeness tests:** for every leaf, `help --json` contains path, description, args, example, outputShape.
    - **CLI mapping ↔ operation catalog consistency (in-process):** import `createProductionApp` (or an equivalent test factory), obtain the `OperationsRegistry` handle, and assert every surface leaf's `operationId` (ignoring `__aggregate__` / `__package_op__` sentinels; for aggregates, every ID in `aggregate.operationIds`) is registered. Assert `readOnly`/eligibility flags are not contradicted by the CLI. No REST call is made.
@@ -486,7 +486,7 @@ Fix commission to Dalton if findings land. No Phase 5 until gate is clean.
 - Every spec REQ traceable to a test.
 - Success Criteria in the spec all green, including the REQ-CLI-AGENT-26 bullet ("daemon's `/help` tree routes and `/help/operations` endpoint are removed").
 - No unaccounted-for `cliPath` references anywhere in code.
-- No residual references to `daemon/routes/help.ts` or its exported `createHelpRoutes`.
+- No residual references to `apps/daemon/routes/help.ts` or its exported `createHelpRoutes`.
 - `cli-commission-commands` behaviour intact.
 
 ---
@@ -532,7 +532,7 @@ Two to three phases per commission maximum. Explicit dependencies called out.
 Sizing notes:
 
 - C1 has two phases with shared context (Phase 1 operation IDs feed Phase 2 fixture). Single commission keeps the context together.
-- C4 has two phases but they're tightly coupled (resolver changes, help rendering, and daemon help surface removal all consume the surface from Phase 2 and all edit `cli/index.ts` and `daemon/app.ts`). Splitting them would duplicate edit context.
+- C4 has two phases but they're tightly coupled (resolver changes, help rendering, and daemon help surface removal all consume the surface from Phase 2 and all edit `apps/cli/index.ts` and `apps/daemon/app.ts`). Splitting them would duplicate edit context.
 - C7 is solo — Phase 5's harness is self-contained and benefits from a fresh pass, including the 404 guard for the removed daemon routes.
 - Review commissions (C2, C5, C8) are Thorne-only, no Bash needed — reviews read code and confirm test coverage without running tests. Test/typecheck/lint/build runs stay with Dalton inside C1/C4/C7.
 - C9 is Octavia-only, documentation work.
@@ -542,8 +542,8 @@ Sizing notes:
 Each phase is revertable in isolation, with one coupling noted below:
 
 - Phase 1: new daemon ops are additive; reverting drops the routes + tests.
-- Phase 2: `cli/surface.ts` is new; reverting deletes the file and the test.
-- Phase 3: CLI-side help rewrite and daemon help surface removal land together. Reverting restores `daemon/routes/help.ts` from git and re-mounts the routes. The CLI-side `fetchHelpTree` / `fetchOperations` calls come back from the same revert. Roll back in one commit.
+- Phase 2: `apps/cli/surface.ts` is new; reverting deletes the file and the test.
+- Phase 3: CLI-side help rewrite and daemon help surface removal land together. Reverting restores `apps/daemon/routes/help.ts` from git and re-mounts the routes. The CLI-side `fetchHelpTree` / `fetchOperations` calls come back from the same revert. Roll back in one commit.
 - Phase 4: resolver + formatter changes revert by restoring the pre-refactor files. The `operationId`-keyed map can be flipped back to path-keyed in one commit.
 - Phase 5: test-only; revert deletes the test files.
 

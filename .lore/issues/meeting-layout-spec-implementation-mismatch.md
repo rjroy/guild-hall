@@ -3,7 +3,7 @@ title: Meeting view layout — REQ-MTG-LAYOUT-13 spec/implementation mismatch
 date: 2026-04-18
 status: open
 tags: [bug, ui, meetings, spec-drift, documentation]
-modules: [web/components/meeting/MeetingHeader]
+modules: [apps/web/components/meeting/MeetingHeader]
 related:
   - .lore/specs/ui/meeting-view-layout.md
   - .lore/retros/commission-cleanup-2026-03-21.md
@@ -25,11 +25,11 @@ Originally flagged during the Phase 2 and Phase 3 Thorne reviews of the meeting 
 **Spec — condensed layout shape:** `.lore/specs/ui/meeting-view-layout.md:134` (ASCII diagram)
 > Single horizontal row: `Agenda text truncated to one li...  Model: opus  [v]`
 
-**Implementation — condensed layout:** `web/components/meeting/MeetingHeader.tsx:49-84`
+**Implementation — condensed layout:** `apps/web/components/meeting/MeetingHeader.tsx:49-84`
 - Condensed state renders no `Agenda` heading. The agenda text appears as `<p className={styles.agendaTextCondensed}>{agenda}</p>` at line 61, but no `<h3>Agenda</h3>` precedes it.
 - Layout is two stacked rows (`workerInfo` row + `agendaSectionCondensed` row), not a single horizontal row.
 
-**Implementation — expanded layout (for contrast):** `web/components/meeting/MeetingHeader.tsx:99`
+**Implementation — expanded layout (for contrast):** `apps/web/components/meeting/MeetingHeader.tsx:99`
 - Renders `<h3 className={styles.agendaTitle}>Agenda</h3>` before the agenda text.
 
 ## Why It Matters

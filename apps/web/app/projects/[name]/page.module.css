@@ -1,0 +1,53 @@
+/* ============================================================
+   Project Hub layout
+   AppBar → ProjectHeader (banner) → ProjectTabs → tab content
+   ============================================================ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.projectView {
+  display: flex;
+  flex-direction: column;
+}
+
+.tabContent {
+  flex: 1;
+  padding: var(--space-6) var(--space-8);
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.commissionTab,
+.meetingTab,
+.artifactTab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.commissionActions,
+.meetingActions,
+.artifactActions {
+  display: flex;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .tabContent {
+    padding: var(--space-4) var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .tabContent {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+}

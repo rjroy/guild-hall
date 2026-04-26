@@ -35,11 +35,11 @@ Requirements addressed:
 
 **Worker metadata** (`lib/packages.ts`): `workerMetadataSchema` already has `domainToolboxes: z.array(z.string())`. Adding `domainPlugins` as optional mirrors this pattern exactly.
 
-**Toolbox resolver** (`daemon/services/toolbox-resolver.ts`): Domain toolbox resolution (lines 118-132) finds packages by name, validates they're toolbox packages, and loads them. Plugin resolution follows the same lookup pattern but is simpler: no dynamic import, just collect paths.
+**Toolbox resolver** (`apps/daemon/services/toolbox-resolver.ts`): Domain toolbox resolution (lines 118-132) finds packages by name, validates they're toolbox packages, and loads them. Plugin resolution follows the same lookup pattern but is simpler: no dynamic import, just collect paths.
 
-**Session preparation** (`daemon/lib/agent-sdk/sdk-runner.ts`): `prepareSdkSession` is a 5-step function. Step 1 finds the worker package and extracts `workerMeta`. Step 2 resolves tools using `spec.packages`. Step 5 builds `SdkQueryOptions`. Plugin resolution slots into step 5 using data already available (`workerMeta.domainPlugins` + `spec.packages[].pluginPath`). No new dependencies needed.
+**Session preparation** (`apps/daemon/lib/agent-sdk/sdk-runner.ts`): `prepareSdkSession` is a 5-step function. Step 1 finds the worker package and extracts `workerMeta`. Step 2 resolves tools using `spec.packages`. Step 5 builds `SdkQueryOptions`. Plugin resolution slots into step 5 using data already available (`workerMeta.domainPlugins` + `spec.packages[].pluginPath`). No new dependencies needed.
 
-**Production wiring** (`daemon/app.ts`): No changes needed. `prepareSdkSession` already receives `packages` (which will carry `pluginPath` after discovery changes) and worker metadata (which will carry `domainPlugins` after schema changes). No new DI seams required.
+**Production wiring** (`apps/daemon/app.ts`): No changes needed. `prepareSdkSession` already receives `packages` (which will carry `pluginPath` after discovery changes) and worker metadata (which will carry `domainPlugins` after schema changes). No new DI seams required.
 
 **Existing patterns**: No workers currently use `domainToolboxes` (all have `[]`). `domainPlugins` will be the first real use of the "declare external packages by name" pattern, but the Writer package referencing itself (REQ-DPL-6) is the simplest case: no cross-package lookup needed.
 
@@ -76,7 +76,7 @@ Tests:
 
 ### Step 3: Plugin resolution in `prepareSdkSession`
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-DPL-7, DPL-8, DPL-9, DPL-10, DPL-11, DPL-12, DPL-13, DPL-14, DPL-15
 
 Add `plugins?: Array<{ type: "local"; path: string }>` to `SdkQueryOptions`.

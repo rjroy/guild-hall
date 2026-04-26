@@ -1,0 +1,47 @@
+/* --- Collapsible tool list --- */
+
+.toolSection {
+  position: relative;
+  z-index: 1;
+}
+
+.summaryGroup {
+  margin-bottom: var(--space-1);
+}
+
+.summaryToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-serif);
+  color: var(--fg-3);
+  font-size: var(--text-sm);
+  width: 100%;
+  text-align: left;
+  transition: all var(--dur) var(--ease-out);
+}
+
+.summaryToggle:hover {
+  background: var(--brand-soft);
+  color: var(--fg);
+  border-color: var(--ember-500);
+}
+
+.expandIcon {
+  font-size: 0.6rem;
+  flex-shrink: 0;
+}
+
+.summaryText {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.expandedList {
+  margin-top: var(--space-1);
+}

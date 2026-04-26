@@ -15,10 +15,10 @@ The system dispatches commissions to specific workers but has no mechanism to tr
 
 Concrete gaps:
 
-- No record of how many turns a commission took vs. the maxTurns budget. The halted state (`daemon/services/commission/orchestrator.ts:550-679`) tracks `turnsUsed` but only when a commission halts. Successful commissions don't record turn count in the artifact.
+- No record of how many turns a commission took vs. the maxTurns budget. The halted state (`apps/daemon/services/commission/orchestrator.ts:550-679`) tracks `turnsUsed` but only when a commission halts. Successful commissions don't record turn count in the artifact.
 - No record of which commissions required follow-up fix commissions after review. The retros show this pattern repeatedly (Dalton implements, Thorne reviews, Dalton fixes) but nothing tracks it systematically.
 - No session duration or cost data persisted. `outcome.turnsUsed` exists in the SDK session result but isn't written to the artifact frontmatter.
-- The scheduler (`daemon/services/scheduler/index.ts`) tracks consecutive failures per schedule but not aggregate success rates across scheduled runs.
+- The scheduler (`apps/daemon/services/scheduler/index.ts`) tracks consecutive failures per schedule but not aggregate success rates across scheduled runs.
 
 ## Proposal
 

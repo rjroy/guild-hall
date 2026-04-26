@@ -5,9 +5,9 @@ status: resolved
 author: Octavia
 tags: [ui, artifacts, provenance, workers, attribution]
 related:
-  - web/components/artifact/ArtifactProvenance.tsx
-  - web/components/ui/WorkerPortrait.tsx
-  - web/app/projects/[name]/artifacts/[...path]/page.tsx
+  - apps/web/components/artifact/ArtifactProvenance.tsx
+  - apps/web/components/ui/WorkerPortrait.tsx
+  - apps/web/app/projects/[name]/artifacts/[...path]/page.tsx
 ---
 
 # Brainstorm: Artifact Provenance Worker Attribution
@@ -129,7 +129,7 @@ No new daemon endpoint is needed.
 
 ## Question 5: Could the artifact page use GET /workers?
 
-Yes — and this is the right call. The artifact page already lives at `web/app/projects/[name]/artifacts/[...path]/page.tsx` as a server component. It can fetch `/system/packages/worker/list` alongside its other fetches, build a name-keyed lookup object (`{ Dalton: { portraitUrl: ..., displayTitle: ... }, Octavia: {...}, ... }`), and pass the resolved worker metadata into `ArtifactProvenance` as props.
+Yes — and this is the right call. The artifact page already lives at `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx` as a server component. It can fetch `/system/packages/worker/list` alongside its other fetches, build a name-keyed lookup object (`{ Dalton: { portraitUrl: ..., displayTitle: ... }, Octavia: {...}, ... }`), and pass the resolved worker metadata into `ArtifactProvenance` as props.
 
 No client-side fetching needed. No API route changes needed. The worker roster is small enough (10 packages) that fetching it per page render adds negligible overhead.
 

@@ -83,9 +83,9 @@ The root problem: `.messageArea` already has `overflow-y: auto`, but `.meetingVi
 
 | File | Change |
 |------|--------|
-| `web/app/projects/[name]/meetings/[id]/page.module.css` | `.meetingView`: replace `min-height: 100vh` with `height: 100vh; height: 100dvh; overflow: hidden` |
-| `web/components/meeting/MeetingView.module.css` | `.chatArea`: add `min-height: 0`. `.sidebar`: add `overflow-y: auto` |
-| `web/components/meeting/ChatInterface.module.css` | `.chatInterface`: change `min-height: 400px` to `min-height: 200px` |
+| `apps/web/app/projects/[name]/meetings/[id]/page.module.css` | `.meetingView`: replace `min-height: 100vh` with `height: 100vh; height: 100dvh; overflow: hidden` |
+| `apps/web/components/meeting/MeetingView.module.css` | `.chatArea`: add `min-height: 0`. `.sidebar`: add `overflow-y: auto` |
+| `apps/web/components/meeting/ChatInterface.module.css` | `.chatInterface`: change `min-height: 400px` to `min-height: 200px` |
 
 The existing `gap: var(--space-md)` between the header and `MeetingView` in `.meetingView` should remain. It provides visual separation between the header and chat area. On short viewports, the gap consumes space, but removing it creates a worse problem (header and chat visually merge).
 
@@ -152,10 +152,10 @@ Yes, truncated to one line. Resolved in brainstorm.
 
 | File | Change |
 |------|--------|
-| `web/components/meeting/MeetingHeader.tsx` | Add `"use client"`. Add `condensed` state + toggle. Render expanded or condensed layout based on state. |
-| `web/components/meeting/MeetingHeader.module.css` | Add `.headerCondensed` styles (simple border, reduced padding, single-row layout). Add `.toggleButton` styles. Add transition on `.header` for height/padding. |
-| `web/components/ui/WorkerPortrait.tsx` | Add a `size="xs"` variant (28px frame, ~20px inner). The existing `size="sm"` renders at 48px frame/34px inner, which is too large for the condensed header's 48-56px height target. |
-| `web/components/ui/WorkerPortrait.module.css` | Add `.xs` size rules: `.xs .frame { width: 28px; height: 28px; }`, `.xs .inner, .xs .placeholder { width: 20px; height: 20px; }` |
+| `apps/web/components/meeting/MeetingHeader.tsx` | Add `"use client"`. Add `condensed` state + toggle. Render expanded or condensed layout based on state. |
+| `apps/web/components/meeting/MeetingHeader.module.css` | Add `.headerCondensed` styles (simple border, reduced padding, single-row layout). Add `.toggleButton` styles. Add transition on `.header` for height/padding. |
+| `apps/web/components/ui/WorkerPortrait.tsx` | Add a `size="xs"` variant (28px frame, ~20px inner). The existing `size="sm"` renders at 48px frame/34px inner, which is too large for the condensed header's 48-56px height target. |
+| `apps/web/components/ui/WorkerPortrait.module.css` | Add `.xs` size rules: `.xs .frame { width: 28px; height: 28px; }`, `.xs .inner, .xs .placeholder { width: 20px; height: 20px; }` |
 
 `page.tsx` does not change structurally. It continues to render `<MeetingHeader ...props />`. The condensed state is internal to the header component.
 
@@ -204,11 +204,11 @@ This table consolidates the responsive behavior across all three phases:
 
 | File | Change |
 |------|--------|
-| `web/components/meeting/MeetingView.tsx` | Add `matchMedia` listener for 768px breakpoint. Conditionally render ArtifactsPanel and Close Audience in `.chatArea` (below 768px) or `.sidebar` (above). Add collapsible wrapper for relocated sidebar content. |
-| `web/components/meeting/MeetingView.module.css` | At 768px breakpoint: hide `.sidebar` instead of stacking it. Add `.sidebarInline` styles for the relocated collapsible panel within the chat column. Remove `flex-direction: column` from the 768px media query on `.meetingContent`. |
-| `web/components/meeting/MeetingHeader.tsx` | Accept `defaultCondensed` prop or read `matchMedia('(max-width: 960px)')` at mount to set initial condensed state. At <480px, render a compact close button in the condensed header bar. |
-| `web/components/meeting/MeetingHeader.module.css` | Add responsive rules: at 960px, no change to expanded/condensed CSS (toggle handles it). At <480px, add `.headerCloseButton` styles for the inline close icon in condensed state. |
-| `web/app/projects/[name]/meetings/[id]/page.module.css` | No new changes beyond existing responsive rules. Phase 1 changes to `.meetingView` (height, overflow) apply at all breakpoints. |
+| `apps/web/components/meeting/MeetingView.tsx` | Add `matchMedia` listener for 768px breakpoint. Conditionally render ArtifactsPanel and Close Audience in `.chatArea` (below 768px) or `.sidebar` (above). Add collapsible wrapper for relocated sidebar content. |
+| `apps/web/components/meeting/MeetingView.module.css` | At 768px breakpoint: hide `.sidebar` instead of stacking it. Add `.sidebarInline` styles for the relocated collapsible panel within the chat column. Remove `flex-direction: column` from the 768px media query on `.meetingContent`. |
+| `apps/web/components/meeting/MeetingHeader.tsx` | Accept `defaultCondensed` prop or read `matchMedia('(max-width: 960px)')` at mount to set initial condensed state. At <480px, render a compact close button in the condensed header bar. |
+| `apps/web/components/meeting/MeetingHeader.module.css` | Add responsive rules: at 960px, no change to expanded/condensed CSS (toggle handles it). At <480px, add `.headerCloseButton` styles for the inline close icon in condensed state. |
+| `apps/web/app/projects/[name]/meetings/[id]/page.module.css` | No new changes beyond existing responsive rules. Phase 1 changes to `.meetingView` (height, overflow) apply at all breakpoints. |
 
 ### Interaction with Phases 1 and 2
 

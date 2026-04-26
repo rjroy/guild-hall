@@ -23,7 +23,7 @@ The socket dependency is concentrated in four files but touches the entire clien
 
 ### Server side
 
-**`daemon/index.ts:57-63`** is the binding point:
+**`apps/daemon/index.ts:57-63`** is the binding point:
 
 ```typescript
 const server = Bun.serve({
@@ -35,7 +35,7 @@ const server = Bun.serve({
 
 `Bun.serve({ unix })` is not available on Windows. This is a hard stop: the daemon will not start.
 
-**`daemon/lib/socket.ts`** manages the socket lifecycle: `getSocketPath()` returns the `.sock` file path, `cleanStaleSocket()` checks for stale socket files and PID files, `writePidFile()` / `removePidFile()` / `removeSocketFile()` handle cleanup on shutdown. The entire module assumes the transport is a filesystem-visible socket file. PID file liveness checking via `process.kill(pid, 0)` works on Windows, but the socket file itself wouldn't exist under a TCP transport.
+**`apps/daemon/lib/socket.ts`** manages the socket lifecycle: `getSocketPath()` returns the `.sock` file path, `cleanStaleSocket()` checks for stale socket files and PID files, `writePidFile()` / `removePidFile()` / `removeSocketFile()` handle cleanup on shutdown. The entire module assumes the transport is a filesystem-visible socket file. PID file liveness checking via `process.kill(pid, 0)` works on Windows, but the socket file itself wouldn't exist under a TCP transport.
 
 ### Client side
 
@@ -47,8 +47,8 @@ This is approximately 300 lines of client code that assumes socket-file transpor
 
 | File | Role | Lines | Windows impact |
 |------|------|-------|----------------|
-| `daemon/index.ts` | Server bind | 57-63 | **Blocks startup** |
-| `daemon/lib/socket.ts` | Socket lifecycle | All 121 lines | Assumes filesystem socket |
+| `apps/daemon/index.ts` | Server bind | 57-63 | **Blocks startup** |
+| `apps/daemon/lib/socket.ts` | Socket lifecycle | All 121 lines | Assumes filesystem socket |
 | `lib/daemon-client.ts` | All client calls | All 342 lines | Uses `node:http` socketPath |
 | `lib/paths.ts:12-22` | Home directory | `getGuildHallHome()` | Uses `HOME` env var |
 
@@ -68,7 +68,7 @@ The dependency is deep but narrow: one binding call, one lifecycle module, one c
 
 **Performance.** TCP loopback is marginally slower than Unix sockets due to the full TCP/IP stack overhead, but the difference is negligible for an HTTP API serving development tools. Not a concern.
 
-**Complexity.** Low. The transport change is isolated to `daemon/index.ts` and the client module. The rest of the app is HTTP over Hono and doesn't care.
+**Complexity.** Low. The transport change is isolated to `apps/daemon/index.ts` and the client module. The rest of the app is HTTP over Hono and doesn't care.
 
 **Verdict:** Simplest path. Works today. Security is the only real downside, and it's manageable for a single-user development tool.
 
@@ -108,7 +108,7 @@ Bun declared Windows support stable starting around Bun 1.1 (early 2024). The co
 ### What works
 
 - `Bun.serve({ port })`: TCP server binding is fully supported.
-- `Bun.spawn(["git", ...args])`: Direct binary execution works. Guild Hall's `daemon/lib/git.ts` spawns git as an array of arguments, not through a shell, so this is portable.
+- `Bun.spawn(["git", ...args])`: Direct binary execution works. Guild Hall's `apps/daemon/lib/git.ts` spawns git as an array of arguments, not through a shell, so this is portable.
 - `bun test`, `bun install`, `bun run`: Core toolchain works.
 - `node:fs`, `node:path`, `node:http`: Standard Node.js compat APIs are generally available.
 
@@ -116,8 +116,8 @@ Bun declared Windows support stable starting around Bun 1.1 (early 2024). The co
 
 - **`Bun.serve({ unix })`**: Not available on Windows. This is the primary blocker.
 - **`node:http` with `socketPath`**: May work via Windows AF_UNIX in Bun's Node.js compat layer, but untested and undocumented. Needs verification against current Bun releases.
-- **Signal handling**: `SIGTERM` and `SIGINT` have partial support on Windows. The `process.on("SIGINT")` handler in `daemon/index.ts:83` fires on Ctrl+C but `SIGTERM` is not a Windows concept. Process cleanup on daemon shutdown may not trigger reliably.
-- **`idleTimeout: 0 as never`**: This Bun-specific server option (`daemon/index.ts:62`) keeps SSE connections alive. Behavior under a TCP server may differ, or the option may not exist on the Node.js HTTP compat path. Needs testing.
+- **Signal handling**: `SIGTERM` and `SIGINT` have partial support on Windows. The `process.on("SIGINT")` handler in `apps/daemon/index.ts:83` fires on Ctrl+C but `SIGTERM` is not a Windows concept. Process cleanup on daemon shutdown may not trigger reliably.
+- **`idleTimeout: 0 as never`**: This Bun-specific server option (`apps/daemon/index.ts:62`) keeps SSE connections alive. Behavior under a TCP server may differ, or the option may not exist on the Node.js HTTP compat path. Needs testing.
 
 ### What to verify (stale knowledge)
 
@@ -137,9 +137,9 @@ These require checking against current Bun releases (the search terms for `githu
 
 ### 4.2 Shell execution
 
-**`daemon/services/notification-service.ts:52`**: `Bun.spawn(["sh", "-c", command])` runs shell notification commands. `sh` does not exist on stock Windows. The equivalent would be `cmd.exe /c` or `powershell -Command`.
+**`apps/daemon/services/notification-service.ts:52`**: `Bun.spawn(["sh", "-c", command])` runs shell notification commands. `sh` does not exist on stock Windows. The equivalent would be `cmd.exe /c` or `powershell -Command`.
 
-**`daemon/app.ts:249`**: `Bun.spawn(["which", "bwrap"])` checks for bubblewrap. This is already gated by `process.platform === "linux"`, so it's not a bug, but it's a reminder that platform checks exist in exactly one place.
+**`apps/daemon/app.ts:249`**: `Bun.spawn(["which", "bwrap"])` checks for bubblewrap. This is already gated by `process.platform === "linux"`, so it's not a bug, but it's a reminder that platform checks exist in exactly one place.
 
 **`.git-hooks/pre-commit.sh`**: Bash script. Will not run on Windows without Git Bash in PATH. Git for Windows ships with Git Bash, and git hooks do invoke it through the git-shipped `sh.exe`, so this may actually work for git operations. But if the user runs it manually, it won't work from PowerShell.
 
@@ -150,7 +150,7 @@ Guild Hall uses `node:path` for path construction throughout (77+ occurrences ac
 The exception is hardcoded forward slashes in string operations. Two areas to audit:
 
 - **Git branch names** (`claude/main`, `claude/commission/...`): These are git refs, not filesystem paths. Git uses forward slashes internally on all platforms. Safe.
-- **`.lore/` path prefixes** in string matching (e.g., `f.startsWith(".lore/")` in `daemon/lib/git.ts:617`): git status output uses forward slashes on all platforms. Safe.
+- **`.lore/` path prefixes** in string matching (e.g., `f.startsWith(".lore/")` in `apps/daemon/lib/git.ts:617`): git status output uses forward slashes on all platforms. Safe.
 - **URL paths** in HTTP routes: Forward slashes. Safe.
 
 The codebase is cleaner than expected here. No obvious hardcoded `/home/` or `/tmp/` literals in production code.
@@ -169,17 +169,17 @@ That's ~90 characters for the root, before any file paths inside. Deep `.lore/` 
 
 **Symlinks.** Git worktrees use a `.git` file (not symlink) that references the main repo. This works without symlink privileges. Guild Hall doesn't create symlinks elsewhere.
 
-**Sparse checkout.** Works on Windows. `daemon/lib/git.ts` uses `git sparse-checkout init --cone` and `git sparse-checkout set`, both supported.
+**Sparse checkout.** Works on Windows. `apps/daemon/lib/git.ts` uses `git sparse-checkout init --cone` and `git sparse-checkout set`, both supported.
 
 **Line endings.** Not directly a worktree issue, but `core.autocrlf` defaults can cause unexpected git status noise. Guild Hall should add a `.gitattributes` with `* text=auto eol=lf` to enforce consistent line endings.
 
 ### 4.5 Process management
 
-**PID file liveness** (`daemon/lib/socket.ts:29-35`): `process.kill(pid, 0)` works on Windows to check if a process is alive. This is portable.
+**PID file liveness** (`apps/daemon/lib/socket.ts:29-35`): `process.kill(pid, 0)` works on Windows to check if a process is alive. This is portable.
 
-**`SIGINT` / `SIGTERM`** (`daemon/index.ts:83-84`): `process.on("SIGINT")` fires on Ctrl+C on Windows. `process.on("SIGTERM")` is not a Windows concept. If the daemon is stopped by Task Manager or `taskkill`, the shutdown handler won't fire, leaving stale PID files. The `cleanStaleSocket()` logic on next startup handles this (dead PID = clean up), so it's a recoverable state.
+**`SIGINT` / `SIGTERM`** (`apps/daemon/index.ts:83-84`): `process.on("SIGINT")` fires on Ctrl+C on Windows. `process.on("SIGTERM")` is not a Windows concept. If the daemon is stopped by Task Manager or `taskkill`, the shutdown handler won't fire, leaving stale PID files. The `cleanStaleSocket()` logic on next startup handles this (dead PID = clean up), so it's a recoverable state.
 
-**bubblewrap** (`daemon/app.ts:241-266`): The bubblewrap sandbox check is Linux-only (gated by `process.platform === "linux"`). On Windows, the Claude Agent SDK uses its own sandboxing. No action needed here.
+**bubblewrap** (`apps/daemon/app.ts:241-266`): The bubblewrap sandbox check is Linux-only (gated by `process.platform === "linux"`). On Windows, the Claude Agent SDK uses its own sandboxing. No action needed here.
 
 ### 4.6 Summary of non-socket issues
 
@@ -200,7 +200,7 @@ That's ~90 characters for the root, before any file paths inside. Deep `.lore/` 
 Abstract the daemon transport so it can serve over Unix socket, TCP, or named pipe depending on platform.
 
 ```typescript
-// daemon/lib/transport.ts
+// apps/daemon/lib/transport.ts
 interface DaemonTransport {
   start(app: { fetch: Function }): Promise<{ stop: () => void }>;
   getConnectionInfo(): ConnectionInfo;
@@ -225,7 +225,7 @@ The daemon creates a transport based on `process.platform`, the client reads con
 Keep Unix sockets on Linux/macOS. On Windows, use `Bun.serve({ port })` with a dynamic port written to a discovery file.
 
 ```typescript
-// daemon/index.ts
+// apps/daemon/index.ts
 if (process.platform === "win32") {
   server = Bun.serve({ port: 0, fetch: app.fetch }); // OS assigns port
   writePortFile(server.port);
@@ -281,7 +281,7 @@ These can land on `master` today without affecting Linux/macOS behavior:
 1. **Fix `getGuildHallHome()`**: Add `USERPROFILE` fallback in `lib/paths.ts`. One-liner. Zero risk to existing platforms.
 2. **Platform-aware shell dispatch**: Change `notification-service.ts` to use `cmd.exe /c` on Windows. Already a self-contained function with a clear seam.
 3. **Add `.gitattributes`**: `* text=auto eol=lf` to enforce line endings. Standard practice.
-4. **Configure `core.longpaths`**: Add `git config core.longpaths true` to worktree creation in `daemon/lib/git.ts`. Safe on all platforms.
+4. **Configure `core.longpaths`**: Add `git config core.longpaths true` to worktree creation in `apps/daemon/lib/git.ts`. Safe on all platforms.
 
 These are all low-risk, independently testable, and valuable even before the transport layer changes. They reduce the eventual Windows PR from "many concerns" to "just the transport."
 
@@ -289,8 +289,8 @@ These are all low-risk, independently testable, and valuable even before the tra
 
 Introduce platform-aware daemon binding and client connection:
 
-1. **Daemon side**: `daemon/index.ts` checks `process.platform` and either binds a Unix socket or a TCP port on `127.0.0.1` (not `"localhost"`, to avoid IPv4/IPv6 resolution ambiguity). The TCP path writes the port to a file alongside where the socket would be.
-2. **Socket lifecycle**: `daemon/lib/socket.ts` gains a TCP-aware mode: instead of cleaning socket files, it manages port files. PID file logic stays the same.
+1. **Daemon side**: `apps/daemon/index.ts` checks `process.platform` and either binds a Unix socket or a TCP port on `127.0.0.1` (not `"localhost"`, to avoid IPv4/IPv6 resolution ambiguity). The TCP path writes the port to a file alongside where the socket would be.
+2. **Socket lifecycle**: `apps/daemon/lib/socket.ts` gains a TCP-aware mode: instead of cleaning socket files, it manages port files. PID file logic stays the same.
 3. **Client side**: `lib/daemon-client.ts` detects which transport is active (socket file exists? port file exists?) and connects accordingly.
 4. **Tests**: Socket tests gain Windows-aware assertions. A new test verifies TCP transport on any platform.
 

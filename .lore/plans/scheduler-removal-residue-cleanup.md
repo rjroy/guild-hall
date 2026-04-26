@@ -22,7 +22,7 @@ Five source locations, plus one low-priority plan reference. All changes are del
 
 ### Step 1: Remove dead type stubs from toolbox-utils.ts
 
-File: `daemon/lib/toolbox-utils.ts`
+File: `apps/daemon/lib/toolbox-utils.ts`
 
 1. Delete lines 31-32 (`scheduleLifecycle?: unknown;` and `triggerEvaluator?: unknown;`).
 2. Update the JSDoc comment at lines 24-25 to remove the reference to `scheduleLifecycle`. The comment should describe only the remaining optional fields (`recordOps` and `packages`).
@@ -31,31 +31,31 @@ Verify: `bun run typecheck` passes. No production code references these fields (
 
 ### Step 2: Replace stale test fixtures in cli-error-handling.test.ts
 
-File: `tests/cli/cli-error-handling.test.ts`
+File: `apps/cli/tests/cli-error-handling.test.ts`
 
 Two test cases (lines 107-119 and 121-130) use `commission.trigger.commission.update` as fixture data for `validateArgs` and `usageLine` tests. The tests aren't testing the route itself, just argument validation logic.
 
 1. Replace `operationId: "commission.trigger.commission.update"` and the corresponding `path` with an existing route (e.g., `commission.create` or `commission.update`).
 2. Adjust parameters to match the replacement route's signature.
 
-Verify: `bun test tests/cli/cli-error-handling.test.ts` passes.
+Verify: `bun test apps/cli/tests/cli-error-handling.test.ts` passes.
 
 ### Step 3: Fix stale commission type in commission-view test
 
-File: `tests/components/commission-view.test.tsx`
+File: `apps/web/tests/components/commission-view.test.tsx`
 
 Lines 115 and 119 use `commissionType: "scheduled"`, but `commissionType` doesn't exist in production code at all.
 
 1. If the test is verifying that arbitrary props pass through, replace `"scheduled"` with a valid value or remove the `commissionType` lines entirely.
 2. If the test was specifically for scheduled commission rendering (now removed), delete the test case.
 
-Verify: `bun test tests/components/commission-view.test.tsx` passes.
+Verify: `bun test apps/web/tests/components/commission-view.test.tsx` passes.
 
 ### Step 4: Update event-router specs
 
 Two active specs reference the removed `schedule_spawned` event type.
 
-**`.lore/specs/infrastructure/event-router.md:72-74`** (REQ-EVRT-7): The requirement lists three events that carry `projectName`. Remove the `schedule_spawned` bullet and update the count from "three" to "two" (only `commission_status` and `toolbox_replicate` remain). Verify the count against `daemon/lib/event-bus.ts` before committing.
+**`.lore/specs/infrastructure/event-router.md:72-74`** (REQ-EVRT-7): The requirement lists three events that carry `projectName`. Remove the `schedule_spawned` bullet and update the count from "three" to "two" (only `commission_status` and `toolbox_replicate` remain). Verify the count against `apps/daemon/lib/event-bus.ts` before committing.
 
 **`.lore/specs/infrastructure/event-router-field-matching.md`**:
 - Line 210: Replace the `schedule_spawned` YAML example with a `commission_status` example that demonstrates field matching.

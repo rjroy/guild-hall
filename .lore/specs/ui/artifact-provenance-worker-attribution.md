@@ -15,7 +15,7 @@ req-prefix: AWA
 
 ## Overview
 
-The `ArtifactProvenance` component renders a source row with an empty `WorkerPortrait` and the text "Source information unavailable." This was a deliberate Phase 1 stub (`web/components/artifact/ArtifactProvenance.tsx:59-61`). The data needed to resolve worker attribution has been available since commission and meeting artifacts started writing `worker` and `workerDisplayTitle` into frontmatter extras. This spec defines how to connect that data to the UI.
+The `ArtifactProvenance` component renders a source row with an empty `WorkerPortrait` and the text "Source information unavailable." This was a deliberate Phase 1 stub (`apps/web/components/artifact/ArtifactProvenance.tsx:59-61`). The data needed to resolve worker attribution has been available since commission and meeting artifacts started writing `worker` and `workerDisplayTitle` into frontmatter extras. This spec defines how to connect that data to the UI.
 
 ## Current State
 
@@ -43,19 +43,19 @@ A small number of older artifacts use the package name format (`worker: guild-ha
 
 ### Portrait resolution gap
 
-Frontmatter carries the worker's display name and title but not their portrait URL. Portrait URLs live in worker package metadata, accessible via `GET /system/packages/worker/list` (`daemon/routes/workers.ts:28`). The response includes `displayName` and `portraitUrl` per worker.
+Frontmatter carries the worker's display name and title but not their portrait URL. Portrait URLs live in worker package metadata, accessible via `GET /system/packages/worker/list` (`apps/daemon/routes/workers.ts:28`). The response includes `displayName` and `portraitUrl` per worker.
 
 Guild Master is a built-in coordinator, not a discoverable package. It does not appear in the worker list response. Its portrait exists at `/images/portraits/guild-master.webp`.
 
 ### Component state
 
-`ArtifactProvenance` (`web/components/artifact/ArtifactProvenance.tsx`) is a client component that receives `projectName`, `artifactTitle`, and `artifactPath` as props. It delegates container chrome to `DetailHeader`, which manages expanded/condensed states. The expanded state shows a breadcrumb row and a source row; the condensed state collapses to the breadcrumb only.
+`ArtifactProvenance` (`apps/web/components/artifact/ArtifactProvenance.tsx`) is a client component that receives `projectName`, `artifactTitle`, and `artifactPath` as props. It delegates container chrome to `DetailHeader`, which manages expanded/condensed states. The expanded state shows a breadcrumb row and a source row; the condensed state collapses to the breadcrumb only.
 
-`WorkerPortrait` (`web/components/ui/WorkerPortrait.tsx`) already accepts optional `name`, `title`, and `portraitUrl` props. When `portraitUrl` is absent, it renders initials derived from `name`. When `name` is also absent, it renders "?".
+`WorkerPortrait` (`apps/web/components/ui/WorkerPortrait.tsx`) already accepts optional `name`, `title`, and `portraitUrl` props. When `portraitUrl` is absent, it renders initials derived from `name`. When `name` is also absent, it renders "?".
 
 ### Artifact page
 
-The artifact page (`web/app/projects/[name]/artifacts/[...path]/page.tsx`) is a server component that already makes three daemon fetches: project config, artifact document, and commission list. It has access to `artifact.meta.extras` and to `associatedCommissions` (filtered by `linked_artifacts`). Adding a fourth fetch to the worker list is consistent with the page's existing pattern.
+The artifact page (`apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`) is a server component that already makes three daemon fetches: project config, artifact document, and commission list. It has access to `artifact.meta.extras` and to `associatedCommissions` (filtered by `linked_artifacts`). Adding a fourth fetch to the worker list is consistent with the page's existing pattern.
 
 ## Entry Points
 
@@ -144,7 +144,7 @@ All fields except `workerName` are optional. The prop itself is optional; omitti
 
 ## Test Considerations
 
-- **Attribution resolution**: Unit tests for the resolution logic (three-source priority, missing fields, empty strings, old-format fallback). These test the page-level resolution function, not the component. Place in a dedicated test file (e.g., `tests/web/artifact-attribution-resolution.test.ts`) since the logic lives in the server component.
+- **Attribution resolution**: Unit tests for the resolution logic (three-source priority, missing fields, empty strings, old-format fallback). These test the page-level resolution function, not the component. Place in a dedicated test file (e.g., `apps/web/tests/artifact-attribution-resolution.test.ts`) since the logic lives in the server component.
 - **Portrait lookup**: Map construction from mock worker list, Guild Master fallback, missing worker graceful handling, fetch failure graceful handling.
 - **Conditional rendering**: Component renders source row when `attribution` is present, hides it when absent. Commission link renders when `commissionId` is present. Empty commission title falls back to ID.
-- **Existing tests**: `tests/components/artifact-provenance.test.ts` covers the current stub. Update to cover the new `attribution` prop and rendering branches (with/without attribution, with/without commission link).
+- **Existing tests**: `apps/web/tests/components/artifact-provenance.test.ts` covers the current stub. Update to cover the new `attribution` prop and rendering branches (with/without attribution, with/without commission link).

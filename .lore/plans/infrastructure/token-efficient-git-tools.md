@@ -3,7 +3,7 @@ title: "Plan: Token-Efficient Git Tools"
 date: 2026-03-30
 status: executed 
 tags: [git, tokens, toolbox, mcp-tools, performance, plan]
-modules: [daemon/services/git-readonly-toolbox]
+modules: [apps/daemon/services/git-readonly-toolbox]
 related:
   - .lore/specs/infrastructure/token-efficient-git-tools.md
   - .lore/research/token-efficient-git-tools.md
@@ -42,7 +42,7 @@ Requirements addressed:
 
 ### Implementation File
 
-All changes land in a single file: `daemon/services/git-readonly-toolbox.ts` (267 lines). The five tools are defined inside `createGitReadonlyTools()` (line 143), which takes `workingDirectory` and `runGit: GitRunner` parameters. The `GitRunner` DI pattern means all filtering logic can be tested with mock git output, no real repo needed.
+All changes land in a single file: `apps/daemon/services/git-readonly-toolbox.ts` (267 lines). The five tools are defined inside `createGitReadonlyTools()` (line 143), which takes `workingDirectory` and `runGit: GitRunner` parameters. The `GitRunner` DI pattern means all filtering logic can be tested with mock git output, no real repo needed.
 
 ### Current Tool Shapes
 
@@ -52,11 +52,11 @@ All changes land in a single file: `daemon/services/git-readonly-toolbox.ts` (26
 
 ### Test Patterns
 
-Tests at `tests/daemon/services/git-readonly-toolbox.test.ts` (388 lines). The `mockGitRunner` helper (line 121) matches git args against string patterns and returns canned responses. The `callTool` helper (line 143) invokes a named tool and returns the text content. This infrastructure supports the new tests without modification.
+Tests at `apps/daemon/tests/services/git-readonly-toolbox.test.ts` (388 lines). The `mockGitRunner` helper (line 121) matches git args against string patterns and returns canned responses. The `callTool` helper (line 143) invokes a named tool and returns the text content. This infrastructure supports the new tests without modification.
 
 ### Wiring
 
-The toolbox factory at line 264 and its registration in `daemon/services/toolbox-resolver.ts` are unaffected. All changes are internal to the tool handlers and new helper functions.
+The toolbox factory at line 264 and its registration in `apps/daemon/services/toolbox-resolver.ts` are unaffected. All changes are internal to the tool handlers and new helper functions.
 
 ## Implementation Phases
 
@@ -68,7 +68,7 @@ The simplest layer and the highest leverage. A flag addition to two git commands
 
 #### Step 1: Add `--no-binary` and `include_binary` parameter
 
-**Files modified**: `daemon/services/git-readonly-toolbox.ts`
+**Files modified**: `apps/daemon/services/git-readonly-toolbox.ts`
 
 **Changes**:
 
@@ -95,7 +95,7 @@ This phase adds the exclusion pattern list and the summary of what was filtered.
 
 #### Step 2: Add exclusion patterns and `include_generated` parameter
 
-**Files modified**: `daemon/services/git-readonly-toolbox.ts`
+**Files modified**: `apps/daemon/services/git-readonly-toolbox.ts`
 
 **Changes**:
 
@@ -141,7 +141,7 @@ This phase adds the exclusion pattern list and the summary of what was filtered.
 
 #### Step 3: Add excluded file summary
 
-**Files modified**: `daemon/services/git-readonly-toolbox.ts`
+**Files modified**: `apps/daemon/services/git-readonly-toolbox.ts`
 
 **Changes**:
 
@@ -182,7 +182,7 @@ This phase adds post-processing of diff output. The filtering layers are now: gi
 
 #### Step 4: Per-file size cap
 
-**Files modified**: `daemon/services/git-readonly-toolbox.ts`
+**Files modified**: `apps/daemon/services/git-readonly-toolbox.ts`
 
 **Changes**:
 
@@ -216,7 +216,7 @@ This phase adds post-processing of diff output. The filtering layers are now: gi
 
 #### Step 5: Total output cap
 
-**Files modified**: `daemon/services/git-readonly-toolbox.ts`
+**Files modified**: `apps/daemon/services/git-readonly-toolbox.ts`
 
 **Changes**:
 
@@ -244,7 +244,7 @@ The structural change. `git_show` gets a `diff` parameter that controls output s
 
 #### Step 6: `git_show` diff parameter
 
-**Files modified**: `daemon/services/git-readonly-toolbox.ts`
+**Files modified**: `apps/daemon/services/git-readonly-toolbox.ts`
 
 **Changes**:
 
@@ -278,7 +278,7 @@ The structural change. `git_show` gets a `diff` parameter that controls output s
 
 #### Step 7: `git_diff` stat parameter
 
-**Files modified**: `daemon/services/git-readonly-toolbox.ts`
+**Files modified**: `apps/daemon/services/git-readonly-toolbox.ts`
 
 **Changes**:
 

@@ -1,0 +1,65 @@
+"use client";
+
+import Breadcrumb from "@/apps/web/components/ui/Breadcrumb";
+import DetailHeader from "@/apps/web/components/ui/DetailHeader";
+import type { BreadcrumbSegment } from "@/apps/web/components/ui/Breadcrumb";
+import { projectDisplayTitle } from "@/lib/types";
+import type { ProjectConfig } from "@/lib/types";
+import styles from "./ProjectHeader.module.css";
+
+interface ProjectHeaderProps {
+  project: ProjectConfig;
+}
+
+export default function ProjectHeader({ project }: ProjectHeaderProps) {
+  const displayTitle = projectDisplayTitle(project);
+
+  const segments: BreadcrumbSegment[] = [
+    { label: "Guild Hall", href: "/" },
+    { label: displayTitle },
+  ];
+
+  const title = project.repoUrl ? (
+    <a
+      href={project.repoUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={styles.titleLink}
+    >
+      {displayTitle} <span className={styles.externalIcon}>&#8599;</span>
+    </a>
+  ) : (
+    <span>{displayTitle}</span>
+  );
+
+  return (
+    <DetailHeader
+      expandedMaxHeight="250px"
+      condensedMaxHeight="56px"
+      condensedContent={(toggleButton) => (
+        <div className={styles.condensedRow}>
+          <div className={styles.condensedLeft}>
+            <Breadcrumb segments={segments} />
+            <h1 className={styles.headingCondensed}>{title}</h1>
+          </div>
+          <div className={styles.condensedTrailing}>
+            {toggleButton}
+          </div>
+        </div>
+      )}
+      expandedContent={(toggleButton) => (
+        <>
+          <div className={styles.breadcrumbRow}>
+            <Breadcrumb segments={segments} />
+            {toggleButton}
+          </div>
+          <div className={styles.eyebrow}>The Project</div>
+          <h1 className={styles.heading}>{title}</h1>
+          {project.description && (
+            <p className={styles.description}>{project.description}</p>
+          )}
+        </>
+      )}
+    />
+  );
+}

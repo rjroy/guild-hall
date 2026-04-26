@@ -38,7 +38,7 @@ The daemon uses raw `console.error`, `console.warn`, and `console.log` throughou
 
 - REQ-LOG-6: Existing test files that use `spyOn(console, ...)` to assert on log output migrate to `collectingLog` and assert against the collected messages instead.
 
-- REQ-LOG-7: No daemon production code calls `console.error`, `console.warn`, or `console.log` directly after migration. The logger is the only path for daemon log output. `daemon/index.ts` is the composition root and constructs the logger before DI is wired; it creates its own logger instance directly rather than receiving one through injection. This is not an exception to the rule, it is where the production logger originates.
+- REQ-LOG-7: No daemon production code calls `console.error`, `console.warn`, or `console.log` directly after migration. The logger is the only path for daemon log output. `apps/daemon/index.ts` is the composition root and constructs the logger before DI is wired; it creates its own logger instance directly rather than receiving one through injection. This is not an exception to the rule, it is where the production logger originates.
 
 ## Exit Points
 
@@ -77,4 +77,4 @@ The daemon uses raw `console.error`, `console.warn`, and `console.log` throughou
 - **Issue**: `.lore/issues/test-output-noise-from-raw-console.md` documents the problem and fix direction.
 - **Retro**: `.lore/retros/coverage-di-factories.md` established the `createX(deps)` factory as the canonical DI pattern. The logger follows this.
 - **Retro**: `.lore/retros/in-process-commissions.md` caught a production wiring gap where a DI seam wasn't wired in `createProductionApp()`. REQ-LOG-5 exists because of that lesson.
-- **Existing pattern**: `daemon/lib/agent-sdk/sdk-logging.ts` takes a `log` callback parameter, proving the pattern works. This spec systematizes it.
+- **Existing pattern**: `apps/daemon/lib/agent-sdk/sdk-logging.ts` takes a `log` callback parameter, proving the pattern works. This spec systematizes it.

@@ -49,9 +49,9 @@ Requirements addressed:
 | `lib/packages.ts:48-57` | `workerMetadataSchema` Zod schema | Add optional `soul` field |
 | `lib/packages.ts:158-179` | Soul/posture loading in `discoverPackages()` | Load `soul.md` alongside `posture.md` |
 | `packages/shared/worker-activation.ts:3-50` | `buildSystemPrompt()` | New assembly order: soul, identity, posture, memory, context |
-| `daemon/lib/agent-sdk/sdk-runner.ts:237-249` | `ActivationContext` construction | Pass `workerMeta.soul` into context |
-| `daemon/services/manager/worker.ts:16-31` | `MANAGER_POSTURE` constant | Split into `MANAGER_SOUL` + `MANAGER_POSTURE` |
-| `daemon/services/manager/worker.ts:104-124` | `activateManager()` | Adopt soul-first assembly order, include identity metadata |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts:237-249` | `ActivationContext` construction | Pass `workerMeta.soul` into context |
+| `apps/daemon/services/manager/worker.ts:16-31` | `MANAGER_POSTURE` constant | Split into `MANAGER_SOUL` + `MANAGER_POSTURE` |
+| `apps/daemon/services/manager/worker.ts:104-124` | `activateManager()` | Adopt soul-first assembly order, include identity metadata |
 | `packages/guild-hall-*/posture.md` | Worker posture files | Remove Vibe line |
 | `packages/guild-hall-*/soul.md` | Worker soul files (new) | Create with Character, Voice, Vibe sections |
 
@@ -60,13 +60,13 @@ Requirements addressed:
 - **File loading**: The posture-to-markdown migration (`lib/packages.ts:158-178`) established the pattern for loading markdown files during discovery. Soul loading follows the same try/catch pattern but treats absence as a warning, not a skip condition.
 - **Type/schema symmetry**: Changes to `WorkerMetadata` and `ActivationContext` TypeScript interfaces must have matching Zod schema updates. The Zod schema is the validation boundary; the TypeScript type is the consumption boundary.
 - **Manager divergence**: The manager worker uses inline constants and a separate activation function. This plan maintains that pattern (soul as inline constant) rather than introducing a filesystem dependency for a built-in worker.
-- **Test factory functions**: `validWorkerGuildHall()` in `tests/lib/packages.test.ts` and `makeContext()` in `tests/daemon/services/manager-worker.test.ts` are the factories that need updating when interfaces change.
+- **Test factory functions**: `validWorkerGuildHall()` in `lib/tests/packages.test.ts` and `makeContext()` in `apps/daemon/tests/services/manager-worker.test.ts` are the factories that need updating when interfaces change.
 
 ### Integration Points
 
 - `sdk-runner.ts:237-249` constructs `ActivationContext` from `workerMeta`. Adding `soul: workerMeta.soul` is a one-line wiring change. The field is optional on both sides, so undefined propagates cleanly.
 - `sdk-runner.ts:265` appends the assembled system prompt to the Claude Code preset. The soul content prepended to the prompt will appear after the preset's operational instructions. The spec notes this is unlikely to conflict since the preset defines behavior, not character.
-- The REST API (`daemon/routes/workers.ts:26-44`) serves identity metadata to the UI. Soul content is not exposed. No changes needed.
+- The REST API (`apps/daemon/routes/workers.ts:26-44`) serves identity metadata to the UI. Soul content is not exposed. No changes needed.
 - The UI components (`WorkerPicker.tsx`, `WorkerPortrait.tsx`) consume identity metadata only. No changes needed.
 
 ## Implementation Steps
@@ -90,7 +90,7 @@ These are pure additive changes. All existing code continues to work because the
 - Verify `workerMetadataSchema` rejects soul with wrong type (number, object)
 - Run existing test suite to confirm no regressions
 
-**Verification**: `bun test tests/lib/packages.test.ts` passes, including new schema tests.
+**Verification**: `bun test lib/tests/packages.test.ts` passes, including new schema tests.
 
 ### Step 2: Load soul.md in package discovery
 
@@ -105,14 +105,14 @@ After the posture resolution block (line 178), add soul loading using the same t
 
 Soul is NOT a hard requirement for package validity. A missing `soul.md` produces a warning, not a skip. This is the asymmetry the spec calls out: posture is required (no posture = skip), soul is optional (no soul = generic but functional).
 
-**Test strategy** (in `tests/lib/packages.test.ts`):
+**Test strategy** (in `lib/tests/packages.test.ts`):
 - `discovers soul from soul.md file`: Write a worker package with a `soul.md` file, verify `metadata.soul` contains the file content (trimmed)
 - `worker without soul.md is still valid`: Write a worker package with no `soul.md`, verify it's discovered successfully with `soul` undefined, and a warning was logged
 - `soul.md loading does not affect posture loading`: Write a package with both `soul.md` and `posture.md`, verify both fields are populated independently
 
 Add a `writePackageWithSoul(scanDir, dirName, pkgJson, postureContent, soulContent?)` helper that extends the existing test factory, or add soul support to the existing `writePackageWithPosture` helper if one exists.
 
-**Verification**: `bun test tests/lib/packages.test.ts` passes with new soul discovery tests.
+**Verification**: `bun test lib/tests/packages.test.ts` passes with new soul discovery tests.
 
 ### Step 3: Update system prompt assembly order
 
@@ -131,18 +131,18 @@ Current order is: posture (line 4), identity (lines 6-13), memory (lines 15-17),
 
 The `ActivationContext` type already gained the optional `soul` field in Step 1.
 
-**Test strategy** (new test file `tests/packages/worker-activation.test.ts`):
+**Test strategy** (new test file `packages/tests/worker-activation.test.ts`):
 - `prompt order: soul before identity before posture`: Provide all three, verify they appear in order with soul first, then identity, then posture
 - `identity before posture when soul is absent`: When soul is undefined, the prompt must start with identity metadata then posture (not the old posture-first order). This is a deliberate behavior change per REQ-WID-13. The previous order was posture, identity; the new order is identity, posture regardless of soul presence.
 - `soul content is included verbatim`: Verify soul text appears unmodified in the prompt
 - `activity context still appended after memory`: Verify meeting/commission context is still at the end
 - `stability: same inputs produce identical output`: Call twice with same context, verify identical prompts (REQ-WID-16)
 
-**Verification**: `bun test tests/packages/worker-activation.test.ts` passes. Then run `bun test` for full suite to check for regressions.
+**Verification**: `bun test packages/tests/worker-activation.test.ts` passes. Then run `bun test` for full suite to check for regressions.
 
 ### Step 4: Wire soul through session preparation
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts:237-249`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts:237-249`
 **Addresses**: REQ-WID-14 (wiring side)
 
 Add `soul: workerMeta.soul` to the `ActivationContext` object constructed at lines 237-249. This is a single line addition. The field is optional on both `WorkerMetadata` and `ActivationContext`, so undefined flows through without issue.
@@ -174,11 +174,11 @@ After this step, posture files contain only operational content: Principles, Wor
 Preserve the exact Vibe text from each posture file. It will be used in the corresponding soul.md (Step 6).
 
 **Test strategy**:
-- Existing test `each roster posture has exactly three explicit sections` (`tests/packages/worker-roster.test.ts:141-154`) should continue to pass, since it checks for Principles/Workflow/Quality Standards sections, not Vibe
+- Existing test `each roster posture has exactly three explicit sections` (`packages/tests/worker-roster.test.ts:141-154`) should continue to pass, since it checks for Principles/Workflow/Quality Standards sections, not Vibe
 - Existing test `each role posture encodes Phase 3 guardrails` (same file, lines 156-167) should pass since guardrails are in the operational sections
 - Verify no posture file starts with "Vibe:" after the change
 
-**Verification**: `bun test tests/packages/worker-roster.test.ts` passes. Grep for "Vibe:" in posture files returns no results.
+**Verification**: `bun test packages/tests/worker-roster.test.ts` passes. Grep for "Vibe:" in posture files returns no results.
 
 ### Step 6: Create soul.md files for five roster workers
 
@@ -217,17 +217,17 @@ Content guidelines from the spec:
 
 The spec explicitly states: "This spec defines structure, not content. Writing the actual soul.md files for each roster worker is a separate task." The soul content should be handcrafted. This step creates the files with proper structure. If the plan implementer is the writer worker, they should draft content in character. If the implementer is a developer, they should create structurally correct files with placeholder content and flag the need for a writer to refine.
 
-**Test strategy** (add to `tests/packages/worker-roster.test.ts`):
+**Test strategy** (add to `packages/tests/worker-roster.test.ts`):
 - `each roster package has a soul.md file`: Verify file exists for all five workers
 - `each roster soul.md has three sections (Character, Voice, Vibe)`: Parse section headers, verify all three present
 - `soul files are under 80 lines`: Count lines, verify each is under 80
 - `soul files contain no operational content`: Grep for Principles/Workflow/Quality Standards keywords that would indicate posture leakage
 
-**Verification**: `bun test tests/packages/worker-roster.test.ts` passes with new soul tests.
+**Verification**: `bun test packages/tests/worker-roster.test.ts` passes with new soul tests.
 
 ### Step 7: Split manager posture into soul and posture
 
-**Files**: `daemon/services/manager/worker.ts`
+**Files**: `apps/daemon/services/manager/worker.ts`
 **Addresses**: REQ-WID-15
 
 The manager's `MANAGER_POSTURE` constant (lines 16-31) currently mixes personality and methodology. Split it into two constants:
@@ -247,7 +247,7 @@ Update `activateManager()` (lines 104-124) to follow the same assembly order as 
 
 The spec identifies three required changes: split the constant, update the assembly order, and include identity metadata. All three happen in this step.
 
-**Test strategy** (update `tests/daemon/services/manager-worker.test.ts`):
+**Test strategy** (update `apps/daemon/tests/services/manager-worker.test.ts`):
 - `manager metadata has soul field`: Verify `createManagerPackage()` returns metadata with a non-empty `soul` string
 - `manager soul contains personality content`: Check for character-relevant content (e.g., "Guild Master", personality descriptors)
 - `manager posture contains only operational content`: Check for dispatch/deference rules, verify no Vibe line
@@ -256,31 +256,31 @@ The spec identifies three required changes: split the constant, update the assem
 - `activateManager assembly order: soul, identity, posture, memory, context`: Provide all fields, verify they appear in order
 - Update existing test `system prompt sections are separated by double newlines`: The expected format changes from `"POSTURE\n\nMEMORY\n\nCONTEXT"` to `"SOUL\n\nYour name is: ...\n...\n\nPOSTURE\n\nMEMORY\n\nCONTEXT"`. Update the assertion and the `makeContext` factory to include soul.
 - Update existing test `works when both managerContext and injectedMemory are empty/undefined`: The prompt is no longer just posture. It's soul + identity lines + posture. Update the assertion to expect all three sections.
-- **Audit the `manager posture content` describe block** (lines 202-231 in `tests/daemon/services/manager-worker.test.ts`). Each test asserts against `meta.posture`. After the split, some asserted content moves to `meta.soul`. Reclassify each:
+- **Audit the `manager posture content` describe block** (lines 202-231 in `apps/daemon/tests/services/manager-worker.test.ts`). Each test asserts against `meta.posture`. After the split, some asserted content moves to `meta.soul`. Reclassify each:
   - `contains dispatch-with-review instructions` (checks "create and dispatch commissions", "review and cancel"): stays in posture. No change needed.
   - `contains deference rules` (checks "Defer to the user", "project scope or direction", "protected branch", "domain knowledge"): stays in posture. No change needed.
   - `contains coordination role statement` (checks "coordination specialist"): moves to soul. Update to check `meta.soul` instead of `meta.posture`.
   - `contains working style directive` (checks "Be direct", "execute when authorized"): stays in posture. No change needed.
 
-**Verification**: `bun test tests/daemon/services/manager-worker.test.ts` passes with updated and new tests.
+**Verification**: `bun test apps/daemon/tests/services/manager-worker.test.ts` passes with updated and new tests.
 
 ### Step 8: Update smoke tests and roster tests
 
-**Files**: `tests/packages/worker-role-smoke.test.ts`, `tests/packages/worker-roster.test.ts`
+**Files**: `packages/tests/worker-role-smoke.test.ts`, `packages/tests/worker-roster.test.ts`
 **Addresses**: Cross-cutting verification
 
-**`tests/packages/worker-role-smoke.test.ts`**:
+**`packages/tests/worker-role-smoke.test.ts`**:
 - Update `readWorkerMetadata()` helper to also read `soul.md` from the package directory and return it
 - Update `makeActivationContext()` to accept and pass soul content
 - Add tests verifying soul content appears in activation output for each worker
 - Existing posture-in-activation tests should still pass (posture is still present in the prompt, just in a different position)
 - **Full-stack graceful degradation test**: Create a context with `soul: undefined`, call `activateWorkerWithSharedPattern()`, and verify the prompt starts with identity metadata (not soul content, not posture) and contains posture after identity. This exercises the entire chain for workers without soul.md and validates the wiring from Step 4 without needing `sdk-runner.ts` integration.
 
-**`tests/packages/worker-roster.test.ts`**:
+**`packages/tests/worker-roster.test.ts`**:
 - Add soul file tests per Step 6's test strategy
 - Existing posture tests should pass unchanged since posture files retain their three-section structure
 
-**Verification**: `bun test tests/packages/` passes all worker package tests.
+**Verification**: `bun test packages/tests/` passes all worker package tests.
 
 ### Step 9: Full suite verification and fresh-eyes review
 

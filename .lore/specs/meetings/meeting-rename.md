@@ -59,9 +59,9 @@ Depends on: [Spec: Guild Hall Meetings](guild-hall-meetings.md) for the meeting 
 
 ### Write Path
 
-- REQ-MRN-12: The rename writes to the same worktree that `link_artifact` and `summarize_progress` write to. The handler uses `resolveWritePath()` from `daemon/lib/toolbox-utils.ts` to resolve the correct path, which is the activity worktree for open meetings. This is the same pattern used by all three existing meeting toolbox tools.
+- REQ-MRN-12: The rename writes to the same worktree that `link_artifact` and `summarize_progress` write to. The handler uses `resolveWritePath()` from `apps/daemon/lib/toolbox-utils.ts` to resolve the correct path, which is the activity worktree for open meetings. This is the same pattern used by all three existing meeting toolbox tools.
 
-- REQ-MRN-13: The title field is updated using `replaceYamlField()` from `daemon/lib/record-utils.ts`. This function performs regex-based in-place field replacement without reformatting the surrounding YAML block, consistent with the gray-matter-avoidance pattern throughout `daemon/services/meeting/record.ts`. The new title value must be quoted and escaped before passing to `replaceYamlField()`, using `escapeYamlValue()` from `daemon/lib/toolbox-utils.ts`, to match the quoted string format that `writeMeetingArtifact` establishes at creation time.
+- REQ-MRN-13: The title field is updated using `replaceYamlField()` from `apps/daemon/lib/record-utils.ts`. This function performs regex-based in-place field replacement without reformatting the surrounding YAML block, consistent with the gray-matter-avoidance pattern throughout `apps/daemon/services/meeting/record.ts`. The new title value must be quoted and escaped before passing to `replaceYamlField()`, using `escapeYamlValue()` from `apps/daemon/lib/toolbox-utils.ts`, to match the quoted string format that `writeMeetingArtifact` establishes at creation time.
 
 ### Meeting Log Entry
 
@@ -138,8 +138,8 @@ Depends on: [Spec: Guild Hall Meetings](guild-hall-meetings.md) for the meeting 
 
 ## Context
 
-- [Spec: Guild Hall Meetings](guild-hall-meetings.md): Meeting toolbox structure (REQ-MTG-16, REQ-MTG-17). The `makeLinkArtifactHandler` and `makeSummarizeProgressHandler` functions in `daemon/services/meeting/toolbox.ts:40-180` are the structural template for `makeRenameMeetingHandler`.
+- [Spec: Guild Hall Meetings](guild-hall-meetings.md): Meeting toolbox structure (REQ-MTG-16, REQ-MTG-17). The `makeLinkArtifactHandler` and `makeSummarizeProgressHandler` functions in `apps/daemon/services/meeting/toolbox.ts:40-180` are the structural template for `makeRenameMeetingHandler`.
 - [Spec: Guild Hall Views](guild-hall-views.md): Where the title renders. REQ-VIEW-16 (Project Meetings tab), REQ-VIEW-28 (Meeting view header shows agenda, not title). Rename affects the listing label, not the in-session context panel.
-- `daemon/services/meeting/record.ts`: `appendMeetingLog()` for the log entry. The write path pattern (`resolveWritePath()` + `replaceYamlField()`) follows the same shape as `updateArtifactStatus()`.
-- `daemon/lib/record-utils.ts`: `replaceYamlField()` performs the in-place YAML field substitution. Already used for `status` updates; `title` follows the same pattern with quoted value wrapping.
-- `daemon/lib/toolbox-utils.ts`: `resolveWritePath()` for the activity worktree path, `escapeYamlValue()` for YAML-safe title serialization. Both used by existing toolbox handlers.
+- `apps/daemon/services/meeting/record.ts`: `appendMeetingLog()` for the log entry. The write path pattern (`resolveWritePath()` + `replaceYamlField()`) follows the same shape as `updateArtifactStatus()`.
+- `apps/daemon/lib/record-utils.ts`: `replaceYamlField()` performs the in-place YAML field substitution. Already used for `status` updates; `title` follows the same pattern with quoted value wrapping.
+- `apps/daemon/lib/toolbox-utils.ts`: `resolveWritePath()` for the activity worktree path, `escapeYamlValue()` for YAML-safe title serialization. Both used by existing toolbox handlers.

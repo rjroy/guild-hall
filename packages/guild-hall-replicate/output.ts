@@ -7,7 +7,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { resolveWritePath, formatTimestamp } from "@/daemon/lib/toolbox-utils";
+import { resolveWritePath, formatTimestamp } from "@/apps/daemon/lib/toolbox-utils";
 import { integrationWorktreePath } from "@/lib/paths";
 
 export interface OutputDeps {

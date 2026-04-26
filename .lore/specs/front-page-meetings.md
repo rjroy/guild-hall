@@ -3,7 +3,7 @@ title: Front-page active meetings
 date: 2026-04-03
 status: implemented
 tags: [ux, ui, dashboard, meetings]
-modules: [web/app/page, web/components/dashboard/PendingAudiences, web/components/dashboard/ActiveMeetingCard, daemon/routes/meetings, lib/meetings]
+modules: [apps/web/app/page, apps/web/components/dashboard/PendingAudiences, apps/web/components/dashboard/ActiveMeetingCard, apps/daemon/routes/meetings, lib/meetings]
 related:
   - .lore/issues/front-page-meetings.md
   - .lore/specs/ui/dashboard-selection-model.md
@@ -81,7 +81,7 @@ The daemon endpoint `GET /meeting/request/meeting/list` gains a new `view=open` 
 4. Filters to `status === "open"` and maps to `MeetingMeta[]` using the existing `readMeetingMeta` / `parseMeetingData` path
 5. Returns `{ meetings: MeetingMeta[] }` (same shape as the default view)
 
-This mirrors the merge logic already in the `view=artifacts` branch of the same route handler (lines 308-326 of `daemon/routes/meetings.ts`), but outputs `MeetingMeta` instead of `Artifact`.
+This mirrors the merge logic already in the `view=artifacts` branch of the same route handler (lines 308-326 of `apps/daemon/routes/meetings.ts`), but outputs `MeetingMeta` instead of `Artifact`.
 
 Sorting for active meetings: by `date` descending (most recently started first). The existing `sortMeetingRequests` function is not used here; a new `sortActiveMeetings` helper in `lib/meetings.ts` sorts by `date` descending. REQ-SORT-12.
 
@@ -108,13 +108,13 @@ The resulting `allActiveMeetings: MeetingMeta[]` is assembled and filtered exact
 
 ### REQ-FPM-08: Component structure
 
-New component: `web/components/dashboard/ActiveMeetings.tsx`
+New component: `apps/web/components/dashboard/ActiveMeetings.tsx`
 - Props: `meetings: MeetingMeta[]`, `workerPortraits: Record<string, string>`
 - Server component (no `"use client"` needed; link navigation is static)
 - Uses `Panel` with title "Active Audiences" and `variant="parchment"`
 - Renders `ActiveMeetingCard` per meeting, or `EmptyState` when empty
 
-New component: `web/components/dashboard/ActiveMeetingCard.tsx`
+New component: `apps/web/components/dashboard/ActiveMeetingCard.tsx`
 - Props: `meeting: MeetingMeta`, `portraitUrl?: string`
 - Server component; the card is a `<Link>` with `href` built from `meeting.projectName` and `meeting.meetingId`
 - Owns its own CSS module for styles
@@ -140,12 +140,12 @@ Active meetings use the existing `MeetingMeta` type from `lib/meetings.ts`. No n
 
 | File | Change |
 |------|--------|
-| `web/app/page.tsx` | Add `activeMeetingResults` fetch; assemble `allActiveMeetings`; pass to `ActiveMeetings` |
-| `web/app/page.module.css` | Add flex layout to `.audiences` to stack the two panels |
-| `web/components/dashboard/ActiveMeetings.tsx` | New component |
-| `web/components/dashboard/ActiveMeetingCard.tsx` | New component |
-| `web/components/dashboard/ActiveMeetingCard.module.css` | New CSS module |
-| `daemon/routes/meetings.ts` | Add `view=open` branch to `GET /meeting/request/meeting/list`; update operation definition |
+| `apps/web/app/page.tsx` | Add `activeMeetingResults` fetch; assemble `allActiveMeetings`; pass to `ActiveMeetings` |
+| `apps/web/app/page.module.css` | Add flex layout to `.audiences` to stack the two panels |
+| `apps/web/components/dashboard/ActiveMeetings.tsx` | New component |
+| `apps/web/components/dashboard/ActiveMeetingCard.tsx` | New component |
+| `apps/web/components/dashboard/ActiveMeetingCard.module.css` | New CSS module |
+| `apps/daemon/routes/meetings.ts` | Add `view=open` branch to `GET /meeting/request/meeting/list`; update operation definition |
 | `lib/meetings.ts` | Add `sortActiveMeetings` function |
 
 ## Success Criteria

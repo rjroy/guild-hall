@@ -1,0 +1,91 @@
+/* ============================================================
+   Panel
+   ----------------------------------------------------------
+   Guild card surface. Two variants:
+   - dark: solid bg-raised, ink rule, soft shadow ("card")
+   - parchment: warm scroll surface with inset glow ("scroll")
+   ============================================================ */
+
+.panel {
+  position: relative;
+  border-radius: var(--radius-md);
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- Variant: dark (default card) ---- */
+.dark {
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---- Variant: parchment (scroll) ---- */
+.parchment {
+  background: var(--parchment-50);
+  border-top: 1px solid var(--parchment-300);
+  border-bottom: 1px solid var(--parchment-300);
+  box-shadow: var(--shadow-sm), inset 0 0 60px rgba(184, 154, 94, 0.15);
+  border-radius: 4px;
+}
+:global([data-theme="dark"]) .parchment {
+  background: var(--bg-raised);
+  border-color: var(--rule);
+  box-shadow: var(--shadow), inset 0 0 60px rgba(58, 40, 20, 0.45);
+}
+.parchment::before,
+.parchment::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  background: linear-gradient(90deg, transparent, rgba(58, 40, 20, 0.18) 40%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+.parchment::before { left: 0; }
+.parchment::after  { right: 0; transform: scaleX(-1); }
+
+/* ---- Sizes ---- */
+.sm   { padding: var(--space-3); }
+.md   { padding: var(--space-4); }
+.lg   { padding: var(--space-6); }
+.full {
+  padding: var(--space-6);
+  width: 100%;
+}
+
+/* Parchment variant gets a bit more horizontal breathing room
+   to honor the scroll-edge gradients */
+.parchment.sm   { padding: var(--space-4) var(--space-5); }
+.parchment.md   { padding: var(--space-5) var(--space-6); }
+.parchment.lg   { padding: var(--space-6) var(--space-8); }
+.parchment.full { padding: var(--space-6) var(--space-8); }
+
+/* ---- Header / Title ---- */
+.header {
+  margin-bottom: var(--space-3);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg-1);
+  margin: 0;
+  line-height: var(--leading-snug);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .sm, .md, .lg, .full { padding: var(--space-3); }
+  .parchment.sm, .parchment.md, .parchment.lg, .parchment.full {
+    padding: var(--space-4);
+  }
+  .title { font-size: var(--text-lg); }
+}

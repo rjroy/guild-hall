@@ -17,7 +17,7 @@ related:
 
 ## Overview
 
-Guild Hall currently assumes all SDK sessions target the Anthropic API. This spec extends the model selection system (`.lore/specs/infrastructure/model-selection.md`) to support local model servers like Ollama. A user defines named model entries in `config.yaml`, each with a model identifier, base URL, and optional auth override. The daemon reads these definitions and injects the corresponding environment variables (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`) when spawning SDK sessions. No new code path, no provider abstraction. The SDK runner (`daemon/lib/agent-sdk/sdk-runner.ts`) is the shared session preparation infrastructure used by commissions, meetings, and briefings. The Claude Agent SDK already accepts an `env` parameter on its `Options` type; local model support configures that parameter.
+Guild Hall currently assumes all SDK sessions target the Anthropic API. This spec extends the model selection system (`.lore/specs/infrastructure/model-selection.md`) to support local model servers like Ollama. A user defines named model entries in `config.yaml`, each with a model identifier, base URL, and optional auth override. The daemon reads these definitions and injects the corresponding environment variables (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`) when spawning SDK sessions. No new code path, no provider abstraction. The SDK runner (`apps/daemon/lib/agent-sdk/sdk-runner.ts`) is the shared session preparation infrastructure used by commissions, meetings, and briefings. The Claude Agent SDK already accepts an `env` parameter on its `Options` type; local model support configures that parameter.
 
 Three use cases drive this: cost-free routine maintenance (housekeeping on a local model instead of paying for API calls), offline operation (air-gapped or unreliable connectivity), and experimentation with open-weight models (swapping models per worker without changing the runner).
 
@@ -101,7 +101,7 @@ Three use cases drive this: cost-free routine maintenance (housekeeping on a loc
 
 ### Session Environment Injection
 
-- REQ-LOCAL-10: `SdkQueryOptions` (`daemon/lib/agent-sdk/sdk-runner.ts`) gains an optional `env` field matching the Agent SDK's `Options.env` type: `env?: Record<string, string | undefined>`. This field is passed through to the SDK's `query()` call.
+- REQ-LOCAL-10: `SdkQueryOptions` (`apps/daemon/lib/agent-sdk/sdk-runner.ts`) gains an optional `env` field matching the Agent SDK's `Options.env` type: `env?: Record<string, string | undefined>`. This field is passed through to the SDK's `query()` call.
 
 - REQ-LOCAL-11: `prepareSdkSession` resolves the final model name (after applying the commission override > worker default > fallback chain from REQ-MODEL-9). If the resolved model name maps to a local definition (via `resolveModel`), the function:
   1. Sets `options.model` to the definition's `modelId` (not the definition's `name`).

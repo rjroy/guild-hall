@@ -133,7 +133,7 @@ The refactor extracts shared record utilities, migrates meetings to workspace.ts
 - Orchestrator flow test: trace a full create-message-close flow through the new orchestrator. Verify artifact writes, workspace calls, registry operations, and events match current behavior.
 - Commission isolation test: run commission tests after the shared utility extraction. All pass with no modifications to commission code.
 - Regression suite: all existing meeting and commission tests pass.
-- Dead code test: no imports of ActivityMachine, TransitionContext, EnterHandler, ExitHandler, ArtifactOps, or ActivityMachineConfig remain in the codebase after migration. Verify `daemon/lib/activity-state-machine.ts` and `daemon/services/meeting-handlers.ts` do not exist.
+- Dead code test: no imports of ActivityMachine, TransitionContext, EnterHandler, ExitHandler, ArtifactOps, or ActivityMachineConfig remain in the codebase after migration. Verify `apps/daemon/lib/activity-state-machine.ts` and `apps/daemon/services/meeting-handlers.ts` do not exist.
 
 ## Constraints
 

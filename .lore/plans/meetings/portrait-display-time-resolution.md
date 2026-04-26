@@ -27,16 +27,16 @@ Requirements addressed:
 **Current state**: Three code paths create meeting artifacts, each with its own template. Two include `workerPortraitUrl` in frontmatter, one (the manager toolbox) does not. The spec was updated to require display-time portrait resolution instead.
 
 **Portrait data flow today**:
-- `daemon/lib/agent-sdk/sdk-runner.ts:238`: Extracts `portraitPath` from worker metadata
-- `daemon/services/toolbox-resolver.ts:39,78`: Threads `workerPortraitUrl` through `ToolboxResolverContext` into `GuildHallToolboxDeps`
-- `daemon/services/meeting/record.ts:113,129-131`: `writeMeetingArtifact()` writes `workerPortraitUrl` to frontmatter
-- `daemon/services/meeting/toolbox.ts:36,128-130`: `MeetingToolboxDeps` carries portrait for `propose_followup`
-- `daemon/services/meeting/orchestrator.ts:836,904,1512`: Three callers pass `portraitPath` to `writeMeetingArtifact()`
-- `web/app/projects/[name]/meetings/[id]/page.tsx:106-109`: Reads `workerPortraitUrl` from artifact frontmatter
+- `apps/daemon/lib/agent-sdk/sdk-runner.ts:238`: Extracts `portraitPath` from worker metadata
+- `apps/daemon/services/toolbox-resolver.ts:39,78`: Threads `workerPortraitUrl` through `ToolboxResolverContext` into `GuildHallToolboxDeps`
+- `apps/daemon/services/meeting/record.ts:113,129-131`: `writeMeetingArtifact()` writes `workerPortraitUrl` to frontmatter
+- `apps/daemon/services/meeting/toolbox.ts:36,128-130`: `MeetingToolboxDeps` carries portrait for `propose_followup`
+- `apps/daemon/services/meeting/orchestrator.ts:836,904,1512`: Three callers pass `portraitPath` to `writeMeetingArtifact()`
+- `apps/web/app/projects/[name]/meetings/[id]/page.tsx:106-109`: Reads `workerPortraitUrl` from artifact frontmatter
 
 **Portrait resolution approach**: Next.js server components can call `discoverPackages()` from `lib/packages.ts` directly (filesystem reads, no daemon dependency). The packages directory is `path.join(getGuildHallHome(), "packages")`. A new helper builds a worker name to portrait map. Server components resolve portrait before passing to client components as props.
 
-**Dashboard data flow**: `web/app/page.tsx` (server component) calls `scanMeetingRequests()` which returns `MeetingMeta[]`. Each `MeetingMeta` has a `worker` field (identity name). `PendingAudiences` (server component) maps to `MeetingRequestCard` (client component). Portrait needs to flow from the server component as a prop.
+**Dashboard data flow**: `apps/web/app/page.tsx` (server component) calls `scanMeetingRequests()` which returns `MeetingMeta[]`. Each `MeetingMeta` has a `worker` field (identity name). `PendingAudiences` (server component) maps to `MeetingRequestCard` (client component). Portrait needs to flow from the server component as a prop.
 
 ## Implementation Steps
 
@@ -56,7 +56,7 @@ Uses `getGuildHallHome()` from `lib/paths.ts` to find `<ghHome>/packages/`. Fall
 
 ### Step 2: Remove `workerPortraitUrl` from artifact creation
 
-**Files**: `daemon/services/meeting/record.ts`, `daemon/services/meeting/orchestrator.ts`
+**Files**: `apps/daemon/services/meeting/record.ts`, `apps/daemon/services/meeting/orchestrator.ts`
 **Addresses**: REQ-WID-10
 
 In `record.ts`:
@@ -71,7 +71,7 @@ In `orchestrator.ts`:
 
 ### Step 3: Remove `workerPortraitUrl` from meeting toolbox
 
-**Files**: `daemon/services/meeting/toolbox.ts`
+**Files**: `apps/daemon/services/meeting/toolbox.ts`
 **Addresses**: REQ-WID-10
 
 - Remove `workerPortraitUrl` from `MeetingToolboxDeps` interface (line 36)
@@ -80,7 +80,7 @@ In `orchestrator.ts`:
 
 ### Step 4: Remove `workerPortraitUrl` from toolbox resolver and SDK runner
 
-**Files**: `daemon/services/toolbox-resolver.ts`, `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/services/toolbox-resolver.ts`, `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-WID-10
 
 In `toolbox-resolver.ts`:
@@ -92,7 +92,7 @@ In `sdk-runner.ts`:
 
 ### Step 5: Update meeting page to resolve portrait at display time
 
-**Files**: `web/app/projects/[name]/meetings/[id]/page.tsx`
+**Files**: `apps/web/app/projects/[name]/meetings/[id]/page.tsx`
 **Addresses**: REQ-VIEW-28
 **Expertise**: none
 
@@ -102,12 +102,12 @@ The server component already reads the artifact and extracts `workerName`. Addin
 
 ### Step 6: Update dashboard to show portrait on meeting requests
 
-**Files**: `web/app/page.tsx`, `web/components/dashboard/PendingAudiences.tsx`, `web/components/dashboard/MeetingRequestCard.tsx`
+**Files**: `apps/web/app/page.tsx`, `apps/web/components/dashboard/PendingAudiences.tsx`, `apps/web/components/dashboard/MeetingRequestCard.tsx`
 **Addresses**: REQ-VIEW-12 zone 5, REQ-VIEW-3
 
 Do NOT add `portraitUrl` to `MeetingMeta`. That type represents artifact data, and the portrait is no longer stored in artifacts. Instead, pre-resolve portrait URLs in the server component and pass them as a separate prop.
 
-In `web/app/page.tsx` (server component):
+In `apps/web/app/page.tsx` (server component):
 - Call `resolveWorkerPortraits()` once to get the `Map<string, string>`
 - Convert to a plain `Record<string, string>` for prop passing (Maps don't serialize across the server/client boundary)
 - Pass `workerPortraits` to `PendingAudiences`
@@ -119,14 +119,14 @@ In `PendingAudiences.tsx` (server component):
 In `MeetingRequestCard.tsx` (client component):
 - Accept `portraitUrl?: string` prop
 - Render `WorkerPortrait` component in the header section alongside the worker name/title
-- Import `WorkerPortrait` from `@/web/components/ui/WorkerPortrait`
+- Import `WorkerPortrait` from `@/apps/web/components/ui/WorkerPortrait`
 - If `portraitUrl` is undefined (worker not found), `WorkerPortrait` falls back to initials
 
 This addresses REQ-VIEW-12 zone 5 which specifies "worker portrait, name, reason, and action buttons" for pending audiences, but the card currently shows no portrait.
 
 ### Step 7: Update tests
 
-**Files**: `tests/daemon/services/meeting/record.test.ts`, `tests/daemon/services/meeting/toolbox.test.ts`, other test files referencing `workerPortraitUrl`
+**Files**: `apps/daemon/tests/services/meeting/record.test.ts`, `apps/daemon/tests/services/meeting/toolbox.test.ts`, other test files referencing `workerPortraitUrl`
 **Addresses**: validation
 
 - Remove `workerPortraitUrl` assertions from meeting artifact creation tests

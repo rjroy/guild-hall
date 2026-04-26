@@ -40,7 +40,7 @@ Requirements addressed:
 
 ### event-translator.ts (356 lines)
 
-Pure function module at `daemon/lib/agent-sdk/event-translator.ts`. Two exports: `createStreamTranslator()` (stateful, handles input_json_delta accumulation) and `translateSdkMessage()` (stateless, dispatches by message type).
+Pure function module at `apps/daemon/lib/agent-sdk/event-translator.ts`. Two exports: `createStreamTranslator()` (stateful, handles input_json_delta accumulation) and `translateSdkMessage()` (stateless, dispatches by message type).
 
 The compact_boundary drop is at line 202: `if (message.subtype !== "init") { return []; }` inside `translateSystemMessage()`. The local type `SdkSystemMessage` (line 26-30) has `type: "system"`, `subtype?: string`, and `session_id?: string`. It lacks `compact_metadata`, which the SDK's `SDKCompactBoundaryMessage` carries.
 
@@ -84,9 +84,9 @@ The new `context_compacted` event needs explicit handling because the `GuildHall
 
 The parallel parser in `lib/meetings.ts` (`parseTranscriptToMessages`, line 282) also needs updating to recognize `## Context Compacted` headings. Its `TranscriptChatMessage` type (line 257) has `role: "user" | "assistant"` and would need `"system"` as well.
 
-### daemon/types.ts (96 lines)
+### apps/daemon/types.ts (96 lines)
 
-`GuildHallEvent` union (lines 88-95) has 7 variants. The new `context_compacted` variant adds an 8th. Since the SSE routes (`daemon/routes/meetings.ts`, `daemon/routes/events.ts`) just JSON-serialize each event, no route changes are needed.
+`GuildHallEvent` union (lines 88-95) has 7 variants. The new `context_compacted` variant adds an 8th. Since the SSE routes (`apps/daemon/routes/meetings.ts`, `apps/daemon/routes/events.ts`) just JSON-serialize each event, no route changes are needed.
 
 ### ChatInterface.tsx (390 lines)
 
@@ -106,13 +106,13 @@ The SSE event handler (lines 234-324) switches on `event.type`. It handles `text
 
 ### Commission orchestrator
 
-`drainSdkSession` at line 1837 of `daemon/services/commission/orchestrator.ts`. The `context_compacted` event type falls through the known-event checks in `drainSdkSession` (it only checks `session`, `aborted`, `error`, `turn_end`), so it's silently ignored. No changes needed (REQ-MCC-15, REQ-MCC-16).
+`drainSdkSession` at line 1837 of `apps/daemon/services/commission/orchestrator.ts`. The `context_compacted` event type falls through the known-event checks in `drainSdkSession` (it only checks `session`, `aborted`, `error`, `turn_end`), so it's silently ignored. No changes needed (REQ-MCC-15, REQ-MCC-16).
 
 ### Existing tests
 
-- `tests/daemon/event-translator.test.ts`: Tests `translateSdkMessage` and `createStreamTranslator` with mock SDK messages. Provides helper patterns (`makeInitMessage`, etc.) for constructing mock messages.
-- `tests/daemon/services/sdk-runner.test.ts`: Tests `runSdkSession`, `drainSdkSession`, `prepareSdkSession` with mock queryFn and DI deps.
-- `tests/daemon/services/transcript.test.ts` and `tests/daemon/transcript.test.ts`: Tests transcript CRUD and `parseTranscriptMessages` parsing.
+- `apps/daemon/tests/event-translator.test.ts`: Tests `translateSdkMessage` and `createStreamTranslator` with mock SDK messages. Provides helper patterns (`makeInitMessage`, etc.) for constructing mock messages.
+- `apps/daemon/tests/services/sdk-runner.test.ts`: Tests `runSdkSession`, `drainSdkSession`, `prepareSdkSession` with mock queryFn and DI deps.
+- `apps/daemon/tests/services/transcript.test.ts` and `apps/daemon/tests/transcript.test.ts`: Tests transcript CRUD and `parseTranscriptMessages` parsing.
 
 No session-loop tests exist today. The session loop is tested indirectly through the meeting orchestrator.
 
@@ -144,7 +144,7 @@ This is the approach I'll specify.
 
 ### Step 1: Translate compact_boundary in the event translator
 
-**Files**: `daemon/lib/agent-sdk/event-translator.ts`, `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/event-translator.ts`, `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-MCC-1, REQ-MCC-2, REQ-MCC-3, REQ-MCC-4, REQ-MCC-15
 
 **1a. Add `context_compacted` to the `SdkRunnerEvent` union** in `sdk-runner.ts`:
@@ -202,7 +202,7 @@ This change is automatic for commissions (REQ-MCC-15): commissions use the same 
 
 ### Step 2: Add PostCompact hook infrastructure to sdk-runner
 
-**Files**: `daemon/lib/agent-sdk/sdk-runner.ts`
+**Files**: `apps/daemon/lib/agent-sdk/sdk-runner.ts`
 **Addresses**: REQ-MCC-5, REQ-MCC-6, REQ-MCC-7, REQ-MCC-8, REQ-MCC-16
 
 **2a. Add `hooks` to `SdkQueryOptions`:**
@@ -264,7 +264,7 @@ When `onCompactSummary` is absent (the default), no hooks are registered (REQ-MC
 
 ### Step 3: Add `context_compacted` to `GuildHallEvent`
 
-**File**: `daemon/types.ts`
+**File**: `apps/daemon/types.ts`
 **Addresses**: REQ-MCC-9
 
 Add the new variant to the `GuildHallEvent` union:
@@ -277,7 +277,7 @@ The `summary` field is optional: it may or may not be available when the event i
 
 ### Step 4: Wire the session loop and orchestrator
 
-**Files**: `daemon/services/meeting/session-loop.ts`, `daemon/services/meeting/orchestrator.ts`, `daemon/services/meeting/registry.ts`
+**Files**: `apps/daemon/services/meeting/session-loop.ts`, `apps/daemon/services/meeting/orchestrator.ts`, `apps/daemon/services/meeting/registry.ts`
 **Addresses**: REQ-MCC-10, REQ-MCC-11
 
 **4a. Add `lastCompactSummary` to `ActiveMeetingEntry`** in `registry.ts`:
@@ -389,7 +389,7 @@ if (meeting.lastCompactSummary) {
 
 ### Step 5: Transcript persistence
 
-**Files**: `daemon/services/meeting/transcript.ts`, `lib/meetings.ts`
+**Files**: `apps/daemon/services/meeting/transcript.ts`, `lib/meetings.ts`
 **Addresses**: REQ-MCC-12, REQ-MCC-13
 
 **5a. Add `appendCompactionMarker` function** to `transcript.ts`:
@@ -524,7 +524,7 @@ Extend `parseTranscriptToMessages` heading regex and role mapping to match the d
 
 ### Step 6: Web UI rendering
 
-**Files**: `web/components/meeting/ChatInterface.tsx`, `lib/types.ts`, `web/components/meeting/MessageBubble.tsx` (or new `CompactionBanner` component), `web/components/meeting/ChatInterface.module.css`
+**Files**: `apps/web/components/meeting/ChatInterface.tsx`, `lib/types.ts`, `apps/web/components/meeting/MessageBubble.tsx` (or new `CompactionBanner` component), `apps/web/components/meeting/ChatInterface.module.css`
 **Addresses**: REQ-MCC-14
 
 **6a. Extend `ChatMessage` role union** in `lib/types.ts`:
@@ -619,7 +619,7 @@ The meeting page loads transcript history via `parseTranscriptToMessages` from `
 
 **Addresses**: All REQs (validation coverage)
 
-**7a. Event translator tests** (`tests/daemon/event-translator.test.ts`):
+**7a. Event translator tests** (`apps/daemon/tests/event-translator.test.ts`):
 
 Add a helper to construct mock compact_boundary messages:
 
@@ -641,7 +641,7 @@ Test cases:
 5. System messages with `subtype: "hook_complete"` still return `[]`.
 6. Compact_boundary with missing `compact_metadata` returns `[]` (defensive).
 
-**7b. SDK runner tests** (`tests/daemon/services/sdk-runner.test.ts`):
+**7b. SDK runner tests** (`apps/daemon/tests/services/sdk-runner.test.ts`):
 
 Test cases for `prepareSdkSession`:
 1. When `onCompactSummary` is provided in `SessionPrepSpec`, the resulting `SdkQueryOptions` contains a `hooks` entry with `PostCompact` key.
@@ -651,7 +651,7 @@ Test cases for `prepareSdkSession`:
 Test cases for `drainSdkSession`:
 4. A generator yielding `context_compacted` completes without error (passthrough test for REQ-MCC-15).
 
-**7c. Transcript tests** (`tests/daemon/services/transcript.test.ts`):
+**7c. Transcript tests** (`apps/daemon/tests/services/transcript.test.ts`):
 
 Test cases:
 1. `appendCompactionMarker` writes a `## Context Compacted (timestamp)` section with trigger and token count.
@@ -661,14 +661,14 @@ Test cases:
 5. `parseTranscriptMessages` with compaction markers interleaved with user/assistant turns produces correctly ordered messages.
 6. `truncateTranscript` preserves `## Context Compacted` turn boundaries.
 
-**7d. Parallel parser tests** (`tests/lib/meetings.test.ts` or existing test file for `lib/meetings.ts`):
+**7d. Parallel parser tests** (`lib/tests/meetings.test.ts` or existing test file for `lib/meetings.ts`):
 
 Test cases:
 1. `parseTranscriptToMessages` recognizes `## Context Compacted` headings and produces `role: "system"` messages.
 2. `parseTranscriptToMessages` with compaction markers interleaved with user/assistant turns produces correctly ordered messages with correct role values.
 3. System messages have no `toolUses` (unlike assistant messages).
 
-**7e. Post-loop cleanup test** (in `tests/daemon/services/sdk-runner.test.ts` or a new session-loop test file):
+**7e. Post-loop cleanup test** (in `apps/daemon/tests/services/sdk-runner.test.ts` or a new session-loop test file):
 
 Test the edge case where `meeting.lastCompactSummary` is non-null after the `for await` loop exits (simulating a late-arriving PostCompact hook). Verify that `appendCompactSummarySafe` is called with the summary and the field is cleared.
 
@@ -697,22 +697,22 @@ Launch a review sub-agent that reads the spec at `.lore/specs/meetings/meeting-c
 
 | File | Change | Steps |
 |------|--------|-------|
-| `daemon/lib/agent-sdk/event-translator.ts` | Handle compact_boundary in `translateSystemMessage`, extend `SdkSystemMessage` | 1 |
-| `daemon/lib/agent-sdk/sdk-runner.ts` | Add `context_compacted` to `SdkRunnerEvent`, `hooks` to `SdkQueryOptions`, `onCompactSummary` to `SessionPrepSpec`, wire hook in `prepareSdkSession` | 1, 2 |
-| `daemon/types.ts` | Add `context_compacted` to `GuildHallEvent` | 3 |
-| `daemon/services/meeting/registry.ts` | Add `lastCompactSummary` to `ActiveMeetingEntry` | 4 |
-| `daemon/services/meeting/session-loop.ts` | Handle `context_compacted` in `iterateSession`, append transcript marker, post-loop summary cleanup | 4 |
-| `daemon/services/meeting/orchestrator.ts` | Wire `onCompactSummary` callback in `buildMeetingPrepSpec` | 4 |
-| `daemon/services/meeting/transcript.ts` | Add `appendCompactionMarker[Safe]`, `appendCompactSummarySafe`, extend `TranscriptMessage` role, update parser and truncator | 5 |
+| `apps/daemon/lib/agent-sdk/event-translator.ts` | Handle compact_boundary in `translateSystemMessage`, extend `SdkSystemMessage` | 1 |
+| `apps/daemon/lib/agent-sdk/sdk-runner.ts` | Add `context_compacted` to `SdkRunnerEvent`, `hooks` to `SdkQueryOptions`, `onCompactSummary` to `SessionPrepSpec`, wire hook in `prepareSdkSession` | 1, 2 |
+| `apps/daemon/types.ts` | Add `context_compacted` to `GuildHallEvent` | 3 |
+| `apps/daemon/services/meeting/registry.ts` | Add `lastCompactSummary` to `ActiveMeetingEntry` | 4 |
+| `apps/daemon/services/meeting/session-loop.ts` | Handle `context_compacted` in `iterateSession`, append transcript marker, post-loop summary cleanup | 4 |
+| `apps/daemon/services/meeting/orchestrator.ts` | Wire `onCompactSummary` callback in `buildMeetingPrepSpec` | 4 |
+| `apps/daemon/services/meeting/transcript.ts` | Add `appendCompactionMarker[Safe]`, `appendCompactSummarySafe`, extend `TranscriptMessage` role, update parser and truncator | 5 |
 | `lib/meetings.ts` | Extend `TranscriptChatMessage` role, update `parseTranscriptToMessages` | 5 |
 | `lib/types.ts` | Extend `ChatMessage` role to include `"system"` | 6 |
-| `web/components/meeting/ChatInterface.tsx` | Handle `context_compacted` SSE event | 6 |
-| `web/components/meeting/MessageBubble.tsx` | Render system role messages as info banner | 6 |
+| `apps/web/components/meeting/ChatInterface.tsx` | Handle `context_compacted` SSE event | 6 |
+| `apps/web/components/meeting/MessageBubble.tsx` | Render system role messages as info banner | 6 |
 | CSS (MessageBubble or ChatInterface module) | `.systemMessage`, `.systemDetails` styles | 6 |
-| `tests/daemon/event-translator.test.ts` | compact_boundary translation tests | 7 |
-| `tests/daemon/services/sdk-runner.test.ts` | Hook wiring and passthrough tests | 7 |
-| `tests/daemon/services/transcript.test.ts` | Compaction marker write/parse tests | 7 |
-| `tests/lib/meetings.test.ts` (or existing) | Parallel parser compaction tests | 7 |
+| `apps/daemon/tests/event-translator.test.ts` | compact_boundary translation tests | 7 |
+| `apps/daemon/tests/services/sdk-runner.test.ts` | Hook wiring and passthrough tests | 7 |
+| `apps/daemon/tests/services/transcript.test.ts` | Compaction marker write/parse tests | 7 |
+| `lib/tests/meetings.test.ts` (or existing) | Parallel parser compaction tests | 7 |
 
 16 files total. No new source files (only new exports in existing modules). Three test files expanded.
 

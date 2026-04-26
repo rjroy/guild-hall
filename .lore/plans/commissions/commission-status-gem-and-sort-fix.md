@@ -43,7 +43,7 @@ For a blue (240°) base gem, the math produces:
 | `--gem-blocked`| -140°    | ~100°      | yellow-green   |
 | `--gem-info`   | none     | 240°       | blue           |
 
-The **intended** colors (from test comments in `tests/lib/types.test.ts`) are:
+The **intended** colors (from test comments in `lib/tests/types.test.ts`) are:
 - active = **green**, pending = **amber**, blocked = **red**, info = **blue**
 
 What was intended is almost the mirror image of what's in the CSS. `--gem-active` and
@@ -81,7 +81,7 @@ commissions visible in the list, making the pre-existing CSS bug more apparent.
 
 ## Changes Required
 
-### Fix 1: CSS filter values — `web/app/globals.css`
+### Fix 1: CSS filter values — `apps/web/app/globals.css`
 
 Replace the three incorrect filter values:
 
@@ -126,9 +126,9 @@ const STATUS_GROUP: Record<string, number> = {
 `abandoned` belongs in group 2: it's a terminal
 negative outcome, same character as `failed` and `cancelled`.
 
-### Fix 3: Add test coverage — `tests/lib/types.test.ts` and `tests/lib/commissions.test.ts`
+### Fix 3: Add test coverage — `lib/tests/types.test.ts` and `lib/tests/commissions.test.ts`
 
-**In `tests/lib/types.test.ts`**, add to the `statusToGem` test cases:
+**In `lib/tests/types.test.ts`**, add to the `statusToGem` test cases:
 
 ```typescript
 // Commission-specific statuses
@@ -144,7 +144,7 @@ negative outcome, same character as `failed` and `cancelled`.
 Several of these (dispatched, in_progress, completed, failed, cancelled) were already
 in `ACTIVE_STATUSES` / `BLOCKED_STATUSES` but had no test coverage. Add them all.
 
-**In `tests/lib/commissions.test.ts`**, add to the `sortCommissions` tests:
+**In `lib/tests/commissions.test.ts`**, add to the `sortCommissions` tests:
 
 ```typescript
 // abandoned sorts before completed (same group as failed/cancelled)
@@ -194,10 +194,10 @@ section).
 
 | File                          | Change                                      |
 |-------------------------------|---------------------------------------------|
-| `web/app/globals.css`         | Fix CSS filter values for gem status colors |
+| `apps/web/app/globals.css`         | Fix CSS filter values for gem status colors |
 | `lib/commissions.ts`          | Add `abandoned` to STATUS_GROUP              |
-| `tests/lib/types.test.ts`     | Add commission-specific statusToGem cases   |
-| `tests/lib/commissions.test.ts`| Add abandoned sort cases                   |
+| `lib/tests/types.test.ts`     | Add commission-specific statusToGem cases   |
+| `lib/tests/commissions.test.ts`| Add abandoned sort cases                   |
 
 No component changes are needed. The data flows through `statusToGem()` and
 `sortCommissions()` — fixing those two functions and the CSS variables is sufficient.

@@ -20,7 +20,7 @@ Infrastructure covers the cross-cutting concerns that meetings, commissions, and
 - **EventBus**: Set-based synchronous pub/sub. Emits 10 event types (7 commission lifecycle, 2 meeting lifecycle, 1 commission queue). Subscribers are stored in a `Set` to avoid EventEmitter max listener warnings. Includes a `noopEventBus` for contexts that don't need event emission (tests, toolbox factories).
 - **SSE event stream**: `GET /events` subscribes to the EventBus and streams `SystemEvent` objects as JSON SSE messages. Unsubscribes on client disconnect via `stream.onAbort()`. Keeps the stream open with a pending Promise until abort.
 - **Daemon client**: Next.js proxy layer using `node:http` with `socketPath` option. Three request patterns: `daemonFetch` (request/response), `daemonStream` (synchronous ReadableStream), `daemonStreamAsync` (waits for HTTP connection before resolving). Error classification distinguishes `daemon_offline` (ECONNREFUSED), `socket_not_found` (ENOENT), and `request_failed`. Stream cancellation aborts the underlying HTTP request.
-- **Next.js API proxy routes**: 19 endpoints across 18 route files in `web/app/api/` that proxy browser requests to the daemon. Most are thin wrappers around `daemonFetch` or `daemonStreamAsync`. SSE routes return `text/event-stream` responses. The `PUT /api/artifacts` and `POST /api/meetings/[id]/quick-comment` routes do real work (file writes, git operations) instead of proxying.
+- **Next.js API proxy routes**: 19 endpoints across 18 route files in `apps/web/app/api/` that proxy browser requests to the daemon. Most are thin wrappers around `daemonFetch` or `daemonStreamAsync`. SSE routes return `text/event-stream` responses. The `PUT /api/artifacts` and `POST /api/meetings/[id]/quick-comment` routes do real work (file writes, git operations) instead of proxying.
 - **Daemon health polling**: `DaemonStatus` component wraps the entire app in `layout.tsx`, polls `/api/daemon/health` every 5 seconds, provides `isOnline` via `DaemonContext`. Action buttons across the app read this context to disable themselves when the daemon is unreachable. Children always render (server components read from filesystem directly).
 - **Event translator**: Pure function boundary between SDK internals and Guild Hall's public event schema. Translates SDK `system`, `stream_event`, `assistant`, `user`, and `result` messages into 6 `GuildHallEvent` types. Intentionally ignores `SDKAssistantMessage` text blocks to avoid double-data (SDK emits text via both stream deltas and finalized messages).
 - **Query runner**: Shared SDK query execution pipeline for meetings. `runQueryAndTranslate()` creates the SDK generator, iterates it through `iterateAndTranslate()` (which accumulates text/tool data for transcript append), detects session expiry errors, and yields `GuildHallEvent` objects. Handles abort (interrupt), error, and normal completion. Returns a `QueryRunOutcome`: ok, session_expired, or failed.
@@ -32,14 +32,14 @@ Infrastructure covers the cross-cutting concerns that meetings, commissions, and
 
 | Entry | Type | Handler |
 |-------|------|---------|
-| `GET /health` | Daemon | `daemon/routes/health.ts` -> active meetings, commissions, uptime |
-| `GET /events` | Daemon | `daemon/routes/events.ts` -> SSE EventBus subscription |
-| `GET /workers` | Daemon | `daemon/routes/workers.ts` -> discovered worker packages with portrait URLs |
-| `GET /briefing/:projectName` | Daemon | `daemon/routes/briefing.ts` -> briefing generator |
-| `GET /api/daemon/health` | Next.js API | `web/app/api/daemon/health/route.ts` -> daemon proxy |
-| `GET /api/events` | Next.js API | `web/app/api/events/route.ts` -> SSE proxy |
-| `GET /api/workers` | Next.js API | `web/app/api/workers/route.ts` -> daemon proxy |
-| `GET /api/briefing/[projectName]` | Next.js API | `web/app/api/briefing/[projectName]/route.ts` -> daemon proxy |
+| `GET /health` | Daemon | `apps/daemon/routes/health.ts` -> active meetings, commissions, uptime |
+| `GET /events` | Daemon | `apps/daemon/routes/events.ts` -> SSE EventBus subscription |
+| `GET /workers` | Daemon | `apps/daemon/routes/workers.ts` -> discovered worker packages with portrait URLs |
+| `GET /briefing/:projectName` | Daemon | `apps/daemon/routes/briefing.ts` -> briefing generator |
+| `GET /api/daemon/health` | Next.js API | `apps/web/app/api/daemon/health/route.ts` -> daemon proxy |
+| `GET /api/events` | Next.js API | `apps/web/app/api/events/route.ts` -> SSE proxy |
+| `GET /api/workers` | Next.js API | `apps/web/app/api/workers/route.ts` -> daemon proxy |
+| `GET /api/briefing/[projectName]` | Next.js API | `apps/web/app/api/briefing/[projectName]/route.ts` -> daemon proxy |
 
 The remaining 14 Next.js API routes proxy meeting and commission operations (documented in their respective feature specs).
 
@@ -51,24 +51,24 @@ The remaining 14 Next.js API routes proxy meeting and commission operations (doc
 
 | File | Role |
 |------|------|
-| `daemon/index.ts` | Process entry point: parses `--packages-dir`, cleans stale socket, creates production app (with fallback), starts `Bun.serve({ unix, idleTimeout: 0 })`, writes PID file, registers SIGINT/SIGTERM shutdown handlers. |
-| `daemon/app.ts` | `createApp(deps)`: DI factory composing Hono route groups. `createProductionApp()`: async wiring of config, packages, sessions, EventBus, briefing generator with worktree verification, smart sync, and crash recovery. Default export: minimal health-only app for fallback. `AppDeps` interface defines the dependency shape. |
-| `daemon/lib/socket.ts` | Socket and PID file management: `getSocketPath()`, `cleanStaleSocket()` (PID liveness check, stale cleanup, running-daemon guard), `writePidFile()`, `removePidFile()`, `removeSocketFile()`. Uses synchronous `fs` for startup-path operations. |
+| `apps/daemon/index.ts` | Process entry point: parses `--packages-dir`, cleans stale socket, creates production app (with fallback), starts `Bun.serve({ unix, idleTimeout: 0 })`, writes PID file, registers SIGINT/SIGTERM shutdown handlers. |
+| `apps/daemon/app.ts` | `createApp(deps)`: DI factory composing Hono route groups. `createProductionApp()`: async wiring of config, packages, sessions, EventBus, briefing generator with worktree verification, smart sync, and crash recovery. Default export: minimal health-only app for fallback. `AppDeps` interface defines the dependency shape. |
+| `apps/daemon/lib/socket.ts` | Socket and PID file management: `getSocketPath()`, `cleanStaleSocket()` (PID liveness check, stale cleanup, running-daemon guard), `writePidFile()`, `removePidFile()`, `removeSocketFile()`. Uses synchronous `fs` for startup-path operations. |
 
 #### EventBus and Event Types
 
 | File | Role |
 |------|------|
-| `daemon/services/event-bus.ts` | `createEventBus()`: Set-based pub/sub. `SystemEvent` discriminated union (10 types). `noopEventBus` for testing/toolbox contexts. Logs subscriber count on add/remove and event type on emit. |
-| `daemon/types.ts` | `GuildHallEvent` discriminated union (6 types: session, text_delta, tool_use, tool_result, turn_end, error). Branded ID types (`MeetingId`, `SdkSessionId`, `CommissionId`) with factory functions. `MeetingStatus`, `CommissionStatus`, `ToolResult` types. |
+| `apps/daemon/services/event-bus.ts` | `createEventBus()`: Set-based pub/sub. `SystemEvent` discriminated union (10 types). `noopEventBus` for testing/toolbox contexts. Logs subscriber count on add/remove and event type on emit. |
+| `apps/daemon/types.ts` | `GuildHallEvent` discriminated union (6 types: session, text_delta, tool_use, tool_result, turn_end, error). Branded ID types (`MeetingId`, `SdkSessionId`, `CommissionId`) with factory functions. `MeetingStatus`, `CommissionStatus`, `ToolResult` types. |
 
 #### Event Translation and SDK Execution
 
 | File | Role |
 |------|------|
-| `daemon/services/event-translator.ts` | Pure function `translateSdkMessage()`: converts SDK messages to `GuildHallEvent[]`. Handles system (init only), stream_event (text_delta, tool_use from content_block_start/delta), user (tool_result extraction), result (turn_end, errors). Ignores assistant text blocks to avoid double-data. Unknown SDK types produce empty arrays. |
-| `daemon/services/query-runner.ts` | `runQueryAndTranslate()`: creates SDK generator, iterates via `iterateAndTranslate()`, detects session expiry, returns `QueryRunOutcome`. `iterateAndTranslate()`: accumulates text parts and tool uses from events, appends assistant turn to transcript (error-swallowing). `truncateTranscript()`: preserves turn boundaries when truncating for session renewal. `isSessionExpiryError()`: heuristic detection of expired sessions. |
-| `daemon/lib/sdk-text.ts` | `collectSdkText()`: iterates SDK generator for single-turn, no-streaming invocations (notes generator, briefing generator). Extracts text from assistant message content blocks. |
+| `apps/daemon/services/event-translator.ts` | Pure function `translateSdkMessage()`: converts SDK messages to `GuildHallEvent[]`. Handles system (init only), stream_event (text_delta, tool_use from content_block_start/delta), user (tool_result extraction), result (turn_end, errors). Ignores assistant text blocks to avoid double-data. Unknown SDK types produce empty arrays. |
+| `apps/daemon/services/query-runner.ts` | `runQueryAndTranslate()`: creates SDK generator, iterates via `iterateAndTranslate()`, detects session expiry, returns `QueryRunOutcome`. `iterateAndTranslate()`: accumulates text parts and tool uses from events, appends assistant turn to transcript (error-swallowing). `truncateTranscript()`: preserves turn boundaries when truncating for session renewal. `isSessionExpiryError()`: heuristic detection of expired sessions. |
+| `apps/daemon/lib/sdk-text.ts` | `collectSdkText()`: iterates SDK generator for single-turn, no-streaming invocations (notes generator, briefing generator). Extracts text from assistant message content blocks. |
 
 #### Daemon Client and Proxy Layer
 
@@ -76,26 +76,26 @@ The remaining 14 Next.js API routes proxy meeting and commission operations (doc
 |------|------|
 | `lib/daemon-client.ts` | Next.js proxy to daemon Unix socket via `node:http`. `daemonFetch()` (request/response with error classification), `daemonHealth()` (convenience wrapper), `daemonStream()` (sync ReadableStream, emits SSE error event on connection failure), `daemonStreamAsync()` (waits for HTTP connection, resolves to stream or error). `DaemonError` type with 3 variants. Stream cancel aborts the HTTP request. |
 | `lib/sse-helpers.ts` | Shared SSE parsing: `parseSSEBuffer()` (line-based `data:` extraction), `consumeFirstTurnSSE()` (reads stream, accumulates text deltas, captures meeting ID, builds `ChatMessage[]`), `storeFirstTurnMessages()` (sessionStorage persistence for meeting navigation). Used by WorkerPicker and MeetingRequestCard. |
-| `web/app/api/daemon/health/route.ts` | Health proxy: calls `daemonHealth()`, returns `{status: "offline"}` when unreachable. |
-| `web/app/api/events/route.ts` | SSE proxy: `daemonStreamAsync()` with `method: "GET"`, returns streaming response with `text/event-stream` content type. |
-| `web/app/api/workers/route.ts` | Worker list proxy: `daemonFetch("/workers")`, forwards JSON response. |
-| `web/app/api/meetings/route.ts` | Meeting creation proxy: validates JSON body (projectName, workerName, prompt), `daemonStreamAsync("/meetings")`, returns SSE stream. |
+| `apps/web/app/api/daemon/health/route.ts` | Health proxy: calls `daemonHealth()`, returns `{status: "offline"}` when unreachable. |
+| `apps/web/app/api/events/route.ts` | SSE proxy: `daemonStreamAsync()` with `method: "GET"`, returns streaming response with `text/event-stream` content type. |
+| `apps/web/app/api/workers/route.ts` | Worker list proxy: `daemonFetch("/workers")`, forwards JSON response. |
+| `apps/web/app/api/meetings/route.ts` | Meeting creation proxy: validates JSON body (projectName, workerName, prompt), `daemonStreamAsync("/meetings")`, returns SSE stream. |
 
 #### Daemon Health UI
 
 | File | Role |
 |------|------|
-| `web/components/ui/DaemonStatus.tsx` | Client component: polls `/api/daemon/health` every 5 seconds, provides `isOnline` via DaemonContext, renders fixed-position offline indicator. Wraps entire app in `layout.tsx`. |
-| `web/components/ui/DaemonContext.tsx` | React context: `DaemonContext` with `{ isOnline }`, `useDaemonStatus()` hook. Consumed by action buttons to disable when daemon is unreachable. |
-| `web/app/layout.tsx` | Root layout: wraps `{children}` in `DaemonStatus` provider. |
+| `apps/web/components/ui/DaemonStatus.tsx` | Client component: polls `/api/daemon/health` every 5 seconds, provides `isOnline` via DaemonContext, renders fixed-position offline indicator. Wraps entire app in `layout.tsx`. |
+| `apps/web/components/ui/DaemonContext.tsx` | React context: `DaemonContext` with `{ isOnline }`, `useDaemonStatus()` hook. Consumed by action buttons to disable when daemon is unreachable. |
+| `apps/web/app/layout.tsx` | Root layout: wraps `{children}` in `DaemonStatus` provider. |
 
 #### Briefing Generator
 
 | File | Role |
 |------|------|
-| `daemon/routes/briefing.ts` | Thin route: `GET /briefing/:projectName`, delegates to briefing generator, returns JSON result. |
-| `daemon/services/briefing-generator.ts` | `createBriefingGenerator(deps)`: file-cached (HEAD commit + 1h TTL, both must be stale to regenerate), builds context via `buildManagerContext()`, generates via multi-turn SDK (Guild Master, read-only tools), single-turn SDK, or template fallback. `generateTemplateBriefing()` parses context markdown for commission/meeting counts. `invalidateCache()` for forced regeneration. |
-| `daemon/services/manager-context.ts` | `buildManagerContext()`: assembles markdown summary of workers, commissions (grouped by active/pending/completed/failed), active meetings, pending requests. Priority-ordered truncation at 8000 chars. Shared with Guild Master worker's system prompt. |
+| `apps/daemon/routes/briefing.ts` | Thin route: `GET /briefing/:projectName`, delegates to briefing generator, returns JSON result. |
+| `apps/daemon/services/briefing-generator.ts` | `createBriefingGenerator(deps)`: file-cached (HEAD commit + 1h TTL, both must be stale to regenerate), builds context via `buildManagerContext()`, generates via multi-turn SDK (Guild Master, read-only tools), single-turn SDK, or template fallback. `generateTemplateBriefing()` parses context markdown for commission/meeting counts. `invalidateCache()` for forced regeneration. |
+| `apps/daemon/services/manager-context.ts` | `buildManagerContext()`: assembles markdown summary of workers, commissions (grouped by active/pending/completed/failed), active meetings, pending requests. Priority-ordered truncation at 8000 chars. Shared with Guild Master worker's system prompt. |
 
 ### Data
 

@@ -1,0 +1,80 @@
+/* ============================================================
+   CommissionFilterPanel — shared filter for commission lists
+   Styled as a quiet status-filter card at the top of the list.
+   ============================================================ */
+
+.filterPanel {
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  background: var(--bg-raised);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 4px 0;
+}
+
+.filterGroupLabel {
+  min-width: 5rem;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.filterCheckboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.filterCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg-2);
+  accent-color: var(--ember-500);
+}
+
+.filterCount {
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.filterReset {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-1);
+}
+
+.resetButton {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: color var(--dur) var(--ease-out), background var(--dur) var(--ease-out);
+}
+
+:global([data-theme="dark"]) .resetButton {
+  color: var(--ember-300);
+}
+
+.resetButton:hover {
+  background: var(--brand-soft);
+}

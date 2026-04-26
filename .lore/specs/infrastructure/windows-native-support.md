@@ -22,7 +22,7 @@ This spec defines what it takes to run Guild Hall natively on Windows (not under
 ## Entry Points
 
 - A developer on Windows wants to run Guild Hall without WSL (from user request)
-- The daemon fails to start on Windows because `Bun.serve({ unix })` is unavailable (from `daemon/index.ts:57-63`)
+- The daemon fails to start on Windows because `Bun.serve({ unix })` is unavailable (from `apps/daemon/index.ts:57-63`)
 - REQ-DAB-2 already contemplates alternative transports: "Other transports may proxy to this API" (from daemon-application-boundary spec)
 
 ## Requirements
@@ -47,7 +47,7 @@ This spec defines what it takes to run Guild Hall natively on Windows (not under
 
 ### Daemon lifecycle on Windows
 
-- REQ-WIN-8: The daemon lifecycle module (`daemon/lib/socket.ts`) must manage the port discovery file on Windows in addition to the socket file on POSIX. PID file logic (write on start, remove on shutdown, stale-PID detection on next start) must work on both platforms.
+- REQ-WIN-8: The daemon lifecycle module (`apps/daemon/lib/socket.ts`) must manage the port discovery file on Windows in addition to the socket file on POSIX. PID file logic (write on start, remove on shutdown, stale-PID detection on next start) must work on both platforms.
 
 - REQ-WIN-9: On Windows, if the daemon is killed without a clean shutdown (Task Manager, `taskkill`), the `SIGTERM` handler will not fire. The next daemon start must detect and recover from stale PID and port files, the same way it currently recovers from stale socket files on POSIX.
 
@@ -57,7 +57,7 @@ This spec defines what it takes to run Guild Hall natively on Windows (not under
 
 - REQ-WIN-11: `getGuildHallHome()` in `lib/paths.ts` must resolve the home directory on Windows. The `HOME` environment variable is not set on stock Windows. The preferred fix is `os.homedir()` from `node:os`, which handles platform differences internally (including `USERPROFILE`, `HOMEDRIVE`/`HOMEPATH`, and edge cases like network home directories). The existing `GUILD_HALL_HOME` env var override continues to work as an escape valve and takes precedence over `os.homedir()`.
 
-- REQ-WIN-12: Shell command dispatch in `daemon/services/notification-service.ts` must use a platform-appropriate shell on Windows. The current `sh -c` invocation does not exist on stock Windows. On Windows, use `cmd.exe /c` (simpler, fewer encoding concerns than PowerShell).
+- REQ-WIN-12: Shell command dispatch in `apps/daemon/services/notification-service.ts` must use a platform-appropriate shell on Windows. The current `sh -c` invocation does not exist on stock Windows. On Windows, use `cmd.exe /c` (simpler, fewer encoding concerns than PowerShell).
 
 - REQ-WIN-13: Git worktree creation must enable long-path support (`core.longpaths`) on Windows. Guild Hall worktree paths under `~/.guild-hall/worktrees/<project>/<activityId>/` can approach or exceed Windows' 260-character MAX_PATH limit when combined with deep file hierarchies inside the worktree. Note: `core.longpaths true` is inert on Linux and macOS (the setting only affects Windows MAX_PATH handling), so this can be set unconditionally.
 
@@ -65,7 +65,7 @@ This spec defines what it takes to run Guild Hall natively on Windows (not under
 
 ### Scope boundaries
 
-- REQ-WIN-15: The bubblewrap sandbox check (`daemon/app.ts`, gated by `process.platform === "linux"`) requires no changes. Guild Hall delegates SDK sandboxing to the Claude Agent SDK. If the SDK's Windows sandbox has issues, that is an external dependency, not a Guild Hall concern.
+- REQ-WIN-15: The bubblewrap sandbox check (`apps/daemon/app.ts`, gated by `process.platform === "linux"`) requires no changes. Guild Hall delegates SDK sandboxing to the Claude Agent SDK. If the SDK's Windows sandbox has issues, that is an external dependency, not a Guild Hall concern.
 
 - REQ-WIN-16: The pre-commit hook (`.git-hooks/pre-commit.sh`) is a bash script. Git for Windows ships `sh.exe` and invokes hooks through it, so the hook runs when triggered by git. No PowerShell equivalent is required. Document that the hook depends on Git for Windows.
 

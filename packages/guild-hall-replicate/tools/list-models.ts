@@ -5,7 +5,7 @@
  */
 
 import { getModels } from "../model-registry";
-import type { ToolResult } from "@/daemon/types";
+import type { ToolResult } from "@/apps/daemon/types";
 
 export interface ListModelsArgs {
   capability?: string;

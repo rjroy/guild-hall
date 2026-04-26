@@ -17,14 +17,14 @@ Add a "Copy Path" button to the artifact view header that copies the artifact's 
 ## Codebase Context
 
 **Path computation:**
-The artifact page at `web/app/projects/[name]/artifacts/[...path]/page.tsx:17-19` already computes `relativePath = pathSegments.map(decodeURIComponent).join("/")`. This gives the `.lore/`-relative path (e.g., `specs/guild-hall-system.md`). The full path to copy is `.lore/${relativePath}`.
+The artifact page at `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx:17-19` already computes `relativePath = pathSegments.map(decodeURIComponent).join("/")`. This gives the `.lore/`-relative path (e.g., `specs/guild-hall-system.md`). The full path to copy is `.lore/${relativePath}`.
 
 **Component structure:**
-- `ArtifactProvenance` (`web/components/artifact/ArtifactProvenance.tsx`) is a server component that renders `ArtifactBreadcrumb` above a source row. The breadcrumb is where REQ-VIEW-36 says the path is shown — the copy button belongs here.
-- `ArtifactBreadcrumb` (`web/components/artifact/ArtifactBreadcrumb.tsx`) is a pure server component. It stays unchanged.
-- `ArtifactContent` (`web/components/artifact/ArtifactContent.tsx`) is a client component with an Edit button, but its toolbar is scoped to content editing actions. Don't mix clipboard into content editing.
+- `ArtifactProvenance` (`apps/web/components/artifact/ArtifactProvenance.tsx`) is a server component that renders `ArtifactBreadcrumb` above a source row. The breadcrumb is where REQ-VIEW-36 says the path is shown — the copy button belongs here.
+- `ArtifactBreadcrumb` (`apps/web/components/artifact/ArtifactBreadcrumb.tsx`) is a pure server component. It stays unchanged.
+- `ArtifactContent` (`apps/web/components/artifact/ArtifactContent.tsx`) is a client component with an Edit button, but its toolbar is scoped to content editing actions. Don't mix clipboard into content editing.
 
-**Existing button styling (`web/components/artifact/ArtifactContent.module.css:38-47`):**
+**Existing button styling (`apps/web/components/artifact/ArtifactContent.module.css:38-47`):**
 Brass-toned buttons: `background-color: rgba(184, 134, 11, 0.15)`, `border: 1px solid var(--color-brass)`, `color: var(--color-brass)`, `font-size: 0.8rem`, `font-weight: 600`, `padding: var(--space-xs) var(--space-md)`, `border-radius: 3px`. Hover to `rgba(184, 134, 11, 0.3)` and `var(--color-amber)`. Copy Path should use the same treatment.
 
 **No existing clipboard patterns** in the codebase. This is the first `navigator.clipboard` usage.
@@ -33,8 +33,8 @@ Brass-toned buttons: `background-color: rgba(184, 134, 11, 0.15)`, `border: 1px 
 
 ### Step 1: Create `CopyPathButton`
 
-**New file:** `web/components/artifact/CopyPathButton.tsx`
-**New file:** `web/components/artifact/CopyPathButton.module.css`
+**New file:** `apps/web/components/artifact/CopyPathButton.tsx`
+**New file:** `apps/web/components/artifact/CopyPathButton.module.css`
 
 `CopyPathButton` is a `"use client"` component. It receives one prop: `path: string` — the full path string to write to the clipboard (e.g., `.lore/specs/infrastructure/guild-hall-system.md`).
 
@@ -102,8 +102,8 @@ The "Copied!" state is communicated by swapping the button label (visual feedbac
 
 ### Step 2: Update `ArtifactProvenance`
 
-**Modified file:** `web/components/artifact/ArtifactProvenance.tsx`
-**Modified file:** `web/components/artifact/ArtifactProvenance.module.css`
+**Modified file:** `apps/web/components/artifact/ArtifactProvenance.tsx`
+**Modified file:** `apps/web/components/artifact/ArtifactProvenance.module.css`
 
 Add `artifactPath: string` to `ArtifactProvenanceProps`. Wrap `ArtifactBreadcrumb` and `CopyPathButton` in a `.breadcrumbRow` div so they sit on the same line with the button right-aligned.
 
@@ -138,7 +138,7 @@ The `ArtifactBreadcrumb` nav element naturally grows to fill the left side; the 
 
 ### Step 3: Thread `artifactPath` from the page
 
-**Modified file:** `web/app/projects/[name]/artifacts/[...path]/page.tsx`
+**Modified file:** `apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`
 
 Pass `relativePath` to `ArtifactProvenance`:
 
@@ -154,9 +154,9 @@ Pass `relativePath` to `ArtifactProvenance`:
 
 ### Step 4: Tests
 
-**New file:** `tests/components/artifact-provenance.test.ts`
+**New file:** `apps/web/tests/components/artifact-provenance.test.ts`
 
-Call `ArtifactProvenance` as a function (same pattern as `tests/components/metadata-sidebar.test.ts`) and inspect the JSX tree:
+Call `ArtifactProvenance` as a function (same pattern as `apps/web/tests/components/metadata-sidebar.test.ts`) and inspect the JSX tree:
 
 1. `CopyPathButton` is rendered as a child of the breadcrumb row.
 2. The `path` prop on `CopyPathButton` is `.lore/${artifactPath}` — verify the prefix is prepended correctly.

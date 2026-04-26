@@ -28,7 +28,7 @@ Requirements addressed:
 - REQ-SYS-MODEL-7: Briefing generator reads from `config.systemModels?.briefing` → Step 4
 - REQ-SYS-MODEL-8: Guild Master reads from `config.systemModels?.guildMaster` → Step 5
 - REQ-SYS-MODEL-9: Services without config in deps gain optional `config?: AppConfig` → Steps 2, 3
-- REQ-SYS-MODEL-10: Guild Master factory receives config at call site in `daemon/app.ts` → Step 5
+- REQ-SYS-MODEL-10: Guild Master factory receives config at call site in `apps/daemon/app.ts` → Step 5
 
 ## Codebase Context
 
@@ -38,17 +38,17 @@ This plan builds on two already-implemented foundations: the model-selection pla
 
 **The four hardcoded model strings.** Each is a small, isolated change:
 
-1. **Memory compaction** (`daemon/services/memory-compaction.ts:291`): `model: "sonnet"` inside the options object passed to `deps.compactFn()`. `CompactionDeps` has only `guildHallHome` and `compactFn` — no config.
+1. **Memory compaction** (`apps/daemon/services/memory-compaction.ts:291`): `model: "sonnet"` inside the options object passed to `deps.compactFn()`. `CompactionDeps` has only `guildHallHome` and `compactFn` — no config.
 
-2. **Meeting notes** (`daemon/services/meeting/notes-generator.ts:163`): `model: "sonnet"` inside the options object passed to `deps.queryFn()`. `NotesGeneratorDeps` has only `guildHallHome?` and `queryFn?` — no config.
+2. **Meeting notes** (`apps/daemon/services/meeting/notes-generator.ts:163`): `model: "sonnet"` inside the options object passed to `deps.queryFn()`. `NotesGeneratorDeps` has only `guildHallHome?` and `queryFn?` — no config.
 
-3. **Briefing generator** (`daemon/services/briefing-generator.ts:385`): `model: "sonnet"` inside `resourceOverrides` on the `SessionPrepSpec`. `BriefingGeneratorDeps` already carries `config: AppConfig` — no DI change needed.
+3. **Briefing generator** (`apps/daemon/services/briefing-generator.ts:385`): `model: "sonnet"` inside `resourceOverrides` on the `SessionPrepSpec`. `BriefingGeneratorDeps` already carries `config: AppConfig` — no DI change needed.
 
-4. **Guild Master** (`daemon/services/manager/worker.ts:116`): `model: "opus" as ModelName` hard-set in `WorkerMetadata` inside `createManagerPackage()`. The function takes no parameters; it's called at `daemon/app.ts:167` with no arguments.
+4. **Guild Master** (`apps/daemon/services/manager/worker.ts:116`): `model: "opus" as ModelName` hard-set in `WorkerMetadata` inside `createManagerPackage()`. The function takes no parameters; it's called at `apps/daemon/app.ts:167` with no arguments.
 
 **Production call sites for compaction.** `triggerCompaction` is called in two places with `CompactionDeps`:
-- `daemon/app.ts:231-243`: inline closure that builds `{ guildHallHome, compactFn: queryFn! }` — `config` is in scope here.
-- `daemon/services/meeting/orchestrator.ts:414-421`: same pattern inside `createMeetingSession` — `deps.config` is in scope here.
+- `apps/daemon/app.ts:231-243`: inline closure that builds `{ guildHallHome, compactFn: queryFn! }` — `config` is in scope here.
+- `apps/daemon/services/meeting/orchestrator.ts:414-421`: same pattern inside `createMeetingSession` — `deps.config` is in scope here.
 
 **Notes generation call site.** `generateMeetingNotes` is called at `meeting/orchestrator.ts:1126-1131` with `{ guildHallHome: ghHome, queryFn: deps.notesQueryFn }` — `deps.config` is in scope here.
 
@@ -97,7 +97,7 @@ systemModels: systemModelsSchema,
 
 No cross-field validation needed here. REQ-SYS-MODEL-4 specifies lazy resolution — errors surface when the service is invoked, not at config parse time.
 
-**Tests** (add to `tests/lib/config.test.ts`):
+**Tests** (add to `lib/tests/config.test.ts`):
 - Config with `systemModels` section parses without error; all four fields are present
 - All four `systemModels` fields are independently optional — configs with one, two, or three fields parse correctly
 - An empty string for any field is rejected at parse time with a validation error
@@ -108,11 +108,11 @@ No cross-field validation needed here. REQ-SYS-MODEL-4 specifies lazy resolution
 
 ### Step 2: Memory compaction model
 
-**Files**: `daemon/services/memory-compaction.ts`, `daemon/app.ts`, `daemon/services/meeting/orchestrator.ts`
+**Files**: `apps/daemon/services/memory-compaction.ts`, `apps/daemon/app.ts`, `apps/daemon/services/meeting/orchestrator.ts`
 **Addresses**: REQ-SYS-MODEL-5, REQ-SYS-MODEL-9 (compaction half)
 **Depends on**: Step 1
 
-**daemon/services/memory-compaction.ts**: Add `config?: AppConfig` to `CompactionDeps` (import `AppConfig` from `@/lib/types`). In `compactMemories` (the function that builds the SDK options at line 291), resolve the configured model before constructing the options object:
+**apps/daemon/services/memory-compaction.ts**: Add `config?: AppConfig` to `CompactionDeps` (import `AppConfig` from `@/lib/types`). In `compactMemories` (the function that builds the SDK options at line 291), resolve the configured model before constructing the options object:
 
 ```typescript
 import { resolveModel } from "@/lib/types";
@@ -149,7 +149,7 @@ options: {
 
 If `resolveModel` throws (unrecognized name), the error propagates into the existing `try/catch` that already handles SDK failures as non-fatal. The compaction is skipped and retried on next activation — consistent with the existing failure behavior.
 
-**daemon/app.ts**: At the `triggerCompaction` closure (line 231-243), add `config` to the `CompactionDeps` object:
+**apps/daemon/app.ts**: At the `triggerCompaction` closure (line 231-243), add `config` to the `CompactionDeps` object:
 
 ```typescript
 void triggerCompaction(workerName, projectName, {
@@ -159,7 +159,7 @@ void triggerCompaction(workerName, projectName, {
 });
 ```
 
-**daemon/services/meeting/orchestrator.ts**: At the `triggerCompaction` call (line 416), add `config: deps.config` to the deps object. `deps.config` is already in scope in `createMeetingSession`:
+**apps/daemon/services/meeting/orchestrator.ts**: At the `triggerCompaction` call (line 416), add `config: deps.config` to the deps object. `deps.config` is already in scope in `createMeetingSession`:
 
 ```typescript
 void triggerCompaction(workerName, projectName, {
@@ -169,7 +169,7 @@ void triggerCompaction(workerName, projectName, {
 });
 ```
 
-**Tests** (new or extended in `tests/daemon/services/memory-compaction.test.ts`):
+**Tests** (new or extended in `apps/daemon/tests/services/memory-compaction.test.ts`):
 - When `config.systemModels.memoryCompaction` is set to `"haiku"`, the `compactFn` is called with `options.model === "haiku"`
 - When `config.systemModels.memoryCompaction` is absent, the `compactFn` is called with `options.model === "sonnet"` (fallback)
 - When `config` is absent from deps entirely, behavior is unchanged (`model: "sonnet"`)
@@ -180,11 +180,11 @@ void triggerCompaction(workerName, projectName, {
 
 ### Step 3: Meeting notes model
 
-**Files**: `daemon/services/meeting/notes-generator.ts`, `daemon/services/meeting/orchestrator.ts`
+**Files**: `apps/daemon/services/meeting/notes-generator.ts`, `apps/daemon/services/meeting/orchestrator.ts`
 **Addresses**: REQ-SYS-MODEL-6, REQ-SYS-MODEL-9 (notes half)
 **Depends on**: Step 1
 
-**daemon/services/meeting/notes-generator.ts**: Add `config?: AppConfig` to `NotesGeneratorDeps` (import `AppConfig` and `resolveModel` from `@/lib/types`). In `generateMeetingNotes`, resolve the configured model before constructing the options object (replacing the hardcoded `"sonnet"` at line 163):
+**apps/daemon/services/meeting/notes-generator.ts**: Add `config?: AppConfig` to `NotesGeneratorDeps` (import `AppConfig` and `resolveModel` from `@/lib/types`). In `generateMeetingNotes`, resolve the configured model before constructing the options object (replacing the hardcoded `"sonnet"` at line 163):
 
 ```typescript
 import { resolveModel } from "@/lib/types";
@@ -223,7 +223,7 @@ options: {
 
 Unlike compaction (which is fire-and-forget and silently skips on failure), notes generation returns a `NotesResult` discriminated union. An unrecognized model name should return `{ success: false, reason: ... }` rather than throwing.
 
-**daemon/services/meeting/orchestrator.ts**: At the `generateMeetingNotes` call (line 1126-1131), pass `deps.config` in the deps object:
+**apps/daemon/services/meeting/orchestrator.ts**: At the `generateMeetingNotes` call (line 1126-1131), pass `deps.config` in the deps object:
 
 ```typescript
 notesResult = await generateMeetingNotes(
@@ -236,7 +236,7 @@ notesResult = await generateMeetingNotes(
 
 `deps.config` is already in scope in `createMeetingSession`.
 
-**Tests** (new or extended in `tests/daemon/services/meeting/notes-generator.test.ts`):
+**Tests** (new or extended in `apps/daemon/tests/services/meeting/notes-generator.test.ts`):
 - When `config.systemModels.meetingNotes` is set to `"haiku"`, the `queryFn` is called with `options.model === "haiku"`
 - When `config.systemModels.meetingNotes` is absent, the `queryFn` is called with `options.model === "sonnet"` (fallback)
 - When `config` is absent from deps entirely, behavior is unchanged (`model: "sonnet"`)
@@ -247,7 +247,7 @@ notesResult = await generateMeetingNotes(
 
 ### Step 4: Briefing generator model
 
-**Files**: `daemon/services/briefing-generator.ts`
+**Files**: `apps/daemon/services/briefing-generator.ts`
 **Addresses**: REQ-SYS-MODEL-7
 **Depends on**: Step 1
 
@@ -264,7 +264,7 @@ resourceOverrides: {
 
 The value (which could be a built-in name or a local model name) flows into `prepareSdkSession` as `spec.resourceOverrides.model`, where `resolveModel()` already handles the resolution through the local-model-support implementation. No inline resolution needed here.
 
-**Tests** (add to `tests/daemon/services/briefing-generator.test.ts` or equivalent):
+**Tests** (add to `apps/daemon/tests/services/briefing-generator.test.ts` or equivalent):
 - When `config.systemModels.briefing` is set to `"haiku"`, the `SessionPrepSpec` has `resourceOverrides.model === "haiku"`
 - When `config.systemModels.briefing` is absent, `resourceOverrides.model === "sonnet"` (fallback)
 - When `config.systemModels.briefing` is a local model name, the value passes through to `prepareSdkSession` unchanged (resolution is the runner's responsibility)
@@ -273,11 +273,11 @@ The value (which could be a built-in name or a local model name) flows into `pre
 
 ### Step 5: Guild Master model
 
-**Files**: `daemon/services/manager/worker.ts`, `daemon/app.ts`
+**Files**: `apps/daemon/services/manager/worker.ts`, `apps/daemon/app.ts`
 **Addresses**: REQ-SYS-MODEL-8, REQ-SYS-MODEL-10
 **Depends on**: Step 1
 
-**daemon/services/manager/worker.ts**: Update `createManagerPackage()` to accept an optional `config?: AppConfig` parameter (import `AppConfig` from `@/lib/types`):
+**apps/daemon/services/manager/worker.ts**: Update `createManagerPackage()` to accept an optional `config?: AppConfig` parameter (import `AppConfig` from `@/lib/types`):
 
 ```typescript
 export function createManagerPackage(config?: AppConfig): DiscoveredPackage {
@@ -300,7 +300,7 @@ Alternatively, if the `WorkerMetadata.model` type is widened to `string` by a fu
 model: (config?.systemModels?.guildMaster ?? "opus") as ModelName,
 ```
 
-**daemon/app.ts**: Pass `config` when calling `createManagerPackage` (line 167):
+**apps/daemon/app.ts**: Pass `config` when calling `createManagerPackage` (line 167):
 
 ```typescript
 const managerPkg = createManagerPackage(config);
@@ -308,7 +308,7 @@ const managerPkg = createManagerPackage(config);
 
 `config` is already in scope in `createProductionApp`.
 
-**Tests** (add to `tests/daemon/services/manager/worker.test.ts` or similar):
+**Tests** (add to `apps/daemon/tests/services/manager/worker.test.ts` or similar):
 - `createManagerPackage()` called with no argument returns metadata with `model === "opus"` (REQ-SYS-MODEL-10 backwards compat)
 - `createManagerPackage({ projects: [], systemModels: { guildMaster: "sonnet" } })` returns metadata with `model === "sonnet"`
 - `createManagerPackage({ projects: [], systemModels: { guildMaster: "haiku" } })` returns metadata with `model === "haiku"`
@@ -324,11 +324,11 @@ const managerPkg = createManagerPackage(config);
 Launch a sub-agent with no implementation context. It reads:
 - `.lore/specs/infrastructure/system-model-defaults.md`
 - `lib/types.ts`, `lib/config.ts`
-- `daemon/services/memory-compaction.ts`
-- `daemon/services/meeting/notes-generator.ts`
-- `daemon/services/briefing-generator.ts`
-- `daemon/services/manager/worker.ts`
-- `daemon/app.ts`
+- `apps/daemon/services/memory-compaction.ts`
+- `apps/daemon/services/meeting/notes-generator.ts`
+- `apps/daemon/services/briefing-generator.ts`
+- `apps/daemon/services/manager/worker.ts`
+- `apps/daemon/app.ts`
 - Test files for each changed module
 
 The sub-agent checks every REQ-SYS-MODEL requirement for coverage and evaluates the success criteria. Pay particular attention to:

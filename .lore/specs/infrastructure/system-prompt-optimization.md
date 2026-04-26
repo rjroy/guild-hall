@@ -3,7 +3,7 @@ title: System Prompt Optimization
 date: 2026-03-29
 status: implemented
 tags: [system-prompt, memory, activation, performance, prompt-caching, sub-agents]
-modules: [packages/shared/worker-activation, daemon/lib/agent-sdk/sdk-runner, daemon/services/memory-injector, daemon/services/manager/worker, lib/types]
+modules: [packages/shared/worker-activation, apps/daemon/lib/agent-sdk/sdk-runner, apps/daemon/services/memory-injector, apps/daemon/services/manager/worker, lib/types]
 related:
   - .lore/brainstorm/large-system-prompt.md
   - .lore/issues/large-system-prompt.md
@@ -89,7 +89,7 @@ Semantically, memory and task are "what you know" and "what you should do," not 
 
 ### Memory Guidance Placement
 
-- REQ-SPO-9: The memory guidance text (the operational instructions in `MEMORY_GUIDANCE` at `daemon/services/memory-injector.ts:19-43`) stays in the system prompt, not in the first user message. Memory guidance describes how to use tools ("use `edit_memory` with operation upsert"), which is behavioral instruction, not session-specific context. It belongs with posture.
+- REQ-SPO-9: The memory guidance text (the operational instructions in `MEMORY_GUIDANCE` at `apps/daemon/services/memory-injector.ts:19-43`) stays in the system prompt, not in the first user message. Memory guidance describes how to use tools ("use `edit_memory` with operation upsert"), which is behavioral instruction, not session-specific context. It belongs with posture.
 
 - REQ-SPO-10: `MEMORY_GUIDANCE` is injected into the system prompt as a new section under posture, or as a dedicated `# Memory` section after posture and before the memory content was previously placed. The exact heading and position are an implementation choice, but it must appear in the stable system prompt, not in `sessionContext`.
 
@@ -116,7 +116,7 @@ Semantically, memory and task are "what you know" and "what you should do," not 
 
 ### Guild Master Alignment
 
-- REQ-SPO-15: `activateManager()` in `daemon/services/manager/worker.ts` follows the same split. The Guild Master's activation currently duplicates the `buildSystemPrompt` logic inline. After this change, it produces both `systemPrompt` (soul + identity + posture + model guidance) and `sessionContext` (memory + meeting context + commission context + manager context).
+- REQ-SPO-15: `activateManager()` in `apps/daemon/services/manager/worker.ts` follows the same split. The Guild Master's activation currently duplicates the `buildSystemPrompt` logic inline. After this change, it produces both `systemPrompt` (soul + identity + posture + model guidance) and `sessionContext` (memory + meeting context + commission context + manager context).
 
 - REQ-SPO-16: Model guidance (the `buildModelGuidance()` output) stays in the system prompt. It's a stable behavioral reference, not session-specific content.
 

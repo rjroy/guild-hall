@@ -1,0 +1,145 @@
+/* ============================================================
+   MeetingHeader — guild audience banner
+   ============================================================ */
+
+/* Meeting-specific condensed override: keep banner shape */
+.meetingCondensed {
+  border-radius: 0;
+}
+
+/* --- Worker + Agenda row (expanded) --- */
+
+.headerContent {
+  display: flex;
+  gap: var(--space-5);
+  align-items: flex-start;
+}
+
+/* --- Worker + Agenda row (condensed) --- */
+
+.headerContentCondensed {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.workerInfo {
+  flex-shrink: 0;
+}
+
+/* --- Agenda (expanded) --- */
+
+.agendaSection {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* --- Agenda (condensed) --- */
+
+.agendaSectionCondensed {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.agendaContentCondensed {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agendaTitle {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ember-700);
+  margin: 0;
+}
+
+:global([data-theme="dark"]) .agendaTitle {
+  color: var(--ember-300);
+}
+
+.agendaText {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  margin: 0;
+  line-height: var(--leading-snug);
+  white-space: pre-wrap;
+}
+
+.agendaTextCondensed {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  margin: 0;
+  line-height: var(--leading-snug);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agendaTrailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.modelLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+/* --- Phone close button --- */
+
+.headerCloseButton {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wide);
+  line-height: 1;
+  padding: 4px 8px;
+  flex-shrink: 0;
+  transition: background var(--dur) var(--ease-out);
+}
+
+.headerCloseButton:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+.headerCloseButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 600px) {
+  .headerContent {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .headerCloseButton {
+    display: inline-flex;
+  }
+}

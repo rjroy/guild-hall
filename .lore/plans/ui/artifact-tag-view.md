@@ -20,20 +20,20 @@ Add a third artifact browser mode ("Tag View") alongside Smart View and Tree Vie
 
 **Starting point:**
 
-`web/components/project/ArtifactList.tsx` is the client component that owns the artifact browser. It manages a `viewMode` state (`"smart" | "tree"`) at line 187 and renders sub-tabs plus the selected view. `SmartViewFilterBar` and `SmartView` are inner components handling the smart view's filter bar and item list respectively.
+`apps/web/components/project/ArtifactList.tsx` is the client component that owns the artifact browser. It manages a `viewMode` state (`"smart" | "tree"`) at line 187 and renders sub-tabs plus the selected view. `SmartViewFilterBar` and `SmartView` are inner components handling the smart view's filter bar and item list respectively.
 
 `lib/artifact-smart-view.ts` contains pure filter/metadata logic for smart views: `filterSmartView()`, `smartViewCounts()`, `artifactTypeLabel()`, `artifactDomain()`. Tag View follows the same pattern: pure functions in `lib/`, consumed by components in `web/`.
 
-`web/components/project/ArtifactList.module.css` has existing styles for sub-tabs (`.subTabs`, `.subTab`, `.subTabActive`), filter bar (`.filterBar`, `.filterButton`, `.filterButtonActive`, `.filterBadge`), and smart list items (`.smartItem`, `.smartLink`, `.smartItemMain`, `.smartItemMeta`, `.smartTitle`). Tag View reuses the filter bar and smart item styles directly.
+`apps/web/components/project/ArtifactList.module.css` has existing styles for sub-tabs (`.subTabs`, `.subTab`, `.subTabActive`), filter bar (`.filterBar`, `.filterButton`, `.filterButtonActive`, `.filterBadge`), and smart list items (`.smartItem`, `.smartLink`, `.smartItemMain`, `.smartItemMeta`, `.smartTitle`). Tag View reuses the filter bar and smart item styles directly.
 
 `lib/types.ts:60` defines `ArtifactMeta.tags` as `string[]`. `lib/types.ts:368` exports `artifactTypeSegment()`. `lib/types.ts:437` exports `compareArtifactsByStatusAndTitle()`. Both are already used by the smart view module.
 
 **What changes:**
 
 - `lib/artifact-tag-view.ts` (new) - pure tag index computation and filtering functions
-- `tests/lib/artifact-tag-view.test.ts` (new) - unit tests for the tag logic
-- `web/components/project/ArtifactList.tsx` - expand `viewMode` type to include `"tags"`, add Tag View sub-tab and rendering
-- `web/components/project/ArtifactList.module.css` - no new class names needed; Tag View reuses `filterBar`/`filterButton`/`filterButtonActive`/`filterBadge` for the tag bar and `smartItem`/`smartLink`/`smartItemMain`/`smartItemMeta` for the item list
+- `lib/tests/artifact-tag-view.test.ts` (new) - unit tests for the tag logic
+- `apps/web/components/project/ArtifactList.tsx` - expand `viewMode` type to include `"tags"`, add Tag View sub-tab and rendering
+- `apps/web/components/project/ArtifactList.module.css` - no new class names needed; Tag View reuses `filterBar`/`filterButton`/`filterButtonActive`/`filterBadge` for the tag bar and `smartItem`/`smartLink`/`smartItemMain`/`smartItemMeta` for the item list
 
 **What does not change:**
 
@@ -117,7 +117,7 @@ Both functions are stateless transformations of the existing `artifacts` prop. N
 
 ### Step 2: Unit tests for tag logic
 
-**Files:** `tests/lib/artifact-tag-view.test.ts` (new)
+**Files:** `lib/tests/artifact-tag-view.test.ts` (new)
 **REQ IDs:** AI Validation (all custom items)
 **Risk:** None. New test file.
 
@@ -165,13 +165,13 @@ function makeArtifact(
 
 11. **Type check.** Verify that a variable typed `"smart" | "tree" | "tags"` compiles. This is a compile-time check, not a runtime test. The type expansion in Step 3 is the real verification; this test documents the intent.
 
-Run: `bun test tests/lib/artifact-tag-view.test.ts`
+Run: `bun test lib/tests/artifact-tag-view.test.ts`
 
 **Verification:** All tests pass before proceeding to Step 3.
 
 ### Step 3: Tag View UI in ArtifactList
 
-**Files:** `web/components/project/ArtifactList.tsx`, `web/components/project/ArtifactList.module.css`
+**Files:** `apps/web/components/project/ArtifactList.tsx`, `apps/web/components/project/ArtifactList.module.css`
 **REQ IDs:** REQ-TAGVIEW-1, REQ-TAGVIEW-2, REQ-TAGVIEW-6, REQ-TAGVIEW-7, REQ-TAGVIEW-8, REQ-TAGVIEW-9, REQ-TAGVIEW-10, REQ-TAGVIEW-12, REQ-TAGVIEW-13
 **Risk:** Medium. Modifying an existing client component. The sub-tab bar and item rendering are well-established patterns, but the toggle-to-deselect interaction (REQ-TAGVIEW-9) is new.
 
@@ -392,7 +392,7 @@ import { computeTagIndex, filterByTag } from "@/lib/artifact-tag-view";
 **Files:** None (verification)
 **Risk:** None.
 
-1. `bun test tests/lib/artifact-tag-view.test.ts` - new tag logic tests pass
+1. `bun test lib/tests/artifact-tag-view.test.ts` - new tag logic tests pass
 2. `bun test` - full suite, no regressions
 3. `bun run typecheck` - no type errors from the view mode type expansion
 4. `bun run lint` - no lint violations in new or modified files

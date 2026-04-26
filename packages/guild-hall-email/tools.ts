@@ -7,7 +7,7 @@
  */
 
 import type { JmapClient } from "./jmap-client";
-import type { ToolResult } from "@/daemon/types";
+import type { ToolResult } from "@/apps/daemon/types";
 import {
   searchEmails,
   readEmail,

@@ -3,7 +3,7 @@ title: Commission List Filtering by Status
 date: 2026-03-14
 status: executed
 tags: [ux, commissions, filtering, ui, client-component]
-modules: [web/components/commission/CommissionList]
+modules: [apps/web/components/commission/CommissionList]
 related:
   - .lore/specs/ui/commission-list-filtering.md
   - .lore/brainstorm/commission-list-filtering.md
@@ -19,32 +19,32 @@ Add a multi-select status filter to `CommissionList` so users can answer "what n
 
 **Starting point:**
 
-`web/components/commission/CommissionList.tsx` is a server component (no `"use client"` directive). It receives `CommissionMeta[]` as props, already sorted by `sortCommissions()` before being passed from the project page. It renders an empty state if the list is empty, otherwise a `<Panel size="lg">` wrapping a `<ul>` of commission rows.
+`apps/web/components/commission/CommissionList.tsx` is a server component (no `"use client"` directive). It receives `CommissionMeta[]` as props, already sorted by `sortCommissions()` before being passed from the project page. It renders an empty state if the list is empty, otherwise a `<Panel size="lg">` wrapping a `<ul>` of commission rows.
 
 `lib/commissions.ts:248-260`: `STATUS_GROUP` defines the four commission sort groups and the 11 statuses that belong to them. The filter panel groups checkboxes by these same four groups (Idle, Active, Failed, Done). This is the commission-specific map and is distinct from `ARTIFACT_STATUS_GROUP` in `lib/types.ts`.
 
 `statusToGem()` in `lib/types.ts:310-327` derives gem colors from `ARTIFACT_STATUS_GROUP`, not from the commission sort groups. A `blocked` commission gets a red gem (group 2 in artifact sorting) even though it sits in the Idle commission sort group (group 0). Both behaviors are correct and intentional.
 
-`StatusBadge` (`web/components/ui/StatusBadge.tsx`) takes `gem: GemStatus` and `label: string`. It renders `GemIndicator` (the colored dot) alongside `formatStatus(label)` (which title-cases underscored status strings). This is the canonical status renderer; the filter checkboxes use it for visual consistency between the filter and the list.
+`StatusBadge` (`apps/web/components/ui/StatusBadge.tsx`) takes `gem: GemStatus` and `label: string`. It renders `GemIndicator` (the colored dot) alongside `formatStatus(label)` (which title-cases underscored status strings). This is the canonical status renderer; the filter checkboxes use it for visual consistency between the filter and the list.
 
 **What changes:**
 
-- `web/components/commission/CommissionList.tsx` — convert to client component, add filter state and filter panel
-- `web/components/commission/CommissionList.module.css` — add styles for the filter panel
-- `tests/components/commission-list.test.tsx` — new file; unit tests for the filter logic (see Step 4 below)
+- `apps/web/components/commission/CommissionList.tsx` — convert to client component, add filter state and filter panel
+- `apps/web/components/commission/CommissionList.module.css` — add styles for the filter panel
+- `apps/web/tests/components/commission-list.test.tsx` — new file; unit tests for the filter logic (see Step 4 below)
 
 **What does not change:**
 
 - `lib/commissions.ts` — no modifications
 - `lib/types.ts` — no modifications
-- `web/app/projects/[name]/page.tsx` — passes `CommissionMeta[]` unchanged; server boundary is unaffected
+- `apps/web/app/projects/[name]/page.tsx` — passes `CommissionMeta[]` unchanged; server boundary is unaffected
 - All other server components, API routes, and daemon code
 
 ## Implementation Steps
 
 ### Step 1: Extract pure filter logic into testable functions
 
-**Files:** `web/components/commission/CommissionList.tsx` (authored as standalone functions at the top of the file, before the component)
+**Files:** `apps/web/components/commission/CommissionList.tsx` (authored as standalone functions at the top of the file, before the component)
 **REQ IDs:** REQ-CFILTER-2, REQ-CFILTER-3, REQ-CFILTER-4, REQ-CFILTER-8, REQ-CFILTER-10, REQ-CFILTER-13
 **Risk:** Low. Pure functions, no side effects.
 
@@ -79,7 +79,7 @@ Export `DEFAULT_STATUSES`, `FILTER_GROUPS`, `filterCommissions`, `countByStatus`
 
 ### Step 2: Convert component to client, add filter state, render filtered list
 
-**Files:** `web/components/commission/CommissionList.tsx`
+**Files:** `apps/web/components/commission/CommissionList.tsx`
 **REQ IDs:** REQ-CFILTER-1, REQ-CFILTER-2, REQ-CFILTER-10, REQ-CFILTER-11, REQ-CFILTER-12
 **Risk:** Low. The component already receives all data as props. Adding `"use client"` and `useState` does not affect the server boundary or the data flow.
 
@@ -99,7 +99,7 @@ The `truncate`, `formatTimestamp`, and commission row JSX are unchanged.
 
 ### Step 3: Render the filter panel
 
-**Files:** `web/components/commission/CommissionList.tsx`, `web/components/commission/CommissionList.module.css`
+**Files:** `apps/web/components/commission/CommissionList.tsx`, `apps/web/components/commission/CommissionList.module.css`
 **REQ IDs:** REQ-CFILTER-5, REQ-CFILTER-6, REQ-CFILTER-7, REQ-CFILTER-8, REQ-CFILTER-9
 **Risk:** Low. Additive. No existing rendering logic is touched.
 
@@ -170,7 +170,7 @@ Add `.filterPanel`, `.filterRow`, `.filterGroupLabel`, `.filterCheckboxes`, `.fi
 
 ### Step 4: Unit tests
 
-**Files:** `tests/components/commission-list.test.tsx` (new)
+**Files:** `apps/web/tests/components/commission-list.test.tsx` (new)
 **REQ IDs:** AI Validation (custom), REQ-CFILTER-2 through REQ-CFILTER-11
 **Risk:** None. New test file.
 
@@ -230,7 +230,7 @@ function makeCommission(status: string): CommissionMeta {
 **Files:** None (verification)
 **Risk:** None.
 
-Run `bun test tests/components/commission-list.test.tsx` to confirm the new unit tests pass.
+Run `bun test apps/web/tests/components/commission-list.test.tsx` to confirm the new unit tests pass.
 
 Run `bun test` (full suite) to confirm no regressions. The conversion to a client component does not affect server-side rendering or any other component.
 

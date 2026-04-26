@@ -3,7 +3,7 @@ title: "Collapsible metadata sidebar for artifacts and meetings"
 date: 2026-03-31
 status: executed
 tags: [ui, layout, css, sidebar, artifacts, meetings]
-modules: [web/components/artifact/ArtifactDetailLayout, web/components/meeting/MeetingView, web/app/projects]
+modules: [apps/web/components/artifact/ArtifactDetailLayout, apps/web/components/meeting/MeetingView, apps/web/app/projects]
 related:
   - .lore/issues/collapse-metadata-sidebar.md
   - .lore/plans/ui/detail-view-layout-pattern.md
@@ -19,7 +19,7 @@ Make the metadata sidebar collapsible on both the artifact detail view and the m
 
 ### Artifact Sidebar
 
-The artifact detail page (`web/app/projects/[name]/artifacts/[...path]/page.tsx`) delegates layout to `ArtifactDetailLayout` (`web/components/artifact/ArtifactDetailLayout.tsx`). That component receives `main` and `sidebar` as props and renders them using CSS classes from the page's module CSS (`page.module.css`).
+The artifact detail page (`apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`) delegates layout to `ArtifactDetailLayout` (`apps/web/components/artifact/ArtifactDetailLayout.tsx`). That component receives `main` and `sidebar` as props and renders them using CSS classes from the page's module CSS (`page.module.css`).
 
 Key CSS (from `page.module.css`):
 - `.artifactBody`: flex row, `gap: var(--space-lg)`, `flex: 1`, `min-height: 0`
@@ -30,7 +30,7 @@ At `<=768px`, the desktop sidebar hides (`display: none`) and the mobile InlineP
 
 ### Meeting Sidebar
 
-The meeting view (`web/components/meeting/MeetingView.tsx`, client component) renders the sidebar inline. The sidebar contains an `ArtifactsPanel` (with its own expand/collapse toggle for the artifact list) and a "Close Audience" button.
+The meeting view (`apps/web/components/meeting/MeetingView.tsx`, client component) renders the sidebar inline. The sidebar contains an `ArtifactsPanel` (with its own expand/collapse toggle for the artifact list) and a "Close Audience" button.
 
 Key CSS (from `MeetingView.module.css`):
 - `.meetingContent`: flex row, `gap: var(--space-md)`, `flex: 1`, `min-height: 0`
@@ -41,7 +41,7 @@ Same mobile pattern as artifacts.
 
 ### Existing Components
 
-`InlinePanel` (`web/components/ui/InlinePanel.tsx`) is a collapsible panel used for mobile sidebar relocation. It uses `useState` for expand/collapse, a brass handle button with chevron, and `aria-expanded`. Its pattern is relevant but its purpose is different: it wraps sidebar content for mobile stacking, not for desktop collapse/expand.
+`InlinePanel` (`apps/web/components/ui/InlinePanel.tsx`) is a collapsible panel used for mobile sidebar relocation. It uses `useState` for expand/collapse, a brass handle button with chevron, and `aria-expanded`. Its pattern is relevant but its purpose is different: it wraps sidebar content for mobile stacking, not for desktop collapse/expand.
 
 ## Design Decisions
 
@@ -61,7 +61,7 @@ Same mobile pattern as artifacts.
 
 Create a shared component that wraps any sidebar content with collapse/expand behavior.
 
-#### Step 1: Create `web/components/ui/CollapsibleSidebar.tsx`
+#### Step 1: Create `apps/web/components/ui/CollapsibleSidebar.tsx`
 
 ```tsx
 "use client";
@@ -133,7 +133,7 @@ Revised render structure:
 
 Using a CSS custom property `--sidebar-width` lets the CSS reference the width without hardcoding it.
 
-#### Step 2: Create `web/components/ui/CollapsibleSidebar.module.css`
+#### Step 2: Create `apps/web/components/ui/CollapsibleSidebar.module.css`
 
 ```css
 .sidebar {
@@ -209,7 +209,7 @@ At `<=768px`, this component is not rendered (the parent views hide the desktop 
 Currently imports styles from the page module CSS. Change to wrap the sidebar slot in `CollapsibleSidebar`:
 
 ```tsx
-import CollapsibleSidebar from "@/web/components/ui/CollapsibleSidebar";
+import CollapsibleSidebar from "@/apps/web/components/ui/CollapsibleSidebar";
 
 export default function ArtifactDetailLayout({ main, sidebar, panelLabel = "Details" }) {
   return (
@@ -329,7 +329,7 @@ Keep `.mobileSidebar` and its media query unchanged.
 Replace the inline sidebar div with `CollapsibleSidebar`:
 
 ```tsx
-import CollapsibleSidebar from "@/web/components/ui/CollapsibleSidebar";
+import CollapsibleSidebar from "@/apps/web/components/ui/CollapsibleSidebar";
 
 // In the render, replace:
 //   <div className={styles.sidebar}>{sidebarContent}</div>
@@ -374,7 +374,7 @@ Remove the old `.sidebar` block (width, flex-shrink, display, flex-direction, ga
 
 #### Step 1: Unit test for CollapsibleSidebar
 
-**File**: `tests/web/components/ui/CollapsibleSidebar.test.tsx`
+**File**: `apps/web/tests/components/ui/CollapsibleSidebar.test.tsx`
 
 Test cases:
 - Renders children when expanded (default state)
@@ -411,13 +411,13 @@ No automated browser tests exist in this project. Manual verification covers:
 
 | File | Phase | Change |
 |------|-------|--------|
-| `web/components/ui/CollapsibleSidebar.tsx` | 1 | New: shared collapsible sidebar component |
-| `web/components/ui/CollapsibleSidebar.module.css` | 1 | New: sidebar, collapsed, expand tab, collapse button styles |
-| `web/components/artifact/ArtifactDetailLayout.tsx` | 2 | Replace sidebar div with CollapsibleSidebar |
-| `web/app/projects/[name]/artifacts/[...path]/page.module.css` | 2 | Replace `.sidebar` with `.desktopSidebar` (mobile hide only) |
-| `web/components/meeting/MeetingView.tsx` | 2 | Replace sidebar div with CollapsibleSidebar |
-| `web/components/meeting/MeetingView.module.css` | 3 | Replace `.sidebar` with `.desktopSidebar` (mobile hide only) |
-| `tests/web/components/ui/CollapsibleSidebar.test.tsx` | 4 | New: unit tests for the shared component |
+| `apps/web/components/ui/CollapsibleSidebar.tsx` | 1 | New: shared collapsible sidebar component |
+| `apps/web/components/ui/CollapsibleSidebar.module.css` | 1 | New: sidebar, collapsed, expand tab, collapse button styles |
+| `apps/web/components/artifact/ArtifactDetailLayout.tsx` | 2 | Replace sidebar div with CollapsibleSidebar |
+| `apps/web/app/projects/[name]/artifacts/[...path]/page.module.css` | 2 | Replace `.sidebar` with `.desktopSidebar` (mobile hide only) |
+| `apps/web/components/meeting/MeetingView.tsx` | 2 | Replace sidebar div with CollapsibleSidebar |
+| `apps/web/components/meeting/MeetingView.module.css` | 3 | Replace `.sidebar` with `.desktopSidebar` (mobile hide only) |
+| `apps/web/tests/components/ui/CollapsibleSidebar.test.tsx` | 4 | New: unit tests for the shared component |
 
 Five modified files, two new files. Four phases, each independently verifiable.
 

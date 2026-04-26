@@ -20,15 +20,12 @@
   },
   "include": [
     "lib/**/*.ts",
-    "daemon/**/*.ts",
-    "cli/**/*.ts",
-    "tests/**/*.ts",
-    "tests/**/*.tsx",
+    "apps/daemon/**/*.ts",
+    "apps/cli/**/*.ts",
     "packages/**/*.ts",
     "packages/**/*.tsx",
     "scripts/**/*.ts",
-    "types/**/*.d.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "web"]
+  "exclude": ["node_modules"]
 }

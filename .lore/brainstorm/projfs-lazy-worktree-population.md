@@ -147,7 +147,7 @@ Daemon creates git operations from diff
 - Tools that assume a git repo (Claude Code's git integration, any worker that runs `git log` or `git blame`) won't work
 - The daemon must implement its own change detection, which git already does well
 - Three-tier branching (master/claude/activity) depends on real git branches and real worktrees
-- All of Guild Hall's existing git infrastructure (`daemon/lib/git.ts`, `daemon/services/git-admin.ts`) becomes irrelevant for these workspaces
+- All of Guild Hall's existing git infrastructure (`apps/daemon/lib/git.ts`, `apps/daemon/services/git-admin.ts`) becomes irrelevant for these workspaces
 
 ### Assessment
 
@@ -234,7 +234,7 @@ Both are O(all files) when they should be O(in-scope files). The fix doesn't req
 
 This turns init from O(149K) to O(in-scope files). If the whitelist permits 5K source files, init goes from 20 minutes to maybe 2 minutes.
 
-This is a code fix to `p4-adapter/init.ts`, not an architectural change. It should happen regardless of whether ProjFS is pursued.
+This is a code fix to `lib/p4-adapter/init.ts`, not an architectural change. It should happen regardless of whether ProjFS is pursued.
 
 ## Open Questions
 
@@ -254,6 +254,6 @@ This is a code fix to `p4-adapter/init.ts`, not an architectural change. It shou
 
 ## Next Steps
 
-- The `p4-adapter/init.ts` optimization (scoped attrib + scoped git add) should happen first. It's a straightforward code fix that cuts init time regardless of ProjFS.
+- The `lib/p4-adapter/init.ts` optimization (scoped attrib + scoped git add) should happen first. It's a straightforward code fix that cuts init time regardless of ProjFS.
 - If ProjFS is pursued, a proof-of-concept provider that projects a single git tree into a directory would answer questions 1-5 above. The PoC doesn't need daemon integration; it just needs to demonstrate that `git status`, `git diff`, and `git add` work correctly against ProjFS-projected files from a git object store.
 - The `git grep` MCP tool question (6) can be deferred until after the PoC reveals how much hydration actually occurs in practice.

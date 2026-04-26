@@ -3,21 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "bin": {
-    "guild-hall": "./cli/index.ts"
+    "guild-hall": "./apps/cli/index.ts"
   },
   "scripts": {
     "dev": "concurrently --names daemon,next -c blue,green \"bun run dev:daemon\" \"bun run dev:next\"",
-    "dev:daemon": "bun --watch daemon/index.ts -- --packages-dir ./packages",
-    "dev:next": "next dev web --turbopack",
-    "build": "next build web",
+    "dev:daemon": "bun --watch apps/daemon/index.ts -- --packages-dir ./packages",
+    "dev:next": "next dev apps/web --turbopack",
+    "build": "next build apps/web",
     "start": "concurrently --names daemon,next -c blue,green \"bun run start:daemon\" \"bun run start:next\"",
-    "start:daemon": "bun daemon/index.ts",
-    "start:next": "next start web",
+    "start:daemon": "bun apps/daemon/index.ts",
+    "start:next": "next start apps/web",
     "lint": "eslint",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
     "typecheck": "tsc --noEmit",
-    "guild-hall": "bun run cli/index.ts"
+    "guild-hall": "bun run apps/cli/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.112",

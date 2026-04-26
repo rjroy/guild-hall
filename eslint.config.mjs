@@ -25,7 +25,7 @@ const eslintConfig = defineConfig([
       },
     },
     settings: {
-      next: { rootDir: "web" },
+      next: { rootDir: "apps/web" },
     },
   },
   // Test files: suppress false positives from bun's assertion types and
@@ -33,7 +33,16 @@ const eslintConfig = defineConfig([
   // issues in source but only produce noise in tests that call components
   // directly or use expect().rejects.
   {
-    files: ["tests/**/*.ts", "tests/**/*.tsx"],
+    files: [
+      "apps/*/tests/**/*.ts",
+      "apps/*/tests/**/*.tsx",
+      "lib/tests/**/*.ts",
+      "lib/tests/**/*.tsx",
+      "packages/*/tests/**/*.ts",
+      "packages/*/tests/**/*.tsx",
+      "packages/tests/**/*.ts",
+      "packages/tests/**/*.tsx",
+    ],
     rules: {
       "@typescript-eslint/await-thenable": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
@@ -44,10 +53,12 @@ const eslintConfig = defineConfig([
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
-    "web/.next/**",
+    "apps/web/.next/**",
     "out/**",
     "build/**",
-    "web/next-env.d.ts",
+    "apps/web/next-env.d.ts",
+    // Imported design-system handoff bundle — not part of the project source.
+    "tmp/**",
   ]),
 ]);
 

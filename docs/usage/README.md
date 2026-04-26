@@ -35,9 +35,9 @@ If you are new to Guild Hall, start with [`getting-started.md`](./getting-starte
 
 ## Code references
 
-- Dashboard route: [`web/app/page.tsx`](../../web/app/page.tsx)
-- Project route: [`web/app/projects/[name]/page.tsx`](../../web/app/projects/[name]/page.tsx)
-- Artifact route: [`web/app/projects/[name]/artifacts/[...path]/page.tsx`](../../web/app/projects/[name]/artifacts/[...path]/page.tsx)
-- Meeting route: [`web/app/projects/[name]/meetings/[id]/page.tsx`](../../web/app/projects/[name]/meetings/[id]/page.tsx)
-- Commission route: [`web/app/projects/[name]/commissions/[id]/page.tsx`](../../web/app/projects/[name]/commissions/[id]/page.tsx)
-- CLI entrypoint: [`cli/index.ts`](../../cli/index.ts)
+- Dashboard route: [`apps/web/app/page.tsx`](../../apps/web/app/page.tsx)
+- Project route: [`apps/web/app/projects/[name]/page.tsx`](../../apps/web/app/projects/[name]/page.tsx)
+- Artifact route: [`apps/web/app/projects/[name]/artifacts/[...path]/page.tsx`](../../apps/web/app/projects/[name]/artifacts/[...path]/page.tsx)
+- Meeting route: [`apps/web/app/projects/[name]/meetings/[id]/page.tsx`](../../apps/web/app/projects/[name]/meetings/[id]/page.tsx)
+- Commission route: [`apps/web/app/projects/[name]/commissions/[id]/page.tsx`](../../apps/web/app/projects/[name]/commissions/[id]/page.tsx)
+- CLI entrypoint: [`apps/cli/index.ts`](../../apps/cli/index.ts)

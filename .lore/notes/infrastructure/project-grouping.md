@@ -4,7 +4,7 @@ date: 2026-04-02
 status: active
 tags: [implementation, notes]
 source: .lore/plans/infrastructure/project-grouping.md
-modules: [lib/types, lib/config, daemon/routes/admin, web/components/dashboard/WorkspaceSidebar, web/app/page, cli/index]
+modules: [lib/types, lib/config, apps/daemon/routes/admin, apps/web/components/dashboard/WorkspaceSidebar, apps/web/app/page, apps/cli/index]
 ---
 
 # Implementation Notes: Project Grouping

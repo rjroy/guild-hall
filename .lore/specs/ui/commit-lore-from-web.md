@@ -3,7 +3,7 @@ title: "Commit .lore changes from the web UI"
 date: 2026-03-14
 status: implemented
 tags: [ux, artifacts, git, web, daemon]
-modules: ["web/app/projects/[name]/page", web/components/project/CommitLoreButton, daemon/routes/git-lore]
+modules: ["apps/web/app/projects/[name]/page", apps/web/components/project/CommitLoreButton, apps/daemon/routes/git-lore]
 related:
   - .lore/brainstorm/commit-lore-from-web.md
   - .lore/design/daemon-rest-api.md
@@ -24,17 +24,17 @@ The feature touches two surfaces: a new daemon route file for git operations on 
 
 ## Entry Points
 
-One surface: the Artifacts tab on the project page (`/projects/[name]`), rendered by `web/app/projects/[name]/page.tsx:57-59`. The commit button and form appear above `ArtifactList` in a new action bar, matching the pattern established by the commissions and meetings tabs.
+One surface: the Artifacts tab on the project page (`/projects/[name]`), rendered by `apps/web/app/projects/[name]/page.tsx:57-59`. The commit button and form appear above `ArtifactList` in a new action bar, matching the pattern established by the commissions and meetings tabs.
 
 ## Requirements
 
 ### Daemon: route file and deps interface
 
-- REQ-CLORE-1: Add a new route file `daemon/routes/git-lore.ts`. Do not add these routes to `daemon/routes/artifacts.ts`. Artifact routes handle document I/O; git operations on the repo belong in their own file, matching the boundary established by `daemon/routes/admin.ts` for `workspace/git/branch/rebase` and `workspace/git/integration/sync`.
+- REQ-CLORE-1: Add a new route file `apps/daemon/routes/git-lore.ts`. Do not add these routes to `apps/daemon/routes/artifacts.ts`. Artifact routes handle document I/O; git operations on the repo belong in their own file, matching the boundary established by `apps/daemon/routes/admin.ts` for `workspace/git/branch/rebase` and `workspace/git/integration/sync`.
 
   **Rationale:** The Five Concerns table in CLAUDE.md explicitly separates Artifact concern (document I/O) from Activity concern (git isolation). A commit operation is a git action, not a document action. Mixing git operations into `artifacts.ts` blurs the boundary.
 
-- REQ-CLORE-2: Define a `GitLoreDeps` interface in `daemon/routes/git-lore.ts`:
+- REQ-CLORE-2: Define a `GitLoreDeps` interface in `apps/daemon/routes/git-lore.ts`:
 
   ```ts
   export interface GitLoreDeps {
@@ -45,9 +45,9 @@ One surface: the Artifacts tab on the project page (`/projects/[name]`), rendere
   }
   ```
 
-  This is the minimal dep slice needed. It follows the `AdminDeps` pattern in `daemon/routes/admin.ts:17-32`.
+  This is the minimal dep slice needed. It follows the `AdminDeps` pattern in `apps/daemon/routes/admin.ts:17-32`.
 
-- REQ-CLORE-3: Add an optional `gitLore?: GitLoreDeps` field to `AppDeps` in `daemon/app.ts`. Conditionally mount the git-lore routes using the same `if (deps.gitLore)` pattern already used for `admin`, `artifacts`, and `configRoutes` at `daemon/app.ts:118-128`.
+- REQ-CLORE-3: Add an optional `gitLore?: GitLoreDeps` field to `AppDeps` in `apps/daemon/app.ts`. Conditionally mount the git-lore routes using the same `if (deps.gitLore)` pattern already used for `admin`, `artifacts`, and `configRoutes` at `apps/daemon/app.ts:118-128`.
 
 - REQ-CLORE-4: Wire `gitLore` in the production app (`createProductionApp` or equivalent production entry point) with the same `config`, `guildHallHome`, and `gitOps` instances used by `admin` and `artifacts`. No new infrastructure is needed.
 
@@ -61,7 +61,7 @@ One surface: the Artifacts tab on the project page (`/projects/[name]`), rendere
 
   `fileCount` is the count of lines in the `--porcelain` output (each line is one changed file). Returns 404 if `projectName` is not in config.
 
-- REQ-CLORE-6: Register an `OperationDefinition` for the status endpoint with `operationId: "workspace.git.lore.status"`, `idempotent: true`, `sideEffects: ""`, and hierarchy `{ root: "workspace", feature: "git", object: "lore" }`. Follow the `OperationDefinition` shape used throughout `daemon/routes/admin.ts:280-343`.
+- REQ-CLORE-6: Register an `OperationDefinition` for the status endpoint with `operationId: "workspace.git.lore.status"`, `idempotent: true`, `sideEffects: ""`, and hierarchy `{ root: "workspace", feature: "git", object: "lore" }`. Follow the `OperationDefinition` shape used throughout `apps/daemon/routes/admin.ts:280-343`.
 
 ### Daemon: commit endpoint
 
@@ -79,7 +79,7 @@ One surface: the Artifacts tab on the project page (`/projects/[name]`), rendere
 
   **Rationale:** The integration worktree can contain non-`.lore/` files (web assets, source code). Staging everything would let a web UI action commit source code, which violates the DAB principle that application code changes come through the git workflow, not the UI.
 
-- REQ-CLORE-9: The commit uses `--no-verify` to skip project hooks. This is consistent with existing daemon commits (`commitAll` in `daemon/lib/git.ts:251` and merge commits at line 265). Pre-commit hooks on the project are not relevant to lore housekeeping operations performed by the daemon.
+- REQ-CLORE-9: The commit uses `--no-verify` to skip project hooks. This is consistent with existing daemon commits (`commitAll` in `apps/daemon/lib/git.ts:251` and merge commits at line 265). Pre-commit hooks on the project are not relevant to lore housekeeping operations performed by the daemon.
 
 - REQ-CLORE-10: Register an `OperationDefinition` for the commit endpoint with `operationId: "workspace.git.lore.commit"`, `idempotent: false`, `sideEffects: "Stages .lore/ changes and commits to the integration worktree"`, and hierarchy `{ root: "workspace", feature: "git", object: "lore" }`.
 
@@ -87,7 +87,7 @@ One surface: the Artifacts tab on the project page (`/projects/[name]`), rendere
 
 ### Web: page changes
 
-- REQ-CLORE-12: In `web/app/projects/[name]/page.tsx`, add a `GET /workspace/git/lore/status?projectName=X` fetch to the existing `Promise.all` at line 39. The result passes `hasPendingChanges` and `fileCount` as props to a new `CommitLoreButton` component.
+- REQ-CLORE-12: In `apps/web/app/projects/[name]/page.tsx`, add a `GET /workspace/git/lore/status?projectName=X` fetch to the existing `Promise.all` at line 39. The result passes `hasPendingChanges` and `fileCount` as props to a new `CommitLoreButton` component.
 
   ```ts
   const [artifactsResult, meetingsResult, commissionsResult, graphResult, loreStatusResult] =
@@ -127,7 +127,7 @@ One surface: the Artifacts tab on the project page (`/projects/[name]`), rendere
 
 ### Web: CommitLoreButton component
 
-- REQ-CLORE-14: Create `web/components/project/CommitLoreButton.tsx` as a client component (`"use client"`). It accepts props:
+- REQ-CLORE-14: Create `apps/web/components/project/CommitLoreButton.tsx` as a client component (`"use client"`). It accepts props:
 
   ```ts
   interface CommitLoreButtonProps {
@@ -168,11 +168,11 @@ One surface: the Artifacts tab on the project page (`/projects/[name]`), rendere
 | Exit | Target | Notes |
 |------|--------|-------|
 | Artifact row click | Artifact detail view | Existing behavior, unchanged |
-| `daemon/routes/git-lore.ts` | New file | REQ-CLORE-1 through REQ-CLORE-11 |
-| `daemon/app.ts` | `AppDeps`, `createApp` | REQ-CLORE-3, REQ-CLORE-4 |
-| `web/app/projects/[name]/page.tsx` | Add status fetch, wrap artifacts tab | REQ-CLORE-12, REQ-CLORE-13 |
-| `web/app/projects/[name]/page.module.css` | New `artifactTab`, `artifactActions` classes | REQ-CLORE-13 |
-| `web/components/project/CommitLoreButton.tsx` | New component | REQ-CLORE-14 through REQ-CLORE-22 |
+| `apps/daemon/routes/git-lore.ts` | New file | REQ-CLORE-1 through REQ-CLORE-11 |
+| `apps/daemon/app.ts` | `AppDeps`, `createApp` | REQ-CLORE-3, REQ-CLORE-4 |
+| `apps/web/app/projects/[name]/page.tsx` | Add status fetch, wrap artifacts tab | REQ-CLORE-12, REQ-CLORE-13 |
+| `apps/web/app/projects/[name]/page.module.css` | New `artifactTab`, `artifactActions` classes | REQ-CLORE-13 |
+| `apps/web/components/project/CommitLoreButton.tsx` | New component | REQ-CLORE-14 through REQ-CLORE-22 |
 
 ## Success Criteria
 
@@ -196,7 +196,7 @@ One surface: the Artifacts tab on the project page (`/projects/[name]`), rendere
 - Code review by fresh-context sub-agent
 
 **Custom:**
-- Unit test (`daemon/routes/git-lore.ts`): `POST /workspace/git/lore/commit` with empty `message` returns 400.
+- Unit test (`apps/daemon/routes/git-lore.ts`): `POST /workspace/git/lore/commit` with empty `message` returns 400.
 - Unit test: commit handler calls `git add -- .lore/` before `git commit`. Verify via injected gitOps spy that the staged path is exactly `.lore/` and nothing broader.
 - Unit test: status handler with no pending changes returns `{ hasPendingChanges: false, fileCount: 0 }`.
 - Unit test: status handler with 3 changed files returns `{ hasPendingChanges: true, fileCount: 3 }`.
@@ -217,8 +217,8 @@ One surface: the Artifacts tab on the project page (`/projects/[name]`), rendere
 ## Context
 
 - [Brainstorm: Commit .lore Changes from the Web UI](../../brainstorm/commit-lore-from-web.md): all design decisions in this spec originate there. The brainstorm documents alternatives considered (modal vs. inline form, floating action button, inside ArtifactList) and why each was rejected.
-- `daemon/routes/admin.ts`: `workspace/git/branch/rebase` and `workspace/git/integration/sync` establish the route pattern this spec follows. `AdminDeps` is the model for `GitLoreDeps`.
-- `daemon/routes/artifacts.ts:134-188`: the write handler's `commitAll` call at line 173 is the auto-commit this feature supplements. The `commitAll` method uses `git add -A` (all files); this feature uses the more targeted `git add -- .lore/`.
-- `daemon/lib/git.ts:116`: `commitAll` signature and implementation. The commit endpoint in this spec calls `runGit` directly (like the admin routes) rather than delegating to `commitAll`, because `commitAll` stages all files and this feature must not.
-- `web/app/projects/[name]/page.tsx:39-45`: the parallel `Promise.all` fetch block where the status call is added.
-- `web/app/projects/[name]/page.tsx:60-89`: the commissions and meetings tab structure that the artifacts tab is updated to match.
+- `apps/daemon/routes/admin.ts`: `workspace/git/branch/rebase` and `workspace/git/integration/sync` establish the route pattern this spec follows. `AdminDeps` is the model for `GitLoreDeps`.
+- `apps/daemon/routes/artifacts.ts:134-188`: the write handler's `commitAll` call at line 173 is the auto-commit this feature supplements. The `commitAll` method uses `git add -A` (all files); this feature uses the more targeted `git add -- .lore/`.
+- `apps/daemon/lib/git.ts:116`: `commitAll` signature and implementation. The commit endpoint in this spec calls `runGit` directly (like the admin routes) rather than delegating to `commitAll`, because `commitAll` stages all files and this feature must not.
+- `apps/web/app/projects/[name]/page.tsx:39-45`: the parallel `Promise.all` fetch block where the status call is added.
+- `apps/web/app/projects/[name]/page.tsx:60-89`: the commissions and meetings tab structure that the artifacts tab is updated to match.
