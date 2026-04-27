@@ -55,13 +55,13 @@ import {
   meetingWorktreePath as meetingWorktreePathFn,
   meetingBranchName as meetingBranchNameFn,
   integrationWorktreePath as integrationWorktreePathFn,
+  resolveMeetingArtifactPath,
 } from "@/lib/paths";
 import matter from "gray-matter";
 import { createGitOps, CLAUDE_BRANCH, type GitOps } from "@/apps/daemon/lib/git";
 import { errorMessage, formatTimestamp, sanitizeForGitRef } from "@/apps/daemon/lib/toolbox-utils";
 import { withProjectLock } from "@/apps/daemon/lib/project-lock";
 import {
-  meetingArtifactPath,
   appendMeetingLog,
   closeArtifact,
   readArtifactStatus,
@@ -585,7 +585,7 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
       let workerName: string;
       let linkedArtifacts: string[];
       try {
-        const artifactFilePath = meetingArtifactPath(iPath, meetingId);
+        const artifactFilePath = await resolveMeetingArtifactPath(iPath, meetingId);
         const raw = await fs.readFile(artifactFilePath, "utf-8");
         const parsed = matter(raw);
         const data = parsed.data as Record<string, unknown>;
@@ -1068,7 +1068,7 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
         const section = formatDecisionsSection(decisions);
         if (section) {
           await appendDecisionsToArtifact(
-            meetingArtifactPath(meeting.worktreeDir, meetingId),
+            await resolveMeetingArtifactPath(meeting.worktreeDir, meetingId),
             section,
           );
         }
@@ -1277,7 +1277,7 @@ export function createMeetingSession(deps: MeetingSessionDeps): MeetingSessionFo
     }
 
     // Replace the deferred_until value in the artifact frontmatter
-    const artifactFilePath = meetingArtifactPath(iPath, meetingId);
+    const artifactFilePath = await resolveMeetingArtifactPath(iPath, meetingId);
     const raw = await fs.readFile(artifactFilePath, "utf-8");
     // Sanitize the value to strip newlines that could corrupt YAML frontmatter
     const sanitized = deferredUntil.replace(/[\r\n]/g, "");

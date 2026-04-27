@@ -92,32 +92,15 @@ export function workArtifactPath(
 }
 
 /**
- * Returns the legacy flat-layout path for a commission artifact under
- * `.lore/commissions/<id>.md`. The commissionId is a plain string here
- * (not the branded CommissionId type from daemon/types.ts) because this
- * module lives in the shared layer.
+ * Returns the canonical write path for a commission artifact under
+ * `.lore/work/commissions/<id>.md` (REQ-LDR-6). The commissionId is a
+ * plain string here (not the branded CommissionId type from
+ * daemon/types.ts) because this module lives in the shared layer.
  *
- * REQ-LDR-6 will flip this to return `.lore/work/commissions/<id>.md` once
- * the orchestrator and its tests migrate together (Phase 3). Until then,
- * use `commissionWritePath` for canonical new-write paths and
- * `resolveCommissionArtifactPath` for reads that need the dual-layout
- * fallback.
+ * Reads should go through `resolveCommissionArtifactPath` so the
+ * flat-layout fallback applies when the new path does not exist.
  */
 export function commissionArtifactPath(
-  projectPath: string,
-  commissionId: string,
-): string {
-  return path.join(projectPath, ".lore", "commissions", `${commissionId}.md`);
-}
-
-/**
- * Returns the canonical write path for a commission artifact under
- * `.lore/work/commissions/<id>.md` (REQ-LDR-5). New write sites resolve
- * through this helper so the orchestrator can migrate off
- * `commissionArtifactPath` in Phase 3 (REQ-LDR-22) without breaking
- * existing test fixtures that still expect the flat layout.
- */
-export function commissionWritePath(
   projectPath: string,
   commissionId: string,
 ): string {
@@ -125,14 +108,15 @@ export function commissionWritePath(
 }
 
 /**
+ * Alias for `commissionArtifactPath`, kept for backward compatibility
+ * with Phase 2 consumers. Both return the canonical write path under
+ * `.lore/work/commissions/<id>.md`.
+ */
+export const commissionWritePath = commissionArtifactPath;
+
+/**
  * Returns the canonical write path for a meeting artifact under
  * `.lore/work/meetings/<id>.md` (REQ-LDR-7).
- *
- * Note: a separate `meetingArtifactPath` exists in
- * `apps/daemon/services/meeting/record.ts` that returns the legacy
- * `.lore/meetings/<id>.md` path. That one is the daemon write site
- * targeted by REQ-LDR-21 in Phase 3; the lib-side helper here is the
- * canonical one consumers should adopt once Phase 3 lands.
  *
  * Reads should go through `resolveMeetingArtifactPath` so the flat-layout
  * fallback applies when the new path does not exist.

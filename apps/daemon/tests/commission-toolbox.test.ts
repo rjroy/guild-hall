@@ -49,7 +49,7 @@ function makeCallbacks(overrides?: Partial<CommissionToolCallbacks>): Commission
 }
 
 function artifactPath(): string {
-  return path.join(worktreePath, ".lore", "commissions", `${commissionId}.md`);
+  return path.join(worktreePath, ".lore", "work", "commissions", `${commissionId}.md`);
 }
 
 beforeEach(async () => {
@@ -60,7 +60,7 @@ beforeEach(async () => {
   // Create the commission worktree directory so resolveWritePath finds it.
   worktreePath = commissionWorktreePath(guildHallHome, projectName, commissionId);
   await fs.mkdir(
-    path.join(worktreePath, ".lore", "commissions"),
+    path.join(worktreePath, ".lore", "work", "commissions"),
     { recursive: true },
   );
 

@@ -156,11 +156,11 @@ function createMockWorkspace(overrides?: Partial<{
       // Simulate git worktree creation: copy the .lore/commissions/
       // directory from integration worktree to the activity worktree
       // so Layer 1 (real filesystem) can find the artifact.
-      const wtCommDir = path.join(config.worktreeDir, ".lore", "commissions");
+      const wtCommDir = path.join(config.worktreeDir, ".lore", "work", "commissions");
       await fs.mkdir(wtCommDir, { recursive: true });
 
       // Copy all commission artifacts from integration worktree
-      const sourceDir = path.join(integrationPath, ".lore", "commissions");
+      const sourceDir = path.join(integrationPath, ".lore", "work", "commissions");
       try {
         const files = await fs.readdir(sourceDir);
         for (const file of files) {
@@ -404,7 +404,7 @@ projectName: ${projectName}
 ---
 `;
 
-  const dir = path.join(basePath, ".lore", "commissions");
+  const dir = path.join(basePath, ".lore", "work", "commissions");
   await fs.mkdir(dir, { recursive: true });
   const artifactPath = path.join(dir, `${commissionId}.md`);
   await fs.writeFile(artifactPath, content, "utf-8");
@@ -501,6 +501,7 @@ describe("createCommission", () => {
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${result.commissionId}.md`,
     );
@@ -901,7 +902,7 @@ describe("dependency auto-transitions", () => {
     });
 
     // Create the dependency artifact at the correct .lore/commissions/<id>.md path
-    const depDir = path.join(integrationPath, ".lore", "commissions");
+    const depDir = path.join(integrationPath, ".lore", "work", "commissions");
     await fs.writeFile(
       path.join(depDir, `${depId}.md`),
       "---\ntitle: Target\nstatus: completed\n---\n",
@@ -944,6 +945,7 @@ describe("dependency auto-transitions", () => {
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${commissionId}.md`,
     );
@@ -971,7 +973,7 @@ describe("dependency auto-transitions", () => {
     });
 
     // Dependency artifact exists but has status "pending" (not completed)
-    const depDir = path.join(integrationPath, ".lore", "commissions");
+    const depDir = path.join(integrationPath, ".lore", "work", "commissions");
     await fs.writeFile(
       path.join(depDir, `${depId}.md`),
       "---\ntitle: Dep\nstatus: pending\n---\n",
@@ -1002,7 +1004,7 @@ describe("dependency auto-transitions", () => {
       dependencies: [depId],
     });
 
-    const depDir = path.join(integrationPath, ".lore", "commissions");
+    const depDir = path.join(integrationPath, ".lore", "work", "commissions");
     await fs.writeFile(
       path.join(depDir, `${depId}.md`),
       "---\ntitle: Dep\nstatus: abandoned\n---\n",
@@ -1056,7 +1058,7 @@ describe("dispatch dependency gate", () => {
 
     // The artifact should now have status "blocked"
     const artifactPath = path.join(
-      integrationPath, ".lore", "commissions", `${commissionId as string}.md`,
+      integrationPath, ".lore", "work", "commissions", `${commissionId as string}.md`,
     );
     const raw = await fs.readFile(artifactPath, "utf-8");
     expect(raw).toContain("status: blocked");
@@ -1187,6 +1189,7 @@ describe("addUserNote", () => {
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${commissionId as string}.md`,
     );
@@ -1211,6 +1214,7 @@ describe("updateCommission", () => {
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${commissionId as string}.md`,
     );
@@ -1593,9 +1597,9 @@ describe("worktree cleanup on executionStarted skip (Fix 4)", () => {
     const gate: { resolve: (() => void) | null } = { resolve: null };
     const workspace = createMockWorkspace({
       prepare: async (config) => {
-        const wtCommDir = path.join(config.worktreeDir, ".lore", "commissions");
+        const wtCommDir = path.join(config.worktreeDir, ".lore", "work", "commissions");
         await fs.mkdir(wtCommDir, { recursive: true });
-        const sourceDir = path.join(integrationPath, ".lore", "commissions");
+        const sourceDir = path.join(integrationPath, ".lore", "work", "commissions");
         try {
           const files = await fs.readdir(sourceDir);
           for (const file of files) {
@@ -1649,7 +1653,7 @@ describe("updateCommission uses regex replacement (Fix 5)", () => {
     });
 
     const artifactPath = path.join(
-      integrationPath, ".lore", "commissions", `${commissionId as string}.md`,
+      integrationPath, ".lore", "work", "commissions", `${commissionId as string}.md`,
     );
 
     // Update the prompt
@@ -1684,7 +1688,7 @@ describe("updateCommission uses regex replacement (Fix 5)", () => {
     });
 
     const artifactPath = path.join(
-      integrationPath, ".lore", "commissions", `${commissionId as string}.md`,
+      integrationPath, ".lore", "work", "commissions", `${commissionId as string}.md`,
     );
     const raw = await fs.readFile(artifactPath, "utf-8");
     expect(raw).toContain("  - .lore/commissions/dep-a.md");
@@ -1871,7 +1875,7 @@ describe("addUserNote fallback (Fix 13)", () => {
     );
     try {
       await fs.rm(
-        path.join(worktreeDir, ".lore", "commissions"),
+        path.join(worktreeDir, ".lore", "work", "commissions"),
         { recursive: true, force: true },
       );
     } catch {
@@ -1906,9 +1910,9 @@ describe("cancel during workspace preparation (Fix 15)", () => {
     const gate: { resolve: (() => void) | null } = { resolve: null };
     const workspace = createMockWorkspace({
       prepare: async (config) => {
-        const wtCommDir = path.join(config.worktreeDir, ".lore", "commissions");
+        const wtCommDir = path.join(config.worktreeDir, ".lore", "work", "commissions");
         await fs.mkdir(wtCommDir, { recursive: true });
-        const sourceDir = path.join(integrationPath, ".lore", "commissions");
+        const sourceDir = path.join(integrationPath, ".lore", "work", "commissions");
         try {
           const files = await fs.readdir(sourceDir);
           for (const file of files) {
@@ -2046,6 +2050,7 @@ describe("createCommission with model override", () => {
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${result.commissionId}.md`,
     );
@@ -2067,6 +2072,7 @@ describe("createCommission with model override", () => {
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${result.commissionId}.md`,
     );
@@ -2102,7 +2108,7 @@ current_progress: ""
 projectName: ${TEST_PROJECT}
 ---
 `;
-    const dir = path.join(integrationPath, ".lore", "commissions");
+    const dir = path.join(integrationPath, ".lore", "work", "commissions");
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, `${commissionId as string}.md`), content, "utf-8");
 
@@ -2151,7 +2157,7 @@ current_progress: ""
 projectName: ${TEST_PROJECT}
 ---
 `;
-    const dir = path.join(integrationPath, ".lore", "commissions");
+    const dir = path.join(integrationPath, ".lore", "work", "commissions");
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, `${commissionId as string}.md`), content, "utf-8");
 
@@ -2192,7 +2198,7 @@ current_progress: ""
 projectName: ${TEST_PROJECT}
 ---
 `;
-    const dir = path.join(integrationPath, ".lore", "commissions");
+    const dir = path.join(integrationPath, ".lore", "work", "commissions");
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, `${commissionId as string}.md`), content, "utf-8");
 
@@ -2225,6 +2231,7 @@ describe("updateCommission with model override", () => {
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${result.commissionId}.md`,
     );
@@ -2245,6 +2252,7 @@ describe("updateCommission with model override", () => {
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${commissionId as string}.md`,
     );
@@ -2272,6 +2280,7 @@ describe("createCommission with source provenance (REQ-HBT-21, REQ-HBT-22, REQ-H
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${result.commissionId}.md`,
     );
@@ -2296,6 +2305,7 @@ describe("createCommission with source provenance (REQ-HBT-21, REQ-HBT-22, REQ-H
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${result.commissionId}.md`,
     );
@@ -2320,6 +2330,7 @@ describe("createCommission with source provenance (REQ-HBT-21, REQ-HBT-22, REQ-H
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${result.commissionId}.md`,
     );
@@ -2341,6 +2352,7 @@ describe("createCommission with source provenance (REQ-HBT-21, REQ-HBT-22, REQ-H
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${result.commissionId}.md`,
     );

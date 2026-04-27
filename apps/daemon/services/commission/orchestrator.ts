@@ -46,6 +46,7 @@ import {
   commissionWorktreePath as commissionWorktreePathFn,
   commissionBranchName as commissionBranchNameFn,
   commissionArtifactPath,
+  resolveCommissionArtifactPath,
   activityWorktreeRoot,
 } from "@/lib/paths";
 import { getWorkerByName } from "@/lib/packages";
@@ -275,18 +276,25 @@ export function createCommissionOrchestrator(
 
   /**
    * Finds the project for a commission by searching integration worktrees.
+   * Honors the dual-layout read: a commission may live at the canonical
+   * `.lore/work/commissions/<id>.md` or at the legacy `.lore/commissions/`
+   * path (REQ-LDR-6).
    */
   async function findProjectForCommission(
     commissionId: CommissionId,
   ): Promise<{ projectPath: string; projectName: string; integrationPath: string } | null> {
     for (const project of config.projects) {
       const iPath = integrationWorktreePathFn(guildHallHome, project.name);
-      const artifactPath = commissionArtifactPath(iPath, commissionId);
-      try {
-        await fs.access(artifactPath);
-        return { projectPath: project.path, projectName: project.name, integrationPath: iPath };
-      } catch {
-        continue;
+      for (const candidate of [
+        commissionArtifactPath(iPath, commissionId),
+        path.join(iPath, ".lore", "commissions", `${commissionId as string}.md`),
+      ]) {
+        try {
+          await fs.access(candidate);
+          return { projectPath: project.path, projectName: project.name, integrationPath: iPath };
+        } catch {
+          // try next candidate
+        }
       }
     }
     return null;
@@ -345,37 +353,46 @@ export function createCommissionOrchestrator(
 
     for (const project of config.projects) {
       const iPath = integrationWorktreePathFn(guildHallHome, project.name);
-      const commissionsDir = path.join(iPath, ".lore", "commissions");
+      // Walk both the canonical work/commissions/ layout and the legacy
+      // flat .lore/commissions/ for pending commissions (REQ-LDR-11).
+      const seen = new Set<string>();
+      const dirs = [
+        path.join(iPath, ".lore", "work", "commissions"),
+        path.join(iPath, ".lore", "commissions"),
+      ];
 
-      let entries: string[];
-      try {
-        entries = await fs.readdir(commissionsDir);
-      } catch {
-        continue;
-      }
-
-      for (const filename of entries) {
-        if (!filename.endsWith(".md")) continue;
-        const cId = asCommissionId(filename.replace(/\.md$/, ""));
-
-        // Skip commissions that are already active
-        if (executions.has(cId) || lifecycle.isTracked(cId)) continue;
-
+      for (const commissionsDir of dirs) {
+        let entries: string[];
         try {
-          const artifactPath = commissionArtifactPath(iPath, cId);
-          const raw = await fs.readFile(artifactPath, "utf-8");
-          const statusMatch = raw.match(/^status: (\S+)$/m);
-          if (!statusMatch || statusMatch[1] !== "pending") continue;
-
-          // Extract the first timestamp from activity_timeline using regex
-          // instead of parsing the entire file with gray-matter.
-          const tsMatch = raw.match(/^activity_timeline:\n\s+- timestamp: (.+)$/m);
-          const createdAt = tsMatch?.[1] ?? "9999-12-31T23:59:59.999Z";
-
-          pending.push({ commissionId: cId, projectName: project.name, createdAt });
-        } catch (err: unknown) {
-          log.warn(`scanPendingCommissions: failed to read "${cId as string}":`, errorMessage(err));
+          entries = await fs.readdir(commissionsDir);
+        } catch {
           continue;
+        }
+
+        for (const filename of entries) {
+          if (!filename.endsWith(".md")) continue;
+          const cId = asCommissionId(filename.replace(/\.md$/, ""));
+          if (seen.has(cId as string)) continue;
+          seen.add(cId as string);
+
+          // Skip commissions that are already active
+          if (executions.has(cId) || lifecycle.isTracked(cId)) continue;
+
+          try {
+            const raw = await fs.readFile(path.join(commissionsDir, filename), "utf-8");
+            const statusMatch = raw.match(/^status: (\S+)$/m);
+            if (!statusMatch || statusMatch[1] !== "pending") continue;
+
+            // Extract the first timestamp from activity_timeline using regex
+            // instead of parsing the entire file with gray-matter.
+            const tsMatch = raw.match(/^activity_timeline:\n\s+- timestamp: (.+)$/m);
+            const createdAt = tsMatch?.[1] ?? "9999-12-31T23:59:59.999Z";
+
+            pending.push({ commissionId: cId, projectName: project.name, createdAt });
+          } catch (err: unknown) {
+            log.warn(`scanPendingCommissions: failed to read "${cId as string}":`, errorMessage(err));
+            continue;
+          }
         }
       }
     }
@@ -650,20 +667,31 @@ export function createCommissionOrchestrator(
 
   async function checkDependencyTransitions(projectName: string): Promise<void> {
     const iPath = integrationWorktreePathFn(guildHallHome, projectName);
-    const commissionsDir = path.join(iPath, ".lore", "commissions");
+    // Walk both the canonical work/commissions/ layout and the legacy
+    // flat .lore/commissions/ when scanning candidates (REQ-LDR-11).
+    const dirs = [
+      path.join(iPath, ".lore", "work", "commissions"),
+      path.join(iPath, ".lore", "commissions"),
+    ];
 
-    let entries: string[];
-    try {
-      entries = await fs.readdir(commissionsDir);
-    } catch {
-      return;
+    const seen = new Set<string>();
+    const candidates: CommissionId[] = [];
+    for (const commissionsDir of dirs) {
+      let entries: string[];
+      try {
+        entries = await fs.readdir(commissionsDir);
+      } catch {
+        continue;
+      }
+      for (const f of entries) {
+        if (!f.endsWith(".md")) continue;
+        const cId = asCommissionId(f.replace(/\.md$/, ""));
+        if (seen.has(cId as string)) continue;
+        seen.add(cId as string);
+        if (executions.has(cId)) continue;
+        candidates.push(cId);
+      }
     }
-
-    // Filter to candidate commission IDs (not active, .md files)
-    const candidates = entries
-      .filter((f) => f.endsWith(".md"))
-      .map((f) => asCommissionId(f.replace(/\.md$/, "")))
-      .filter((cId) => !executions.has(cId));
 
     if (candidates.length === 0) return;
 
@@ -678,7 +706,7 @@ export function createCommissionOrchestrator(
 
     const readResults = await Promise.allSettled(
       candidates.map(async (cId): Promise<CandidateData | null> => {
-        const cArtifactPath = commissionArtifactPath(iPath, cId);
+        const cArtifactPath = await resolveCommissionArtifactPath(iPath, cId);
         let status: string;
         try {
           status = await recordOps.readStatus(cArtifactPath);
@@ -701,7 +729,7 @@ export function createCommissionOrchestrator(
 
         const depStatuses = await Promise.all(
           dependencies.map(async (dep) => {
-            const depPath = commissionArtifactPath(iPath, dep);
+            const depPath = await resolveCommissionArtifactPath(iPath, dep);
             try {
               return await recordOps.readStatus(depPath);
             } catch {
@@ -1014,10 +1042,11 @@ export function createCommissionOrchestrator(
       new Date(),
     );
 
-    // Write the artifact to the integration worktree
+    // Write the artifact to the integration worktree at the canonical
+    // .lore/work/commissions/ location (REQ-LDR-22).
     const iPath = integrationWorktreePathFn(guildHallHome, projectName);
-    const commissionsDir = path.join(iPath, ".lore", "commissions");
-    await fs.mkdir(commissionsDir, { recursive: true });
+    const artifactPath = commissionArtifactPath(iPath, commissionId);
+    await fs.mkdir(path.dirname(artifactPath), { recursive: true });
 
     const now = new Date();
     const dateStr = now.toISOString().split("T")[0];
@@ -1065,7 +1094,6 @@ projectName: ${projectName}
 ---
 `;
 
-    const artifactPath = commissionArtifactPath(iPath, commissionId);
     await fs.writeFile(artifactPath, content, "utf-8");
 
     log.info(

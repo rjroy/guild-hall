@@ -38,7 +38,12 @@ import { CLAUDE_BRANCH, type GitOps } from "@/apps/daemon/lib/git";
 import { withProjectLock } from "@/apps/daemon/lib/project-lock";
 import { hasActiveActivities } from "@/apps/daemon/services/git-admin";
 import type { AppConfig, ProjectConfig, DiscoveredPackage } from "@/lib/types";
-import { integrationWorktreePath, resolveCommissionBasePath } from "@/lib/paths";
+import {
+  integrationWorktreePath,
+  resolveCommissionBasePath,
+  resolveCommissionArtifactPath,
+  workArtifactPath,
+} from "@/lib/paths";
 import { readCommissionMeta, scanCommissions } from "@/lib/commissions";
 import type { CommissionMeta } from "@/lib/commissions";
 import type { ToolboxFactory } from "@/apps/daemon/services/toolbox-types";
@@ -415,10 +420,9 @@ meeting_log:
 `;
 
       const intPath = integrationWorktreePath(deps.guildHallHome, deps.projectName);
-      const meetingsDir = path.join(intPath, ".lore", "meetings");
-      await fs.mkdir(meetingsDir, { recursive: true });
+      const artifactPath = workArtifactPath(intPath, "meetings", `${meetingFilename}.md`);
+      await fs.mkdir(path.dirname(artifactPath), { recursive: true });
 
-      const artifactPath = path.join(meetingsDir, `${meetingFilename}.md`);
       await fs.writeFile(artifactPath, content, "utf-8");
 
       // Commit to claude/main under the project lock
@@ -660,9 +664,7 @@ export function makeCheckCommissionStatusHandler(
           deps.projectName,
           args.commissionId,
         );
-        const filePath = path.join(
-          basePath, ".lore", "commissions", `${args.commissionId}.md`,
-        );
+        const filePath = await resolveCommissionArtifactPath(basePath, args.commissionId);
 
         let meta: CommissionMeta;
         try {

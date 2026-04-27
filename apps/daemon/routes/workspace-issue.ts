@@ -5,7 +5,7 @@ import { errorMessage } from "@/apps/daemon/lib/toolbox-utils";
 import { nullLog } from "@/apps/daemon/lib/log";
 import type { Log } from "@/apps/daemon/lib/log";
 import type { GitOps } from "@/apps/daemon/lib/git";
-import { integrationWorktreePath } from "@/lib/paths";
+import { integrationWorktreePath, workArtifactPath } from "@/lib/paths";
 import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
 import { isNodeError } from "@/lib/types";
 import * as fs from "node:fs/promises";
@@ -62,23 +62,32 @@ export function slugify(title: string): string {
 }
 
 /**
- * Finds a free filename in issuesDir by appending -2, -3, ... suffixes
- * until no collision exists.
+ * Finds a free filename across one or more candidate directories by
+ * appending -2, -3, ... suffixes until no collision exists in any of them.
+ * Accepts either a single dir (string) or an array of dirs (REQ-LDR-24
+ * dedupes against both work/issues/ and the legacy flat issues/).
  */
 export async function resolveSlug(
-  issuesDir: string,
+  issuesDir: string | string[],
   baseSlug: string,
 ): Promise<string> {
+  const dirs = Array.isArray(issuesDir) ? issuesDir : [issuesDir];
   let slug = baseSlug;
   let counter = 2;
   while (true) {
-    try {
-      await fs.access(nodePath.join(issuesDir, `${slug}.md`));
-      slug = `${baseSlug}-${counter}`;
-      counter++;
-    } catch {
-      return slug;
+    let collided = false;
+    for (const dir of dirs) {
+      try {
+        await fs.access(nodePath.join(dir, `${slug}.md`));
+        collided = true;
+        break;
+      } catch {
+        // not in this dir; check next
+      }
     }
+    if (!collided) return slug;
+    slug = `${baseSlug}-${counter}`;
+    counter++;
   }
 }
 
@@ -114,12 +123,16 @@ export function createWorkspaceIssueRoutes(deps: IssueRouteDeps): RouteModule {
     }
 
     const worktreePath = integrationWorktreePath(deps.guildHallHome, projectName!);
-    const issuesDir = nodePath.join(worktreePath, ".lore", "issues");
+    // REQ-LDR-24: writes target the canonical .lore/work/issues/ layout, but
+    // the slug must be unique against the legacy flat .lore/issues/ too so a
+    // newly-created issue can't shadow an existing one.
+    const workIssuesDir = nodePath.dirname(workArtifactPath(worktreePath, "issues", "x.md"));
+    const flatIssuesDir = nodePath.join(worktreePath, ".lore", "issues");
 
-    await fs.mkdir(issuesDir, { recursive: true });
+    await fs.mkdir(workIssuesDir, { recursive: true });
 
-    const slug = await resolveSlug(issuesDir, baseSlug);
-    const filePath = nodePath.join(issuesDir, `${slug}.md`);
+    const slug = await resolveSlug([workIssuesDir, flatIssuesDir], baseSlug);
+    const filePath = workArtifactPath(worktreePath, "issues", `${slug}.md`);
 
     const today = new Date().toISOString().split("T")[0];
     const escapedTitle = title.trim().replace(/"/g, '\\"');
@@ -141,7 +154,7 @@ export function createWorkspaceIssueRoutes(deps: IssueRouteDeps): RouteModule {
       log.warn("issue commit failed (non-fatal):", errorMessage(err));
     }
 
-    const relativePath = `.lore/issues/${slug}.md`;
+    const relativePath = `.lore/work/issues/${slug}.md`;
     return c.json({ path: relativePath, slug }, 201);
   });
 

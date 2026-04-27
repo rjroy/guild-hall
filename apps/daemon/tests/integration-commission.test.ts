@@ -85,7 +85,7 @@ function createMockWorkspace(overrides?: Partial<{
       calls.push({ method: "prepare", args: [config] });
       // Simulate worktree creation: copy commission artifacts so Layer 1
       // (real filesystem) can find them in the activity worktree.
-      const wtCommDir = path.join(config.worktreeDir, ".lore", "commissions");
+      const wtCommDir = path.join(config.worktreeDir, ".lore", "work", "commissions");
       await fs.mkdir(wtCommDir, { recursive: true });
 
       // Find the source integration path by walking up from worktreeDir
@@ -102,11 +102,11 @@ function createMockWorkspace(overrides?: Partial<{
       ).replaceAll("/", path.sep);
       try {
         const files = await fs.readdir(
-          path.join(sourceBase, ".lore", "commissions"),
+          path.join(sourceBase, ".lore", "work", "commissions"),
         );
         for (const file of files) {
           await fs.copyFile(
-            path.join(sourceBase, ".lore", "commissions", file),
+            path.join(sourceBase, ".lore", "work", "commissions", file),
             path.join(wtCommDir, file),
           );
         }
@@ -414,6 +414,7 @@ describe("commission lifecycle integration", () => {
     const artifactPath = path.join(
       integrationPath,
       ".lore",
+      "work",
       "commissions",
       `${body.commissionId}.md`,
     );

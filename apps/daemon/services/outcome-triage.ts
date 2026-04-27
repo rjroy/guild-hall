@@ -18,7 +18,11 @@ import type { EventBus, SystemEvent } from "@/apps/daemon/lib/event-bus";
 import type { Log } from "@/apps/daemon/lib/log";
 import type { AppConfig } from "@/lib/types";
 import { isNodeError } from "@/lib/types";
-import { integrationWorktreePath } from "@/lib/paths";
+import {
+  integrationWorktreePath,
+  resolveCommissionArtifactPath,
+  resolveMeetingArtifactPath,
+} from "@/lib/paths";
 import { makeReadMemoryHandler, makeEditMemoryHandler } from "./base-toolbox";
 import matter from "gray-matter";
 
@@ -203,13 +207,14 @@ export function createArtifactReader(
   guildHallHome: string,
 ): (activityType: "commission" | "meeting", activityId: string) => Promise<ArtifactReadResult | null> {
   return async (activityType, activityId) => {
-    const subdir = activityType === "commission" ? "commissions" : "meetings";
-    const artifactFilename = `${activityId}.md`;
+    const resolveArtifactPath = activityType === "commission"
+      ? resolveCommissionArtifactPath
+      : resolveMeetingArtifactPath;
 
-    // Check integration worktrees first
+    // Check integration worktrees first (REQ-LDR-23: dual-layout via helpers)
     for (const project of config.projects) {
       const iPath = integrationWorktreePath(guildHallHome, project.name);
-      const artifactPath = path.join(iPath, ".lore", subdir, artifactFilename);
+      const artifactPath = await resolveArtifactPath(iPath, activityId);
       try {
         const raw = await fs.readFile(artifactPath, "utf-8");
         return parseArtifact(raw, project.name, activityType);
@@ -229,7 +234,7 @@ export function createArtifactReader(
           worktreeDir?: string;
         };
         if (state.worktreeDir && state.projectName) {
-          const artifactPath = path.join(state.worktreeDir, ".lore", "commissions", artifactFilename);
+          const artifactPath = await resolveCommissionArtifactPath(state.worktreeDir, activityId);
           try {
             const raw = await fs.readFile(artifactPath, "utf-8");
             return parseArtifact(raw, state.projectName, activityType);

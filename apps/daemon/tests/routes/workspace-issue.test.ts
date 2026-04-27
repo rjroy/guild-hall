@@ -193,9 +193,10 @@ describe("POST /workspace/issue/create", () => {
 
     const data = (await res.json()) as { path: string; slug: string };
     expect(data.slug).toBe("test-issue");
-    expect(data.path).toBe(".lore/issues/test-issue.md");
+    expect(data.path).toBe(".lore/work/issues/test-issue.md");
 
-    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "issues", "test-issue.md");
+    // REQ-LDR-24: writes target .lore/work/issues/
+    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "work", "issues", "test-issue.md");
     const content = await fs.readFile(filePath, "utf-8");
 
     expect(content).toContain('title: "Test Issue"');
@@ -217,7 +218,7 @@ describe("POST /workspace/issue/create", () => {
     const data = (await res.json()) as { path: string; slug: string };
     expect(data.slug).toBe("bug-report");
 
-    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "issues", "bug-report.md");
+    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "work", "issues", "bug-report.md");
     const content = await fs.readFile(filePath, "utf-8");
 
     expect(content).toContain('title: "Bug Report"');
@@ -233,7 +234,7 @@ describe("POST /workspace/issue/create", () => {
     expect(res.status).toBe(201);
 
     const data = (await res.json()) as { path: string; slug: string };
-    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "issues", `${data.slug}.md`);
+    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "work", "issues", `${data.slug}.md`);
     const content = await fs.readFile(filePath, "utf-8");
     expect(content).toContain('title: "Fix the \\"broken\\" thing"');
   });
