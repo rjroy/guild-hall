@@ -31,3 +31,11 @@ Workers can also add entries to this file during their sessions.
 - 06:35 commission-Verity-20260427-062652 completed
 - 06:43 commission-Octavia-20260427-063950 result: Drafted spec at `.lore/specs/infrastructure/lore-directory-restructure.md` (status: draft). 40 requirements (REQ-LDR-1..40) across eight requirement groups: classification (peel `work/`, add `learned`...
 - 06:43 commission-Octavia-20260427-063950 completed
+- 06:51 commission-Dalton-20260427-064804 result: Phase 1 of the lore directory restructure (the classification choke point) is complete. All in-scope requirements implemented; verification clean.
+
+- 06:51 commission-Dalton-20260427-064804 completed
+## Files changed
+
+| File | Change |
+| --- | --- |
+| ...
