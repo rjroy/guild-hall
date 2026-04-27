@@ -1,7 +1,7 @@
 ---
 title: "Commission: Thorne: confirm lore restructure final-review fixes (3 findings)"
 date: 2026-04-27
-status: blocked
+status: dispatched
 tags: [commission]
 worker: Thorne
 workerDisplayTitle: "Guild Warden"
@@ -19,6 +19,16 @@ activity_timeline:
     reason: "Dependencies not satisfied"
     from: "pending"
     to: "blocked"
+  - timestamp: 2026-04-27T21:49:32.984Z
+    event: status_pending
+    reason: "Dependencies satisfied"
+    from: "blocked"
+    to: "pending"
+  - timestamp: 2026-04-27T21:49:32.987Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
