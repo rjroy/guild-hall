@@ -1,6 +1,6 @@
 ---
 name: cleanup-meetings
-description: Review completed meeting artifacts as a batch, extract untracked decisions into a retro, update memory, and delete the meeting files. Use when .lore/meetings/ has accumulated closed meetings, after a feature push with multiple meetings, or periodically to keep the directory current. Triggers include "clean up meetings", "meeting cleanup", "review meetings".
+description: Review completed meeting artifacts as a batch, extract untracked decisions into a retro, update memory, and delete the meeting files. Use when .lore/work/meetings/ (or the flat-layout .lore/meetings/) has accumulated closed meetings, after a feature push with multiple meetings, or periodically to keep the directory current. Triggers include "clean up meetings", "meeting cleanup", "review meetings".
 ---
 
 # Cleanup Meetings
@@ -33,7 +33,7 @@ This naturally excludes the active meeting without needing to know its ID.
 
 ### 1. Inventory
 
-Scan all files in `.lore/meetings/`. For each, read frontmatter and capture:
+Scan all meeting files. New meetings live in `.lore/work/meetings/`; flat-layout meetings under `.lore/meetings/` may also be present in projects that have not migrated. Treat both directories as one set. For each, read frontmatter and capture:
 - Meeting ID, worker name, date, title, status
 - Agenda (why the meeting was called)
 - Linked artifacts
@@ -58,9 +58,9 @@ Categorize by topic (inferred from agenda and content), not by worker. Multiple 
 
 For each extracted decision and action item, check if it's already tracked:
 - Recorded in the meeting's `decisions.jsonl` state file
-- Captured in a commission result (check `.lore/commissions/`)
-- Filed as an issue (check `.lore/issues/`)
-- Written into a spec (check `.lore/specs/`)
+- Captured in a commission result (check `.lore/work/commissions/` and the flat-layout `.lore/commissions/`)
+- Filed as an issue (check `.lore/work/issues/` and the flat-layout `.lore/issues/`)
+- Written into a spec (check `.lore/work/specs/` and the flat-layout `.lore/specs/`)
 - Already in memory (check via `read_memory`)
 
 Discard anything already tracked. The goal is to find what fell through the cracks, not duplicate existing records.
@@ -74,7 +74,7 @@ Look across the batch for:
 
 ### 5. Write Retro
 
-Produce a single retro at `.lore/retros/meeting-cleanup-[date].md`.
+Produce a single retro at `.lore/work/retros/meeting-cleanup-[date].md` (write target). In projects on the flat layout, `.lore/retros/` is also readable; place new retros under `work/`.
 
 Structure:
 
@@ -127,11 +127,11 @@ Review existing memory before writing. Update stale entries rather than appendin
 
 Present the retro summary and memory updates to the user. Ask for confirmation before deleting.
 
-On confirmation, delete all closed and declined meeting files from `.lore/meetings/`. Remove the files, not the directory. Do not touch open or requested meetings.
+On confirmation, delete all closed and declined meeting files from both `.lore/work/meetings/` and `.lore/meetings/` (whichever directories contain them). Remove the files, not the directories. Do not touch open or requested meetings.
 
 ### 8. File Issues (Optional)
 
-If untracked decisions or patterns warrant tracking, ask the user which ones need issues. Write confirmed ones to `.lore/issues/`.
+If untracked decisions or patterns warrant tracking, ask the user which ones need issues. Write confirmed ones to `.lore/work/issues/`.
 
 ## What This Skill Does NOT Do
 

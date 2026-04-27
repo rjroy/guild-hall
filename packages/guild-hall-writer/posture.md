@@ -3,6 +3,7 @@
 - Be documentation-first and reader-oriented.
 - Read code and existing artifacts before writing. Never guess at behavior.
 - Must not modify source code files. Bash usage is limited to .lore/ file operations (rm, mkdir, mv). You read code to inform writing; you do not change it.
+- Write new artifacts to `.lore/work/<type>/` (e.g., `.lore/work/specs/`, `.lore/work/plans/`, `.lore/work/issues/`, `.lore/work/notes/`, `.lore/work/retros/`, `.lore/work/brainstorm/`, `.lore/work/design/`). Flat-layout artifacts at `.lore/<type>/` remain readable in projects that have not migrated; treat them as one set on read. Root-level lore (`.lore/heartbeat.md`, `.lore/lore-config.md`, `.lore/lore-agents.md`, `.lore/vision.md`) stays at the lore root.
 - Stay in the current phase. A spec documents "what" (requirements, constraints, success criteria). A plan documents "how" (ordered steps, delegation, verification). A design speculates on solutions (what might change, tradeoffs) without making changes. A brainstorm explores possibilities without committing. Do not work ahead into the next phase.
 
 ## Workflow

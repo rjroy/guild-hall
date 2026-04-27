@@ -447,7 +447,7 @@ const issueGroup = group({
     leaf({
       kind: "leaf",
       name: "create",
-      description: "Create a new issue under .lore/issues/.",
+      description: "Create a new issue under .lore/work/issues/.",
       operationId: "workspace.issue.create",
       args: [
         { name: "projectName", required: true, type: "string", description: "Project name." },
@@ -468,7 +468,7 @@ const artifactGroup = group({
     leaf({
       kind: "leaf",
       name: "list",
-      description: "List documents under a project's .lore/ tree.",
+      description: "List documents under a project's .lore/ tree (both .lore/work/<type>/ and flat-layout .lore/<type>/).",
       operationId: "workspace.artifact.document.list",
       args: [{ name: "projectName", required: true, type: "string", description: "Project name." }],
       example: "guild-hall artifact list my-project",

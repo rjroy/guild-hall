@@ -5,7 +5,7 @@ description: Propose a new compendium entry when you notice a knowledge gap duri
 
 # Propose Entry
 
-File a structured proposal when you notice the compendium is missing craft knowledge that would have helped with the current task. Proposals go to `.lore/issues/`, not to the compendium itself. The user decides whether to act on them.
+File a structured proposal when you notice the compendium is missing craft knowledge that would have helped with the current task. Proposals go to `.lore/work/issues/` (the flat-layout `.lore/issues/` is also readable in projects that have not migrated), not to the compendium itself. The user decides whether to act on them.
 
 ## Requirements
 
@@ -29,7 +29,7 @@ Pick a short, kebab-case slug that describes the domain: `error-handling`, `visu
 
 ### 2. Write the Proposal
 
-Create a file at `.lore/issues/compendium-proposal-{topic}.md` with this structure:
+Create a file at `.lore/work/issues/compendium-proposal-{topic}.md` with this structure:
 
 ```markdown
 ---
@@ -58,6 +58,6 @@ Filing the proposal is a side action. Return to your primary task after writing 
 
 ## What This Skill Does NOT Do
 
-- **Does not write to the compendium.** Proposals go to `.lore/issues/`. The compendium is populated through a deliberate path: research, user review, explicit commit.
+- **Does not write to the compendium.** Proposals go to `.lore/work/issues/`. The compendium is populated through a deliberate path: research, user review, explicit commit.
 - **Does not guarantee acceptance.** A proposal is a signal, not a commitment. The user decides what belongs in the compendium.
 - **Does not trigger automatically.** You decide when a gap is worth proposing based on the evidence from your current work.

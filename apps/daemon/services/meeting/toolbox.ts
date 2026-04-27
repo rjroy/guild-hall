@@ -254,7 +254,7 @@ export function createMeetingToolbox(
     tools: [
       tool(
         "link_artifact",
-        "Associate an existing artifact with this meeting. The artifact path is relative to the project's .lore/ directory (e.g., 'specs/api-design.md').",
+        "Associate an existing artifact with this meeting. The artifact path is relative to the project's .lore/ directory (e.g., 'work/specs/api-design.md', or 'specs/api-design.md' for flat-layout artifacts that have not been migrated). Both layouts are accepted on read.",
         {
           artifactPath: z.string(),
         },
