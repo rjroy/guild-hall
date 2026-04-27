@@ -72,18 +72,10 @@ export function meetingHref(
   }
 
   if (normalized === "closed") {
-    // relativePath from scanArtifacts is relative to .lore/. It may be
-    // either `meetings/<file>.md` (legacy flat layout) or
-    // `work/meetings/<file>.md` (REQ-LDR-19). If it's neither, assume the
-    // input is just a filename relative to meetings/ and prepend the
-    // legacy prefix to preserve existing callers.
-    const peeled = relativePath.startsWith("work/")
-      ? relativePath.slice("work/".length)
-      : relativePath;
-    const artifactPath = peeled.startsWith("meetings/")
-      ? relativePath
-      : `meetings/${relativePath}`;
-    return `/projects/${encodedName}/artifacts/${artifactPath}`;
+    // relativePath from scanArtifacts is relative to .lore/ and is always
+    // prefixed with either `meetings/` (legacy flat layout) or
+    // `work/meetings/` (REQ-LDR-19). The artifact viewer accepts either.
+    return `/projects/${encodedName}/artifacts/${relativePath}`;
   }
 
   return null;

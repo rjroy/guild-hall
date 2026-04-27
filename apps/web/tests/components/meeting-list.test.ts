@@ -123,14 +123,14 @@ describe("meetingHref", () => {
     );
   });
 
-  test("closed meeting prepends meetings/ when relativePath is just a filename", () => {
+  test("closed meeting accepts work/meetings/ prefix (REQ-LDR-19)", () => {
     const href = meetingHref(
       "closed",
       "my-project",
-      "audience-Assistant-20260221-120000.md",
+      "work/meetings/audience-Assistant-20260221-120000.md",
     );
     expect(href).toBe(
-      "/projects/my-project/artifacts/meetings/audience-Assistant-20260221-120000.md",
+      "/projects/my-project/artifacts/work/meetings/audience-Assistant-20260221-120000.md",
     );
   });
 

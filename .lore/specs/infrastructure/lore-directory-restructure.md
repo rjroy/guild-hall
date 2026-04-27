@@ -142,7 +142,7 @@ These are documentation-as-instruction surfaces. Workers read them to find files
 - REQ-LDR-33: CLI help and command-description strings update where they name flat-layout paths:
   - `apps/cli/surface.ts` (lines 450, 471, 486, 499, 689 in the discovery report)
   - `apps/cli/help.ts` (line 7)
-  - `apps/cli/migrate-content-to-body.ts` (comment references)
+  - `apps/cli/migrate-content-to-body.ts` (operational dual-layout scan: iterates `.lore/work/commissions/` and `.lore/commissions/` with `work/`-preferred dedup, consistent with REQ-LDR-11)
 
   Help text describes the new write target; examples may show either layout because reads accept both.
 

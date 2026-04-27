@@ -317,7 +317,8 @@ export function createWorkspaceIssueRoutes(deps: IssueRouteDeps): RouteModule {
   ];
 
   const descriptions: Record<string, string> = {
-    "workspace.issue": "Create and manage issues in .lore/issues/",
+    "workspace.issue":
+      "Create and manage issues. Writes target .lore/work/issues/; reads merge .lore/work/issues/ and the flat-layout .lore/issues/.",
   };
 
   return { routes, operations, descriptions };
