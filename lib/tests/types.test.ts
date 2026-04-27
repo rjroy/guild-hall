@@ -1,5 +1,13 @@
 import { describe, test, expect } from "bun:test";
-import { statusToGem, formatStatus, VALID_MODELS, isValidModel, resolveModel } from "@/lib/types";
+import {
+  statusToGem,
+  formatStatus,
+  VALID_MODELS,
+  isValidModel,
+  resolveModel,
+  artifactTypeSegment,
+  TYPE_LABELS,
+} from "@/lib/types";
 import type { GemStatus, AppConfig, ModelDefinition } from "@/lib/types";
 
 describe("statusToGem", () => {
@@ -158,6 +166,89 @@ describe("resolveModel", () => {
 
   test("throws for local model name when config is omitted", () => {
     expect(() => resolveModel("llama3")).toThrow("Unknown model");
+  });
+});
+
+describe("TYPE_LABELS", () => {
+  test("includes learned -> Learned (REQ-LDR-1)", () => {
+    expect(TYPE_LABELS.learned).toBe("Learned");
+  });
+
+  test("preserves existing entries", () => {
+    expect(TYPE_LABELS.specs).toBe("Spec");
+    expect(TYPE_LABELS.plans).toBe("Plan");
+    expect(TYPE_LABELS.brainstorm).toBe("Brainstorm");
+    expect(TYPE_LABELS.issues).toBe("Issue");
+    expect(TYPE_LABELS.research).toBe("Research");
+    expect(TYPE_LABELS.retros).toBe("Retro");
+    expect(TYPE_LABELS.design).toBe("Design");
+    expect(TYPE_LABELS.reference).toBe("Reference");
+    expect(TYPE_LABELS.notes).toBe("Note");
+    expect(TYPE_LABELS.tasks).toBe("Task");
+    expect(TYPE_LABELS.diagrams).toBe("Diagram");
+    expect(TYPE_LABELS.meetings).toBe("Meeting");
+    expect(TYPE_LABELS.commissions).toBe("Commission");
+  });
+});
+
+describe("artifactTypeSegment", () => {
+  test("classifies flat-layout typed paths", () => {
+    expect(artifactTypeSegment("specs/foo.md")).toBe("Spec");
+    expect(artifactTypeSegment("plans/p.md")).toBe("Plan");
+    expect(artifactTypeSegment("issues/bug.md")).toBe("Issue");
+    expect(artifactTypeSegment("commissions/c-1.md")).toBe("Commission");
+    expect(artifactTypeSegment("meetings/m-1.md")).toBe("Meeting");
+  });
+
+  test("returns null for root-level files (REQ-LDR-4)", () => {
+    expect(artifactTypeSegment("heartbeat.md")).toBeNull();
+    expect(artifactTypeSegment("lore-config.md")).toBeNull();
+    expect(artifactTypeSegment("lore-agents.md")).toBeNull();
+    expect(artifactTypeSegment("vision.md")).toBeNull();
+  });
+
+  test("returns raw segment for unknown flat-layout segments (e.g., generated)", () => {
+    expect(artifactTypeSegment("generated/foo.md")).toBe("generated");
+    expect(artifactTypeSegment("unknown-bucket/foo.md")).toBe("unknown-bucket");
+  });
+
+  test("peels a single leading work/ segment (REQ-LDR-2)", () => {
+    expect(artifactTypeSegment("work/specs/foo.md")).toBe("Spec");
+    expect(artifactTypeSegment("work/plans/p.md")).toBe("Plan");
+    expect(artifactTypeSegment("work/issues/bug.md")).toBe("Issue");
+    expect(artifactTypeSegment("work/commissions/c-1.md")).toBe("Commission");
+    expect(artifactTypeSegment("work/meetings/m-1.md")).toBe("Meeting");
+    expect(artifactTypeSegment("work/notes/n.md")).toBe("Note");
+    expect(artifactTypeSegment("work/research/r.md")).toBe("Research");
+    expect(artifactTypeSegment("work/retros/r.md")).toBe("Retro");
+    expect(artifactTypeSegment("work/brainstorm/b.md")).toBe("Brainstorm");
+    expect(artifactTypeSegment("work/design/d.md")).toBe("Design");
+  });
+
+  test("classifies work/learned/ as Learned (REQ-LDR-1, REQ-LDR-2)", () => {
+    expect(artifactTypeSegment("work/learned/lesson.md")).toBe("Learned");
+    expect(artifactTypeSegment("learned/lesson.md")).toBe("Learned");
+  });
+
+  test("returns null for work/ with no second segment (REQ-LDR-2)", () => {
+    expect(artifactTypeSegment("work/foo.md")).toBeNull();
+  });
+
+  test("returns raw segment for unknown second segment under work/ (REQ-LDR-3)", () => {
+    expect(artifactTypeSegment("work/unrecognized/foo.md")).toBe("unrecognized");
+    expect(artifactTypeSegment("work/foo-bucket/bar.md")).toBe("foo-bucket");
+  });
+
+  test("peels only a single work/ prefix; double-prefixed paths surface inner work segment", () => {
+    // Single peel by spec (REQ-LDR-2). After peeling once, "work/work/foo.md"
+    // becomes "work/foo.md", whose first segment "work" is not in TYPE_LABELS
+    // and so is returned raw per REQ-LDR-3.
+    expect(artifactTypeSegment("work/work/foo.md")).toBe("work");
+  });
+
+  test("classifies reference/ unchanged", () => {
+    expect(artifactTypeSegment("reference/glossary.md")).toBe("Reference");
+    expect(artifactTypeSegment("work/reference/glossary.md")).toBe("Reference");
   });
 });
 

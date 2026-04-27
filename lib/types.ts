@@ -363,6 +363,7 @@ export const TYPE_LABELS: Record<string, string> = {
   retros: "Retro",
   design: "Design",
   reference: "Reference",
+  learned: "Learned",
   notes: "Note",
   tasks: "Task",
   diagrams: "Diagram",
@@ -370,10 +371,20 @@ export const TYPE_LABELS: Record<string, string> = {
   commissions: "Commission",
 };
 
-/** Returns the first path segment, or null for root-level files. */
+/**
+ * Returns the canonical type label for an artifact's relative path, or null for
+ * root-level files. A single leading `work/` segment is peeled before the type
+ * segment is extracted so artifacts under `.lore/work/<type>/` classify the
+ * same as flat-layout artifacts under `.lore/<type>/` (REQ-LDR-2). Unknown
+ * second segments under `work/` return the raw segment, matching flat-layout
+ * behavior (REQ-LDR-3).
+ */
 export function artifactTypeSegment(relativePath: string): string | null {
-  const slash = relativePath.indexOf("/");
-  const rawType = slash === -1 ? null : relativePath.slice(0, slash);
+  const peeled = relativePath.startsWith("work/")
+    ? relativePath.slice("work/".length)
+    : relativePath;
+  const slash = peeled.indexOf("/");
+  const rawType = slash === -1 ? null : peeled.slice(0, slash);
   return (rawType && rawType in TYPE_LABELS) ? TYPE_LABELS[rawType] : rawType;
 }
 

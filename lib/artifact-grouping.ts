@@ -2,13 +2,18 @@ import type { Artifact } from "@/lib/types";
 import { compareArtifactsByStatusAndTitle } from "@/lib/types";
 
 /**
- * Extracts the first directory segment from a relative path.
- * "specs/foo.md" -> "specs", "notes.md" -> "root"
+ * Extracts the first directory segment from a relative path. A single leading
+ * `work/` segment is peeled first so `.lore/work/<type>/` artifacts group
+ * alongside flat-layout artifacts under the same canonical key (REQ-LDR-15).
+ * "specs/foo.md" -> "specs", "work/specs/foo.md" -> "specs", "notes.md" -> "root".
  */
 export function groupKey(relativePath: string): string {
-  const slashIndex = relativePath.indexOf("/");
+  const peeled = relativePath.startsWith("work/")
+    ? relativePath.slice("work/".length)
+    : relativePath;
+  const slashIndex = peeled.indexOf("/");
   if (slashIndex === -1) return "root";
-  return relativePath.slice(0, slashIndex);
+  return peeled.slice(0, slashIndex);
 }
 
 /**
@@ -179,7 +184,13 @@ export function buildArtifactTree(artifacts: Artifact[]): TreeNode[] {
   const topLevelArray: TreeNode[] = [];
 
   for (const artifact of artifacts) {
-    const segments = artifact.relativePath.split("/");
+    // Peel a single leading `work/` segment so `.lore/work/<type>/...` artifacts
+    // share the same top-level group as flat-layout artifacts (REQ-LDR-16).
+    // The leaf node still references the artifact's original relativePath.
+    const groupingPath = artifact.relativePath.startsWith("work/")
+      ? artifact.relativePath.slice("work/".length)
+      : artifact.relativePath;
+    const segments = groupingPath.split("/");
 
     if (segments.length === 1) {
       let rootNode = topLevelMap.get("root");
