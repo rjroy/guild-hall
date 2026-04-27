@@ -26,20 +26,7 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 06:35 commission-Verity-20260427-062652 result: Discovery report written to `.lore/issues/lore-directory-restructure-discovery.md`. The report catalogues every site in the codebase that assumes the flat `.lore/<type>/` layout, organized by category...
+- 07:20 commission-Dalton-20260427-064858 result: Phase 2 of the lore directory restructure is complete. typecheck, lint, the full bun test suite (3679 pass / 4 skip / 0 fail across 169 files), and the production build all pass.
 
-- 06:35 commission-Verity-20260427-062652 completed
-- 06:43 commission-Octavia-20260427-063950 result: Drafted spec at `.lore/specs/infrastructure/lore-directory-restructure.md` (status: draft). 40 requirements (REQ-LDR-1..40) across eight requirement groups: classification (peel `work/`, add `learned`...
-- 06:43 commission-Octavia-20260427-063950 completed
-- 06:51 commission-Dalton-20260427-064804 result: Phase 1 of the lore directory restructure (the classification choke point) is complete. All in-scope requirements implemented; verification clean.
-
-- 06:51 commission-Dalton-20260427-064804 completed
-- 06:56 commission-Thorne-20260427-064828 result: ## Verdict: PASS
-
-Phase 1 of the lore directory restructure correctly establishes single-axis classification with `work/` peeling. All 10 in-scope requirements satisfied. Implementation is small (4 fi...
-- 06:56 commission-Thorne-20260427-064828 completed
-## Files changed
-
-| File | Change |
-| --- | --- |
-| ...
+- 07:20 commission-Dalton-20260427-064858 completed
+## Phase 1 fix recap...
