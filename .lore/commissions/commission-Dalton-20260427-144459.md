@@ -1,0 +1,24 @@
+---
+title: "Commission: Lore restructure: fix Thorne final-review findings (3)"
+date: 2026-04-27
+status: dispatched
+tags: [commission]
+worker: Dalton
+workerDisplayTitle: "Guild Artificer"
+prompt: "## Context\n\nFinal review of the lore directory restructure (`commission-Thorne-20260427-065022`) was APPROVE WITH MINOR FINDINGS. All 40 requirements PASS or PARTIAL with minor gaps. Pre-commit pipeline green (3688 tests pass / 4 skip / 0 fail). Three findings remain. Fix all three before merge.\n\nSpec: `.lore/specs/infrastructure/lore-directory-restructure.md`. Final review artifact: `.lore/commissions/commission-Thorne-20260427-065022.md` (read its body for full context on each finding).\n\n## Findings to Fix\n\n### Finding 1 — workspace.issue feature-level description string\n\n**Where:** `apps/daemon/routes/workspace-issue.ts:320`\n\n**Current:** `descriptions: Record<string, string> = { \"workspace.issue\": \"Create and manage issues in .lore/issues/\" }`\n\n**Fix:** Replace with text that names `.lore/work/issues/` as the write target and acknowledges dual-read.\n\nSuggested string (use this verbatim or close to it): `\"Create and manage issues. Writes target .lore/work/issues/; reads merge .lore/work/issues/ and the flat-layout .lore/issues/.\"`\n\nREQ-LDR-30 is the relevant requirement.\n\n### Finding 2 — MeetingList.tsx bare-filename fallback\n\n**Where:** `apps/web/components/project/MeetingList.tsx:80-85`\n\n**Current:** When `peeled` does not start with `meetings/`, the code does `\\`meetings/${relativePath}\\`` and the comment says \"prepend the legacy prefix to preserve existing callers.\"\n\n**Fix:** Change the prefix to `work/meetings/` per REQ-LDR-19: \"Any logic that prepends `meetings/` to a meeting filename targets the new `work/meetings/` location for newly-created meetings while still accepting flat paths read back from disk.\" Update the surrounding comment to match.\n\nBefore flipping the prefix, grep the codebase to confirm whether this fallback branch has any live caller. If no caller exercises it (Thorne's read suggests it's dead), delete the branch entirely and document the deletion in your result. Do not silently leave dead code.\n\n### Finding 3 — migrate-content-to-body.ts dual-layout awareness\n\n**Where:** `apps/cli/migrate-content-to-body.ts:36`\n\n**Current:** `const commissionsDir = path.join(project.path, \".lore\", \"commissions\");`\n\n**Fix:** Extend the migration tool to scan both `.lore/work/commissions/` AND `.lore/commissions/`. The tool is a one-time pre-restructure cleanup, so dual-layout iteration is harmless and consistent with the coexistence rule.\n\nIf a commission ID exists in both layouts, prefer the `work/` copy and skip the flat copy (consistent with REQ-LDR-11 dedup behavior). If you can pull in `scanCommissions` or another existing dual-read helper, use it rather than reimplementing. Otherwise iterate `[workDir, flatDir]` directly.\n\nAfter this fix, also amend the spec at `.lore/specs/infrastructure/lore-directory-restructure.md` REQ-LDR-33 to either:\n- Remove the misleading \"comment references\" framing for `migrate-content-to-body.ts` and replace with \"operational dual-layout scan\", OR\n- Add a one-line note that the migration tool now scans both layouts.\n\nThis is a small spec correction; do not rewrite the requirement.\n\n## Verification\n\nRun before declaring complete:\n\n```bash\nbun run typecheck\nbun run lint\nbun test\nbun run build\n```\n\nAll four must pass (pre-commit hook will enforce this).\n\nSpot checks after fixes land:\n\n- `grep -n '.lore/issues/' apps/daemon/routes/workspace-issue.ts:320` should now show the new dual-layout description, OR confirm the line moved and the new feature-level description is correct.\n- `grep -n 'meetings/' apps/web/components/project/MeetingList.tsx` should show `work/meetings/` (or no fallback at all if you deleted the branch).\n- `grep -n '\".lore\", \"commissions\"' apps/cli/migrate-content-to-body.ts` should show both `work/commissions/` and `commissions/` paths in the new scan loop.\n\n## Report\n\n1. Diff summary by file (expected: 3 files + spec).\n2. For Finding 2: state whether you flipped the prefix or deleted the dead branch, and the grep evidence that justified the choice.\n3. For Finding 3: state which spec amendment you made and quote the new text.\n4. Confirm all four pre-commit checks passed.\n5. Any deviation with rationale.\n\nAfter this commission, a final Thorne pass will confirm the three findings closed."
+dependencies:
+  - commission-Thorne-20260427-065022
+linked_artifacts: []
+
+activity_timeline:
+  - timestamp: 2026-04-27T21:44:59.063Z
+    event: created
+    reason: "Commission created"
+  - timestamp: 2026-04-27T21:44:59.065Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
+current_progress: ""
+projectName: guild-hall
+---
