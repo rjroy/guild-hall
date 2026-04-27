@@ -215,6 +215,67 @@ describe("scanCommissions", () => {
     const results = await scanCommissions(lorePath, "my-project");
     expect(results[0].projectName).toBe("my-project");
   });
+
+  // -- REQ-LDR-11: dual-read merge of work/commissions and flat commissions --
+
+  test("merges commissions from .lore/work/commissions/ and .lore/commissions/", async () => {
+    const workDir = path.join(lorePath, "work", "commissions");
+    await fs.mkdir(workDir, { recursive: true });
+
+    // Flat-layout commission
+    await writeCommission(
+      "commission-flat.md",
+      `title: Flat Commission\nstatus: pending\nworker: a`,
+    );
+
+    // Work-layout commission
+    await fs.writeFile(
+      path.join(workDir, "commission-work.md"),
+      `---\ntitle: Work Commission\nstatus: pending\nworker: b\n---\n`,
+      "utf-8",
+    );
+
+    const results = await scanCommissions(lorePath, "test-project");
+    const titles = results.map((r) => r.title).sort();
+    expect(titles).toEqual(["Flat Commission", "Work Commission"]);
+  });
+
+  test("dedupes by ID, preferring the work/ copy", async () => {
+    const workDir = path.join(lorePath, "work", "commissions");
+    await fs.mkdir(workDir, { recursive: true });
+
+    // Same ID exists in both layouts; work/ should win
+    await writeCommission(
+      "commission-same.md",
+      `title: Flat Version\nstatus: pending\nworker: a`,
+    );
+    await fs.writeFile(
+      path.join(workDir, "commission-same.md"),
+      `---\ntitle: Work Version\nstatus: pending\nworker: a\n---\n`,
+      "utf-8",
+    );
+
+    const results = await scanCommissions(lorePath, "test-project");
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe("Work Version");
+  });
+
+  test("returns work/-only commissions when flat directory is missing", async () => {
+    // Replace setup: clear the flat dir so only work/ exists
+    await fs.rm(commissionsDir, { recursive: true, force: true });
+    const workDir = path.join(lorePath, "work", "commissions");
+    await fs.mkdir(workDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(workDir, "commission-work-only.md"),
+      `---\ntitle: Work Only\nstatus: pending\nworker: a\n---\n`,
+      "utf-8",
+    );
+
+    const results = await scanCommissions(lorePath, "test-project");
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe("Work Only");
+  });
 });
 
 // -- sortCommissions --

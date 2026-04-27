@@ -207,6 +207,14 @@ describe("artifactTypeSegment", () => {
     expect(artifactTypeSegment("vision.md")).toBeNull();
   });
 
+  test("returns null for empty input (Thorne F3)", () => {
+    expect(artifactTypeSegment("")).toBeNull();
+  });
+
+  test("returns null for the bare 'work/' prefix with no body (Thorne F4)", () => {
+    expect(artifactTypeSegment("work/")).toBeNull();
+  });
+
   test("returns raw segment for unknown flat-layout segments (e.g., generated)", () => {
     expect(artifactTypeSegment("generated/foo.md")).toBe("generated");
     expect(artifactTypeSegment("unknown-bucket/foo.md")).toBe("unknown-bucket");
@@ -239,11 +247,13 @@ describe("artifactTypeSegment", () => {
     expect(artifactTypeSegment("work/foo-bucket/bar.md")).toBe("foo-bucket");
   });
 
-  test("peels only a single work/ prefix; double-prefixed paths surface inner work segment", () => {
-    // Single peel by spec (REQ-LDR-2). After peeling once, "work/work/foo.md"
-    // becomes "work/foo.md", whose first segment "work" is not in TYPE_LABELS
-    // and so is returned raw per REQ-LDR-3.
-    expect(artifactTypeSegment("work/work/foo.md")).toBe("work");
+  test("malformed double-prefix paths return null (Thorne F2)", () => {
+    // REQ-LDR-2 guarantees `work/` never appears as a label. After peeling
+    // once, "work/work/foo.md" becomes "work/foo.md" whose first segment is
+    // still "work"; the implementation guards against this by returning null
+    // rather than surfacing the inner segment as a raw label.
+    expect(artifactTypeSegment("work/work/foo.md")).toBeNull();
+    expect(artifactTypeSegment("work/work/specs/foo.md")).toBeNull();
   });
 
   test("classifies reference/ unchanged", () => {

@@ -16,6 +16,11 @@ import {
   allProjectsBriefingCachePath,
   resolveCommissionBasePath,
   resolveMeetingBasePath,
+  workArtifactPath,
+  commissionWritePath,
+  meetingArtifactPath,
+  resolveCommissionArtifactPath,
+  resolveMeetingArtifactPath,
 } from "@/lib/paths";
 
 describe("getGuildHallHome", () => {
@@ -248,5 +253,130 @@ describe("resolveMeetingBasePath", () => {
     );
     const result = await resolveMeetingBasePath(ghHome, "proj", "meeting-request-789");
     expect(result).toBe(path.join(ghHome, "projects", "proj"));
+  });
+});
+
+// REQ-LDR-5: write-path helpers anchor on .lore/work/<type>/<filename>.
+describe("workArtifactPath", () => {
+  test("returns path under .lore/work/<type>/", () => {
+    expect(workArtifactPath("/proj", "commissions", "x.md")).toBe(
+      path.join("/proj", ".lore", "work", "commissions", "x.md"),
+    );
+    expect(workArtifactPath("/proj", "meetings", "y.md")).toBe(
+      path.join("/proj", ".lore", "work", "meetings", "y.md"),
+    );
+    expect(workArtifactPath("/proj", "issues", "z.md")).toBe(
+      path.join("/proj", ".lore", "work", "issues", "z.md"),
+    );
+  });
+});
+
+describe("commissionWritePath", () => {
+  test("returns path under .lore/work/commissions/", () => {
+    expect(commissionWritePath("/proj", "commission-Test-001")).toBe(
+      path.join("/proj", ".lore", "work", "commissions", "commission-Test-001.md"),
+    );
+  });
+});
+
+describe("meetingArtifactPath", () => {
+  test("returns path under .lore/work/meetings/", () => {
+    expect(meetingArtifactPath("/proj", "audience-Test-20260301-120000")).toBe(
+      path.join("/proj", ".lore", "work", "meetings", "audience-Test-20260301-120000.md"),
+    );
+  });
+});
+
+// REQ-LDR-6: dual-layout read fallback for commission artifacts.
+describe("resolveCommissionArtifactPath", () => {
+  const tmpDirs: string[] = [];
+
+  afterEach(async () => {
+    for (const dir of tmpDirs) {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+    tmpDirs.length = 0;
+  });
+
+  test("prefers .lore/work/commissions/<id>.md when it exists", async () => {
+    const proj = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-resolve-"));
+    tmpDirs.push(proj);
+    const workDir = path.join(proj, ".lore", "work", "commissions");
+    const flatDir = path.join(proj, ".lore", "commissions");
+    await fs.mkdir(workDir, { recursive: true });
+    await fs.mkdir(flatDir, { recursive: true });
+    await fs.writeFile(path.join(workDir, "commission-X.md"), "work", "utf-8");
+    await fs.writeFile(path.join(flatDir, "commission-X.md"), "flat", "utf-8");
+
+    const result = await resolveCommissionArtifactPath(proj, "commission-X");
+    expect(result).toBe(path.join(workDir, "commission-X.md"));
+  });
+
+  test("falls back to .lore/commissions/<id>.md when work/ is absent", async () => {
+    const proj = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-resolve-"));
+    tmpDirs.push(proj);
+    const flatDir = path.join(proj, ".lore", "commissions");
+    await fs.mkdir(flatDir, { recursive: true });
+    await fs.writeFile(path.join(flatDir, "commission-X.md"), "flat", "utf-8");
+
+    const result = await resolveCommissionArtifactPath(proj, "commission-X");
+    expect(result).toBe(path.join(flatDir, "commission-X.md"));
+  });
+
+  test("returns the work/ path when neither exists", async () => {
+    const proj = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-resolve-"));
+    tmpDirs.push(proj);
+
+    const result = await resolveCommissionArtifactPath(proj, "commission-Missing");
+    expect(result).toBe(
+      path.join(proj, ".lore", "work", "commissions", "commission-Missing.md"),
+    );
+  });
+});
+
+// REQ-LDR-7: dual-layout read fallback for meeting artifacts.
+describe("resolveMeetingArtifactPath", () => {
+  const tmpDirs: string[] = [];
+
+  afterEach(async () => {
+    for (const dir of tmpDirs) {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+    tmpDirs.length = 0;
+  });
+
+  test("prefers .lore/work/meetings/<id>.md when it exists", async () => {
+    const proj = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-resolve-"));
+    tmpDirs.push(proj);
+    const workDir = path.join(proj, ".lore", "work", "meetings");
+    const flatDir = path.join(proj, ".lore", "meetings");
+    await fs.mkdir(workDir, { recursive: true });
+    await fs.mkdir(flatDir, { recursive: true });
+    await fs.writeFile(path.join(workDir, "audience-Y.md"), "work", "utf-8");
+    await fs.writeFile(path.join(flatDir, "audience-Y.md"), "flat", "utf-8");
+
+    const result = await resolveMeetingArtifactPath(proj, "audience-Y");
+    expect(result).toBe(path.join(workDir, "audience-Y.md"));
+  });
+
+  test("falls back to .lore/meetings/<id>.md when work/ is absent", async () => {
+    const proj = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-resolve-"));
+    tmpDirs.push(proj);
+    const flatDir = path.join(proj, ".lore", "meetings");
+    await fs.mkdir(flatDir, { recursive: true });
+    await fs.writeFile(path.join(flatDir, "audience-Y.md"), "flat", "utf-8");
+
+    const result = await resolveMeetingArtifactPath(proj, "audience-Y");
+    expect(result).toBe(path.join(flatDir, "audience-Y.md"));
+  });
+
+  test("returns the work/ path when neither exists", async () => {
+    const proj = await fs.mkdtemp(path.join(os.tmpdir(), "gh-paths-resolve-"));
+    tmpDirs.push(proj);
+
+    const result = await resolveMeetingArtifactPath(proj, "audience-Missing");
+    expect(result).toBe(
+      path.join(proj, ".lore", "work", "meetings", "audience-Missing.md"),
+    );
   });
 });

@@ -280,6 +280,17 @@ describe("path metadata extraction", () => {
     expect(artifactDomain("brainstorm/idea.md")).toBeNull();
     expect(artifactDomain("README.md")).toBeNull();
   });
+
+  test("artifactDomain peels work/ prefix (Thorne F1, REQ-LDR-2)", () => {
+    // work/-prefixed artifacts must classify identically to flat-layout
+    // siblings; without peeling, the type segment leaks into the domain.
+    expect(artifactDomain("work/specs/infrastructure/daemon.md")).toBe(
+      "Infrastructure",
+    );
+    expect(artifactDomain("work/plans/ui/sorting.md")).toBe("Ui");
+    expect(artifactDomain("work/specs/foo.md")).toBeNull();
+    expect(artifactDomain("work/brainstorm/idea.md")).toBeNull();
+  });
 });
 
 describe("sorting within views", () => {

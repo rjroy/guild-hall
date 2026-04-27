@@ -5,7 +5,12 @@ import { compareArtifactsByStatusAndTitle } from "@/lib/types";
  * Extracts the first directory segment from a relative path. A single leading
  * `work/` segment is peeled first so `.lore/work/<type>/` artifacts group
  * alongside flat-layout artifacts under the same canonical key (REQ-LDR-15).
- * "specs/foo.md" -> "specs", "work/specs/foo.md" -> "specs", "notes.md" -> "root".
+ * "specs/foo.md" -> "specs", "work/specs/foo.md" -> "specs", "heartbeat.md" -> "root".
+ *
+ * A `work` segment that survives a single peel (`work/work/...`) maps to
+ * "root" rather than producing a "work" group. REQ-LDR-16 guarantees `work`
+ * never appears as a top-level group; this guard keeps the guarantee true
+ * for malformed double-prefixed paths.
  */
 export function groupKey(relativePath: string): string {
   const peeled = relativePath.startsWith("work/")
@@ -13,7 +18,9 @@ export function groupKey(relativePath: string): string {
     : relativePath;
   const slashIndex = peeled.indexOf("/");
   if (slashIndex === -1) return "root";
-  return peeled.slice(0, slashIndex);
+  const first = peeled.slice(0, slashIndex);
+  if (first === "work") return "root";
+  return first;
 }
 
 /**
@@ -187,9 +194,19 @@ export function buildArtifactTree(artifacts: Artifact[]): TreeNode[] {
     // Peel a single leading `work/` segment so `.lore/work/<type>/...` artifacts
     // share the same top-level group as flat-layout artifacts (REQ-LDR-16).
     // The leaf node still references the artifact's original relativePath.
-    const groupingPath = artifact.relativePath.startsWith("work/")
+    let groupingPath = artifact.relativePath.startsWith("work/")
       ? artifact.relativePath.slice("work/".length)
       : artifact.relativePath;
+
+    // Malformed double-prefix (`work/work/...`): collapse to just the filename
+    // so the artifact lands under the synthetic "root" group. groupKey maps
+    // these to "root"; the tree must agree so REQ-LDR-16's "never Work as a
+    // top-level group" guarantee holds.
+    if (groupingPath.startsWith("work/")) {
+      const slash = groupingPath.lastIndexOf("/");
+      groupingPath = slash === -1 ? groupingPath : groupingPath.slice(slash + 1);
+    }
+
     const segments = groupingPath.split("/");
 
     if (segments.length === 1) {

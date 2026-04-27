@@ -378,6 +378,11 @@ export const TYPE_LABELS: Record<string, string> = {
  * same as flat-layout artifacts under `.lore/<type>/` (REQ-LDR-2). Unknown
  * second segments under `work/` return the raw segment, matching flat-layout
  * behavior (REQ-LDR-3).
+ *
+ * A `work` segment that survives a single peel (i.e., `work/work/...`) is
+ * mapped to null. The spec guarantees `work/` never appears as a label
+ * (REQ-LDR-2); this guard keeps the guarantee true even for malformed
+ * double-prefixed paths.
  */
 export function artifactTypeSegment(relativePath: string): string | null {
   const peeled = relativePath.startsWith("work/")
@@ -385,6 +390,7 @@ export function artifactTypeSegment(relativePath: string): string | null {
     : relativePath;
   const slash = peeled.indexOf("/");
   const rawType = slash === -1 ? null : peeled.slice(0, slash);
+  if (rawType === "work") return null;
   return (rawType && rawType in TYPE_LABELS) ? TYPE_LABELS[rawType] : rawType;
 }
 

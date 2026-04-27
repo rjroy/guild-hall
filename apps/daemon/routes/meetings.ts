@@ -8,8 +8,9 @@ import { errorMessage } from "@/apps/daemon/lib/toolbox-utils";
 import { nullLog } from "@/apps/daemon/lib/log";
 import type { Log } from "@/apps/daemon/lib/log";
 import type { AppConfig, Artifact, RouteModule, OperationDefinition } from "@/lib/types";
-import { integrationWorktreePath, projectLorePath, resolveMeetingBasePath } from "@/lib/paths";
+import { integrationWorktreePath, projectLorePath, resolveMeetingArtifactPath, resolveMeetingBasePath } from "@/lib/paths";
 import { scanArtifacts } from "@/lib/artifacts";
+import { isNodeError } from "@/lib/types";
 import {
   scanMeetingRequests,
   readMeetingMeta,
@@ -325,12 +326,11 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       // Artifacts view: return all meetings as Artifact[] with active worktree
       // merging. Used by the project page's meetings tab.
       if (view === "artifacts") {
-        const meetingsPath = path.join(lorePath, "meetings");
-        const integrationMeetings = await scanArtifacts(meetingsPath);
+        const integrationMeetings = await scanMeetingArtifactsDual(iPath);
 
         const activeWorktrees = await getActiveMeetingWorktrees(deps.guildHallHome, projectName);
         const activeMeetingArrays = await Promise.all(
-          activeWorktrees.map((wt) => scanArtifacts(path.join(wt, ".lore", "meetings"))),
+          activeWorktrees.map((wt) => scanMeetingArtifactsDual(wt)),
         );
         const activeMeetings = activeMeetingArrays.flat();
 
@@ -348,36 +348,21 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
       // Open view: return MeetingMeta[] for active (open) meetings,
       // merging integration worktree and active meeting worktrees.
       if (view === "open") {
-        const meetingsPath = path.join(lorePath, "meetings");
+        // Enumerate integration worktree meetings (both layouts; REQ-LDR-13).
+        const integrationEntries = await listMeetingFilesDual(iPath);
 
-        // Enumerate integration worktree meetings
-        let integrationFiles: string[] = [];
-        try {
-          integrationFiles = (await fs.readdir(meetingsPath))
-            .filter((f) => f.endsWith(".md"));
-        } catch {
-          // Directory may not exist yet
-        }
-
-        // Enumerate active worktree meetings
+        // Enumerate active worktree meetings (both layouts).
         const activeWorktrees = await getActiveMeetingWorktrees(deps.guildHallHome, projectName);
         const worktreeFiles: Array<{ dir: string; file: string }> = [];
         for (const wt of activeWorktrees) {
-          const wtMeetingsPath = path.join(wt, ".lore", "meetings");
-          try {
-            const files = (await fs.readdir(wtMeetingsPath)).filter((f) => f.endsWith(".md"));
-            for (const f of files) {
-              worktreeFiles.push({ dir: wtMeetingsPath, file: f });
-            }
-          } catch {
-            // Skip missing directories
-          }
+          const entries = await listMeetingFilesDual(wt);
+          worktreeFiles.push(...entries);
         }
 
         // Merge, deduplicating by filename (integration wins)
-        const seenFiles = new Set(integrationFiles);
+        const seenFiles = new Set(integrationEntries.map((e) => e.file));
         const allFileEntries: Array<{ dir: string; file: string }> = [
-          ...integrationFiles.map((f) => ({ dir: meetingsPath, file: f })),
+          ...integrationEntries,
           ...worktreeFiles.filter((e) => !seenFiles.has(e.file)),
         ];
 
@@ -431,8 +416,7 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
 
     try {
       const basePath = await resolveMeetingBasePath(deps.guildHallHome, projectName, meetingId);
-      const lorePath = projectLorePath(basePath);
-      const filePath = path.join(lorePath, "meetings", `${meetingId}.md`);
+      const filePath = await resolveMeetingArtifactPath(basePath, meetingId);
 
       const meta = await readMeetingMeta(filePath, projectName);
 
@@ -652,4 +636,63 @@ function serializeArtifact(a: Artifact): Record<string, unknown> {
     lastModified: a.lastModified.toISOString(),
     ...(a.rawContent !== undefined ? { rawContent: a.rawContent } : {}),
   };
+}
+
+/**
+ * Scans meeting artifacts from both `.lore/work/meetings/` and the legacy
+ * `.lore/meetings/` directory under a worktree, deduplicating by filename
+ * and preferring the work/ copy (REQ-LDR-13).
+ *
+ * Each subdirectory scan produces relativePath = filename, so dedup by
+ * relativePath is equivalent to dedup by meeting ID.
+ */
+async function scanMeetingArtifactsDual(worktreeDir: string): Promise<Artifact[]> {
+  const lorePath = path.join(worktreeDir, ".lore");
+  const workDir = path.join(lorePath, "work", "meetings");
+  const flatDir = path.join(lorePath, "meetings");
+
+  const seen = new Set<string>();
+  const merged: Artifact[] = [];
+  for (const dir of [workDir, flatDir]) {
+    const arts = await scanArtifacts(dir);
+    for (const a of arts) {
+      if (seen.has(a.relativePath)) continue;
+      seen.add(a.relativePath);
+      merged.push(a);
+    }
+  }
+  return merged;
+}
+
+/**
+ * Enumerates meeting artifact files from both `.lore/work/meetings/` and
+ * `.lore/meetings/` under a worktree. Returns `{ dir, file }` entries so
+ * callers can read each file from its own directory. Deduplicates by
+ * filename, preferring the work/ copy (REQ-LDR-13).
+ */
+async function listMeetingFilesDual(
+  worktreeDir: string,
+): Promise<Array<{ dir: string; file: string }>> {
+  const lorePath = path.join(worktreeDir, ".lore");
+  const workDir = path.join(lorePath, "work", "meetings");
+  const flatDir = path.join(lorePath, "meetings");
+
+  const seen = new Set<string>();
+  const result: Array<{ dir: string; file: string }> = [];
+  for (const dir of [workDir, flatDir]) {
+    let entries: string[];
+    try {
+      entries = await fs.readdir(dir);
+    } catch (err: unknown) {
+      if (isNodeError(err) && err.code === "ENOENT") continue;
+      throw err;
+    }
+    for (const file of entries) {
+      if (!file.endsWith(".md")) continue;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      result.push({ dir, file });
+    }
+  }
+  return result;
 }

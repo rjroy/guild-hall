@@ -75,16 +75,131 @@ export function meetingWorktreePath(
 }
 
 /**
- * Returns the filesystem path for a commission artifact within a project
- * or worktree root. The commissionId is a plain string here (not the
- * branded CommissionId type from daemon/types.ts) because this module
- * lives in the shared layer.
+ * Returns the canonical write path for an in-flight artifact under
+ * `.lore/work/<type>/<filename>` (REQ-LDR-5). Every Guild Hall write of an
+ * in-flight artifact resolves through this helper so the layout question
+ * stops accumulating call sites.
+ *
+ * `type` is the directory segment (e.g. "commissions", "meetings", "issues").
+ * `filename` is the leaf name including any extension (e.g. "commission-X.md").
+ */
+export function workArtifactPath(
+  projectPath: string,
+  type: string,
+  filename: string,
+): string {
+  return path.join(projectPath, ".lore", "work", type, filename);
+}
+
+/**
+ * Returns the legacy flat-layout path for a commission artifact under
+ * `.lore/commissions/<id>.md`. The commissionId is a plain string here
+ * (not the branded CommissionId type from daemon/types.ts) because this
+ * module lives in the shared layer.
+ *
+ * REQ-LDR-6 will flip this to return `.lore/work/commissions/<id>.md` once
+ * the orchestrator and its tests migrate together (Phase 3). Until then,
+ * use `commissionWritePath` for canonical new-write paths and
+ * `resolveCommissionArtifactPath` for reads that need the dual-layout
+ * fallback.
  */
 export function commissionArtifactPath(
   projectPath: string,
   commissionId: string,
 ): string {
   return path.join(projectPath, ".lore", "commissions", `${commissionId}.md`);
+}
+
+/**
+ * Returns the canonical write path for a commission artifact under
+ * `.lore/work/commissions/<id>.md` (REQ-LDR-5). New write sites resolve
+ * through this helper so the orchestrator can migrate off
+ * `commissionArtifactPath` in Phase 3 (REQ-LDR-22) without breaking
+ * existing test fixtures that still expect the flat layout.
+ */
+export function commissionWritePath(
+  projectPath: string,
+  commissionId: string,
+): string {
+  return workArtifactPath(projectPath, "commissions", `${commissionId}.md`);
+}
+
+/**
+ * Returns the canonical write path for a meeting artifact under
+ * `.lore/work/meetings/<id>.md` (REQ-LDR-7).
+ *
+ * Note: a separate `meetingArtifactPath` exists in
+ * `apps/daemon/services/meeting/record.ts` that returns the legacy
+ * `.lore/meetings/<id>.md` path. That one is the daemon write site
+ * targeted by REQ-LDR-21 in Phase 3; the lib-side helper here is the
+ * canonical one consumers should adopt once Phase 3 lands.
+ *
+ * Reads should go through `resolveMeetingArtifactPath` so the flat-layout
+ * fallback applies when the new path does not exist.
+ */
+export function meetingArtifactPath(
+  projectPath: string,
+  meetingId: string,
+): string {
+  return workArtifactPath(projectPath, "meetings", `${meetingId}.md`);
+}
+
+/**
+ * Returns the legacy flat-layout path `.lore/<type>/<filename>` used as a
+ * read-only fallback for projects that have not migrated to the work/
+ * layout. New writes never target this path (REQ-LDR-6, REQ-LDR-7).
+ */
+function flatArtifactPath(
+  projectPath: string,
+  type: string,
+  filename: string,
+): string {
+  return path.join(projectPath, ".lore", type, filename);
+}
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await fs.access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolves the read path for a commission artifact. Prefers the new
+ * `.lore/work/commissions/<id>.md` location and falls back to the flat
+ * `.lore/commissions/<id>.md` path when the new path is absent
+ * (REQ-LDR-6). The fallback is read-only; new writes target the canonical
+ * path returned by `commissionWritePath`.
+ */
+export async function resolveCommissionArtifactPath(
+  projectPath: string,
+  commissionId: string,
+): Promise<string> {
+  const workPath = commissionWritePath(projectPath, commissionId);
+  if (await pathExists(workPath)) return workPath;
+  const flatPath = flatArtifactPath(projectPath, "commissions", `${commissionId}.md`);
+  if (await pathExists(flatPath)) return flatPath;
+  return workPath;
+}
+
+/**
+ * Resolves the read path for a meeting artifact. Prefers the new
+ * `.lore/work/meetings/<id>.md` location and falls back to the flat
+ * `.lore/meetings/<id>.md` path when the new path is absent (REQ-LDR-7).
+ * The fallback is read-only; writes always target the canonical path
+ * returned by `meetingArtifactPath`.
+ */
+export async function resolveMeetingArtifactPath(
+  projectPath: string,
+  meetingId: string,
+): Promise<string> {
+  const workPath = meetingArtifactPath(projectPath, meetingId);
+  if (await pathExists(workPath)) return workPath;
+  const flatPath = flatArtifactPath(projectPath, "meetings", `${meetingId}.md`);
+  if (await pathExists(flatPath)) return flatPath;
+  return workPath;
 }
 
 /**

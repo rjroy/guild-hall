@@ -7,6 +7,7 @@ import type { Log } from "@/apps/daemon/lib/log";
 import type { GitOps } from "@/apps/daemon/lib/git";
 import { integrationWorktreePath } from "@/lib/paths";
 import type { AppConfig, RouteModule, OperationDefinition } from "@/lib/types";
+import { isNodeError } from "@/lib/types";
 import * as fs from "node:fs/promises";
 import * as nodePath from "node:path";
 
@@ -145,8 +146,9 @@ export function createWorkspaceIssueRoutes(deps: IssueRouteDeps): RouteModule {
   });
 
   // GET /workspace/issue/list?projectName=X[&status=Y]
-  // Lists issue frontmatter rows from .lore/issues/ in the integration worktree.
-  // Returns an empty array if the directory does not exist.
+  // Lists issue frontmatter rows from `.lore/work/issues/` and `.lore/issues/`
+  // in the integration worktree, deduplicated by slug with the work/ copy
+  // preferred (REQ-LDR-14). Returns an empty array if neither directory exists.
   routes.get("/workspace/issue/list", async (c) => {
     const projectName = c.req.query("projectName");
     if (!projectName) {
@@ -159,34 +161,38 @@ export function createWorkspaceIssueRoutes(deps: IssueRouteDeps): RouteModule {
 
     const statusFilter = c.req.query("status");
     const worktreePath = integrationWorktreePath(deps.guildHallHome, projectName);
-    const issuesDir = nodePath.join(worktreePath, ".lore", "issues");
+    const workDir = nodePath.join(worktreePath, ".lore", "work", "issues");
+    const flatDir = nodePath.join(worktreePath, ".lore", "issues");
 
-    let entries: string[];
-    try {
-      entries = await fs.readdir(issuesDir);
-    } catch (err: unknown) {
-      if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-        return c.json({ issues: [] });
-      }
-      log.error("issue list failed:", errorMessage(err));
-      return c.json({ error: errorMessage(err) }, 500);
-    }
-
+    const seen = new Set<string>();
     const issues: Array<{ slug: string; title: string; status: string; date: string }> = [];
-    for (const entry of entries) {
-      if (!entry.endsWith(".md")) continue;
-      const slug = entry.slice(0, -3);
+    for (const dir of [workDir, flatDir]) {
+      let entries: string[];
       try {
-        const raw = await fs.readFile(nodePath.join(issuesDir, entry), "utf-8");
-        const parsed = matter(raw);
-        const data = parsed.data as Record<string, unknown>;
-        const title = typeof data.title === "string" ? data.title : slug;
-        const status = typeof data.status === "string" ? data.status : "open";
-        const date = typeof data.date === "string" ? data.date : "";
-        if (statusFilter && status !== statusFilter) continue;
-        issues.push({ slug, title, status, date });
+        entries = await fs.readdir(dir);
       } catch (err: unknown) {
-        log.warn(`issue list: skipping unreadable "${entry}":`, errorMessage(err));
+        if (isNodeError(err) && err.code === "ENOENT") continue;
+        log.error("issue list failed:", errorMessage(err));
+        return c.json({ error: errorMessage(err) }, 500);
+      }
+
+      for (const entry of entries) {
+        if (!entry.endsWith(".md")) continue;
+        const slug = entry.slice(0, -3);
+        if (seen.has(slug)) continue;
+        seen.add(slug);
+        try {
+          const raw = await fs.readFile(nodePath.join(dir, entry), "utf-8");
+          const parsed = matter(raw);
+          const data = parsed.data as Record<string, unknown>;
+          const title = typeof data.title === "string" ? data.title : slug;
+          const status = typeof data.status === "string" ? data.status : "open";
+          const date = typeof data.date === "string" ? data.date : "";
+          if (statusFilter && status !== statusFilter) continue;
+          issues.push({ slug, title, status, date });
+        } catch (err: unknown) {
+          log.warn(`issue list: skipping unreadable "${entry}":`, errorMessage(err));
+        }
       }
     }
 
@@ -211,17 +217,22 @@ export function createWorkspaceIssueRoutes(deps: IssueRouteDeps): RouteModule {
     }
 
     const worktreePath = integrationWorktreePath(deps.guildHallHome, projectName);
-    const filePath = nodePath.join(worktreePath, ".lore", "issues", `${slug}.md`);
+    const workPath = nodePath.join(worktreePath, ".lore", "work", "issues", `${slug}.md`);
+    const flatPath = nodePath.join(worktreePath, ".lore", "issues", `${slug}.md`);
 
-    let raw: string;
-    try {
-      raw = await fs.readFile(filePath, "utf-8");
-    } catch (err: unknown) {
-      if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-        return c.json({ error: `Issue not found: ${slug}` }, 404);
+    let raw: string | null = null;
+    for (const candidate of [workPath, flatPath]) {
+      try {
+        raw = await fs.readFile(candidate, "utf-8");
+        break;
+      } catch (err: unknown) {
+        if (isNodeError(err) && err.code === "ENOENT") continue;
+        log.error("issue read failed:", errorMessage(err));
+        return c.json({ error: errorMessage(err) }, 500);
       }
-      log.error("issue read failed:", errorMessage(err));
-      return c.json({ error: errorMessage(err) }, 500);
+    }
+    if (raw === null) {
+      return c.json({ error: `Issue not found: ${slug}` }, 404);
     }
 
     const parsed = matter(raw);
