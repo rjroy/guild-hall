@@ -1,7 +1,7 @@
 ---
 title: Repository root layout
 date: 2026-04-22
-status: implemented
+status: approved
 tags: [architecture, refactor, directory-structure, tests, monorepo]
 modules: [cli, daemon, web, lib, packages]
 related:
