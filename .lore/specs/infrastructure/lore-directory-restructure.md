@@ -1,7 +1,7 @@
 ---
 title: Lore directory restructure (work/ layout coexistence)
 date: 2026-04-27
-status: draft
+status: approved
 tags: [architecture, lore, directory-structure, classification, refactor]
 modules: [lib, daemon, web, cli, packages]
 related:
