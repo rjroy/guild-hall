@@ -26,7 +26,3 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 07:20 commission-Dalton-20260427-064858 result: Phase 2 of the lore directory restructure is complete. typecheck, lint, the full bun test suite (3679 pass / 4 skip / 0 fail across 169 files), and the production build all pass.
-
-- 07:20 commission-Dalton-20260427-064858 completed
-## Phase 1 fix recap...

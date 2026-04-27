@@ -29,6 +29,19 @@ activity_timeline:
     reason: "Dispatched to worker"
     from: "pending"
     to: "dispatched"
+  - timestamp: 2026-04-27T14:20:53.066Z
+    event: status_failed
+    reason: "Session error: Claude Code returned an error result: You've hit your limit · resets 11am (America/Los_Angeles)"
+  - timestamp: 2026-04-27T20:00:06.644Z
+    event: status_pending
+    reason: "Redispatched for retry"
+    from: "failed"
+    to: "pending"
+  - timestamp: 2026-04-27T20:00:06.645Z
+    event: status_dispatched
+    reason: "Dispatched to worker"
+    from: "pending"
+    to: "dispatched"
 current_progress: ""
 projectName: guild-hall
 ---
