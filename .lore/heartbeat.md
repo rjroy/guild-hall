@@ -26,3 +26,6 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
+- 06:35 commission-Verity-20260427-062652 result: Discovery report written to `.lore/issues/lore-directory-restructure-discovery.md`. The report catalogues every site in the codebase that assumes the flat `.lore/<type>/` layout, organized by category...
+
+- 06:35 commission-Verity-20260427-062652 completed
