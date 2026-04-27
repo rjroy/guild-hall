@@ -18,9 +18,11 @@ const meetingId = "audience-researcher-20260301-120000" as MeetingId;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-meeting-record-"));
-  // Create the .lore/meetings directory so artifact writes succeed
-  const meetingsDir = path.join(tmpDir, ".lore", "meetings");
-  await fs.mkdir(meetingsDir, { recursive: true });
+  // Ensure the canonical meeting artifact directory exists so writes succeed.
+  // meetingArtifactPath now returns .lore/work/meetings/<id>.md (REQ-LDR-21).
+  await fs.mkdir(path.dirname(meetingArtifactPath(tmpDir, meetingId)), {
+    recursive: true,
+  });
 });
 
 afterEach(async () => {

@@ -115,39 +115,54 @@ export async function readMeetingMeta(
 }
 
 /**
- * Reads all .md files in {projectLorePath}/meetings/, parses frontmatter,
- * and returns an array of meeting metadata.
+ * Lists `.md` filenames in a directory, returning [] if the directory
+ * does not exist. Other errors propagate.
+ */
+async function listMarkdownFiles(dir: string): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    return entries
+      .filter((e) => e.isFile() && e.name.endsWith(".md"))
+      .map((e) => e.name);
+  } catch (err: unknown) {
+    if (isNodeError(err) && err.code === "ENOENT") return [];
+    throw err;
+  }
+}
+
+/**
+ * Reads meeting artifacts from both `.lore/work/meetings/` and the
+ * legacy `.lore/meetings/`, and returns the merged array (REQ-LDR-12).
  *
- * Returns an empty array if the meetings directory doesn't exist.
+ * Duplicate IDs (same meeting written to both layouts) prefer the
+ * `work/` copy; the flat copy is dropped. The merge is at the listing
+ * level only; no rewrite occurs.
+ *
+ * Returns an empty array if neither directory exists.
  */
 export async function scanMeetings(
   projectLorePath: string,
   projectName: string,
 ): Promise<MeetingMeta[]> {
-  const meetingsDir = path.join(projectLorePath, "meetings");
+  const workDir = path.join(projectLorePath, "work", "meetings");
+  const flatDir = path.join(projectLorePath, "meetings");
 
-  let entries: string[];
-  try {
-    const dirEntries = await fs.readdir(meetingsDir, { withFileTypes: true });
-    entries = dirEntries
-      .filter((e) => e.isFile() && e.name.endsWith(".md"))
-      .map((e) => e.name);
-  } catch (err: unknown) {
-    if (isNodeError(err) && err.code === "ENOENT") {
-      return [];
-    }
-    throw err;
-  }
-
+  const seen = new Set<string>();
   const meetings: MeetingMeta[] = [];
 
-  for (const filename of entries) {
-    const filePath = path.join(meetingsDir, filename);
-    try {
-      const meta = await readMeetingMeta(filePath, projectName);
-      meetings.push(meta);
-    } catch {
-      // Skip files we can't read
+  // Read work/ first so duplicate IDs preferentially come from there.
+  for (const dir of [workDir, flatDir]) {
+    const filenames = await listMarkdownFiles(dir);
+    for (const filename of filenames) {
+      const id = meetingIdFromFilename(filename);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      try {
+        const meta = await readMeetingMeta(path.join(dir, filename), projectName);
+        meetings.push(meta);
+      } catch {
+        // Skip files we can't read
+      }
     }
   }
 

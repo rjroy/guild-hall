@@ -30,7 +30,12 @@ export function artifactHref(
   projectName: string
 ): string {
   const encodedName = encodeURIComponent(projectName);
-  const isMeeting = artifact.relativePath.startsWith("meetings/");
+  // REQ-LDR-19: peel an optional "work/" prefix so artifacts written under
+  // .lore/work/meetings/ classify the same as legacy .lore/meetings/.
+  const peeled = artifact.relativePath.startsWith("work/")
+    ? artifact.relativePath.slice("work/".length)
+    : artifact.relativePath;
+  const isMeeting = peeled.startsWith("meetings/");
 
   if (isMeeting) {
     const status = artifact.meta.status.toLowerCase().trim();

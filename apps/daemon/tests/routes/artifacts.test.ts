@@ -1016,3 +1016,110 @@ describe("image endpoints resolve from integration worktree", () => {
     expect(body.mimeType).toBe("image/svg+xml");
   });
 });
+
+// REQ-LDR-40: route prefix detection must recognize the canonical
+// `work/meetings/` and `work/commissions/` segments as classifying the
+// artifact type, in addition to the legacy flat `meetings/` and
+// `commissions/` prefixes. The integration worktree is the read fallback
+// when no daemon state file exists for the activity.
+describe("REQ-LDR-40: prefix detection for work/meetings/ and work/commissions/", () => {
+  test("read works for path=work/meetings/<id>.md when artifact lives at the new layout", async () => {
+    await writeTestArtifact(
+      "work/meetings/audience-test-20260301-120000.md",
+      `---
+title: "Audience with Tester"
+date: 2026-03-01
+status: closed
+tags: [meeting]
+worker: tester
+---
+
+Notes from the meeting.
+`,
+    );
+
+    const app = makeTestApp();
+    const res = await app.request(
+      "/workspace/artifact/document/read?projectName=test-project&path=work/meetings/audience-test-20260301-120000.md",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.relativePath).toBe("work/meetings/audience-test-20260301-120000.md");
+    expect(body.meta.status).toBe("closed");
+    expect(body.content).toContain("Notes from the meeting.");
+  });
+
+  test("read works for path=work/commissions/<id>.md when artifact lives at the new layout", async () => {
+    await writeTestArtifact(
+      "work/commissions/commission-test-20260301-120000.md",
+      `---
+title: "Test Commission"
+date: 2026-03-01
+status: completed
+worker: tester
+---
+
+Result summary line.
+`,
+    );
+
+    const app = makeTestApp();
+    const res = await app.request(
+      "/workspace/artifact/document/read?projectName=test-project&path=work/commissions/commission-test-20260301-120000.md",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.relativePath).toBe("work/commissions/commission-test-20260301-120000.md");
+    expect(body.meta.status).toBe("completed");
+    expect(body.content).toContain("Result summary line.");
+  });
+
+  test("read still works for legacy flat path=meetings/<id>.md", async () => {
+    await writeTestArtifact(
+      "meetings/legacy-meeting.md",
+      `---
+title: "Legacy Meeting"
+date: 2026-03-01
+status: closed
+tags: [meeting]
+worker: tester
+---
+
+Legacy notes.
+`,
+    );
+
+    const app = makeTestApp();
+    const res = await app.request(
+      "/workspace/artifact/document/read?projectName=test-project&path=meetings/legacy-meeting.md",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.relativePath).toBe("meetings/legacy-meeting.md");
+    expect(body.content).toContain("Legacy notes.");
+  });
+
+  test("read still works for legacy flat path=commissions/<id>.md", async () => {
+    await writeTestArtifact(
+      "commissions/legacy-commission.md",
+      `---
+title: "Legacy Commission"
+date: 2026-03-01
+status: completed
+worker: tester
+---
+
+Legacy summary.
+`,
+    );
+
+    const app = makeTestApp();
+    const res = await app.request(
+      "/workspace/artifact/document/read?projectName=test-project&path=commissions/legacy-commission.md",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.relativePath).toBe("commissions/legacy-commission.md");
+    expect(body.content).toContain("Legacy summary.");
+  });
+});

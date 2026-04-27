@@ -380,7 +380,7 @@ describe("Project-Scoped Meetings", () => {
         session.createMeeting("test-project", "guild-hall-manager", "Plan work"),
       );
 
-      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "work", "meetings");
       const files = await fs.readdir(meetingsDir);
       expect(files).toHaveLength(1);
 
@@ -535,13 +535,13 @@ describe("Project-Scoped Meetings", () => {
       expect(meetings[0].worktreeDir).toBe(integrationDir);
 
       // Simulate a commission merge by writing a file to the integration worktree
-      const commissionFile = path.join(integrationDir, ".lore", "commissions", "test-commission.md");
+      const commissionFile = path.join(integrationDir, ".lore", "work", "commissions", "test-commission.md");
       await fs.mkdir(path.dirname(commissionFile), { recursive: true });
       await fs.writeFile(commissionFile, "# Commission Result\n\nDone.", "utf-8");
 
       // The file should be visible at the meeting's worktreeDir
       const content = await fs.readFile(
-        path.join(meetings[0].worktreeDir, ".lore", "commissions", "test-commission.md"),
+        path.join(meetings[0].worktreeDir, ".lore", "work", "commissions", "test-commission.md"),
         "utf-8",
       );
       expect(content).toContain("Commission Result");
@@ -819,7 +819,7 @@ describe("Project-Scoped Meetings", () => {
       const meetingId = meetings[0].meetingId as string;
 
       // Verify the artifact is at the integration worktree (not an activity worktree)
-      const artifactPath = path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`);
+      const artifactPath = path.join(integrationDir, ".lore", "work", "meetings", `${meetingId}.md`);
       const exists = await fs.access(artifactPath).then(() => true, () => false);
       expect(exists).toBe(true);
 
@@ -841,12 +841,12 @@ describe("Project-Scoped Meetings", () => {
       const worktreeDir = meetings[0].worktreeDir;
 
       // Simulate a tool writing to the worktreeDir (which is the integration path)
-      const followupPath = path.join(worktreeDir, ".lore", "meetings", "followup-test.md");
+      const followupPath = path.join(worktreeDir, ".lore", "work", "meetings", "followup-test.md");
       await fs.writeFile(followupPath, "# Follow-up\n\nSuggested next meeting.", "utf-8");
 
       // File should be at the integration worktree
       const content = await fs.readFile(
-        path.join(integrationDir, ".lore", "meetings", "followup-test.md"),
+        path.join(integrationDir, ".lore", "work", "meetings", "followup-test.md"),
         "utf-8",
       );
       expect(content).toContain("Follow-up");
@@ -861,7 +861,7 @@ describe("Project-Scoped Meetings", () => {
 
       // First create a meeting request artifact on the integration worktree
       const meetingId = asMeetingId("audience-Guild-Master-20260304-130000");
-      const artifactDir = path.join(integrationDir, ".lore", "meetings");
+      const artifactDir = path.join(integrationDir, ".lore", "work", "meetings");
       await fs.mkdir(artifactDir, { recursive: true });
 
       const artifactContent = [

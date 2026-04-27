@@ -31,10 +31,10 @@ beforeEach(async () => {
   guildHallHome = path.join(tmpDir, "guild-hall-home");
 
   const intPath = derivedIntegrationPath();
-  await fs.mkdir(path.join(intPath, ".lore", "meetings"), {
+  await fs.mkdir(path.join(intPath, ".lore", "work", "meetings"), {
     recursive: true,
   });
-  await fs.mkdir(path.join(intPath, ".lore", "commissions"), {
+  await fs.mkdir(path.join(intPath, ".lore", "work", "commissions"), {
     recursive: true,
   });
 });
@@ -747,7 +747,7 @@ describe("initiate_meeting", () => {
     expect(result.isError).toBeUndefined();
 
     const parsed = parseResult(result.content[0].text);
-    expect(parsed.artifactPath).toMatch(/^meetings\//);
+    expect(parsed.artifactPath).toMatch(/^work\/meetings\//);
     expect(parsed.artifactPath).toContain("discuss-api-design");
     expect(parsed.artifactPath).toEndWith(".md");
 
@@ -810,9 +810,9 @@ describe("initiate_meeting", () => {
 
     const parsed = parseResult(result.content[0].text);
     // Extract just the filename (after meetings/) to check sanitization
-    const filename = String(parsed.artifactPath).replace("meetings/", "");
+    const filename = String(parsed.artifactPath).replace("work/meetings/", "");
     expect(filename).not.toMatch(/["&!]/);
-    expect(parsed.artifactPath).toMatch(/^meetings\/meeting-request-\d{8}-\d{6}-/);
+    expect(parsed.artifactPath).toMatch(/^work\/meetings\/meeting-request-\d{8}-\d{6}-/);
   });
 
   test("escapes quotes in reason for YAML", async () => {
@@ -868,7 +868,7 @@ describe("initiate_meeting", () => {
 
   test("creates meetings directory if it does not exist", async () => {
     // Remove the meetings directory
-    await fs.rm(path.join(derivedIntegrationPath(), ".lore", "meetings"), {
+    await fs.rm(path.join(derivedIntegrationPath(), ".lore", "work", "meetings"), {
       recursive: true,
     });
 
@@ -1014,7 +1014,7 @@ async function writeCommission(
   frontmatter: string,
   body = "",
 ): Promise<void> {
-  const dir = path.join(derivedIntegrationPath(), ".lore", "commissions");
+  const dir = path.join(derivedIntegrationPath(), ".lore", "work", "commissions");
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, `${id}.md`), `---\n${frontmatter}\n---\n${body}`, "utf-8");
 }
@@ -1197,7 +1197,7 @@ activity_timeline:
 
   test("returns empty list and zeroed summary for project with no commissions", async () => {
     // Remove all commissions
-    const dir = path.join(derivedIntegrationPath(), ".lore", "commissions");
+    const dir = path.join(derivedIntegrationPath(), ".lore", "work", "commissions");
     const entries = await fs.readdir(dir);
     for (const entry of entries) {
       await fs.rm(path.join(dir, entry));
@@ -1218,7 +1218,7 @@ activity_timeline:
   });
 
   test("returns empty list when commissions directory does not exist", async () => {
-    await fs.rm(path.join(derivedIntegrationPath(), ".lore", "commissions"), {
+    await fs.rm(path.join(derivedIntegrationPath(), ".lore", "work", "commissions"), {
       recursive: true,
     });
 

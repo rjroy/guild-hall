@@ -108,12 +108,18 @@ export function createArtifactRoutes(deps: ArtifactDeps): RouteModule {
 
     try {
       let basePath: string;
-      if (artifactPath.startsWith("meetings/")) {
-        const filename = artifactPath.split("/").pop() ?? "";
+      // REQ-LDR-18: peel an optional "work/" prefix before classifying so
+      // `work/meetings/<id>.md` and `work/commissions/<id>.md` route to the
+      // active-activity worktree just like the legacy flat-layout paths.
+      const peeled = artifactPath.startsWith("work/")
+        ? artifactPath.slice("work/".length)
+        : artifactPath;
+      if (peeled.startsWith("meetings/")) {
+        const filename = peeled.split("/").pop() ?? "";
         const meetingId = filename.replace(/\.md$/, "");
         basePath = await resolveMeetingBasePath(deps.guildHallHome, projectName, meetingId);
-      } else if (artifactPath.startsWith("commissions/")) {
-        const filename = artifactPath.split("/").pop() ?? "";
+      } else if (peeled.startsWith("commissions/")) {
+        const filename = peeled.split("/").pop() ?? "";
         const commissionId = filename.replace(/\.md$/, "");
         basePath = await resolveCommissionBasePath(deps.guildHallHome, projectName, commissionId);
       } else {

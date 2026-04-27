@@ -295,7 +295,7 @@ beforeEach(async () => {
   ghHomeDir = path.join(tmpRoot, "guild-hall-home");
 
   // Create project directory with .lore/ (required for artifact writes)
-  await fs.mkdir(path.join(projectDir, ".lore", "meetings"), {
+  await fs.mkdir(path.join(projectDir, ".lore", "work", "meetings"), {
     recursive: true,
   });
   await fs.mkdir(ghHomeDir, { recursive: true });
@@ -427,7 +427,7 @@ describe("integration: POST /meeting/request/meeting/create creates meeting and 
 
     // Artifacts are written to the worktreeDir, not project.path
     const worktreeDir = await getWorktreeDirFromState(meetingId);
-    const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
+    const meetingsDir = path.join(worktreeDir, ".lore", "work", "meetings");
     const files = await fs.readdir(meetingsDir);
     expect(files.length).toBeGreaterThanOrEqual(1);
 
@@ -681,7 +681,7 @@ describe("integration: POST /meeting/session/meeting/close closes meeting", () =
     });
 
     // Read the artifact from the worktreeDir (still present: mock removeWorktree is a no-op)
-    const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
+    const meetingsDir = path.join(worktreeDir, ".lore", "work", "meetings");
     const artifactPath = path.join(meetingsDir, `${meetingId}.md`);
     const content = await fs.readFile(artifactPath, "utf-8");
     expect(content).toContain("status: closed");
@@ -1057,6 +1057,7 @@ describe("integration: full lifecycle (create, message, close)", () => {
     const artifactPath = path.join(
       worktreeDir,
       ".lore",
+      "work",
       "meetings",
       `${meetingId}.md`,
     );

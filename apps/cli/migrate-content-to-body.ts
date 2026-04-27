@@ -34,20 +34,30 @@ export async function migrateContentToBody(
   let errorCount = 0;
 
   for (const project of config.projects) {
-    const commissionsDir = path.join(project.path, ".lore", "commissions");
+    // REQ-LDR-11 dual-layout scan: prefer `.lore/work/commissions/` copies;
+    // fall back to `.lore/commissions/` for IDs not yet migrated.
+    const workDir = path.join(project.path, ".lore", "work", "commissions");
+    const flatDir = path.join(project.path, ".lore", "commissions");
+    const seen = new Set<string>();
+    const targets: { dir: string; file: string }[] = [];
 
-    let entries: string[];
-    try {
-      entries = await fs.readdir(commissionsDir);
-    } catch {
-      // No commissions directory for this project, skip
-      continue;
+    for (const dir of [workDir, flatDir]) {
+      let entries: string[];
+      try {
+        entries = await fs.readdir(dir);
+      } catch {
+        continue;
+      }
+      for (const file of entries.filter((f) => f.endsWith(".md"))) {
+        const id = file.replace(/\.md$/, "");
+        if (seen.has(id)) continue;
+        seen.add(id);
+        targets.push({ dir, file });
+      }
     }
 
-    const mdFiles = entries.filter((f) => f.endsWith(".md"));
-
-    for (const file of mdFiles) {
-      const filePath = path.join(commissionsDir, file);
+    for (const { dir, file } of targets) {
+      const filePath = path.join(dir, file);
 
       try {
         const raw = await fs.readFile(filePath, "utf-8");

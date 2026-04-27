@@ -221,6 +221,105 @@ describe("scanMeetings", () => {
     const meetings = await scanMeetings(nonExistentLorePath, "test-project");
     expect(meetings).toEqual([]);
   });
+
+  // -- REQ-LDR-12: dual-read merge of work/meetings and flat meetings --
+
+  test("merges meetings from .lore/work/meetings/ and .lore/meetings/", async () => {
+    const workDir = path.join(projectLorePath, "work", "meetings");
+    await fs.mkdir(workDir, { recursive: true });
+
+    // Flat-layout meeting
+    await writeMeetingArtifact("audience-Flat-20260301-120000.md", {
+      status: "open",
+      worker: "Flat",
+    });
+
+    // Work-layout meeting
+    await fs.writeFile(
+      path.join(workDir, "audience-Work-20260301-130000.md"),
+      `---
+title: "Work Meeting"
+date: 2026-03-01
+status: open
+tags: [meeting]
+worker: Work
+workerDisplayTitle: "Worker"
+agenda: "Agenda"
+deferred_until: ""
+linked_artifacts: []
+---
+`,
+      "utf-8",
+    );
+
+    const meetings = await scanMeetings(projectLorePath, "test-project");
+    const ids = meetings.map((m) => m.meetingId).sort();
+    expect(ids).toEqual([
+      "audience-Flat-20260301-120000",
+      "audience-Work-20260301-130000",
+    ]);
+  });
+
+  test("dedupes by ID, preferring the work/ copy", async () => {
+    const workDir = path.join(projectLorePath, "work", "meetings");
+    await fs.mkdir(workDir, { recursive: true });
+
+    // Same ID in both layouts; work/ should win
+    await writeMeetingArtifact("audience-Same-20260301-120000.md", {
+      status: "requested",
+      worker: "FlatWorker",
+    });
+    await fs.writeFile(
+      path.join(workDir, "audience-Same-20260301-120000.md"),
+      `---
+title: "Work Version"
+date: 2026-03-01
+status: open
+tags: [meeting]
+worker: WorkWorker
+workerDisplayTitle: "Worker"
+agenda: "From work"
+deferred_until: ""
+linked_artifacts: []
+---
+`,
+      "utf-8",
+    );
+
+    const meetings = await scanMeetings(projectLorePath, "test-project");
+    expect(meetings).toHaveLength(1);
+    expect(meetings[0].title).toBe("Work Version");
+    expect(meetings[0].status).toBe("open");
+    expect(meetings[0].worker).toBe("WorkWorker");
+  });
+
+  test("returns work/-only meetings when flat directory is missing", async () => {
+    // Drop flat dir so only work/ exists
+    await fs.rm(meetingsDir, { recursive: true, force: true });
+    const workDir = path.join(projectLorePath, "work", "meetings");
+    await fs.mkdir(workDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(workDir, "audience-WorkOnly-20260301-120000.md"),
+      `---
+title: "Work Only"
+date: 2026-03-01
+status: open
+tags: [meeting]
+worker: w
+workerDisplayTitle: "Worker"
+agenda: "Just work"
+deferred_until: ""
+linked_artifacts: []
+---
+`,
+      "utf-8",
+    );
+
+    const meetings = await scanMeetings(projectLorePath, "test-project");
+    expect(meetings).toHaveLength(1);
+    expect(meetings[0].meetingId).toBe("audience-WorkOnly-20260301-120000");
+  });
 });
 
 describe("scanMeetingRequests", () => {

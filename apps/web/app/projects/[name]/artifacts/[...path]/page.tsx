@@ -195,8 +195,13 @@ export default async function ArtifactPage({
       }
     : undefined;
 
-  // For open meeting artifacts, show a link to the live meeting view
-  const isMeeting = relativePath.startsWith("meetings/");
+  // For open meeting artifacts, show a link to the live meeting view.
+  // REQ-LDR-19: peel an optional "work/" prefix so artifacts under
+  // .lore/work/meetings/ classify the same as legacy .lore/meetings/.
+  const peeledRelativePath = relativePath.startsWith("work/")
+    ? relativePath.slice("work/".length)
+    : relativePath;
+  const isMeeting = peeledRelativePath.startsWith("meetings/");
   const isOpen = artifact.meta.status.toLowerCase().trim() === "open";
   let meetingLink: string | null = null;
   if (isMeeting && isOpen) {

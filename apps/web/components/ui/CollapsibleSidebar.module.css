@@ -9,7 +9,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   transition: width 200ms var(--ease-out);
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .collapsed {
@@ -18,9 +20,7 @@
 }
 
 .collapseButton {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
+  align-self: flex-end;
   background: transparent;
   border: 1px solid var(--rule);
   border-radius: var(--radius-sm);
@@ -30,7 +30,6 @@
   line-height: 1;
   padding: 4px 6px;
   transition: color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
-  z-index: 2;
 }
 
 .collapseButton:hover {

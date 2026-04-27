@@ -31,17 +31,24 @@ import { parseLinkedArtifacts, insertLinkedArtifact, escapeYamlValue } from "@/a
 import { readYamlField, replaceYamlField, appendLogEntry } from "@/apps/daemon/lib/record-utils";
 import type { Log } from "@/apps/daemon/lib/log";
 import { nullLog } from "@/apps/daemon/lib/log";
+import {
+  meetingArtifactPath as canonicalMeetingArtifactPath,
+  resolveMeetingArtifactPath,
+} from "@/lib/paths";
 
 // -- Path resolution --
 
 /**
- * Returns the filesystem path for a meeting artifact within a project.
+ * Returns the canonical write path for a meeting artifact under
+ * `.lore/work/meetings/<id>.md` (REQ-LDR-21). Reads that need to honor
+ * legacy flat-layout files use `resolveMeetingArtifactPath` from
+ * `lib/paths.ts`.
  */
 export function meetingArtifactPath(
   projectPath: string,
   meetingId: MeetingId,
 ): string {
-  return path.join(projectPath, ".lore", "meetings", `${meetingId}.md`);
+  return canonicalMeetingArtifactPath(projectPath, meetingId);
 }
 
 // -- Status operations --
@@ -54,7 +61,7 @@ export async function readArtifactStatus(
   projectPath: string,
   meetingId: MeetingId,
 ): Promise<MeetingStatus | null> {
-  const artifactPath = meetingArtifactPath(projectPath, meetingId);
+  const artifactPath = await resolveMeetingArtifactPath(projectPath, meetingId);
   const raw = await fs.readFile(artifactPath, "utf-8");
   const value = readYamlField(raw, "status");
   return value ? (value as MeetingStatus) : null;
@@ -68,7 +75,7 @@ export async function updateArtifactStatus(
   meetingId: MeetingId,
   newStatus: MeetingStatus,
 ): Promise<void> {
-  const artifactPath = meetingArtifactPath(projectPath, meetingId);
+  const artifactPath = await resolveMeetingArtifactPath(projectPath, meetingId);
   const raw = await fs.readFile(artifactPath, "utf-8");
   const updated = replaceYamlField(raw, "status", newStatus);
   await fs.writeFile(artifactPath, updated, "utf-8");
@@ -88,7 +95,7 @@ export async function renameMeetingArtifact(
   meetingId: MeetingId,
   newTitle: string,
 ): Promise<{ renamed: boolean }> {
-  const artifactPath = meetingArtifactPath(projectPath, meetingId);
+  const artifactPath = await resolveMeetingArtifactPath(projectPath, meetingId);
   let raw = await fs.readFile(artifactPath, "utf-8");
 
   // No-op: current stored title (quotes stripped) matches new title
@@ -124,7 +131,7 @@ export async function appendMeetingLog(
   event: string,
   reason: string,
 ): Promise<void> {
-  const artifactPath = meetingArtifactPath(projectPath, meetingId);
+  const artifactPath = await resolveMeetingArtifactPath(projectPath, meetingId);
   const raw = await fs.readFile(artifactPath, "utf-8");
 
   const now = new Date();
@@ -194,7 +201,7 @@ export async function writeNotesToArtifact(
   notes: string,
   log: Log = nullLog("meeting-record"),
 ): Promise<void> {
-  const artifactPath = meetingArtifactPath(projectPath, meetingId);
+  const artifactPath = await resolveMeetingArtifactPath(projectPath, meetingId);
   const raw = await fs.readFile(artifactPath, "utf-8");
 
   // Find the closing frontmatter delimiter. The artifact starts with "---\n"
@@ -232,7 +239,7 @@ export async function closeArtifact(
   logReason: string,
   log: Log = nullLog("meeting-record"),
 ): Promise<void> {
-  const artifactPath = meetingArtifactPath(projectPath, meetingId);
+  const artifactPath = await resolveMeetingArtifactPath(projectPath, meetingId);
   let raw = await fs.readFile(artifactPath, "utf-8");
 
   // 1. Update status field in frontmatter
@@ -269,7 +276,7 @@ export async function readLinkedArtifacts(
   projectPath: string,
   meetingId: MeetingId,
 ): Promise<string[]> {
-  const artifactPath = meetingArtifactPath(projectPath, meetingId);
+  const artifactPath = await resolveMeetingArtifactPath(projectPath, meetingId);
   const raw = await fs.readFile(artifactPath, "utf-8");
   return parseLinkedArtifacts(raw);
 }
@@ -283,7 +290,7 @@ export async function addLinkedArtifact(
   meetingId: MeetingId,
   artifactRelPath: string,
 ): Promise<boolean> {
-  const artifactPath = meetingArtifactPath(projectPath, meetingId);
+  const artifactPath = await resolveMeetingArtifactPath(projectPath, meetingId);
   const raw = await fs.readFile(artifactPath, "utf-8");
   const { updated, added } = insertLinkedArtifact(raw, artifactRelPath);
   if (added) {

@@ -40,9 +40,19 @@ export function artifactTypeLabel(relativePath: string): string | null {
   return artifactTypeSegment(relativePath);
 }
 
-/** Domain label from the second path segment, if present. REQ-SMARTVIEW-13. */
+/**
+ * Domain label from the second path segment, if present. REQ-SMARTVIEW-13.
+ *
+ * A single leading `work/` segment is peeled before extracting the domain so
+ * `.lore/work/<type>/<domain>/foo.md` artifacts classify identically to flat
+ * `.lore/<type>/<domain>/foo.md` artifacts. Without peeling, `work/`-layout
+ * paths would expose the type segment as the domain (REQ-LDR-2 / Thorne F1).
+ */
 export function artifactDomain(relativePath: string): string | null {
-  const parts = relativePath.split("/");
+  const peeled = relativePath.startsWith("work/")
+    ? relativePath.slice("work/".length)
+    : relativePath;
+  const parts = peeled.split("/");
   if (parts.length < 3) return null;
   return capitalize(parts[1]);
 }

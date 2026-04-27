@@ -169,39 +169,55 @@ export async function readCommissionMeta(
 }
 
 /**
- * Reads all .md files in {projectLorePath}/commissions/, parses frontmatter,
- * and returns an array of commission metadata.
+ * Lists `.md` filenames in a directory, returning [] if the directory
+ * does not exist. Other errors propagate.
+ */
+async function listMarkdownFiles(dir: string): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    return entries
+      .filter((e) => e.isFile() && e.name.endsWith(".md"))
+      .map((e) => e.name);
+  } catch (err: unknown) {
+    if (isNodeError(err) && err.code === "ENOENT") return [];
+    throw err;
+  }
+}
+
+/**
+ * Reads commission artifacts from both `.lore/work/commissions/` and the
+ * legacy `.lore/commissions/`, merges them, and returns the array sorted
+ * by status group and date (REQ-LDR-11).
  *
- * Returns an empty array if the commissions directory doesn't exist.
+ * Duplicate IDs (same commission written to both layouts) prefer the
+ * `work/` copy; the flat copy is dropped from the merged list. The merge
+ * is at the listing level only; no rewrite occurs.
+ *
+ * Returns an empty array if neither directory exists.
  */
 export async function scanCommissions(
   projectLorePath: string,
   projectName: string,
 ): Promise<CommissionMeta[]> {
-  const commissionsDir = path.join(projectLorePath, "commissions");
+  const workDir = path.join(projectLorePath, "work", "commissions");
+  const flatDir = path.join(projectLorePath, "commissions");
 
-  let entries: string[];
-  try {
-    const dirEntries = await fs.readdir(commissionsDir, { withFileTypes: true });
-    entries = dirEntries
-      .filter((e) => e.isFile() && e.name.endsWith(".md"))
-      .map((e) => e.name);
-  } catch (err: unknown) {
-    if (isNodeError(err) && err.code === "ENOENT") {
-      return [];
-    }
-    throw err;
-  }
-
+  const seen = new Set<string>();
   const commissions: CommissionMeta[] = [];
 
-  for (const filename of entries) {
-    const filePath = path.join(commissionsDir, filename);
-    try {
-      const meta = await readCommissionMeta(filePath, projectName);
-      commissions.push(meta);
-    } catch {
-      // Skip files we can't read
+  // Read work/ first so duplicate IDs preferentially come from there.
+  for (const dir of [workDir, flatDir]) {
+    const filenames = await listMarkdownFiles(dir);
+    for (const filename of filenames) {
+      const id = commissionIdFromFilename(filename);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      try {
+        const meta = await readCommissionMeta(path.join(dir, filename), projectName);
+        commissions.push(meta);
+      } catch {
+        // Skip files we can't read
+      }
     }
   }
 

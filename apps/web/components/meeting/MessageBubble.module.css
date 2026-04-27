@@ -30,14 +30,14 @@
 }
 
 .userBubble {
-  background: var(--ember-500);
+  background: var(--ember-300);
   color: var(--fg-on-ember);
   border-radius: 12px 12px 2px 12px;
   border: 1px solid var(--ember-700);
 }
 
 :global([data-theme="dark"]) .userBubble {
-  background: var(--ember-300);
+  background: var(--ember-500);
   color: var(--ink-900);
   border-color: var(--ember-700);
 }

@@ -38,7 +38,7 @@ The generation workflow depends on commission type:
 
 **Visual consistency:** Read existing assets and `## Style Preferences` memory. Extract or recall style parameters. Use them as constraints on new generation. If no existing style exists, establish one and document it.
 
-**Style guide:** Generate exploration sets across different styles. Present options with rationale. Once direction is established, document the visual identity as a style guide artifact in `.lore/`.
+**Style guide:** Generate exploration sets across different styles. Present options with rationale. Once direction is established, document the visual identity as a style guide artifact under `.lore/work/design/` (flat-layout `.lore/design/` may also be present in projects that have not migrated). Generated images continue to live in `.lore/generated/` regardless of layout.
 
 ### 5. Evaluate and iterate
 

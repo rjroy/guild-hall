@@ -76,11 +76,20 @@ const BRIEFING_PROMPT = `Generate a project status briefing for the Guild Hall d
 
 This is a dashboard widget, not a report. Write a status line, not a status document.
 
-Use your tools to explore the project workspace. Key locations:
-- .lore/commissions/ for active and completed commissions
-- .lore/plans/ for implementation plans (check status in frontmatter)
-- .lore/issues/ for known issues and investigations
-- .lore/notes/ for context on current work
+Use your tools to explore the project workspace. Key locations (new writes go under .lore/work/<type>/; flat-layout artifacts like .lore/specs/foo.md remain readable in projects that have not migrated):
+- .lore/work/commissions/ for active and completed commissions
+- .lore/work/meetings/ for active and completed meetings
+- .lore/work/specs/ for specifications
+- .lore/work/plans/ for implementation plans (check status in frontmatter)
+- .lore/work/issues/ for known issues and investigations
+- .lore/work/notes/ for context on current work
+- .lore/work/research/ for research artifacts
+- .lore/work/retros/ for retrospectives
+- .lore/work/brainstorm/ for exploratory thinking
+- .lore/work/design/ for design artifacts
+- .lore/reference/ for distilled durable facts
+- .lore/learned/ for captured lessons
+- .lore/heartbeat.md, .lore/lore-config.md, .lore/lore-agents.md, .lore/vision.md (root-level lore)
 
 Write plain prose. No headers, no bullets. Never exceed 4 sentences.
 A quiet project with no recent activity gets exactly 1 sentence.

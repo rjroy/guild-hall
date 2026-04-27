@@ -208,7 +208,7 @@ async function writeMeetingArtifact(
   meetingId: string,
   linkedArtifacts: string[] = [],
 ): Promise<void> {
-  const meetingsDir = path.join(projectDir, ".lore", "meetings");
+  const meetingsDir = path.join(projectDir, ".lore", "work", "meetings");
   await fs.mkdir(meetingsDir, { recursive: true });
 
   const linkedStr = linkedArtifacts.length === 0
@@ -598,7 +598,7 @@ describe("closeMeeting with notes generation", () => {
 
     // Read artifact from worktreeDir captured before close
     // (mock removeWorktree is a no-op so the directory still exists)
-    const artifactPath = path.join(state.worktreeDir, ".lore", "meetings", `${meetingId}.md`);
+    const artifactPath = path.join(state.worktreeDir, ".lore", "work", "meetings", `${meetingId}.md`);
     const artifactContent = await fs.readFile(artifactPath, "utf-8");
     // Notes are now in the markdown body (after closing ---), not in frontmatter
     expect(artifactContent).not.toContain("notes_summary");

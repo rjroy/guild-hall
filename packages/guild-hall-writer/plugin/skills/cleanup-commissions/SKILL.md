@@ -1,6 +1,6 @@
 ---
 name: cleanup-commissions
-description: Review completed commission artifacts as a batch, extract loose threads into a retro, and delete the commission files. Use after a feature's implement-review-fix cycle completes, before creating a PR, or when .lore/commissions/ has accumulated files that no longer represent active work. Triggers include "clean up commissions", "commission cleanup", "review commissions", "batch cleanup".
+description: Review completed commission artifacts as a batch, extract loose threads into a retro, and delete the commission files. Use after a feature's implement-review-fix cycle completes, before creating a PR, or when .lore/work/commissions/ (or the flat-layout .lore/commissions/) has accumulated files that no longer represent active work. Triggers include "clean up commissions", "commission cleanup", "review commissions", "batch cleanup".
 ---
 
 # Cleanup Commissions
@@ -19,7 +19,7 @@ Commissions form work chains: issue, spec, plan, implement, review, fix. A findi
 
 ### 1. Inventory
 
-Scan all files in `.lore/commissions/`. For each, capture:
+Scan all commission files. New commissions live in `.lore/work/commissions/`; flat-layout commissions under `.lore/commissions/` may also be present in projects that have not migrated. Treat both directories as one set. For each, capture:
 - Worker name, date, title, status, type (from frontmatter)
 - Whether it completed, failed, or was abandoned
 
@@ -45,8 +45,8 @@ Use sub-agents to parallelize reading across workers when the batch is large (10
 ### 3. Cross-Reference
 
 For findings marked "track separately" or "file as issue", check if:
-- An issue exists in `.lore/issues/` covering that finding
-- The finding was incorporated into a spec (check `.lore/specs/`)
+- An issue exists covering that finding (check `.lore/work/issues/` and the flat-layout `.lore/issues/`)
+- The finding was incorporated into a spec (check `.lore/work/specs/` and the flat-layout `.lore/specs/`)
 - A later commission in a different chain addressed it
 
 This step prevents false positives. Many "loose threads" were actually handled through a different path.
@@ -64,7 +64,7 @@ These are worth noting even if individual instances are minor.
 
 ### 5. Write Retro
 
-Produce a single retro for the entire batch at `.lore/retros/commission-cleanup-[date].md`.
+Produce a single retro for the entire batch at `.lore/work/retros/commission-cleanup-[date].md` (write target). The flat-layout `.lore/retros/` is also readable in projects that have not migrated.
 
 Structure:
 
@@ -122,11 +122,11 @@ Review existing memory before writing. Update or replace stale entries rather th
 
 Present the retro summary and memory updates to the user. Ask for confirmation before deleting.
 
-On confirmation, delete all commission files in `.lore/commissions/`. Remove the files, not the directory.
+On confirmation, delete all commission files in both `.lore/work/commissions/` and `.lore/commissions/` (whichever directories contain them). Remove the files, not the directories.
 
 ### 8. File Issues (Optional)
 
-If the retro surfaces loose threads that need tracking, ask the user which ones warrant issues. For each confirmed one, write directly to `.lore/issues/`.
+If the retro surfaces loose threads that need tracking, ask the user which ones warrant issues. For each confirmed one, write directly to `.lore/work/issues/`.
 
 ## What This Skill Does NOT Do
 

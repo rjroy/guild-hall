@@ -373,7 +373,7 @@ describe("orchestrator flows", () => {
       const state = JSON.parse(stateContent) as { worktreeDir: string };
 
       // Verify artifact exists in worktree
-      const artifactPath = path.join(state.worktreeDir, ".lore", "meetings", `${meetingId}.md`);
+      const artifactPath = path.join(state.worktreeDir, ".lore", "work", "meetings", `${meetingId}.md`);
       const artifactContent = await fs.readFile(artifactPath, "utf-8");
       expect(artifactContent).toContain("status: open");
       expect(artifactContent).toContain("worker: Assistant");
@@ -549,6 +549,7 @@ describe("orchestrator flows", () => {
       const artifactPath = path.join(
         integrationDir,
         ".lore",
+        "work",
         "meetings",
         `${meetingId}.md`,
       );
@@ -578,6 +579,7 @@ describe("orchestrator flows", () => {
       const artifactPath = path.join(
         integrationDir,
         ".lore",
+        "work",
         "meetings",
         `${meetingId}.md`,
       );
@@ -626,6 +628,7 @@ describe("orchestrator flows", () => {
       const artifactPath = path.join(
         integrationDir,
         ".lore",
+        "work",
         "meetings",
         `${meetingId}.md`,
       );
@@ -651,6 +654,7 @@ describe("orchestrator flows", () => {
       const artifactPath = path.join(
         integrationDir,
         ".lore",
+        "work",
         "meetings",
         `${meetingId}.md`,
       );
@@ -687,8 +691,8 @@ describe("orchestrator flows", () => {
       // simulating what a real sparse checkout would do.
       mockWorkspace.prepare = async (config) => {
         await fs.mkdir(config.worktreeDir, { recursive: true });
-        const srcDir = path.join(integrationDir, ".lore", "meetings");
-        const destDir = path.join(config.worktreeDir, ".lore", "meetings");
+        const srcDir = path.join(integrationDir, ".lore", "work", "meetings");
+        const destDir = path.join(config.worktreeDir, ".lore", "work", "meetings");
         await fs.mkdir(destDir, { recursive: true });
         const files = await fs.readdir(srcDir);
         for (const file of files) {
@@ -718,6 +722,7 @@ describe("orchestrator flows", () => {
       const artifactPath = path.join(
         integrationDir,
         ".lore",
+        "work",
         "meetings",
         `${meetingId}.md`,
       );

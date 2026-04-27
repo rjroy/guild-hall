@@ -193,9 +193,10 @@ describe("POST /workspace/issue/create", () => {
 
     const data = (await res.json()) as { path: string; slug: string };
     expect(data.slug).toBe("test-issue");
-    expect(data.path).toBe(".lore/issues/test-issue.md");
+    expect(data.path).toBe(".lore/work/issues/test-issue.md");
 
-    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "issues", "test-issue.md");
+    // REQ-LDR-24: writes target .lore/work/issues/
+    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "work", "issues", "test-issue.md");
     const content = await fs.readFile(filePath, "utf-8");
 
     expect(content).toContain('title: "Test Issue"');
@@ -217,7 +218,7 @@ describe("POST /workspace/issue/create", () => {
     const data = (await res.json()) as { path: string; slug: string };
     expect(data.slug).toBe("bug-report");
 
-    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "issues", "bug-report.md");
+    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "work", "issues", "bug-report.md");
     const content = await fs.readFile(filePath, "utf-8");
 
     expect(content).toContain('title: "Bug Report"');
@@ -233,7 +234,7 @@ describe("POST /workspace/issue/create", () => {
     expect(res.status).toBe(201);
 
     const data = (await res.json()) as { path: string; slug: string };
-    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "issues", `${data.slug}.md`);
+    const filePath = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "work", "issues", `${data.slug}.md`);
     const content = await fs.readFile(filePath, "utf-8");
     expect(content).toContain('title: "Fix the \\"broken\\" thing"');
   });
@@ -293,6 +294,18 @@ async function writeIssue(slug: string, frontmatter: Record<string, string>, bod
   const fmLines = Object.entries(frontmatter).map(([k, v]) => `${k}: "${v}"`).join("\n");
   const content = `---\n${fmLines}\n---${body ? `\n\n${body}` : ""}`;
   await fs.writeFile(path.join(issuesDir, `${slug}.md`), content, "utf-8");
+}
+
+async function writeWorkIssue(
+  slug: string,
+  frontmatter: Record<string, string>,
+  body = "",
+): Promise<void> {
+  const workDir = path.join(tmpDir, "projects", TEST_PROJECT, ".lore", "work", "issues");
+  await fs.mkdir(workDir, { recursive: true });
+  const fmLines = Object.entries(frontmatter).map(([k, v]) => `${k}: "${v}"`).join("\n");
+  const content = `---\n${fmLines}\n---${body ? `\n\n${body}` : ""}`;
+  await fs.writeFile(path.join(workDir, `${slug}.md`), content, "utf-8");
 }
 
 describe("GET /workspace/issue/list", () => {
@@ -386,6 +399,43 @@ describe("GET /workspace/issue/list", () => {
     expect(
       issueListRequestSchema.safeParse({ projectName: "" }).success,
     ).toBe(false);
+  });
+
+  // REQ-LDR-14: dual-read merge of work/issues and flat issues directories.
+  test("merges issues from .lore/work/issues/ and .lore/issues/", async () => {
+    await writeIssue("flat-issue", { title: "Flat", date: "2026-01-01", status: "open" });
+    await writeWorkIssue("work-issue", { title: "Work", date: "2026-01-02", status: "open" });
+
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/list?projectName=${TEST_PROJECT}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { issues: Array<{ slug: string; title: string }> };
+    const slugs = data.issues.map((i) => i.slug).sort();
+    expect(slugs).toEqual(["flat-issue", "work-issue"]);
+  });
+
+  test("dedupes by slug, preferring the work/ copy", async () => {
+    await writeIssue("same-slug", { title: "Flat Version", date: "2026-01-01", status: "open" });
+    await writeWorkIssue("same-slug", { title: "Work Version", date: "2026-01-02", status: "closed" });
+
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/list?projectName=${TEST_PROJECT}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { issues: Array<{ slug: string; title: string; status: string }> };
+    expect(data.issues).toHaveLength(1);
+    expect(data.issues[0].title).toBe("Work Version");
+    expect(data.issues[0].status).toBe("closed");
+  });
+
+  test("returns work/-only issues when flat directory is missing", async () => {
+    await writeWorkIssue("work-only", { title: "Work Only", date: "2026-01-01", status: "open" });
+
+    const app = makeTestApp();
+    const res = await app.request(`/workspace/issue/list?projectName=${TEST_PROJECT}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { issues: Array<{ slug: string }> };
+    expect(data.issues).toHaveLength(1);
+    expect(data.issues[0].slug).toBe("work-only");
   });
 });
 
@@ -483,5 +533,46 @@ describe("GET /workspace/issue/read", () => {
     expect(
       issueReadRequestSchema.safeParse({ projectName: "p", slug: "s" }).success,
     ).toBe(true);
+  });
+
+  // REQ-LDR-14: read endpoint accepts both layouts, preferring work/.
+  test("reads issue from .lore/work/issues/ when present", async () => {
+    await writeWorkIssue(
+      "work-side",
+      { title: "From Work", date: "2026-04-01", status: "open" },
+      "Work body",
+    );
+
+    const app = makeTestApp();
+    const res = await app.request(
+      `/workspace/issue/read?projectName=${TEST_PROJECT}&slug=work-side`,
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { title: string; body: string };
+    expect(data.title).toBe("From Work");
+    expect(data.body).toBe("Work body");
+  });
+
+  test("prefers work/ copy when slug exists in both layouts", async () => {
+    await writeIssue(
+      "shared-slug",
+      { title: "Flat Version", date: "2026-01-01", status: "open" },
+      "Flat body",
+    );
+    await writeWorkIssue(
+      "shared-slug",
+      { title: "Work Version", date: "2026-01-02", status: "closed" },
+      "Work body",
+    );
+
+    const app = makeTestApp();
+    const res = await app.request(
+      `/workspace/issue/read?projectName=${TEST_PROJECT}&slug=shared-slug`,
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { title: string; status: string; body: string };
+    expect(data.title).toBe("Work Version");
+    expect(data.status).toBe("closed");
+    expect(data.body).toBe("Work body");
   });
 });

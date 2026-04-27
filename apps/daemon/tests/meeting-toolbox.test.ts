@@ -43,13 +43,13 @@ beforeEach(async () => {
 
   // Create the meeting worktree directory so resolveWritePath finds it.
   const wtPath = derivedWorktreePath();
-  await fs.mkdir(path.join(wtPath, ".lore", "meetings"), {
+  await fs.mkdir(path.join(wtPath, ".lore", "work", "meetings"), {
     recursive: true,
   });
 
   // Also create the integration worktree for propose_followup.
   const intPath = derivedIntegrationPath();
-  await fs.mkdir(path.join(intPath, ".lore", "meetings"), {
+  await fs.mkdir(path.join(intPath, ".lore", "work", "meetings"), {
     recursive: true,
   });
 });
@@ -70,6 +70,7 @@ async function writeMeetingArtifact(
   const artifactPath = path.join(
     projPath,
     ".lore",
+    "work",
     "meetings",
     `${mtgId}.md`,
   );
@@ -132,7 +133,7 @@ describe("link_artifact", () => {
 
     // Verify the artifact was updated
     const raw = await fs.readFile(
-      path.join(wtPath, ".lore", "meetings", `${meetingId}.md`),
+      path.join(wtPath, ".lore", "work", "meetings", `${meetingId}.md`),
       "utf-8",
     );
     expect(raw).toContain("linked_artifacts:\n  - specs/api-design.md");
@@ -152,7 +153,7 @@ describe("link_artifact", () => {
     expect(result.isError).toBeUndefined();
 
     const raw = await fs.readFile(
-      path.join(wtPath, ".lore", "meetings", `${meetingId}.md`),
+      path.join(wtPath, ".lore", "work", "meetings", `${meetingId}.md`),
       "utf-8",
     );
     expect(raw).toContain("  - specs/existing.md");
@@ -224,7 +225,7 @@ describe("propose_followup", () => {
     // Read the created artifact (propose_followup writes to integration path)
     const intPath = derivedIntegrationPath();
     const raw = await fs.readFile(
-      path.join(intPath, ".lore", "meetings", `${followupId}.md`),
+      path.join(intPath, ".lore", "work", "meetings", `${followupId}.md`),
       "utf-8",
     );
 
@@ -260,7 +261,7 @@ describe("propose_followup", () => {
     );
     const intPath = derivedIntegrationPath();
     const raw = await fs.readFile(
-      path.join(intPath, ".lore", "meetings", `${followupId}.md`),
+      path.join(intPath, ".lore", "work", "meetings", `${followupId}.md`),
       "utf-8",
     );
 
@@ -280,7 +281,7 @@ describe("propose_followup", () => {
     );
     const intPath = derivedIntegrationPath();
     const raw = await fs.readFile(
-      path.join(intPath, ".lore", "meetings", `${followupId}.md`),
+      path.join(intPath, ".lore", "work", "meetings", `${followupId}.md`),
       "utf-8",
     );
 
@@ -299,7 +300,7 @@ describe("propose_followup", () => {
     );
     const intPath = derivedIntegrationPath();
     const raw = await fs.readFile(
-      path.join(intPath, ".lore", "meetings", `${followupId}.md`),
+      path.join(intPath, ".lore", "work", "meetings", `${followupId}.md`),
       "utf-8",
     );
 
@@ -324,7 +325,7 @@ describe("summarize_progress", () => {
 
     // Verify the log entry was added
     const raw = await fs.readFile(
-      path.join(wtPath, ".lore", "meetings", `${meetingId}.md`),
+      path.join(wtPath, ".lore", "work", "meetings", `${meetingId}.md`),
       "utf-8",
     );
     expect(raw).toContain("event: progress_summary");
@@ -340,7 +341,7 @@ describe("summarize_progress", () => {
     await handler({ summary: "Second checkpoint" });
 
     const raw = await fs.readFile(
-      path.join(wtPath, ".lore", "meetings", `${meetingId}.md`),
+      path.join(wtPath, ".lore", "work", "meetings", `${meetingId}.md`),
       "utf-8",
     );
     expect(raw).toContain("event: opened");
@@ -373,7 +374,7 @@ describe("worktree routing: link_artifact falls back to integration", () => {
 
     // The update must be in the integration artifact
     const intRaw = await fs.readFile(
-      path.join(intPath, ".lore", "meetings", `${meetingId}.md`),
+      path.join(intPath, ".lore", "work", "meetings", `${meetingId}.md`),
       "utf-8",
     );
     expect(intRaw).toContain("linked_artifacts:\n  - specs/api-design.md");
@@ -396,7 +397,7 @@ describe("worktree routing: summarize_progress falls back to integration", () =>
     expect(result.isError).toBeUndefined();
 
     const intRaw = await fs.readFile(
-      path.join(intPath, ".lore", "meetings", `${meetingId}.md`),
+      path.join(intPath, ".lore", "work", "meetings", `${meetingId}.md`),
       "utf-8",
     );
     expect(intRaw).toContain("event: progress_summary");

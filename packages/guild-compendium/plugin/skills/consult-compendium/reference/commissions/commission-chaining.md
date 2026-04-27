@@ -88,7 +88,7 @@ The fix commission prompt needs three things from the review:
 implement (Dalton) → review (Thorne) → fix (Dalton)
 ```
 
-The review commission prompt says: "Review the implementation for correctness, test coverage, and adherence to the spec." The fix commission prompt says: "Thorne's review found three issues: [inline findings]. Fix all three. The review artifact is at `.lore/commissions/commission-Thorne-....md` for full context."
+The review commission prompt says: "Review the implementation for correctness, test coverage, and adherence to the spec." The fix commission prompt says: "Thorne's review found three issues: [inline findings]. Fix all three. The review artifact is at `.lore/work/commissions/commission-Thorne-....md` for full context." (Flat-layout `.lore/commissions/commission-Thorne-....md` is also a valid pointer in projects that have not migrated.)
 
 ## Foundation-First Validation
 
@@ -122,7 +122,7 @@ Each commission in a chain needs context from its predecessors. How you pass tha
 
 ### Artifact pointers vs. inline context
 
-**Pointer:** "Read the plan at `.lore/plans/feature.md`." Compact, but the worker spends context budget on orientation. Risk: the artifact might be longer than expected, or truncated in the worker's context.
+**Pointer:** "Read the plan at `.lore/work/plans/feature.md`." Compact, but the worker spends context budget on orientation. Risk: the artifact might be longer than expected, or truncated in the worker's context. (Flat-layout pointers like `.lore/plans/feature.md` are still valid in projects that have not migrated.)
 
 **Inline:** Repeat the critical information directly in the prompt. More tokens up front, but the worker has what it needs without additional reads. Risk: the prompt gets long if you inline everything.
 
@@ -144,7 +144,7 @@ Don't echo the full chain history into every prompt. Commission 5 in a chain doe
 
 These are patterns that have broken chains in practice, not theoretical risks.
 
-**Result body truncation.** Commission results have practical length limits. A planning commission that produces a detailed multi-phase plan may have its result body truncated in the commission artifact. The plan itself lives in a `.lore/plans/` file, but if the next commission's prompt references "the plan from the previous commission's result" instead of the plan artifact path, it gets the truncated version. Always point to the durable artifact, not the result body.
+**Result body truncation.** Commission results have practical length limits. A planning commission that produces a detailed multi-phase plan may have its result body truncated in the commission artifact. The plan itself lives in a `.lore/work/plans/` file (or the flat-layout `.lore/plans/` in projects that have not migrated), but if the next commission's prompt references "the plan from the previous commission's result" instead of the plan artifact path, it gets the truncated version. Always point to the durable artifact, not the result body.
 
 **Review findings dropped from fix prompts.** When synthesizing a fix commission prompt from a review, it's tempting to include only the HIGH-severity findings. WARN-level findings get silently dropped. The fix addresses the critical issues; the warnings persist into the next review cycle, where they're found again. Include all findings. Let the fix prompt specify which ones to address and which to defer.
 

@@ -115,7 +115,7 @@ function makeMeetingArtifact(overrides: Partial<Artifact> = {}): Artifact {
       ...(overrides.meta ?? {}),
     },
     filePath: "/tmp/project/.lore/meetings/meeting-001.md",
-    relativePath: "meeting-001.md",
+    relativePath: "meetings/meeting-001.md",
     content: "# Meeting notes\n",
     lastModified: new Date("2026-02-20T10:00:00Z"),
     ...overrides,

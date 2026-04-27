@@ -367,7 +367,7 @@ describe("createMeetingSession", () => {
       if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
 
       const worktreeDir = await getWorktreeDirFromState(meetingId);
-      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
+      const meetingsDir = path.join(worktreeDir, ".lore", "work", "meetings");
       const files = await fs.readdir(meetingsDir);
       expect(files).toHaveLength(1);
       expect(files[0]).toMatch(/^audience-Assistant-\d{8}-\d{6}(-\d+)?\.md$/);
@@ -755,7 +755,7 @@ describe("createMeetingSession", () => {
       await session.closeMeeting(asMeetingId(meetingId));
 
       // Read the artifact from the worktree and verify status
-      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
+      const meetingsDir = path.join(worktreeDir, ".lore", "work", "meetings");
       const files = await fs.readdir(meetingsDir);
       const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
       expect(content).toContain("status: closed");
@@ -777,7 +777,7 @@ describe("createMeetingSession", () => {
 
       await session.closeMeeting(asMeetingId(meetingId));
 
-      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
+      const meetingsDir = path.join(worktreeDir, ".lore", "work", "meetings");
       const files = await fs.readdir(meetingsDir);
       const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
       expect(content).toContain("event: closed");
@@ -1106,7 +1106,7 @@ describe("createMeetingSession", () => {
       if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
 
       const worktreeDir = await getWorktreeDirFromState(meetingId);
-      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
+      const meetingsDir = path.join(worktreeDir, ".lore", "work", "meetings");
       const files = await fs.readdir(meetingsDir);
       const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
 
@@ -1143,7 +1143,7 @@ describe("createMeetingSession", () => {
       if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
 
       const worktreeDir = await getWorktreeDirFromState(meetingId);
-      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
+      const meetingsDir = path.join(worktreeDir, ".lore", "work", "meetings");
       const files = await fs.readdir(meetingsDir);
       const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
 
@@ -1256,7 +1256,7 @@ describe("createMeetingSession", () => {
       meetingId: string,
       status: MeetingStatus,
     ): Promise<void> {
-      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       const content = `---
@@ -1287,7 +1287,7 @@ meeting_log:
         await session.declineMeeting(asMeetingId(meetingId), "test-project");
 
         const content = await fs.readFile(
-          path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
+          path.join(integrationDir, ".lore", "work", "meetings", `${meetingId}.md`),
           "utf-8",
         );
         expect(content).toContain("status: declined");
@@ -1308,7 +1308,7 @@ meeting_log:
         if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
 
         const worktreeDir = await getWorktreeDirFromState(meetingId);
-        const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
+        const meetingsDir = path.join(worktreeDir, ".lore", "work", "meetings");
         const files = await fs.readdir(meetingsDir);
         const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
         expect(content).toContain("status: open");
@@ -1330,7 +1330,7 @@ meeting_log:
 
         await session.closeMeeting(asMeetingId(meetingId));
 
-        const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
+        const meetingsDir = path.join(worktreeDir, ".lore", "work", "meetings");
         const files = await fs.readdir(meetingsDir);
         const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
         expect(content).toContain("status: closed");
@@ -1382,7 +1382,7 @@ meeting_log:
         await session.declineMeeting(asMeetingId(meetingId), "test-project");
 
         const content = await fs.readFile(
-          path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
+          path.join(integrationDir, ".lore", "work", "meetings", `${meetingId}.md`),
           "utf-8",
         );
         expect(content).toContain("status: declined");
@@ -1399,7 +1399,7 @@ meeting_log:
         await session.declineMeeting(asMeetingId(meetingId), "test-project");
 
         const content = await fs.readFile(
-          path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
+          path.join(integrationDir, ".lore", "work", "meetings", `${meetingId}.md`),
           "utf-8",
         );
         expect(content).toContain("event: declined");
@@ -1414,7 +1414,7 @@ meeting_log:
         await session.deferMeeting(asMeetingId(meetingId), "test-project", "2026-03-01");
 
         const content = await fs.readFile(
-          path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
+          path.join(integrationDir, ".lore", "work", "meetings", `${meetingId}.md`),
           "utf-8",
         );
         expect(content).toContain("event: deferred");
@@ -1428,7 +1428,7 @@ meeting_log:
       meetingId: string,
       status: MeetingStatus,
     ): Promise<void> {
-      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       const content = `---
@@ -1458,7 +1458,7 @@ meeting_log:
       await session.declineMeeting(asMeetingId(meetingId), "test-project");
 
       const content = await fs.readFile(
-        path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
+        path.join(integrationDir, ".lore", "work", "meetings", `${meetingId}.md`),
         "utf-8",
       );
       expect(content).toContain("status: declined");
@@ -1490,7 +1490,7 @@ meeting_log:
       meetingId: string,
       status: MeetingStatus,
     ): Promise<void> {
-      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       const content = `---
@@ -1520,7 +1520,7 @@ meeting_log:
       await session.deferMeeting(asMeetingId(meetingId), "test-project", "2026-03-15");
 
       const content = await fs.readFile(
-        path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
+        path.join(integrationDir, ".lore", "work", "meetings", `${meetingId}.md`),
         "utf-8",
       );
       expect(content).toContain("status: requested");
@@ -1535,7 +1535,7 @@ meeting_log:
       await session.deferMeeting(asMeetingId(meetingId), "test-project", "2026-04-01");
 
       const content = await fs.readFile(
-        path.join(integrationDir, ".lore", "meetings", `${meetingId}.md`),
+        path.join(integrationDir, ".lore", "work", "meetings", `${meetingId}.md`),
         "utf-8",
       );
       expect(content).toContain("event: deferred");
@@ -1579,7 +1579,7 @@ meeting_log:
       status: MeetingStatus,
       overrides: Record<string, string> = {},
     ): Promise<void> {
-      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       const content = `---
@@ -1625,7 +1625,7 @@ meeting_log:
       // Verify artifact status was updated to "open" (on the activity worktree)
       const worktreeDir = await getWorktreeDirFromState(meetingId);
       const content = await fs.readFile(
-        path.join(worktreeDir, ".lore", "meetings", `${meetingId}.md`),
+        path.join(worktreeDir, ".lore", "work", "meetings", `${meetingId}.md`),
         "utf-8",
       );
       expect(content).toContain("status: open");
@@ -1768,7 +1768,7 @@ meeting_log:
       if (sessionEvent?.type === "session") meetingId = sessionEvent.meetingId;
 
       const worktreeDir = await getWorktreeDirFromState(meetingId);
-      const meetingsDir = path.join(worktreeDir, ".lore", "meetings");
+      const meetingsDir = path.join(worktreeDir, ".lore", "work", "meetings");
       const files = await fs.readdir(meetingsDir);
       const content = await fs.readFile(path.join(meetingsDir, files[0]), "utf-8");
       expect(content).toContain('deferred_until: ""');
@@ -2157,7 +2157,7 @@ meeting_log:
       );
 
       // Write meeting artifact to the worktreeDir so appendMeetingLog can find it
-      const meetingsArtifactDir = path.join(worktreeDir, ".lore", "meetings");
+      const meetingsArtifactDir = path.join(worktreeDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsArtifactDir, { recursive: true });
       const now = new Date();
       await fs.writeFile(
@@ -2250,7 +2250,7 @@ meeting_log:
       });
 
       // Write meeting artifact to worktreeDir for appendMeetingLog
-      const meetingsArtifactDir = path.join(worktreeDir, ".lore", "meetings");
+      const meetingsArtifactDir = path.join(worktreeDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsArtifactDir, { recursive: true });
       const now = new Date();
       await fs.writeFile(
@@ -2362,7 +2362,7 @@ meeting_log:
       });
 
       // Write meeting artifact to worktreeDir for appendMeetingLog
-      const meetingsArtifactDir = path.join(worktreeDir, ".lore", "meetings");
+      const meetingsArtifactDir = path.join(worktreeDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsArtifactDir, { recursive: true });
       const now = new Date();
       await fs.writeFile(
@@ -2703,7 +2703,7 @@ meeting_log:
     test("declineMeeting operates on integration worktree, not project.path", async () => {
       // Write artifact to the integration worktree
       const meetingId = "audience-Assistant-20260221-200000";
-      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       await fs.writeFile(
@@ -2738,7 +2738,7 @@ meeting_log:
       expect(content).toContain("status: declined");
 
       // Verify nothing was written to project.path/.lore/meetings/
-      const projectMeetingsDir = path.join(projectDir, ".lore", "meetings");
+      const projectMeetingsDir = path.join(projectDir, ".lore", "work", "meetings");
       let projectHasMeetings = false;
       try {
         await fs.access(projectMeetingsDir);
@@ -2751,7 +2751,7 @@ meeting_log:
 
     test("deferMeeting operates on integration worktree, not project.path", async () => {
       const meetingId = "audience-Assistant-20260221-200001";
-      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       await fs.writeFile(
@@ -2787,7 +2787,7 @@ meeting_log:
       expect(content).toContain('deferred_until: "2026-04-01"');
 
       // Verify nothing was written to project.path/.lore/meetings/
-      const projectMeetingsDir = path.join(projectDir, ".lore", "meetings");
+      const projectMeetingsDir = path.join(projectDir, ".lore", "work", "meetings");
       let projectHasMeetings = false;
       try {
         await fs.access(projectMeetingsDir);
@@ -2802,7 +2802,7 @@ meeting_log:
       const meetingId = "audience-Assistant-20260221-200002";
 
       // Write artifact to integration worktree
-      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       await fs.writeFile(
@@ -2845,7 +2845,7 @@ meeting_log:
       // Verify the activity worktree has the updated artifact
       const worktreeDir = await getWorktreeDirFromState(meetingId);
       const content = await fs.readFile(
-        path.join(worktreeDir, ".lore", "meetings", `${meetingId}.md`),
+        path.join(worktreeDir, ".lore", "work", "meetings", `${meetingId}.md`),
         "utf-8",
       );
       expect(content).toContain("status: open");
@@ -2875,7 +2875,7 @@ meeting_log:
       );
 
       // Write the artifact to the integration worktree so recovery can update it
-      const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+      const meetingsDir = path.join(integrationDir, ".lore", "work", "meetings");
       await fs.mkdir(meetingsDir, { recursive: true });
       const now = new Date();
       await fs.writeFile(
@@ -3156,7 +3156,7 @@ describe("createMeetingRequest", () => {
     });
 
     // Verify the artifact was written to the integration worktree
-    const meetingsDir = path.join(integrationDir, ".lore", "meetings");
+    const meetingsDir = path.join(integrationDir, ".lore", "work", "meetings");
     const files = await fs.readdir(meetingsDir);
     expect(files).toHaveLength(1);
 

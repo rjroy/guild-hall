@@ -41,6 +41,24 @@ describe("groupKey", () => {
   test("handles empty string", () => {
     expect(groupKey("")).toBe("root");
   });
+
+  test("peels a single leading work/ segment (REQ-LDR-15)", () => {
+    expect(groupKey("work/specs/foo.md")).toBe("specs");
+    expect(groupKey("work/plans/deep/nested.md")).toBe("plans");
+    expect(groupKey("work/learned/lesson.md")).toBe("learned");
+  });
+
+  test("returns 'root' for a peeled single-segment work/ path", () => {
+    expect(groupKey("work/foo.md")).toBe("root");
+  });
+
+  test("collapses malformed double-prefix to root (Thorne F2)", () => {
+    // REQ-LDR-16 guarantees `work` never appears as a top-level group. The
+    // implementation guards against the malformed `work/work/...` case so the
+    // guarantee holds even for ill-formed paths.
+    expect(groupKey("work/work/foo.md")).toBe("root");
+    expect(groupKey("work/work/specs/foo.md")).toBe("root");
+  });
 });
 
 describe("capitalize", () => {
@@ -474,5 +492,100 @@ describe("buildArtifactTree", () => {
     expect(tree).toHaveLength(1);
     expect(tree[0].name).toBe("specs");
     expect(tree[0].children).toHaveLength(3);
+  });
+
+  test("mixed-layout artifacts merge into a single canonical group (REQ-LDR-16, REQ-LDR-39)", () => {
+    const flat = makeArtifact("specs/foo.md", "Foo Spec");
+    const work = makeArtifact("work/specs/bar.md", "Bar Spec");
+    const tree = buildArtifactTree([flat, work]);
+
+    // Exactly one top-level group named "specs"; no separate "work" group.
+    expect(tree).toHaveLength(1);
+    expect(tree.map((n) => n.name)).toEqual(["specs"]);
+    expect(tree.map((n) => n.label)).toEqual(["Specs"]);
+
+    const specsNode = tree[0];
+    expect(specsNode.children).toHaveLength(2);
+    const leafPaths = specsNode.children.map((c) => c.path).sort();
+    expect(leafPaths).toEqual(["specs/foo.md", "work/specs/bar.md"]);
+
+    // Each leaf still references its original artifact (preserves relativePath).
+    for (const child of specsNode.children) {
+      expect(child.artifact).toBeDefined();
+      expect(child.children).toHaveLength(0);
+    }
+  });
+
+  test("buildArtifactTree never produces a top-level Work group (REQ-LDR-16, REQ-LDR-39)", () => {
+    const artifacts = [
+      makeArtifact("specs/a.md"),
+      makeArtifact("work/specs/b.md"),
+      makeArtifact("work/plans/c.md"),
+      makeArtifact("work/issues/d.md"),
+      makeArtifact("work/learned/e.md"),
+    ];
+    const tree = buildArtifactTree(artifacts);
+
+    const names = tree.map((n) => n.name);
+    expect(names).not.toContain("work");
+    expect(names).not.toContain("Work");
+    // All five entries collapse into four canonical groups.
+    expect(new Set(names)).toEqual(new Set(["specs", "plans", "issues", "learned"]));
+  });
+
+  test("work/-only artifact creates its peeled group", () => {
+    const artifact = makeArtifact("work/specs/only.md", "Only Spec");
+    const tree = buildArtifactTree([artifact]);
+
+    expect(tree).toHaveLength(1);
+    const specsNode = tree[0];
+    expect(specsNode.name).toBe("specs");
+    expect(specsNode.label).toBe("Specs");
+    expect(specsNode.children).toHaveLength(1);
+
+    const leaf = specsNode.children[0];
+    expect(leaf.name).toBe("only.md");
+    // Leaf path preserves the on-disk relative path.
+    expect(leaf.path).toBe("work/specs/only.md");
+    expect(leaf.artifact).toBe(artifact);
+  });
+
+  test("deep work/-prefixed artifact builds peeled intermediate dir paths (Thorne F6)", () => {
+    // For `work/specs/cli/foo.md`, the leaf preserves the on-disk path; the
+    // intermediate `cli` directory node uses the peeled (display) path.
+    // Intermediate dir `path` fields are display keys, not filesystem
+    // locations -- they coincide with flat-layout siblings so a single tree
+    // can present mixed-layout artifacts under a unified hierarchy.
+    const flat = makeArtifact("specs/cli/flat.md", "Flat CLI Spec");
+    const work = makeArtifact("work/specs/cli/work.md", "Work CLI Spec");
+    const tree = buildArtifactTree([flat, work]);
+
+    expect(tree).toHaveLength(1);
+    const specsNode = tree[0];
+    expect(specsNode.name).toBe("specs");
+    expect(specsNode.path).toBe("specs");
+
+    expect(specsNode.children).toHaveLength(1);
+    const cliNode = specsNode.children[0];
+    expect(cliNode.name).toBe("cli");
+    // Intermediate dir paths are peeled (display keys); they unify mixed
+    // layouts under one node.
+    expect(cliNode.path).toBe("specs/cli");
+
+    expect(cliNode.children).toHaveLength(2);
+    const leafPaths = cliNode.children.map((c) => c.path).sort();
+    expect(leafPaths).toEqual(["specs/cli/flat.md", "work/specs/cli/work.md"]);
+  });
+
+  test("malformed double-prefix collapses to root (Thorne F2)", () => {
+    const artifact = makeArtifact("work/work/foo.md", "Malformed");
+    const tree = buildArtifactTree([artifact]);
+
+    // The artifact lands under the synthetic root group; no `work` group
+    // appears at the top level.
+    const names = tree.map((n) => n.name);
+    expect(names).not.toContain("work");
+    expect(names).not.toContain("Work");
+    expect(names).toContain("root");
   });
 });

@@ -21,7 +21,7 @@ Effective prompts contain five elements. Not every prompt needs all five, but th
 
 **4. Verification criteria.** How the worker and reviewer can confirm success. "All tests pass, typecheck clean." "The new function appears in the module's public exports." At least one verification criterion turns completion from judgment call to checkable condition.
 
-**5. Output specification.** Where to put the result and what form it takes. "Write a research artifact to `.lore/research/topic.md`." Without this, workers make reasonable but sometimes wrong choices about location and format.
+**5. Output specification.** Where to put the result and what form it takes. "Write a research artifact to `.lore/work/research/topic.md`." Without this, workers make reasonable but sometimes wrong choices about location and format. New writes target `.lore/work/<type>/`; flat-layout artifacts (e.g., `.lore/research/topic.md`) remain readable in projects that have not migrated.
 
 ## Calibration by Work Type
 
@@ -41,7 +41,7 @@ Different work types have different failure modes. Match the prompt structure to
 
 **Assumed conventions.** The prompt assumes the worker knows the project's patterns without stating them. Point to an existing example: "Follow the test pattern in `apps/daemon/tests/toolbox-resolver.test.ts`."
 
-**Prompt as hope.** The prompt uses instructions where it needs mechanisms. "Produce a structured report" is a hope. "Write your findings to `.lore/research/topic.md`" is a mechanism. File paths and tool requirements are reliable; formatting instructions are not.
+**Prompt as hope.** The prompt uses instructions where it needs mechanisms. "Produce a structured report" is a hope. "Write your findings to `.lore/work/research/topic.md`" is a mechanism. File paths and tool requirements are reliable; formatting instructions are not.
 
 **Missing model of "done."** The prompt describes what to do but not how to verify it was done correctly. Include at least one verification criterion. Self-verification hooks turn hope into a check.
 
@@ -57,6 +57,6 @@ Different work types have different failure modes. Match the prompt structure to
 
 ## Referencing Context
 
-Point to artifacts for full context; repeat critical constraints inline. The hybrid approach is most robust: "Read the plan at `.lore/plans/feature.md`. The key constraint: all LLM calls go through the SDK."
+Point to artifacts for full context; repeat critical constraints inline. The hybrid approach is most robust: "Read the plan at `.lore/work/plans/feature.md`. The key constraint: all LLM calls go through the SDK." Flat-layout paths (e.g., `.lore/plans/feature.md`) are still valid pointers in projects that have not migrated.
 
 Repeat anything that, if missed, would require redoing the work: architectural constraints, output format and location, critical prohibitions. Trust the worker to read implementation details, background context, and existing code structure on its own.
