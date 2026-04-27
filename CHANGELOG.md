@@ -6,6 +6,10 @@
 
 - **Project grouping:** Projects can be organized into named groups via a new `group` field in `config.yaml`. Two new CLI commands: `guild-hall system config project group <name> <group>` to assign a group and `guild-hall system config project deregister <name> [--clean]` to remove a project (with optional worktree cleanup). The `register` command accepts an optional third positional argument for group. The sidebar renders collapsible group sections (collapse state persisted per browser session) with an A→Z/Z→A sort toggle. The "All Projects" dashboard view shows projects organized into collapsible group sub-sections. The `"ungrouped"` group always sorts last.
 
+### Fixed
+
+- **Artifact view scroll and sidebar collapse button:** Removed the duplicate scrollbar inside the artifact viewer (the inner `.markdownContent` no longer competes with `.main` for scrolling) and dropped the `calc(100% - 50px)` height trick on `.viewer`/`.editor` that was leaving a band of `.main` background bleeding through where the card should have continued. The `Edit`/`Cancel`/`Save` toolbar is now sticky at the top of the scroll container. The sidebar's collapse arrow is fully clickable: it was sharing `z-index: 1` with `Panel`'s inner content, and DOM order let the panel capture clicks on the arrow's center.
+
 ## [1.1.0] - 2026-03-20
 
 ### Added
