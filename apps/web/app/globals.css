@@ -6,7 +6,8 @@
    dark theme = ink ("the guild hall at night").
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=Vollkorn:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+/* Fonts are loaded via next/font/local in app/layout.tsx, which exposes:
+   --font-display-local, --font-vollkorn-local, --font-mono-local */
 
 :root {
   /* =====================================================
@@ -111,10 +112,10 @@
   /* =====================================================
      TYPE
      ===================================================== */
-  --font-display: 'IM Fell English SC', 'IM Fell English', 'Cormorant Garamond', 'Times New Roman', serif;
-  --font-serif:   'Vollkorn', 'IM Fell English', Georgia, 'Times New Roman', serif;
-  --font-body:    'Vollkorn', Georgia, 'Times New Roman', serif;
-  --font-mono:    'JetBrains Mono', 'Iosevka', 'Menlo', 'Consolas', monospace;
+  --font-display: var(--font-display-local), 'Cormorant Garamond', 'Times New Roman', serif;
+  --font-serif:   var(--font-vollkorn-local), Georgia, 'Times New Roman', serif;
+  --font-body:    var(--font-vollkorn-local), Georgia, 'Times New Roman', serif;
+  --font-mono:    var(--font-mono-local), 'Iosevka', 'Menlo', 'Consolas', monospace;
 
   /* Modular scale */
   --text-xs:   12px;
