@@ -334,11 +334,14 @@ export function createMeetingRoutes(deps: MeetingRoutesDeps): RouteModule {
         );
         const activeMeetings = activeMeetingArrays.flat();
 
-        // Merge, deduplicating by filename
-        const seenIds = new Set(integrationMeetings.map((m) => m.relativePath));
+        // Merge, deduplicating by filename. relativePath now includes the
+        // `meetings/` or `work/meetings/` prefix, so dedup on the filename
+        // segment (the meeting ID).
+        const idOf = (m: Artifact) => m.relativePath.split("/").pop() ?? m.relativePath;
+        const seenIds = new Set(integrationMeetings.map(idOf));
         const merged = [
           ...integrationMeetings,
-          ...activeMeetings.filter((m) => !seenIds.has(m.relativePath)),
+          ...activeMeetings.filter((m) => !seenIds.has(idOf(m))),
         ];
         const sorted = sortMeetingArtifacts(merged);
 
@@ -643,22 +646,26 @@ function serializeArtifact(a: Artifact): Record<string, unknown> {
  * `.lore/meetings/` directory under a worktree, deduplicating by filename
  * and preferring the work/ copy (REQ-LDR-13).
  *
- * Each subdirectory scan produces relativePath = filename, so dedup by
- * relativePath is equivalent to dedup by meeting ID.
+ * Each artifact's relativePath is rewritten to be relative to `.lore/`
+ * (e.g. `work/meetings/<id>.md` or `meetings/<id>.md`) so the path round-trips
+ * through the artifact read endpoint and the meeting/artifact link routes.
  */
 async function scanMeetingArtifactsDual(worktreeDir: string): Promise<Artifact[]> {
   const lorePath = path.join(worktreeDir, ".lore");
-  const workDir = path.join(lorePath, "work", "meetings");
-  const flatDir = path.join(lorePath, "meetings");
+  const dirs: Array<{ absDir: string; prefix: string }> = [
+    { absDir: path.join(lorePath, "work", "meetings"), prefix: "work/meetings" },
+    { absDir: path.join(lorePath, "meetings"), prefix: "meetings" },
+  ];
 
-  const seen = new Set<string>();
+  const seenFiles = new Set<string>();
   const merged: Artifact[] = [];
-  for (const dir of [workDir, flatDir]) {
-    const arts = await scanArtifacts(dir);
+  for (const { absDir, prefix } of dirs) {
+    const arts = await scanArtifacts(absDir);
     for (const a of arts) {
-      if (seen.has(a.relativePath)) continue;
-      seen.add(a.relativePath);
-      merged.push(a);
+      const filename = a.relativePath.split("/").pop() ?? a.relativePath;
+      if (seenFiles.has(filename)) continue;
+      seenFiles.add(filename);
+      merged.push({ ...a, relativePath: `${prefix}/${a.relativePath}` });
     }
   }
   return merged;

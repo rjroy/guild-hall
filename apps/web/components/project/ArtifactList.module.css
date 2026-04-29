@@ -347,6 +347,7 @@
   font-family: var(--font-serif);
   font-size: var(--text-xs);
   color: var(--fg-3);
+  overflow-x: clip;
 }
 
 .metaLabel {
@@ -367,4 +368,5 @@
   font-family: var(--font-serif);
   font-style: italic;
   font-size: var(--text-xs);
+  text-wrap-mode: nowrap;
 }

@@ -26,19 +26,3 @@ Workers can also add entries to this file during their sessions.
 ## Context Notes
 
 ## Recent Activity
-- 14:49 commission-Dalton-20260427-144459 result: All three Thorne findings closed. Pre-commit pipeline green: 3688 pass / 4 skip / 0 fail; typecheck, lint, build all clean.
-
-- 14:49 commission-Dalton-20260427-144459 completed
-- 14:51 commission-Thorne-20260427-144517 result: ## Verdict
-
-**Overall: PASS — ready to merge.** All three findings CLOSED.
-
-| Finding | REQ | Status |
-|---|---|---|
-| 1 | REQ-LDR-30 | CLOSED |
-| 2 | REQ-LDR-19 | CLOSED |
-| 3 | REQ-LDR-33 | CLOSED |...
-- 14:51 commission-Thorne-20260427-144517 completed
-## Diff summary
-
-**5 files touched** (3 fixes + spec + 1 follow-up test fix...
