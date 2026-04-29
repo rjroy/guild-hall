@@ -41,9 +41,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-# generated files from Replicate toolbox (REQ-RPL-34)
-.lore/generated/
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts

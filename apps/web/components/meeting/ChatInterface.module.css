@@ -12,7 +12,9 @@
 
 .messageArea {
   flex: 1;
+  overflow-x: clip;
   overflow-y: auto;
+  overflow-wrap: break-word;
   padding: var(--space-6);
   scroll-behavior: smooth;
 }
